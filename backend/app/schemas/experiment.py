@@ -27,6 +27,7 @@ class ExperimentRead(BaseModel):
     id: UUID
     run_code: str
     owner_id: UUID
+    derived_from_run_id: UUID | None
     experiment_type: str
     material_system: str | None
     experiment_date: date

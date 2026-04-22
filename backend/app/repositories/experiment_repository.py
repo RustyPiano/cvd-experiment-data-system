@@ -14,13 +14,13 @@ class ExperimentRepository:
 
     def create(self, experiment: ExperimentRun) -> ExperimentRun:
         self.db.add(experiment)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(experiment)
         return experiment
 
     def save(self, experiment: ExperimentRun) -> ExperimentRun:
         self.db.add(experiment)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(experiment)
         return experiment
 
@@ -49,6 +49,9 @@ class ExperimentRepository:
         status: ExperimentStatus | None = None,
     ) -> list[ExperimentRun]:
         statement = select(ExperimentRun)
+
+        if status is None:
+            statement = statement.where(ExperimentRun.status != ExperimentStatus.INVALID)
 
         if current_user.role == UserRole.ADMIN:
             if mine:

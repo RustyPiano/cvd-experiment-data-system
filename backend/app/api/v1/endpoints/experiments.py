@@ -8,6 +8,7 @@ from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.experiment import ExperimentStatus
 from app.models.user import User
+from app.schemas.audit import AuditEventListResponse
 from app.schemas.experiment import (
     ExperimentCreate,
     ExperimentInvalidateRequest,
@@ -90,3 +91,25 @@ def invalidate_experiment(
     current_user: CurrentUser,
 ) -> ExperimentRead:
     return ExperimentService(db).invalidate_experiment(experiment_id, payload, current_user)
+
+
+@router.post(
+    "/{experiment_id}/clone",
+    response_model=ExperimentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def clone_experiment(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentRead:
+    return ExperimentService(db).clone_experiment(experiment_id, current_user)
+
+
+@router.get("/{experiment_id}/audit-events", response_model=AuditEventListResponse)
+def list_audit_events(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> AuditEventListResponse:
+    return ExperimentService(db).list_audit_events(experiment_id, current_user)
