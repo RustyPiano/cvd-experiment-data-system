@@ -26,7 +26,11 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role"),
+        Enum(
+            UserRole,
+            name="user_role",
+            values_callable=lambda enum_class: [item.value for item in enum_class],
+        ),
         default=UserRole.MEMBER,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

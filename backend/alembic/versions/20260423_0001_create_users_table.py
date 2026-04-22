@@ -18,15 +18,18 @@ depends_on: Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    user_role = sa.Enum("admin", "member", "viewer", name="user_role")
-    user_role.create(op.get_bind(), checkfirst=True)
     op.create_table(
         "users",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("email", sa.String(length=320), nullable=False),
         sa.Column("name", sa.String(length=120), nullable=False),
         sa.Column("password_hash", sa.String(length=255), nullable=False),
-        sa.Column("role", user_role, nullable=False, server_default="member"),
+        sa.Column(
+            "role",
+            sa.Enum("admin", "member", "viewer", name="user_role"),
+            nullable=False,
+            server_default="member",
+        ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column(
             "created_at",

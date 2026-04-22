@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.repositories.user_repository import UserRepository
 
 client = TestClient(app)
 
@@ -14,7 +15,7 @@ def test_login_rejects_unknown_user() -> None:
     assert response.status_code == 401
 
 
-def test_login_returns_access_token_for_valid_credentials(active_user) -> None:
+def test_login_returns_access_token_for_valid_credentials(active_user, db_session) -> None:
     response = client.post(
         "/api/v1/auth/login",
         json={"email": active_user.email, "password": "Password123!"},
@@ -27,6 +28,11 @@ def test_login_returns_access_token_for_valid_credentials(active_user) -> None:
     assert body["user"]["email"] == active_user.email
     assert body["user"]["role"] == active_user.role.value
     assert body["access_token"]
+
+    db_session.expire_all()
+    updated_user = UserRepository(db_session).get_by_email(active_user.email)
+    assert updated_user is not None
+    assert updated_user.last_login_at is not None
 
 
 def test_login_rejects_inactive_user(inactive_user) -> None:
