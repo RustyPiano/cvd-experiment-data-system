@@ -1,6 +1,8 @@
 .DS_Store
 .env
 .venv/
+__pycache__/
+*.pyc
 backend/.venv/
 backend/.env
 backend/*.db
