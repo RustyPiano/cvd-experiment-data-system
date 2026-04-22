@@ -63,3 +63,33 @@ def inactive_user(db_session):
     db_session.commit()
     db_session.refresh(user)
     return user
+
+
+@pytest.fixture()
+def admin_user(db_session):
+    user = User(
+        email="admin@example.com",
+        name="Admin User",
+        password_hash=get_password_hash("Password123!"),
+        role=UserRole.ADMIN,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture()
+def viewer_user(db_session):
+    user = User(
+        email="viewer@example.com",
+        name="Viewer User",
+        password_hash=get_password_hash("Password123!"),
+        role=UserRole.VIEWER,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
