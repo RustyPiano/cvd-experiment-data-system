@@ -34,6 +34,7 @@ class ExperimentRead(BaseModel):
     run_code: str
     owner_id: UUID
     derived_from_run_id: UUID | None
+    derived_from_run_code: str | None = None
     experiment_type: str
     material_system: str | None
     experiment_date: date
@@ -51,6 +52,8 @@ class ExperimentRead(BaseModel):
 class ExperimentListResponse(BaseModel):
     items: list[ExperimentRead]
     total: int
+    page: int = 1
+    page_size: int = 20
 
 
 class ExperimentExportCounts(BaseModel):

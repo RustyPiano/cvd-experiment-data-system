@@ -80,15 +80,12 @@ docker --version
 docker compose version
 ```
 
-## 启动数据库
+## 本地开发启动
 
 ```bash
+cp .env.example .env
 docker compose up -d postgres
-```
 
-## 初始化后端
-
-```bash
 cd backend
 uv venv
 uv sync
@@ -96,25 +93,74 @@ cp ../.env.example .env
 uv run alembic upgrade head
 uv run python -m app.commands.create_admin --email admin@example.com --name Admin
 uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
-```
 
-## 初始化前端
-
-```bash
-cd frontend
+cd ../frontend
 bun install
 bun run dev --host 0.0.0.0 --port 5173
+```
+
+## Docker Compose 启动
+
+```bash
+cp .env.example .env
+docker compose config
+docker compose up --build
+```
+
+启动后默认入口：
+
+- 前端：`http://localhost:5173`
+- 后端 OpenAPI：`http://localhost:8000/docs`
+- 健康检查：`http://localhost:8000/health`
+
+## 用户命令
+
+创建用户：
+
+```bash
+cd backend
+uv run python -m app.commands.create_user --email admin@example.com --name Admin --role admin
+uv run python -m app.commands.create_user --email member@example.com --name Member --role member
+uv run python -m app.commands.create_user --email viewer@example.com --name Viewer --role viewer
+```
+
+重置密码：
+
+```bash
+cd backend
+uv run python -m app.commands.reset_password --email member@example.com
+```
+
+兼容旧初始化命令：
+
+```bash
+cd backend
+uv run python -m app.commands.create_admin --email admin@example.com --name Admin
 ```
 
 ## 前端联调准备
 
 - 默认后端地址：`http://127.0.0.1:8000`
 - OpenAPI 文档：`http://127.0.0.1:8000/docs`
-- 建议前端环境变量：`VITE_API_BASE_URL=http://127.0.0.1:8000`
+- 本地运行时配置文件：`frontend/public/runtime-config.js`，默认不覆盖 `VITE_API_BASE_URL`
+- Compose 默认通过 Nginx 同源反代 `/api/*`、`/health`、`/docs` 和 `/openapi.json` 到后端容器
+- Compose 运行时通过 `VITE_API_BASE_URL` 覆盖前端容器里的 `runtime-config.js`；默认值为 `/`
+- 如果前后端部署在不同域名或不同端口上，需要把 `VITE_API_BASE_URL` 和 `CORS_ALLOW_ORIGINS` 一起改成可访问地址
 - 本地 Vite 开发端口 `5173/4173` 已默认加入 `CORS_ALLOW_ORIGINS`
 - 详细联调约定见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
 
-## 前端质量命令
+## 质量命令
+
+后端：
+
+```bash
+cd backend
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+```
+
+前端：
 
 ```bash
 cd frontend
@@ -123,6 +169,19 @@ bun run typecheck
 bun run lint
 bun run build
 ```
+
+## Docker Compose 说明
+
+- `backend` 容器会先执行 `uv run alembic upgrade head`，再启动 `uvicorn app.main:app`。
+- `frontend` 容器会在启动时生成 `runtime-config.js`，默认以同源 `/api` 方式访问后端；如需跨域访问，可覆盖 `VITE_API_BASE_URL`。
+- `postgres_data` 和 `storage_data` 两个命名卷分别持久化数据库与实验文件。
+
+## 常见故障
+
+- `uv sync` 失败：删除 `backend/.venv` 后重新执行 `uv venv && uv sync`。
+- `bun install` 失败：检查 Bun 版本与 `frontend/bun.lock` 是否一致，再重装依赖。
+- `docker compose up --build` 失败：先运行 `docker compose config` 检查 `.env` 配置是否完整。
+- 数据库迁移异常：在 `backend/` 下先执行 `uv run alembic current`，确认 revision 后再决定 `upgrade` 或 `downgrade`。
 
 ## 当前接口
 

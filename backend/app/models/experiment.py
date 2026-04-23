@@ -97,3 +97,9 @@ class ExperimentRun(Base):
         back_populates="experiment_run",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def derived_from_run_code(self) -> str | None:
+        if self.derived_from_run is None:
+            return None
+        return self.derived_from_run.run_code
