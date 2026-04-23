@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.module_payload import ExperimentModulePayload
+from app.models.module_payload import ExperimentModulePayload, normalize_module_payload
 
 
 class ModulePayloadRepository:
@@ -54,7 +54,10 @@ class ModulePayloadRepository:
                 experiment_run_id=target_run_id,
                 module_key=payload.module_key,
                 schema_version=payload.schema_version,
-                payload_json=deepcopy(payload.payload_json),
+                payload_json=normalize_module_payload(
+                    payload.module_key,
+                    deepcopy(payload.payload_json),
+                ),
                 note=payload.note,
             )
             self.db.add(cloned_payload)

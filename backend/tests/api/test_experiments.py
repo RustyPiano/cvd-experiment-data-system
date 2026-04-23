@@ -1,8 +1,10 @@
 import time
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
 
 client = TestClient(app)
 
@@ -979,6 +981,435 @@ def test_list_experiments_returns_latest_clone_source_first(active_user) -> None
     assert list_response.status_code == 200
     assert list_response.json()["total"] == 2
     assert list_response.json()["items"][0]["run_code"] == locked_response.json()["run_code"]
+
+
+def test_get_module_backfills_stage3_defaults_for_legacy_payload(active_user, db_session) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Legacy payload defaults",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = UUID(create_response.json()["id"])
+
+    db_session.add_all(
+        [
+            ExperimentModulePayload(
+                experiment_run_id=experiment_id,
+                module_key=ExperimentModuleKey.ENVIRONMENT.value,
+                payload_json={"indoor_temperature_C": 22, "sample_env": "clean"},
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=experiment_id,
+                module_key=ExperimentModuleKey.PRECHECK.value,
+                payload_json={"seal_intact": True, "risk_note": ""},
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=experiment_id,
+                module_key=ExperimentModuleKey.PRECURSORS.value,
+                payload_json={"items": [{"role": "A", "type": "MoO3"}]},
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=experiment_id,
+                module_key=ExperimentModuleKey.SUBSTRATES.value,
+                payload_json={
+                    "items": [
+                        {
+                            "role": "top",
+                            "type": "SiO2/Si",
+                            "treatment_method": "annealing",
+                        }
+                    ]
+                },
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=experiment_id,
+                module_key=ExperimentModuleKey.GAS_PROGRAM.value,
+                payload_json={
+                    "segments": [
+                        {
+                            "stage": "growth",
+                            "start_min": 0,
+                            "end_min": 45,
+                            "gas": "Ar",
+                            "flow_sccm": 80,
+                        }
+                    ]
+                },
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=experiment_id,
+                module_key=ExperimentModuleKey.CHARACTERIZATION.value,
+                payload_json={"methods": [{"method": "Raman", "result": "peak"}]},
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=experiment_id,
+                module_key=ExperimentModuleKey.RESULT_SUMMARY.value,
+                payload_json={"summary_result": "legacy summary"},
+            ),
+        ]
+    )
+    db_session.commit()
+
+    environment_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules/environment",
+        headers=auth_headers(active_user.email),
+    )
+    precheck_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules/precheck",
+        headers=auth_headers(active_user.email),
+    )
+    precursors_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        headers=auth_headers(active_user.email),
+    )
+    substrates_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        headers=auth_headers(active_user.email),
+    )
+    gas_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
+        headers=auth_headers(active_user.email),
+    )
+    characterization_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules/characterization",
+        headers=auth_headers(active_user.email),
+    )
+    result_summary_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules/result_summary",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert environment_response.status_code == 200
+    assert environment_response.json()["payload_json"]["indoor_humidity_percent"] is None
+    assert precheck_response.status_code == 200
+    assert precheck_response.json()["payload_json"]["hood_clean"] is None
+    assert precheck_response.json()["payload_json"]["flange_blocked"] is None
+    assert precheck_response.json()["payload_json"]["boat_contamination_level"] is None
+    assert precheck_response.json()["payload_json"]["tube_contamination_level"] is None
+    assert precursors_response.status_code == 200
+    assert precursors_response.json()["payload_json"]["items"][0]["brand"] == ""
+    assert substrates_response.status_code == 200
+    assert substrates_response.json()["payload_json"]["items"][0]["treatment_params"] == {
+        "temperature_C": None,
+        "duration_min": None,
+        "power_W": None,
+        "gas": "",
+    }
+    assert gas_response.status_code == 200
+    assert gas_response.json()["payload_json"]["segments"][0]["components"] == []
+    assert gas_response.json()["payload_json"]["segments"][0]["note"] == ""
+    assert characterization_response.status_code == 200
+    assert characterization_response.json()["payload_json"]["methods"][0]["enabled"] is True
+    assert characterization_response.json()["payload_json"]["methods"][0]["excitation_nm"] is None
+    assert characterization_response.json()["payload_json"]["methods"][0]["note"] == ""
+    assert result_summary_response.status_code == 200
+    assert result_summary_response.json()["payload_json"]["quality_label"] == "unknown"
+    assert result_summary_response.json()["payload_json"]["next_step"] == ""
+
+
+def test_upsert_module_persists_stage3_fields_and_syncs_quality_label(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoSe2",
+            "experiment_date": "2026-04-23",
+            "objective": "Persist stage3 fields",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    environment_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/environment",
+        json={
+            "payload_json": {
+                "indoor_temperature_C": 23.5,
+                "indoor_humidity_percent": 41,
+                "sample_env": "clean",
+                "abnormal_note": "",
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    precheck_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precheck",
+        json={
+            "payload_json": {
+                "seal_intact": True,
+                "risk_note": "",
+                "hood_clean": True,
+                "flange_blocked": False,
+                "boat_contamination_level": "low",
+                "tube_contamination_level": "medium",
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    precursors_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "A",
+                        "type": "MoO3",
+                        "brand": "Alfa",
+                        "batch_no": "MO-01",
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    substrates_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "Brand A",
+                        "treatment_method": "plasma_cleaning",
+                        "treatment_params": {
+                            "temperature_C": 120,
+                            "duration_min": 10,
+                            "power_W": 30,
+                            "gas": "Ar",
+                        },
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    gas_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
+        json={
+            "payload_json": {
+                "segments": [
+                    {
+                        "stage": "growth",
+                        "start_min": 0,
+                        "end_min": 35,
+                        "gas": "Ar",
+                        "flow_sccm": 50,
+                        "components": [{"name": "Ar", "fraction": 1}],
+                        "note": "stable flow",
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    characterization_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/characterization",
+        json={
+            "payload_json": {
+                "methods": [
+                    {
+                        "method": "Raman",
+                        "enabled": False,
+                        "excitation_nm": 532,
+                        "note": "wafer center",
+                        "result": "E2g present",
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    result_summary_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/result_summary",
+        json={
+            "payload_json": {
+                "summary_result": "partial film",
+                "quality_label": "partial",
+                "next_step": "repeat under lower pressure",
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_response = client.get(
+        f"/api/v1/experiments/{experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert environment_response.status_code == 200
+    assert environment_response.json()["payload_json"]["indoor_humidity_percent"] == 41
+    assert precheck_response.status_code == 200
+    assert precheck_response.json()["payload_json"]["tube_contamination_level"] == "medium"
+    assert precursors_response.status_code == 200
+    assert precursors_response.json()["payload_json"]["items"][0]["batch_no"] == "MO-01"
+    assert substrates_response.status_code == 200
+    assert substrates_response.json()["payload_json"]["items"][0]["treatment_params"] == {
+        "temperature_C": 120,
+        "duration_min": 10,
+        "power_W": 30,
+        "gas": "Ar",
+    }
+    assert gas_response.status_code == 200
+    assert gas_response.json()["payload_json"]["segments"][0]["note"] == "stable flow"
+    assert characterization_response.status_code == 200
+    assert characterization_response.json()["payload_json"]["methods"][0]["enabled"] is False
+    assert characterization_response.json()["payload_json"]["methods"][0]["excitation_nm"] == 532
+    assert result_summary_response.status_code == 200
+    assert result_summary_response.json()["payload_json"]["quality_label"] == "partial"
+    assert result_summary_response.json()["payload_json"]["next_step"] == (
+        "repeat under lower pressure"
+    )
+    assert experiment_response.status_code == 200
+    assert experiment_response.json()["quality_label"] == "partial"
+
+
+def test_clone_normalizes_legacy_payloads_before_copy(active_user, db_session) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Clone legacy payloads",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    source_id = UUID(create_response.json()["id"])
+
+    db_session.add_all(
+        [
+            ExperimentModulePayload(
+                experiment_run_id=source_id,
+                module_key=ExperimentModuleKey.ENVIRONMENT.value,
+                payload_json={
+                    "sample_env": "clean",
+                    "indoor_temperature_C": 24,
+                    "indoor_humidity_percent": 55,
+                    "abnormal_note": "legacy issue",
+                },
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=source_id,
+                module_key=ExperimentModuleKey.PRECHECK.value,
+                payload_json={
+                    "seal_intact": False,
+                    "risk_note": "legacy leak",
+                    "hood_clean": True,
+                    "flange_blocked": True,
+                    "boat_contamination_level": "high",
+                    "tube_contamination_level": "high",
+                },
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=source_id,
+                module_key=ExperimentModuleKey.PRECURSORS.value,
+                payload_json={"items": [{"role": "A", "type": "WO3"}]},
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=source_id,
+                module_key=ExperimentModuleKey.SUBSTRATES.value,
+                payload_json={
+                    "items": [{"role": "top", "type": "SiO2/Si", "treatment_method": "annealing"}]
+                },
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=source_id,
+                module_key=ExperimentModuleKey.FURNACE_PROGRAM.value,
+                payload_json={
+                    "zones": [
+                        {
+                            "zone_index": 1,
+                            "precursor_placed": True,
+                            "temperature_program": [
+                                {"time_min": 0, "temperature_C": 25},
+                                {"time_min": 30, "temperature_C": 850},
+                            ],
+                        }
+                    ]
+                },
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=source_id,
+                module_key=ExperimentModuleKey.GAS_PROGRAM.value,
+                payload_json={
+                    "segments": [
+                        {
+                            "stage": "growth",
+                            "start_min": 0,
+                            "end_min": 45,
+                            "gas": "Ar",
+                            "flow_sccm": 80,
+                        }
+                    ]
+                },
+            ),
+        ]
+    )
+    db_session.commit()
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{source_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    clone_response = client.post(
+        f"/api/v1/experiments/{source_id}/clone",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 200
+    assert clone_response.status_code == 201
+    clone_id = clone_response.json()["id"]
+
+    cloned_environment_response = client.get(
+        f"/api/v1/experiments/{clone_id}/modules/environment",
+        headers=auth_headers(active_user.email),
+    )
+    cloned_precursors_response = client.get(
+        f"/api/v1/experiments/{clone_id}/modules/precursors",
+        headers=auth_headers(active_user.email),
+    )
+    cloned_precheck_response = client.get(
+        f"/api/v1/experiments/{clone_id}/modules/precheck",
+        headers=auth_headers(active_user.email),
+    )
+    cloned_substrates_response = client.get(
+        f"/api/v1/experiments/{clone_id}/modules/substrates",
+        headers=auth_headers(active_user.email),
+    )
+    cloned_gas_response = client.get(
+        f"/api/v1/experiments/{clone_id}/modules/gas_program",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert cloned_environment_response.status_code == 200
+    assert cloned_environment_response.json()["payload_json"]["sample_env"] == "clean"
+    assert cloned_environment_response.json()["payload_json"]["abnormal_note"] == ""
+    assert "indoor_temperature_C" not in cloned_environment_response.json()["payload_json"]
+    assert cloned_environment_response.json()["payload_json"]["indoor_humidity_percent"] is None
+    assert cloned_precursors_response.status_code == 200
+    assert cloned_precursors_response.json()["payload_json"]["items"][0]["brand"] == ""
+    assert cloned_precheck_response.status_code == 200
+    assert cloned_precheck_response.json()["payload_json"]["seal_intact"] is None
+    assert cloned_precheck_response.json()["payload_json"]["risk_note"] == ""
+    assert cloned_precheck_response.json()["payload_json"]["hood_clean"] is None
+    assert cloned_precheck_response.json()["payload_json"]["flange_blocked"] is None
+    assert cloned_precheck_response.json()["payload_json"]["boat_contamination_level"] is None
+    assert cloned_precheck_response.json()["payload_json"]["tube_contamination_level"] is None
+    assert cloned_substrates_response.status_code == 200
+    assert cloned_substrates_response.json()["payload_json"]["items"][0]["treatment_params"] == {
+        "temperature_C": None,
+        "duration_min": None,
+        "power_W": None,
+        "gas": "",
+    }
+    assert cloned_gas_response.status_code == 200
+    assert cloned_gas_response.json()["payload_json"]["segments"][0]["components"] == []
+    assert cloned_gas_response.json()["payload_json"]["segments"][0]["note"] == ""
 
 
 def test_clone_allows_own_submitted_experiment_and_returns_derived_run_code(active_user) -> None:

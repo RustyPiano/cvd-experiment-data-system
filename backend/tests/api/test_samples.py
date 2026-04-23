@@ -393,6 +393,94 @@ def test_substrate_resync_preserves_user_metadata(active_user) -> None:
     assert detail_response.json()["metadata_json"]["quality"] == "good"
 
 
+def test_substrate_sync_persists_treatment_params_metadata(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Treatment params sync",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    first_sync_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "Brand A",
+                        "treatment_method": "plasma_cleaning",
+                        "treatment_params": {
+                            "temperature_C": 120,
+                            "duration_min": 8,
+                            "power_W": 30,
+                            "gas": "Ar",
+                        },
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert first_sync_response.status_code == 200
+
+    list_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    top_sample = list_response.json()["items"][0]
+    patch_response = client.patch(
+        f"/api/v1/samples/{top_sample['id']}",
+        json={"metadata_json": {"quality": "good"}},
+        headers=auth_headers(active_user.email),
+    )
+    assert patch_response.status_code == 200
+
+    resync_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "Brand A2",
+                        "treatment_method": "plasma_cleaning",
+                        "treatment_params": {
+                            "temperature_C": 150,
+                            "duration_min": 12,
+                            "power_W": 45,
+                            "gas": "O2",
+                        },
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert resync_response.status_code == 200
+
+    detail_response = client.get(
+        f"/api/v1/samples/{top_sample['id']}",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()["metadata_json"]["quality"] == "good"
+    assert detail_response.json()["metadata_json"]["treatment_params"] == {
+        "temperature_C": 150,
+        "duration_min": 12,
+        "power_W": 45,
+        "gas": "O2",
+    }
+
+
 def test_substrate_removal_rejects_when_file_is_linked(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",

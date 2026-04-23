@@ -9,6 +9,7 @@ from app.models.experiment import ExperimentRun, ExperimentStatus, QualityLabel
 from app.models.module_payload import (
     ExperimentModuleKey,
     ExperimentModulePayload,
+    normalize_module_payload,
 )
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
@@ -282,11 +283,28 @@ class ExperimentService:
             ExperimentModuleKey.ENVIRONMENT.value,
         )
         if cloned_environment is not None and isinstance(cloned_environment.payload_json, dict):
-            cloned_environment.payload_json = {
-                **cloned_environment.payload_json,
-                "abnormal_note": "",
-            }
+            cloned_environment.payload_json = normalize_module_payload(
+                ExperimentModuleKey.ENVIRONMENT.value,
+                {
+                    "sample_env": cloned_environment.payload_json.get("sample_env"),
+                    "abnormal_note": "",
+                },
+            )
             self.module_payloads.save(cloned_environment)
+
+        cloned_precheck = self.module_payloads.get_by_run_and_key(
+            created.id,
+            ExperimentModuleKey.PRECHECK.value,
+        )
+        if cloned_precheck is not None:
+            cloned_precheck.payload_json = normalize_module_payload(
+                ExperimentModuleKey.PRECHECK.value,
+                {
+                    "seal_intact": None,
+                    "risk_note": "",
+                },
+            )
+            self.module_payloads.save(cloned_precheck)
         self.sample_service.clone_samples(
             source_experiment=source,
             target_experiment=created,
@@ -336,7 +354,7 @@ class ExperimentService:
         experiment = self._get_visible_experiment(experiment_id, current_user)
         items = self.module_payloads.list_by_run(experiment.id)
         return ExperimentModulePayloadListResponse(
-            items=[ExperimentModulePayloadRead.model_validate(item) for item in items],
+            items=[self._to_module_payload_read(item) for item in items],
             total=len(items),
         )
 
@@ -353,7 +371,7 @@ class ExperimentService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Module payload not found",
             )
-        return ExperimentModulePayloadRead.model_validate(payload)
+        return self._to_module_payload_read(payload)
 
     def upsert_module(
         self,
@@ -380,8 +398,10 @@ class ExperimentService:
             self.sample_service.sync_substrate_samples(
                 experiment=experiment,
                 current_user=current_user,
-                substrates_payload=payload.payload_json,
+                substrates_payload=saved.payload_json,
             )
+        if module_key == ExperimentModuleKey.RESULT_SUMMARY:
+            self._sync_result_summary_quality_label(experiment, saved.payload_json)
         self.audit.record_event(
             actor=current_user,
             entity_type="experiment_run",
@@ -410,7 +430,7 @@ class ExperimentService:
                 module_key=module_key.value,
             )
             target.schema_version = payload.schema_version
-            target.payload_json = payload.payload_json
+            target.payload_json = normalize_module_payload(module_key.value, payload.payload_json)
 
             try:
                 return self.module_payloads.save(target)
@@ -611,9 +631,38 @@ class ExperimentService:
             "experiment_run_id": str(payload.experiment_run_id),
             "module_key": payload.module_key,
             "schema_version": payload.schema_version,
-            "payload_json": payload.payload_json,
+            "payload_json": normalize_module_payload(payload.module_key, payload.payload_json),
             "note": payload.note,
         }
+
+    def _to_module_payload_read(
+        self,
+        payload: ExperimentModulePayload,
+    ) -> ExperimentModulePayloadRead:
+        return ExperimentModulePayloadRead(
+            id=payload.id,
+            experiment_run_id=payload.experiment_run_id,
+            module_key=payload.module_key,
+            schema_version=payload.schema_version,
+            payload_json=normalize_module_payload(payload.module_key, payload.payload_json),
+            note=payload.note,
+            created_at=payload.created_at,
+            updated_at=payload.updated_at,
+        )
+
+    def _sync_result_summary_quality_label(
+        self,
+        experiment: ExperimentRun,
+        payload_json: dict,
+    ) -> None:
+        quality_label = payload_json.get("quality_label")
+        try:
+            experiment.quality_label = QualityLabel(str(quality_label))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid quality_label",
+            ) from exc
 
     def _is_number(self, value: object) -> bool:
         return isinstance(value, int | float) and not isinstance(value, bool)

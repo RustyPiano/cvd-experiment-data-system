@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.module_payload import ExperimentModuleKey, normalize_module_payload
 from app.models.sample import Sample, SampleRole
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
@@ -97,7 +98,11 @@ class SampleService:
         current_user: User,
         substrates_payload: dict,
     ) -> list[Sample]:
-        items = substrates_payload.get("items")
+        normalized_payload = normalize_module_payload(
+            ExperimentModuleKey.SUBSTRATES.value,
+            substrates_payload,
+        )
+        items = normalized_payload.get("items")
         if not isinstance(items, list):
             return []
 
@@ -138,6 +143,7 @@ class SampleService:
                 {
                     "source_module": "substrates",
                     "source_role": role_value,
+                    "treatment_params": item.get("treatment_params"),
                 }
             )
             target = existing or Sample(
