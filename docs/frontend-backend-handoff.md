@@ -11,6 +11,7 @@
 - `/experiments/new`
 - `/experiments/:id`
 - `/experiments/:id/files`
+- `/samples/:id`
 - `/experiments/:id` 生命周期动作卡片
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
 - `basic_info`
@@ -27,13 +28,14 @@
 - draft 自动保存与 `submit` 提交
 - 文件列表、筛选、上传、下载、软删除
 - 详情页文件概览、审计轨迹、JSON/Excel 导出入口
+- 详情页样品概览与样品详情跳转
+- 样品详情读取、draft 编辑、关联文件查看与下载
 
 当前前端还没有接通的部分：
 
-- 样品详情页
 - 受控词表后台
 
-因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐样品页、词表后台和文件预览增强，而不是重复改造现有编辑器骨架。
+因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐词表后台和文件预览增强，而不是重复改造现有编辑器骨架。
 
 ## 0.1 当前前端基线约定
 
@@ -49,6 +51,8 @@
 - 当前前端已经封装带 Bearer Token 的 blob 下载能力，用于文件下载和 Excel 导出。
 - 详情页当前直接调用文件列表和审计接口，不依赖聚合导出接口做页面渲染。
 - 文件页当前会额外读取 `GET /api/v1/samples?experiment_id=...` 和 `GET /api/v1/vocabularies?vocab_key=characterization_method`，分别用于样品关联和上传方法建议。
+- 样品详情页当前会额外读取所属实验和 `GET /api/v1/files?experiment_id=...&sample_id=...`，形成单样品视角。
+- 样品编辑当前只覆盖后端 `PATCH /samples/{id}` 已支持字段，不包含 `sample_code`、`role` 和 `parent_sample_id` 改写。
 
 ## 1. 启动与基线
 
@@ -191,6 +195,7 @@ invalid
 ### `/experiments/:id`
 
 - `GET /api/v1/experiments/{id}`
+- `GET /api/v1/samples?experiment_id={id}`
 - `GET /api/v1/files?experiment_id={id}`
 - `POST /api/v1/experiments/{id}/return-to-draft`
 - `POST /api/v1/experiments/{id}/lock`
@@ -203,6 +208,7 @@ invalid
 当前详情页实际消费方式：
 
 - 实验主信息：`GET /api/v1/experiments/{id}`
+- 样品概览：`GET /api/v1/samples?experiment_id={id}`
 - 文件概览：`GET /api/v1/files?experiment_id={id}`
 - 审计轨迹：`GET /api/v1/experiments/{id}/audit-events`
 - 导出按钮：
@@ -238,13 +244,30 @@ invalid
 - 允许按 `method`、`file_category` 走后端筛选
 - 上传表单提交 `multipart/form-data`
 - `sample_id` 可选
-- 仅在 owner/admin 且实验为 `draft` 时显示上传和删除按钮
-- 下载走带 Bearer Token 的 blob 请求，不直接暴露匿名链接
+- 样品列会直接跳到 `/samples/{sample_id}`
 
 ### `/samples/:id`
 
 - `GET /api/v1/samples/{id}`
 - `PATCH /api/v1/samples/{id}`
+- `GET /api/v1/experiments/{experiment_run_id}`
+- `GET /api/v1/files?experiment_id={experiment_run_id}&sample_id={id}`
+
+当前样品页实际行为：
+
+- `sample_code`、`role`、`parent_sample_id` 当前只读展示
+- 仅 owner/admin 且实验为 `draft` 时允许保存
+- 当前可编辑字段：
+  - `substrate_type`
+  - `brand`
+  - `size_mm`
+  - `treatment`
+  - `position_mm`
+  - `storage_location`
+  - `metadata_json`
+- 前端会先校验：
+  - `position_mm` 必须可解析为数字
+  - `metadata_json` 必须是 JSON 对象
 
 ### `/admin/vocabularies`
 

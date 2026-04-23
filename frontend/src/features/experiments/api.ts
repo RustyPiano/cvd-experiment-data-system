@@ -21,6 +21,7 @@ type ListExperimentFilesFilters = {
   experimentId: string;
   fileCategory?: string | null;
   method?: string | null;
+  sampleId?: string | null;
 };
 
 type UploadExperimentFileInput = {
@@ -153,6 +154,7 @@ export function listExperimentFiles(token: string, filters: ListExperimentFilesF
       experiment_id: filters.experimentId,
       file_category: filters.fileCategory ?? null,
       method: filters.method ?? null,
+      sample_id: filters.sampleId ?? null,
     })}`,
     {
       token,

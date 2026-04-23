@@ -8,6 +8,7 @@ import { ExperimentEditorPage } from "../features/experiments/experiment-editor-
 import { ExperimentFilesPage } from "../features/experiments/experiment-files-page";
 import { ExperimentListPage } from "../features/experiments/experiment-list-page";
 import { ExperimentNewPage } from "../features/experiments/experiment-new-page";
+import { SampleDetailPage } from "../features/samples/sample-detail-page";
 import { AppShell } from "../shared/ui/app-shell";
 import { ProtectedRoute } from "./routes/route-guards";
 
@@ -50,6 +51,10 @@ export const router = createBrowserRouter([
       {
         path: "/experiments/:experimentId/files",
         element: <ExperimentFilesPage />,
+      },
+      {
+        path: "/samples/:sampleId",
+        element: <SampleDetailPage />,
       },
       {
         path: "/admin/vocabularies",

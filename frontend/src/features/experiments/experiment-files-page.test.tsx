@@ -310,6 +310,28 @@ describe("ExperimentFilesPage", () => {
     expect(await screen.findByText("sem.png")).toBeInTheDocument();
   });
 
+  it("navigates to a sample detail route from the sample column", async () => {
+    const server = createFileServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+        <Route path="/samples/:sampleId" element={<div>样品详情路由</div>} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+      },
+    );
+
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看样品 S-2026-0001-TOP" }));
+
+    expect(await screen.findByText("样品详情路由")).toBeInTheDocument();
+  });
+
   it("blocks uploads until a file method is provided", async () => {
     const server = createFileServer();
     vi.stubGlobal("fetch", server.fetchMock);

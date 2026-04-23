@@ -1,0 +1,595 @@
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Button, Card, Input, Space, Spin, Table, Tag, Typography } from "antd";
+import { ArrowLeftOutlined, DownloadOutlined, FolderOpenOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+import { useNavigate, useParams } from "react-router-dom";
+
+import { useAuth } from "../auth/use-auth";
+import { getExperiment, listExperimentFiles } from "../experiments/api";
+import { getSample, updateSample } from "./api";
+import { HttpError } from "../../shared/api/http-error";
+import { triggerBlobDownload } from "../../shared/lib/download";
+import { PageHeader } from "../../shared/ui/page-header";
+import { EmptyState } from "../../shared/ui/empty-state";
+import { StatusTag } from "../../shared/ui/status-tag";
+import type { FileAssetRead, SampleRead, SampleUpdateRequest } from "../../shared/types/api";
+import { downloadExperimentFile } from "../experiments/api";
+
+type SampleFieldKey = keyof SampleUpdateRequest;
+
+type SampleFormState = {
+  substrateType: string;
+  brand: string;
+  sizeMm: string;
+  treatment: string;
+  positionMm: string;
+  storageLocation: string;
+  metadataJson: string;
+};
+
+function resolveErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof HttpError) {
+    return error.detail || fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function buildFormState(sample: SampleRead): SampleFormState {
+  return {
+    substrateType: sample.substrate_type ?? "",
+    brand: sample.brand ?? "",
+    sizeMm: sample.size_mm ?? "",
+    treatment: sample.treatment ?? "",
+    positionMm: sample.position_mm === null ? "" : String(sample.position_mm),
+    storageLocation: sample.storage_location ?? "",
+    metadataJson: JSON.stringify(sample.metadata_json ?? {}, null, 2),
+  };
+}
+
+function toNullableString(value: string) {
+  const normalized = value.trim();
+  return normalized ? normalized : null;
+}
+
+function buildSampleUpdatePayload(
+  formState: SampleFormState,
+  dirtyFields: SampleFieldKey[],
+): SampleUpdateRequest {
+  const payload: SampleUpdateRequest = {};
+  const dirtyFieldSet = new Set(dirtyFields);
+
+  if (dirtyFieldSet.has("substrate_type")) {
+    payload.substrate_type = toNullableString(formState.substrateType);
+  }
+
+  if (dirtyFieldSet.has("brand")) {
+    payload.brand = toNullableString(formState.brand);
+  }
+
+  if (dirtyFieldSet.has("size_mm")) {
+    payload.size_mm = toNullableString(formState.sizeMm);
+  }
+
+  if (dirtyFieldSet.has("treatment")) {
+    payload.treatment = toNullableString(formState.treatment);
+  }
+
+  if (dirtyFieldSet.has("position_mm")) {
+    const trimmedPosition = formState.positionMm.trim();
+    if (!trimmedPosition) {
+      payload.position_mm = null;
+    } else {
+      const parsedPosition = Number(trimmedPosition);
+      if (!Number.isFinite(parsedPosition)) {
+        throw new Error("位置 (mm) 必须是有限数字");
+      }
+      payload.position_mm = parsedPosition;
+    }
+  }
+
+  if (dirtyFieldSet.has("storage_location")) {
+    payload.storage_location = toNullableString(formState.storageLocation);
+  }
+
+  if (dirtyFieldSet.has("metadata_json")) {
+    let parsedMetadata: Record<string, unknown>;
+    try {
+      parsedMetadata = JSON.parse(formState.metadataJson || "{}") as Record<string, unknown>;
+    } catch {
+      throw new Error("元数据 JSON 格式无效");
+    }
+
+    if (
+      parsedMetadata === null ||
+      Array.isArray(parsedMetadata) ||
+      typeof parsedMetadata !== "object"
+    ) {
+      throw new Error("元数据 JSON 必须是对象");
+    }
+
+    payload.metadata_json = parsedMetadata;
+  }
+
+  return payload;
+}
+
+function formatBytes(sizeBytes: number) {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KiB`;
+  }
+
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+export function SampleDetailPage() {
+  const { sampleId = "" } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { session } = useAuth();
+  const currentUser = session.currentUser;
+  const viewerKey = currentUser?.id ?? "anonymous";
+  const [draftFormState, setDraftFormState] = useState<{
+    dirtyFields: SampleFieldKey[];
+    form: SampleFormState;
+    revision: string;
+  } | null>(null);
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [downloadFileId, setDownloadFileId] = useState<string | null>(null);
+
+  const sampleQuery = useQuery({
+    queryKey: ["samples", "detail", viewerKey, sampleId],
+    queryFn: () => getSample(session.accessToken!, sampleId),
+    enabled: session.isAuthenticated && Boolean(sampleId),
+  });
+
+  const experimentId = sampleQuery.data?.experiment_run_id ?? "";
+  const experimentQuery = useQuery({
+    queryKey: ["experiments", "detail", viewerKey, experimentId],
+    queryFn: () => getExperiment(session.accessToken!, experimentId),
+    enabled: session.isAuthenticated && Boolean(experimentId),
+  });
+
+  const filesQuery = useQuery({
+    queryKey: ["samples", "files", viewerKey, sampleId],
+    queryFn: () =>
+      listExperimentFiles(session.accessToken!, {
+        experimentId,
+        sampleId,
+      }),
+    enabled: session.isAuthenticated && Boolean(experimentId) && Boolean(sampleId),
+  });
+
+  const sampleRevision = sampleQuery.data
+    ? `${sampleQuery.data.id}:${sampleQuery.data.updated_at}`
+    : null;
+  const formState =
+    draftFormState && draftFormState.revision === sampleRevision
+      ? draftFormState.form
+      : sampleQuery.data
+        ? buildFormState(sampleQuery.data)
+        : null;
+
+  const canEdit =
+    currentUser !== null &&
+    experimentQuery.data !== undefined &&
+    experimentQuery.data.status === "draft" &&
+    currentUser.role !== "viewer" &&
+    (currentUser.role === "admin" || currentUser.id === experimentQuery.data.owner_id);
+  const hasDirtyFields =
+    draftFormState !== null &&
+    draftFormState.revision === sampleRevision &&
+    draftFormState.dirtyFields.length > 0;
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!draftFormState || draftFormState.revision !== sampleRevision) {
+        throw new Error("样品表单暂不可用");
+      }
+
+      return updateSample(
+        session.accessToken!,
+        sampleId,
+        buildSampleUpdatePayload(draftFormState.form, draftFormState.dirtyFields),
+      );
+    },
+    onSuccess: async (savedSample) => {
+      setMessage({ text: "样品保存成功", type: "success" });
+      setDraftFormState(null);
+      queryClient.setQueryData(["samples", "detail", viewerKey, sampleId], savedSample);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["experiments", "samples", viewerKey, savedSample.experiment_run_id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["experiments", "detail", viewerKey, savedSample.experiment_run_id],
+        }),
+      ]);
+    },
+    onError: (error) => {
+      setMessage({
+        text: resolveErrorMessage(error, "样品保存失败"),
+        type: "error",
+      });
+    },
+  });
+  const formDisabled = !canEdit || saveMutation.isPending;
+
+  const handleDownload = async (file: FileAssetRead) => {
+    setMessage(null);
+    setDownloadFileId(file.id);
+
+    try {
+      const payload = await downloadExperimentFile(session.accessToken!, file.id);
+      triggerBlobDownload(payload.blob, payload.filename || file.original_name);
+    } catch (error) {
+      setMessage({
+        text: resolveErrorMessage(error, "文件下载失败"),
+        type: "error",
+      });
+    } finally {
+      setDownloadFileId(null);
+    }
+  };
+
+  const fileRows = useMemo(() => filesQuery.data?.items ?? [], [filesQuery.data?.items]);
+
+  const updateFormState = (
+    field: SampleFieldKey,
+    updater: (current: SampleFormState) => SampleFormState,
+  ) => {
+    if (!sampleQuery.data || !sampleRevision) {
+      return;
+    }
+
+    setDraftFormState((current) => {
+      const base =
+        current && current.revision === sampleRevision
+          ? current.form
+          : buildFormState(sampleQuery.data);
+      const currentDirtyFields =
+        current && current.revision === sampleRevision ? current.dirtyFields : [];
+      return {
+        dirtyFields: currentDirtyFields.includes(field)
+          ? currentDirtyFields
+          : [...currentDirtyFields, field],
+        form: updater(base),
+        revision: sampleRevision,
+      };
+    });
+  };
+
+  if (sampleQuery.isLoading) {
+    return (
+      <div className="centered-panel">
+        <Spin />
+      </div>
+    );
+  }
+
+  if (sampleQuery.isError) {
+    return (
+      <div className="content-stack">
+        <PageHeader
+          actions={
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={() => {
+                navigate("/experiments");
+              }}
+            >
+              返回列表
+            </Button>
+          }
+          subtitle="当前请求未成功完成。"
+          title="样品详情"
+        />
+        <Alert
+          message={resolveErrorMessage(sampleQuery.error, "样品详情加载失败")}
+          showIcon
+          type="error"
+        />
+      </div>
+    );
+  }
+
+  if (!sampleQuery.data) {
+    return <Alert message="样品详情暂不可用" showIcon type="warning" />;
+  }
+
+  return (
+    <div className="content-stack">
+      <PageHeader
+        actions={
+          <Space wrap>
+            <Button
+              aria-label="返回实验"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => {
+                navigate(`/experiments/${sampleQuery.data.experiment_run_id}`);
+              }}
+            >
+              返回实验
+            </Button>
+            <Button
+              aria-label="管理实验文件"
+              icon={<FolderOpenOutlined />}
+              onClick={() => {
+                navigate(`/experiments/${sampleQuery.data.experiment_run_id}/files`);
+              }}
+            >
+              管理实验文件
+            </Button>
+          </Space>
+        }
+        subtitle="样品页当前覆盖读取、编辑和关联文件查看；编辑权限仍以实验 owner/admin + draft 状态为准。"
+        title={`样品详情 · ${sampleQuery.data.sample_code}`}
+      />
+
+      {message ? (
+        <Alert
+          title={message.text}
+          showIcon
+          type={message.type}
+        />
+      ) : null}
+
+      <Card>
+        <div className="content-stack">
+          <Space align="center" size={12} wrap>
+            <Typography.Text code>{sampleQuery.data.sample_code}</Typography.Text>
+            <Tag color="blue">{sampleQuery.data.role}</Tag>
+            {experimentQuery.data ? <StatusTag status={experimentQuery.data.status} /> : null}
+          </Space>
+          <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+            实验编号：{experimentQuery.data?.run_code ?? sampleQuery.data.experiment_run_id}
+          </Typography.Paragraph>
+          {sampleQuery.data.parent_sample_id ? (
+            <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+              父样品：{sampleQuery.data.parent_sample_id}
+            </Typography.Paragraph>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="content-stack">
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            样品信息
+          </Typography.Title>
+          {experimentQuery.isLoading ? (
+            <div className="centered-panel">
+              <Spin />
+            </div>
+          ) : experimentQuery.isError ? (
+            <Alert
+              message={resolveErrorMessage(experimentQuery.error, "关联实验加载失败")}
+              showIcon
+              type="error"
+            />
+          ) : formState ? (
+            <>
+              {!canEdit ? (
+                <Alert
+                  title="当前样品来自非 draft 实验，暂不可编辑。"
+                  showIcon
+                  type="info"
+                />
+              ) : null}
+              <div
+                style={{
+                  display: "grid",
+                  gap: 12,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                }}
+              >
+                <label>
+                  <Typography.Text strong>基底类型</Typography.Text>
+                  <Input
+                    aria-label="基底类型"
+                    disabled={formDisabled}
+                    onChange={(event) => {
+                      updateFormState("substrate_type", (current) => ({
+                        ...current,
+                        substrateType: event.target.value,
+                      }));
+                    }}
+                    value={formState.substrateType}
+                  />
+                </label>
+                <label>
+                  <Typography.Text strong>品牌</Typography.Text>
+                  <Input
+                    aria-label="品牌"
+                    disabled={formDisabled}
+                    onChange={(event) => {
+                      updateFormState("brand", (current) => ({
+                        ...current,
+                        brand: event.target.value,
+                      }));
+                    }}
+                    value={formState.brand}
+                  />
+                </label>
+                <label>
+                  <Typography.Text strong>尺寸</Typography.Text>
+                  <Input
+                    aria-label="尺寸"
+                    disabled={formDisabled}
+                    onChange={(event) => {
+                      updateFormState("size_mm", (current) => ({
+                        ...current,
+                        sizeMm: event.target.value,
+                      }));
+                    }}
+                    value={formState.sizeMm}
+                  />
+                </label>
+                <label>
+                  <Typography.Text strong>位置 (mm)</Typography.Text>
+                  <Input
+                    aria-label="位置 (mm)"
+                    disabled={formDisabled}
+                    onChange={(event) => {
+                      updateFormState("position_mm", (current) => ({
+                        ...current,
+                        positionMm: event.target.value,
+                      }));
+                    }}
+                    value={formState.positionMm}
+                  />
+                </label>
+                <label style={{ gridColumn: "1 / -1" }}>
+                  <Typography.Text strong>处理方式</Typography.Text>
+                  <Input.TextArea
+                    aria-label="处理方式"
+                    autoSize={{ minRows: 2, maxRows: 4 }}
+                    disabled={formDisabled}
+                    onChange={(event) => {
+                      updateFormState("treatment", (current) => ({
+                        ...current,
+                        treatment: event.target.value,
+                      }));
+                    }}
+                    value={formState.treatment}
+                  />
+                </label>
+                <label>
+                  <Typography.Text strong>存放位置</Typography.Text>
+                  <Input
+                    aria-label="存放位置"
+                    disabled={formDisabled}
+                    onChange={(event) => {
+                      updateFormState("storage_location", (current) => ({
+                        ...current,
+                        storageLocation: event.target.value,
+                      }));
+                    }}
+                    value={formState.storageLocation}
+                  />
+                </label>
+                <label style={{ gridColumn: "1 / -1" }}>
+                  <Typography.Text strong>元数据 JSON</Typography.Text>
+                  <Input.TextArea
+                    aria-label="元数据 JSON"
+                    autoSize={{ minRows: 6, maxRows: 12 }}
+                    disabled={formDisabled}
+                    onChange={(event) => {
+                      updateFormState("metadata_json", (current) => ({
+                        ...current,
+                        metadataJson: event.target.value,
+                      }));
+                    }}
+                    value={formState.metadataJson}
+                  />
+                </label>
+              </div>
+
+              {canEdit ? (
+                <Button
+                  aria-label="保存样品"
+                  disabled={!hasDirtyFields}
+                  loading={saveMutation.isPending}
+                  onClick={() => {
+                    setMessage(null);
+                    saveMutation.mutate();
+                  }}
+                  type="primary"
+                >
+                  保存样品
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="content-stack">
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            关联文件
+          </Typography.Title>
+          {filesQuery.isLoading ? (
+            <div className="centered-panel">
+              <Spin />
+            </div>
+          ) : filesQuery.isError ? (
+            <Alert
+              message={resolveErrorMessage(filesQuery.error, "样品文件加载失败")}
+              showIcon
+              type="error"
+            />
+          ) : fileRows.length === 0 ? (
+            <EmptyState description="当前样品还没有关联文件。" />
+          ) : (
+            <Table<FileAssetRead>
+              dataSource={fileRows}
+              pagination={false}
+              rowKey="id"
+              columns={[
+                {
+                  dataIndex: "original_name",
+                  key: "original_name",
+                  title: "文件名",
+                },
+                {
+                  dataIndex: "method",
+                  key: "method",
+                  title: "方法",
+                },
+                {
+                  dataIndex: "file_category",
+                  key: "file_category",
+                  title: "类别",
+                },
+                {
+                  dataIndex: "size_bytes",
+                  key: "size_bytes",
+                  title: "大小",
+                  render: (value: number) => formatBytes(value),
+                },
+                {
+                  dataIndex: "created_at",
+                  key: "created_at",
+                  title: "上传时间",
+                  render: (value: string) => dayjs(value).format("YYYY-MM-DD HH:mm"),
+                },
+                {
+                  dataIndex: "note",
+                  key: "note",
+                  title: "备注",
+                  render: (value: string | null) => value || "无",
+                },
+                {
+                  key: "actions",
+                  title: "操作",
+                  render: (_, file) => (
+                    <Button
+                      aria-label={`下载 ${file.original_name}`}
+                      icon={<DownloadOutlined />}
+                      loading={downloadFileId === file.id}
+                      onClick={() => {
+                        void handleDownload(file);
+                      }}
+                    >
+                      下载
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}

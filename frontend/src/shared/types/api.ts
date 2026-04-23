@@ -159,6 +159,16 @@ export type SampleRead = {
   updated_at: string;
 };
 
+export type SampleUpdateRequest = {
+  substrate_type?: string | null;
+  brand?: string | null;
+  size_mm?: string | null;
+  treatment?: string | null;
+  position_mm?: number | null;
+  storage_location?: string | null;
+  metadata_json?: Record<string, unknown>;
+};
+
 export type SampleListResponse = {
   items: SampleRead[];
   total: number;

@@ -465,7 +465,24 @@ export function ExperimentFilesPage() {
                 {
                   key: "sample_id",
                   title: "样品",
-                  render: (_, file) => (file.sample_id ? sampleCodeById.get(file.sample_id) || file.sample_id : "未关联"),
+                  render: (_, file) => {
+                    if (!file.sample_id) {
+                      return "未关联";
+                    }
+
+                    const sampleCode = sampleCodeById.get(file.sample_id) || file.sample_id;
+                    return (
+                      <Button
+                        aria-label={`查看样品 ${sampleCode}`}
+                        onClick={() => {
+                          navigate(`/samples/${file.sample_id}`);
+                        }}
+                        type="link"
+                      >
+                        {sampleCode}
+                      </Button>
+                    );
+                  },
                 },
                 {
                   dataIndex: "size_bytes",

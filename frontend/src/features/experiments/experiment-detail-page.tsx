@@ -9,7 +9,7 @@ import { StatusTag } from "../../shared/ui/status-tag";
 import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { triggerBlobDownload } from "../../shared/lib/download";
-import { downloadExperimentExcel, downloadExperimentFile, exportExperimentJson, getExperiment, listExperimentAuditEvents, listExperimentFiles } from "./api";
+import { downloadExperimentExcel, downloadExperimentFile, exportExperimentJson, getExperiment, listExperimentAuditEvents, listExperimentFiles, listExperimentSamples } from "./api";
 import { ExperimentStateActions } from "./experiment-state-actions";
 import { ExperimentSummary } from "./components/experiment-summary";
 import { useAuth } from "../auth/use-auth";
@@ -38,6 +38,11 @@ export function ExperimentDetailPage() {
   const auditQuery = useQuery({
     queryKey: ["experiments", "audit", currentUser?.id ?? "anonymous", experimentId],
     queryFn: () => listExperimentAuditEvents(session.accessToken!, experimentId),
+    enabled: session.isAuthenticated && Boolean(experimentId),
+  });
+  const samplesQuery = useQuery({
+    queryKey: ["experiments", "samples", currentUser?.id ?? "anonymous", experimentId],
+    queryFn: () => listExperimentSamples(session.accessToken!, experimentId),
     enabled: session.isAuthenticated && Boolean(experimentId),
   });
 
@@ -185,7 +190,7 @@ export function ExperimentDetailPage() {
             ) : null}
           </Space>
         }
-        subtitle="当前详情页已接通实验状态流；文件、审计和导出面板在后续迭代补齐。"
+        subtitle="当前详情页已接通状态流、样品概览、文件概览、审计轨迹和导出入口。"
         title="实验详情"
       />
       {downloadMessage ? <Alert title={downloadMessage} showIcon type="error" /> : null}
@@ -238,6 +243,50 @@ export function ExperimentDetailPage() {
               导出 Excel
             </Button>
           </Space>
+        </div>
+      </Card>
+      <Card>
+        <div className="content-stack">
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            样品概览
+          </Typography.Title>
+          {samplesQuery.isLoading ? (
+            <div className="centered-panel">
+              <Spin />
+            </div>
+          ) : samplesQuery.isError ? (
+            <Alert
+              title={resolveErrorMessage(samplesQuery.error, "样品概览加载失败")}
+              showIcon
+              type="error"
+            />
+          ) : (samplesQuery.data?.items.length ?? 0) === 0 ? (
+            <EmptyState description="当前实验还没有样品记录。" />
+          ) : (
+            <List
+              dataSource={samplesQuery.data?.items ?? []}
+              renderItem={(sample) => (
+                <List.Item
+                  actions={[
+                    <Button
+                      key={`sample-${sample.id}`}
+                      aria-label={`查看样品 ${sample.sample_code}`}
+                      onClick={() => {
+                        navigate(`/samples/${sample.id}`);
+                      }}
+                    >
+                      查看样品
+                    </Button>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    description={`${sample.role} · ${sample.substrate_type || "未填写基底"}${sample.size_mm ? ` · ${sample.size_mm}` : ""}`}
+                    title={sample.sample_code}
+                  />
+                </List.Item>
+              )}
+            />
+          )}
         </div>
       </Card>
       <Card>

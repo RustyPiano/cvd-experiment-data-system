@@ -138,6 +138,36 @@ describe("Experiment detail-like pages", () => {
         );
       }
 
+      if (url.pathname === "/api/v1/samples" && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "sample-1",
+                sample_code: "S-2026-0001-TOP",
+                experiment_run_id: "exp-1",
+                parent_sample_id: null,
+                role: "top",
+                substrate_type: "SiO2/Si",
+                brand: "MTI",
+                size_mm: "10x10",
+                treatment: "acetone",
+                position_mm: 12.5,
+                storage_location: null,
+                metadata_json: {},
+                created_at: "2026-04-23T00:00:00Z",
+                updated_at: "2026-04-23T00:00:00Z",
+              },
+            ],
+            total: 1,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
       if (url.pathname === "/api/v1/experiments/exp-1/audit-events" && method === "GET") {
         return new Response(
           JSON.stringify({
@@ -199,6 +229,7 @@ describe("Experiment detail-like pages", () => {
     renderWithApp(
       <Routes>
         <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+        <Route path="/samples/:sampleId" element={<div>样品详情路由</div>} />
       </Routes>,
       {
         authenticated: true,
@@ -208,6 +239,7 @@ describe("Experiment detail-like pages", () => {
 
     expect(await screen.findByText("raman.txt")).toBeInTheDocument();
     expect(screen.getByText("upload_file")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看样品 S-2026-0001-TOP" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "管理文件" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出 JSON" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出 Excel" })).toBeInTheDocument();
@@ -233,5 +265,8 @@ describe("Experiment detail-like pages", () => {
     });
 
     expect(clickSpy).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "查看样品 S-2026-0001-TOP" }));
+    expect(await screen.findByText("样品详情路由")).toBeInTheDocument();
   });
 });
