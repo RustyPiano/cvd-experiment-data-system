@@ -1,6 +1,6 @@
 # Frontend Workspace
 
-前端当前已经完成第四个可用阶段，重点是把“实验主链路 + 文件管理 + 详情导出/审计面板”接通。
+前端当前已经完成第五个可用阶段，重点是把“实验主链路 + 文件管理 + 样品详情 + 词表后台”接通。
 
 ## 当前已交付
 
@@ -13,6 +13,7 @@
 - `/experiments/:id`
 - `/experiments/:id/files`
 - `/samples/:id`
+- `/admin/vocabularies`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - draft 自动保存、区块级保存状态、`submit` 提交闭环
@@ -21,6 +22,7 @@
 - 详情页已接通文件概览、审计轨迹、JSON/Excel 导出入口
 - 详情页已接通样品概览，文件页和详情页都能跳到样品详情
 - 样品详情页已接通样品读取、draft 编辑、关联文件查看与下载
+- 词表后台已接通列表筛选、创建、编辑与启停用
 - 统一 API client、错误对象与测试基线
 
 ## 当前目录结构
@@ -29,6 +31,7 @@
 - `src/features/auth`：登录、会话状态、鉴权 API
 - `src/features/experiments`：实验列表、新建、详情、编辑器壳层
 - `src/features/samples`：样品详情、样品编辑与样品关联文件视图
+- `src/features/vocabularies`：受控词表后台的列表、创建与编辑
 - `src/shared`：API client、环境变量、通用 UI、类型定义
 - `src/test`：Vitest 与 Testing Library 渲染辅助
 
@@ -51,6 +54,9 @@
 - 详情页会按当前用户权限和实验状态动态显示生命周期按钮；`locked` 实验可直接派生到新的草稿编辑页。
 - 生命周期按钮在请求进行中会互斥禁用，避免重复提交多个状态切换动作。
 - 文件上传/删除后会主动刷新文件列表和实验审计查询。
+- `admin` 当前可以通过 `/admin/vocabularies` 维护词表；`member/viewer` 会隐藏侧栏入口，直达路由时显示权限提示。
+- 词表后台当前采用“列表 + Modal 表单”结构；创建允许填写 `vocab_key`，编辑只允许修改后端 `PATCH` 已支持字段。
+- 词条编辑当前只发送脏字段，`metadata_json` 在前端先校验成 JSON 对象。
 
 ## 本地启动
 
@@ -78,11 +84,11 @@ bun run build
 
 ## 已知边界
 
-- 词表后台尚未开始
 - 文件页当前仍是首版管理界面，尚未补批量上传、预览和更细的元数据编辑
+- 词表后台当前不提供删除和 `vocab_key` 改写，因为后端只有 `create/list/patch`
 - 首屏仍未做路由级拆包，后续需要顺手压缩包体积
 
 ## 下一阶段
 
-- 词表后台
-- 文件预览增强、样品联动补全、路由级拆包
+- 文件预览增强、批量上传、元数据细化编辑
+- 路由级拆包

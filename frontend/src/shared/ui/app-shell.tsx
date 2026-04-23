@@ -20,22 +20,25 @@ function resolveSelectedKey(pathname: string) {
   return "";
 }
 
-const menuItems = [
-  {
-    key: "/experiments",
-    label: <Link to="/experiments">实验记录</Link>,
-  },
-  {
-    key: "/admin/vocabularies",
-    label: <Link to="/admin/vocabularies">受控词表</Link>,
-  },
-];
-
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { clearSession, session } = useAuth();
+  const menuItems = [
+    {
+      key: "/experiments",
+      label: <Link to="/experiments">实验记录</Link>,
+    },
+    ...(session.currentUser?.role === "admin"
+      ? [
+          {
+            key: "/admin/vocabularies",
+            label: <Link to="/admin/vocabularies">受控词表</Link>,
+          },
+        ]
+      : []),
+  ];
 
   useEffect(() => {
     const handleUnauthorized = () => {

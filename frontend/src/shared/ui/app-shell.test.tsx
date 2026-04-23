@@ -110,4 +110,54 @@ describe("AppShell", () => {
       expect(window.localStorage.getItem("cvd.auth.session")).toBeNull();
     });
   });
+
+  it("hides the vocabulary admin entry for non-admin users", async () => {
+    renderWithApp(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/experiments" element={<div>workspace</div>} />
+        </Route>
+        <Route path="/login" element={<div>login screen</div>} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+        user: {
+          id: "u-1",
+          email: "member@example.com",
+          name: "Member",
+          role: "member",
+          is_active: true,
+          last_login_at: null,
+        },
+      },
+    );
+
+    expect(screen.queryByRole("link", { name: "受控词表" })).not.toBeInTheDocument();
+  });
+
+  it("shows the vocabulary admin entry for admin users", async () => {
+    renderWithApp(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/experiments" element={<div>workspace</div>} />
+        </Route>
+        <Route path="/login" element={<div>login screen</div>} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+        user: {
+          id: "admin-1",
+          email: "admin@example.com",
+          name: "Admin",
+          role: "admin",
+          is_active: true,
+          last_login_at: null,
+        },
+      },
+    );
+
+    expect(screen.queryAllByRole("link", { name: "受控词表" }).length).toBeGreaterThan(0);
+  });
 });

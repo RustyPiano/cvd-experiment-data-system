@@ -1,6 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import { Alert } from "antd";
 
 import { LoginPage } from "../features/auth/login-page";
 import { ExperimentDetailPage } from "../features/experiments/experiment-detail-page";
@@ -9,12 +7,9 @@ import { ExperimentFilesPage } from "../features/experiments/experiment-files-pa
 import { ExperimentListPage } from "../features/experiments/experiment-list-page";
 import { ExperimentNewPage } from "../features/experiments/experiment-new-page";
 import { SampleDetailPage } from "../features/samples/sample-detail-page";
+import { VocabularyAdminPage } from "../features/vocabularies/vocabulary-admin-page";
 import { AppShell } from "../shared/ui/app-shell";
 import { ProtectedRoute } from "./routes/route-guards";
-
-function PlaceholderPage({ message }: { message: string }) {
-  return <Alert message={message} showIcon type="info" />;
-}
 
 export const router = createBrowserRouter([
   {
@@ -58,7 +53,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/admin/vocabularies",
-        element: <PlaceholderPage message="受控词表后台会在后续阶段接入。" />,
+        element: <VocabularyAdminPage />,
       },
     ],
   },

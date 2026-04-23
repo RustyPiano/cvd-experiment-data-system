@@ -192,6 +192,25 @@ export type ControlledVocabularyListResponse = {
   total: number;
 };
 
+export type ControlledVocabularyCreateRequest = {
+  vocab_key: string;
+  value: string;
+  label_zh: string;
+  label_en?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+  metadata_json?: Record<string, unknown>;
+};
+
+export type ControlledVocabularyUpdateRequest = {
+  value?: string | null;
+  label_zh?: string | null;
+  label_en?: string | null;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+  metadata_json?: Record<string, unknown> | null;
+};
+
 export type ExperimentExportRead = {
   export_version: string;
   exported_at: string;

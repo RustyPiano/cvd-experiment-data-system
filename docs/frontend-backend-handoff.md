@@ -12,6 +12,7 @@
 - `/experiments/:id`
 - `/experiments/:id/files`
 - `/samples/:id`
+- `/admin/vocabularies`
 - `/experiments/:id` 生命周期动作卡片
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
 - `basic_info`
@@ -30,12 +31,9 @@
 - 详情页文件概览、审计轨迹、JSON/Excel 导出入口
 - 详情页样品概览与样品详情跳转
 - 样品详情读取、draft 编辑、关联文件查看与下载
+- 受控词表后台的列表筛选、创建、编辑与启停用
 
-当前前端还没有接通的部分：
-
-- 受控词表后台
-
-因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐词表后台和文件预览增强，而不是重复改造现有编辑器骨架。
+当前前端还没有接通的部分主要只剩文件页增强与性能优化。因此，下面的接口说明更适合用来补文件预览、批量上传和管理端增强，而不是重复改造现有编辑器骨架。
 
 ## 0.1 当前前端基线约定
 
@@ -53,6 +51,9 @@
 - 文件页当前会额外读取 `GET /api/v1/samples?experiment_id=...` 和 `GET /api/v1/vocabularies?vocab_key=characterization_method`，分别用于样品关联和上传方法建议。
 - 样品详情页当前会额外读取所属实验和 `GET /api/v1/files?experiment_id=...&sample_id=...`，形成单样品视角。
 - 样品编辑当前只覆盖后端 `PATCH /samples/{id}` 已支持字段，不包含 `sample_code`、`role` 和 `parent_sample_id` 改写。
+- `/admin/vocabularies` 当前只开放给 `admin`；侧栏入口会按角色隐藏，非 admin 直达时显示权限提示且不会发请求。
+- 词表后台当前采用“筛选 + 列表 + Modal 表单”结构；创建走 `POST /api/v1/admin/vocabularies`，编辑走 `PATCH /api/v1/admin/vocabularies/{id}`。
+- 词表编辑当前只发送脏字段，`vocab_key` 只允许在创建时填写，不提供前端改写。
 
 ## 1. 启动与基线
 
@@ -275,6 +276,23 @@ invalid
 - `GET /api/v1/admin/vocabularies`
 - `POST /api/v1/admin/vocabularies`
 - `PATCH /api/v1/admin/vocabularies/{id}`
+
+当前词表后台实际行为：
+
+- 只对 `admin` 开放；`member/viewer` 只会看到权限提示
+- 支持按 `vocab_key` 筛选后台全量词条
+- 创建时可填写：
+  - `vocab_key`
+  - `value`
+  - `label_zh`
+  - `label_en`
+  - `sort_order`
+  - `is_active`
+  - `metadata_json`
+- 编辑时只允许修改后端 `PATCH` 已支持字段，不提供 `vocab_key` 改写
+- 前端会先校验：
+  - `sort_order` 必须是整数
+  - `metadata_json` 必须是 JSON 对象
 
 ## 5. 模块键
 
