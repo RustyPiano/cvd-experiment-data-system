@@ -658,6 +658,64 @@ describe("ExperimentEditorPage", () => {
     });
   });
 
+  it("keeps later in-progress edits when a basic info autosave finishes", async () => {
+    const server = createEditorFetchMock();
+    let releasePatchRequest!: () => void;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-1" && method === "PATCH") {
+        return new Promise<Response>((resolve) => {
+          releasePatchRequest = () => {
+            void server.fetchMock(input, init).then(resolve);
+          };
+        });
+      }
+
+      return server.fetchMock(input, init);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const objectiveInput = await screen.findByLabelText("实验目的");
+    vi.useFakeTimers();
+    fireEvent.change(objectiveInput, { target: { value: "Updated objective" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    const sampleEnvInput = screen.getByLabelText("样品环境");
+    fireEvent.change(sampleEnvInput, { target: { value: "pending unsaved env" } });
+
+    releasePatchRequest();
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "PUT" &&
+            request.pathname === "/api/v1/experiments/exp-1/modules/basic_info",
+        ),
+      ).toBe(true);
+    });
+
+    expect(screen.getByLabelText("样品环境")).toHaveValue("pending unsaved env");
+  });
+
   it("keeps characterization metadata attached to surviving rows after deleting a previous row", async () => {
     const server = createEditorFetchMock();
     server.modules.set(

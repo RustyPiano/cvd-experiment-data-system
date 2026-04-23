@@ -200,6 +200,12 @@ class ExperimentService:
         current_user: User,
     ) -> ExperimentRead:
         experiment = self._get_owned_experiment(experiment_id, current_user)
+        if experiment.status == ExperimentStatus.INVALID:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Invalid experiments cannot be changed",
+            )
+
         before = self._serialize_experiment(experiment)
         experiment.status = ExperimentStatus.INVALID
         experiment.invalid_reason = payload.reason

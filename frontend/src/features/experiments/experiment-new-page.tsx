@@ -11,6 +11,7 @@ import { useAuth } from "../auth/use-auth";
 export function ExperimentNewPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const isViewer = session.currentUser?.role === "viewer";
   const createMutation = useMutation({
     mutationFn: () =>
       createExperiment(session.accessToken!, {
@@ -37,6 +38,9 @@ export function ExperimentNewPage() {
         subtitle="当前前端首版先开放空白创建，历史克隆从已锁定实验详情页进入。"
         title="新建实验"
       />
+      {isViewer ? (
+        <Alert message="当前账号没有创建实验权限。" showIcon type="warning" />
+      ) : null}
       {createErrorMessage ? (
         <Alert message={createErrorMessage} showIcon type="error" />
       ) : null}
@@ -50,15 +54,17 @@ export function ExperimentNewPage() {
               <Typography.Paragraph type="secondary">
                 以今天日期创建新的草稿，后续在模块编辑器中补充参数与结果。
               </Typography.Paragraph>
-              <Button
-                loading={createMutation.isPending}
-                onClick={() => {
-                  createMutation.mutate();
-                }}
-                type="primary"
-              >
-                立即创建
-              </Button>
+              {!isViewer ? (
+                <Button
+                  loading={createMutation.isPending}
+                  onClick={() => {
+                    createMutation.mutate();
+                  }}
+                  type="primary"
+                >
+                  立即创建
+                </Button>
+              ) : null}
             </Space>
           </Card>
         </Col>

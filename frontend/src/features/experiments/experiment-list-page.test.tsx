@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ExperimentListPage } from "./experiment-list-page";
@@ -6,6 +6,7 @@ import { renderWithApp } from "../../test/render";
 
 describe("ExperimentListPage", () => {
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
   });
 
@@ -85,5 +86,41 @@ describe("ExperimentListPage", () => {
     for (const createButton of createButtons) {
       expect(createButton.querySelector("a")).toBeNull();
     }
+  });
+
+  it("hides the create entry for viewer users", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            items: [],
+            total: 0,
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        ),
+      ),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+      user: {
+        id: "viewer-1",
+        email: "viewer@example.com",
+        name: "Viewer",
+        role: "viewer",
+        is_active: true,
+        last_login_at: null,
+      },
+    });
+
+    await screen.findByText(/实验记录/);
+    expect(screen.queryByRole("button", { name: "新建实验" })).not.toBeInTheDocument();
   });
 });

@@ -747,6 +747,43 @@ def test_invalidate_moves_experiment_to_invalid(active_user) -> None:
     assert response.json()["status"] == "invalid"
 
 
+def test_invalidate_rejects_already_invalid_experiment(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Invalidate once only",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    first_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/invalidate",
+        json={"reason": "Contaminated substrate"},
+        headers=auth_headers(active_user.email),
+    )
+    assert first_response.status_code == 200
+
+    second_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/invalidate",
+        json={"reason": "Overwrite reason"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert second_response.status_code == 409
+    assert second_response.json()["detail"] == "Invalid experiments cannot be changed"
+
+    detail_response = client.get(
+        f"/api/v1/experiments/{experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert detail_response.status_code == 200
+    assert detail_response.json()["invalid_reason"] == "Contaminated substrate"
+
+
 def test_list_experiments_hides_invalid_by_default(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",

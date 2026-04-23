@@ -12,6 +12,7 @@ import { useAuth } from "../auth/use-auth";
 export function ExperimentListPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const canCreateExperiment = session.currentUser?.role !== "viewer";
   const experimentQuery = useQuery({
     queryKey: ["experiments", "list", session.currentUser?.id ?? "anonymous"],
     queryFn: () => listExperiments(session.accessToken!),
@@ -22,16 +23,18 @@ export function ExperimentListPage() {
     <div className="content-stack">
       <PageHeader
         actions={
-          <Button
-            aria-label="新建实验"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              navigate("/experiments/new");
-            }}
-            type="primary"
-          >
-            新建实验
-          </Button>
+          canCreateExperiment ? (
+            <Button
+              aria-label="新建实验"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                navigate("/experiments/new");
+              }}
+              type="primary"
+            >
+              新建实验
+            </Button>
+          ) : undefined
         }
         subtitle="管理 CVD 实验、样品、表征文件和导出任务。"
         title="实验记录"

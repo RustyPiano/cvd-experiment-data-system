@@ -1,6 +1,8 @@
 import { env } from "../config/env";
 import { HttpError } from "./http-error";
 
+export const API_UNAUTHORIZED_EVENT = "cvd.api.unauthorized";
+
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: BodyInit | Record<string, unknown> | null;
   token?: string | null;
@@ -98,6 +100,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const payload = parsePayload(responseText, response.headers.get("Content-Type"));
 
   if (!response.ok) {
+    if (response.status === 401 && token && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(API_UNAUTHORIZED_EVENT));
+    }
+
     throw new HttpError(response.status, resolveDetail(payload), payload);
   }
 

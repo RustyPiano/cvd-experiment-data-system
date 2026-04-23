@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogoutOutlined } from "@ant-design/icons";
 import { Button, Layout, Menu, Space, Typography } from "antd";
@@ -5,6 +6,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { logout } from "../../features/auth/api";
 import { useAuth } from "../../features/auth/use-auth";
+import { API_UNAUTHORIZED_EVENT } from "../api/client";
 
 function resolveSelectedKey(pathname: string) {
   if (pathname.startsWith("/admin/vocabularies")) {
@@ -34,6 +36,19 @@ export function AppShell() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { clearSession, session } = useAuth();
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      queryClient.clear();
+      clearSession();
+      navigate("/login", { replace: true });
+    };
+
+    window.addEventListener(API_UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => {
+      window.removeEventListener(API_UNAUTHORIZED_EVENT, handleUnauthorized);
+    };
+  }, [clearSession, navigate, queryClient]);
 
   const handleLogout = async () => {
     try {

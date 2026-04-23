@@ -48,7 +48,7 @@ function ExperimentEditorWorkspace({
   });
 
   return (
-    <div className="content-stack" key={`${initialExperiment.id}:${initialExperiment.updated_at}`}>
+    <div className="content-stack">
       <PageHeader
         actions={
           <Button
