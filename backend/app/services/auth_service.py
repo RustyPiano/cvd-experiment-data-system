@@ -37,8 +37,6 @@ class AuthService:
         return TokenResponse(
             access_token=create_access_token(
                 subject=str(user.id),
-                email=user.email,
-                role=user.role.value,
             ),
             token_type="bearer",
             expires_in=settings.jwt_access_token_expire_minutes * 60,

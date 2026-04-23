@@ -125,19 +125,23 @@ Explanation + Reference
 
 ### token 载荷
 
-建议 JWT payload 至少包含：
+当前实现的 JWT access token 保持最小化，只包含：
 
 - `sub`：用户 UUID
-- `email`：当前登录邮箱
-- `role`：用户角色
 - `exp`：过期时间
+
+说明：
+
+- 用户邮箱、角色和启用状态通过 `/api/v1/auth/me` 与登录响应体中的 `user` 返回
+- token 内不冗余携带 `email` / `role`，避免 claim 过期后与数据库状态漂移
 
 ### 密码策略
 
 - 密码只保存哈希，不保存明文
-- 使用 `passlib + bcrypt`
+- 使用 `pwdlib + Argon2id`
 - 命令创建管理员时交互式输入密码并二次确认
 - 不通过命令行参数直接传入明文密码，避免落入 shell history
+- 当前实现不兼容旧 `bcrypt` 哈希；数据库重建后统一使用新方案
 
 ### 用户状态
 
@@ -241,11 +245,10 @@ Explanation + Reference
 
 以下接口不进入一期：
 
-- `POST /api/v1/auth/logout`
 - `POST /api/v1/auth/refresh`
 - 用户管理 CRUD
 
-`logout` 在无状态 JWT 架构下一期不产生真实后端动作，因此先不做，避免接口语义空转。
+`logout` 当前已实现为显式结束前端本地会话的辅助接口，返回 `204`，不引入服务端 token 黑名单。
 
 ## 管理员初始化命令
 

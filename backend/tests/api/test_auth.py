@@ -33,6 +33,26 @@ def test_login_returns_access_token_for_valid_credentials(active_user, db_sessio
     updated_user = UserRepository(db_session).get_by_email(active_user.email)
     assert updated_user is not None
     assert updated_user.last_login_at is not None
+    assert updated_user.password_hash.startswith("$argon2id$")
+
+
+def test_login_rejects_legacy_bcrypt_hash(active_user, db_session) -> None:
+    active_user.password_hash = "$2b$12$7a/xl.p986hByjdM6mJSuOLYQiXeAHBHghoy4b7pyMweQl0muAY1m"
+    db_session.add(active_user)
+    db_session.commit()
+    db_session.refresh(active_user)
+    assert active_user.password_hash.startswith("$2")
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": active_user.email, "password": "Password123!"},
+    )
+
+    assert response.status_code == 401
+    db_session.expire_all()
+    updated_user = UserRepository(db_session).get_by_email(active_user.email)
+    assert updated_user is not None
+    assert updated_user.password_hash.startswith("$2")
 
 
 def test_login_rejects_inactive_user(inactive_user) -> None:

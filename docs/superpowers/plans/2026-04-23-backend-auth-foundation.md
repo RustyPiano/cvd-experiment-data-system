@@ -6,7 +6,9 @@
 
 **Architecture:** Keep the first slice narrow: a versioned FastAPI app under `backend/app`, a single `users` table managed by SQLAlchemy 2.x and Alembic, and auth logic split between `core`, `repositories`, and `services`. Tests drive each slice from the outside in: health endpoint, security helpers, auth endpoints, and admin bootstrap command.
 
-**Tech Stack:** Python 3.12+, FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, Pydantic v2, `pydantic-settings`, `python-jose`, `passlib[bcrypt]`, pytest, ruff, uv.
+**Tech Stack:** Python 3.12+, FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL, Pydantic v2, `pydantic-settings`, `python-jose`, `pwdlib[argon2]`, pytest, ruff, uv.
+
+**Implementation Note:** The final implementation standardized on Argon2id-only password hashing via `pwdlib` and keeps JWT access tokens minimal with only `sub` and `exp`. Older `passlib/bcrypt` examples in early planning drafts have been superseded.
 
 ---
 
@@ -165,7 +167,7 @@ dependencies = [
   "psycopg[binary]>=3.2,<4.0",
   "pydantic-settings>=2.4,<3.0",
   "python-jose[cryptography]>=3.3,<4.0",
-  "passlib[bcrypt]>=1.7,<2.0",
+  "pwdlib[argon2]>=0.3,<1.0",
 ]
 
 [dependency-groups]
@@ -544,8 +546,8 @@ def test_password_hash_round_trip() -> None:
     assert verify_password(password, password_hash) is True
 
 
-def test_create_access_token_contains_subject_and_role() -> None:
-    token = create_access_token(subject="user-id", email="user@example.com", role="admin")
+def test_create_access_token_contains_subject_only() -> None:
+    token = create_access_token(subject="user-id")
 
     assert isinstance(token, str)
     assert token
@@ -563,28 +565,31 @@ Expected: FAIL with import errors because the security helpers do not exist yet.
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
-from passlib.context import CryptContext
+from pwdlib import PasswordHash, exceptions
 
 from app.core.config import get_settings
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-settings = get_settings()
+password_hasher = PasswordHash.recommended()
 
 
-def verify_password(plain_password: str, password_hash: str) -> bool:
-    return pwd_context.verify(plain_password, password_hash)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        return password_hasher.verify(plain_password, hashed_password)
+    except exceptions.UnknownHashError:
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return password_hasher.hash(password)
 
 
-def create_access_token(*, subject: str, email: str, role: str) -> str:
+def create_access_token(*, subject: str) -> str:
+    settings = get_settings()
     expires_at = datetime.now(timezone.utc) + timedelta(
         minutes=settings.jwt_access_token_expire_minutes
     )
-    payload = {"sub": subject, "email": email, "role": role, "exp": expires_at}
+    payload = {"sub": subject, "exp": expires_at}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 ```
 
@@ -727,7 +732,7 @@ class AuthService:
         self.db.commit()
         self.db.refresh(user)
 
-        token = create_access_token(subject=str(user.id), email=user.email, role=user.role.value)
+        token = create_access_token(subject=str(user.id))
         return TokenResponse(
             access_token=token,
             token_type="bearer",
