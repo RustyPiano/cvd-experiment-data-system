@@ -11,6 +11,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun
+from app.models.module_payload import normalize_module_payload
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
@@ -37,7 +38,16 @@ class ExperimentExportService:
 
     def build_json_export(self, experiment: ExperimentRun) -> ExperimentExportRead:
         modules = [
-            ExperimentModulePayloadRead.model_validate(item)
+            ExperimentModulePayloadRead(
+                id=item.id,
+                experiment_run_id=item.experiment_run_id,
+                module_key=item.module_key,
+                schema_version=item.schema_version,
+                payload_json=normalize_module_payload(item.module_key, item.payload_json),
+                note=item.note,
+                created_at=item.created_at,
+                updated_at=item.updated_at,
+            )
             for item in self.module_payloads.list_by_run(experiment.id)
         ]
         samples = [

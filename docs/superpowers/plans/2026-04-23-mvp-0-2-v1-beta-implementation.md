@@ -237,7 +237,7 @@
 - Modify: `backend/tests/api/test_experiments.py`
 - Modify: `backend/tests/api/test_samples.py`
 
-- [ ] 定义本轮 payload 默认值补齐函数：
+- [x] 定义本轮 payload 默认值补齐函数：
   - `environment.indoor_humidity_percent -> null`
   - `precheck.hood_clean -> null`
   - `precheck.flange_blocked -> null`
@@ -253,12 +253,12 @@
   - `result_summary.quality_label -> "unknown"`
   - `result_summary.next_step -> ""`
 
-- [ ] 扩展模块保存与读取逻辑：
+- [x] 扩展模块保存与读取逻辑：
   - 读取时补默认值
   - 保存时保留前端暂未建模字段
   - clone 前先对旧 payload 做 normalize，再按 clone 规则应用
 
-- [ ] 补齐本轮字段持久化：
+- [x] 补齐本轮字段持久化：
   - `environment.indoor_humidity_percent`
   - `precheck` 扩展字段
   - `precursors` 扩展字段
@@ -267,17 +267,17 @@
   - `characterization.enabled` / `excitation_nm` / `note`
   - `result_summary.quality_label` / `next_step`
 
-- [ ] 明确 `quality_label` 同步策略：
+- [x] 明确 `quality_label` 同步策略：
   - `result_summary.quality_label` 是 payload 内主值
   - 保存 `result_summary` 时同步 `experiment_runs.quality_label`
   - 读取主实验时继续从主表返回 `quality_label`
 
-- [ ] 补充 Alembic 迁移：
+- [x] 补充 Alembic 迁移：
   - 如果主表列无需变化，只新增必要索引或 server default 调整
   - 不做破坏性迁移
   - 迁移脚本要兼容已有数据库
 
-- [ ] 补充测试：
+- [x] 补充测试：
   - 旧 payload 读取默认值补齐
   - 新字段保存后刷新不丢
   - `quality_label` 在 payload 与主表间同步
@@ -290,6 +290,17 @@
 **完成定义：**
 - 新字段不仅前端可见，而且数据库刷新后仍保留。
 - 旧实验记录不会因为缺字段而报错。
+
+**2026-04-23 实施记录：**
+- 已在 `backend/app/models/module_payload.py` 增加模块级 payload 归一化函数，统一为 `environment / precheck / precursors / substrates / gas_program / characterization / result_summary` 回填阶段三默认值，同时保留原 payload 里的扩展字段。
+- 已把模块读取路径接到同一套归一化逻辑：`get_module`、`list_modules`、审计序列化以及实验导出都会返回补齐默认值后的 payload，旧记录缺字段时不再直接把缺口暴露给前端。
+- 已把模块保存路径改为“先归一化再落库”；其中 `result_summary` 保存时会同步 `experiment_runs.quality_label`，而 `substrates` 保存后会把归一化后的 payload 继续传给样品同步链路。
+- 已把 clone 的模块复制改成先归一化源 payload 再写入目标实验；复制后的 `environment` 只保留 `sample_env` 并清空异常备注，`precheck` 会重置为待重新确认状态，因此旧实验复制出来的 `brand / treatment_params / components / note / enabled / excitation_nm / next_step` 等字段会落到新结构里，但现场检查读数不会被沿用。
+- 已在 `SampleService.sync_substrate_samples()` 中同步 `treatment_params` 到样品 `metadata_json`，并保留用户已有元数据，避免 substrate 重同步时把这组参数丢掉。
+- 已新增 Alembic revision `20260423_0008_expand_mvp_0_2_payloads.py` 作为阶段三的非破坏性迁移标记，保证已有数据库可以平滑升级到这轮应用层 payload 演进。
+- 已补充并通过测试：旧 payload 读时默认值补齐、新字段保存后刷新不丢、`result_summary.quality_label -> experiment_runs.quality_label` 同步、legacy payload clone 后归一化，以及 `substrates.treatment_params` 在样品同步链路中不丢失。
+- 已验证：`cd backend && uv run pytest tests/api/test_experiments.py tests/api/test_samples.py -v`（`46 passed`）、`cd backend && uv run ruff check .`、`uv run ruff format --check .`、`uv run pytest`（`101 passed`）。
+- 已验证迁移：在临时 SQLite 数据库上执行 `cd backend && uv run alembic upgrade head`，成功从 `20260423_0001` 升级到 `20260423_0008`。
 
 ---
 
