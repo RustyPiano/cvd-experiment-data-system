@@ -1,6 +1,37 @@
 # CVD 实验数据采集系统
 
-当前仓库已完成的后端能力：
+当前仓库已完成的能力分为两部分：
+
+## 当前前端能力
+
+- Bun + Vite + React + TypeScript 工程初始化
+- Ant Design 主题、全局样式与应用壳层
+- Bearer Token 登录、登出与本地会话持久化
+- 受保护路由与基础导航
+- `/login`
+- `/experiments`
+- `/experiments/new`
+- `/experiments/:id`
+- `/experiments/:id/edit` 壳层
+- 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
+
+当前前端第一阶段尚未完成的部分：
+
+- 模块化实验编辑器与自动保存
+- `submit / return-to-draft / lock / invalidate / clone` 的完整交互闭环
+- 文件上传页、样品详情页、词表后台
+- 路由级拆包与更细的性能优化
+
+## 本轮交付质量状态
+
+- 2026-04-23 已完成一次 subagent 审核，并修正了首轮前端基础实现中的关键问题。
+- 登出现在会清空 TanStack Query 缓存，避免跨账号残留上一位用户的实验数据。
+- 实验详情页和编辑器壳层在请求失败时会显示错误态，不再返回空白页面。
+- 统一 API client 现在兼容 `204`、JSON 和纯文本错误响应，避免非 JSON 响应被误解析成 `SyntaxError`。
+- 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
+- 当前验证结果：`bun run test`、`bun run typecheck`、`bun run lint`、`bun run build` 通过；构建仅剩 Vite 的 chunk size 警告，暂不影响运行。
+
+## 当前后端能力
 
 - FastAPI 服务入口
 - `users` 用户模型
@@ -46,6 +77,14 @@ uv run python -m app.commands.create_admin --email admin@example.com --name Admi
 uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
 ```
 
+## 初始化前端
+
+```bash
+cd frontend
+bun install
+bun run dev --host 0.0.0.0 --port 5173
+```
+
 ## 前端联调准备
 
 - 默认后端地址：`http://127.0.0.1:8000`
@@ -53,6 +92,16 @@ uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
 - 建议前端环境变量：`VITE_API_BASE_URL=http://127.0.0.1:8000`
 - 本地 Vite 开发端口 `5173/4173` 已默认加入 `CORS_ALLOW_ORIGINS`
 - 详细联调约定见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
+
+## 前端质量命令
+
+```bash
+cd frontend
+bun run test
+bun run typecheck
+bun run lint
+bun run build
+```
 
 ## 当前接口
 

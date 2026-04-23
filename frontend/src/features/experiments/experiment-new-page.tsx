@@ -1,0 +1,80 @@
+import { useMutation } from "@tanstack/react-query";
+import { Alert, Button, Card, Col, Row, Space, Typography } from "antd";
+import dayjs from "dayjs";
+import { useNavigate } from "react-router-dom";
+
+import { HttpError } from "../../shared/api/http-error";
+import { PageHeader } from "../../shared/ui/page-header";
+import { createExperiment } from "./api";
+import { useAuth } from "../auth/use-auth";
+
+export function ExperimentNewPage() {
+  const navigate = useNavigate();
+  const { session } = useAuth();
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createExperiment(session.accessToken!, {
+        experiment_type: "cvd",
+        material_system: null,
+        experiment_date: dayjs().format("YYYY-MM-DD"),
+        objective: null,
+      }),
+    onSuccess: (experiment) => {
+      navigate(`/experiments/${experiment.id}/edit`);
+    },
+  });
+
+  const createErrorMessage =
+    createMutation.error instanceof HttpError
+      ? createMutation.error.detail || "创建实验失败"
+      : createMutation.error instanceof Error
+        ? createMutation.error.message
+        : null;
+
+  return (
+    <div className="content-stack">
+      <PageHeader
+        subtitle="当前前端首版先开放空白创建，历史克隆从已锁定实验详情页进入。"
+        title="新建实验"
+      />
+      {createErrorMessage ? (
+        <Alert message={createErrorMessage} showIcon type="error" />
+      ) : null}
+      <Row gutter={[16, 16]}>
+        <Col span={12}>
+          <Card className="action-card">
+            <Space orientation="vertical" size={12}>
+              <Typography.Title level={4} style={{ margin: 0 }}>
+                空白 CVD 实验
+              </Typography.Title>
+              <Typography.Paragraph type="secondary">
+                以今天日期创建新的草稿，后续在模块编辑器中补充参数与结果。
+              </Typography.Paragraph>
+              <Button
+                loading={createMutation.isPending}
+                onClick={() => {
+                  createMutation.mutate();
+                }}
+                type="primary"
+              >
+                立即创建
+              </Button>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card className="action-card" variant="borderless">
+            <Space orientation="vertical" size={12}>
+              <Typography.Title level={4} style={{ margin: 0 }}>
+                从历史实验复制
+              </Typography.Title>
+              <Typography.Paragraph type="secondary">
+                当前后端只允许从 `locked` 实验发起 clone，请先进入历史实验详情页再执行派生。
+              </Typography.Paragraph>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+}

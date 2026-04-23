@@ -1,0 +1,68 @@
+import { QueryClient } from "@tanstack/react-query";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Route, Routes } from "react-router-dom";
+
+import { AppShell } from "./app-shell";
+import { renderWithApp } from "../../test/render";
+
+describe("AppShell", () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("clears experiment query cache after logout", async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    queryClient.setQueryData(["experiments", "list", "u-1"], {
+      items: [{ id: "exp-1" }],
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(null, {
+          status: 204,
+        }),
+      ),
+    );
+
+    renderWithApp(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/experiments" element={<div>workspace</div>} />
+        </Route>
+        <Route path="/login" element={<div>login screen</div>} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+        queryClient,
+        user: {
+          id: "u-1",
+          email: "member@example.com",
+          name: "Member",
+          role: "member",
+          is_active: true,
+          last_login_at: null,
+        },
+      },
+    );
+
+    await user.click(screen.getByRole("button", { name: "退出" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("login screen")).toBeInTheDocument();
+      expect(queryClient.getQueryData(["experiments", "list", "u-1"])).toBeUndefined();
+    });
+  });
+});
