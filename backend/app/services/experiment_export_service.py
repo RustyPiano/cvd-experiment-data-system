@@ -1,0 +1,284 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from io import BytesIO
+from typing import Any
+
+from openpyxl import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
+from sqlalchemy.orm import Session
+
+from app.models.experiment import ExperimentRun
+from app.repositories.audit_repository import AuditRepository
+from app.repositories.file_asset_repository import FileAssetRepository
+from app.repositories.module_payload_repository import ModulePayloadRepository
+from app.repositories.sample_repository import SampleRepository
+from app.schemas.audit import AuditEventRead
+from app.schemas.experiment import (
+    ExperimentExportCounts,
+    ExperimentExportProvenance,
+    ExperimentExportRead,
+    ExperimentRead,
+)
+from app.schemas.module_payload import ExperimentModulePayloadRead
+from app.schemas.sample import SampleRead
+from app.services.file_asset_service import to_file_asset_read_model
+
+
+class ExperimentExportService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.audit = AuditRepository(db)
+        self.files = FileAssetRepository(db)
+        self.module_payloads = ModulePayloadRepository(db)
+        self.samples = SampleRepository(db)
+
+    def build_json_export(self, experiment: ExperimentRun) -> ExperimentExportRead:
+        modules = [
+            ExperimentModulePayloadRead.model_validate(item)
+            for item in self.module_payloads.list_by_run(experiment.id)
+        ]
+        samples = [
+            SampleRead.model_validate(item)
+            for item in self.samples.list_by_experiment(experiment.id)
+        ]
+        files = [
+            to_file_asset_read_model(item) for item in self.files.list_by_experiment(experiment.id)
+        ]
+        audit_events = [
+            AuditEventRead.model_validate(item)
+            for item in self.audit.list_for_entity(
+                entity_type="experiment_run",
+                entity_id=experiment.id,
+            )
+        ]
+
+        return ExperimentExportRead(
+            export_version="cvd_export_v1",
+            exported_at=datetime.now(UTC),
+            experiment=ExperimentRead.model_validate(experiment),
+            modules=modules,
+            samples=samples,
+            files=files,
+            features=[],
+            provenance=ExperimentExportProvenance(
+                derived_from_run_id=experiment.derived_from_run_id,
+                derived_from_run_code=(
+                    experiment.derived_from_run.run_code
+                    if experiment.derived_from_run is not None
+                    else None
+                ),
+            ),
+            audit_events=audit_events,
+            counts=ExperimentExportCounts(
+                modules=len(modules),
+                samples=len(samples),
+                files=len(files),
+                audit_events=len(audit_events),
+            ),
+        )
+
+    def build_excel_bytes(self, export_payload: ExperimentExportRead) -> bytes:
+        workbook = Workbook()
+        workbook.remove(workbook.active)
+
+        self._write_basic_info_sheet(workbook.create_sheet("Basic Info"), export_payload)
+        self._write_environment_sheet(
+            workbook.create_sheet("Environment & Precheck"), export_payload
+        )
+        self._write_precursors_sheet(workbook.create_sheet("Precursors"), export_payload)
+        self._write_substrates_sheet(workbook.create_sheet("Substrates"), export_payload)
+        self._write_furnace_sheet(workbook.create_sheet("Furnace Program"), export_payload)
+        self._write_gas_sheet(workbook.create_sheet("Gas Program"), export_payload)
+        self._write_characterization_sheet(
+            workbook.create_sheet("Characterization"), export_payload
+        )
+        self._write_files_sheet(workbook.create_sheet("Files"), export_payload)
+        self._write_audit_sheet(workbook.create_sheet("Audit"), export_payload)
+
+        buffer = BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue()
+
+    def _write_basic_info_sheet(
+        self, worksheet: Worksheet, export_payload: ExperimentExportRead
+    ) -> None:
+        worksheet.append(["Field", "Value"])
+        experiment = export_payload.experiment.model_dump(mode="json")
+        ordered_fields = [
+            "run_code",
+            "id",
+            "owner_id",
+            "derived_from_run_id",
+            "experiment_type",
+            "material_system",
+            "experiment_date",
+            "objective",
+            "status",
+            "quality_label",
+            "summary_result",
+            "invalid_reason",
+            "created_at",
+            "updated_at",
+            "submitted_at",
+            "locked_at",
+        ]
+        for key in ordered_fields:
+            value = experiment.get(key)
+            worksheet.append([key, self._serialize_cell(value)])
+
+    def _write_environment_sheet(
+        self, worksheet: Worksheet, export_payload: ExperimentExportRead
+    ) -> None:
+        worksheet.append(["Module", "Field", "Value"])
+        payloads = self._module_map(export_payload)
+        for module_key in ("environment", "precheck", "process_observation"):
+            for field, value in self._flatten_mapping(payloads.get(module_key, {})).items():
+                worksheet.append([module_key, field, self._serialize_cell(value)])
+
+    def _write_precursors_sheet(
+        self, worksheet: Worksheet, export_payload: ExperimentExportRead
+    ) -> None:
+        payloads = self._module_map(export_payload)
+        self._write_list_of_dicts(
+            worksheet,
+            payloads.get("precursors", {}).get("items", []),
+        )
+
+    def _write_substrates_sheet(
+        self, worksheet: Worksheet, export_payload: ExperimentExportRead
+    ) -> None:
+        payloads = self._module_map(export_payload)
+        self._write_list_of_dicts(
+            worksheet,
+            payloads.get("substrates", {}).get("items", []),
+        )
+
+    def _write_furnace_sheet(
+        self, worksheet: Worksheet, export_payload: ExperimentExportRead
+    ) -> None:
+        payloads = self._module_map(export_payload)
+        rows: list[dict[str, Any]] = []
+        for zone in payloads.get("furnace_program", {}).get("zones", []):
+            base = {
+                "zone_index": zone.get("zone_index"),
+                "precursor_placed": zone.get("precursor_placed"),
+                "zone_note": zone.get("note"),
+            }
+            for point in zone.get("temperature_program", []):
+                rows.append(
+                    {
+                        **base,
+                        "time_min": point.get("time_min"),
+                        "temperature_C": point.get("temperature_C"),
+                    }
+                )
+        self._write_list_of_dicts(worksheet, rows)
+
+    def _write_gas_sheet(self, worksheet: Worksheet, export_payload: ExperimentExportRead) -> None:
+        payloads = self._module_map(export_payload)
+        rows: list[dict[str, Any]] = []
+        gas_program = payloads.get("gas_program", {})
+        for segment in gas_program.get("segments", []):
+            rows.append(
+                {
+                    "pre_washing_gas": gas_program.get("pre_washing_gas"),
+                    "stage": segment.get("stage"),
+                    "start_min": segment.get("start_min"),
+                    "end_min": segment.get("end_min"),
+                    "gas": segment.get("gas"),
+                    "flow_sccm": segment.get("flow_sccm"),
+                    "components": segment.get("components"),
+                }
+            )
+        self._write_list_of_dicts(worksheet, rows)
+
+    def _write_characterization_sheet(
+        self,
+        worksheet: Worksheet,
+        export_payload: ExperimentExportRead,
+    ) -> None:
+        payloads = self._module_map(export_payload)
+        characterization = payloads.get("characterization", {})
+        methods = characterization.get("methods")
+        if isinstance(methods, list):
+            self._write_list_of_dicts(worksheet, methods)
+            return
+
+        worksheet.append(["Field", "Value"])
+        for field, value in self._flatten_mapping(characterization).items():
+            worksheet.append([field, self._serialize_cell(value)])
+
+    def _write_files_sheet(
+        self, worksheet: Worksheet, export_payload: ExperimentExportRead
+    ) -> None:
+        worksheet.append(
+            [
+                "original_name",
+                "method",
+                "file_category",
+                "sample_id",
+                "content_type",
+                "size_bytes",
+                "sha256",
+                "note",
+            ]
+        )
+        for file_asset in export_payload.files:
+            worksheet.append(
+                [
+                    file_asset.original_name,
+                    file_asset.method,
+                    file_asset.file_category,
+                    str(file_asset.sample_id) if file_asset.sample_id else None,
+                    file_asset.content_type,
+                    file_asset.size_bytes,
+                    file_asset.sha256,
+                    file_asset.note,
+                ]
+            )
+
+    def _write_audit_sheet(
+        self, worksheet: Worksheet, export_payload: ExperimentExportRead
+    ) -> None:
+        worksheet.append(["created_at", "action", "actor_id", "reason"])
+        for event in export_payload.audit_events:
+            worksheet.append(
+                [
+                    event.created_at.isoformat(),
+                    event.action,
+                    str(event.actor_id),
+                    event.reason,
+                ]
+            )
+
+    def _write_list_of_dicts(self, worksheet: Worksheet, rows: Iterable[dict[str, Any]]) -> None:
+        normalized_rows = [self._flatten_mapping(row) for row in rows if isinstance(row, dict)]
+        if not normalized_rows:
+            worksheet.append(["empty"])
+            return
+
+        headers = sorted({key for row in normalized_rows for key in row})
+        worksheet.append(headers)
+        for row in normalized_rows:
+            worksheet.append([self._serialize_cell(row.get(header)) for header in headers])
+
+    def _module_map(self, export_payload: ExperimentExportRead) -> dict[str, dict[str, Any]]:
+        return {module.module_key: module.payload_json for module in export_payload.modules}
+
+    def _flatten_mapping(self, mapping: dict[str, Any], prefix: str = "") -> dict[str, Any]:
+        flattened: dict[str, Any] = {}
+        for key, value in mapping.items():
+            composite_key = f"{prefix}.{key}" if prefix else str(key)
+            if isinstance(value, dict):
+                flattened.update(self._flatten_mapping(value, composite_key))
+            else:
+                flattened[composite_key] = value
+        return flattened
+
+    def _serialize_cell(self, value: Any) -> Any:
+        if isinstance(value, list | dict):
+            return json.dumps(value, ensure_ascii=False)
+        return value

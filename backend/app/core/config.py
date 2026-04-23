@@ -17,9 +17,24 @@ class Settings(BaseSettings):
     app_host: str = Field(alias="APP_HOST")
     app_port: int = Field(alias="APP_PORT")
     database_url: str = Field(alias="DATABASE_URL")
+    file_storage_root: str = Field(alias="FILE_STORAGE_ROOT")
+    file_upload_max_bytes: int = Field(default=52_428_800, alias="FILE_UPLOAD_MAX_BYTES")
+    cors_allow_origins: str = Field(
+        default=(
+            "http://localhost:5173,"
+            "http://127.0.0.1:5173,"
+            "http://localhost:4173,"
+            "http://127.0.0.1:4173"
+        ),
+        alias="CORS_ALLOW_ORIGINS",
+    )
     jwt_secret_key: str = Field(alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(alias="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+
+    @property
+    def cors_allow_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
 
 @lru_cache(maxsize=1)

@@ -1,7 +1,13 @@
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.audit import AuditEventRead
+from app.schemas.file_asset import FileAssetRead
+from app.schemas.module_payload import ExperimentModulePayloadRead
+from app.schemas.sample import SampleRead
 
 
 class ExperimentCreate(BaseModel):
@@ -45,3 +51,28 @@ class ExperimentRead(BaseModel):
 class ExperimentListResponse(BaseModel):
     items: list[ExperimentRead]
     total: int
+
+
+class ExperimentExportCounts(BaseModel):
+    modules: int
+    samples: int
+    files: int
+    audit_events: int
+
+
+class ExperimentExportProvenance(BaseModel):
+    derived_from_run_id: UUID | None
+    derived_from_run_code: str | None
+
+
+class ExperimentExportRead(BaseModel):
+    export_version: str
+    exported_at: datetime
+    experiment: ExperimentRead
+    modules: list[ExperimentModulePayloadRead]
+    samples: list[SampleRead]
+    files: list[FileAssetRead]
+    features: list[dict[str, Any]]
+    provenance: ExperimentExportProvenance
+    audit_events: list[AuditEventRead]
+    counts: ExperimentExportCounts

@@ -65,3 +65,25 @@ def test_me_returns_current_user(active_user) -> None:
 
     assert response.status_code == 200
     assert response.json()["email"] == active_user.email
+
+
+def test_logout_requires_token() -> None:
+    response = client.post("/api/v1/auth/logout")
+
+    assert response.status_code == 401
+
+
+def test_logout_returns_no_content_for_authenticated_user(active_user) -> None:
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": active_user.email, "password": "Password123!"},
+    )
+    token = login_response.json()["access_token"]
+
+    response = client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 204
+    assert response.content == b""

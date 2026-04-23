@@ -6,6 +6,9 @@ from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, Uuid, fun
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.file_asset import FileAsset
+from app.models.module_payload import ExperimentModulePayload
+from app.models.sample import Sample
 from app.models.user import User
 
 
@@ -81,4 +84,16 @@ class ExperimentRun(Base):
     derived_from_run: Mapped["ExperimentRun | None"] = relationship(
         remote_side="ExperimentRun.id",
         foreign_keys=[derived_from_run_id],
+    )
+    module_payloads: Mapped[list[ExperimentModulePayload]] = relationship(
+        back_populates="experiment_run",
+        cascade="all, delete-orphan",
+    )
+    samples: Mapped[list[Sample]] = relationship(
+        back_populates="experiment_run",
+        cascade="all, delete-orphan",
+    )
+    file_assets: Mapped[list[FileAsset]] = relationship(
+        back_populates="experiment_run",
+        cascade="all, delete-orphan",
     )
