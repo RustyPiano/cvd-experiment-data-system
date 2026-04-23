@@ -12,15 +12,18 @@
 - `/experiments`
 - `/experiments/new`
 - `/experiments/:id`
+- `/experiments/:id/files`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - draft 自动保存、区块级保存状态、`submit` 提交闭环
 - `/experiments/:id` 已接通 `return-to-draft / lock / invalidate / clone`
+- 详情页已接通文件概览、审计轨迹、JSON/Excel 导出入口
+- 文件页已接通文件列表、筛选、上传、下载、软删除
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端第一阶段尚未完成的部分：
 
-- 文件上传页、样品详情页、词表后台
+- 样品详情页、词表后台
 - 路由级拆包与更细的性能优化
 
 ## 本轮交付质量状态
@@ -32,6 +35,9 @@
 - 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
 - 当前实验编辑器现已覆盖全部 V1 模块 key、draft 自动保存和提交闭环；当前按最小可用字段集实现，非 draft 实验会切换为只读。
 - 实验详情页现已按权限和状态显示 `return-to-draft / lock / invalidate / clone` 按钮；`locked` 实验支持直接派生到新草稿编辑页。
+- 实验详情页现在会并行显示文件概览、审计轨迹，并提供结构化 JSON / Excel 导出按钮。
+- 文件页现在支持按方法和文件类别筛选，并接通带鉴权的文件下载、draft 上传和软删除。
+- 文件上传表单会读取 `characterization_method` 词表与当前实验样品列表，支持可选 `sample_id` 关联。
 - 编辑器 autosave 现在会先同步最新表单快照，再调度保存，避免连续编辑时遗漏后改动区块。
 - 当前模块 autosave 会保留后端 payload 中前端暂未建模的字段，避免最小表单覆盖掉已有结构化数据。
 - 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。

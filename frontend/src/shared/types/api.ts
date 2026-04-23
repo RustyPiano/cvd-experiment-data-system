@@ -97,3 +97,108 @@ export type ExperimentModulePayloadUpsertRequest = {
   payload_json: Record<string, unknown>;
   schema_version?: string;
 };
+
+export type FileAssetRead = {
+  id: string;
+  experiment_run_id: string;
+  sample_id: string | null;
+  uploaded_by_id: string;
+  deleted_by_id: string | null;
+  original_name: string;
+  storage_path: string;
+  download_url: string;
+  content_type: string | null;
+  size_bytes: number;
+  sha256: string;
+  method: string;
+  file_category: string;
+  note: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  is_deleted: boolean;
+};
+
+export type FileAssetListResponse = {
+  items: FileAssetRead[];
+  total: number;
+};
+
+export type AuditEventRead = {
+  id: string;
+  actor_id: string;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  before_json: Record<string, unknown> | null;
+  after_json: Record<string, unknown> | null;
+  reason: string | null;
+  created_at: string;
+};
+
+export type AuditEventListResponse = {
+  items: AuditEventRead[];
+  total: number;
+};
+
+export type SampleRead = {
+  id: string;
+  sample_code: string;
+  experiment_run_id: string;
+  parent_sample_id: string | null;
+  role: string;
+  substrate_type: string | null;
+  brand: string | null;
+  size_mm: string | null;
+  treatment: string | null;
+  position_mm: number | null;
+  storage_location: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SampleListResponse = {
+  items: SampleRead[];
+  total: number;
+};
+
+export type ControlledVocabularyRead = {
+  id: string;
+  vocab_key: string;
+  value: string;
+  label_zh: string;
+  label_en: string | null;
+  sort_order: number;
+  is_active: boolean;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ControlledVocabularyListResponse = {
+  items: ControlledVocabularyRead[];
+  total: number;
+};
+
+export type ExperimentExportRead = {
+  export_version: string;
+  exported_at: string;
+  experiment: ExperimentRead;
+  modules: ExperimentModulePayloadRead[];
+  samples: SampleRead[];
+  files: FileAssetRead[];
+  features: Array<Record<string, unknown>>;
+  provenance: {
+    derived_from_run_id: string | null;
+    derived_from_run_code: string | null;
+  };
+  audit_events: AuditEventRead[];
+  counts: {
+    modules: number;
+    samples: number;
+    files: number;
+    audit_events: number;
+  };
+};

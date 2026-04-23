@@ -10,6 +10,7 @@
 - `/experiments`
 - `/experiments/new`
 - `/experiments/:id`
+- `/experiments/:id/files`
 - `/experiments/:id` 生命周期动作卡片
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
 - `basic_info`
@@ -24,14 +25,15 @@
 - `result_summary`
 - `return-to-draft / lock / invalidate / clone`
 - draft 自动保存与 `submit` 提交
+- 文件列表、筛选、上传、下载、软删除
+- 详情页文件概览、审计轨迹、JSON/Excel 导出入口
 
 当前前端还没有接通的部分：
 
-- 文件管理页
 - 样品详情页
 - 受控词表后台
 
-因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐文件、样品、导出和审计面板，而不是重复改造现有编辑器骨架。
+因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐样品页、词表后台和文件预览增强，而不是重复改造现有编辑器骨架。
 
 ## 0.1 当前前端基线约定
 
@@ -44,7 +46,9 @@
 - 由于当前 `PATCH /experiments/{id}` 只支持 `material_system`、`objective`、`summary_result`，编辑器里的 `experiment_type` 和 `experiment_date` 目前按只读展示。
 - 当前编辑器只在 `draft` 开启自动保存和提交；`submitted / locked / invalid` 一律只读。
 - 详情页当前已根据“owner/admin vs. 其他 member/viewer”以及实验状态控制动作按钮显示；状态切换请求进行中会互斥禁用其他动作；`clone` 成功后会直接跳到新草稿的编辑页。
-- 当前前端还没有封装文件下载 `blob`、Excel 导出和 `multipart/form-data` 上传 UI；这部分应作为下一阶段能力单独补齐。
+- 当前前端已经封装带 Bearer Token 的 blob 下载能力，用于文件下载和 Excel 导出。
+- 详情页当前直接调用文件列表和审计接口，不依赖聚合导出接口做页面渲染。
+- 文件页当前会额外读取 `GET /api/v1/samples?experiment_id=...` 和 `GET /api/v1/vocabularies?vocab_key=characterization_method`，分别用于样品关联和上传方法建议。
 
 ## 1. 启动与基线
 
@@ -187,6 +191,7 @@ invalid
 ### `/experiments/:id`
 
 - `GET /api/v1/experiments/{id}`
+- `GET /api/v1/files?experiment_id={id}`
 - `POST /api/v1/experiments/{id}/return-to-draft`
 - `POST /api/v1/experiments/{id}/lock`
 - `POST /api/v1/experiments/{id}/invalidate`
@@ -194,6 +199,15 @@ invalid
 - `GET /api/v1/experiments/{id}/audit-events`
 - `GET /api/v1/experiments/{id}/export`
 - `GET /api/v1/experiments/{id}/export/excel`
+
+当前详情页实际消费方式：
+
+- 实验主信息：`GET /api/v1/experiments/{id}`
+- 文件概览：`GET /api/v1/files?experiment_id={id}`
+- 审计轨迹：`GET /api/v1/experiments/{id}/audit-events`
+- 导出按钮：
+  - JSON：`GET /api/v1/experiments/{id}/export/json`
+  - Excel：`GET /api/v1/experiments/{id}/export/excel`
 
 ### `/experiments/:id/edit`
 
@@ -216,6 +230,16 @@ invalid
 - `GET /api/v1/files/{file_id}`
 - `GET /api/v1/files/{file_id}/download`
 - `DELETE /api/v1/files/{file_id}`
+- `GET /api/v1/samples?experiment_id={id}`
+- `GET /api/v1/vocabularies?vocab_key=characterization_method`
+
+当前文件页实际行为：
+
+- 允许按 `method`、`file_category` 走后端筛选
+- 上传表单提交 `multipart/form-data`
+- `sample_id` 可选
+- 仅在 owner/admin 且实验为 `draft` 时显示上传和删除按钮
+- 下载走带 Bearer Token 的 blob 请求，不直接暴露匿名链接
 
 ### `/samples/:id`
 

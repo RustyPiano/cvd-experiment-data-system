@@ -5,6 +5,7 @@ import { Alert } from "antd";
 import { LoginPage } from "../features/auth/login-page";
 import { ExperimentDetailPage } from "../features/experiments/experiment-detail-page";
 import { ExperimentEditorPage } from "../features/experiments/experiment-editor-page";
+import { ExperimentFilesPage } from "../features/experiments/experiment-files-page";
 import { ExperimentListPage } from "../features/experiments/experiment-list-page";
 import { ExperimentNewPage } from "../features/experiments/experiment-new-page";
 import { AppShell } from "../shared/ui/app-shell";
@@ -45,6 +46,10 @@ export const router = createBrowserRouter([
       {
         path: "/experiments/:experimentId/edit",
         element: <ExperimentEditorPage />,
+      },
+      {
+        path: "/experiments/:experimentId/files",
+        element: <ExperimentFilesPage />,
       },
       {
         path: "/admin/vocabularies",
