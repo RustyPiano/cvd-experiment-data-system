@@ -61,6 +61,10 @@ export type ExperimentUpdateRequest = {
   summary_result?: string | null;
 };
 
+export type ExperimentInvalidateRequest = {
+  reason: string;
+};
+
 export type ExperimentModuleKey =
   | "basic_info"
   | "environment"

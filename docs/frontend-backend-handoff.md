@@ -10,23 +10,28 @@
 - `/experiments`
 - `/experiments/new`
 - `/experiments/:id`
-- `/experiments/:id/edit` 核心模块编辑器
+- `/experiments/:id` 生命周期动作卡片
+- `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
 - `basic_info`
+- `environment`
 - `precheck`
 - `precursors`
 - `substrates`
 - `furnace_program`
 - `gas_program`
+- `process_observation`
+- `characterization`
+- `result_summary`
+- `return-to-draft / lock / invalidate / clone`
 - draft 自动保存与 `submit` 提交
 
 当前前端还没有接通的部分：
 
-- `return-to-draft / lock / invalidate / clone` 状态流按钮
 - 文件管理页
 - 样品详情页
 - 受控词表后台
 
-因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐文件、样品和剩余状态流，而不是重复改造现有编辑器骨架。
+因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐文件、样品、导出和审计面板，而不是重复改造现有编辑器骨架。
 
 ## 0.1 当前前端基线约定
 
@@ -34,8 +39,11 @@
 - 统一 API client 现在同时兼容 `204`、JSON 响应和纯文本错误响应；后端即便返回非 JSON 错误体，前端也会归一化成 `HttpError` 处理。
 - `/experiments/new`、`/experiments/:id`、`/experiments/:id/edit` 已补齐错误态展示；后续新页面也应保持“失败可见”，不要返回空白壳层。
 - 编辑器当前采用“主表单 + 模块表单 + 区块级 debounced autosave”的结构；`basic_info` 会同时写主实验记录和模块 payload。
+- `result_summary` 也会同时写主实验 `summary_result` 和模块 payload，保证详情页能直接读取结论。
+- 当前编辑器按最小可用字段集建模；自动保存时会保留原模块 payload 中前端暂未暴露的字段。
 - 由于当前 `PATCH /experiments/{id}` 只支持 `material_system`、`objective`、`summary_result`，编辑器里的 `experiment_type` 和 `experiment_date` 目前按只读展示。
 - 当前编辑器只在 `draft` 开启自动保存和提交；`submitted / locked / invalid` 一律只读。
+- 详情页当前已根据“owner/admin vs. 其他 member/viewer”以及实验状态控制动作按钮显示；状态切换请求进行中会互斥禁用其他动作；`clone` 成功后会直接跳到新草稿的编辑页。
 - 当前前端还没有封装文件下载 `blob`、Excel 导出和 `multipart/form-data` 上传 UI；这部分应作为下一阶段能力单独补齐。
 
 ## 1. 启动与基线
@@ -138,9 +146,9 @@ invalid
 
 状态规则：
 
-- `draft`：owner/admin 可编辑，可上传文件。
-- `submitted`：只读；owner/admin 可退回草稿或锁定。
-- `locked`：只读；只能 clone。
+- `draft`：owner/admin 可编辑，可上传文件，也可直接作废。
+- `submitted`：只读；owner/admin 可退回草稿、锁定或作废。
+- `locked`：只读；非 `viewer` 可 clone；owner/admin 仍可作废自己的实验。
 - `invalid`：默认列表隐藏。
 
 前端不要自行推导状态流，直接按按钮接口驱动：
@@ -179,6 +187,10 @@ invalid
 ### `/experiments/:id`
 
 - `GET /api/v1/experiments/{id}`
+- `POST /api/v1/experiments/{id}/return-to-draft`
+- `POST /api/v1/experiments/{id}/lock`
+- `POST /api/v1/experiments/{id}/invalidate`
+- `POST /api/v1/experiments/{id}/clone`
 - `GET /api/v1/experiments/{id}/audit-events`
 - `GET /api/v1/experiments/{id}/export`
 - `GET /api/v1/experiments/{id}/export/excel`
@@ -195,6 +207,7 @@ invalid
 
 - 主记录 `PATCH` 只更新 `material_system` 和 `objective`
 - `basic_info` 模块会额外保存 `operator_id`、`experiment_type`、`material_system`、`experiment_date`、`objective`
+- `result_summary` 会同步写主记录 `summary_result` 与模块里的 `summary_result`
 
 ### `/experiments/:id/files`
 

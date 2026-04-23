@@ -1,6 +1,6 @@
 # Frontend Workspace
 
-前端当前已经完成第二个可用阶段，重点是把“登录 -> 实验列表 -> 新建 -> 编辑核心模块 -> 提交”这条链路接通。
+前端当前已经完成第三个可用阶段，重点是把“登录 -> 实验列表 -> 新建 -> 编辑全部 V1 模块 key -> 提交 / 退回 / 锁定 / 作废 / 派生”这条实验主链路接通。
 
 ## 当前已交付
 
@@ -11,9 +11,10 @@
 - `/experiments`
 - `/experiments/new`
 - `/experiments/:id`
-- `/experiments/:id/edit` 核心模块编辑器
-- `basic_info / precheck / precursors / substrates / furnace_program / gas_program`
+- `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
+- `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - draft 自动保存、区块级保存状态、`submit` 提交闭环
+- `/experiments/:id` 状态流按钮：`return-to-draft / lock / invalidate / clone`
 - 统一 API client、错误对象与测试基线
 
 ## 当前目录结构
@@ -31,8 +32,12 @@
 - 新建实验页、实验详情页、编辑器都已经补齐错误态，不再出现空白页。
 - 当前列表、详情和编辑入口查询都按当前用户隔离缓存，避免跨账号串数据。
 - 编辑器当前采用“主记录 + 模块卡片”结构，每段独立自动保存，提交前会先 flush 待保存改动。
+- `result_summary` 会同时回写主实验 `summary_result`，保证详情页能直接展示结论。
+- 当前编辑器按最小可用字段集建模；自动保存时会保留原 payload 里前端暂未暴露的字段。
 - 非 draft 实验会自动切换成只读视图，不再允许继续修改。
 - 当前 `experiment_type` 和 `experiment_date` 在编辑器中按只读展示，因为后端主记录 `PATCH` 还不支持修改这两个字段。
+- 详情页会按当前用户权限和实验状态动态显示生命周期按钮；`locked` 实验可直接派生到新的草稿编辑页。
+- 生命周期按钮在请求进行中会互斥禁用，避免重复提交多个状态切换动作。
 
 ## 本地启动
 
@@ -60,11 +65,11 @@ bun run build
 
 ## 已知边界
 
-- `return-to-draft / lock / invalidate / clone` 的前端交互还未接通
 - 文件管理、样品详情、词表后台尚未开始
+- 详情页当前仍以总览和状态动作卡片为主，审计、导出和文件面板还未接进来
 - 首屏仍未做路由级拆包，后续需要顺手压缩包体积
 
 ## 下一阶段
 
-- 剩余状态流：`return-to-draft`、`lock`、`invalidate`、`clone`
 - 文件上传页、样品详情页、词表后台
+- 导出下载、审计面板与路由级拆包

@@ -12,14 +12,14 @@
 - `/experiments`
 - `/experiments/new`
 - `/experiments/:id`
-- `/experiments/:id/edit` 核心模块编辑器
-- `basic_info / precheck / precursors / substrates / furnace_program / gas_program`
+- `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
+- `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - draft 自动保存、区块级保存状态、`submit` 提交闭环
+- `/experiments/:id` 已接通 `return-to-draft / lock / invalidate / clone`
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端第一阶段尚未完成的部分：
 
-- `return-to-draft / lock / invalidate / clone` 的完整交互闭环
 - 文件上传页、样品详情页、词表后台
 - 路由级拆包与更细的性能优化
 
@@ -30,7 +30,11 @@
 - 实验详情页和编辑器壳层在请求失败时会显示错误态，不再返回空白页面。
 - 统一 API client 现在兼容 `204`、JSON 和纯文本错误响应，避免非 JSON 响应被误解析成 `SyntaxError`。
 - 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
-- 核心实验编辑器现已支持六个关键模块、draft 自动保存和提交闭环；非 draft 实验会切换为只读。
+- 当前实验编辑器现已覆盖全部 V1 模块 key、draft 自动保存和提交闭环；当前按最小可用字段集实现，非 draft 实验会切换为只读。
+- 实验详情页现已按权限和状态显示 `return-to-draft / lock / invalidate / clone` 按钮；`locked` 实验支持直接派生到新草稿编辑页。
+- 编辑器 autosave 现在会先同步最新表单快照，再调度保存，避免连续编辑时遗漏后改动区块。
+- 当前模块 autosave 会保留后端 payload 中前端暂未建模的字段，避免最小表单覆盖掉已有结构化数据。
+- 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
 - 当前验证结果：`bun run test`、`bun run typecheck`、`bun run lint`、`bun run build` 通过；构建仅剩 Vite 的 chunk size 警告，暂不影响运行。
 
 ## 当前后端能力
@@ -159,10 +163,11 @@ bun run build
 - 后端已开放本地前端开发所需 CORS，并暴露 `Content-Disposition` 供文件下载和导出读取文件名。
 - `member` 可以创建自己的草稿，查看自己的实验，以及查看其他人的 `submitted/locked` 实验。
 - `invalid` 实验默认从列表隐藏；显式传 `status=invalid` 才返回。
+- owner/admin 当前可以将自己的任意非 `invalid` 实验直接作废；`submitted` 不要求先退回 `draft`。
 - `clone` 会复制主实验参数，但不会复制 `summary_result`、作废原因和状态时间戳；新实验会回到 `draft`。
 - `submitted` 实验现在支持显式退回 `draft`，并写入审计日志。
 - 模块 payload 当前支持 `basic_info`、`environment`、`precheck`、`precursors`、`substrates`、`furnace_program`、`gas_program`、`process_observation`、`characterization`、`result_summary`。
-- `clone` 只允许从 `locked` 实验发起；会复制模块 payload，但不会复制 `basic_info`、`result_summary`，并会清空克隆后环境模块中的 `abnormal_note`。
+- `clone` 只允许从 `locked` 实验发起；会复制模块 payload，但不会复制 `basic_info`、`process_observation`、`characterization`、`result_summary`，并会清空克隆后环境模块中的 `abnormal_note`。
 - 提交前校验现在覆盖主字段和已实现的模块规则：至少一个前驱体、至少一个温区程序、温区时间严格递增；如果填写了气体程序，则要求 `end_min > start_min` 且时间段不能重叠；`seal_intact=false` 时必须填写 `risk_note`。
 - `substrates` 模块会同步生成或更新 `TOP/BOTTOM` 样品。
 - 模块 payload 的非法对象形状会在后端转成 `422`，避免把脏 JSON 打成 `500`。

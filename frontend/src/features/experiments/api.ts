@@ -1,6 +1,7 @@
 import { apiRequest } from "../../shared/api/client";
 import type {
   ExperimentCreateRequest,
+  ExperimentInvalidateRequest,
   ExperimentModuleKey,
   ExperimentModulePayloadListResponse,
   ExperimentModulePayloadRead,
@@ -69,6 +70,39 @@ export function upsertExperimentModule(
 
 export function submitExperiment(token: string, experimentId: string) {
   return apiRequest<ExperimentRead>(`/api/v1/experiments/${experimentId}/submit`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function returnExperimentToDraft(token: string, experimentId: string) {
+  return apiRequest<ExperimentRead>(`/api/v1/experiments/${experimentId}/return-to-draft`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function lockExperiment(token: string, experimentId: string) {
+  return apiRequest<ExperimentRead>(`/api/v1/experiments/${experimentId}/lock`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function invalidateExperiment(
+  token: string,
+  experimentId: string,
+  payload: ExperimentInvalidateRequest,
+) {
+  return apiRequest<ExperimentRead>(`/api/v1/experiments/${experimentId}/invalidate`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function cloneExperiment(token: string, experimentId: string) {
+  return apiRequest<ExperimentRead>(`/api/v1/experiments/${experimentId}/clone`, {
     method: "POST",
     token,
   });

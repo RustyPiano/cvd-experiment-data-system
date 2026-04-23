@@ -41,6 +41,16 @@ export function ExperimentSummary({ experiment }: { experiment: ExperimentRead }
             label: "质量标签",
             children: experiment.quality_label,
           },
+          {
+            key: "summary_result",
+            label: "总结结论",
+            children: experiment.summary_result || "未填写",
+          },
+          {
+            key: "invalid_reason",
+            label: "作废原因",
+            children: experiment.invalid_reason || "未作废",
+          },
         ]}
       />
     </Card>

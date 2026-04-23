@@ -9,15 +9,22 @@ import type {
 } from "../../shared/types/api";
 import { submitExperiment, updateExperiment, upsertExperimentModule } from "./api";
 import {
+  createInitialSectionStates,
   editorSectionKeys,
+  mergeBasicInfoPayload,
+  mergeCharacterizationPayload,
+  mergeEnvironmentPayload,
+  mergeFurnaceProgramPayload,
+  mergeGasProgramPayload,
+  mergePrecursorsPayload,
+  mergePrecheckPayload,
+  mergeProcessObservationPayload,
+  mergeResultSummaryPayload,
+  mergeSubstratesPayload,
   serializeSectionValues,
-  toBasicInfoPayload,
   toExperimentPatch,
-  toFurnaceProgramPayload,
-  toGasProgramPayload,
-  toPrecursorsPayload,
-  toPrecheckPayload,
-  toSubstratesPayload,
+  type ModulePayloadMap,
+  toResultSummaryPatch,
   type EditorSectionKey,
   type ExperimentEditorValues,
   type SectionSaveState,
@@ -40,28 +47,19 @@ function resolveErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function createIdleSectionStates(): Record<EditorSectionKey, SectionSaveState> {
-  return {
-    basic_info: { status: "idle", message: null },
-    precheck: { status: "idle", message: null },
-    precursors: { status: "idle", message: null },
-    substrates: { status: "idle", message: null },
-    furnace_program: { status: "idle", message: null },
-    gas_program: { status: "idle", message: null },
-  };
-}
-
 export function useExperimentEditor({
   experimentId,
   accessToken,
   currentUserId,
   initialExperiment,
+  initialModulePayloads,
   initialValues,
 }: {
   experimentId: string;
   accessToken: string;
   currentUserId: string;
   initialExperiment: ExperimentRead;
+  initialModulePayloads: ModulePayloadMap;
   initialValues: ExperimentEditorValues;
 }) {
   const queryClient = useQueryClient();
@@ -75,21 +73,26 @@ export function useExperimentEditor({
       },
       {
         basic_info: "",
+        environment: "",
         precheck: "",
         precursors: "",
         substrates: "",
         furnace_program: "",
         gas_program: "",
+        process_observation: "",
+        characterization: "",
+        result_summary: "",
       },
     ),
   );
   const valuesRef = useRef(initialValues);
-  const sectionStatesRef = useRef(createIdleSectionStates());
+  const modulePayloadsRef = useRef<ModulePayloadMap>(initialModulePayloads);
+  const sectionStatesRef = useRef(createInitialSectionStates());
 
   const [experiment, setExperiment] = useState(initialExperiment);
   const [values, setValues] = useState(initialValues);
   const [sectionStates, setSectionStates] = useState<Record<EditorSectionKey, SectionSaveState>>(
-    createIdleSectionStates,
+    createInitialSectionStates,
   );
   const [submitState, setSubmitState] = useState<SubmitState>({
     status: "idle",
@@ -111,18 +114,16 @@ export function useExperimentEditor({
   );
 
   const resetSectionStates = useCallback(() => {
-    const nextSectionStates = createIdleSectionStates();
+    const nextSectionStates = createInitialSectionStates();
     sectionStatesRef.current = nextSectionStates;
     setSectionStates(nextSectionStates);
   }, []);
 
   const updateValues = useCallback(
     (updater: (current: ExperimentEditorValues) => ExperimentEditorValues) => {
-      setValues((current) => {
-        const nextValues = updater(current);
-        valuesRef.current = nextValues;
-        return nextValues;
-      });
+      const nextValues = updater(valuesRef.current);
+      valuesRef.current = nextValues;
+      setValues(nextValues);
     },
     [],
   );
@@ -166,7 +167,7 @@ export function useExperimentEditor({
         return false;
       }
 
-      let nextExperiment: ExperimentRead | null = experiment;
+      let nextExperiment: ExperimentRead | null = null;
       let hasError = false;
 
       for (const sectionKey of dirtySections) {
@@ -186,22 +187,42 @@ export function useExperimentEditor({
               experimentId,
               toExperimentPatch(draftValues.basicInfo),
             );
-            savedModule = await upsertExperimentModule(accessToken, experimentId, "basic_info", {
-              payload_json: toBasicInfoPayload(draftValues.basicInfo, currentUserId),
-            });
             nextExperiment = patchedExperiment;
             setExperiment(patchedExperiment);
+            savedModule = await upsertExperimentModule(accessToken, experimentId, "basic_info", {
+              payload_json: mergeBasicInfoPayload(
+                modulePayloadsRef.current.basic_info,
+                draftValues.basicInfo,
+                currentUserId,
+              ),
+            });
+          } else if (sectionKey === "environment") {
+            savedModule = await upsertExperimentModule(accessToken, experimentId, "environment", {
+              payload_json: mergeEnvironmentPayload(
+                modulePayloadsRef.current.environment,
+                draftValues.environment,
+              ),
+            });
           } else if (sectionKey === "precheck") {
             savedModule = await upsertExperimentModule(accessToken, experimentId, "precheck", {
-              payload_json: toPrecheckPayload(draftValues.precheck),
+              payload_json: mergePrecheckPayload(
+                modulePayloadsRef.current.precheck,
+                draftValues.precheck,
+              ),
             });
           } else if (sectionKey === "precursors") {
             savedModule = await upsertExperimentModule(accessToken, experimentId, "precursors", {
-              payload_json: toPrecursorsPayload(draftValues.precursors),
+              payload_json: mergePrecursorsPayload(
+                modulePayloadsRef.current.precursors,
+                draftValues.precursors,
+              ),
             });
           } else if (sectionKey === "substrates") {
             savedModule = await upsertExperimentModule(accessToken, experimentId, "substrates", {
-              payload_json: toSubstratesPayload(draftValues.substrates),
+              payload_json: mergeSubstratesPayload(
+                modulePayloadsRef.current.substrates,
+                draftValues.substrates,
+              ),
             });
           } else if (sectionKey === "furnace_program") {
             savedModule = await upsertExperimentModule(
@@ -209,16 +230,69 @@ export function useExperimentEditor({
               experimentId,
               "furnace_program",
               {
-                payload_json: toFurnaceProgramPayload(draftValues.furnaceProgram),
+                payload_json: mergeFurnaceProgramPayload(
+                  modulePayloadsRef.current.furnace_program,
+                  draftValues.furnaceProgram,
+                ),
               },
             );
           } else if (sectionKey === "gas_program") {
             savedModule = await upsertExperimentModule(accessToken, experimentId, "gas_program", {
-              payload_json: toGasProgramPayload(draftValues.gasProgram),
+              payload_json: mergeGasProgramPayload(
+                modulePayloadsRef.current.gas_program,
+                draftValues.gasProgram,
+              ),
             });
+          } else if (sectionKey === "process_observation") {
+            savedModule = await upsertExperimentModule(
+              accessToken,
+              experimentId,
+              "process_observation",
+              {
+                payload_json: mergeProcessObservationPayload(
+                  modulePayloadsRef.current.process_observation,
+                  draftValues.processObservation,
+                ),
+              },
+            );
+          } else if (sectionKey === "characterization") {
+            savedModule = await upsertExperimentModule(
+              accessToken,
+              experimentId,
+              "characterization",
+              {
+                payload_json: mergeCharacterizationPayload(
+                  modulePayloadsRef.current.characterization,
+                  draftValues.characterization,
+                ),
+              },
+            );
+          } else if (sectionKey === "result_summary") {
+            const patchedExperiment = await updateExperiment(
+              accessToken,
+              experimentId,
+              toResultSummaryPatch(draftValues.resultSummary),
+            );
+            nextExperiment = patchedExperiment;
+            setExperiment(patchedExperiment);
+            savedModule = await upsertExperimentModule(
+              accessToken,
+              experimentId,
+              "result_summary",
+              {
+                payload_json: mergeResultSummaryPayload(
+                  modulePayloadsRef.current.result_summary,
+                  draftValues.resultSummary,
+                ),
+              },
+            );
           }
 
           if (savedModule) {
+            modulePayloadsRef.current = {
+              ...modulePayloadsRef.current,
+              [sectionKey]: savedModule.payload_json,
+            };
             patchModulesCache(savedModule);
           }
           snapshotsRef.current[sectionKey] = serializeSectionValues(sectionKey, draftValues);
@@ -251,7 +325,6 @@ export function useExperimentEditor({
     [
       accessToken,
       currentUserId,
-      experiment,
       experimentId,
       patchModulesCache,
       queryClient,

@@ -50,7 +50,7 @@ export function EditorStatusBar({
       </div>
       {submitState.status === "error" && submitState.message ? (
         <Alert
-          message={submitState.message}
+          title={submitState.message}
           showIcon
           style={{ marginTop: 16 }}
           type="error"

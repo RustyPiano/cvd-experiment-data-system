@@ -7,15 +7,19 @@ import { HttpError } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
 import { useAuth } from "../auth/use-auth";
 import { getExperiment, listExperimentModules } from "./api";
+import { CharacterizationSection } from "./components/characterization-section";
 import { EditorStatusBar } from "./components/editor-status-bar";
 import { EditorSectionCard } from "./components/editor-section-card";
+import { EnvironmentSection } from "./components/environment-section";
 import { ExperimentMainFields } from "./components/experiment-main-fields";
 import { FurnaceProgramSection } from "./components/furnace-program-section";
 import { GasProgramSection } from "./components/gas-program-section";
 import { PrecursorsSection } from "./components/precursors-section";
 import { PrecheckSection } from "./components/precheck-section";
+import { ProcessObservationSection } from "./components/process-observation-section";
+import { ResultSummarySection } from "./components/result-summary-section";
 import { SubstratesSection } from "./components/substrates-section";
-import { createInitialEditorValues } from "./editor-types";
+import { createInitialEditorValues, createModulePayloadMap, type ModulePayloadMap } from "./editor-types";
 import { useExperimentEditor } from "./use-experiment-editor";
 
 function ExperimentEditorWorkspace({
@@ -23,12 +27,14 @@ function ExperimentEditorWorkspace({
   currentUserId,
   experimentId,
   initialExperiment,
+  initialModulePayloads,
   initialValues,
 }: {
   accessToken: string;
   currentUserId: string;
   experimentId: string;
   initialExperiment: ReturnType<typeof getExperiment> extends Promise<infer T> ? T : never;
+  initialModulePayloads: ModulePayloadMap;
   initialValues: ReturnType<typeof createInitialEditorValues>;
 }) {
   const navigate = useNavigate();
@@ -37,6 +43,7 @@ function ExperimentEditorWorkspace({
     currentUserId,
     experimentId,
     initialExperiment,
+    initialModulePayloads,
     initialValues,
   });
 
@@ -52,7 +59,7 @@ function ExperimentEditorWorkspace({
             查看详情
           </Button>
         }
-        subtitle="核心模块现已接入自动保存和提交闭环，非 draft 状态下会保持只读。"
+        subtitle="V1 模块现已接入自动保存和提交闭环，非 draft 状态下会保持只读。"
         title={`编辑 ${editor.experiment.run_code}`}
       />
       <EditorStatusBar
@@ -77,6 +84,23 @@ function ExperimentEditorWorkspace({
             editor.scheduleAutosave();
           }}
           value={editor.values.basicInfo}
+        />
+      </EditorSectionCard>
+      <EditorSectionCard
+        state={editor.sectionStates.environment}
+        subtitle="环境条件会保存在独立模块里；clone 时异常备注会被后端自动清空。"
+        title="环境条件"
+      >
+        <EnvironmentSection
+          disabled={!editor.isDraft}
+          onChange={(nextValue) => {
+            editor.updateValues((current) => ({
+              ...current,
+              environment: nextValue,
+            }));
+            editor.scheduleAutosave();
+          }}
+          value={editor.values.environment}
         />
       </EditorSectionCard>
       <EditorSectionCard
@@ -164,6 +188,57 @@ function ExperimentEditorWorkspace({
           value={editor.values.gasProgram}
         />
       </EditorSectionCard>
+      <EditorSectionCard
+        state={editor.sectionStates.process_observation}
+        subtitle="记录过程中的颜色变化、沉积和其他异常现象；locked clone 不会复制这一段。"
+        title="过程观察"
+      >
+        <ProcessObservationSection
+          disabled={!editor.isDraft}
+          onChange={(nextValue) => {
+            editor.updateValues((current) => ({
+              ...current,
+              processObservation: nextValue,
+            }));
+            editor.scheduleAutosave();
+          }}
+          value={editor.values.processObservation}
+        />
+      </EditorSectionCard>
+      <EditorSectionCard
+        state={editor.sectionStates.characterization}
+        subtitle="当前先接最小表征记录，文件上传页后续再和表征方法词表联动。"
+        title="表征结果"
+      >
+        <CharacterizationSection
+          disabled={!editor.isDraft}
+          onChange={(nextValue) => {
+            editor.updateValues((current) => ({
+              ...current,
+              characterization: nextValue,
+            }));
+            editor.scheduleAutosave();
+          }}
+          value={editor.values.characterization}
+        />
+      </EditorSectionCard>
+      <EditorSectionCard
+        state={editor.sectionStates.result_summary}
+        subtitle="这一段会同时同步主实验 `summary_result`，保证详情页和列表能直接读取结论。"
+        title="结果总结"
+      >
+        <ResultSummarySection
+          disabled={!editor.isDraft}
+          onChange={(nextValue) => {
+            editor.updateValues((current) => ({
+              ...current,
+              resultSummary: nextValue,
+            }));
+            editor.scheduleAutosave();
+          }}
+          value={editor.values.resultSummary}
+        />
+      </EditorSectionCard>
     </div>
   );
 }
@@ -192,6 +267,13 @@ export function ExperimentEditorPage() {
 
     return createInitialEditorValues(experimentQuery.data, modulesQuery.data.items);
   }, [experimentQuery.data, modulesQuery.data]);
+  const initialModulePayloads = useMemo(() => {
+    if (!modulesQuery.data) {
+      return null;
+    }
+
+    return createModulePayloadMap(modulesQuery.data.items);
+  }, [modulesQuery.data]);
 
   if (experimentQuery.isLoading || modulesQuery.isLoading) {
     return (
@@ -230,7 +312,7 @@ export function ExperimentEditorPage() {
     );
   }
 
-  if (!experimentQuery.data || !initialValues) {
+  if (!experimentQuery.data || !initialValues || !initialModulePayloads) {
     return (
       <Alert
         message="实验编辑器暂不可用"
@@ -246,6 +328,7 @@ export function ExperimentEditorPage() {
       currentUserId={currentUserId}
       experimentId={experimentId}
       initialExperiment={experimentQuery.data}
+      initialModulePayloads={initialModulePayloads}
       initialValues={initialValues}
     />
   );
