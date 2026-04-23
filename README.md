@@ -12,13 +12,14 @@
 - `/experiments`
 - `/experiments/new`
 - `/experiments/:id`
-- `/experiments/:id/edit` 壳层
+- `/experiments/:id/edit` 核心模块编辑器
+- `basic_info / precheck / precursors / substrates / furnace_program / gas_program`
+- draft 自动保存、区块级保存状态、`submit` 提交闭环
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端第一阶段尚未完成的部分：
 
-- 模块化实验编辑器与自动保存
-- `submit / return-to-draft / lock / invalidate / clone` 的完整交互闭环
+- `return-to-draft / lock / invalidate / clone` 的完整交互闭环
 - 文件上传页、样品详情页、词表后台
 - 路由级拆包与更细的性能优化
 
@@ -29,6 +30,7 @@
 - 实验详情页和编辑器壳层在请求失败时会显示错误态，不再返回空白页面。
 - 统一 API client 现在兼容 `204`、JSON 和纯文本错误响应，避免非 JSON 响应被误解析成 `SyntaxError`。
 - 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
+- 核心实验编辑器现已支持六个关键模块、draft 自动保存和提交闭环；非 draft 实验会切换为只读。
 - 当前验证结果：`bun run test`、`bun run typecheck`、`bun run lint`、`bun run build` 通过；构建仅剩 Vite 的 chunk size 警告，暂不影响运行。
 
 ## 当前后端能力
@@ -36,6 +38,7 @@
 - FastAPI 服务入口
 - `users` 用户模型
 - JWT 登录鉴权
+- `pwdlib + Argon2id` 密码哈希
 - 管理员初始化命令
 - `experiment_runs` 主表
 - 实验新建、列表、详情、更新
@@ -152,6 +155,7 @@ bun run build
 
 - `viewer` 只能查看 `submitted/locked` 实验，不能创建和克隆。
 - `logout` 在当前 Bearer Token 模式下用于显式结束客户端会话；实际失效方式是前端清除本地令牌，不引入服务端黑名单。
+- 当前密码哈希方案固定为 `Argon2id`；旧 `bcrypt` 哈希不再兼容。
 - 后端已开放本地前端开发所需 CORS，并暴露 `Content-Disposition` 供文件下载和导出读取文件名。
 - `member` 可以创建自己的草稿，查看自己的实验，以及查看其他人的 `submitted/locked` 实验。
 - `invalid` 实验默认从列表隐藏；显式传 `status=invalid` 才返回。

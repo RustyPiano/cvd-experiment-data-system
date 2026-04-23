@@ -4,29 +4,38 @@
 
 ## 0. 当前前端已实现范围
 
-截至 2026-04-23，仓库里的前端第一阶段已接通：
+截至 2026-04-23，仓库里的前端当前已接通：
 
 - `/login`
 - `/experiments`
 - `/experiments/new`
 - `/experiments/:id`
-- `/experiments/:id/edit` 壳层
+- `/experiments/:id/edit` 核心模块编辑器
+- `basic_info`
+- `precheck`
+- `precursors`
+- `substrates`
+- `furnace_program`
+- `gas_program`
+- draft 自动保存与 `submit` 提交
 
 当前前端还没有接通的部分：
 
-- 模块级表单编辑与自动保存
-- 状态流按钮闭环
+- `return-to-draft / lock / invalidate / clone` 状态流按钮
 - 文件管理页
 - 样品详情页
 - 受控词表后台
 
-因此，下面的接口说明包含“后端已经准备好但前端还未消费”的接口。继续开发前端时，应优先补齐编辑器、文件和样品链路，而不是重复搭基础骨架。
+因此，下面的接口说明仍然包含“后端已经准备好但前端还未完全消费”的接口。继续开发前端时，应优先补齐文件、样品和剩余状态流，而不是重复改造现有编辑器骨架。
 
 ## 0.1 当前前端基线约定
 
 - 当前实验查询已经按“当前用户 ID + 资源 ID”分组缓存；退出登录时会清空 query cache，避免跨账号残留旧数据。
 - 统一 API client 现在同时兼容 `204`、JSON 响应和纯文本错误响应；后端即便返回非 JSON 错误体，前端也会归一化成 `HttpError` 处理。
 - `/experiments/new`、`/experiments/:id`、`/experiments/:id/edit` 已补齐错误态展示；后续新页面也应保持“失败可见”，不要返回空白壳层。
+- 编辑器当前采用“主表单 + 模块表单 + 区块级 debounced autosave”的结构；`basic_info` 会同时写主实验记录和模块 payload。
+- 由于当前 `PATCH /experiments/{id}` 只支持 `material_system`、`objective`、`summary_result`，编辑器里的 `experiment_type` 和 `experiment_date` 目前按只读展示。
+- 当前编辑器只在 `draft` 开启自动保存和提交；`submitted / locked / invalid` 一律只读。
 - 当前前端还没有封装文件下载 `blob`、Excel 导出和 `multipart/form-data` 上传 UI；这部分应作为下一阶段能力单独补齐。
 
 ## 1. 启动与基线
@@ -177,9 +186,15 @@ invalid
 ### `/experiments/:id/edit`
 
 - `PATCH /api/v1/experiments/{id}`
+- `POST /api/v1/experiments/{id}/submit`
 - `GET /api/v1/experiments/{id}/modules`
 - `GET /api/v1/experiments/{id}/modules/{module_key}`
 - `PUT /api/v1/experiments/{id}/modules/{module_key}`
+
+当前编辑器实际写入策略：
+
+- 主记录 `PATCH` 只更新 `material_system` 和 `objective`
+- `basic_info` 模块会额外保存 `operator_id`、`experiment_type`、`material_system`、`experiment_date`、`objective`
 
 ### `/experiments/:id/files`
 

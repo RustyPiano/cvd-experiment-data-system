@@ -8,6 +8,20 @@ type StorageLike = {
   clear: () => void;
 };
 
+class ResizeObserverMock {
+  observe() {
+    return undefined;
+  }
+
+  unobserve() {
+    return undefined;
+  }
+
+  disconnect() {
+    return undefined;
+  }
+}
+
 function createMemoryStorage(): StorageLike {
   const store = new Map<string, string>();
 
@@ -37,6 +51,14 @@ beforeEach(() => {
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
     value: localStorageMock,
+  });
+  Object.defineProperty(window, "ResizeObserver", {
+    configurable: true,
+    value: ResizeObserverMock,
+  });
+  Object.defineProperty(globalThis, "ResizeObserver", {
+    configurable: true,
+    value: ResizeObserverMock,
   });
 
   Object.defineProperty(window, "matchMedia", {

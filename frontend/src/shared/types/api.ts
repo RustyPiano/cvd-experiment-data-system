@@ -54,3 +54,42 @@ export type ExperimentCreateRequest = {
   experiment_date: string;
   objective: string | null;
 };
+
+export type ExperimentUpdateRequest = {
+  material_system?: string | null;
+  objective?: string | null;
+  summary_result?: string | null;
+};
+
+export type ExperimentModuleKey =
+  | "basic_info"
+  | "environment"
+  | "precheck"
+  | "precursors"
+  | "substrates"
+  | "furnace_program"
+  | "gas_program"
+  | "process_observation"
+  | "characterization"
+  | "result_summary";
+
+export type ExperimentModulePayloadRead = {
+  id: string;
+  experiment_run_id: string;
+  module_key: ExperimentModuleKey;
+  schema_version: string;
+  payload_json: Record<string, unknown>;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExperimentModulePayloadListResponse = {
+  items: ExperimentModulePayloadRead[];
+  total: number;
+};
+
+export type ExperimentModulePayloadUpsertRequest = {
+  payload_json: Record<string, unknown>;
+  schema_version?: string;
+};
