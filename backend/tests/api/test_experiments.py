@@ -1,3 +1,5 @@
+import time
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -605,35 +607,6 @@ def test_submit_allows_missing_gas_program(active_user) -> None:
     assert submit_response.status_code == 200
 
 
-def test_clone_rejects_non_locked_experiment(active_user, admin_user) -> None:
-    create_response = client.post(
-        "/api/v1/experiments",
-        json={
-            "experiment_type": "cvd_2zone",
-            "material_system": "WS2",
-            "experiment_date": "2026-04-23",
-            "objective": "Clone status guard",
-        },
-        headers=auth_headers(admin_user.email),
-    )
-    source_id = create_response.json()["id"]
-    populate_required_modules(source_id, admin_user.email)
-
-    submit_response = client.post(
-        f"/api/v1/experiments/{source_id}/submit",
-        headers=auth_headers(admin_user.email),
-    )
-    assert submit_response.status_code == 200
-
-    clone_response = client.post(
-        f"/api/v1/experiments/{source_id}/clone",
-        headers=auth_headers(active_user.email),
-    )
-
-    assert clone_response.status_code == 409
-    assert clone_response.json()["detail"] == "Only locked experiments can be cloned"
-
-
 def test_clone_excludes_observation_and_characterization_modules(active_user, admin_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",
@@ -818,3 +791,321 @@ def test_list_experiments_hides_invalid_by_default(active_user) -> None:
     assert invalid_list_response.status_code == 200
     assert run_code not in {item["run_code"] for item in list_response.json()["items"]}
     assert run_code in {item["run_code"] for item in invalid_list_response.json()["items"]}
+
+
+def test_list_experiments_supports_multiple_status_filters(active_user) -> None:
+    draft_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Draft source",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    submitted_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Submitted source",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    submitted_id = submitted_response.json()["id"]
+    populate_required_modules(submitted_id, active_user.email)
+    submit_response = client.post(
+        f"/api/v1/experiments/{submitted_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    list_response = client.get(
+        "/api/v1/experiments?mine=true&status=draft,submitted",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 200
+    assert list_response.status_code == 200
+    assert list_response.json()["total"] == 2
+    assert list_response.json()["page"] == 1
+    assert list_response.json()["page_size"] == 20
+    assert {item["status"] for item in list_response.json()["items"]} == {"draft", "submitted"}
+    assert {item["run_code"] for item in list_response.json()["items"]} == {
+        draft_response.json()["run_code"],
+        submitted_response.json()["run_code"],
+    }
+
+
+def test_list_experiments_supports_material_system_and_query_filters(active_user) -> None:
+    target_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoSe2",
+            "experiment_date": "2026-04-23",
+            "objective": "Target objective window",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    other_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-22",
+            "objective": "Noise objective",
+        },
+        headers=auth_headers(active_user.email),
+    )
+
+    material_response = client.get(
+        "/api/v1/experiments?mine=true&material_system=MoSe2",
+        headers=auth_headers(active_user.email),
+    )
+    query_response = client.get(
+        "/api/v1/experiments?mine=true&q=target",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert other_response.status_code == 201
+    assert material_response.status_code == 200
+    assert query_response.status_code == 200
+    assert [item["run_code"] for item in material_response.json()["items"]] == [
+        target_response.json()["run_code"]
+    ]
+    assert [item["run_code"] for item in query_response.json()["items"]] == [
+        target_response.json()["run_code"]
+    ]
+
+
+def test_list_experiments_rejects_invalid_status_filter(active_user) -> None:
+    response = client.get(
+        "/api/v1/experiments?mine=true&status=submitted,unknown",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Invalid experiment status filter"
+
+
+def test_list_experiments_supports_pagination_and_reports_metadata(active_user) -> None:
+    for index in range(3):
+        create_response = client.post(
+            "/api/v1/experiments",
+            json={
+                "experiment_type": "cvd_2zone",
+                "material_system": f"Material-{index}",
+                "experiment_date": "2026-04-23",
+                "objective": f"Pagination {index}",
+            },
+            headers=auth_headers(active_user.email),
+        )
+        assert create_response.status_code == 201
+
+    page_one_response = client.get(
+        "/api/v1/experiments?mine=true&page=1&page_size=1",
+        headers=auth_headers(active_user.email),
+    )
+    page_two_response = client.get(
+        "/api/v1/experiments?mine=true&page=2&page_size=1",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert page_one_response.status_code == 200
+    assert page_two_response.status_code == 200
+    assert page_one_response.json()["total"] == 3
+    assert page_one_response.json()["page"] == 1
+    assert page_one_response.json()["page_size"] == 1
+    assert len(page_one_response.json()["items"]) == 1
+    assert len(page_two_response.json()["items"]) == 1
+    assert page_two_response.json()["page"] == 2
+    assert page_two_response.json()["page_size"] == 1
+    assert (
+        page_one_response.json()["items"][0]["run_code"]
+        != page_two_response.json()["items"][0]["run_code"]
+    )
+
+
+def test_list_experiments_returns_latest_clone_source_first(active_user) -> None:
+    submitted_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-20",
+            "objective": "Older source",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    submitted_id = submitted_response.json()["id"]
+    populate_required_modules(submitted_id, active_user.email)
+    submit_first_response = client.post(
+        f"/api/v1/experiments/{submitted_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    time.sleep(1)
+
+    locked_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Latest source",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    locked_id = locked_response.json()["id"]
+    populate_required_modules(locked_id, active_user.email)
+    submit_second_response = client.post(
+        f"/api/v1/experiments/{locked_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    lock_response = client.post(
+        f"/api/v1/experiments/{locked_id}/lock",
+        headers=auth_headers(active_user.email),
+    )
+
+    list_response = client.get(
+        "/api/v1/experiments?mine=true&status=submitted,locked&page=1&page_size=1",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_first_response.status_code == 200
+    assert submit_second_response.status_code == 200
+    assert lock_response.status_code == 200
+    assert list_response.status_code == 200
+    assert list_response.json()["total"] == 2
+    assert list_response.json()["items"][0]["run_code"] == locked_response.json()["run_code"]
+
+
+def test_clone_allows_own_submitted_experiment_and_returns_derived_run_code(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Own submitted clone",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    source_run_code = create_response.json()["run_code"]
+    populate_required_modules(experiment_id, active_user.email)
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    clone_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/clone",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 200
+    assert clone_response.status_code == 201
+    assert clone_response.json()["derived_from_run_code"] == source_run_code
+
+
+def test_clone_rejects_other_users_submitted_experiment(active_user, admin_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Submitted visibility",
+        },
+        headers=auth_headers(admin_user.email),
+    )
+    source_id = create_response.json()["id"]
+    populate_required_modules(source_id, admin_user.email)
+    submit_response = client.post(
+        f"/api/v1/experiments/{source_id}/submit",
+        headers=auth_headers(admin_user.email),
+    )
+
+    clone_response = client.post(
+        f"/api/v1/experiments/{source_id}/clone",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 200
+    assert clone_response.status_code == 403
+
+
+def test_clone_allows_other_users_locked_experiment(active_user, admin_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Locked visibility",
+        },
+        headers=auth_headers(admin_user.email),
+    )
+    source_id = create_response.json()["id"]
+    populate_required_modules(source_id, admin_user.email)
+    submit_response = client.post(
+        f"/api/v1/experiments/{source_id}/submit",
+        headers=auth_headers(admin_user.email),
+    )
+    lock_response = client.post(
+        f"/api/v1/experiments/{source_id}/lock",
+        headers=auth_headers(admin_user.email),
+    )
+
+    clone_response = client.post(
+        f"/api/v1/experiments/{source_id}/clone",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 200
+    assert lock_response.status_code == 200
+    assert clone_response.status_code == 201
+
+
+def test_clone_rejects_draft_and_invalid_sources(active_user) -> None:
+    draft_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Draft source",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    invalid_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Invalid source",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    invalid_id = invalid_response.json()["id"]
+    invalidate_response = client.post(
+        f"/api/v1/experiments/{invalid_id}/invalidate",
+        json={"reason": "Bad wafer"},
+        headers=auth_headers(active_user.email),
+    )
+
+    draft_clone_response = client.post(
+        f"/api/v1/experiments/{draft_response.json()['id']}/clone",
+        headers=auth_headers(active_user.email),
+    )
+    invalid_clone_response = client.post(
+        f"/api/v1/experiments/{invalid_id}/clone",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert invalidate_response.status_code == 200
+    assert draft_clone_response.status_code == 409
+    assert invalid_clone_response.status_code == 409

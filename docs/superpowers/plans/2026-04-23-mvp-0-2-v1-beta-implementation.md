@@ -167,7 +167,7 @@
 - Modify: `backend/app/schemas/experiment.py`
 - Modify: `backend/tests/api/test_experiments.py`
 
-- [ ] 扩展列表查询参数：
+- [x] 扩展列表查询参数：
   - `mine`
   - `status` 支持单值或逗号分隔多值
   - `material_system`
@@ -175,27 +175,27 @@
   - `page`
   - `page_size`
 
-- [ ] 在 repository 中实现：
+- [x] 在 repository 中实现：
   - 可复用的过滤器构建逻辑
   - 总数查询
   - offset/limit 分页
   - 默认按 `updated_at desc, created_at desc`
   - `q` 至少匹配 `run_code`、`material_system`、`objective`
 
-- [ ] 更新响应模型：
+- [x] 更新响应模型：
   - `ExperimentListResponse` 增加 `page`、`page_size`
   - `ExperimentRead` 增加 `derived_from_run_code`
 
-- [ ] 明确“最近一条可复制实验”的后端规则：
+- [x] 明确“最近一条可复制实验”的后端规则：
   - 当前用户最近一条 `submitted` / `locked`
   - 若没有结果，前端依赖空列表处理，不单独新增接口
 
-- [ ] 调整 clone 源可见性判断：
+- [x] 调整 clone 源可见性判断：
   - 当前用户可复制自己的 `submitted` / `locked`
   - 其他用户仅可复制 `locked`
   - `draft` / `invalid` 禁止复制
 
-- [ ] 增加测试：
+- [x] 增加测试：
   - 多状态筛选
   - `material_system` 筛选
   - `q` 搜索
@@ -211,6 +211,15 @@
 
 **完成定义：**
 - 新建页无需专门后端接口也能完成“复制最近一条”和“历史搜索复制”。
+
+**2026-04-23 实施记录：**
+- 已把 `/api/v1/experiments` 扩展为支持 `mine`、`status` 多值、`material_system`、`q`、`page`、`page_size`，默认按 `updated_at desc, created_at desc` 排序并返回 `total/page/page_size`。
+- 已在 `ExperimentRead` 中补充 `derived_from_run_code`，通过主表自关联直接返回 clone 来源编号。
+- 已将 clone 规则调整为：本人可 clone 自己的 `submitted/locked`，他人实验仅 `locked` 可 clone，`draft/invalid` 明确拒绝。
+- 已在 repository 层对 `derived_from_run` 做 eager load，避免列表返回 `derived_from_run_code` 时对 clone 行触发 N+1 查询。
+- 已补充并通过实验列表与 clone 语义测试；新增用例覆盖多状态筛选、精确 `material_system`、全文 `q` 搜索、无效 `status` 值、分页元数据、最近可复制来源排序和 clone 权限边界。
+- 已验证：`cd backend && uv run pytest tests/api/test_experiments.py -v`（`29 passed`）、`cd backend && uv run ruff check .`、`uv run ruff format --check .`、`uv run pytest`（`97 passed`）。
+- 已在运行中的 Compose 后端上做手工验证：登录后访问 `GET /api/v1/experiments?mine=true&status=submitted,locked&page=1&page_size=1` 与 `GET /api/v1/experiments?q=CVD-2026`，均返回 `200` 和带 `page/page_size` 的响应结构。
 
 ---
 

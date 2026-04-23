@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.user import User, UserRole
@@ -25,7 +25,11 @@ class ExperimentRepository:
         return experiment
 
     def get_by_id(self, experiment_id: UUID) -> ExperimentRun | None:
-        statement = select(ExperimentRun).where(ExperimentRun.id == experiment_id)
+        statement = (
+            select(ExperimentRun)
+            .options(selectinload(ExperimentRun.derived_from_run))
+            .where(ExperimentRun.id == experiment_id)
+        )
         return self.db.scalar(statement)
 
     def next_run_code(self, experiment_date: date) -> str:
@@ -46,11 +50,15 @@ class ExperimentRepository:
         *,
         current_user: User,
         mine: bool = False,
-        status: ExperimentStatus | None = None,
-    ) -> list[ExperimentRun]:
-        statement = select(ExperimentRun)
+        status_filters: list[ExperimentStatus] | None = None,
+        material_system: str | None = None,
+        query_text: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[ExperimentRun], int]:
+        statement = select(ExperimentRun).options(selectinload(ExperimentRun.derived_from_run))
 
-        if status is None:
+        if status_filters is None:
             statement = statement.where(ExperimentRun.status != ExperimentStatus.INVALID)
 
         if current_user.role == UserRole.ADMIN:
@@ -72,11 +80,31 @@ class ExperimentRepository:
                 ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED])
             )
 
-        if status is not None:
-            statement = statement.where(ExperimentRun.status == status)
+        if status_filters is not None:
+            statement = statement.where(ExperimentRun.status.in_(status_filters))
 
-        statement = statement.order_by(
-            ExperimentRun.experiment_date.desc(),
-            ExperimentRun.created_at.desc(),
+        if material_system:
+            statement = statement.where(ExperimentRun.material_system == material_system)
+
+        if query_text and query_text.strip():
+            pattern = f"%{query_text.strip()}%"
+            statement = statement.where(
+                or_(
+                    ExperimentRun.run_code.ilike(pattern),
+                    ExperimentRun.material_system.ilike(pattern),
+                    ExperimentRun.objective.ilike(pattern),
+                )
+            )
+
+        total_statement = select(func.count()).select_from(statement.order_by(None).subquery())
+        total = self.db.scalar(total_statement) or 0
+
+        statement = (
+            statement.order_by(
+                ExperimentRun.updated_at.desc(),
+                ExperimentRun.created_at.desc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
-        return list(self.db.scalars(statement).all())
+        return list(self.db.scalars(statement).all()), total

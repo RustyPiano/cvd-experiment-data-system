@@ -46,16 +46,27 @@ class ExperimentService:
         *,
         current_user: User,
         mine: bool = False,
-        status_filter: ExperimentStatus | None = None,
+        status_filter: str | None = None,
+        material_system: str | None = None,
+        query_text: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
     ) -> ExperimentListResponse:
-        items = self.experiments.list_visible(
+        status_filters = self._parse_status_filters(status_filter)
+        items, total = self.experiments.list_visible(
             current_user=current_user,
             mine=mine,
-            status=status_filter,
+            status_filters=status_filters,
+            material_system=material_system,
+            query_text=query_text,
+            page=page,
+            page_size=page_size,
         )
         return ExperimentListResponse(
             items=[ExperimentRead.model_validate(item) for item in items],
-            total=len(items),
+            total=total,
+            page=page,
+            page_size=page_size,
         )
 
     def create_experiment(self, payload: ExperimentCreate, current_user: User) -> ExperimentRead:
@@ -230,10 +241,15 @@ class ExperimentService:
             )
 
         source = self._get_visible_experiment(experiment_id, current_user)
-        if source.status != ExperimentStatus.LOCKED:
+        if source.status in {ExperimentStatus.DRAFT, ExperimentStatus.INVALID}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Only locked experiments can be cloned",
+                detail="Only submitted or locked experiments can be cloned",
+            )
+        if source.owner_id != current_user.id and source.status != ExperimentStatus.LOCKED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
             )
         created = self._create_experiment_with_retry(
             experiment_date=date.today(),
@@ -572,6 +588,7 @@ class ExperimentService:
             "derived_from_run_id": (
                 str(experiment.derived_from_run_id) if experiment.derived_from_run_id else None
             ),
+            "derived_from_run_code": experiment.derived_from_run_code,
             "experiment_type": experiment.experiment_type,
             "material_system": experiment.material_system,
             "experiment_date": experiment.experiment_date.isoformat(),
@@ -608,3 +625,19 @@ class ExperimentService:
     ) -> bool:
         message = str(exc).lower()
         return any(keyword in message for keyword in keywords)
+
+    def _parse_status_filters(self, status_filter: str | None) -> list[ExperimentStatus] | None:
+        if status_filter is None:
+            return None
+
+        parsed_values = [item.strip() for item in status_filter.split(",") if item.strip()]
+        if not parsed_values:
+            return None
+
+        try:
+            return [ExperimentStatus(item) for item in parsed_values]
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid experiment status filter",
+            ) from exc

@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db.session import get_db
-from app.models.experiment import ExperimentStatus
 from app.models.module_payload import ExperimentModuleKey
 from app.models.user import User
 from app.schemas.audit import AuditEventListResponse
@@ -37,12 +36,20 @@ def list_experiments(
     db: DbSession,
     current_user: CurrentUser,
     mine: Annotated[bool, Query()] = False,
-    status_filter: Annotated[ExperimentStatus | None, Query(alias="status")] = None,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    material_system: Annotated[str | None, Query()] = None,
+    query_text: Annotated[str | None, Query(alias="q")] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ExperimentListResponse:
     return ExperimentService(db).list_experiments(
         current_user=current_user,
         mine=mine,
         status_filter=status_filter,
+        material_system=material_system,
+        query_text=query_text,
+        page=page,
+        page_size=page_size,
     )
 
 
