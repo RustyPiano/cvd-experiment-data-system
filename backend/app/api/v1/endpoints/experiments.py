@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -19,12 +19,14 @@ from app.schemas.experiment import (
     ExperimentRead,
     ExperimentUpdate,
 )
+from app.schemas.experiment_validation import ExperimentValidationResponse
 from app.schemas.module_payload import (
     ExperimentModulePayloadListResponse,
     ExperimentModulePayloadRead,
     ExperimentModulePayloadUpsert,
 )
 from app.services.experiment_service import ExperimentService
+from app.services.experiment_validation_service import ExperimentValidationFailed
 
 router = APIRouter(prefix="/api/v1/experiments", tags=["experiments"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -113,13 +115,32 @@ def update_experiment(
     return ExperimentService(db).update_experiment(experiment_id, payload, current_user)
 
 
-@router.post("/{experiment_id}/submit", response_model=ExperimentRead)
+@router.post(
+    "/{experiment_id}/submit",
+    response_model=ExperimentRead,
+    responses={status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ExperimentValidationResponse}},
+)
 def submit_experiment(
     experiment_id: UUID,
     db: DbSession,
     current_user: CurrentUser,
 ) -> ExperimentRead:
-    return ExperimentService(db).submit_experiment(experiment_id, current_user)
+    try:
+        return ExperimentService(db).submit_experiment(experiment_id, current_user)
+    except ExperimentValidationFailed as exc:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=exc.result.model_dump(mode="json"),
+        )
+
+
+@router.post("/{experiment_id}/validate", response_model=ExperimentValidationResponse)
+def validate_experiment(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentValidationResponse:
+    return ExperimentService(db).validate_experiment(experiment_id, current_user)
 
 
 @router.post("/{experiment_id}/return-to-draft", response_model=ExperimentRead)

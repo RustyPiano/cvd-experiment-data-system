@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
 
 client = TestClient(app)
@@ -71,6 +72,21 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         headers=auth_headers(email),
     )
     assert gas_response.status_code == 200
+
+
+def assert_issue_exists(
+    issues: list[dict[str, str]],
+    *,
+    module_key: str,
+    field_path: str,
+    message_contains: str,
+) -> None:
+    assert any(
+        issue["module_key"] == module_key
+        and issue["field_path"] == field_path
+        and message_contains in issue["message"]
+        for issue in issues
+    ), issues
 
 
 def test_create_experiment_creates_draft_for_member(active_user) -> None:
@@ -280,7 +296,256 @@ def test_submit_rejects_missing_required_main_fields(active_user) -> None:
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Submit validation failed"
+    body = response.json()
+    assert body["ok"] is False
+    assert_issue_exists(
+        body["errors"],
+        module_key="basic_info",
+        field_path="material_system",
+        message_contains="required",
+    )
+
+
+def test_validate_returns_structured_errors_and_warnings(active_user, db_session) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": None,
+            "experiment_date": "2026-04-23",
+            "objective": "Validate payload structure",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    environment_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/environment",
+        json={
+            "payload_json": {
+                "indoor_temperature_C": 40,
+                "sample_env": "clean",
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert environment_response.status_code == 200
+
+    precheck_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precheck",
+        json={
+            "payload_json": {
+                "seal_intact": False,
+                "risk_note": "",
+                "boat_contamination_level": "high",
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert precheck_response.status_code == 200
+
+    precursors_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={
+            "payload_json": {
+                "items": [{"role": "A", "type": "MoO3", "brand": "Sigma"}],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert precursors_response.status_code == 200
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "zones": [
+                    {
+                        "zone_index": 1,
+                        "temperature_program": [
+                            {"time_min": 10, "temperature_C": 750},
+                            {"time_min": 5, "temperature_C": 700},
+                        ],
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    gas_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
+        json={
+            "payload_json": {
+                "segments": [
+                    {
+                        "stage": "growth",
+                        "start_min": 0,
+                        "end_min": 8,
+                        "gas": "Ar",
+                        "flow_sccm": 80,
+                    },
+                    {
+                        "stage": "cooldown",
+                        "start_min": 6,
+                        "end_min": 12,
+                        "gas": "Ar+H2",
+                        "flow_sccm": 100,
+                    },
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert gas_response.status_code == 200
+
+    db_session.add(
+        FileAsset(
+            experiment_run_id=UUID(experiment_id),
+            sample_id=None,
+            uploaded_by_id=active_user.id,
+            original_name="validate.txt",
+            storage_path="manual/validate.txt",
+            content_type="text/plain",
+            size_bytes=8,
+            sha256="a" * 64,
+            method="",
+            file_category="raw",
+            note=None,
+            file_kind=None,
+            metadata_json={},
+        )
+    )
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert_issue_exists(
+        body["errors"],
+        module_key="basic_info",
+        field_path="material_system",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        body["errors"],
+        module_key="furnace_program",
+        field_path="zones[0].temperature_program",
+        message_contains="strictly increasing",
+    )
+    assert_issue_exists(
+        body["errors"],
+        module_key="gas_program",
+        field_path="segments",
+        message_contains="overlap",
+    )
+    assert_issue_exists(
+        body["errors"],
+        module_key="precheck",
+        field_path="risk_note",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        body["errors"],
+        module_key="files",
+        field_path="items[0].method",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        body["warnings"],
+        module_key="environment",
+        field_path="indoor_temperature_C",
+        message_contains="out of range",
+    )
+    assert_issue_exists(
+        body["warnings"],
+        module_key="environment",
+        field_path="indoor_humidity_percent",
+        message_contains="missing",
+    )
+    assert_issue_exists(
+        body["warnings"],
+        module_key="precheck",
+        field_path="boat_contamination_level",
+        message_contains="high",
+    )
+    assert_issue_exists(
+        body["warnings"],
+        module_key="precursors",
+        field_path="items[0].batch_no",
+        message_contains="missing",
+    )
+    assert_issue_exists(
+        body["warnings"],
+        module_key="files",
+        field_path="items[0].sample_id",
+        message_contains="not linked",
+    )
+    assert_issue_exists(
+        body["warnings"],
+        module_key="result_summary",
+        field_path="quality_label",
+        message_contains="unknown",
+    )
+
+
+def test_submit_returns_same_validation_structure_on_failure(active_user, db_session) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Submit should mirror validate",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    environment_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/environment",
+        json={"payload_json": {"indoor_temperature_C": 39, "sample_env": "clean"}},
+        headers=auth_headers(active_user.email),
+    )
+    assert environment_response.status_code == 200
+
+    db_session.add(
+        FileAsset(
+            experiment_run_id=UUID(experiment_id),
+            sample_id=None,
+            uploaded_by_id=active_user.id,
+            original_name="submit.txt",
+            storage_path="manual/submit.txt",
+            content_type="text/plain",
+            size_bytes=6,
+            sha256="b" * 64,
+            method="",
+            file_category="raw",
+            note=None,
+            file_kind=None,
+            metadata_json={},
+        )
+    )
+    db_session.commit()
+
+    validate_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert validate_response.status_code == 200
+    assert submit_response.status_code == 422
+    assert submit_response.json() == validate_response.json()
 
 
 def test_put_and_get_experiment_module_payload(active_user) -> None:
@@ -393,7 +658,18 @@ def test_submit_rejects_missing_required_modules(active_user) -> None:
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Submit validation failed"
+    assert_issue_exists(
+        response.json()["errors"],
+        module_key="precursors",
+        field_path="items",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        response.json()["errors"],
+        module_key="furnace_program",
+        field_path="zones",
+        message_contains="required",
+    )
 
 
 def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
@@ -472,7 +748,18 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
     )
 
     assert submit_response.status_code == 422
-    assert submit_response.json()["detail"] == "Submit validation failed"
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="furnace_program",
+        field_path="zones[0].temperature_program",
+        message_contains="strictly increasing",
+    )
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="gas_program",
+        field_path="segments",
+        message_contains="overlap",
+    )
 
 
 def test_submit_rejects_malformed_furnace_zone_payload_without_500(active_user) -> None:
@@ -508,7 +795,12 @@ def test_submit_rejects_malformed_furnace_zone_payload_without_500(active_user) 
     )
 
     assert submit_response.status_code == 422
-    assert submit_response.json()["detail"] == "Submit validation failed"
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="furnace_program",
+        field_path="zones[0]",
+        message_contains="must be an object",
+    )
 
 
 def test_submit_rejects_malformed_precursor_payload_without_500(active_user) -> None:
@@ -558,7 +850,12 @@ def test_submit_rejects_malformed_precursor_payload_without_500(active_user) -> 
     )
 
     assert submit_response.status_code == 422
-    assert submit_response.json()["detail"] == "Submit validation failed"
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="precursors",
+        field_path="items[0]",
+        message_contains="must be an object",
+    )
 
 
 def test_submit_allows_missing_gas_program(active_user) -> None:
@@ -609,7 +906,10 @@ def test_submit_allows_missing_gas_program(active_user) -> None:
     assert submit_response.status_code == 200
 
 
-def test_clone_excludes_observation_and_characterization_modules(active_user, admin_user) -> None:
+def test_clone_resets_observation_characterization_and_result_summary_modules(
+    active_user,
+    admin_user,
+) -> None:
     create_response = client.post(
         "/api/v1/experiments",
         json={
@@ -639,12 +939,32 @@ def test_clone_excludes_observation_and_characterization_modules(active_user, ad
         f"/api/v1/experiments/{experiment_id}/modules/characterization",
         json={
             "payload_json": {
-                "methods": [{"method": "Raman", "result": "peak visible"}],
+                "methods": [
+                    {
+                        "method": "Raman",
+                        "enabled": True,
+                        "excitation_nm": 532,
+                        "note": "center point",
+                        "result": "peak visible",
+                    }
+                ],
             }
         },
         headers=auth_headers(admin_user.email),
     )
     assert characterization_response.status_code == 200
+    result_summary_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/result_summary",
+        json={
+            "payload_json": {
+                "summary_result": "continuous film",
+                "quality_label": "success",
+                "next_step": "repeat recipe",
+            }
+        },
+        headers=auth_headers(admin_user.email),
+    )
+    assert result_summary_response.status_code == 200
 
     submit_response = client.post(
         f"/api/v1/experiments/{experiment_id}/submit",
@@ -672,9 +992,24 @@ def test_clone_excludes_observation_and_characterization_modules(active_user, ad
         f"/api/v1/experiments/{clone_id}/modules/characterization",
         headers=auth_headers(active_user.email),
     )
+    cloned_result_summary_response = client.get(
+        f"/api/v1/experiments/{clone_id}/modules/result_summary",
+        headers=auth_headers(active_user.email),
+    )
 
     assert cloned_process_response.status_code == 404
-    assert cloned_characterization_response.status_code == 404
+    assert cloned_characterization_response.status_code == 200
+    assert (
+        cloned_characterization_response.json()["payload_json"]["methods"][0]["method"] == "Raman"
+    )
+    assert cloned_characterization_response.json()["payload_json"]["methods"][0]["note"] == (
+        "center point"
+    )
+    assert cloned_characterization_response.json()["payload_json"]["methods"][0]["result"] == ""
+    assert cloned_result_summary_response.status_code == 200
+    assert cloned_result_summary_response.json()["payload_json"]["quality_label"] == "unknown"
+    assert cloned_result_summary_response.json()["payload_json"]["next_step"] == ""
+    assert cloned_result_summary_response.json()["payload_json"]["summary_result"] == ""
 
 
 def test_invalidate_requires_reason(active_user) -> None:

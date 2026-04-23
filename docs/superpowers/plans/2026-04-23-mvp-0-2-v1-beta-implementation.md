@@ -316,16 +316,16 @@
 - Modify: `backend/tests/api/test_experiments.py`
 - Modify: `backend/tests/api/test_experiment_audit.py`
 
-- [ ] 新增 `POST /api/v1/experiments/{id}/validate`
+- [x] 新增 `POST /api/v1/experiments/{id}/validate`
   - 返回 `ok/errors/warnings`
   - `errors[].module_key/field_path/message`
   - `warnings[].module_key/field_path/message`
 
-- [ ] 把 submit 前校验从 `ExperimentService` 内联逻辑抽到独立服务：
+- [x] 把 submit 前校验从 `ExperimentService` 内联逻辑抽到独立服务：
   - `validate_experiment(experiment_id)` 供 `validate` 和 `submit` 共用
   - `submit` 在失败时返回与 `validate` 相同结构，状态码 `422`
 
-- [ ] 落实本轮阻塞错误：
+- [x] 落实本轮阻塞错误：
   - 主信息缺失
   - 前驱体为空
   - 温区为空
@@ -336,7 +336,7 @@
   - 文件缺少 `method`
   - 文件缺少 `experiment_id`
 
-- [ ] 落实本轮警告：
+- [x] 落实本轮警告：
   - 室内温度范围异常
   - 湿度为空或超范围
   - 瓷舟/石英管污染等级过高
@@ -344,7 +344,7 @@
   - 文件未关联样品
   - `quality_label = unknown`
 
-- [ ] 严格实现 clone 语义：
+- [x] 严格实现 clone 语义：
   - `basic_info` 复制 `experiment_type/material_system/objective`，重置 `operator_id/experiment_date`
   - `environment` 只保留 `sample_env`
   - `precheck` 全重置
@@ -354,7 +354,7 @@
   - `result_summary` 重置为 `unknown/""/""`
   - 文件与审计不复制
 
-- [ ] 增加覆盖测试：
+- [x] 增加覆盖测试：
   - `validate` 正常返回 warning/error
   - `submit` 返回结构化详情而不是单句错误
   - clone 新语义覆盖旧 payload 与新 payload
@@ -370,6 +370,16 @@
 **完成定义：**
 - 校验细节已经成为稳定 API。
 - clone 行为不再依赖阅读测试推断。
+
+**2026-04-23 实施记录：**
+- 已新增 [experiment_validation.py](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/backend/app/schemas/experiment_validation.py) 与 [experiment_validation_service.py](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/backend/app/services/experiment_validation_service.py)，把阻塞错误和警告统一收敛为 `ok/errors/warnings` 结构，`errors[] / warnings[]` 都稳定返回 `module_key / field_path / message`。
+- 已新增 `POST /api/v1/experiments/{id}/validate`，并把 `submit` 的前置校验切换到同一服务；校验失败时，`submit` 直接返回与 `validate` 相同的结构化 body 和 `422`，不再只返回单句 `"Submit validation failed"`。
+- 已把本轮阻塞错误落到结构化字段路径：主信息缺失、前驱体为空或项格式错误、温区为空、单个温区程序为空、温区时间不递增、气体时间非法/重叠、`seal_intact=false` 但无 `risk_note`、文件缺少 `method`；另外对异常文件记录的 `experiment_id` 缺失保留了防御式检查，并通过服务层测试固定这条分支，但它不是正常 API 写入路径下会自然触发的场景。
+- 已把本轮警告落地：室内温度超范围、湿度缺失或超范围、瓷舟/石英管污染等级过高、precursor 缺少 `batch_no`、文件未关联样品、`quality_label=unknown`。
+- 已冻结 clone 语义：`basic_info` 现在会在克隆后重建，复制 `experiment_type/material_system/objective` 并重置 `operator_id/experiment_date`；`environment` 仅保留 `sample_env`；`precheck` 全重置；`precursors/substrates/furnace_program/gas_program` 继续复制；`process_observation` 不复制；`characterization` 保留计划字段并清空 `result`；`result_summary` 重置为 `quality_label=unknown / summary_result=\"\" / next_step=\"\"`；文件与审计继续不复制。
+- 已补充测试覆盖：`validate` 的结构化 `errors/warnings`、`submit` 与 `validate` 一致的失败结构、clone 的新模块语义（`basic_info / environment / precheck / characterization / result_summary`）、以及 `validate` 与失败 `submit` 不写审计事件。
+- 已验证：`cd backend && uv run pytest tests/api/test_experiments.py tests/api/test_experiment_audit.py -v`、`cd backend && uv run ruff check .`、`uv run ruff format --check .`、`uv run pytest`。
+- 已做手工 HTTP 验证：临时本地服务上 `POST /api/v1/experiments/{id}/validate` 返回 `200` 且带结构化 `errors/warnings`，对同一坏 draft 的 `POST /submit` 返回同结构 `422`，从 `submitted` 与 `locked` 实验发起 clone 均返回 `201` 且带 `derived_from_run_code`。
 
 ---
 
