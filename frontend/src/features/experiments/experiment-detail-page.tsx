@@ -190,10 +190,10 @@ export function ExperimentDetailPage() {
             ) : null}
           </Space>
         }
-        subtitle="当前详情页已接通状态流、样品概览、文件概览、审计轨迹和导出入口。"
+        subtitle="查看实验状态、样品、文件、审计记录，并导出数据。"
         title="实验详情"
       />
-      {downloadMessage ? <Alert title={downloadMessage} showIcon type="error" /> : null}
+      {downloadMessage ? <Alert message={downloadMessage} showIcon type="error" /> : null}
       {session.accessToken && currentUser ? (
         <Card>
           <div className="content-stack">
@@ -202,7 +202,7 @@ export function ExperimentDetailPage() {
               <StatusTag status={experimentQuery.data.status} />
             </Space>
             <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-              当前页面按后端状态机驱动按钮显示；成员查看他人的已提交或已锁定实验时只保留可执行动作。
+              仅草稿状态可编辑，已提交/已锁定实验仅保留可执行操作。
             </Typography.Paragraph>
             <ExperimentStateActions
               accessToken={session.accessToken}
@@ -256,7 +256,7 @@ export function ExperimentDetailPage() {
             </div>
           ) : samplesQuery.isError ? (
             <Alert
-              title={resolveErrorMessage(samplesQuery.error, "样品概览加载失败")}
+              message={resolveErrorMessage(samplesQuery.error, "样品概览加载失败")}
               showIcon
               type="error"
             />
@@ -300,7 +300,7 @@ export function ExperimentDetailPage() {
             </div>
           ) : filesQuery.isError ? (
             <Alert
-              title={resolveErrorMessage(filesQuery.error, "文件概览加载失败")}
+              message={resolveErrorMessage(filesQuery.error, "文件概览加载失败")}
               showIcon
               type="error"
             />
@@ -345,7 +345,7 @@ export function ExperimentDetailPage() {
             </div>
           ) : auditQuery.isError ? (
             <Alert
-              title={resolveErrorMessage(auditQuery.error, "审计轨迹加载失败")}
+              message={resolveErrorMessage(auditQuery.error, "审计轨迹加载失败")}
               showIcon
               type="error"
             />

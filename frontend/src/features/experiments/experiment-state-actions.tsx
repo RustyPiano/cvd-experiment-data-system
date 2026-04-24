@@ -173,7 +173,7 @@ export function ExperimentStateActions({
 
       {actionError ? (
         <Alert
-          title={actionError}
+          message={actionError}
           showIcon
           type="error"
         />
@@ -232,7 +232,7 @@ export function ExperimentStateActions({
           />
           {invalidateValidation ? (
             <Alert
-              title={invalidateValidation}
+              message={invalidateValidation}
               showIcon
               type="error"
             />
