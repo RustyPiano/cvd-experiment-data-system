@@ -109,6 +109,12 @@ a {
   gap: 8px;
 }
 
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .editor-field-wide {
   grid-column: 1 / -1;
 }
@@ -140,6 +146,35 @@ a {
   align-items: flex-end;
 }
 
+.editor-workspace-layout {
+  display: flex;
+  gap: 24px;
+}
+
+.editor-section-anchor {
+  flex-shrink: 0;
+  width: 120px;
+}
+
+.editor-anchor-target {
+  scroll-margin-top: 96px;
+}
+
+/* Tablet: cap form grid to 2 columns */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .editor-form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Wide screen: cap form grid max column width for readability */
+@media (min-width: 1440px) {
+  .editor-form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
+  }
+}
+
+/* Mobile */
 @media (max-width: 768px) {
   .page-header {
     flex-direction: column;
@@ -154,5 +189,17 @@ a {
   .editor-switch-row,
   .editor-array-card-header {
     flex-direction: column;
+  }
+
+  .editor-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-workspace-layout {
+    display: block;
+  }
+
+  .editor-section-anchor {
+    display: none;
   }
 }

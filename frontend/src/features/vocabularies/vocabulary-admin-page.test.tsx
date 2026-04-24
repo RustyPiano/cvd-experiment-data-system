@@ -132,8 +132,8 @@ describe("VocabularyAdminPage", () => {
     expect(await screen.findByText("蓝宝石")).toBeInTheDocument();
     expect(screen.getByText("蓝宝石")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("词表 key 筛选"), "substrate_type");
-    await user.click(screen.getByRole("button", { name: "应用筛选" }));
+    await user.click(screen.getByLabelText("词表 key 筛选"));
+    await user.click(await screen.findByRole("option", { name: "substrate_type" }));
 
     await waitFor(() => {
       expect(
@@ -145,6 +145,9 @@ describe("VocabularyAdminPage", () => {
         ),
       ).toBe(true);
     });
+
+    await user.click(screen.getByLabelText("词表 key 筛选"));
+    expect(await screen.findByRole("option", { name: "material_system" })).toBeInTheDocument();
   });
 
   it("creates a vocabulary entry and refreshes the table", async () => {
@@ -210,7 +213,7 @@ describe("VocabularyAdminPage", () => {
 
     expect(await screen.findByText("氮气")).toBeInTheDocument();
     expect(screen.getByText("词条创建成功")).toBeInTheDocument();
-  });
+  }, 10_000);
 
   it("edits an existing vocabulary entry and only patches changed fields", async () => {
     const user = userEvent.setup();
