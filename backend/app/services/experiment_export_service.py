@@ -16,6 +16,17 @@ from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
 from app.repositories.sample_repository import SampleRepository
 from app.schemas.experiment import (
+    ExperimentAnalysisCharacterizationRow,
+    ExperimentAnalysisExperimentRow,
+    ExperimentAnalysisExportRead,
+    ExperimentAnalysisFileRow,
+    ExperimentAnalysisFurnacePointRow,
+    ExperimentAnalysisGasComponentRow,
+    ExperimentAnalysisGasProgramRow,
+    ExperimentAnalysisGasSegmentRow,
+    ExperimentAnalysisPrecursorRow,
+    ExperimentAnalysisSampleRow,
+    ExperimentAnalysisSubstrateRow,
     ExperimentExportCounts,
     ExperimentExportProvenance,
     ExperimentExportRead,
@@ -84,6 +95,46 @@ class ExperimentExportService:
                 files=len(files),
                 audit_events=len(audit_events),
             ),
+        )
+
+    def build_analysis_export(self, experiment: ExperimentRun) -> ExperimentAnalysisExportRead:
+        export_payload = self.build_json_export(experiment)
+        payloads = self._module_map(export_payload)
+        context = {
+            "experiment_id": export_payload.experiment.id,
+            "run_code": export_payload.experiment.run_code,
+        }
+
+        return ExperimentAnalysisExportRead(
+            export_version="cvd_analysis_v1",
+            exported_at=datetime.now(UTC),
+            experiment=ExperimentAnalysisExperimentRow(
+                **context,
+                owner_id=export_payload.experiment.owner_id,
+                derived_from_run_id=export_payload.experiment.derived_from_run_id,
+                derived_from_run_code=export_payload.experiment.derived_from_run_code,
+                experiment_type=export_payload.experiment.experiment_type,
+                material_system=export_payload.experiment.material_system,
+                experiment_date=export_payload.experiment.experiment_date,
+                objective=export_payload.experiment.objective,
+                status=export_payload.experiment.status,
+                quality_label=export_payload.experiment.quality_label,
+                summary_result=export_payload.experiment.summary_result,
+                invalid_reason=export_payload.experiment.invalid_reason,
+                created_at=export_payload.experiment.created_at,
+                updated_at=export_payload.experiment.updated_at,
+                submitted_at=export_payload.experiment.submitted_at,
+                locked_at=export_payload.experiment.locked_at,
+            ),
+            precursor_rows=self._build_precursor_rows(payloads, context),
+            substrate_rows=self._build_substrate_rows(payloads, context),
+            furnace_point_rows=self._build_furnace_point_rows(payloads, context),
+            gas_program_rows=self._build_gas_program_rows(payloads, context),
+            gas_segment_rows=self._build_gas_segment_rows(payloads, context),
+            gas_component_rows=self._build_gas_component_rows(payloads, context),
+            characterization_rows=self._build_characterization_rows(payloads, context),
+            sample_rows=self._build_sample_rows(export_payload, context),
+            file_rows=self._build_file_rows(export_payload, context),
         )
 
     def build_excel_bytes(self, export_payload: ExperimentExportRead) -> bytes:
@@ -270,6 +321,227 @@ class ExperimentExportService:
         worksheet.append(headers)
         for row in normalized_rows:
             worksheet.append([self._serialize_cell(row.get(header)) for header in headers])
+
+    def _build_precursor_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisPrecursorRow]:
+        items = self._list_payload_items(payloads.get("precursors", {}).get("items"))
+        return [
+            ExperimentAnalysisPrecursorRow(
+                **context,
+                precursor_index=index,
+                role=item.get("role"),
+                type=item.get("type"),
+                brand=item.get("brand"),
+                concentration=item.get("concentration"),
+                concentration_unit=item.get("concentration_unit"),
+                method=item.get("method"),
+                melting_temperature_C=item.get("melting_temperature_C"),
+                spin_speed_rpm=item.get("spin_speed_rpm"),
+                pre_spin_speed_rpm=item.get("pre_spin_speed_rpm"),
+                preparation_time_min=item.get("preparation_time_min"),
+                mass_mg=item.get("mass_mg"),
+                batch_no=item.get("batch_no"),
+            )
+            for index, item in enumerate(items)
+        ]
+
+    def _build_substrate_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisSubstrateRow]:
+        items = self._list_payload_items(payloads.get("substrates", {}).get("items"))
+        rows: list[ExperimentAnalysisSubstrateRow] = []
+        for index, item in enumerate(items):
+            treatment_params = item.get("treatment_params")
+            if not isinstance(treatment_params, dict):
+                treatment_params = {}
+            rows.append(
+                ExperimentAnalysisSubstrateRow(
+                    **context,
+                    substrate_index=index,
+                    role=item.get("role"),
+                    type=item.get("type"),
+                    brand=item.get("brand"),
+                    size_mm=item.get("size_mm"),
+                    treatment_method=item.get("treatment_method"),
+                    position_mm=item.get("position_mm"),
+                    treatment_params_temperature_C=treatment_params.get("temperature_C"),
+                    treatment_params_duration_min=treatment_params.get("duration_min"),
+                    treatment_params_power_W=treatment_params.get("power_W"),
+                    treatment_params_gas=treatment_params.get("gas"),
+                )
+            )
+        return rows
+
+    def _build_furnace_point_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisFurnacePointRow]:
+        zones = self._list_payload_items(payloads.get("furnace_program", {}).get("zones"))
+        rows: list[ExperimentAnalysisFurnacePointRow] = []
+        for zone_payload_index, zone in enumerate(zones):
+            temperature_program = self._list_payload_items(zone.get("temperature_program"))
+            for point_index, point in enumerate(temperature_program):
+                rows.append(
+                    ExperimentAnalysisFurnacePointRow(
+                        **context,
+                        furnace_zone_index=zone_payload_index,
+                        zone_index=zone.get("zone_index"),
+                        temperature_point_index=point_index,
+                        precursor_placed=zone.get("precursor_placed"),
+                        zone_note=zone.get("note"),
+                        time_min=point.get("time_min"),
+                        temperature_C=point.get("temperature_C"),
+                    )
+                )
+        return rows
+
+    def _build_gas_program_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisGasProgramRow]:
+        gas_program = payloads.get("gas_program", {})
+        if "pre_washing_gas" not in gas_program:
+            return []
+        return [
+            ExperimentAnalysisGasProgramRow(
+                **context,
+                gas_program_index=0,
+                pre_washing_gas=gas_program.get("pre_washing_gas"),
+            )
+        ]
+
+    def _build_gas_segment_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisGasSegmentRow]:
+        gas_program = payloads.get("gas_program", {})
+        segments = self._list_payload_items(gas_program.get("segments"))
+        rows: list[ExperimentAnalysisGasSegmentRow] = []
+        for index, segment in enumerate(segments):
+            rows.append(
+                ExperimentAnalysisGasSegmentRow(
+                    **context,
+                    gas_segment_index=index,
+                    pre_washing_gas=gas_program.get("pre_washing_gas"),
+                    stage=segment.get("stage"),
+                    start_min=segment.get("start_min"),
+                    end_min=segment.get("end_min"),
+                    gas=segment.get("gas"),
+                    flow_sccm=segment.get("flow_sccm"),
+                    note=segment.get("note"),
+                    component_count=len(self._list_payload_items(segment.get("components"))),
+                )
+            )
+        return rows
+
+    def _build_gas_component_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisGasComponentRow]:
+        segments = self._list_payload_items(payloads.get("gas_program", {}).get("segments"))
+        rows: list[ExperimentAnalysisGasComponentRow] = []
+        for segment_index, segment in enumerate(segments):
+            components = self._list_payload_items(segment.get("components"))
+            for component_index, component in enumerate(components):
+                rows.append(
+                    ExperimentAnalysisGasComponentRow(
+                        **context,
+                        gas_segment_index=segment_index,
+                        gas_component_index=component_index,
+                        stage=segment.get("stage"),
+                        segment_gas=segment.get("gas"),
+                        component_name=component.get("name"),
+                        component_gas=component.get("gas"),
+                        fraction=component.get("fraction"),
+                        ratio_percent=component.get("ratio_percent"),
+                    )
+                )
+        return rows
+
+    def _build_characterization_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisCharacterizationRow]:
+        methods = self._list_payload_items(payloads.get("characterization", {}).get("methods"))
+        return [
+            ExperimentAnalysisCharacterizationRow(
+                **context,
+                characterization_index=index,
+                method=item.get("method"),
+                result=item.get("result"),
+                enabled=item.get("enabled"),
+                excitation_nm=item.get("excitation_nm"),
+                note=item.get("note"),
+            )
+            for index, item in enumerate(methods)
+        ]
+
+    def _build_sample_rows(
+        self,
+        export_payload: ExperimentExportRead,
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisSampleRow]:
+        return [
+            ExperimentAnalysisSampleRow(
+                **context,
+                sample_id=sample.id,
+                sample_code=sample.sample_code,
+                parent_sample_id=sample.parent_sample_id,
+                role=sample.role,
+                substrate_type=sample.substrate_type,
+                brand=sample.brand,
+                size_mm=sample.size_mm,
+                treatment=sample.treatment,
+                position_mm=sample.position_mm,
+                storage_location=sample.storage_location,
+                metadata_json_text=self._json_text(sample.metadata_json),
+                created_at=sample.created_at,
+                updated_at=sample.updated_at,
+            )
+            for sample in export_payload.samples
+        ]
+
+    def _build_file_rows(
+        self,
+        export_payload: ExperimentExportRead,
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisFileRow]:
+        return [
+            ExperimentAnalysisFileRow(
+                **context,
+                file_id=file_asset.id,
+                sample_id=file_asset.sample_id,
+                original_name=file_asset.original_name,
+                method=file_asset.method,
+                file_category=file_asset.file_category,
+                content_type=file_asset.content_type,
+                size_bytes=file_asset.size_bytes,
+                sha256=file_asset.sha256,
+                note=file_asset.note,
+                metadata_json_text=self._json_text(file_asset.metadata_json),
+                created_at=file_asset.created_at,
+                updated_at=file_asset.updated_at,
+            )
+            for file_asset in export_payload.files
+        ]
+
+    def _list_payload_items(self, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, dict)]
+
+    def _json_text(self, value: dict[str, Any]) -> str:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
     def _module_map(self, export_payload: ExperimentExportRead) -> dict[str, dict[str, Any]]:
         return {module.module_key: module.payload_json for module in export_payload.modules}

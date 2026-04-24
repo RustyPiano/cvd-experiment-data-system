@@ -17,6 +17,7 @@ from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
 from app.schemas.audit import AuditEventListResponse
 from app.schemas.experiment import (
+    ExperimentAnalysisExportRead,
     ExperimentCreate,
     ExperimentExportRead,
     ExperimentInvalidateRequest,
@@ -341,6 +342,14 @@ class ExperimentService:
     ) -> ExperimentExportRead:
         experiment = self._get_visible_experiment(experiment_id, current_user)
         return self.exporter.build_json_export(experiment)
+
+    def export_experiment_analysis(
+        self,
+        experiment_id: UUID,
+        current_user: User,
+    ) -> ExperimentAnalysisExportRead:
+        experiment = self._get_visible_experiment(experiment_id, current_user)
+        return self.exporter.build_analysis_export(experiment)
 
     def export_experiment_excel(self, experiment_id: UUID, current_user: User) -> bytes:
         experiment = self._get_visible_experiment(experiment_id, current_user)

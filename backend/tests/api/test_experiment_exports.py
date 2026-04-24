@@ -266,6 +266,271 @@ def test_export_experiment_aggregates_modules_samples_files_and_audit(active_use
     assert "delete_file" in {item["action"] for item in body["audit_events"]}
 
 
+def test_export_analysis_returns_normalized_rows(active_user) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Analysis export")
+
+    precursors_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "metal_source",
+                        "type": "MoO3",
+                        "brand": "Sigma",
+                        "concentration": 0.25,
+                        "concentration_unit": "mol/L",
+                        "method": "solution",
+                        "melting_temperature_C": 795,
+                        "spin_speed_rpm": 3000,
+                        "pre_spin_speed_rpm": 500,
+                        "preparation_time_min": 20,
+                        "mass_mg": 12.5,
+                        "batch_no": "MO-0424",
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert precursors_response.status_code == 200
+
+    substrates_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "MTI",
+                        "size_mm": "10x10",
+                        "treatment_method": "plasma",
+                        "position_mm": 12.5,
+                        "treatment_params": {
+                            "temperature_C": 80,
+                            "duration_min": 5,
+                            "power_W": 30,
+                            "gas": "O2",
+                        },
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert substrates_response.status_code == 200
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "zones": [
+                    {
+                        "zone_index": 1,
+                        "precursor_placed": True,
+                        "note": "center",
+                        "temperature_program": [
+                            {"time_min": 0, "temperature_C": 25},
+                            {"time_min": 30, "temperature_C": 750},
+                        ],
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    gas_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
+        json={
+            "payload_json": {
+                "pre_washing_gas": "Ar",
+                "segments": [
+                    {
+                        "stage": "growth",
+                        "start_min": 0,
+                        "end_min": 45,
+                        "gas": "Ar/H2",
+                        "flow_sccm": 80,
+                        "note": "stable",
+                        "components": [
+                            {"name": "Ar", "fraction": 0.9},
+                            {"name": "H2", "ratio_percent": 10},
+                        ],
+                    }
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert gas_response.status_code == 200
+
+    characterization_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/characterization",
+        json={
+            "payload_json": {
+                "methods": [
+                    {
+                        "method": "Raman",
+                        "enabled": True,
+                        "excitation_nm": 532,
+                        "result": "E2g/A1g visible",
+                        "note": "room temperature",
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert characterization_response.status_code == 200
+
+    sample_id = create_product_sample(experiment_id, active_user.email)
+    file_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={
+            "sample_id": sample_id,
+            "method": "Raman",
+            "file_category": "raw",
+            "note": "analysis input",
+        },
+        files={"file": ("analysis-raman.txt", b"peak=404", "text/plain")},
+    )
+    assert file_response.status_code == 201
+
+    export_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/analysis",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert export_response.status_code == 200
+    body = export_response.json()
+    assert body["export_version"] == "cvd_analysis_v1"
+    assert body["experiment"]["experiment_id"] == experiment_id
+    assert body["experiment"]["run_code"] == "CVD-2026-0001"
+    assert body["experiment"]["material_system"] == "MoS2"
+
+    expected_sections = {
+        "experiment",
+        "precursor_rows",
+        "substrate_rows",
+        "furnace_point_rows",
+        "gas_program_rows",
+        "gas_segment_rows",
+        "gas_component_rows",
+        "characterization_rows",
+        "sample_rows",
+        "file_rows",
+    }
+    assert expected_sections <= set(body)
+
+    for section in expected_sections - {"experiment"}:
+        assert body[section]
+        assert {
+            "experiment_id": experiment_id,
+            "run_code": "CVD-2026-0001",
+        }.items() <= body[section][0].items()
+
+    assert body["precursor_rows"][0] == {
+        "experiment_id": experiment_id,
+        "run_code": "CVD-2026-0001",
+        "precursor_index": 0,
+        "role": "metal_source",
+        "type": "MoO3",
+        "brand": "Sigma",
+        "concentration": 0.25,
+        "concentration_unit": "mol/L",
+        "method": "solution",
+        "melting_temperature_C": 795.0,
+        "spin_speed_rpm": 3000.0,
+        "pre_spin_speed_rpm": 500.0,
+        "preparation_time_min": 20.0,
+        "mass_mg": 12.5,
+        "batch_no": "MO-0424",
+    }
+    assert body["substrate_rows"][0]["substrate_index"] == 0
+    assert body["substrate_rows"][0]["treatment_params_gas"] == "O2"
+    assert body["furnace_point_rows"][1]["temperature_point_index"] == 1
+    assert body["furnace_point_rows"][1]["temperature_C"] == 750.0
+    assert body["gas_program_rows"][0] == {
+        "experiment_id": experiment_id,
+        "run_code": "CVD-2026-0001",
+        "gas_program_index": 0,
+        "pre_washing_gas": "Ar",
+    }
+    assert body["gas_segment_rows"][0]["gas_segment_index"] == 0
+    assert body["gas_segment_rows"][0]["pre_washing_gas"] == "Ar"
+    assert {row["component_name"] for row in body["gas_component_rows"]} == {"Ar", "H2"}
+    assert body["characterization_rows"][0]["characterization_index"] == 0
+    assert body["characterization_rows"][0]["excitation_nm"] == 532.0
+    assert {row["sample_code"] for row in body["sample_rows"]} == {
+        "S-2026-0001-TOP",
+        "S-2026-0001-PRODUCT-A",
+    }
+    assert body["file_rows"][0]["file_id"] == file_response.json()["id"]
+    assert body["file_rows"][0]["sample_id"] == sample_id
+
+
+def test_export_analysis_keeps_program_level_gas_and_flat_metadata(active_user) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Flat analysis export")
+
+    gas_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
+        json={"payload_json": {"pre_washing_gas": "Ar", "segments": []}},
+        headers=auth_headers(active_user.email),
+    )
+    assert gas_response.status_code == 200
+
+    sample_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/samples",
+        json={
+            "role": "product",
+            "storage_location": "drawer-2",
+            "metadata_json": {"nested": {"grade": "A"}, "tags": ["analysis"]},
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert sample_response.status_code == 201
+    sample_id = sample_response.json()["id"]
+
+    file_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={
+            "sample_id": sample_id,
+            "method": "OM",
+            "file_category": "processed",
+        },
+        files={"file": ("flat-metadata.txt", b"same-bytes", "text/plain")},
+    )
+    assert file_response.status_code == 201
+
+    export_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/analysis",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert export_response.status_code == 200
+    body = export_response.json()
+    assert body["gas_program_rows"] == [
+        {
+            "experiment_id": experiment_id,
+            "run_code": "CVD-2026-0001",
+            "gas_program_index": 0,
+            "pre_washing_gas": "Ar",
+        }
+    ]
+    assert body["gas_segment_rows"] == []
+    assert body["sample_rows"][0]["metadata_json_text"] == (
+        '{"nested":{"grade":"A"},"tags":["analysis"]}'
+    )
+    assert "metadata_json" not in body["sample_rows"][0]
+    assert body["file_rows"][0]["metadata_json_text"] == "{}"
+    assert "metadata_json" not in body["file_rows"][0]
+
+
 def test_export_experiment_excel_returns_openable_workbook(active_user) -> None:
     experiment_id = create_experiment(active_user.email, objective="Excel export flow")
     populate_required_modules(experiment_id, active_user.email)

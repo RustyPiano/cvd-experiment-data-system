@@ -247,3 +247,164 @@ export type ExperimentExportRead = {
     audit_events: number;
   };
 };
+
+export type ExperimentAnalysisExperimentRow = {
+  experiment_id: string;
+  run_code: string;
+  owner_id: string;
+  derived_from_run_id: string | null;
+  derived_from_run_code: string | null;
+  experiment_type: string;
+  material_system: string | null;
+  experiment_date: string;
+  objective: string | null;
+  status: ExperimentStatus;
+  quality_label: QualityLabel;
+  summary_result: string | null;
+  invalid_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  submitted_at: string | null;
+  locked_at: string | null;
+};
+
+export type ExperimentAnalysisPrecursorRow = {
+  experiment_id: string;
+  run_code: string;
+  precursor_index: number;
+  role: string | null;
+  type: string | null;
+  brand: string | null;
+  concentration: number | null;
+  concentration_unit: string | null;
+  method: string | null;
+  melting_temperature_C: number | null;
+  spin_speed_rpm: number | null;
+  pre_spin_speed_rpm: number | null;
+  preparation_time_min: number | null;
+  mass_mg: number | null;
+  batch_no: string | null;
+};
+
+export type ExperimentAnalysisSubstrateRow = {
+  experiment_id: string;
+  run_code: string;
+  substrate_index: number;
+  role: string | null;
+  type: string | null;
+  brand: string | null;
+  size_mm: string | null;
+  treatment_method: string | null;
+  position_mm: number | null;
+  treatment_params_temperature_C: number | null;
+  treatment_params_duration_min: number | null;
+  treatment_params_power_W: number | null;
+  treatment_params_gas: string | null;
+};
+
+export type ExperimentAnalysisFurnacePointRow = {
+  experiment_id: string;
+  run_code: string;
+  furnace_zone_index: number;
+  zone_index: number | null;
+  temperature_point_index: number;
+  precursor_placed: boolean | null;
+  zone_note: string | null;
+  time_min: number | null;
+  temperature_C: number | null;
+};
+
+export type ExperimentAnalysisGasSegmentRow = {
+  experiment_id: string;
+  run_code: string;
+  gas_segment_index: number;
+  pre_washing_gas: string | null;
+  stage: string | null;
+  start_min: number | null;
+  end_min: number | null;
+  gas: string | null;
+  flow_sccm: number | null;
+  note: string | null;
+  component_count: number;
+};
+
+export type ExperimentAnalysisGasProgramRow = {
+  experiment_id: string;
+  run_code: string;
+  gas_program_index: number;
+  pre_washing_gas: string | null;
+};
+
+export type ExperimentAnalysisGasComponentRow = {
+  experiment_id: string;
+  run_code: string;
+  gas_segment_index: number;
+  gas_component_index: number;
+  stage: string | null;
+  segment_gas: string | null;
+  component_name: string | null;
+  component_gas: string | null;
+  fraction: number | null;
+  ratio_percent: number | null;
+};
+
+export type ExperimentAnalysisCharacterizationRow = {
+  experiment_id: string;
+  run_code: string;
+  characterization_index: number;
+  method: string | null;
+  result: string | null;
+  enabled: boolean | null;
+  excitation_nm: number | null;
+  note: string | null;
+};
+
+export type ExperimentAnalysisSampleRow = {
+  experiment_id: string;
+  run_code: string;
+  sample_id: string;
+  sample_code: string;
+  parent_sample_id: string | null;
+  role: string;
+  substrate_type: string | null;
+  brand: string | null;
+  size_mm: string | null;
+  treatment: string | null;
+  position_mm: number | null;
+  storage_location: string | null;
+  metadata_json_text: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExperimentAnalysisFileRow = {
+  experiment_id: string;
+  run_code: string;
+  file_id: string;
+  sample_id: string | null;
+  original_name: string;
+  method: string;
+  file_category: string;
+  content_type: string | null;
+  size_bytes: number;
+  sha256: string;
+  note: string | null;
+  metadata_json_text: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExperimentAnalysisExportRead = {
+  export_version: string;
+  exported_at: string;
+  experiment: ExperimentAnalysisExperimentRow;
+  precursor_rows: ExperimentAnalysisPrecursorRow[];
+  substrate_rows: ExperimentAnalysisSubstrateRow[];
+  furnace_point_rows: ExperimentAnalysisFurnacePointRow[];
+  gas_program_rows: ExperimentAnalysisGasProgramRow[];
+  gas_segment_rows: ExperimentAnalysisGasSegmentRow[];
+  gas_component_rows: ExperimentAnalysisGasComponentRow[];
+  characterization_rows: ExperimentAnalysisCharacterizationRow[];
+  sample_rows: ExperimentAnalysisSampleRow[];
+  file_rows: ExperimentAnalysisFileRow[];
+};

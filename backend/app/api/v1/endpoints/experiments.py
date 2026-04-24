@@ -12,6 +12,7 @@ from app.models.module_payload import ExperimentModuleKey
 from app.models.user import User
 from app.schemas.audit import AuditEventListResponse
 from app.schemas.experiment import (
+    ExperimentAnalysisExportRead,
     ExperimentCreate,
     ExperimentExportRead,
     ExperimentInvalidateRequest,
@@ -89,6 +90,15 @@ def export_experiment_json(
     current_user: CurrentUser,
 ) -> ExperimentExportRead:
     return ExperimentService(db).export_experiment(experiment_id, current_user)
+
+
+@router.get("/{experiment_id}/export/analysis", response_model=ExperimentAnalysisExportRead)
+def export_experiment_analysis(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentAnalysisExportRead:
+    return ExperimentService(db).export_experiment_analysis(experiment_id, current_user)
 
 
 @router.get("/{experiment_id}/export/excel")
