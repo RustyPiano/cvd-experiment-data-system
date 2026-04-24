@@ -26,7 +26,7 @@ def auth_headers(email: str) -> dict[str, str]:
 def populate_required_modules(experiment_id: str, email: str) -> None:
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
         headers=auth_headers(email),
     )
     assert precursors_response.status_code == 200
@@ -87,6 +87,21 @@ def assert_issue_exists(
         and message_contains in issue["message"]
         for issue in issues
     ), issues
+
+
+def create_experiment_for_test(email: str, *, objective: str = "Validation flow") -> str:
+    response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": objective,
+        },
+        headers=auth_headers(email),
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
 
 
 def test_create_experiment_creates_draft_for_member(active_user) -> None:
@@ -353,7 +368,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
         json={
             "payload_json": {
-                "items": [{"role": "A", "type": "MoO3", "brand": "Sigma"}],
+                "items": [{"role": "A", "type": "MoO3", "brand": "Sigma", "method": "powder"}],
             }
         },
         headers=auth_headers(active_user.email),
@@ -553,6 +568,118 @@ def test_submit_returns_same_validation_structure_on_failure(active_user, db_ses
     assert submit_response.json() == validate_response.json()
 
 
+def test_submit_reports_database_critical_missing_fields(active_user) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Database critical missing fields",
+    )
+
+    precursors_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={"payload_json": {"items": [{"role": "A", "mass_mg": 5}]}},
+        headers=auth_headers(active_user.email),
+    )
+    assert precursors_response.status_code == 200
+
+    substrates_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={"payload_json": {"items": [{"brand": "MTI"}]}},
+        headers=auth_headers(active_user.email),
+    )
+    assert substrates_response.status_code == 200
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "zones": [
+                    {
+                        "zone_index": 1,
+                        "temperature_program": [{"time_min": 0}],
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    gas_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
+        json={
+            "payload_json": {
+                "segments": [
+                    {
+                        "stage": "growth",
+                        "start_min": 0,
+                        "end_min": 45,
+                        "flow_sccm": 80,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert gas_response.status_code == 200
+
+    characterization_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/characterization",
+        json={"payload_json": {"methods": [{"enabled": True, "result": "peak visible"}]}},
+        headers=auth_headers(active_user.email),
+    )
+    assert characterization_response.status_code == 200
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 422
+    errors = submit_response.json()["errors"]
+    assert_issue_exists(
+        errors,
+        module_key="precursors",
+        field_path="items[0].type",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        errors,
+        module_key="precursors",
+        field_path="items[0].method",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        errors,
+        module_key="substrates",
+        field_path="items[0].role",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        errors,
+        module_key="substrates",
+        field_path="items[0].type",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        errors,
+        module_key="furnace_program",
+        field_path="zones[0].temperature_program[0].temperature_C",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        errors,
+        module_key="gas_program",
+        field_path="segments[0].gas",
+        message_contains="required",
+    )
+    assert_issue_exists(
+        errors,
+        module_key="characterization",
+        field_path="methods[0].method",
+        message_contains="required",
+    )
+
+
 def test_put_and_get_experiment_module_payload(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",
@@ -608,6 +735,80 @@ def test_put_and_get_experiment_module_payload(active_user) -> None:
     assert list_response.status_code == 200
     assert list_response.json()["total"] == 1
     assert list_response.json()["items"][0]["module_key"] == "precursors"
+
+
+def test_upsert_module_rejects_non_numeric_scientific_values(active_user) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Strict numeric module payloads",
+    )
+
+    invalid_payloads = [
+        (
+            "precursors",
+            {"items": [{"role": "A", "type": "MoO3", "method": "powder", "mass_mg": "abc"}]},
+            "mass_mg",
+        ),
+        (
+            "gas_program",
+            {
+                "segments": [
+                    {
+                        "stage": "growth",
+                        "start_min": 0,
+                        "end_min": 45,
+                        "gas": "Ar",
+                        "flow_sccm": "abc",
+                    }
+                ]
+            },
+            "flow_sccm",
+        ),
+        (
+            "furnace_program",
+            {
+                "zones": [
+                    {
+                        "zone_index": 1,
+                        "temperature_program": [
+                            {"time_min": 0, "temperature_C": "hot"},
+                        ],
+                    }
+                ]
+            },
+            "temperature_C",
+        ),
+    ]
+
+    for module_key, payload_json, rejected_field in invalid_payloads:
+        response = client.put(
+            f"/api/v1/experiments/{experiment_id}/modules/{module_key}",
+            json={"payload_json": payload_json},
+            headers=auth_headers(active_user.email),
+        )
+
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert any(
+            rejected_field in ".".join(str(part) for part in error["loc"]) for error in detail
+        )
+
+    extension_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/environment",
+        json={
+            "payload_json": {
+                "sample_env": "clean",
+                "indoor_temperature_C": 25,
+                "legacy_extension": {"operator_note": "keep this field"},
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+
+    assert extension_response.status_code == 200
+    assert extension_response.json()["payload_json"]["legacy_extension"] == {
+        "operator_note": "keep this field",
+    }
 
 
 def test_put_and_get_process_observation_module_payload(active_user) -> None:
@@ -692,7 +893,7 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
         headers=auth_headers(active_user.email),
     )
     assert precursors_response.status_code == 200
@@ -767,7 +968,7 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
     )
 
 
-def test_submit_rejects_malformed_furnace_zone_payload_without_500(active_user) -> None:
+def test_upsert_rejects_malformed_furnace_zone_payload_without_500(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",
         json={
@@ -782,7 +983,7 @@ def test_submit_rejects_malformed_furnace_zone_payload_without_500(active_user) 
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
         headers=auth_headers(active_user.email),
     )
     assert precursors_response.status_code == 200
@@ -792,23 +993,13 @@ def test_submit_rejects_malformed_furnace_zone_payload_without_500(active_user) 
         json={"payload_json": {"zones": ["bad-zone"]}},
         headers=auth_headers(active_user.email),
     )
-    assert furnace_response.status_code == 200
 
-    submit_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/submit",
-        headers=auth_headers(active_user.email),
-    )
-
-    assert submit_response.status_code == 422
-    assert_issue_exists(
-        submit_response.json()["errors"],
-        module_key="furnace_program",
-        field_path="zones[0]",
-        message_contains="must be an object",
-    )
+    assert furnace_response.status_code == 422
+    detail = furnace_response.json()["detail"]
+    assert any("zones.0" in ".".join(str(part) for part in error["loc"]) for error in detail)
 
 
-def test_submit_rejects_malformed_precursor_payload_without_500(active_user) -> None:
+def test_upsert_rejects_malformed_precursor_payload_without_500(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",
         json={
@@ -826,41 +1017,10 @@ def test_submit_rejects_malformed_precursor_payload_without_500(active_user) -> 
         json={"payload_json": {"items": ["bad-precursor"]}},
         headers=auth_headers(active_user.email),
     )
-    assert precursors_response.status_code == 200
 
-    furnace_response = client.put(
-        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
-        json={
-            "payload_json": {
-                "zones": [
-                    {
-                        "zone_index": 1,
-                        "precursor_placed": True,
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": 25},
-                            {"time_min": 30, "temperature_C": 750},
-                        ],
-                        "note": "",
-                    }
-                ]
-            }
-        },
-        headers=auth_headers(active_user.email),
-    )
-    assert furnace_response.status_code == 200
-
-    submit_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/submit",
-        headers=auth_headers(active_user.email),
-    )
-
-    assert submit_response.status_code == 422
-    assert_issue_exists(
-        submit_response.json()["errors"],
-        module_key="precursors",
-        field_path="items[0]",
-        message_contains="must be an object",
-    )
+    assert precursors_response.status_code == 422
+    detail = precursors_response.json()["detail"]
+    assert any("items.0" in ".".join(str(part) for part in error["loc"]) for error in detail)
 
 
 def test_submit_allows_missing_gas_program(active_user) -> None:
@@ -878,7 +1038,7 @@ def test_submit_allows_missing_gas_program(active_user) -> None:
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
         headers=auth_headers(active_user.email),
     )
     assert precursors_response.status_code == 200
@@ -1386,7 +1546,7 @@ def test_get_module_backfills_stage3_defaults_for_legacy_payload(active_user, db
             ExperimentModulePayload(
                 experiment_run_id=experiment_id,
                 module_key=ExperimentModuleKey.PRECURSORS.value,
-                payload_json={"items": [{"role": "A", "type": "MoO3"}]},
+                payload_json={"items": [{"role": "A", "type": "MoO3", "method": "powder"}]},
             ),
             ExperimentModulePayload(
                 experiment_run_id=experiment_id,
@@ -1683,7 +1843,7 @@ def test_clone_normalizes_legacy_payloads_before_copy(active_user, db_session) -
             ExperimentModulePayload(
                 experiment_run_id=source_id,
                 module_key=ExperimentModuleKey.PRECURSORS.value,
-                payload_json={"items": [{"role": "A", "type": "WO3"}]},
+                payload_json={"items": [{"role": "A", "type": "WO3", "method": "powder"}]},
             ),
             ExperimentModulePayload(
                 experiment_run_id=source_id,

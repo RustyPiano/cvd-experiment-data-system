@@ -36,6 +36,7 @@ class ExperimentValidationService:
         self._validate_precursors(
             module_payloads.get(ExperimentModuleKey.PRECURSORS.value), errors, warnings
         )
+        self._validate_substrates(module_payloads.get(ExperimentModuleKey.SUBSTRATES.value), errors)
         self._validate_furnace_program(
             module_payloads.get(ExperimentModuleKey.FURNACE_PROGRAM.value),
             errors,
@@ -48,6 +49,9 @@ class ExperimentValidationService:
         )
         self._validate_precheck(
             module_payloads.get(ExperimentModuleKey.PRECHECK.value), errors, warnings
+        )
+        self._validate_characterization(
+            module_payloads.get(ExperimentModuleKey.CHARACTERIZATION.value), errors
         )
         self._validate_files(experiment, files, errors, warnings)
 
@@ -111,12 +115,86 @@ class ExperimentValidationService:
                     )
                 )
                 continue
+            if self._is_blank(item.get("type")):
+                errors.append(
+                    self._issue(
+                        "precursors",
+                        f"items[{index}].type",
+                        "Precursor type is required",
+                    )
+                )
+            if self._is_blank(item.get("method")):
+                errors.append(
+                    self._issue(
+                        "precursors",
+                        f"items[{index}].method",
+                        "Precursor method is required",
+                    )
+                )
             if not str(item.get("batch_no") or "").strip():
                 warnings.append(
                     self._issue(
                         "precursors",
                         f"items[{index}].batch_no",
                         "Precursor batch_no is missing",
+                    )
+                )
+            if item.get("mass_mg") is None:
+                warnings.append(
+                    self._issue(
+                        "precursors",
+                        f"items[{index}].mass_mg",
+                        "Precursor mass_mg is missing",
+                    )
+                )
+
+    def _validate_substrates(
+        self,
+        substrates_payload: dict | None,
+        errors: list[ExperimentValidationIssue],
+    ) -> None:
+        if not isinstance(substrates_payload, dict):
+            return
+
+        substrate_items = substrates_payload.get("items")
+        if not isinstance(substrate_items, list) or not substrate_items:
+            return
+
+        for index, item in enumerate(substrate_items):
+            if not isinstance(item, dict):
+                errors.append(
+                    self._issue(
+                        "substrates",
+                        f"items[{index}]",
+                        "Substrate item must be an object",
+                    )
+                )
+                continue
+
+            role = item.get("role")
+            if self._is_blank(role):
+                errors.append(
+                    self._issue(
+                        "substrates",
+                        f"items[{index}].role",
+                        "Substrate role is required",
+                    )
+                )
+            elif role not in {"top", "bottom"}:
+                errors.append(
+                    self._issue(
+                        "substrates",
+                        f"items[{index}].role",
+                        "Substrate role must be top or bottom",
+                    )
+                )
+
+            if self._is_blank(item.get("type")):
+                errors.append(
+                    self._issue(
+                        "substrates",
+                        f"items[{index}].type",
+                        "Substrate type is required",
                     )
                 )
 
@@ -183,6 +261,20 @@ class ExperimentValidationService:
                     )
                     malformed = True
                     continue
+                temperature = point.get("temperature_C")
+                if not self._is_number(temperature):
+                    errors.append(
+                        self._issue(
+                            "furnace_program",
+                            (
+                                f"zones[{zone_index}].temperature_program"
+                                f"[{point_index}].temperature_C"
+                            ),
+                            "Furnace program temperature_C is required and must be numeric",
+                        )
+                    )
+                    malformed = True
+                    continue
                 time_points.append(float(time_min))
 
             if malformed:
@@ -232,6 +324,26 @@ class ExperimentValidationService:
                 )
                 malformed = True
                 continue
+            if self._is_blank(segment.get("gas")):
+                errors.append(
+                    self._issue(
+                        "gas_program",
+                        f"segments[{index}].gas",
+                        "Gas segment gas is required",
+                    )
+                )
+                malformed = True
+                continue
+            if not self._is_number(segment.get("flow_sccm")):
+                errors.append(
+                    self._issue(
+                        "gas_program",
+                        f"segments[{index}].flow_sccm",
+                        "Gas segment flow_sccm is required and must be numeric",
+                    )
+                )
+                malformed = True
+                continue
             start_value = float(start)
             end_value = float(end)
             if end_value <= start_value:
@@ -265,6 +377,37 @@ class ExperimentValidationService:
                     "Gas segments overlap",
                 )
             )
+
+    def _validate_characterization(
+        self,
+        characterization_payload: dict | None,
+        errors: list[ExperimentValidationIssue],
+    ) -> None:
+        if not isinstance(characterization_payload, dict):
+            return
+
+        methods = characterization_payload.get("methods")
+        if not isinstance(methods, list) or not methods:
+            return
+
+        for index, method in enumerate(methods):
+            if not isinstance(method, dict):
+                errors.append(
+                    self._issue(
+                        "characterization",
+                        f"methods[{index}]",
+                        "Characterization method record must be an object",
+                    )
+                )
+                continue
+            if self._is_blank(method.get("method")):
+                errors.append(
+                    self._issue(
+                        "characterization",
+                        f"methods[{index}].method",
+                        "Characterization method is required",
+                    )
+                )
 
     def _validate_environment(
         self,
@@ -384,3 +527,6 @@ class ExperimentValidationService:
 
     def _is_number(self, value: object) -> bool:
         return isinstance(value, int | float) and not isinstance(value, bool)
+
+    def _is_blank(self, value: object) -> bool:
+        return not str(value or "").strip()

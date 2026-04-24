@@ -39,7 +39,7 @@ def create_experiment(email: str, *, objective: str = "Export flow") -> str:
 def populate_required_modules(experiment_id: str, email: str) -> None:
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
         headers=auth_headers(email),
     )
     assert precursors_response.status_code == 200

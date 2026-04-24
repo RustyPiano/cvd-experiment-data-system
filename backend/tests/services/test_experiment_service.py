@@ -61,7 +61,9 @@ def test_upsert_module_retries_unique_conflict(active_user, db_session, monkeypa
         )
     )
     db_session.commit()
-    payload = ExperimentModulePayloadUpsert(payload_json={"items": [{"role": "A", "type": "MoO3"}]})
+    payload = ExperimentModulePayloadUpsert(
+        payload_json={"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}
+    )
     attempts = {"count": 0}
 
     original_save = service.module_payloads.save

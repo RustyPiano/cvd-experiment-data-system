@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -28,6 +29,7 @@ from app.schemas.module_payload import (
     ExperimentModulePayloadListResponse,
     ExperimentModulePayloadRead,
     ExperimentModulePayloadUpsert,
+    validate_module_payload,
 )
 from app.services.audit_service import AuditService
 from app.services.experiment_export_service import ExperimentExportService
@@ -429,7 +431,17 @@ class ExperimentService:
                 module_key=module_key.value,
             )
             target.schema_version = payload.schema_version
-            target.payload_json = normalize_module_payload(module_key.value, payload.payload_json)
+            normalized_payload = normalize_module_payload(module_key.value, payload.payload_json)
+            try:
+                target.payload_json = validate_module_payload(
+                    module_key.value,
+                    normalized_payload,
+                )
+            except ValidationError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=exc.errors(),
+                ) from exc
 
             try:
                 return self.module_payloads.save(target)

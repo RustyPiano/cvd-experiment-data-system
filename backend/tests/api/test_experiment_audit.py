@@ -21,7 +21,7 @@ def auth_headers(email: str) -> dict[str, str]:
 def populate_required_modules(experiment_id: str, email: str) -> None:
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
         headers=auth_headers(email),
     )
     assert precursors_response.status_code == 200
@@ -213,7 +213,7 @@ def test_clone_experiment_copies_module_payloads(active_user, admin_user) -> Non
 
     precursors_response = client.put(
         f"/api/v1/experiments/{source_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "WO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "WO3", "method": "powder"}]}},
         headers=auth_headers(admin_user.email),
     )
     assert precursors_response.status_code == 200

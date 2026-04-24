@@ -21,7 +21,7 @@ def auth_headers(email: str) -> dict[str, str]:
 def populate_required_modules(experiment_id: str, email: str) -> None:
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3"}]}},
+        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
         headers=auth_headers(email),
     )
     assert precursors_response.status_code == 200
@@ -236,7 +236,10 @@ def test_substrates_module_rejects_invalid_position_value(active_user) -> None:
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Substrate position_mm must be numeric"
+    detail = response.json()["detail"]
+    assert any(
+        "items.0.position_mm" in ".".join(str(part) for part in error["loc"]) for error in detail
+    )
 
 
 def test_create_product_samples_generates_incremental_codes(active_user) -> None:
