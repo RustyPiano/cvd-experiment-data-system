@@ -1,4 +1,6 @@
-import { Button, Empty, Input, Typography } from "antd";
+import { Button, Empty, Input, Switch, Typography } from "antd";
+
+const { TextArea } = Input;
 
 import {
   createEmptyCharacterizationMethod,
@@ -60,6 +62,29 @@ export function CharacterizationSection({
                 value={item.method}
               />
             </div>
+            <div className="editor-field">
+              <Typography.Text strong>{`启用表征 ${index + 1}`}</Typography.Text>
+              <Switch
+                aria-label={`启用表征 ${index + 1}`}
+                checked={item.enabled}
+                disabled={disabled}
+                onChange={(checked) => {
+                  updateItem(index, { enabled: checked });
+                }}
+              />
+            </div>
+            <div className="editor-field">
+              <Typography.Text strong>{`激发波长 ${index + 1}`}</Typography.Text>
+              <Input
+                aria-label={`激发波长 ${index + 1}`}
+                disabled={disabled}
+                onChange={(event) => {
+                  updateItem(index, { excitationNm: event.target.value });
+                }}
+                placeholder="nm"
+                value={item.excitationNm}
+              />
+            </div>
             <div className="editor-field editor-field-wide">
               <Typography.Text strong>{`表征结果 ${index + 1}`}</Typography.Text>
               <Input
@@ -70,6 +95,19 @@ export function CharacterizationSection({
                 }}
                 placeholder="例如 peak visible"
                 value={item.result}
+              />
+            </div>
+            <div className="editor-field editor-field-wide">
+              <Typography.Text strong>{`表征备注 ${index + 1}`}</Typography.Text>
+              <TextArea
+                aria-label={`表征备注 ${index + 1}`}
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                disabled={disabled}
+                onChange={(event) => {
+                  updateItem(index, { note: event.target.value });
+                }}
+                placeholder="记录测量条件、设备或备注"
+                value={item.note}
               />
             </div>
           </div>

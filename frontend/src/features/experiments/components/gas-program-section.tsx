@@ -1,9 +1,12 @@
 import { Button, Empty, Input, Typography } from "antd";
 
 import {
+  createEmptyGasComponent,
   createEmptyGasSegment,
   type GasProgramValues,
 } from "../editor-types";
+
+const { TextArea } = Input;
 
 export function GasProgramSection({
   disabled,
@@ -19,6 +22,26 @@ export function GasProgramSection({
       ...value,
       segments: value.segments.map((segment, segmentIndex) =>
         segmentIndex === index ? { ...segment, ...patch } : segment,
+      ),
+    });
+  };
+
+  const updateComponent = (
+    segmentIndex: number,
+    componentIndex: number,
+    patch: Partial<(typeof value.segments)[number]["components"][number]>,
+  ) => {
+    onChange({
+      ...value,
+      segments: value.segments.map((segment, currentSegmentIndex) =>
+        currentSegmentIndex === segmentIndex
+          ? {
+              ...segment,
+              components: segment.components.map((component, currentComponentIndex) =>
+                currentComponentIndex === componentIndex ? { ...component, ...patch } : component,
+              ),
+            }
+          : segment,
       ),
     });
   };
@@ -120,6 +143,84 @@ export function GasProgramSection({
                 placeholder="flow_sccm"
                 value={segment.flowSccm}
               />
+            </div>
+            <div className="editor-field editor-field-wide">
+              <Typography.Text strong>{`程序段备注 ${index + 1}`}</Typography.Text>
+              <TextArea
+                aria-label={`程序段备注 ${index + 1}`}
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                disabled={disabled}
+                onChange={(event) => {
+                  updateSegment(index, { note: event.target.value });
+                }}
+                placeholder="记录该阶段的补充说明"
+                value={segment.note}
+              />
+            </div>
+            <div className="editor-field editor-field-wide">
+              <Typography.Text strong>{`组分配置 ${index + 1}`}</Typography.Text>
+              <div className="content-stack">
+                {segment.components.map((component, componentIndex) => (
+                  <div
+                    className="editor-form-grid"
+                    key={`gas-segment-${index + 1}-component-${componentIndex + 1}`}
+                  >
+                    <div className="editor-field">
+                      <Typography.Text strong>{`组件气体 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
+                      <Input
+                        aria-label={`组件气体 ${index + 1}-${componentIndex + 1}`}
+                        disabled={disabled}
+                        onChange={(event) => {
+                          updateComponent(index, componentIndex, { gas: event.target.value });
+                        }}
+                        placeholder="例如 H2"
+                        value={component.gas}
+                      />
+                    </div>
+                    <div className="editor-field">
+                      <Typography.Text strong>{`组分比例 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
+                      <Input
+                        aria-label={`组分比例 ${index + 1}-${componentIndex + 1}`}
+                        disabled={disabled}
+                        onChange={(event) => {
+                          updateComponent(index, componentIndex, {
+                            ratioPercent: event.target.value,
+                          });
+                        }}
+                        placeholder="%"
+                        value={component.ratioPercent}
+                      />
+                    </div>
+                    <div className="editor-inline-actions">
+                      <Button
+                        danger
+                        disabled={disabled}
+                        onClick={() => {
+                          updateSegment(index, {
+                            components: segment.components.filter(
+                              (_, currentComponentIndex) =>
+                                currentComponentIndex !== componentIndex,
+                            ),
+                          });
+                        }}
+                        type="text"
+                      >
+                        删除组分
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  disabled={disabled}
+                  onClick={() => {
+                    updateSegment(index, {
+                      components: [...segment.components, createEmptyGasComponent()],
+                    });
+                  }}
+                >
+                  添加组分
+                </Button>
+              </div>
             </div>
           </div>
         </div>

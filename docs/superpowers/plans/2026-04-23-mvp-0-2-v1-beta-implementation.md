@@ -475,7 +475,7 @@
 - Modify: `frontend/src/features/experiments/components/result-summary-section.tsx`
 - Modify: `frontend/src/features/experiments/experiment-editor-page.test.tsx`
 
-- [ ] 扩展 `editor-types.ts`：
+- [x] 扩展 `editor-types.ts`：
   - `basic_info`：允许编辑 `experimentType`
   - `environment`：增加 `indoorHumidityPercent`
   - `precheck`：增加 `hoodClean`、`flangeBlocked`、`boatContaminationLevel`、`tubeContaminationLevel`
@@ -485,33 +485,33 @@
   - `characterization`：增加 `enabled`、`excitationNm`、`note`
   - `result_summary`：增加 `qualityLabel`、`nextStep`
 
-- [ ] 更新各模块组件：
+- [x] 更新各模块组件：
   - 使用现有卡片结构，不重写页面框架
   - 方法/处理方式的条件字段按计划显示
   - `qualityLabel` 提供受控选项
   - `treatmentParams` / `components` 使用最小可编辑 UI
 
-- [ ] 新增固定操作区组件：
+- [x] 新增固定操作区组件：
   - 持续显示保存状态
   - 返回详情
   - 提交实验
   - 非 draft 状态显示显式只读提示
 
-- [ ] 新增验证汇总组件：
+- [x] 新增验证汇总组件：
   - 提交前先调用 `validate`
   - 若有 errors/warnings，在顶部展示汇总
   - 点击错误项滚动到对应模块卡片
 
-- [ ] 增加页面离开保护：
+- [x] 增加页面离开保护：
   - 存在保存中的请求时拦截离开
   - 保存失败且有未持久化修改时给出提示
 
-- [ ] 确认 autosave 不回归：
+- [x] 确认 autosave 不回归：
   - 继续采用当前“区块级 debounced autosave”
   - 补字段后仍保留后端未建模字段
   - `result_summary` 保存时同步 `quality_label`
 
-- [ ] 增加编辑器测试：
+- [x] 增加编辑器测试：
   - 新字段渲染
   - 自动保存 payload 正确
   - 提交错误面板显示
@@ -529,6 +529,16 @@
 
 **完成定义：**
 - 编辑器不再只是最小字段演示，而是能支撑真实实验记录。
+
+**2026-04-24 实施记录：**
+- 已扩展前端编辑器值模型、初始化、序列化和 merge 逻辑，覆盖 `basic_info.experimentType`、环境湿度、预检查扩展项、前驱体扩展字段、基底 `treatment_params`、气体程序 `components/note`、表征 `enabled/excitationNm/note`、结果总结 `qualityLabel/nextStep`；保存时继续保留各条目 `sourcePayload` 中未被 UI 建模的字段，并将气体组分写回为后端约定的 `name/fraction` 结构。
+- 已在现有卡片式编辑器内补齐最小可编辑 UI：前驱体按方法显示溶液/旋涂/熔融相关字段，基底在填写处理方式后显示处理参数，气体程序支持组分列表，表征方法支持启用开关、激发波长和备注，`qualityLabel` 使用固定受控选项。
+- 已新增 `editor-action-bar` 作为底部固定操作区，持续展示 run code、状态、自动保存摘要、返回详情和提交动作；非 draft 实验保持只读提示并隐藏提交入口。
+- 已新增 `validation-summary` 并接入提交流：提交前先调用 `POST /api/v1/experiments/{id}/validate`，有错误时阻止 submit 并展示 `errors/warnings` 汇总，点击条目会滚动到对应模块卡片；若后端 submit 仍返回结构化 422，也会复用同一汇总。
+- 已增加离开保护：存在保存中请求，或保存失败且仍有未持久化修改时，会通过浏览器 `beforeunload`、返回详情动作与 Data Router 路由拦截提示用户。
+- 已补充提交流防竞态：提交验证过程中禁用模块输入，并在 validate 通过后重新检查 dirty 状态，避免验证窗口内的新增修改被无意提交。
+- 已补充并通过编辑器测试：新字段渲染、扩展字段 autosave payload、污染等级清空回写 `null`、`quality_label/next_step` 保存、列表缓存失效、验证汇总和滚动、保存失败离开提示、Data Router 路由拦截、非 draft 只读、提交验证期间禁用输入，以及既有 autosave 缓存回归。
+- 已验证：`cd frontend && bun run lint`、`bun run typecheck`、`bun run test`（`15 passed / 66 passed`）。
 
 ---
 

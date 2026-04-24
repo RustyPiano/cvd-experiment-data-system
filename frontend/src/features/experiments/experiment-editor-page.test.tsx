@@ -1,8 +1,9 @@
-import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { QueryClient } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Route, Routes } from "react-router-dom";
+import { createMemoryRouter, Route, RouterProvider, Routes } from "react-router-dom";
 
+import { AuthProvider, createSessionSnapshot } from "../auth/auth-store";
 import { ExperimentEditorPage } from "./experiment-editor-page";
 import { renderWithApp } from "../../test/render";
 
@@ -109,12 +110,31 @@ function createEditorFetchMock() {
       createModulePayload(experiment.id, "precheck", {
         seal_intact: true,
         risk_note: "",
+        hood_clean: true,
+        flange_blocked: false,
+        boat_contamination_level: "low",
+        tube_contamination_level: "medium",
       }),
     ],
     [
       "precursors",
       createModulePayload(experiment.id, "precursors", {
-        items: [{ role: "A", type: "MoO3", mass_mg: 15 }],
+        items: [
+          {
+            role: "A",
+            type: "MoO3",
+            brand: "Alfa",
+            concentration: 0.5,
+            concentration_unit: "mol/L",
+            method: "spin_coating",
+            melting_temperature_C: 180,
+            spin_speed_rpm: 2800,
+            pre_spin_speed_rpm: 500,
+            preparation_time_min: 12,
+            mass_mg: 15,
+            batch_no: "MO-2026-01",
+          },
+        ],
       }),
     ],
     [
@@ -126,6 +146,13 @@ function createEditorFetchMock() {
             type: "SiO2/Si",
             brand: "Brand A",
             position_mm: 1,
+            treatment_method: "anneal",
+            treatment_params: {
+              temperature_C: 300,
+              duration_min: 20,
+              power_W: null,
+              gas: "Ar",
+            },
             surface_finish: "polished",
           },
         ],
@@ -190,7 +217,8 @@ function createEditorFetchMock() {
             start_min: 0,
             end_min: 45,
             flow_sccm: 80,
-            components: [{ gas: "H2", ratio_percent: 5 }],
+            note: "keep carrier stable",
+            components: [{ name: "H2", fraction: 0.05 }],
           },
         ],
       }),
@@ -223,6 +251,14 @@ function createEditorFetchMock() {
       return jsonResponse({
         items: [...modules.values()],
         total: modules.size,
+      });
+    }
+
+    if (url.pathname === "/api/v1/experiments/exp-1/validate" && method === "POST") {
+      return jsonResponse({
+        ok: true,
+        errors: [],
+        warnings: [],
       });
     }
 
@@ -263,10 +299,48 @@ function createEditorFetchMock() {
   };
 }
 
+function renderEditorWithDataRouter(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/experiments/:experimentId/edit",
+        element: <ExperimentEditorPage />,
+      },
+      {
+        path: "/experiments/:experimentId",
+        element: <div>Experiment detail route</div>,
+      },
+    ],
+    { initialEntries: ["/experiments/exp-1/edit"] },
+  );
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider
+        value={{
+          session: createSessionSnapshot("token-123", {
+            id: "u-1",
+            email: "member@example.com",
+            name: "Test Member",
+            role: "member",
+            is_active: true,
+            last_login_at: null,
+          }),
+        }}
+      >
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </QueryClientProvider>,
+  );
+
+  return { queryClient, router };
+}
+
 describe("ExperimentEditorPage", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -294,12 +368,25 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByRole("heading", { name: "过程观察" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "表征结果" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "结果总结" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返回详情" })).toBeInTheDocument();
     expect(screen.getByLabelText("实验目的")).toHaveValue("Baseline growth");
     expect(screen.getByLabelText("样品环境")).toHaveValue("clean");
+    expect(screen.getByLabelText("室内湿度 (%)")).toHaveValue("45");
+    expect(screen.getByRole("radiogroup", { name: "通风橱已清洁" })).toBeInTheDocument();
+    expect(screen.getAllByRole("radio", { name: "未检查" }).length).toBeGreaterThanOrEqual(3);
     expect(screen.getByLabelText("前驱体类型 1")).toHaveValue("MoO3");
+    expect(screen.getByLabelText("前驱体品牌 1")).toHaveValue("Alfa");
+    expect(screen.getByLabelText("前驱体批次 1")).toHaveValue("MO-2026-01");
+    expect(screen.getByLabelText("处理参数温度 1")).toHaveValue("300");
+    expect(screen.getByLabelText("程序段备注 1")).toHaveValue("keep carrier stable");
+    expect(screen.getByLabelText("组件气体 1-1")).toHaveValue("H2");
     expect(screen.getByLabelText("颜色变化")).toHaveValue("center area darkened");
     expect(screen.getByLabelText("表征方法 1")).toHaveValue("Raman");
+    expect(screen.getByRole("switch", { name: "启用表征 1" })).toBeChecked();
+    expect(screen.getByLabelText("激发波长 1")).toHaveValue("532");
     expect(screen.getByLabelText("总结结论")).toHaveValue("Baseline film observed");
+    expect(screen.getByRole("radiogroup", { name: "质量评级" })).toBeInTheDocument();
+    expect(screen.getByLabelText("下一步建议")).toHaveValue("Repeat growth");
     expect(screen.getByRole("button", { name: "提交实验" })).toBeInTheDocument();
   });
 
@@ -326,6 +413,60 @@ describe("ExperimentEditorPage", () => {
     );
   });
 
+  it("autosaves contamination level as null when cleared to unchecked", async () => {
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const boatContaminationGroup = await screen.findByRole("radiogroup", {
+      name: "瓷舟污染等级",
+    });
+    vi.useFakeTimers();
+    fireEvent.click(within(boatContaminationGroup).getByRole("radio", { name: "未检查" }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(
+        server.requests.some((request) => {
+          if (
+            request.method !== "PUT" ||
+            request.pathname !== "/api/v1/experiments/exp-1/modules/precheck"
+          ) {
+            return false;
+          }
+
+          const payload = (
+            request.body as {
+              payload_json?: {
+                boat_contamination_level?: string | null;
+                tube_contamination_level?: string | null;
+              };
+            }
+          ).payload_json;
+
+          return (
+            payload?.boat_contamination_level === null &&
+            payload?.tube_contamination_level === "medium"
+          );
+        }),
+      ).toBe(true);
+    });
+  });
+
   it("autosaves edited draft fields", async () => {
     const server = createEditorFetchMock();
     vi.stubGlobal("fetch", server.fetchMock);
@@ -340,8 +481,10 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
+    const experimentTypeInput = await screen.findByLabelText("实验类型");
     const objectiveInput = await screen.findByLabelText("实验目的");
     vi.useFakeTimers();
+    fireEvent.change(experimentTypeInput, { target: { value: "cvd_hot_wall" } });
     fireEvent.change(objectiveInput, { target: { value: "Updated objective" } });
 
     await act(async () => {
@@ -349,6 +492,20 @@ describe("ExperimentEditorPage", () => {
       await Promise.resolve();
     });
 
+    expect(
+      server.requests.some(
+        (request) =>
+          request.method === "PUT" &&
+          request.pathname === "/api/v1/experiments/exp-1/modules/basic_info" &&
+          (
+            request.body as {
+              payload_json?: {
+                experiment_type?: string;
+              };
+            }
+          ).payload_json?.experiment_type === "cvd_hot_wall",
+      ),
+    ).toBe(true);
     expect(
       server.requests.some(
         (request) =>
@@ -496,7 +653,7 @@ describe("ExperimentEditorPage", () => {
             request.body as {
               payload_json?: {
                 segments?: Array<{
-                  components?: Array<{ gas?: string; ratio_percent?: number }>;
+                  components?: Array<{ name?: string; fraction?: number }>;
                   flow_sccm?: number;
                 }>;
               };
@@ -507,10 +664,37 @@ describe("ExperimentEditorPage", () => {
             Array.isArray(segments) &&
             segments[0]?.flow_sccm === 90 &&
             Array.isArray(segments[0]?.components) &&
-            segments[0]?.components?.[0]?.gas === "H2" &&
-            segments[0]?.components?.[0]?.ratio_percent === 5
+            segments[0]?.components?.[0]?.name === "H2" &&
+            segments[0]?.components?.[0]?.fraction === 0.05
           );
         }),
+      ).toBe(true);
+    });
+
+    const humidityInput = screen.getByLabelText("室内湿度 (%)");
+    vi.useFakeTimers();
+    fireEvent.change(humidityInput, { target: { value: "55" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "PUT" &&
+            request.pathname === "/api/v1/experiments/exp-1/modules/environment" &&
+            (
+              request.body as {
+                payload_json?: {
+                  indoor_humidity_percent?: number;
+                };
+              }
+            ).payload_json?.indoor_humidity_percent === 55,
+        ),
       ).toBe(true);
     });
 
@@ -544,7 +728,7 @@ describe("ExperimentEditorPage", () => {
                   indoor_humidity_percent?: number;
                 };
               }
-            ).payload_json?.indoor_humidity_percent === 45,
+            ).payload_json?.indoor_humidity_percent === 55,
         ),
       ).toBe(true);
     });
@@ -631,6 +815,10 @@ describe("ExperimentEditorPage", () => {
     });
 
     const summaryInput = screen.getByLabelText("总结结论");
+    fireEvent.click(screen.getByRole("radio", { name: "部分成功" }));
+    fireEvent.change(screen.getByLabelText("下一步建议"), {
+      target: { value: "Inspect AFM before the next run" },
+    });
     vi.useFakeTimers();
     fireEvent.change(summaryInput, { target: { value: "Continuous film formed" } });
 
@@ -670,14 +858,14 @@ describe("ExperimentEditorPage", () => {
                   next_step?: string;
                 };
               }
-            ).payload_json?.quality_label === "success" &&
+            ).payload_json?.quality_label === "partial" &&
             (
               request.body as {
                 payload_json?: {
                   next_step?: string;
                 };
               }
-            ).payload_json?.next_step === "Repeat growth",
+            ).payload_json?.next_step === "Inspect AFM before the next run",
         ),
       ).toBe(true);
     });
@@ -843,7 +1031,12 @@ describe("ExperimentEditorPage", () => {
         },
       },
     });
-
+    queryClient.setQueryData(["experiments", "list", "u-1"], {
+      items: [{ ...server.experiment, quality_label: "unknown" }],
+      page: 1,
+      page_size: 20,
+      total: 1,
+    });
     const firstRender = renderWithApp(
       <Routes>
         <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
@@ -1028,7 +1221,6 @@ describe("ExperimentEditorPage", () => {
         },
       },
     });
-
     renderWithApp(
       <Routes>
         <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
@@ -1079,6 +1271,110 @@ describe("ExperimentEditorPage", () => {
         "exp-1",
       ]);
       expect(cachedExperiment?.objective).toBe("Updated objective");
+    });
+  });
+
+  it("updates the local experiment cache when quality label autosaves", async () => {
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: 30_000,
+        },
+      },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+        queryClient,
+      },
+    );
+
+    await screen.findByLabelText("总结结论");
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("radio", { name: "部分成功" }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    await waitFor(() => {
+      const cachedExperiment = queryClient.getQueryData<ExperimentFixture>([
+        "experiments",
+        "editor",
+        "u-1",
+        "exp-1",
+      ]);
+      expect(cachedExperiment?.quality_label).toBe("partial");
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["experiments", "list", "u-1"],
+      });
+    });
+  });
+
+  it("keeps section inputs disabled while submit validation is running", async () => {
+    const server = createEditorFetchMock();
+    let resolveValidate!: () => void;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-1/validate" && method === "POST") {
+        return new Promise<Response>((resolve) => {
+          resolveValidate = () => {
+            resolve(
+              jsonResponse({
+                ok: true,
+                errors: [],
+                warnings: [],
+              }),
+            );
+          };
+        });
+      }
+
+      return server.fetchMock(input, init);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "提交实验" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("实验目的")).toBeDisabled();
+      expect(screen.getByLabelText("前驱体类型 1")).toBeDisabled();
+    });
+
+    resolveValidate();
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" &&
+            request.pathname === "/api/v1/experiments/exp-1/submit",
+        ),
+      ).toBe(true);
     });
   });
 
@@ -1176,6 +1472,175 @@ describe("ExperimentEditorPage", () => {
             request.pathname === "/api/v1/experiments/exp-1/submit",
         ),
       ).toBe(true);
+    });
+  });
+
+  it("shows validation summary and blocks submit when validate returns errors", async () => {
+    const server = createEditorFetchMock();
+    const scrollIntoViewMock = vi.fn();
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-1/validate" && method === "POST") {
+        return jsonResponse({
+          ok: false,
+          errors: [
+            {
+              module_key: "precursors",
+              field_path: "items",
+              message: "At least one precursor is required",
+            },
+          ],
+          warnings: [
+            {
+              module_key: "result_summary",
+              field_path: "quality_label",
+              message: "Quality label is unknown",
+            },
+          ],
+        });
+      }
+
+      return server.fetchMock(input, init);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "提交实验" }));
+
+    expect(await screen.findByText("校验发现 1 个错误，1 个警告")).toBeInTheDocument();
+    expect(screen.getByText("At least one precursor is required")).toBeInTheDocument();
+    expect(screen.getByText("Quality label is unknown")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /At least one precursor is required/i }));
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+    expect(
+      server.requests.some(
+        (request) =>
+          request.method === "POST" &&
+          request.pathname === "/api/v1/experiments/exp-1/submit",
+      ),
+    ).toBe(false);
+  });
+
+  it("warns before leaving when there are unsaved changes after a save failure", async () => {
+    const server = createEditorFetchMock();
+    let failNextPrecursorSave = true;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (
+        url.pathname === "/api/v1/experiments/exp-1/modules/precursors" &&
+        method === "PUT" &&
+        failNextPrecursorSave
+      ) {
+        failNextPrecursorSave = false;
+        return jsonResponse({ detail: "Precursor save failed" }, { status: 422 });
+      }
+
+      return server.fetchMock(input, init);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const precursorTypeInput = await screen.findByLabelText("前驱体类型 1");
+    vi.useFakeTimers();
+    fireEvent.change(precursorTypeInput, { target: { value: "WO3" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    expect(await screen.findByText("Precursor save failed")).toBeInTheDocument();
+
+    const beforeUnloadEvent = new Event("beforeunload", { cancelable: true });
+    fireEvent(window, beforeUnloadEvent);
+
+    expect(beforeUnloadEvent.defaultPrevented).toBe(true);
+  });
+
+  it("blocks data router navigation when unsaved changes remain after a save failure", async () => {
+    const server = createEditorFetchMock();
+    let failNextPrecursorSave = true;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (
+        url.pathname === "/api/v1/experiments/exp-1/modules/precursors" &&
+        method === "PUT" &&
+        failNextPrecursorSave
+      ) {
+        failNextPrecursorSave = false;
+        return jsonResponse({ detail: "Precursor save failed" }, { status: 422 });
+      }
+
+      return server.fetchMock(input, init);
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { router } = renderEditorWithDataRouter();
+
+    const precursorTypeInput = await screen.findByLabelText("前驱体类型 1");
+    vi.useFakeTimers();
+    fireEvent.change(precursorTypeInput, { target: { value: "WO3" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    expect(await screen.findByText("Precursor save failed")).toBeInTheDocument();
+
+    await act(async () => {
+      void router.navigate("/experiments/exp-1");
+      await Promise.resolve();
+    });
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.queryByText("Experiment detail route")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "基础信息" })).toBeInTheDocument();
+
+    confirmSpy.mockReturnValue(true);
+    await act(async () => {
+      void router.navigate("/experiments/exp-1");
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Experiment detail route")).toBeInTheDocument();
     });
   });
 

@@ -9,6 +9,7 @@ import type {
   ExperimentModulePayloadListResponse,
   ExperimentModulePayloadRead,
   ExperimentModulePayloadUpsertRequest,
+  ExperimentValidationResponse,
   ExperimentListResponse,
   ExperimentRead,
   ExperimentUpdateRequest,
@@ -128,6 +129,16 @@ export function submitExperiment(token: string, experimentId: string) {
     method: "POST",
     token,
   });
+}
+
+export function validateExperiment(token: string, experimentId: string) {
+  return apiRequest<ExperimentValidationResponse>(
+    `/api/v1/experiments/${experimentId}/validate`,
+    {
+      method: "POST",
+      token,
+    },
+  );
 }
 
 export function returnExperimentToDraft(token: string, experimentId: string) {
