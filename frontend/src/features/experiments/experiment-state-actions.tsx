@@ -59,11 +59,14 @@ export function ExperimentStateActions({
 
   const isOwnerOrAdmin =
     currentUser.role === "admin" || currentUser.id === experiment.owner_id;
+  const isOwner = currentUser.id === experiment.owner_id;
   const isBusy = activeAction !== null;
   const canReturnToDraft = isOwnerOrAdmin && experiment.status === "submitted";
   const canLock = isOwnerOrAdmin && experiment.status === "submitted";
   const canInvalidate = isOwnerOrAdmin && experiment.status !== "invalid";
-  const canClone = currentUser.role !== "viewer" && experiment.status === "locked";
+  const canClone =
+    currentUser.role !== "viewer" &&
+    (experiment.status === "locked" || (experiment.status === "submitted" && isOwner));
 
   const syncExperiment = async (nextExperiment: ExperimentRead) => {
     updateExperimentCache(queryClient, currentUser.id, nextExperiment);

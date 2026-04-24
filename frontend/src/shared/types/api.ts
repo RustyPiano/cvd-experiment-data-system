@@ -29,6 +29,7 @@ export type ExperimentRead = {
   run_code: string;
   owner_id: string;
   derived_from_run_id: string | null;
+  derived_from_run_code: string | null;
   experiment_type: string;
   material_system: string | null;
   experiment_date: string;
@@ -46,6 +47,8 @@ export type ExperimentRead = {
 export type ExperimentListResponse = {
   items: ExperimentRead[];
   total: number;
+  page: number;
+  page_size: number;
 };
 
 export type ExperimentCreateRequest = {

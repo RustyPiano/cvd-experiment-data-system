@@ -10,6 +10,7 @@ import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { triggerBlobDownload } from "../../shared/lib/download";
 import { downloadExperimentExcel, downloadExperimentFile, exportExperimentJson, getExperiment, listExperimentAuditEvents, listExperimentFiles, listExperimentSamples } from "./api";
+import { ExperimentSourceBanner } from "./components/experiment-source-banner";
 import { ExperimentStateActions } from "./experiment-state-actions";
 import { ExperimentSummary } from "./components/experiment-summary";
 import { useAuth } from "../auth/use-auth";
@@ -194,6 +195,7 @@ export function ExperimentDetailPage() {
         title="实验详情"
       />
       {downloadMessage ? <Alert message={downloadMessage} showIcon type="error" /> : null}
+      <ExperimentSourceBanner experiment={experimentQuery.data} />
       {session.accessToken && currentUser ? (
         <Card>
           <div className="content-stack">

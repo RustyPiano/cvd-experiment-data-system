@@ -8,11 +8,28 @@ import { StatusTag } from "../../../shared/ui/status-tag";
 import type { ExperimentRead } from "../../../shared/types/api";
 
 type ExperimentTableProps = {
+  activeExportKey: string | null;
   items: ExperimentRead[];
   loading: boolean;
+  onExportExcel: (experiment: ExperimentRead) => void;
+  onExportJson: (experiment: ExperimentRead) => void;
+  onPageChange: (page: number, pageSize: number) => void;
+  page: number;
+  pageSize: number;
+  total: number;
 };
 
-export function ExperimentTable({ items, loading }: ExperimentTableProps) {
+export function ExperimentTable({
+  activeExportKey,
+  items,
+  loading,
+  onExportExcel,
+  onExportJson,
+  onPageChange,
+  page,
+  pageSize,
+  total,
+}: ExperimentTableProps) {
   const navigate = useNavigate();
 
   const columns: ColumnsType<ExperimentRead> = [
@@ -74,6 +91,26 @@ export function ExperimentTable({ items, loading }: ExperimentTableProps) {
               继续填写
             </Button>
           ) : null}
+          <Button
+            loading={activeExportKey === `${record.id}:json`}
+            onClick={() => {
+              onExportJson(record);
+            }}
+            size="small"
+            type="link"
+          >
+            导出 JSON
+          </Button>
+          <Button
+            loading={activeExportKey === `${record.id}:excel`}
+            onClick={() => {
+              onExportExcel(record);
+            }}
+            size="small"
+            type="link"
+          >
+            导出 Excel
+          </Button>
         </Space>
       ),
     },
@@ -87,7 +124,15 @@ export function ExperimentTable({ items, loading }: ExperimentTableProps) {
         emptyText: <EmptyState description="当前没有可见实验记录。" />,
       }}
       loading={loading}
-      pagination={{ pageSize: 20, showSizeChanger: true }}
+      onChange={(pagination) => {
+        onPageChange(pagination.current ?? page, pagination.pageSize ?? pageSize);
+      }}
+      pagination={{
+        current: page,
+        pageSize,
+        showSizeChanger: true,
+        total,
+      }}
       rowKey="id"
     />
   );

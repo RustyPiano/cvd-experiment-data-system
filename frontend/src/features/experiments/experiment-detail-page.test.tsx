@@ -83,6 +83,7 @@ describe("Experiment detail-like pages", () => {
             run_code: "CVD-2026-0001",
             owner_id: "u-1",
             derived_from_run_id: null,
+            derived_from_run_code: null,
             experiment_type: "cvd_2zone",
             material_system: "MoS2",
             experiment_date: "2026-04-23",
@@ -268,5 +269,89 @@ describe("Experiment detail-like pages", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看样品 S-2026-0001-TOP" }));
     expect(await screen.findByText("样品详情路由")).toBeInTheDocument();
+  });
+
+  it("shows source banner when the experiment is cloned from another run", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        const method = init?.method ?? "GET";
+
+        if (url.pathname === "/api/v1/experiments/exp-2" && method === "GET") {
+          return new Response(
+            JSON.stringify({
+              id: "exp-2",
+              run_code: "CVD-2026-0009",
+              owner_id: "u-1",
+              derived_from_run_id: "exp-1",
+              derived_from_run_code: "CVD-2026-0001",
+              experiment_type: "cvd_2zone",
+              material_system: "MoS2",
+              experiment_date: "2026-04-24",
+              objective: "Clone check",
+              status: "draft",
+              quality_label: "unknown",
+              summary_result: null,
+              invalid_reason: null,
+              created_at: "2026-04-24T00:00:00Z",
+              updated_at: "2026-04-24T00:00:00Z",
+              submitted_at: null,
+              locked_at: null,
+            }),
+            {
+              headers: { "Content-Type": "application/json" },
+              status: 200,
+            },
+          );
+        }
+
+        if (url.pathname === "/api/v1/files" || url.pathname === "/api/v1/samples") {
+          return new Response(
+            JSON.stringify({
+              items: [],
+              total: 0,
+            }),
+            {
+              headers: { "Content-Type": "application/json" },
+              status: 200,
+            },
+          );
+        }
+
+        if (url.pathname === "/api/v1/experiments/exp-2/audit-events") {
+          return new Response(
+            JSON.stringify({
+              items: [],
+              total: 0,
+            }),
+            {
+              headers: { "Content-Type": "application/json" },
+              status: 200,
+            },
+          );
+        }
+
+        return new Response("Not found", { status: 404 });
+      }),
+    );
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-2"],
+      },
+    );
+
+    expect(await screen.findByText("本实验派生自 CVD-2026-0001")).toBeInTheDocument();
+    expect(screen.getByText(/样品环境/i)).toBeInTheDocument();
+    expect(screen.getByText(/precheck/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CVD-2026-0001" })).toHaveAttribute(
+      "href",
+      "/experiments/exp-1",
+    );
   });
 });

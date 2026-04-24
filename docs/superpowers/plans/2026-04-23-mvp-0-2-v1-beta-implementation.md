@@ -396,20 +396,24 @@
 - Create: `frontend/src/features/experiments/components/history-clone-dialog.tsx`
 - Create: `frontend/src/features/experiments/components/experiment-source-banner.tsx`
 - Modify: `frontend/src/features/experiments/experiment-detail-page.tsx`
+- Modify: `frontend/src/features/experiments/experiment-editor-page.tsx`
+- Modify: `frontend/src/features/experiments/experiment-state-actions.tsx`
 - Modify: `frontend/src/features/experiments/experiment-new-page.test.tsx`
 - Modify: `frontend/src/features/experiments/experiment-list-page.test.tsx`
 - Modify: `frontend/src/features/experiments/experiment-detail-page.test.tsx`
+- Modify: `frontend/src/features/experiments/experiment-editor-page.test.tsx`
+- Modify: `frontend/src/features/experiments/experiment-state-actions.test.tsx`
 
-- [ ] 扩展前端 Experiment 类型：
+- [x] 扩展前端 Experiment 类型：
   - `derived_from_run_code`
   - `page/page_size` for list response
 
-- [ ] 扩展 experiments API：
+- [x] 扩展 experiments API：
   - 列表支持 `mine/status/material_system/q/page/page_size`
   - clone 继续复用现有接口
   - JSON / Excel 导出按钮留在列表操作列
 
-- [ ] 改造实验列表页：
+- [x] 改造实验列表页：
   - 新增搜索框 `q`
   - 状态筛选
   - 材料体系筛选
@@ -417,16 +421,16 @@
   - 分页器
   - 操作列增加导出 JSON / Excel
 
-- [ ] 改造新建页：
+- [x] 改造新建页：
   - 入口 A：空白实验
   - 入口 B：复制我的最近一条实验，复用列表接口取 `page=1&page_size=1&mine=true&status=submitted,locked`
   - 入口 C：历史实验复制，使用弹窗/抽屉承载列表选择
 
-- [ ] 在详情页和编辑页接入来源 banner：
+- [x] 在详情页和编辑页接入来源 banner：
   - 若存在 `derived_from_run_id` / `derived_from_run_code`，显示“本实验派生自 …”
   - 增加固定说明文案，解释哪些字段已重置
 
-- [ ] 补充前端测试：
+- [x] 补充前端测试：
   - 三种入口可用
   - 最近一条为空时的提示
   - 来源 banner 显示
@@ -441,6 +445,14 @@
 
 **完成定义：**
 - 用户不再需要先手动进入某条 locked 实验详情页才能复制。
+
+**2026-04-24 实施记录：**
+- 已把前端实验类型与列表响应对齐到阶段二/四后的后端协议：`ExperimentRead` 现支持 `derived_from_run_code`，`ExperimentListResponse` 现支持 `page/page_size`，`listExperiments` 已支持 `mine/status/material_system/q/page/page_size` 组合查询。
+- 已重构实验列表页：新增搜索框、材料体系筛选、多状态勾选、“我的实验”开关与真实分页，并在操作列加入 JSON / Excel 导出按钮；列表导出继续复用现有后端导出接口，不额外引入新 API。
+- 已重构新建页为三入口：空白实验、复制我的最近一条、历史实验复制；其中“最近一条”严格复用列表接口 `page=1&page_size=1&mine=true&status=submitted,locked`，历史复制通过 `history-clone-dialog` 进行搜索、筛选、分页与直接 clone，并额外收紧为“`submitted` 仅在开启只看我的实验时可选，且状态筛选至少保留一个可 clone 状态”，避免弹窗暴露后端必拒绝的来源。
+- 已在详情页和编辑页接入 `experiment-source-banner`，固定说明 clone 后哪些字段会被保留或重置，并对来源实验提供可点击跳转；同时同步修正详情页生命周期操作，前端 clone 按钮规则改为“自己 submitted/locked 可 clone，其他人仅 locked 可 clone”，与后端权限一致。
+- 已补充并通过前端测试：列表筛选参数与分页传参、最近一条为空提示、历史复制弹窗复制链路、详情页与编辑页来源 banner 显示，以及 owner clone submitted 实验的按钮可见性与跳转行为。
+- 已验证：`cd frontend && bun run lint`、`bun run typecheck`、`bun run test`（`15 passed / 60 passed`）。
 
 ---
 

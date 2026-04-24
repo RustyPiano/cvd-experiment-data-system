@@ -11,6 +11,7 @@ type ExperimentFixture = {
   run_code: string;
   owner_id: string;
   derived_from_run_id: string | null;
+  derived_from_run_code: string | null;
   experiment_type: string;
   material_system: string | null;
   experiment_date: string;
@@ -68,6 +69,7 @@ function createEditorFetchMock() {
     run_code: "CVD-2026-0001",
     owner_id: "u-1",
     derived_from_run_id: null,
+    derived_from_run_code: null,
     experiment_type: "cvd_2zone",
     material_system: "MoS2",
     experiment_date: "2026-04-23",
@@ -299,6 +301,29 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByLabelText("表征方法 1")).toHaveValue("Raman");
     expect(screen.getByLabelText("总结结论")).toHaveValue("Baseline film observed");
     expect(screen.getByRole("button", { name: "提交实验" })).toBeInTheDocument();
+  });
+
+  it("shows source banner for a cloned draft", async () => {
+    const server = createEditorFetchMock();
+    server.experiment.derived_from_run_id = "exp-source";
+    server.experiment.derived_from_run_code = "CVD-2026-0001";
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    expect(await screen.findByText("本实验派生自 CVD-2026-0001")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CVD-2026-0001" })).toHaveAttribute(
+      "href",
+      "/experiments/exp-source",
+    );
   });
 
   it("autosaves edited draft fields", async () => {
