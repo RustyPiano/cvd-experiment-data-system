@@ -34,6 +34,7 @@ function createFileServer() {
     run_code: "CVD-2026-0001",
     owner_id: "u-1",
     derived_from_run_id: null,
+    derived_from_run_code: null,
     experiment_type: "cvd_2zone",
     material_system: "MoS2",
     experiment_date: "2026-04-23",

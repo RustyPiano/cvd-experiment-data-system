@@ -12,6 +12,7 @@ type ExperimentFixture = {
   run_code: string;
   owner_id: string;
   derived_from_run_id: string | null;
+  derived_from_run_code: string | null;
   experiment_type: string;
   material_system: string | null;
   experiment_date: string;
@@ -70,6 +71,7 @@ function createExperiment(status: ExperimentFixture["status"]): ExperimentFixtur
     run_code: "CVD-2026-0001",
     owner_id: "u-1",
     derived_from_run_id: null,
+    derived_from_run_code: null,
     experiment_type: "cvd_2zone",
     material_system: "MoS2",
     experiment_date: "2026-04-23",
@@ -110,6 +112,7 @@ function createLifecycleFetchMock(initialExperiment: ExperimentFixture) {
     run_code: "CVD-2026-0002",
     owner_id: "u-2",
     derived_from_run_id: initialExperiment.id,
+    derived_from_run_code: initialExperiment.run_code,
     experiment_date: "2026-04-24",
     status: "draft",
     summary_result: null,
@@ -393,6 +396,36 @@ describe("Experiment state actions", () => {
         authenticated: true,
         initialEntries: ["/experiments/exp-1"],
         user: anotherMember,
+      },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "派生草稿" }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" && request.pathname === "/api/v1/experiments/exp-1/clone",
+        ),
+      ).toBe(true);
+    });
+
+    expect(await screen.findByRole("heading", { name: "编辑 CVD-2026-0002" })).toBeInTheDocument();
+  });
+
+  it("allows the owner to clone a submitted experiment", async () => {
+    const server = createLifecycleFetchMock(createExperiment("submitted"));
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: ownerUser,
       },
     );
 

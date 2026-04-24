@@ -12,6 +12,7 @@ import { EditorStatusBar } from "./components/editor-status-bar";
 import { EditorSectionCard } from "./components/editor-section-card";
 import { EnvironmentSection } from "./components/environment-section";
 import { ExperimentMainFields } from "./components/experiment-main-fields";
+import { ExperimentSourceBanner } from "./components/experiment-source-banner";
 import { FurnaceProgramSection } from "./components/furnace-program-section";
 import { GasProgramSection } from "./components/gas-program-section";
 import { PrecursorsSection } from "./components/precursors-section";
@@ -75,6 +76,7 @@ function ExperimentEditorWorkspace({
         subtitle="各模块修改后自动保存，提交后不可再编辑。"
         title={`编辑 ${editor.experiment.run_code}`}
       />
+      <ExperimentSourceBanner experiment={editor.experiment} />
       <EditorStatusBar
         experiment={editor.experiment}
         isDraft={editor.isDraft}

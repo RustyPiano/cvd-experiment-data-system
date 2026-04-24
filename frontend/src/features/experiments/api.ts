@@ -24,6 +24,15 @@ type ListExperimentFilesFilters = {
   sampleId?: string | null;
 };
 
+export type ListExperimentsFilters = {
+  mine?: boolean;
+  status?: string[];
+  materialSystem?: string | null;
+  q?: string | null;
+  page?: number;
+  pageSize?: number;
+};
+
 type UploadExperimentFileInput = {
   file: File;
   fileCategory: string;
@@ -32,12 +41,14 @@ type UploadExperimentFileInput = {
   sampleId?: string | null;
 };
 
-function buildQueryString(params: Record<string, string | null | undefined>) {
+function buildQueryString(
+  params: Record<string, string | number | boolean | null | undefined>,
+) {
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
-    if (value) {
-      searchParams.set(key, value);
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.set(key, String(value));
     }
   }
 
@@ -45,10 +56,20 @@ function buildQueryString(params: Record<string, string | null | undefined>) {
   return serialized ? `?${serialized}` : "";
 }
 
-export function listExperiments(token: string) {
-  return apiRequest<ExperimentListResponse>("/api/v1/experiments", {
-    token,
-  });
+export function listExperiments(token: string, filters: ListExperimentsFilters = {}) {
+  return apiRequest<ExperimentListResponse>(
+    `/api/v1/experiments${buildQueryString({
+      mine: filters.mine ? "true" : null,
+      status: filters.status?.length ? filters.status.join(",") : null,
+      material_system: filters.materialSystem ?? null,
+      q: filters.q ?? null,
+      page: filters.page ?? null,
+      page_size: filters.pageSize ?? null,
+    })}`,
+    {
+      token,
+    },
+  );
 }
 
 export function createExperiment(token: string, payload: ExperimentCreateRequest) {
