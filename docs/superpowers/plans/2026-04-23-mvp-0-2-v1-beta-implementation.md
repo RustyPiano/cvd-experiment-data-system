@@ -552,22 +552,22 @@
 - Modify: `IMPLEMENTATION_GAP_REPORT_2026-04-23.md`（必要时）
 - Create: `IMPLEMENTATION_GAP_REPORT_2026-<new date>.md`
 
-- [ ] 补齐词表 seed：
+- [x] 补齐词表 seed：
   - `substrate_type`
   - `substrate_treatment_method`
   - `gas_label`
   - `quality_label`
   - 校对现有 `characterization_method`
 
-- [ ] 检查前端下拉是否接入正确词表 key。
+- [x] 检查前端下拉是否接入正确词表 key。
 
-- [ ] 完成 README 最终更新：
+- [x] 完成 README 最终更新：
   - 本地开发
   - Docker 启动
   - 用户初始化
   - 常见验证步骤
 
-- [ ] 跑完整质量门禁：
+- [x] 跑完整质量门禁：
   - `cd backend && uv run ruff check .`
   - `cd backend && uv run ruff format --check .`
   - `cd backend && uv run pytest`
@@ -575,7 +575,7 @@
   - `cd frontend && bun run typecheck`
   - `cd frontend && bun run test`
 
-- [ ] 输出新对照报告：
+- [x] 输出新对照报告：
   - 完成了哪些 P0
   - 哪些 P1 暂未做
   - 本轮固化的 clone / validation / schema 决策
@@ -588,6 +588,14 @@
 
 **完成定义：**
 - MVP-0.2 具备对外试用和后续迭代的稳定基线。
+
+**2026-04-24 实施记录：**
+- 已新增 seed 迁移 `20260424_0009_seed_mvp_0_2_vocabularies.py`，补齐 `substrate_type`、`substrate_treatment_method`、`gas_label`，并保留既有 `quality_label`、`characterization_method` 种子；新增后端测试覆盖 MVP-0.2 必需词表 key。
+- 已校对前端词表使用：文件上传页继续读取 `characterization_method`，词表后台 key 选项来自后端数据；测试示例中的旧 `gas` key 已改为 `gas_label`。
+- 已更新 `README.md`，补齐本地开发、Docker 启动、用户初始化、质量命令、常见验证步骤、当前行为边界和 Docker Desktop gRPC 异常时的拆分验证路径。
+- 已输出 `IMPLEMENTATION_GAP_REPORT_2026-04-24.md`，记录本轮完成的 P0、暂未完成的 P1、已固化的 clone / validation / schema / vocabulary 决策和延期事项。
+- 已验证：`cd backend && uv run ruff check . && uv run ruff format --check . && uv run pytest`（`107 passed`）；`cd frontend && bun run lint && bun run typecheck && bun run test`（`15 passed / 66 passed`）。
+- Docker 验证：`docker compose config` 通过；当前桌面环境直接执行 `docker compose up --build` 仍触发 Docker Desktop gRPC header 异常，已通过 `docker build -f backend/Dockerfile -t cvd-backend .`、`docker build -f frontend/Dockerfile -t cvd-frontend .` 与 `docker compose up -d --no-build --force-recreate` 验证三容器均 healthy，后端 `/health` 和前端 `runtime-config.js` 可访问。
 
 ---
 

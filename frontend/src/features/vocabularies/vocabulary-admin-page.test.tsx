@@ -176,7 +176,7 @@ describe("VocabularyAdminPage", () => {
     expect(await screen.findByText("蓝宝石")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "新增词条" }));
-    await user.type(screen.getByLabelText("词表 key"), "gas");
+    await user.type(screen.getByLabelText("词表 key"), "gas_label");
     await user.type(screen.getByLabelText("值"), "N2");
     await user.type(screen.getByLabelText("中文标签"), "氮气");
     await user.type(screen.getByLabelText("英文标签"), "Nitrogen");
@@ -200,7 +200,7 @@ describe("VocabularyAdminPage", () => {
       (request) => request.method === "POST" && request.pathname === "/api/v1/admin/vocabularies",
     );
     expect(JSON.parse(String(createRequest?.body))).toEqual({
-      vocab_key: "gas",
+      vocab_key: "gas_label",
       value: "N2",
       label_zh: "氮气",
       label_en: "Nitrogen",
