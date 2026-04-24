@@ -684,9 +684,6 @@ class ExperimentService:
             ),
         )
 
-    def _is_number(self, value: object) -> bool:
-        return isinstance(value, int | float) and not isinstance(value, bool)
-
     def _is_retryable_integrity_error(
         self,
         exc: IntegrityError,

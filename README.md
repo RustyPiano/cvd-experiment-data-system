@@ -271,7 +271,7 @@ docker compose up --build
 - 模块 payload 当前支持 `basic_info`、`environment`、`precheck`、`precursors`、`substrates`、`furnace_program`、`gas_program`、`process_observation`、`characterization`、`result_summary`。
 - `clone` 权限规则：owner/admin 可从自己的 `submitted/locked` 实验发起，非 owner 只能从 `locked` 实验发起；新实验会回到 `draft`。
 - `clone` 会复制主实验参数、模块 payload 和样品，但不会复制 `summary_result`、作废原因、状态时间戳和已上传文件；新样品会按新实验编号重新分配 `sample_code`。
-- 提交前校验现在覆盖主字段和已实现的模块规则：至少一个前驱体、至少一个温区程序、温区时间严格递增；如果填写了气体程序，则要求 `end_min > start_min` 且时间段不能重叠；`seal_intact=false` 时必须填写 `risk_note`；`quality_label=unknown` 会返回 warning。校验响应包含 `completion_score`、`blocking_count` 和 `warning_count`，前端据此展示提交前完整度和跳转目标。
+- 提交前校验现在覆盖主字段、typed 模块 payload、前驱体、基底、炉温、气体、预检查、表征和文件关联：至少一个前驱体、至少一个温区程序、温区时间严格递增；如果填写了基底或气体程序，则要求角色、类型、时间段和流量等数据库关键字段合法；`seal_intact=false` 时必须填写 `risk_note`；`quality_label=unknown`、环境越界、污染程度偏高、缺少批号或文件未关联样品会返回 warning。校验响应包含 `completion_score`、`blocking_count` 和 `warning_count`，前端据此展示提交前完整度和跳转目标。
 - `substrates` 模块会同步生成或更新 `TOP/BOTTOM` 样品；移除某一基底角色时，未被文件或子样品引用的样品会标记 `deleted_at/deleted_by_id` 并从默认列表隐藏，而不是物理删除。
 - 如果后续重新添加已软删除的 `TOP/BOTTOM` 角色，后端会恢复保留的样品行并更新字段，避免唯一 `sample_code` 冲突。
 - 模块 payload 的非法对象形状会在后端转成 `422`，避免把脏 JSON 打成 `500`。

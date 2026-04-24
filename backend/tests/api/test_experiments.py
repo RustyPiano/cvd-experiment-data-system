@@ -779,6 +779,62 @@ def test_submit_returns_same_validation_structure_on_failure(active_user, db_ses
     assert submit_response.json() == validate_response.json()
 
 
+def test_submit_rejects_legacy_invalid_numeric_module_payload(active_user, db_session) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Legacy numeric payload validation",
+    )
+    populate_required_modules(experiment_id, active_user.email)
+
+    db_session.query(ExperimentModulePayload).filter(
+        ExperimentModulePayload.experiment_run_id == UUID(experiment_id),
+        ExperimentModulePayload.module_key == ExperimentModuleKey.PRECURSORS.value,
+    ).update(
+        {
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "A",
+                        "type": "MoO3",
+                        "method": "powder",
+                        "batch_no": "MO-0424",
+                        "mass_mg": 12.5,
+                        "concentration": "not-a-number",
+                    }
+                ]
+            }
+        }
+    )
+    db_session.commit()
+
+    validate_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert validate_response.status_code == 200
+    validate_payload = validate_response.json()
+    assert validate_payload["ok"] is False
+    assert_issue_exists(
+        validate_payload["errors"],
+        module_key="precursors",
+        field_path="items[0].concentration",
+        message_contains="valid number",
+    )
+    assert submit_response.status_code == 422
+    errors = submit_response.json()["errors"]
+    assert_issue_exists(
+        errors,
+        module_key="precursors",
+        field_path="items[0].concentration",
+        message_contains="valid number",
+    )
+
+
 def test_submit_reports_database_critical_missing_fields(active_user) -> None:
     experiment_id = create_experiment_for_test(
         active_user.email,

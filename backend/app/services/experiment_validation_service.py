@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, QualityLabel
@@ -12,6 +13,7 @@ from app.schemas.experiment_validation import (
     ExperimentValidationIssue,
     ExperimentValidationResponse,
 )
+from app.schemas.module_payload import validate_module_payload
 
 
 class ExperimentValidationFailed(Exception):
@@ -27,10 +29,10 @@ class ExperimentValidationService:
         self.files = FileAssetRepository(db)
 
     def validate_experiment(self, experiment: ExperimentRun) -> ExperimentValidationResponse:
-        module_payloads = self._module_payload_map(experiment.id)
-        files = self.files.list_by_experiment(experiment.id)
         errors: list[ExperimentValidationIssue] = []
         warnings: list[ExperimentValidationIssue] = []
+        module_payloads = self._module_payload_map(experiment.id, errors)
+        files = self.files.list_by_experiment(experiment.id)
 
         self._validate_basic_info(experiment, errors)
         self._validate_precursors(
@@ -76,11 +78,23 @@ class ExperimentValidationService:
             warning_count=len(warnings),
         )
 
-    def _module_payload_map(self, experiment_id: UUID) -> dict[str, dict]:
-        return {
-            item.module_key: normalize_module_payload(item.module_key, item.payload_json)
-            for item in self.module_payloads.list_by_run(experiment_id)
-        }
+    def _module_payload_map(
+        self,
+        experiment_id: UUID,
+        errors: list[ExperimentValidationIssue],
+    ) -> dict[str, dict]:
+        payloads: dict[str, dict] = {}
+        for item in self.module_payloads.list_by_run(experiment_id):
+            normalized_payload = normalize_module_payload(item.module_key, item.payload_json)
+            try:
+                payloads[item.module_key] = validate_module_payload(
+                    item.module_key,
+                    normalized_payload,
+                )
+            except ValidationError as exc:
+                payloads[item.module_key] = normalized_payload
+                errors.extend(self._schema_validation_issues(item.module_key, exc))
+        return payloads
 
     def _validate_basic_info(
         self,
@@ -603,6 +617,34 @@ class ExperimentValidationService:
             field_path=field_path,
             message=message,
         )
+
+    def _schema_validation_issues(
+        self,
+        module_key: str,
+        exc: ValidationError,
+    ) -> list[ExperimentValidationIssue]:
+        return [
+            self._issue(
+                module_key,
+                self._format_validation_loc(error.get("loc", ())),
+                str(error.get("msg", "Invalid module payload")),
+            )
+            for error in exc.errors()
+        ]
+
+    def _format_validation_loc(self, loc: object) -> str:
+        if not isinstance(loc, tuple):
+            return "payload_json"
+
+        field_path = ""
+        for part in loc:
+            if isinstance(part, int):
+                field_path = f"{field_path}[{part}]"
+            elif field_path:
+                field_path = f"{field_path}.{part}"
+            else:
+                field_path = str(part)
+        return field_path or "payload_json"
 
     def _is_number(self, value: object) -> bool:
         return isinstance(value, int | float) and not isinstance(value, bool)

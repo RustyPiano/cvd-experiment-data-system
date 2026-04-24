@@ -1,9 +1,11 @@
 from io import BytesIO
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
 from app.main import app
+from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
 
 client = TestClient(app)
 
@@ -319,8 +321,9 @@ def test_export_experiment_aggregates_modules_samples_files_and_audit(active_use
         files={"file": ("draft-note.txt", b"remove-me", "text/plain")},
     )
     assert deleted_file_response.status_code == 201
+    deleted_file_id = deleted_file_response.json()["id"]
     delete_response = client.delete(
-        f"/api/v1/files/{deleted_file_response.json()['id']}",
+        f"/api/v1/files/{deleted_file_id}",
         headers=auth_headers(active_user.email),
     )
     assert delete_response.status_code == 204
@@ -343,7 +346,7 @@ def test_export_experiment_aggregates_modules_samples_files_and_audit(active_use
         "modules": 4,
         "samples": 2,
         "files": 1,
-        "audit_events": 11,
+        "audit_events": 13,
     }
     assert {item["module_key"] for item in body["modules"]} == {
         "substrates",
@@ -360,6 +363,12 @@ def test_export_experiment_aggregates_modules_samples_files_and_audit(active_use
     assert body["files"][0]["method"] == "Raman"
     assert "upload_file" in {item["action"] for item in body["audit_events"]}
     assert "delete_file" in {item["action"] for item in body["audit_events"]}
+    deleted_file_events = [
+        event
+        for event in body["audit_events"]
+        if event["entity_type"] == "file_asset" and event["entity_id"] == deleted_file_id
+    ]
+    assert {"create", "delete"} <= {event["action"] for event in deleted_file_events}
 
 
 def test_export_analysis_returns_normalized_rows(active_user) -> None:
@@ -627,6 +636,37 @@ def test_export_analysis_keeps_program_level_gas_and_flat_metadata(active_user) 
     assert "metadata_json" not in body["file_rows"][0]
 
 
+def test_export_analysis_rejects_legacy_invalid_numeric_payload(active_user, db_session) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Legacy analysis export")
+    populate_required_modules(experiment_id, active_user.email)
+
+    db_session.add(
+        ExperimentModulePayload(
+            experiment_run_id=UUID(experiment_id),
+            module_key=ExperimentModuleKey.CHARACTERIZATION.value,
+            payload_json={
+                "methods": [{"method": "Raman", "enabled": True, "excitation_nm": "bad"}]
+            },
+        )
+    )
+    db_session.commit()
+
+    non_raising_client = TestClient(app, raise_server_exceptions=False)
+    export_response = non_raising_client.get(
+        f"/api/v1/experiments/{experiment_id}/export/analysis",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert export_response.status_code == 422
+    detail = export_response.json()["detail"]
+    assert any(
+        error["module_key"] == "characterization"
+        and error["field_path"] == "methods[0].excitation_nm"
+        and "valid number" in error["message"]
+        for error in detail
+    )
+
+
 def test_export_experiment_excel_returns_openable_workbook(active_user) -> None:
     experiment_id = create_experiment(active_user.email, objective="Excel export flow")
     populate_required_modules(experiment_id, active_user.email)
@@ -666,6 +706,16 @@ def test_export_experiment_excel_returns_openable_workbook(active_user) -> None:
     assert workbook["Files"]["A2"].value == "image.png"
     assert workbook["Files"]["B2"].value == "OM"
     assert workbook["Files"]["C2"].value == "processed"
+    assert [cell.value for cell in workbook["Audit"][1]] == [
+        "created_at",
+        "entity_type",
+        "entity_id",
+        "action",
+        "actor_id",
+        "reason",
+    ]
+    audit_rows = list(workbook["Audit"].iter_rows(min_row=2, values_only=True))
+    assert any(row[1] == "file_asset" and row[3] == "create" for row in audit_rows)
 
 
 def test_viewer_can_export_locked_experiment_but_not_other_users_draft(

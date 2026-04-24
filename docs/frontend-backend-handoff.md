@@ -319,10 +319,13 @@ result_summary
 提交前至少满足：
 
 - 主表字段里 `experiment_type`、`material_system`、`experiment_date` 有值。
+- 已知模块 payload 必须通过后端 typed schema 校验；历史脏数据里的数字字段字符串会作为阻塞错误返回。
 - `precursors.items` 至少一项，且每项必须是对象。
 - `furnace_program.zones` 至少一项。
 - 每个 `zone.temperature_program` 至少一项，且 `time_min` 严格递增。
 - `gas_program.segments` 如果存在，则要求时间段合法且不能重叠。
+- `substrates.items` 如果存在，则要求 `role` 为 `top/bottom` 且 `type` 非空。
+- `characterization.methods` 如果存在启用项，则要求 `method` 非空。
 - `precheck.seal_intact=false` 时必须填 `risk_note`。
 - `POST /api/v1/experiments/{id}/validate` 返回 `ok/errors/warnings/completion_score/blocking_count/warning_count`；前端提交前汇总应展示完整度分数、阻塞/提示计数，并按 `module_key` 提供跳转按钮。
 

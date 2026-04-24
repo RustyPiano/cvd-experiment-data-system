@@ -73,15 +73,19 @@ class FileAssetRepository:
         statement = statement.order_by(FileAsset.created_at.desc(), FileAsset.original_name.asc())
         return list(self.db.scalars(statement).all())
 
-    def list_by_experiment(self, experiment_id: UUID) -> list[FileAsset]:
+    def list_by_experiment(
+        self,
+        experiment_id: UUID,
+        *,
+        include_deleted: bool = False,
+    ) -> list[FileAsset]:
         statement = (
             select(FileAsset)
-            .where(
-                FileAsset.experiment_run_id == experiment_id,
-                FileAsset.deleted_at.is_(None),
-            )
+            .where(FileAsset.experiment_run_id == experiment_id)
             .order_by(FileAsset.created_at.asc(), FileAsset.original_name.asc())
         )
+        if not include_deleted:
+            statement = statement.where(FileAsset.deleted_at.is_(None))
         return list(self.db.scalars(statement).all())
 
     def find_active_duplicate(self, experiment_id: UUID, sha256: str) -> FileAsset | None:

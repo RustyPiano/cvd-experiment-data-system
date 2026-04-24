@@ -6,8 +6,10 @@ from datetime import UTC, datetime
 from io import BytesIO
 from typing import Any
 
+from fastapi import HTTPException, status
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun
@@ -32,7 +34,7 @@ from app.schemas.experiment import (
     ExperimentExportRead,
     ExperimentRead,
 )
-from app.schemas.module_payload import ExperimentModulePayloadRead
+from app.schemas.module_payload import ExperimentModulePayloadRead, validate_module_payload
 from app.schemas.sample import SampleRead
 from app.services.audit_service import AuditService
 from app.services.file_asset_service import to_file_asset_read_model
@@ -67,9 +69,10 @@ class ExperimentExportService:
         files = [
             to_file_asset_read_model(item) for item in self.files.list_by_experiment(experiment.id)
         ]
+        audit_files = self.files.list_by_experiment(experiment.id, include_deleted=True)
         audit_refs = [("experiment_run", experiment.id)]
         audit_refs.extend(("sample", sample.id) for sample in samples)
-        audit_refs.extend(("file_asset", file_asset.id) for file_asset in files)
+        audit_refs.extend(("file_asset", file_asset.id) for file_asset in audit_files)
         audit_events = self.audit.list_events_for_entities(audit_refs)
 
         return ExperimentExportRead(
@@ -99,7 +102,7 @@ class ExperimentExportService:
 
     def build_analysis_export(self, experiment: ExperimentRun) -> ExperimentAnalysisExportRead:
         export_payload = self.build_json_export(experiment)
-        payloads = self._module_map(export_payload)
+        payloads = self._validated_module_map(export_payload)
         context = {
             "experiment_id": export_payload.experiment.id,
             "run_code": export_payload.experiment.run_code,
@@ -300,11 +303,13 @@ class ExperimentExportService:
     def _write_audit_sheet(
         self, worksheet: Worksheet, export_payload: ExperimentExportRead
     ) -> None:
-        worksheet.append(["created_at", "action", "actor_id", "reason"])
+        worksheet.append(["created_at", "entity_type", "entity_id", "action", "actor_id", "reason"])
         for event in export_payload.audit_events:
             worksheet.append(
                 [
                     event.created_at.isoformat(),
+                    event.entity_type,
+                    str(event.entity_id),
                     event.action,
                     str(event.actor_id),
                     event.reason,
@@ -548,6 +553,56 @@ class ExperimentExportService:
 
     def _module_map(self, export_payload: ExperimentExportRead) -> dict[str, dict[str, Any]]:
         return {module.module_key: module.payload_json for module in export_payload.modules}
+
+    def _validated_module_map(
+        self,
+        export_payload: ExperimentExportRead,
+    ) -> dict[str, dict[str, Any]]:
+        payloads: dict[str, dict[str, Any]] = {}
+        errors: list[dict[str, str]] = []
+        for module in export_payload.modules:
+            try:
+                payloads[module.module_key] = validate_module_payload(
+                    module.module_key,
+                    module.payload_json,
+                )
+            except ValidationError as exc:
+                errors.extend(self._module_validation_errors(module.module_key, exc))
+
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=errors,
+            )
+        return payloads
+
+    def _module_validation_errors(
+        self,
+        module_key: str,
+        exc: ValidationError,
+    ) -> list[dict[str, str]]:
+        return [
+            {
+                "module_key": module_key,
+                "field_path": self._format_validation_loc(error.get("loc", ())),
+                "message": str(error.get("msg", "Invalid module payload")),
+            }
+            for error in exc.errors()
+        ]
+
+    def _format_validation_loc(self, loc: object) -> str:
+        if not isinstance(loc, tuple):
+            return "payload_json"
+
+        field_path = ""
+        for part in loc:
+            if isinstance(part, int):
+                field_path = f"{field_path}[{part}]"
+            elif field_path:
+                field_path = f"{field_path}.{part}"
+            else:
+                field_path = str(part)
+        return field_path or "payload_json"
 
     def _flatten_mapping(self, mapping: dict[str, Any], prefix: str = "") -> dict[str, Any]:
         flattened: dict[str, Any] = {}
