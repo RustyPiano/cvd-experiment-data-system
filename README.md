@@ -29,7 +29,7 @@
 当前前端尚未完成的部分：
 
 - 文件预览、批量上传和更细的元数据编辑
-- 路由级拆包与更细的性能优化
+- 更细的运行时性能优化
 
 ## 本轮交付质量状态
 
@@ -50,7 +50,8 @@
 - 当前模块 autosave 会保留后端 payload 中前端暂未建模的字段，避免最小表单覆盖掉已有结构化数据。
 - 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，显示 `completion_score / blocking_count / warning_count` 和模块跳转按钮，有 `errors` 时阻止提交并展示逐项问题。
 - 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
-- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`123 passed`），前端 `lint / typecheck / test` 通过（`71 passed`）；前端构建可能出现 Vite chunk size 警告，暂不影响运行。
+- 前端生产构建现在使用 Vite/Rolldown vendor 拆包，将 React、router/query、Ant Design、rc 依赖拆成独立 chunk，避免超过 500 kB 的 chunk size 警告。
+- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`123 passed`），前端 `lint / typecheck / test` 通过（`71 passed`），前端 `build` 通过且无 Vite chunk size 警告。
 
 ## 当前后端能力
 

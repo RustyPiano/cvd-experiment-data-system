@@ -33,7 +33,7 @@
 - 样品详情读取、draft 编辑、关联文件查看与下载
 - 受控词表后台的列表筛选、创建、编辑与启停用
 
-当前前端还没有接通的部分主要只剩文件页增强与性能优化。因此，下面的接口说明更适合用来补文件预览、批量上传和管理端增强，而不是重复改造现有编辑器骨架。
+当前前端还没有接通的部分主要只剩文件页增强与后续管理端增强；生产构建已配置 Vite/Rolldown vendor 拆包，当前不会触发 500 kB chunk size 警告。因此，下面的接口说明更适合用来补文件预览、批量上传和管理端增强，而不是重复改造现有编辑器骨架。
 
 ## 0.1 当前前端基线约定
 
@@ -48,6 +48,7 @@
 - 详情页当前已根据“owner/admin vs. 其他 member/viewer”以及实验状态控制动作按钮显示；状态切换请求进行中会互斥禁用其他动作；`clone` 成功后会直接跳到新草稿的编辑页。
 - 当前前端已经封装带 Bearer Token 的 blob 下载能力，用于文件下载和 Excel 导出。
 - 详情页当前直接调用文件列表和审计接口，不依赖聚合导出接口做页面渲染。
+- 当前 Vite 构建按 React、router/query、Ant Design 和 rc 依赖拆分 vendor chunk；新增重量级前端依赖时应先检查 `bun run build` 输出，避免重新合并到首屏共享 chunk。
 - 文件页当前会额外读取 `GET /api/v1/samples?experiment_id=...` 和 `GET /api/v1/vocabularies?vocab_key=characterization_method`，分别用于样品关联和上传方法建议。
 - 样品详情页当前会额外读取所属实验和 `GET /api/v1/files?experiment_id=...&sample_id=...`，形成单样品视角。
 - 样品编辑当前只覆盖后端 `PATCH /samples/{id}` 已支持字段，不包含 `sample_code`、`role` 和 `parent_sample_id` 改写。
