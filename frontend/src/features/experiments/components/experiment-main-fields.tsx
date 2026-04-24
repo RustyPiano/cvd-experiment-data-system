@@ -1,15 +1,21 @@
 import { Input, Typography } from "antd";
 
-import type { BasicInfoValues } from "../editor-types";
+import {
+  type BasicInfoValues,
+  type VocabularySelectOption,
+} from "../editor-types";
+import { VocabularyCombobox } from "./vocabulary-combobox";
 
 const { TextArea } = Input;
 
 export function ExperimentMainFields({
   disabled,
+  materialSystemOptions,
   onChange,
   value,
 }: {
   disabled: boolean;
+  materialSystemOptions: VocabularySelectOption[];
   onChange: (nextValue: BasicInfoValues) => void;
   value: BasicInfoValues;
 }) {
@@ -37,16 +43,17 @@ export function ExperimentMainFields({
       </div>
       <div className="editor-field">
         <Typography.Text strong>材料体系</Typography.Text>
-        <Input
-          aria-label="材料体系"
+        <VocabularyCombobox
+          ariaLabel="材料体系"
           disabled={disabled}
-          onChange={(event) => {
+          onChange={(nextValue) => {
             onChange({
               ...value,
-              materialSystem: event.target.value,
+              materialSystem: nextValue,
             });
           }}
-          placeholder="例如 MoS2"
+          options={materialSystemOptions}
+          placeholder="选择或输入材料体系"
           value={value.materialSystem}
         />
       </div>

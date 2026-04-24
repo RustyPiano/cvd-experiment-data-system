@@ -10,8 +10,9 @@ import {
 
 import { HttpError } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
+import type { ControlledVocabularyRead } from "../../shared/types/api";
 import { useAuth } from "../auth/use-auth";
-import { getExperiment, listExperimentModules } from "./api";
+import { getExperiment, listActiveVocabularies, listExperimentModules } from "./api";
 import { CharacterizationSection } from "./components/characterization-section";
 import { EditorActionBar } from "./components/editor-action-bar";
 import { EditorSectionCard } from "./components/editor-section-card";
@@ -26,7 +27,12 @@ import { ProcessObservationSection } from "./components/process-observation-sect
 import { ResultSummarySection } from "./components/result-summary-section";
 import { SubstratesSection } from "./components/substrates-section";
 import { ValidationSummary } from "./components/validation-summary";
-import { createInitialEditorValues, createModulePayloadMap, type ModulePayloadMap } from "./editor-types";
+import {
+  createInitialEditorValues,
+  createModulePayloadMap,
+  type ModulePayloadMap,
+  type VocabularySelectOption,
+} from "./editor-types";
 import { useExperimentEditor } from "./use-experiment-editor";
 
 const sectionAnchors = [
@@ -61,6 +67,33 @@ function EditorRouteLeaveGuard({ message, when }: { message: string; when: boole
   return null;
 }
 
+function toVocabularyOptions(
+  items: ControlledVocabularyRead[] | undefined,
+): VocabularySelectOption[] {
+  return (items ?? []).map((item) => ({
+    label: item.label_zh || item.label_en || item.value,
+    value: item.value,
+  }));
+}
+
+function useActiveVocabularyOptions({
+  accessToken,
+  currentUserId,
+  vocabKey,
+}: {
+  accessToken: string;
+  currentUserId: string;
+  vocabKey: string;
+}) {
+  const query = useQuery({
+    queryKey: ["vocabularies", vocabKey, currentUserId],
+    queryFn: () => listActiveVocabularies(accessToken, vocabKey),
+    enabled: Boolean(accessToken),
+  });
+
+  return useMemo(() => toVocabularyOptions(query.data?.items), [query.data?.items]);
+}
+
 function ExperimentEditorWorkspace({
   accessToken,
   currentUserId,
@@ -87,6 +120,36 @@ function ExperimentEditorWorkspace({
   });
   const dataRouterContext = useContext(DataRouterContext);
   const editorDisabled = !editor.isDraft || editor.isSubmitting;
+  const materialSystemOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "material_system",
+  });
+  const precursorMethodOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "precursor_method",
+  });
+  const substrateTypeOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "substrate_type",
+  });
+  const substrateTreatmentMethodOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "substrate_treatment_method",
+  });
+  const gasOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "gas_label",
+  });
+  const characterizationMethodOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "characterization_method",
+  });
 
   const scrollToSection = (moduleKey: string) => {
     const section = document.getElementById(`section-${moduleKey}`);
@@ -130,6 +193,7 @@ function ExperimentEditorWorkspace({
             >
               <ExperimentMainFields
                 disabled={editorDisabled}
+                materialSystemOptions={materialSystemOptions}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -194,6 +258,7 @@ function ExperimentEditorWorkspace({
                   }));
                   editor.scheduleAutosave();
                 }}
+                precursorMethodOptions={precursorMethodOptions}
                 value={editor.values.precursors}
               />
             </EditorSectionCard>
@@ -206,6 +271,7 @@ function ExperimentEditorWorkspace({
             >
               <SubstratesSection
                 disabled={editorDisabled}
+                gasOptions={gasOptions}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -213,6 +279,8 @@ function ExperimentEditorWorkspace({
                   }));
                   editor.scheduleAutosave();
                 }}
+                substrateTreatmentMethodOptions={substrateTreatmentMethodOptions}
+                substrateTypeOptions={substrateTypeOptions}
                 value={editor.values.substrates}
               />
             </EditorSectionCard>
@@ -244,6 +312,7 @@ function ExperimentEditorWorkspace({
             >
               <GasProgramSection
                 disabled={editorDisabled}
+                gasOptions={gasOptions}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -281,6 +350,7 @@ function ExperimentEditorWorkspace({
               title="表征结果"
             >
               <CharacterizationSection
+                characterizationMethodOptions={characterizationMethodOptions}
                 disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({

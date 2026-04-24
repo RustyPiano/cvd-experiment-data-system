@@ -3,15 +3,19 @@ import { Button, Empty, Input, Space, Typography } from "antd";
 import {
   createEmptyPrecursorItem,
   type PrecursorsValues,
+  type VocabularySelectOption,
 } from "../editor-types";
+import { VocabularyCombobox } from "./vocabulary-combobox";
 
 export function PrecursorsSection({
   disabled,
   onChange,
+  precursorMethodOptions,
   value,
 }: {
   disabled: boolean;
   onChange: (nextValue: PrecursorsValues) => void;
+  precursorMethodOptions: VocabularySelectOption[];
   value: PrecursorsValues;
 }) {
   const updateItem = (index: number, patch: Partial<(typeof value.items)[number]>) => {
@@ -94,13 +98,14 @@ export function PrecursorsSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`制备方法 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`制备方法 ${index + 1}`}
+              <VocabularyCombobox
+                ariaLabel={`制备方法 ${index + 1}`}
                 disabled={disabled}
-                onChange={(event) => {
-                  updateItem(index, { method: event.target.value });
+                onChange={(nextValue) => {
+                  updateItem(index, { method: nextValue });
                 }}
-                placeholder="例如 spin_coating / solution_drop / melting"
+                options={precursorMethodOptions}
+                placeholder="选择或输入制备方法"
                 value={item.method}
               />
             </div>

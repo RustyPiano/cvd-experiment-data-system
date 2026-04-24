@@ -3,7 +3,9 @@ import { Button, Empty, Input, Select, Typography } from "antd";
 import {
   createEmptySubstrateItem,
   type SubstratesValues,
+  type VocabularySelectOption,
 } from "../editor-types";
+import { VocabularyCombobox } from "./vocabulary-combobox";
 
 const roleOptions = [
   { label: "top", value: "top" },
@@ -12,11 +14,17 @@ const roleOptions = [
 
 export function SubstratesSection({
   disabled,
+  gasOptions,
   onChange,
+  substrateTreatmentMethodOptions,
+  substrateTypeOptions,
   value,
 }: {
   disabled: boolean;
+  gasOptions: VocabularySelectOption[];
   onChange: (nextValue: SubstratesValues) => void;
+  substrateTreatmentMethodOptions: VocabularySelectOption[];
+  substrateTypeOptions: VocabularySelectOption[];
   value: SubstratesValues;
 }) {
   const updateItem = (index: number, patch: Partial<(typeof value.items)[number]>) => {
@@ -66,13 +74,14 @@ export function SubstratesSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`基底类型 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`基底类型 ${index + 1}`}
+              <VocabularyCombobox
+                ariaLabel={`基底类型 ${index + 1}`}
                 disabled={disabled}
-                onChange={(event) => {
-                  updateItem(index, { type: event.target.value });
+                onChange={(nextValue) => {
+                  updateItem(index, { type: nextValue });
                 }}
-                placeholder="例如 SiO2/Si"
+                options={substrateTypeOptions}
+                placeholder="选择或输入基底类型"
                 value={item.type}
               />
             </div>
@@ -101,13 +110,14 @@ export function SubstratesSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`处理方式 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`处理方式 ${index + 1}`}
+              <VocabularyCombobox
+                ariaLabel={`处理方式 ${index + 1}`}
                 disabled={disabled}
-                onChange={(event) => {
-                  updateItem(index, { treatmentMethod: event.target.value });
+                onChange={(nextValue) => {
+                  updateItem(index, { treatmentMethod: nextValue });
                 }}
-                placeholder="例如 plasma_cleaning"
+                options={substrateTreatmentMethodOptions}
+                placeholder="选择或输入处理方式"
                 value={item.treatmentMethod}
               />
             </div>
@@ -163,13 +173,14 @@ export function SubstratesSection({
                 </div>
                 <div className="editor-field">
                   <Typography.Text strong>{`处理参数气体 ${index + 1}`}</Typography.Text>
-                  <Input
-                    aria-label={`处理参数气体 ${index + 1}`}
+                  <VocabularyCombobox
+                    ariaLabel={`处理参数气体 ${index + 1}`}
                     disabled={disabled}
-                    onChange={(event) => {
-                      updateItem(index, { treatmentGas: event.target.value });
+                    onChange={(nextValue) => {
+                      updateItem(index, { treatmentGas: nextValue });
                     }}
-                    placeholder="例如 Ar"
+                    options={gasOptions}
+                    placeholder="选择或输入气体"
                     value={item.treatmentGas}
                   />
                 </div>

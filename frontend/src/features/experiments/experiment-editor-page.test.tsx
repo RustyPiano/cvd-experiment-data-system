@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryRouter, Route, RouterProvider, Routes } from "react-router-dom";
@@ -37,6 +38,26 @@ type ModulePayload = {
   created_at: string;
   updated_at: string;
 };
+
+function createVocabularyItem(
+  vocabKey: string,
+  value: string,
+  labelZh: string,
+  sortOrder: number,
+) {
+  return {
+    id: `vocab-${vocabKey}-${value}`,
+    vocab_key: vocabKey,
+    value,
+    label_zh: labelZh,
+    label_en: value,
+    sort_order: sortOrder,
+    is_active: true,
+    metadata_json: {},
+    created_at: "2026-04-23T00:00:00Z",
+    updated_at: "2026-04-23T00:00:00Z",
+  };
+}
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
@@ -225,9 +246,25 @@ function createEditorFetchMock() {
     ],
   ]);
 
+  const vocabularyItems = [
+    createVocabularyItem("material_system", "MoS2", "二硫化钼", 1),
+    createVocabularyItem("material_system", "WS2", "二硫化钨", 2),
+    createVocabularyItem("precursor_method", "spin_coating", "旋涂", 1),
+    createVocabularyItem("precursor_method", "melting", "熔融", 2),
+    createVocabularyItem("substrate_type", "SiO2/Si", "氧化硅硅片", 1),
+    createVocabularyItem("substrate_type", "sapphire", "蓝宝石", 2),
+    createVocabularyItem("substrate_treatment_method", "anneal", "退火", 1),
+    createVocabularyItem("substrate_treatment_method", "plasma_cleaning", "等离子清洗", 2),
+    createVocabularyItem("gas_label", "Ar", "氩气", 1),
+    createVocabularyItem("gas_label", "H2", "氢气", 2),
+    createVocabularyItem("characterization_method", "Raman", "拉曼", 1),
+    createVocabularyItem("characterization_method", "SEM", "扫描电镜", 2),
+  ];
+
   const requests: Array<{
     method: string;
     pathname: string;
+    search: string;
     body: unknown;
   }> = [];
 
@@ -240,8 +277,21 @@ function createEditorFetchMock() {
     requests.push({
       method,
       pathname: url.pathname,
+      search: url.search,
       body,
     });
+
+    if (url.pathname === "/api/v1/vocabularies" && method === "GET") {
+      const vocabKey = url.searchParams.get("vocab_key");
+      const items = vocabKey
+        ? vocabularyItems.filter((item) => item.vocab_key === vocabKey)
+        : vocabularyItems;
+
+      return jsonResponse({
+        items,
+        total: items.length,
+      });
+    }
 
     if (url.pathname === "/api/v1/experiments/exp-1" && method === "GET") {
       return jsonResponse(experiment);
@@ -462,6 +512,155 @@ describe("ExperimentEditorPage", () => {
             payload?.boat_contamination_level === null &&
             payload?.tube_contamination_level === "medium"
           );
+        }),
+      ).toBe(true);
+    });
+  });
+
+  it("blocks autosave when numeric fields are invalid", async () => {
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const massInput = await screen.findByLabelText("前驱体质量 1");
+    vi.useFakeTimers();
+    fireEvent.change(massInput, { target: { value: "abc" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    expect(await screen.findByText("前驱体质量 1 必须是数字")).toBeInTheDocument();
+    expect(
+      server.requests.some(
+        (request) =>
+          request.method === "PUT" &&
+          request.pathname === "/api/v1/experiments/exp-1/modules/precursors",
+      ),
+    ).toBe(false);
+  });
+
+  it("loads vocabulary-backed editor controls", async () => {
+    const user = userEvent.setup();
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    await screen.findByRole("heading", { name: "基础信息" });
+
+    await waitFor(() => {
+      for (const vocabKey of [
+        "material_system",
+        "precursor_method",
+        "substrate_type",
+        "substrate_treatment_method",
+        "gas_label",
+        "characterization_method",
+      ]) {
+        expect(
+          server.requests.some(
+            (request) =>
+              request.method === "GET" &&
+              request.pathname === "/api/v1/vocabularies" &&
+              request.search.includes(`vocab_key=${vocabKey}`),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    const expectOption = async (fieldLabel: string, optionLabel: string, filterText: string) => {
+      const input = screen.getByLabelText(fieldLabel);
+      fireEvent.change(input, { target: { value: filterText } });
+      const options = await screen.findAllByRole("option", { name: optionLabel });
+      await user.click(options[0]);
+    };
+
+    await expectOption("材料体系", "二硫化钼", "二");
+    await expectOption("制备方法 1", "旋涂", "旋");
+    await expectOption("基底类型 1", "氧化硅硅片", "氧");
+    await expectOption("处理方式 1", "退火", "退");
+    await expectOption("预清洗气体", "氩气", "氩");
+    await expectOption("气体 1", "氩气", "氩");
+    await expectOption("表征方法 1", "拉曼", "拉");
+  });
+
+  it("keeps legacy vocabulary values free-editable after options load", async () => {
+    const server = createEditorFetchMock();
+    server.experiment.material_system = "LegacyTMD";
+    server.modules.set(
+      "basic_info",
+      createModulePayload(server.experiment.id, "basic_info", {
+        operator_id: "u-1",
+        experiment_type: "cvd_2zone",
+        material_system: "LegacyTMD",
+        experiment_date: "2026-04-23",
+        objective: "Baseline growth",
+      }),
+    );
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const materialSystemInput = await screen.findByLabelText("材料体系");
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "GET" &&
+            request.pathname === "/api/v1/vocabularies" &&
+            request.search.includes("vocab_key=material_system"),
+        ),
+      ).toBe(true);
+    });
+
+    vi.useFakeTimers();
+    fireEvent.change(materialSystemInput, { target: { value: "LegacyTMD-v2" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(
+        server.requests.some((request) => {
+          if (
+            request.method !== "PATCH" ||
+            request.pathname !== "/api/v1/experiments/exp-1"
+          ) {
+            return false;
+          }
+
+          return (request.body as { material_system?: string }).material_system === "LegacyTMD-v2";
         }),
       ).toBe(true);
     });
@@ -968,8 +1167,9 @@ describe("ExperimentEditorPage", () => {
     expect(firstCard).not.toBeNull();
     fireEvent.click(within(firstCard as HTMLElement).getByRole("button", { name: "删除" }));
 
-    const remainingMethodInput = await screen.findByLabelText("表征方法 1");
-    expect(remainingMethodInput).toHaveValue("PL");
+    const remainingCard = (await screen.findByText("表征记录 1")).closest(".editor-array-card");
+    expect(remainingCard).not.toBeNull();
+    expect(within(remainingCard as HTMLElement).getByLabelText("表征方法 1")).toHaveValue("PL");
 
     vi.useFakeTimers();
     fireEvent.change(screen.getByLabelText("表征结果 1"), {

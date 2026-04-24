@@ -4,16 +4,20 @@ import {
   createEmptyGasComponent,
   createEmptyGasSegment,
   type GasProgramValues,
+  type VocabularySelectOption,
 } from "../editor-types";
+import { VocabularyCombobox } from "./vocabulary-combobox";
 
 const { TextArea } = Input;
 
 export function GasProgramSection({
   disabled,
+  gasOptions,
   onChange,
   value,
 }: {
   disabled: boolean;
+  gasOptions: VocabularySelectOption[];
   onChange: (nextValue: GasProgramValues) => void;
   value: GasProgramValues;
 }) {
@@ -50,16 +54,17 @@ export function GasProgramSection({
     <div className="content-stack">
       <div className="editor-field">
         <Typography.Text strong>预清洗气体</Typography.Text>
-        <Input
-          aria-label="预清洗气体"
+        <VocabularyCombobox
+          ariaLabel="预清洗气体"
           disabled={disabled}
-          onChange={(event) => {
+          onChange={(nextValue) => {
             onChange({
               ...value,
-              preWashingGas: event.target.value,
+              preWashingGas: nextValue,
             });
           }}
-          placeholder="例如 Ar+H2"
+          options={gasOptions}
+          placeholder="选择或输入气体"
           value={value.preWashingGas}
         />
       </div>
@@ -98,13 +103,14 @@ export function GasProgramSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`气体 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`气体 ${index + 1}`}
+              <VocabularyCombobox
+                ariaLabel={`气体 ${index + 1}`}
                 disabled={disabled}
-                onChange={(event) => {
-                  updateSegment(index, { gas: event.target.value });
+                onChange={(nextValue) => {
+                  updateSegment(index, { gas: nextValue });
                 }}
-                placeholder="例如 Ar"
+                options={gasOptions}
+                placeholder="选择或输入气体"
                 value={segment.gas}
               />
             </div>
@@ -167,13 +173,16 @@ export function GasProgramSection({
                   >
                     <div className="editor-field">
                       <Typography.Text strong>{`组件气体 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
-                      <Input
-                        aria-label={`组件气体 ${index + 1}-${componentIndex + 1}`}
+                      <VocabularyCombobox
+                        ariaLabel={`组件气体 ${index + 1}-${componentIndex + 1}`}
                         disabled={disabled}
-                        onChange={(event) => {
-                          updateComponent(index, componentIndex, { gas: event.target.value });
+                        onChange={(nextValue) => {
+                          updateComponent(index, componentIndex, {
+                            gas: nextValue,
+                          });
                         }}
-                        placeholder="例如 H2"
+                        options={gasOptions}
+                        placeholder="选择或输入气体"
                         value={component.gas}
                       />
                     </div>

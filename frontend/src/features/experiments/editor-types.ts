@@ -27,6 +27,21 @@ export type SectionSaveState = {
   message: string | null;
 };
 
+export type EditorValidationError = {
+  sectionKey: EditorSectionKey;
+  fieldPath: string;
+  message: string;
+};
+
+export type VocabularySelectOption = {
+  label: string;
+  value: string;
+};
+
+type NumberParseResult =
+  | { ok: true; value: number | null }
+  | { ok: false; message: string };
+
 export type BasicInfoValues = {
   experimentType: string;
   materialSystem: string;
@@ -268,14 +283,242 @@ function normalizeNullableString(value: string) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeNumberLike(value: string) {
+export function withLegacyVocabularyOption(
+  options: VocabularySelectOption[],
+  currentValue: string,
+) {
+  const normalizedValue = currentValue.trim();
+  if (!normalizedValue || options.some((option) => option.value === normalizedValue)) {
+    return options;
+  }
+
+  return [
+    {
+      label: normalizedValue,
+      value: normalizedValue,
+    },
+    ...options,
+  ];
+}
+
+function parseNullableNumber(value: string, label: string): NumberParseResult {
   const trimmed = value.trim();
   if (!trimmed) {
-    return null;
+    return { ok: true, value: null };
   }
 
   const numericValue = Number(trimmed);
-  return Number.isNaN(numericValue) ? trimmed : numericValue;
+  if (!Number.isFinite(numericValue)) {
+    return { ok: false, message: `${label} 必须是数字` };
+  }
+
+  return { ok: true, value: numericValue };
+}
+
+function normalizeNumberLike(value: string) {
+  const result = parseNullableNumber(value, "数值");
+  return result.ok ? result.value : null;
+}
+
+function appendNumberValidationError(
+  errors: EditorValidationError[],
+  sectionKey: EditorSectionKey,
+  fieldPath: string,
+  value: string,
+  label: string,
+) {
+  const result = parseNullableNumber(value, label);
+  if (!result.ok) {
+    errors.push({
+      sectionKey,
+      fieldPath,
+      message: result.message,
+    });
+  }
+}
+
+export function validateSectionValues(
+  sectionKey: EditorSectionKey,
+  values: ExperimentEditorValues,
+): EditorValidationError[] {
+  const errors: EditorValidationError[] = [];
+
+  if (sectionKey === "environment") {
+    appendNumberValidationError(
+      errors,
+      sectionKey,
+      "indoorTemperatureC",
+      values.environment.indoorTemperatureC,
+      "环境温度",
+    );
+    appendNumberValidationError(
+      errors,
+      sectionKey,
+      "indoorHumidityPercent",
+      values.environment.indoorHumidityPercent,
+      "室内湿度",
+    );
+  }
+
+  if (sectionKey === "precursors") {
+    values.precursors.items.forEach((item, index) => {
+      const rowNumber = index + 1;
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.concentration`,
+        item.concentration,
+        `浓度 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.meltingTemperatureC`,
+        item.meltingTemperatureC,
+        `熔融温度 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.spinSpeedRpm`,
+        item.spinSpeedRpm,
+        `旋涂转速 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.preSpinSpeedRpm`,
+        item.preSpinSpeedRpm,
+        `预旋涂转速 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.preparationTimeMin`,
+        item.preparationTimeMin,
+        `制备时长 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.massMg`,
+        item.massMg,
+        `前驱体质量 ${rowNumber}`,
+      );
+    });
+  }
+
+  if (sectionKey === "substrates") {
+    values.substrates.items.forEach((item, index) => {
+      const rowNumber = index + 1;
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.positionMm`,
+        item.positionMm,
+        `位置 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.treatmentTemperatureC`,
+        item.treatmentTemperatureC,
+        `处理参数温度 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.treatmentDurationMin`,
+        item.treatmentDurationMin,
+        `处理参数时长 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `items.${index}.treatmentPowerW`,
+        item.treatmentPowerW,
+        `处理参数功率 ${rowNumber}`,
+      );
+    });
+  }
+
+  if (sectionKey === "furnace_program") {
+    values.furnaceProgram.zones.forEach((zone, zoneIndex) => {
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `zones.${zoneIndex}.zoneIndex`,
+        zone.zoneIndex,
+        `温区编号 ${zoneIndex + 1}`,
+      );
+      zone.temperatureProgram.forEach((point, pointIndex) => {
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `zones.${zoneIndex}.temperatureProgram.${pointIndex}.timeMin`,
+          point.timeMin,
+          `时间点 ${zoneIndex + 1}-${pointIndex + 1}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `zones.${zoneIndex}.temperatureProgram.${pointIndex}.temperatureC`,
+          point.temperatureC,
+          `温度 ${zoneIndex + 1}-${pointIndex + 1}`,
+        );
+      });
+    });
+  }
+
+  if (sectionKey === "gas_program") {
+    values.gasProgram.segments.forEach((segment, segmentIndex) => {
+      const rowNumber = segmentIndex + 1;
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `segments.${segmentIndex}.startMin`,
+        segment.startMin,
+        `开始时间 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `segments.${segmentIndex}.endMin`,
+        segment.endMin,
+        `结束时间 ${rowNumber}`,
+      );
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `segments.${segmentIndex}.flowSccm`,
+        segment.flowSccm,
+        `流量 ${rowNumber}`,
+      );
+      segment.components.forEach((component, componentIndex) => {
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `segments.${segmentIndex}.components.${componentIndex}.ratioPercent`,
+          component.ratioPercent,
+          `组分比例 ${rowNumber}-${componentIndex + 1}`,
+        );
+      });
+    });
+  }
+
+  if (sectionKey === "characterization") {
+    values.characterization.methods.forEach((item, index) => {
+      appendNumberValidationError(
+        errors,
+        sectionKey,
+        `methods.${index}.excitationNm`,
+        item.excitationNm,
+        `激发波长 ${index + 1}`,
+      );
+    });
+  }
+
+  return errors;
 }
 
 function normalizeNullableBoolean(value: NullableBooleanValue) {

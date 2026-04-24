@@ -5,13 +5,17 @@ const { TextArea } = Input;
 import {
   createEmptyCharacterizationMethod,
   type CharacterizationValues,
+  type VocabularySelectOption,
 } from "../editor-types";
+import { VocabularyCombobox } from "./vocabulary-combobox";
 
 export function CharacterizationSection({
+  characterizationMethodOptions,
   disabled,
   onChange,
   value,
 }: {
+  characterizationMethodOptions: VocabularySelectOption[];
   disabled: boolean;
   onChange: (nextValue: CharacterizationValues) => void;
   value: CharacterizationValues;
@@ -52,13 +56,14 @@ export function CharacterizationSection({
           <div className="editor-form-grid">
             <div className="editor-field">
               <Typography.Text strong>{`表征方法 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`表征方法 ${index + 1}`}
+              <VocabularyCombobox
+                ariaLabel={`表征方法 ${index + 1}`}
                 disabled={disabled}
-                onChange={(event) => {
-                  updateItem(index, { method: event.target.value });
+                onChange={(nextValue) => {
+                  updateItem(index, { method: nextValue });
                 }}
-                placeholder="例如 Raman"
+                options={characterizationMethodOptions}
+                placeholder="选择或输入表征方法"
                 value={item.method}
               />
             </div>

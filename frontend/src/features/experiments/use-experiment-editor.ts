@@ -26,7 +26,9 @@ import {
   toExperimentPatch,
   type ModulePayloadMap,
   toResultSummaryPatch,
+  validateSectionValues,
   type EditorSectionKey,
+  type EditorValidationError,
   type ExperimentEditorValues,
   type SectionSaveState,
 } from "./editor-types";
@@ -60,6 +62,14 @@ function resolveErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function groupValidationErrorsBySection(errors: EditorValidationError[]) {
+  return errors.reduce<Map<EditorSectionKey, EditorValidationError[]>>((result, error) => {
+    const current = result.get(error.sectionKey) ?? [];
+    result.set(error.sectionKey, [...current, error]);
+    return result;
+  }, new Map());
 }
 
 export function useExperimentEditor({
@@ -194,15 +204,30 @@ export function useExperimentEditor({
 
       let nextExperiment: ExperimentRead | null = null;
       let hasError = false;
+      const validationErrors = dirtySections.flatMap((sectionKey) =>
+        validateSectionValues(sectionKey, draftValues),
+      );
+      const validationErrorsBySection = groupValidationErrorsBySection(validationErrors);
+      const savableSections = dirtySections.filter(
+        (sectionKey) => !validationErrorsBySection.has(sectionKey),
+      );
 
-      for (const sectionKey of dirtySections) {
+      for (const [sectionKey, errors] of validationErrorsBySection) {
+        hasError = true;
+        setSectionState(sectionKey, {
+          status: "error",
+          message: errors.map((error) => error.message).join("；"),
+        });
+      }
+
+      for (const sectionKey of savableSections) {
         setSectionState(sectionKey, {
           status: "saving",
           message: "自动保存中",
         });
       }
 
-      for (const sectionKey of dirtySections) {
+      for (const sectionKey of savableSections) {
         let savedModule: ExperimentModulePayloadRead | null = null;
 
         try {
@@ -348,7 +373,7 @@ export function useExperimentEditor({
           nextExperiment,
         );
       }
-      if (dirtySections.includes("result_summary")) {
+      if (savableSections.includes("result_summary")) {
         void queryClient.invalidateQueries({
           queryKey: ["experiments", "list", currentUserId],
         });
