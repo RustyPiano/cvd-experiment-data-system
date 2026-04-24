@@ -50,7 +50,7 @@
 - 当前模块 autosave 会保留后端 payload 中前端暂未建模的字段，避免最小表单覆盖掉已有结构化数据。
 - 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，有 `errors` 时阻止提交并展示逐项问题。
 - 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
-- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`107 passed`），前端 `lint / typecheck / test` 通过（`66 passed`）；前端构建可能出现 Vite chunk size 警告，暂不影响运行。
+- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`118 passed`），前端 `lint / typecheck / test` 通过（`69 passed`）；前端构建可能出现 Vite chunk size 警告，暂不影响运行。
 
 ## 当前后端能力
 
@@ -68,8 +68,9 @@
 - 文件资产上传、下载、软删除与实验/样品关联
 - 实验级结构化 JSON 导出
 - 单实验 Excel 导出
+- 单实验 analysis-ready 归一化导出
 - 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_treatment_method / gas_label / characterization_method / quality_label`
-- Alembic 迁移 `20260423_0001` 到 `20260424_0009`
+- Alembic 迁移 `20260423_0001` 到 `20260425_0011`
 - 前端联调 handoff 文档，见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
 
 ## 环境准备
@@ -230,6 +231,7 @@ docker compose up --build
 - `GET /api/v1/experiments/{id}/export`
 - `GET /api/v1/experiments/{id}/export/json`
 - `GET /api/v1/experiments/{id}/export/excel`
+- `GET /api/v1/experiments/{id}/export/analysis`
 - `GET /api/v1/experiments/{id}/audit-events`
 - `GET /api/v1/experiments/{id}/modules`
 - `GET /api/v1/experiments/{id}/modules/{module_key}`
@@ -268,7 +270,8 @@ docker compose up --build
 - `clone` 权限规则：owner/admin 可从自己的 `submitted/locked` 实验发起，非 owner 只能从 `locked` 实验发起；新实验会回到 `draft`。
 - `clone` 会复制主实验参数、模块 payload 和样品，但不会复制 `summary_result`、作废原因、状态时间戳和已上传文件；新样品会按新实验编号重新分配 `sample_code`。
 - 提交前校验现在覆盖主字段和已实现的模块规则：至少一个前驱体、至少一个温区程序、温区时间严格递增；如果填写了气体程序，则要求 `end_min > start_min` 且时间段不能重叠；`seal_intact=false` 时必须填写 `risk_note`；`quality_label=unknown` 会返回 warning。
-- `substrates` 模块会同步生成或更新 `TOP/BOTTOM` 样品。
+- `substrates` 模块会同步生成或更新 `TOP/BOTTOM` 样品；移除某一基底角色时，未被文件或子样品引用的样品会标记 `deleted_at/deleted_by_id` 并从默认列表隐藏，而不是物理删除。
+- 如果后续重新添加已软删除的 `TOP/BOTTOM` 角色，后端会恢复保留的样品行并更新字段，避免唯一 `sample_code` 冲突。
 - 模块 payload 的非法对象形状会在后端转成 `422`，避免把脏 JSON 打成 `500`。
 - 手工样品创建当前支持 `top`、`bottom`、`product`、`control`；样品编号由后端根据实验 `run_code` 自动生成，例如 `S-2026-0001-TOP`、`S-2026-0001-PRODUCT-A`。
 - 文件资产当前采用本地文件系统存储，metadata 入库；上传只能写入 `draft` 实验，删除只做软删除标记并隐藏访问。
@@ -278,6 +281,7 @@ docker compose up --build
 - 历史字段 `file_kind` 仅作为兼容别名接受输入，公开响应统一使用 `method`。
 - 同一实验内重复 `sha256` 文件会在 metadata 中标记重复来源。
 - 实验审计日志会记录 `upload_file` 和 `delete_file` 操作。
-- `GET /api/v1/experiments/{id}/export` 和 `/export/json` 当前返回结构化 JSON，包含实验主信息、模块 payload、样品、未软删除文件、实验审计事件与计数摘要。
+- `GET /api/v1/experiments/{id}/export` 和 `/export/json` 当前返回结构化 JSON，包含实验主信息、模块 payload、样品（含软删除保留行）、未软删除文件、实验审计事件与计数摘要。
 - `GET /api/v1/experiments/{id}/export/excel` 返回 9 个 sheet 的 `.xlsx`：Basic Info、Environment & Precheck、Precursors、Substrates、Furnace Program、Gas Program、Characterization、Files、Audit。
+- `GET /api/v1/experiments/{id}/export/analysis` 返回面向 CSV/Parquet 后续转换的扁平行集合，包括实验、前驱体、基底、温区点、气体程序、气体段、气体组分、表征、样品和文件行。
 - 系统内置基础受控词表种子；管理员可通过 `/api/v1/admin/vocabularies` 做最小维护。前端当前文件上传下拉读取 `characterization_method`，词表后台的 key 筛选来自后端数据，不维护额外硬编码 key 列表。

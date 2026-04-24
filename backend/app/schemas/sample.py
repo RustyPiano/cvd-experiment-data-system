@@ -46,6 +46,9 @@ class SampleRead(BaseModel):
     metadata_json: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None
+    deleted_by_id: UUID | None
+    is_deleted: bool
 
 
 class SampleListResponse(BaseModel):

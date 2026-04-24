@@ -238,7 +238,8 @@ V1 默认每个实验至少生成：
 5. `file_assets.sha256` 不强制全局唯一，但同一实验内重复文件要提示。
 6. 不做物理删除实验。
 7. 文件删除应标记 `deleted_at`，不要立即删除磁盘文件。
-8. 所有状态变化写入 `audit_events`。
+8. 样品删除也应保留数据库行；基底同步移除 `TOP/BOTTOM` 样品时标记 `deleted_at/deleted_by_id`，默认查询隐藏，后续重新出现同一角色时恢复原行，避免 `sample_code` 唯一约束冲突。
+9. 所有状态变化写入 `audit_events`。
 
 ### 8.1 必须索引
 
@@ -249,6 +250,7 @@ CREATE INDEX idx_experiment_runs_date ON experiment_runs(experiment_date);
 CREATE INDEX idx_experiment_runs_material ON experiment_runs(material_system);
 CREATE INDEX idx_module_payloads_run ON experiment_module_payloads(experiment_run_id);
 CREATE INDEX idx_samples_run ON samples(experiment_run_id);
+CREATE INDEX ix_samples_deleted_by_id ON samples(deleted_by_id);
 CREATE INDEX idx_files_run ON file_assets(experiment_run_id);
 CREATE INDEX idx_files_sample ON file_assets(sample_id);
 CREATE INDEX idx_audit_entity ON audit_events(entity_type, entity_id);
@@ -335,6 +337,13 @@ result_summary
 ```
 
 ### 9.6 substrates
+
+保存 `substrates` 模块时，后端同步 `top/bottom` 角色到样品表：
+
+- 新角色创建样品，样品编号由实验 `run_code` 和角色生成。
+- 现有角色更新样品字段，并保留用户补充的 `metadata_json`。
+- 从 payload 中移除的 `top/bottom` 样品默认软删除；如果已有文件或子样品依赖，保留现有阻止逻辑并返回错误。
+- 重新添加已软删除的角色时恢复原样品行并清空删除标记。
 
 ```json
 {

@@ -59,7 +59,18 @@ class Sample(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
 
     experiment_run: Mapped[ExperimentRun] = relationship(back_populates="samples")
     parent_sample: Mapped[Sample | None] = relationship(remote_side="Sample.id")
     file_assets: Mapped[list[FileAsset]] = relationship(back_populates="sample")
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None

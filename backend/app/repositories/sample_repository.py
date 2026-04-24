@@ -24,45 +24,68 @@ class SampleRepository:
         self.db.refresh(sample)
         return sample
 
-    def delete(self, sample: Sample) -> None:
-        self.db.delete(sample)
-        self.db.flush()
-
-    def get_by_id(self, sample_id: UUID) -> Sample | None:
+    def get_by_id(self, sample_id: UUID, *, include_deleted: bool = False) -> Sample | None:
         statement = select(Sample).where(Sample.id == sample_id)
+        if not include_deleted:
+            statement = statement.where(Sample.deleted_at.is_(None))
         return self.db.scalar(statement)
 
-    def get_by_experiment_and_role(self, experiment_id: UUID, role: SampleRole) -> Sample | None:
+    def get_by_experiment_and_role(
+        self,
+        experiment_id: UUID,
+        role: SampleRole,
+        *,
+        include_deleted: bool = False,
+    ) -> Sample | None:
         statement = select(Sample).where(
             Sample.experiment_run_id == experiment_id,
             Sample.role == role.value,
         )
+        if not include_deleted:
+            statement = statement.where(Sample.deleted_at.is_(None))
         return self.db.scalar(statement)
 
     def exists_children(self, sample_id: UUID) -> bool:
         statement = select(Sample.id).where(Sample.parent_sample_id == sample_id).limit(1)
         return self.db.scalar(statement) is not None
 
-    def count_by_experiment_and_role(self, experiment_id: UUID, role: SampleRole) -> int:
+    def count_by_experiment_and_role(
+        self,
+        experiment_id: UUID,
+        role: SampleRole,
+        *,
+        include_deleted: bool = False,
+    ) -> int:
         statement = (
             select(func.count())
             .select_from(Sample)
             .where(Sample.experiment_run_id == experiment_id, Sample.role == role.value)
         )
+        if not include_deleted:
+            statement = statement.where(Sample.deleted_at.is_(None))
         return int(self.db.scalar(statement) or 0)
 
-    def list_by_experiment(self, experiment_id: UUID) -> list[Sample]:
+    def list_by_experiment(
+        self,
+        experiment_id: UUID,
+        *,
+        include_deleted: bool = False,
+    ) -> list[Sample]:
         statement = (
             select(Sample)
             .where(Sample.experiment_run_id == experiment_id)
             .order_by(Sample.sample_code.asc())
         )
+        if not include_deleted:
+            statement = statement.where(Sample.deleted_at.is_(None))
         return list(self.db.scalars(statement).all())
 
     def list_by_experiment_and_roles(
         self,
         experiment_id: UUID,
         roles: set[SampleRole],
+        *,
+        include_deleted: bool = False,
     ) -> list[Sample]:
         statement = (
             select(Sample)
@@ -72,6 +95,8 @@ class SampleRepository:
             )
             .order_by(Sample.sample_code.asc())
         )
+        if not include_deleted:
+            statement = statement.where(Sample.deleted_at.is_(None))
         return list(self.db.scalars(statement).all())
 
     def list_visible(
@@ -81,8 +106,11 @@ class SampleRepository:
         experiment_id: UUID | None = None,
         role: SampleRole | None = None,
         sample_code: str | None = None,
+        include_deleted: bool = False,
     ) -> list[Sample]:
         statement = select(Sample).join(ExperimentRun, Sample.experiment_run_id == ExperimentRun.id)
+        if not include_deleted:
+            statement = statement.where(Sample.deleted_at.is_(None))
 
         if current_user.role == UserRole.ADMIN:
             pass

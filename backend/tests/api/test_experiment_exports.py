@@ -127,6 +127,43 @@ def sync_top_substrate_sample(experiment_id: str, email: str) -> str:
     return samples[0]["id"]
 
 
+def sync_top_and_bottom_substrates(experiment_id: str, email: str) -> dict[str, str]:
+    substrates_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "MTI",
+                        "size_mm": "10x10",
+                        "treatment_method": "plasma_cleaning",
+                        "position_mm": 12.5,
+                    },
+                    {
+                        "role": "bottom",
+                        "type": "Quartz",
+                        "brand": "Kejing",
+                        "size_mm": "10x10",
+                        "treatment_method": "annealing",
+                        "position_mm": -12.5,
+                    },
+                ]
+            }
+        },
+        headers=auth_headers(email),
+    )
+    assert substrates_response.status_code == 200
+
+    samples_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}",
+        headers=auth_headers(email),
+    )
+    assert samples_response.status_code == 200
+    return {item["role"]: item["id"] for item in samples_response.json()["items"]}
+
+
 def test_export_includes_related_sample_and_file_audit_events(active_user) -> None:
     experiment_id = create_experiment(active_user.email)
     sample_id = sync_top_substrate_sample(experiment_id, active_user.email)
@@ -176,6 +213,65 @@ def test_export_includes_related_sample_and_file_audit_events(active_user) -> No
         if event["entity_type"] == "file_asset" and event["entity_id"] == file_id
     ]
     assert {"create"} <= {event["action"] for event in file_events}
+
+
+def test_export_retains_soft_deleted_substrate_sample_provenance(active_user) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Soft deleted sample export")
+    sample_ids = sync_top_and_bottom_substrates(experiment_id, active_user.email)
+    bottom_sample_id = sample_ids["bottom"]
+
+    remove_bottom_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "MTI",
+                        "size_mm": "10x10",
+                        "treatment_method": "plasma_cleaning",
+                        "position_mm": 12.5,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert remove_bottom_response.status_code == 200
+
+    export_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export",
+        headers=auth_headers(active_user.email),
+    )
+    analysis_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/analysis",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert export_response.status_code == 200
+    assert analysis_response.status_code == 200
+    export_body = export_response.json()
+    bottom_sample = next(
+        sample for sample in export_body["samples"] if sample["id"] == bottom_sample_id
+    )
+    assert bottom_sample["is_deleted"] is True
+    assert bottom_sample["deleted_at"] is not None
+    assert bottom_sample["deleted_by_id"] is not None
+
+    bottom_events = [
+        event
+        for event in export_body["audit_events"]
+        if event["entity_type"] == "sample" and event["entity_id"] == bottom_sample_id
+    ]
+    assert "soft_delete" in {event["action"] for event in bottom_events}
+
+    analysis_body = analysis_response.json()
+    bottom_row = next(
+        row for row in analysis_body["sample_rows"] if row["sample_id"] == bottom_sample_id
+    )
+    assert bottom_row["is_deleted"] is True
+    assert bottom_row["deleted_at"] is not None
 
 
 def test_export_experiment_aggregates_modules_samples_files_and_audit(active_user) -> None:

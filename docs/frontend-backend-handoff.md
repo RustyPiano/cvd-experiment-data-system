@@ -327,7 +327,9 @@ result_summary
 基底模块还会触发样品同步：
 
 - `substrates` 中 `top/bottom` 会生成或更新 `TOP/BOTTOM` 样品。
-- 删除 `top/bottom` 前，如果样品已有文件或下游样品依赖，后端会拒绝删除并返回 `422`。
+- 移除 `top/bottom` 时，如果样品已有文件或下游样品依赖，后端会拒绝并返回 `422`。
+- 没有依赖的 `TOP/BOTTOM` 样品会标记 `deleted_at/deleted_by_id`，默认样品列表不再返回该行。
+- 后续重新添加同一角色时，后端会恢复保留的样品行并清空删除标记。
 - `substrates.items` 中重复 `top` 或重复 `bottom` 会返回 `422`。
 
 ## 7. 样品约定
@@ -355,6 +357,8 @@ POST /api/v1/experiments/{id}/samples
 ```
 
 如果传 `parent_sample_id`，它必须属于同一实验。
+
+样品响应字段包含 `deleted_at`、`deleted_by_id` 和 `is_deleted`。普通列表默认只返回未删除样品；导出会包含软删除保留行用于审计和数据追溯。
 
 ## 8. 文件上传约定
 
@@ -397,12 +401,20 @@ GET /api/v1/experiments/{id}/export/json
 
 - `experiment`
 - `modules`
-- `samples`
+- `samples`，包含软删除保留行及其删除标记
 - `files`
 - `features`
 - `provenance`
 - `audit_events`
 - `counts`
+
+analysis-ready 导出：
+
+```http
+GET /api/v1/experiments/{id}/export/analysis
+```
+
+返回扁平行集合，便于后续转换为 CSV/Parquet。`sample_rows` 同样包含软删除保留行及 `deleted_at/deleted_by_id/is_deleted`。
 
 Excel 导出：
 

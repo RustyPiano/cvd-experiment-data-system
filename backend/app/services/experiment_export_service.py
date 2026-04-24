@@ -62,7 +62,7 @@ class ExperimentExportService:
         ]
         samples = [
             SampleRead.model_validate(item)
-            for item in self.samples.list_by_experiment(experiment.id)
+            for item in self.samples.list_by_experiment(experiment.id, include_deleted=True)
         ]
         files = [
             to_file_asset_read_model(item) for item in self.files.list_by_experiment(experiment.id)
@@ -507,6 +507,9 @@ class ExperimentExportService:
                 metadata_json_text=self._json_text(sample.metadata_json),
                 created_at=sample.created_at,
                 updated_at=sample.updated_at,
+                deleted_at=sample.deleted_at,
+                deleted_by_id=sample.deleted_by_id,
+                is_deleted=sample.is_deleted,
             )
             for sample in export_payload.samples
         ]

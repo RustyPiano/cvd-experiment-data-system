@@ -173,6 +173,9 @@ export type SampleRead = {
   metadata_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
+  deleted_by_id: string | null;
+  is_deleted: boolean;
 };
 
 export type SampleUpdateRequest = {
@@ -375,6 +378,9 @@ export type ExperimentAnalysisSampleRow = {
   metadata_json_text: string;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
+  deleted_by_id: string | null;
+  is_deleted: boolean;
 };
 
 export type ExperimentAnalysisFileRow = {

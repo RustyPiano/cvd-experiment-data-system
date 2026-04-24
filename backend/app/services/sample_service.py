@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -56,13 +57,20 @@ class SampleService:
         current_user: User,
     ) -> SampleRead:
         experiment = self._get_owned_draft_experiment(experiment_id, current_user)
-        created = self._create_sample_with_retry(experiment=experiment, payload=payload)
+        restored = self._restore_soft_deleted_role_sample(experiment=experiment, payload=payload)
+        if restored is None:
+            created = self._create_sample_with_retry(experiment=experiment, payload=payload)
+            action = "create"
+            before = None
+        else:
+            created, before = restored
+            action = "restore"
         self.audit.record_event(
             actor=current_user,
             entity_type="sample",
             entity_id=created.id,
-            action="create",
-            before_json=None,
+            action=action,
+            before_json=before,
             after_json=self._serialize_sample(created),
         )
         self.db.commit()
@@ -117,6 +125,7 @@ class SampleService:
             for sample in self.samples.list_by_experiment_and_roles(
                 experiment.id,
                 {SampleRole.TOP, SampleRole.BOTTOM},
+                include_deleted=True,
             )
         }
         for item in items:
@@ -157,6 +166,8 @@ class SampleService:
             target.treatment = item.get("treatment_method")
             target.position_mm = self._normalize_position(item.get("position_mm"))
             target.metadata_json = metadata
+            target.deleted_at = None
+            target.deleted_by_id = None
 
             saved = self.samples.save(target) if existing else self.samples.create(target)
             synced_samples.append(saved)
@@ -173,20 +184,24 @@ class SampleService:
         for role, sample in existing_by_role.items():
             if role in desired_roles:
                 continue
+            if sample.deleted_at is not None:
+                continue
             if self.files.exists_for_sample(sample.id) or self.samples.exists_children(sample.id):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Cannot remove substrate sample while dependent records exist",
                 )
             before = self._serialize_sample(sample)
-            self.samples.delete(sample)
+            sample.deleted_at = datetime.now(UTC)
+            sample.deleted_by_id = current_user.id
+            saved = self.samples.save(sample)
             self.audit.record_event(
                 actor=current_user,
                 entity_type="sample",
-                entity_id=sample.id,
-                action="delete",
+                entity_id=saved.id,
+                action="soft_delete",
                 before_json=before,
-                after_json=None,
+                after_json=self._serialize_sample(saved),
                 reason="substrates_sync_removed",
             )
 
@@ -288,6 +303,44 @@ class SampleService:
                         detail="Failed to allocate sample code",
                     ) from exc
 
+    def _restore_soft_deleted_role_sample(
+        self,
+        *,
+        experiment: ExperimentRun,
+        payload: SampleCreate,
+    ) -> tuple[Sample, dict | None] | None:
+        if payload.role not in {SampleRole.TOP, SampleRole.BOTTOM}:
+            return None
+
+        sample = self.samples.get_by_experiment_and_role(
+            experiment.id,
+            payload.role,
+            include_deleted=True,
+        )
+        if sample is None or sample.deleted_at is None:
+            return None
+
+        if payload.parent_sample_id is not None:
+            parent = self.samples.get_by_id(payload.parent_sample_id)
+            if parent is None or parent.experiment_run_id != experiment.id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Parent sample must belong to the same experiment",
+                )
+
+        before = self._serialize_sample(sample)
+        sample.parent_sample_id = payload.parent_sample_id
+        sample.substrate_type = payload.substrate_type
+        sample.brand = payload.brand
+        sample.size_mm = payload.size_mm
+        sample.treatment = payload.treatment
+        sample.position_mm = payload.position_mm
+        sample.storage_location = payload.storage_location
+        sample.metadata_json = payload.metadata_json
+        sample.deleted_at = None
+        sample.deleted_by_id = None
+        return self.samples.save(sample), before
+
     def _build_sample_code(self, run_code: str, role: SampleRole, sequence: int) -> str:
         _, year, serial = run_code.split("-", maxsplit=2)
         prefix = f"S-{year}-{serial}"
@@ -379,6 +432,9 @@ class SampleService:
             "position_mm": float(sample.position_mm) if sample.position_mm is not None else None,
             "storage_location": sample.storage_location,
             "metadata_json": sample.metadata_json,
+            "deleted_at": sample.deleted_at.isoformat() if sample.deleted_at else None,
+            "deleted_by_id": str(sample.deleted_by_id) if sample.deleted_by_id else None,
+            "is_deleted": sample.deleted_at is not None,
         }
 
     def _normalize_position(self, value: object) -> float | None:

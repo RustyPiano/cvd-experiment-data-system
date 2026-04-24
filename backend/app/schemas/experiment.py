@@ -209,6 +209,9 @@ class ExperimentAnalysisSampleRow(BaseModel):
     metadata_json_text: str
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None
+    deleted_by_id: UUID | None
+    is_deleted: bool
 
 
 class ExperimentAnalysisFileRow(BaseModel):

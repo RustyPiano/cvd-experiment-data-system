@@ -1,6 +1,11 @@
+from uuid import UUID
+
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.main import app
+from app.models.audit import AuditEvent
+from app.models.sample import Sample
 
 client = TestClient(app)
 
@@ -171,6 +176,239 @@ def test_substrates_module_removes_deleted_bottom_sample(active_user) -> None:
     assert list_response.status_code == 200
     assert list_response.json()["total"] == 1
     assert list_response.json()["items"][0]["role"] == "top"
+
+
+def test_substrate_sync_soft_deletes_removed_samples(active_user, db_session) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Sample retention flow",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    populate_substrates_module(experiment_id, active_user.email)
+
+    initial_list_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert initial_list_response.status_code == 200
+    bottom_sample = next(
+        item for item in initial_list_response.json()["items"] if item["role"] == "bottom"
+    )
+
+    update_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "Brand A",
+                        "size_mm": "5x10",
+                        "treatment_method": "plasma_cleaning",
+                        "position_mm": 1,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert update_response.status_code == 200
+
+    list_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert list_response.status_code == 200
+    assert list_response.json()["total"] == 1
+    assert list_response.json()["items"][0]["role"] == "top"
+
+    db_session.expire_all()
+    retained_sample = db_session.get(Sample, UUID(bottom_sample["id"]))
+    assert retained_sample is not None
+    assert retained_sample.deleted_at is not None
+    assert retained_sample.deleted_by_id == active_user.id
+
+    audit_event = db_session.scalar(
+        select(AuditEvent)
+        .where(
+            AuditEvent.entity_type == "sample",
+            AuditEvent.entity_id == retained_sample.id,
+            AuditEvent.reason == "substrates_sync_removed",
+        )
+        .order_by(AuditEvent.created_at.desc())
+    )
+    assert audit_event is not None
+    assert audit_event.action == "soft_delete"
+    assert audit_event.before_json["deleted_at"] is None
+    assert audit_event.after_json["deleted_at"] is not None
+    assert audit_event.after_json["deleted_by_id"] == str(active_user.id)
+
+
+def test_substrate_sync_restores_soft_deleted_sample_when_role_returns(
+    active_user,
+    db_session,
+) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Sample restore flow",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    populate_substrates_module(experiment_id, active_user.email)
+
+    initial_list_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    bottom_sample = next(
+        item for item in initial_list_response.json()["items"] if item["role"] == "bottom"
+    )
+
+    remove_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "Brand A",
+                        "size_mm": "5x10",
+                        "treatment_method": "plasma_cleaning",
+                        "position_mm": 1,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert remove_response.status_code == 200
+
+    restore_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "Brand A",
+                        "size_mm": "5x10",
+                        "treatment_method": "plasma_cleaning",
+                        "position_mm": 1,
+                    },
+                    {
+                        "role": "bottom",
+                        "type": "Quartz",
+                        "brand": "Brand C",
+                        "size_mm": "10x10",
+                        "treatment_method": "annealing",
+                        "position_mm": -2,
+                    },
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert restore_response.status_code == 200
+
+    restored_list_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    restored_bottom = next(
+        item for item in restored_list_response.json()["items"] if item["role"] == "bottom"
+    )
+    assert restored_bottom["id"] == bottom_sample["id"]
+    assert restored_bottom["brand"] == "Brand C"
+
+    db_session.expire_all()
+    retained_sample = db_session.get(Sample, UUID(bottom_sample["id"]))
+    assert retained_sample is not None
+    assert retained_sample.deleted_at is None
+    assert retained_sample.deleted_by_id is None
+
+
+def test_manual_top_bottom_create_restores_soft_deleted_sample(active_user, db_session) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Manual sample restore flow",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    populate_substrates_module(experiment_id, active_user.email)
+
+    initial_list_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    bottom_sample = next(
+        item for item in initial_list_response.json()["items"] if item["role"] == "bottom"
+    )
+
+    remove_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "Brand A",
+                        "size_mm": "5x10",
+                        "treatment_method": "plasma_cleaning",
+                        "position_mm": 1,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert remove_response.status_code == 200
+
+    restore_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/samples",
+        json={
+            "role": "bottom",
+            "substrate_type": "Quartz",
+            "brand": "Brand Manual",
+            "size_mm": "10x10",
+            "treatment": "annealing",
+            "position_mm": -2,
+            "storage_location": "drawer-restored",
+            "metadata_json": {"quality": "restored"},
+        },
+        headers=auth_headers(active_user.email),
+    )
+
+    assert restore_response.status_code == 201
+    assert restore_response.json()["id"] == bottom_sample["id"]
+    assert restore_response.json()["brand"] == "Brand Manual"
+    assert restore_response.json()["deleted_at"] is None
+    assert restore_response.json()["is_deleted"] is False
+
+    db_session.expire_all()
+    retained_sample = db_session.get(Sample, UUID(bottom_sample["id"]))
+    assert retained_sample is not None
+    assert retained_sample.deleted_at is None
+    assert retained_sample.deleted_by_id is None
 
 
 def test_substrates_module_rejects_duplicate_roles(active_user) -> None:
