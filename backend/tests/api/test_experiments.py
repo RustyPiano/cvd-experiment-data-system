@@ -211,6 +211,83 @@ def test_patch_experiment_updates_draft_for_owner(active_user) -> None:
     assert patch_response.json()["material_system"] == "WS2"
 
 
+def test_patch_experiment_updates_draft_date_without_changing_run_code(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Before date patch",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    original_run_code = create_response.json()["run_code"]
+
+    patch_response = client.patch(
+        f"/api/v1/experiments/{experiment_id}",
+        json={"experiment_date": "2026-04-20"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert patch_response.status_code == 200
+    body = patch_response.json()
+    assert body["experiment_date"] == "2026-04-20"
+    assert body["run_code"] == original_run_code
+
+
+def test_patch_experiment_date_rejects_null(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Null date patch",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    patch_response = client.patch(
+        f"/api/v1/experiments/{experiment_id}",
+        json={"experiment_date": None},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert patch_response.status_code == 422
+    assert patch_response.json()["detail"] == "experiment_date cannot be null"
+
+
+def test_patch_experiment_date_rejects_non_draft(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Submitted date patch",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    populate_required_modules(experiment_id, active_user.email)
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    assert submit_response.status_code == 200
+
+    patch_response = client.patch(
+        f"/api/v1/experiments/{experiment_id}",
+        json={"experiment_date": "2026-04-20"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert patch_response.status_code == 409
+
+
 def test_patch_experiment_preserves_unset_fields(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",
@@ -447,6 +524,9 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is False
+    assert body["blocking_count"] == len(body["errors"])
+    assert body["warning_count"] == len(body["warnings"])
+    assert body["completion_score"] == 58
     assert_issue_exists(
         body["errors"],
         module_key="basic_info",
@@ -513,6 +593,137 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
         field_path="quality_label",
         message_contains="unknown",
     )
+
+
+def test_validate_score_uses_fixed_checklist_for_repeated_rows(active_user) -> None:
+    def create_experiment_with_precursors(precursor_items: list[dict]) -> str:
+        experiment_id = create_experiment_for_test(
+            active_user.email,
+            objective="Fixed checklist completeness",
+        )
+        precursors_response = client.put(
+            f"/api/v1/experiments/{experiment_id}/modules/precursors",
+            json={"payload_json": {"items": precursor_items}},
+            headers=auth_headers(active_user.email),
+        )
+        assert precursors_response.status_code == 200
+        furnace_response = client.put(
+            f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+            json={
+                "payload_json": {
+                    "zones": [
+                        {
+                            "zone_index": 1,
+                            "temperature_program": [
+                                {"time_min": 0, "temperature_C": 25},
+                                {"time_min": 30, "temperature_C": 750},
+                            ],
+                        }
+                    ]
+                }
+            },
+            headers=auth_headers(active_user.email),
+        )
+        assert furnace_response.status_code == 200
+        summary_response = client.put(
+            f"/api/v1/experiments/{experiment_id}/modules/result_summary",
+            json={"payload_json": {"quality_label": "success"}},
+            headers=auth_headers(active_user.email),
+        )
+        assert summary_response.status_code == 200
+        return experiment_id
+
+    one_row_id = create_experiment_with_precursors(
+        [{"role": "A", "type": "MoO3", "method": "powder", "mass_mg": 5}]
+    )
+    two_row_id = create_experiment_with_precursors(
+        [
+            {"role": "A", "type": "MoO3", "method": "powder", "mass_mg": 5},
+            {
+                "role": "B",
+                "type": "S",
+                "method": "evaporation",
+                "mass_mg": 2,
+                "batch_no": "S-001",
+            },
+        ]
+    )
+
+    one_row_response = client.post(
+        f"/api/v1/experiments/{one_row_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+    two_row_response = client.post(
+        f"/api/v1/experiments/{two_row_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert one_row_response.status_code == 200
+    assert two_row_response.status_code == 200
+    assert (
+        one_row_response.json()["completion_score"] == two_row_response.json()["completion_score"]
+    )
+
+
+def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Incomplete but submittable",
+    )
+    precursors_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "A",
+                        "type": "MoO3",
+                        "method": "powder",
+                        "mass_mg": 5,
+                        "batch_no": "MO-001",
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert precursors_response.status_code == 200
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "zones": [
+                    {
+                        "zone_index": 1,
+                        "temperature_program": [
+                            {"time_min": 0, "temperature_C": 25},
+                            {"time_min": 30, "temperature_C": 750},
+                        ],
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+    summary_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/result_summary",
+        json={"payload_json": {"quality_label": "success"}},
+        headers=auth_headers(active_user.email),
+    )
+    assert summary_response.status_code == 200
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["errors"] == []
+    assert body["warnings"] == []
+    assert body["completion_score"] == 58
 
 
 def test_submit_returns_same_validation_structure_on_failure(active_user, db_session) -> None:

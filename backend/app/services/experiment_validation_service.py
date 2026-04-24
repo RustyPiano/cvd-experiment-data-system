@@ -64,7 +64,17 @@ class ExperimentValidationService:
                 )
             )
 
-        return ExperimentValidationResponse(ok=not errors, errors=errors, warnings=warnings)
+        return ExperimentValidationResponse(
+            ok=not errors,
+            errors=errors,
+            warnings=warnings,
+            completion_score=self._calculate_completion_score(
+                experiment=experiment,
+                module_payloads=module_payloads,
+            ),
+            blocking_count=len(errors),
+            warning_count=len(warnings),
+        )
 
     def _module_payload_map(self, experiment_id: UUID) -> dict[str, dict]:
         return {
@@ -518,6 +528,75 @@ class ExperimentValidationService:
                     )
                 )
 
+    def _calculate_completion_score(
+        self,
+        *,
+        experiment: ExperimentRun,
+        module_payloads: dict[str, dict],
+    ) -> int:
+        precursor_payload = module_payloads.get(ExperimentModuleKey.PRECURSORS.value)
+        precursor_items = self._payload_items(precursor_payload, "items")
+        substrate_payload = module_payloads.get(ExperimentModuleKey.SUBSTRATES.value)
+        substrate_items = self._payload_items(substrate_payload, "items")
+        furnace_payload = module_payloads.get(ExperimentModuleKey.FURNACE_PROGRAM.value)
+        furnace_zones = self._payload_items(furnace_payload, "zones")
+        gas_payload = module_payloads.get(ExperimentModuleKey.GAS_PROGRAM.value)
+        gas_segments = self._payload_items(gas_payload, "segments")
+        environment_payload = module_payloads.get(ExperimentModuleKey.ENVIRONMENT.value)
+        indoor_temperature = (
+            environment_payload.get("indoor_temperature_C")
+            if isinstance(environment_payload, dict)
+            else None
+        )
+        indoor_humidity = (
+            environment_payload.get("indoor_humidity_percent")
+            if isinstance(environment_payload, dict)
+            else None
+        )
+
+        checks = [
+            not self._is_blank(experiment.experiment_type),
+            not self._is_blank(experiment.material_system),
+            experiment.experiment_date is not None,
+            experiment.owner_id is not None,
+            bool(precursor_items),
+            self._all_items(precursor_items, lambda item: not self._is_blank(item.get("type"))),
+            self._all_items(precursor_items, lambda item: not self._is_blank(item.get("method"))),
+            self._all_items(
+                precursor_items,
+                lambda item: not self._is_blank(item.get("batch_no")),
+            ),
+            self._all_items(
+                precursor_items,
+                lambda item: (
+                    item.get("mass_mg") is not None and self._is_number(item.get("mass_mg"))
+                ),
+            ),
+            bool(substrate_items),
+            self._all_items(
+                substrate_items,
+                lambda item: item.get("role") in {"top", "bottom"},
+            ),
+            self._all_items(substrate_items, lambda item: not self._is_blank(item.get("type"))),
+            bool(furnace_zones),
+            self._all_furnace_zones_have_temperature_program(furnace_zones),
+            self._all_furnace_points_have_numeric_field(furnace_zones, "time_min"),
+            self._all_furnace_points_have_numeric_field(furnace_zones, "temperature_C"),
+            self._all_furnace_programs_strictly_increasing(furnace_zones),
+            bool(gas_segments),
+            self._all_gas_segments_have_valid_boundaries(gas_segments),
+            self._all_items(gas_segments, lambda item: not self._is_blank(item.get("gas"))),
+            self._all_items(
+                gas_segments,
+                lambda item: self._is_number(item.get("flow_sccm")),
+            ),
+            self._gas_segments_do_not_overlap(gas_segments),
+            self._is_number(indoor_temperature) and 15 <= float(indoor_temperature) <= 35,
+            self._is_number(indoor_humidity) and 0 <= float(indoor_humidity) <= 100,
+        ]
+
+        return round(sum(1 for check in checks if check) / len(checks) * 100)
+
     def _issue(self, module_key: str, field_path: str, message: str) -> ExperimentValidationIssue:
         return ExperimentValidationIssue(
             module_key=module_key,
@@ -530,3 +609,92 @@ class ExperimentValidationService:
 
     def _is_blank(self, value: object) -> bool:
         return not str(value or "").strip()
+
+    def _payload_items(self, payload: dict | None, key: str) -> list[dict]:
+        if not isinstance(payload, dict):
+            return []
+        value = payload.get(key)
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, dict)]
+
+    def _all_items(self, items: list[dict], predicate) -> bool:
+        return bool(items) and all(predicate(item) for item in items)
+
+    def _furnace_temperature_programs(self, zones: list[dict]) -> list[list[dict]]:
+        programs: list[list[dict]] = []
+        for zone in zones:
+            temperature_program = zone.get("temperature_program")
+            if not isinstance(temperature_program, list):
+                programs.append([])
+                continue
+            programs.append([point for point in temperature_program if isinstance(point, dict)])
+        return programs
+
+    def _all_furnace_zones_have_temperature_program(self, zones: list[dict]) -> bool:
+        programs = self._furnace_temperature_programs(zones)
+        return bool(programs) and all(bool(program) for program in programs)
+
+    def _all_furnace_points_have_numeric_field(
+        self,
+        zones: list[dict],
+        field_name: str,
+    ) -> bool:
+        programs = self._furnace_temperature_programs(zones)
+        return bool(programs) and all(
+            bool(program) and all(self._is_number(point.get(field_name)) for point in program)
+            for program in programs
+        )
+
+    def _all_furnace_programs_strictly_increasing(self, zones: list[dict]) -> bool:
+        programs = self._furnace_temperature_programs(zones)
+        if not programs:
+            return False
+        for program in programs:
+            time_points = [
+                float(point["time_min"])
+                for point in program
+                if self._is_number(point.get("time_min"))
+            ]
+            if len(time_points) != len(program) or not self._is_strictly_increasing(time_points):
+                return False
+        return True
+
+    def _all_gas_segments_have_valid_boundaries(self, segments: list[dict]) -> bool:
+        return bool(segments) and all(
+            self._is_number(segment.get("start_min"))
+            and self._is_number(segment.get("end_min"))
+            and float(segment["end_min"]) > float(segment["start_min"])
+            for segment in segments
+        )
+
+    def _gas_segments_do_not_overlap(self, segments: list[dict]) -> bool:
+        if not self._all_gas_segments_have_valid_boundaries(segments):
+            return False
+        normalized_segments = [
+            (float(segment["start_min"]), float(segment["end_min"])) for segment in segments
+        ]
+        return self._has_non_overlapping_segments(normalized_segments)
+
+    def _is_strictly_increasing(self, values: list[float]) -> bool:
+        if not values:
+            return False
+        return all(
+            current > previous for previous, current in zip(values, values[1:], strict=False)
+        )
+
+    def _has_non_overlapping_segments(self, segments: list[tuple[float, float]]) -> bool:
+        if not segments:
+            return False
+        if any(end <= start for start, end in segments):
+            return False
+
+        normalized_segments = sorted(segments, key=lambda item: item[0])
+        return all(
+            current_start >= previous_end
+            for previous_end, (current_start, _current_end) in zip(
+                [segment[1] for segment in normalized_segments],
+                normalized_segments[1:],
+                strict=False,
+            )
+        )

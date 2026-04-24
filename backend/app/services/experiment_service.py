@@ -143,6 +143,11 @@ class ExperimentService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="experiment_type cannot be null",
                 )
+            if field == "experiment_date" and value is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="experiment_date cannot be null",
+                )
             setattr(experiment, field, value)
         saved = self.experiments.save(experiment)
         self.audit.record_event(

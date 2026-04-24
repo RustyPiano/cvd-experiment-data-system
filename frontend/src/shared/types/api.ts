@@ -61,6 +61,7 @@ export type ExperimentCreateRequest = {
 export type ExperimentUpdateRequest = {
   experiment_type?: string;
   material_system?: string | null;
+  experiment_date?: string;
   objective?: string | null;
   summary_result?: string | null;
 };
@@ -112,6 +113,9 @@ export type ExperimentValidationResponse = {
   ok: boolean;
   errors: ExperimentValidationIssue[];
   warnings: ExperimentValidationIssue[];
+  completion_score?: number;
+  blocking_count?: number;
+  warning_count?: number;
 };
 
 export type FileAssetRead = {

@@ -43,7 +43,7 @@
 - 编辑器当前采用“主表单 + 模块表单 + 区块级 debounced autosave”的结构；`basic_info` 会同时写主实验记录和模块 payload。
 - `result_summary` 也会同时写主实验 `summary_result` 和模块 payload，保证详情页能直接读取结论。
 - 当前编辑器按最小可用字段集建模；自动保存时会保留原模块 payload 中前端暂未暴露的字段。
-- 由于当前 `PATCH /experiments/{id}` 只支持 `material_system`、`objective`、`summary_result`，编辑器里的 `experiment_type` 和 `experiment_date` 目前按只读展示。
+- 当前 `PATCH /experiments/{id}` 支持 draft 下更新 `experiment_type`、`material_system`、`experiment_date`、`objective` 和 `summary_result`；修正 `experiment_date` 不会改写既有 `run_code`。
 - 当前编辑器只在 `draft` 开启自动保存和提交；`submitted / locked / invalid` 一律只读。
 - 详情页当前已根据“owner/admin vs. 其他 member/viewer”以及实验状态控制动作按钮显示；状态切换请求进行中会互斥禁用其他动作；`clone` 成功后会直接跳到新草稿的编辑页。
 - 当前前端已经封装带 Bearer Token 的 blob 下载能力，用于文件下载和 Excel 导出。
@@ -226,7 +226,7 @@ invalid
 
 当前编辑器实际写入策略：
 
-- 主记录 `PATCH` 只更新 `material_system` 和 `objective`
+- 主记录 `PATCH` 更新 `experiment_type`、`material_system`、`experiment_date`、`objective` 和 `summary_result`
 - `basic_info` 模块会额外保存 `operator_id`、`experiment_type`、`material_system`、`experiment_date`、`objective`
 - `result_summary` 会同步写主记录 `summary_result` 与模块里的 `summary_result`
 
@@ -323,6 +323,7 @@ result_summary
 - 每个 `zone.temperature_program` 至少一项，且 `time_min` 严格递增。
 - `gas_program.segments` 如果存在，则要求时间段合法且不能重叠。
 - `precheck.seal_intact=false` 时必须填 `risk_note`。
+- `POST /api/v1/experiments/{id}/validate` 返回 `ok/errors/warnings/completion_score/blocking_count/warning_count`；前端提交前汇总应展示完整度分数、阻塞/提示计数，并按 `module_key` 提供跳转按钮。
 
 基底模块还会触发样品同步：
 

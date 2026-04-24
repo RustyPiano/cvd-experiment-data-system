@@ -801,6 +801,7 @@ export function toExperimentPatch(values: BasicInfoValues): ExperimentUpdateRequ
   return {
     experiment_type: values.experimentType.trim(),
     material_system: normalizeNullableString(values.materialSystem),
+    experiment_date: values.experimentDate.trim(),
     objective: normalizeNullableString(values.objective),
   };
 }

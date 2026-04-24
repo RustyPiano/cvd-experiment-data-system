@@ -23,7 +23,7 @@ export function ExperimentMainFields({
     <div className="editor-form-grid">
       <div className="editor-field editor-field-wide">
         <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-          实验日期沿用主记录日期；实验类型会随基础信息模块一起自动保存。
+          草稿可修正实验日期；编号保持创建时的历史标识。
         </Typography.Paragraph>
       </div>
       <div className="editor-field">
@@ -61,7 +61,13 @@ export function ExperimentMainFields({
         <Typography.Text strong>实验日期</Typography.Text>
         <Input
           aria-label="实验日期"
-          disabled
+          disabled={disabled}
+          onChange={(event) => {
+            onChange({
+              ...value,
+              experimentDate: event.target.value,
+            });
+          }}
           type="date"
           value={value.experimentDate}
         />

@@ -72,6 +72,14 @@ function groupValidationErrorsBySection(errors: EditorValidationError[]) {
   }, new Map());
 }
 
+function shouldShowValidationResult(validation: ExperimentValidationResponse) {
+  return (
+    validation.errors.length > 0 ||
+    validation.warnings.length > 0 ||
+    (typeof validation.completion_score === "number" && validation.completion_score < 100)
+  );
+}
+
 export function useExperimentEditor({
   experimentId,
   accessToken,
@@ -494,9 +502,7 @@ export function useExperimentEditor({
       }
 
       const validation = await validateExperiment(accessToken, experimentId);
-      setValidationResult(
-        validation.errors.length > 0 || validation.warnings.length > 0 ? validation : null,
-      );
+      setValidationResult(shouldShowValidationResult(validation) ? validation : null);
       if (validation.errors.length > 0) {
         setSubmitState({
           status: "error",

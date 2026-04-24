@@ -159,6 +159,7 @@ locked -> clone as draft
 - owner 和 admin 可编辑。
 - 自动保存开启。
 - 可上传文件。
+- 可以修正 `experiment_date`，但 `run_code` 保持创建时的历史编号，不随日期变化。
 
 ### 6.2 submitted
 
@@ -489,6 +490,16 @@ result_summary
 4. 继承的高风险字段未确认。
 5. 前驱体没有 batch_no。
 6. 文件没有关联 sample。
+
+### 10.3 完整度汇总
+
+`POST /api/v1/experiments/{id}/validate` 和提交失败的 `422` 响应除 `ok/errors/warnings` 外，还返回：
+
+- `completion_score`：0–100 的确定性完整度分数，基于主字段、前驱体、基底、炉温、气体和环境的固定检查项。
+- `blocking_count`：阻塞错误数量，默认等于 `errors.length`。
+- `warning_count`：提示项数量，默认等于 `warnings.length`。
+
+前端提交前汇总应展示分数、阻塞/提示计数，并按 `module_key` 提供跳转入口。
 
 ---
 

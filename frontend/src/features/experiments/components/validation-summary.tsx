@@ -24,6 +24,10 @@ function getModuleLabel(moduleKey: string) {
   return moduleLabels[moduleKey] ?? moduleKey;
 }
 
+function getSummaryValue(value: number | undefined, fallback: number) {
+  return typeof value === "number" ? value : fallback;
+}
+
 export function ValidationSummary({
   result,
   onJumpToModule,
@@ -35,19 +39,41 @@ export function ValidationSummary({
     ...result.errors.map((issue) => ({ ...issue, level: "error" as const })),
     ...result.warnings.map((issue) => ({ ...issue, level: "warning" as const })),
   ];
+  const completionScore = getSummaryValue(result.completion_score, items.length === 0 ? 100 : 0);
+  const blockingCount = getSummaryValue(result.blocking_count, result.errors.length);
+  const warningCount = getSummaryValue(result.warning_count, result.warnings.length);
+  const moduleTargets = [...new Set(items.map((issue) => issue.module_key))];
 
-  if (items.length === 0) {
+  if (items.length === 0 && completionScore >= 100) {
     return null;
   }
 
   return (
     <Card>
-      <Space direction="vertical" size={12} style={{ display: "flex" }}>
+      <Space orientation="vertical" size={12} style={{ display: "flex" }}>
         <Alert
           showIcon
-          title={`校验发现 ${result.errors.length} 个错误，${result.warnings.length} 个警告`}
-          type={result.errors.length > 0 ? "error" : "warning"}
+          title={`校验发现 ${blockingCount} 个错误，${warningCount} 个警告`}
+          type={blockingCount > 0 ? "error" : "warning"}
         />
+        <Space wrap>
+          <Tag color={completionScore >= 90 ? "success" : completionScore >= 70 ? "warning" : "error"}>
+            完整度 {completionScore}%
+          </Tag>
+          <Tag color={blockingCount > 0 ? "error" : "success"}>阻塞项 {blockingCount}</Tag>
+          <Tag color={warningCount > 0 ? "warning" : "success"}>提示项 {warningCount}</Tag>
+          {moduleTargets.map((moduleKey) => (
+            <Button
+              key={moduleKey}
+              onClick={() => {
+                onJumpToModule(moduleKey);
+              }}
+              size="small"
+            >
+              跳转到{getModuleLabel(moduleKey)}
+            </Button>
+          ))}
+        </Space>
         <div className="editor-validation-list">
           {items.map((issue, index) => (
             <div className="editor-validation-item" key={`${issue.level}-${issue.module_key}-${issue.field_path}-${index}`}>
@@ -56,14 +82,7 @@ export function ValidationSummary({
                   {issue.level === "error" ? "错误" : "警告"}
                 </Tag>
                 <Typography.Text type="secondary">{getModuleLabel(issue.module_key)}</Typography.Text>
-                <Button
-                  onClick={() => {
-                    onJumpToModule(issue.module_key);
-                  }}
-                  type="link"
-                >
-                  {issue.message}
-                </Button>
+                <Typography.Text>{issue.message}</Typography.Text>
               </Space>
             </div>
           ))}

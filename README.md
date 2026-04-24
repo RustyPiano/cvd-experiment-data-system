@@ -17,7 +17,7 @@
 - `/admin/vocabularies`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的 Beta 编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
-- draft 自动保存、区块级保存状态、固定操作区、提交前验证汇总和 `submit` 提交闭环
+- draft 自动保存、实验日期修正、区块级保存状态、固定操作区、带完整度评分的提交前验证汇总和 `submit` 提交闭环
 - `/experiments/:id` 已接通 `return-to-draft / lock / invalidate / clone`
 - 详情页已接通文件概览、审计轨迹、JSON/Excel 导出入口
 - 详情页已接通样品概览，并支持跳转样品详情
@@ -38,7 +38,7 @@
 - 实验详情页和编辑器壳层在请求失败时会显示错误态，不再返回空白页面。
 - 统一 API client 现在兼容 `204`、JSON 和纯文本错误响应，避免非 JSON 响应被误解析成 `SyntaxError`。
 - 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
-- 当前实验编辑器现已覆盖全部 V1 模块 key、draft 自动保存、固定底部操作区、提交前验证汇总和提交闭环；非 draft 实验会切换为只读。
+- 当前实验编辑器现已覆盖全部 V1 模块 key、draft 自动保存、draft 实验日期修正、固定底部操作区、提交前验证完整度汇总和提交闭环；非 draft 实验会切换为只读。
 - 实验详情页现已按权限和状态显示 `return-to-draft / lock / invalidate / clone` 按钮；`locked` 实验仅允许派生草稿。
 - 实验详情页现在会并行显示文件概览、审计轨迹，并提供结构化 JSON / Excel 导出按钮。
 - 实验详情页现在会并行显示样品概览，并支持直接进入样品详情页。
@@ -48,9 +48,9 @@
 - 受控词表后台现在已接通 `/admin/vocabularies`，支持 admin 列表筛选、创建、编辑和启停用；非 admin 会隐藏侧栏入口并在直达路由时收到权限提示。
 - 编辑器 autosave 现在会先同步最新表单快照，再调度保存，避免连续编辑时遗漏后改动区块。
 - 当前模块 autosave 会保留后端 payload 中前端暂未建模的字段，避免最小表单覆盖掉已有结构化数据。
-- 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，有 `errors` 时阻止提交并展示逐项问题。
+- 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，显示 `completion_score / blocking_count / warning_count` 和模块跳转按钮，有 `errors` 时阻止提交并展示逐项问题。
 - 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
-- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`118 passed`），前端 `lint / typecheck / test` 通过（`69 passed`）；前端构建可能出现 Vite chunk size 警告，暂不影响运行。
+- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`123 passed`），前端 `lint / typecheck / test` 通过（`71 passed`）；前端构建可能出现 Vite chunk size 警告，暂不影响运行。
 
 ## 当前后端能力
 
@@ -266,10 +266,11 @@ docker compose up --build
 - `invalid` 实验默认从列表隐藏；显式传 `status=invalid` 才返回。
 - owner/admin 当前可以将自己的 `draft/submitted` 实验直接作废；`locked` 实验仅允许 clone。
 - `submitted` 实验现在支持显式退回 `draft`，并写入审计日志。
+- `PATCH /api/v1/experiments/{id}` 仅允许更新 `draft`；其中 `experiment_date` 可修正主记录日期，但不会重算或改写创建时生成的 `run_code`。
 - 模块 payload 当前支持 `basic_info`、`environment`、`precheck`、`precursors`、`substrates`、`furnace_program`、`gas_program`、`process_observation`、`characterization`、`result_summary`。
 - `clone` 权限规则：owner/admin 可从自己的 `submitted/locked` 实验发起，非 owner 只能从 `locked` 实验发起；新实验会回到 `draft`。
 - `clone` 会复制主实验参数、模块 payload 和样品，但不会复制 `summary_result`、作废原因、状态时间戳和已上传文件；新样品会按新实验编号重新分配 `sample_code`。
-- 提交前校验现在覆盖主字段和已实现的模块规则：至少一个前驱体、至少一个温区程序、温区时间严格递增；如果填写了气体程序，则要求 `end_min > start_min` 且时间段不能重叠；`seal_intact=false` 时必须填写 `risk_note`；`quality_label=unknown` 会返回 warning。
+- 提交前校验现在覆盖主字段和已实现的模块规则：至少一个前驱体、至少一个温区程序、温区时间严格递增；如果填写了气体程序，则要求 `end_min > start_min` 且时间段不能重叠；`seal_intact=false` 时必须填写 `risk_note`；`quality_label=unknown` 会返回 warning。校验响应包含 `completion_score`、`blocking_count` 和 `warning_count`，前端据此展示提交前完整度和跳转目标。
 - `substrates` 模块会同步生成或更新 `TOP/BOTTOM` 样品；移除某一基底角色时，未被文件或子样品引用的样品会标记 `deleted_at/deleted_by_id` 并从默认列表隐藏，而不是物理删除。
 - 如果后续重新添加已软删除的 `TOP/BOTTOM` 角色，后端会恢复保留的样品行并更新字段，避免唯一 `sample_code` 冲突。
 - 模块 payload 的非法对象形状会在后端转成 `422`，避免把脏 JSON 打成 `500`。

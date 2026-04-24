@@ -719,7 +719,7 @@ describe("ExperimentEditorPage", () => {
           request.method === "PATCH" &&
           request.pathname === "/api/v1/experiments/exp-1" &&
           (request.body as { experiment_type?: string }).experiment_type === "cvd_hot_wall" &&
-          !("experiment_date" in ((request.body as Record<string, unknown>) ?? {})),
+          (request.body as { experiment_date?: string }).experiment_date === "2026-04-23",
       ),
     ).toBe(true);
 
@@ -1065,6 +1065,44 @@ describe("ExperimentEditorPage", () => {
                 };
               }
             ).payload_json?.next_step === "Inspect AFM before the next run",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("autosaves edited draft experiment date", async () => {
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const experimentDateInput = await screen.findByLabelText("实验日期");
+    expect(experimentDateInput).not.toBeDisabled();
+
+    vi.useFakeTimers();
+    fireEvent.change(experimentDateInput, { target: { value: "2026-04-20" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "PATCH" &&
+            request.pathname === "/api/v1/experiments/exp-1" &&
+            (request.body as { experiment_date?: string }).experiment_date === "2026-04-20",
         ),
       ).toBe(true);
     });
@@ -1690,6 +1728,9 @@ describe("ExperimentEditorPage", () => {
       if (url.pathname === "/api/v1/experiments/exp-1/validate" && method === "POST") {
         return jsonResponse({
           ok: false,
+          completion_score: 74,
+          blocking_count: 1,
+          warning_count: 1,
           errors: [
             {
               module_key: "precursors",
@@ -1725,10 +1766,13 @@ describe("ExperimentEditorPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "提交实验" }));
 
     expect(await screen.findByText("校验发现 1 个错误，1 个警告")).toBeInTheDocument();
+    expect(screen.getByText("完整度 74%")).toBeInTheDocument();
+    expect(screen.getByText("阻塞项 1")).toBeInTheDocument();
+    expect(screen.getByText("提示项 1")).toBeInTheDocument();
     expect(screen.getByText("At least one precursor is required")).toBeInTheDocument();
     expect(screen.getByText("Quality label is unknown")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /At least one precursor is required/i }));
+    fireEvent.click(screen.getByRole("button", { name: "跳转到前驱体" }));
     expect(scrollIntoViewMock).toHaveBeenCalled();
     expect(
       server.requests.some(
@@ -1737,6 +1781,54 @@ describe("ExperimentEditorPage", () => {
           request.pathname === "/api/v1/experiments/exp-1/submit",
       ),
     ).toBe(false);
+  });
+
+  it("shows incomplete validation score when validation has no issues", async () => {
+    const server = createEditorFetchMock();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-1/validate" && method === "POST") {
+        return jsonResponse({
+          ok: true,
+          completion_score: 92,
+          blocking_count: 0,
+          warning_count: 0,
+          errors: [],
+          warnings: [],
+        });
+      }
+
+      return server.fetchMock(input, init);
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "提交实验" }));
+
+    expect(await screen.findByText("完整度 92%")).toBeInTheDocument();
+    expect(screen.getByText("阻塞项 0")).toBeInTheDocument();
+    expect(screen.getByText("提示项 0")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" &&
+            request.pathname === "/api/v1/experiments/exp-1/submit",
+        ),
+      ).toBe(true);
+    });
   });
 
   it("warns before leaving when there are unsaved changes after a save failure", async () => {
