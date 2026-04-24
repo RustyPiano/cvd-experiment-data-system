@@ -519,7 +519,7 @@ describe("ExperimentEditorPage", () => {
         (request) =>
           request.method === "PATCH" &&
           request.pathname === "/api/v1/experiments/exp-1" &&
-          !("experiment_type" in ((request.body as Record<string, unknown>) ?? {})) &&
+          (request.body as { experiment_type?: string }).experiment_type === "cvd_hot_wall" &&
           !("experiment_date" in ((request.body as Record<string, unknown>) ?? {})),
       ),
     ).toBe(true);

@@ -39,7 +39,7 @@
 - 统一 API client 现在兼容 `204`、JSON 和纯文本错误响应，避免非 JSON 响应被误解析成 `SyntaxError`。
 - 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
 - 当前实验编辑器现已覆盖全部 V1 模块 key、draft 自动保存、固定底部操作区、提交前验证汇总和提交闭环；非 draft 实验会切换为只读。
-- 实验详情页现已按权限和状态显示 `return-to-draft / lock / invalidate / clone` 按钮；owner/admin 可从自己的 `submitted/locked` 实验派生，其他用户只能从 `locked` 实验派生。
+- 实验详情页现已按权限和状态显示 `return-to-draft / lock / invalidate / clone` 按钮；`locked` 实验仅允许派生草稿。
 - 实验详情页现在会并行显示文件概览、审计轨迹，并提供结构化 JSON / Excel 导出按钮。
 - 实验详情页现在会并行显示样品概览，并支持直接进入样品详情页。
 - 文件页现在支持按方法和文件类别筛选，并接通带鉴权的文件下载、draft 上传和软删除。
@@ -104,6 +104,7 @@ bun run dev --host 0.0.0.0 --port 5173
 
 ```bash
 cp .env.example .env
+# 首次启动前请至少替换 POSTGRES_PASSWORD 和 JWT_SECRET_KEY。
 docker compose config
 docker compose up --build
 ```
@@ -261,7 +262,7 @@ docker compose up --build
 - 后端已开放本地前端开发所需 CORS，并暴露 `Content-Disposition` 供文件下载和导出读取文件名。
 - `member` 可以创建自己的草稿，查看自己的实验，以及查看其他人的 `submitted/locked` 实验。
 - `invalid` 实验默认从列表隐藏；显式传 `status=invalid` 才返回。
-- owner/admin 当前可以将自己的任意非 `invalid` 实验直接作废；`submitted` 不要求先退回 `draft`。
+- owner/admin 当前可以将自己的 `draft/submitted` 实验直接作废；`locked` 实验仅允许 clone。
 - `submitted` 实验现在支持显式退回 `draft`，并写入审计日志。
 - 模块 payload 当前支持 `basic_info`、`environment`、`precheck`、`precursors`、`substrates`、`furnace_program`、`gas_program`、`process_observation`、`characterization`、`result_summary`。
 - `clone` 权限规则：owner/admin 可从自己的 `submitted/locked` 实验发起，非 owner 只能从 `locked` 实验发起；新实验会回到 `draft`。

@@ -63,7 +63,8 @@ export function ExperimentStateActions({
   const isBusy = activeAction !== null;
   const canReturnToDraft = isOwnerOrAdmin && experiment.status === "submitted";
   const canLock = isOwnerOrAdmin && experiment.status === "submitted";
-  const canInvalidate = isOwnerOrAdmin && experiment.status !== "invalid";
+  const canInvalidate =
+    isOwnerOrAdmin && experiment.status !== "invalid" && experiment.status !== "locked";
   const canClone =
     currentUser.role !== "viewer" &&
     (experiment.status === "locked" || (experiment.status === "submitted" && isOwner));

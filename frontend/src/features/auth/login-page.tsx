@@ -6,7 +6,7 @@ export function LoginPage() {
   return (
     <div className="auth-page">
       <Card className="auth-panel" variant="borderless">
-        <Space direction="vertical" size={24} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={24} style={{ width: "100%" }}>
           <div>
             <Typography.Title level={2} style={{ marginBottom: 8 }}>
               CVD 实验数据采集系统

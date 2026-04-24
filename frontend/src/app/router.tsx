@@ -1,13 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
-import { LoginPage } from "../features/auth/login-page";
-import { ExperimentDetailPage } from "../features/experiments/experiment-detail-page";
-import { ExperimentEditorPage } from "../features/experiments/experiment-editor-page";
-import { ExperimentFilesPage } from "../features/experiments/experiment-files-page";
-import { ExperimentListPage } from "../features/experiments/experiment-list-page";
-import { ExperimentNewPage } from "../features/experiments/experiment-new-page";
-import { SampleDetailPage } from "../features/samples/sample-detail-page";
-import { VocabularyAdminPage } from "../features/vocabularies/vocabulary-admin-page";
 import { AppShell } from "../shared/ui/app-shell";
 import { ProtectedRoute } from "./routes/route-guards";
 
@@ -18,7 +10,10 @@ export const router = createBrowserRouter([
   },
   {
     path: "/login",
-    element: <LoginPage />,
+    lazy: async () => {
+      const { LoginPage } = await import("../features/auth/login-page");
+      return { Component: LoginPage };
+    },
   },
   {
     element: (
@@ -29,31 +24,64 @@ export const router = createBrowserRouter([
     children: [
       {
         path: "/experiments",
-        element: <ExperimentListPage />,
+        lazy: async () => {
+          const { ExperimentListPage } = await import(
+            "../features/experiments/experiment-list-page"
+          );
+          return { Component: ExperimentListPage };
+        },
       },
       {
         path: "/experiments/new",
-        element: <ExperimentNewPage />,
+        lazy: async () => {
+          const { ExperimentNewPage } = await import(
+            "../features/experiments/experiment-new-page"
+          );
+          return { Component: ExperimentNewPage };
+        },
       },
       {
         path: "/experiments/:experimentId",
-        element: <ExperimentDetailPage />,
+        lazy: async () => {
+          const { ExperimentDetailPage } = await import(
+            "../features/experiments/experiment-detail-page"
+          );
+          return { Component: ExperimentDetailPage };
+        },
       },
       {
         path: "/experiments/:experimentId/edit",
-        element: <ExperimentEditorPage />,
+        lazy: async () => {
+          const { ExperimentEditorPage } = await import(
+            "../features/experiments/experiment-editor-page"
+          );
+          return { Component: ExperimentEditorPage };
+        },
       },
       {
         path: "/experiments/:experimentId/files",
-        element: <ExperimentFilesPage />,
+        lazy: async () => {
+          const { ExperimentFilesPage } = await import(
+            "../features/experiments/experiment-files-page"
+          );
+          return { Component: ExperimentFilesPage };
+        },
       },
       {
         path: "/samples/:sampleId",
-        element: <SampleDetailPage />,
+        lazy: async () => {
+          const { SampleDetailPage } = await import("../features/samples/sample-detail-page");
+          return { Component: SampleDetailPage };
+        },
       },
       {
         path: "/admin/vocabularies",
-        element: <VocabularyAdminPage />,
+        lazy: async () => {
+          const { VocabularyAdminPage } = await import(
+            "../features/vocabularies/vocabulary-admin-page"
+          );
+          return { Component: VocabularyAdminPage };
+        },
       },
     ],
   },

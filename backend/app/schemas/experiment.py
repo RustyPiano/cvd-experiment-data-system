@@ -18,6 +18,7 @@ class ExperimentCreate(BaseModel):
 
 
 class ExperimentUpdate(BaseModel):
+    experiment_type: str | None = Field(default=None, min_length=1, max_length=64)
     material_system: str | None = Field(default=None, max_length=64)
     objective: str | None = None
     summary_result: str | None = None

@@ -556,6 +556,7 @@ export function serializeSectionValues(
 
 export function toExperimentPatch(values: BasicInfoValues): ExperimentUpdateRequest {
   return {
+    experiment_type: values.experimentType.trim(),
     material_system: normalizeNullableString(values.materialSystem),
     objective: normalizeNullableString(values.objective),
   };

@@ -59,6 +59,7 @@ export type ExperimentCreateRequest = {
 };
 
 export type ExperimentUpdateRequest = {
+  experiment_type?: string;
   material_system?: string | null;
   objective?: string | null;
   summary_result?: string | null;

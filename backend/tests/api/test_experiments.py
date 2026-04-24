@@ -182,11 +182,16 @@ def test_patch_experiment_updates_draft_for_owner(active_user) -> None:
 
     patch_response = client.patch(
         f"/api/v1/experiments/{experiment_id}",
-        json={"objective": "After patch", "material_system": "WS2"},
+        json={
+            "experiment_type": "cvd_hot_wall",
+            "objective": "After patch",
+            "material_system": "WS2",
+        },
         headers=auth_headers(active_user.email),
     )
 
     assert patch_response.status_code == 200
+    assert patch_response.json()["experiment_type"] == "cvd_hot_wall"
     assert patch_response.json()["objective"] == "After patch"
     assert patch_response.json()["material_system"] == "WS2"
 
@@ -1055,6 +1060,41 @@ def test_invalidate_moves_experiment_to_invalid(active_user) -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "invalid"
+
+
+def test_invalidate_rejects_locked_experiment(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Locked records are clone-only",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    populate_required_modules(experiment_id, active_user.email)
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    assert submit_response.status_code == 200
+    lock_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/lock",
+        headers=auth_headers(active_user.email),
+    )
+    assert lock_response.status_code == 200
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/invalidate",
+        json={"reason": "Do not mutate locked records"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Locked experiments can only be cloned"
 
 
 def test_invalidate_rejects_already_invalid_experiment(active_user) -> None:

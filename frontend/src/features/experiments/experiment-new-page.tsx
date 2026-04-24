@@ -87,7 +87,7 @@ export function ExperimentNewPage() {
       ) : null}
       {actionError ? <Alert message={actionError} showIcon type="error" /> : null}
       <Row gutter={[16, 16]}>
-        <Col span={8}>
+        <Col md={8} xs={24}>
           <Card className="action-card">
             <Space orientation="vertical" size={12}>
               <Typography.Title level={4} style={{ margin: 0 }}>
@@ -111,7 +111,7 @@ export function ExperimentNewPage() {
             </Space>
           </Card>
         </Col>
-        <Col span={8}>
+        <Col md={8} xs={24}>
           <Card className="action-card">
             <Space orientation="vertical" size={12}>
               <Typography.Title level={4} style={{ margin: 0 }}>
@@ -134,7 +134,7 @@ export function ExperimentNewPage() {
             </Space>
           </Card>
         </Col>
-        <Col span={8}>
+        <Col md={8} xs={24}>
           <Card className="action-card">
             <Space orientation="vertical" size={12}>
               <Typography.Title level={4} style={{ margin: 0 }}>

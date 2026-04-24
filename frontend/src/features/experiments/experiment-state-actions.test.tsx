@@ -399,6 +399,9 @@ describe("Experiment state actions", () => {
       },
     );
 
+    expect(await screen.findByRole("button", { name: "派生草稿" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "作废实验" })).not.toBeInTheDocument();
+
     fireEvent.click(await screen.findByRole("button", { name: "派生草稿" }));
 
     await waitFor(() => {
