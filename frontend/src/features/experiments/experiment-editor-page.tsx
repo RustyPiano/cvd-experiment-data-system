@@ -1,14 +1,19 @@
-import { useMemo } from "react";
+import { useContext, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Anchor, Button, Spin } from "antd";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+  UNSAFE_DataRouterContext as DataRouterContext,
+  useBlocker,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
 import { useAuth } from "../auth/use-auth";
 import { getExperiment, listExperimentModules } from "./api";
 import { CharacterizationSection } from "./components/characterization-section";
-import { EditorStatusBar } from "./components/editor-status-bar";
+import { EditorActionBar } from "./components/editor-action-bar";
 import { EditorSectionCard } from "./components/editor-section-card";
 import { EnvironmentSection } from "./components/environment-section";
 import { ExperimentMainFields } from "./components/experiment-main-fields";
@@ -20,6 +25,7 @@ import { PrecheckSection } from "./components/precheck-section";
 import { ProcessObservationSection } from "./components/process-observation-section";
 import { ResultSummarySection } from "./components/result-summary-section";
 import { SubstratesSection } from "./components/substrates-section";
+import { ValidationSummary } from "./components/validation-summary";
 import { createInitialEditorValues, createModulePayloadMap, type ModulePayloadMap } from "./editor-types";
 import { useExperimentEditor } from "./use-experiment-editor";
 
@@ -35,6 +41,25 @@ const sectionAnchors = [
   { key: "characterization", label: "表征结果" },
   { key: "result_summary", label: "结果总结" },
 ];
+
+function EditorRouteLeaveGuard({ message, when }: { message: string; when: boolean }) {
+  const blocker = useBlocker(when);
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") {
+      return;
+    }
+
+    if (window.confirm(message)) {
+      blocker.proceed();
+      return;
+    }
+
+    blocker.reset();
+  }, [blocker, message]);
+
+  return null;
+}
 
 function ExperimentEditorWorkspace({
   accessToken,
@@ -60,30 +85,35 @@ function ExperimentEditorWorkspace({
     initialModulePayloads,
     initialValues,
   });
+  const dataRouterContext = useContext(DataRouterContext);
+  const editorDisabled = !editor.isDraft || editor.isSubmitting;
+
+  const scrollToSection = (moduleKey: string) => {
+    const section = document.getElementById(`section-${moduleKey}`);
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const navigateToDetail = () => {
+    if (editor.shouldWarnOnLeave && !window.confirm(editor.leaveWarning)) {
+      return;
+    }
+
+    navigate(`/experiments/${editor.experiment.id}`);
+  };
 
   return (
-    <div className="content-stack">
-      <PageHeader
-        actions={
-          <Button
-            onClick={() => {
-              navigate(`/experiments/${editor.experiment.id}`);
-            }}
-          >
-            查看详情
-          </Button>
-        }
-        subtitle="各模块修改后自动保存，提交后不可再编辑。"
-        title={`编辑 ${editor.experiment.run_code}`}
-      />
+    <div className="content-stack experiment-editor-page">
+      {dataRouterContext ? (
+        <EditorRouteLeaveGuard message={editor.leaveWarning} when={editor.shouldWarnOnLeave} />
+      ) : null}
+      <PageHeader subtitle="各模块修改后自动保存，提交后不可再编辑。" title={`编辑 ${editor.experiment.run_code}`} />
       <ExperimentSourceBanner experiment={editor.experiment} />
-      <EditorStatusBar
-        experiment={editor.experiment}
-        isDraft={editor.isDraft}
-        onSubmit={editor.submitDraft}
-        submitState={editor.submitState}
-        summary={editor.saveSummary}
-      />
+      {editor.validationResult ? (
+        <ValidationSummary
+          onJumpToModule={scrollToSection}
+          result={editor.validationResult}
+        />
+      ) : null}
       <div className="editor-workspace-layout">
         <Anchor
           affix
@@ -99,7 +129,7 @@ function ExperimentEditorWorkspace({
               title="基础信息"
             >
               <ExperimentMainFields
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -118,7 +148,7 @@ function ExperimentEditorWorkspace({
               title="环境条件"
             >
               <EnvironmentSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -137,7 +167,7 @@ function ExperimentEditorWorkspace({
               title="预检查"
             >
               <PrecheckSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -156,7 +186,7 @@ function ExperimentEditorWorkspace({
               title="前驱体"
             >
               <PrecursorsSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -175,7 +205,7 @@ function ExperimentEditorWorkspace({
               title="基底"
             >
               <SubstratesSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -194,7 +224,7 @@ function ExperimentEditorWorkspace({
               title="炉温程序"
             >
               <FurnaceProgramSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -213,7 +243,7 @@ function ExperimentEditorWorkspace({
               title="气体程序"
             >
               <GasProgramSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -232,7 +262,7 @@ function ExperimentEditorWorkspace({
               title="过程观察"
             >
               <ProcessObservationSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -251,7 +281,7 @@ function ExperimentEditorWorkspace({
               title="表征结果"
             >
               <CharacterizationSection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -270,7 +300,7 @@ function ExperimentEditorWorkspace({
               title="结果总结"
             >
               <ResultSummarySection
-                disabled={!editor.isDraft}
+                disabled={editorDisabled}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -284,6 +314,14 @@ function ExperimentEditorWorkspace({
           </div>
         </div>
       </div>
+      <EditorActionBar
+        experiment={editor.experiment}
+        isDraft={editor.isDraft}
+        onBack={navigateToDetail}
+        onSubmit={editor.submitDraft}
+        saveSummary={editor.saveSummary}
+        submitState={editor.submitState}
+      />
     </div>
   );
 }

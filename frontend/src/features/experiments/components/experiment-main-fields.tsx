@@ -17,14 +17,20 @@ export function ExperimentMainFields({
     <div className="editor-form-grid">
       <div className="editor-field editor-field-wide">
         <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-          当前后端主记录只支持保存材料体系和实验目的；实验类型与实验日期在这一版先保持只读展示。
+          实验日期沿用主记录日期；实验类型会随基础信息模块一起自动保存。
         </Typography.Paragraph>
       </div>
       <div className="editor-field">
         <Typography.Text strong>实验类型</Typography.Text>
         <Input
           aria-label="实验类型"
-          disabled
+          disabled={disabled}
+          onChange={(event) => {
+            onChange({
+              ...value,
+              experimentType: event.target.value,
+            });
+          }}
           placeholder="例如 cvd_2zone"
           value={value.experimentType}
         />

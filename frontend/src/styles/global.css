@@ -89,6 +89,26 @@ a {
   align-items: flex-start;
 }
 
+.editor-action-bar {
+  position: fixed;
+  left: 280px;
+  right: 24px;
+  bottom: 16px;
+  z-index: 10;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+}
+
+.experiment-editor-page {
+  padding-bottom: 136px;
+}
+
+.editor-action-bar-content {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
 .editor-section-header {
   display: flex;
   justify-content: space-between;
@@ -160,6 +180,19 @@ a {
   scroll-margin-top: 96px;
 }
 
+.editor-validation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-validation-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+}
+
 /* Tablet: cap form grid to 2 columns */
 @media (min-width: 769px) and (max-width: 1024px) {
   .editor-form-grid {
@@ -185,6 +218,7 @@ a {
   }
 
   .editor-status-bar,
+  .editor-action-bar-content,
   .editor-section-header,
   .editor-switch-row,
   .editor-array-card-header {
@@ -197,6 +231,11 @@ a {
 
   .editor-workspace-layout {
     display: block;
+  }
+
+  .editor-action-bar {
+    left: 16px;
+    right: 16px;
   }
 
   .editor-section-anchor {

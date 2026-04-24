@@ -1,5 +1,6 @@
 import type {
   ExperimentModulePayloadRead,
+  QualityLabel,
   ExperimentRead,
   ExperimentUpdateRequest,
 } from "../../shared/types/api";
@@ -36,10 +37,15 @@ export type BasicInfoValues = {
 export type PrecheckValues = {
   sealIntact: boolean;
   riskNote: string;
+  hoodClean: NullableBooleanValue;
+  flangeBlocked: NullableBooleanValue;
+  boatContaminationLevel: string;
+  tubeContaminationLevel: string;
 };
 
 export type EnvironmentValues = {
   indoorTemperatureC: string;
+  indoorHumidityPercent: string;
   sampleEnv: string;
   abnormalNote: string;
 };
@@ -48,9 +54,21 @@ type PayloadBackedValue = {
   sourcePayload?: Record<string, unknown>;
 };
 
+export type NullableBooleanValue = "" | "true" | "false";
+
 export type PrecursorItemValues = PayloadBackedValue & {
   role: string;
   type: string;
+  brand: string;
+  concentration: string;
+  concentrationUnit: string;
+  method: string;
+  meltingTemperatureC: string;
+  spinSpeedRpm: string;
+  preSpinSpeedRpm: string;
+  preparationTimeMin: string;
+  massMg: string;
+  batchNo: string;
 };
 
 export type PrecursorsValues = {
@@ -64,6 +82,10 @@ export type SubstrateItemValues = PayloadBackedValue & {
   sizeMm: string;
   treatmentMethod: string;
   positionMm: string;
+  treatmentTemperatureC: string;
+  treatmentDurationMin: string;
+  treatmentPowerW: string;
+  treatmentGas: string;
 };
 
 export type SubstratesValues = {
@@ -92,11 +114,18 @@ export type GasSegmentValues = PayloadBackedValue & {
   startMin: string;
   endMin: string;
   flowSccm: string;
+  note: string;
+  components: GasComponentValues[];
 };
 
 export type GasProgramValues = {
   preWashingGas: string;
   segments: GasSegmentValues[];
+};
+
+export type GasComponentValues = PayloadBackedValue & {
+  gas: string;
+  ratioPercent: string;
 };
 
 export type ProcessObservationValues = {
@@ -108,6 +137,9 @@ export type ProcessObservationValues = {
 export type CharacterizationMethodValues = PayloadBackedValue & {
   method: string;
   result: string;
+  enabled: boolean;
+  excitationNm: string;
+  note: string;
 };
 
 export type CharacterizationValues = {
@@ -116,6 +148,8 @@ export type CharacterizationValues = {
 
 export type ResultSummaryValues = {
   summaryResult: string;
+  qualityLabel: QualityLabel;
+  nextStep: string;
 };
 
 export type ExperimentEditorValues = {
@@ -178,6 +212,30 @@ function asBoolean(value: unknown) {
   return value === true;
 }
 
+function asBooleanWithDefault(value: unknown, defaultValue: boolean) {
+  if (value === true) {
+    return true;
+  }
+
+  if (value === false) {
+    return false;
+  }
+
+  return defaultValue;
+}
+
+function asNullableBooleanValue(value: unknown): NullableBooleanValue {
+  if (value === true) {
+    return "true";
+  }
+
+  if (value === false) {
+    return "false";
+  }
+
+  return "";
+}
+
 function removeNullEntries(record: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(record).filter(([, value]) => value !== null && value !== undefined),
@@ -220,6 +278,18 @@ function normalizeNumberLike(value: string) {
   return Number.isNaN(numericValue) ? trimmed : numericValue;
 }
 
+function normalizeNullableBoolean(value: NullableBooleanValue) {
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return null;
+}
+
 function hasAnyValue(record: Record<string, string>) {
   return Object.values(record).some((value) => value.trim().length > 0);
 }
@@ -228,6 +298,16 @@ export function createEmptyPrecursorItem(): PrecursorItemValues {
   return {
     role: "",
     type: "",
+    brand: "",
+    concentration: "",
+    concentrationUnit: "",
+    method: "",
+    meltingTemperatureC: "",
+    spinSpeedRpm: "",
+    preSpinSpeedRpm: "",
+    preparationTimeMin: "",
+    massMg: "",
+    batchNo: "",
   };
 }
 
@@ -239,6 +319,10 @@ export function createEmptySubstrateItem(): SubstrateItemValues {
     sizeMm: "",
     treatmentMethod: "",
     positionMm: "",
+    treatmentTemperatureC: "",
+    treatmentDurationMin: "",
+    treatmentPowerW: "",
+    treatmentGas: "",
   };
 }
 
@@ -265,6 +349,15 @@ export function createEmptyGasSegment(): GasSegmentValues {
     startMin: "",
     endMin: "",
     flowSccm: "",
+    note: "",
+    components: [createEmptyGasComponent()],
+  };
+}
+
+export function createEmptyGasComponent(): GasComponentValues {
+  return {
+    gas: "",
+    ratioPercent: "",
   };
 }
 
@@ -276,6 +369,9 @@ export function createEmptyCharacterizationMethod(): CharacterizationMethodValue
   return {
     method: "",
     result: "",
+    enabled: true,
+    excitationNm: "",
+    note: "",
   };
 }
 
@@ -310,6 +406,7 @@ export function createInitialEditorValues(
   items: ExperimentModulePayloadRead[],
 ): ExperimentEditorValues {
   const payloads = createModulePayloadMap(items);
+  const basicInfo = asRecord(payloads.basic_info);
   const environment = asRecord(payloads.environment);
   const precheck = asRecord(payloads.precheck);
   const precursors = asRecord(payloads.precursors);
@@ -318,28 +415,45 @@ export function createInitialEditorValues(
   const gasProgram = asRecord(payloads.gas_program);
   const processObservation = asRecord(payloads.process_observation);
   const characterization = asRecord(payloads.characterization);
+  const resultSummary = asRecord(payloads.result_summary);
 
   return {
     basicInfo: {
-      experimentType: asString(experiment.experiment_type),
+      experimentType:
+        asString(basicInfo.experiment_type) || asString(experiment.experiment_type),
       materialSystem: asString(experiment.material_system),
       experimentDate: asString(experiment.experiment_date),
       objective: asString(experiment.objective),
     },
     environment: {
       indoorTemperatureC: asString(environment.indoor_temperature_C),
+      indoorHumidityPercent: asString(environment.indoor_humidity_percent),
       sampleEnv: asString(environment.sample_env),
       abnormalNote: asString(environment.abnormal_note),
     },
     precheck: {
       sealIntact: asBoolean(precheck.seal_intact),
       riskNote: asString(precheck.risk_note),
+      hoodClean: asNullableBooleanValue(precheck.hood_clean),
+      flangeBlocked: asNullableBooleanValue(precheck.flange_blocked),
+      boatContaminationLevel: asString(precheck.boat_contamination_level),
+      tubeContaminationLevel: asString(precheck.tube_contamination_level),
     },
     precursors: {
       items: asObjectArray(precursors.items).map((item) => ({
         sourcePayload: item,
         role: asString(item.role),
         type: asString(item.type),
+        brand: asString(item.brand),
+        concentration: asString(item.concentration),
+        concentrationUnit: asString(item.concentration_unit),
+        method: asString(item.method),
+        meltingTemperatureC: asString(item.melting_temperature_C),
+        spinSpeedRpm: asString(item.spin_speed_rpm),
+        preSpinSpeedRpm: asString(item.pre_spin_speed_rpm),
+        preparationTimeMin: asString(item.preparation_time_min),
+        massMg: asString(item.mass_mg),
+        batchNo: asString(item.batch_no),
       })),
     },
     substrates: {
@@ -351,6 +465,10 @@ export function createInitialEditorValues(
         sizeMm: asString(item.size_mm),
         treatmentMethod: asString(item.treatment_method),
         positionMm: asString(item.position_mm),
+        treatmentTemperatureC: asString(asRecord(item.treatment_params).temperature_C),
+        treatmentDurationMin: asString(asRecord(item.treatment_params).duration_min),
+        treatmentPowerW: asString(asRecord(item.treatment_params).power_W),
+        treatmentGas: asString(asRecord(item.treatment_params).gas),
       })),
     },
     furnaceProgram: {
@@ -375,6 +493,12 @@ export function createInitialEditorValues(
         startMin: asString(segment.start_min),
         endMin: asString(segment.end_min),
         flowSccm: asString(segment.flow_sccm),
+        note: asString(segment.note),
+        components: asObjectArray(segment.components).map((component) => ({
+          sourcePayload: component,
+          gas: asString(component.name) || asString(component.gas),
+          ratioPercent: asString(component.fraction) || asString(component.ratio_percent),
+        })),
       })),
     },
     processObservation: {
@@ -387,10 +511,17 @@ export function createInitialEditorValues(
         sourcePayload: item,
         method: asString(item.method),
         result: asString(item.result),
+        enabled: asBooleanWithDefault(item.enabled, true),
+        excitationNm: asString(item.excitation_nm),
+        note: asString(item.note),
       })),
     },
     resultSummary: {
-      summaryResult: asString(experiment.summary_result),
+      summaryResult:
+        asString(experiment.summary_result) || asString(resultSummary.summary_result),
+      qualityLabel:
+        (asString(resultSummary.quality_label) as QualityLabel) || experiment.quality_label,
+      nextStep: asString(resultSummary.next_step),
     },
   };
 }
@@ -456,6 +587,10 @@ export function toPrecheckPayload(values: PrecheckValues) {
   return {
     seal_intact: values.sealIntact,
     risk_note: values.riskNote.trim(),
+    hood_clean: normalizeNullableBoolean(values.hoodClean),
+    flange_blocked: normalizeNullableBoolean(values.flangeBlocked),
+    boat_contamination_level: normalizeNullableString(values.boatContaminationLevel),
+    tube_contamination_level: normalizeNullableString(values.tubeContaminationLevel),
   };
 }
 
@@ -463,12 +598,20 @@ export function mergePrecheckPayload(
   existingPayload: Record<string, unknown> | undefined,
   values: PrecheckValues,
 ) {
-  return mergePayloadFields(existingPayload, toPrecheckPayload(values), ["seal_intact", "risk_note"]);
+  return mergePayloadFields(existingPayload, toPrecheckPayload(values), [
+    "seal_intact",
+    "risk_note",
+    "hood_clean",
+    "flange_blocked",
+    "boat_contamination_level",
+    "tube_contamination_level",
+  ]);
 }
 
 export function toEnvironmentPayload(values: EnvironmentValues) {
   return removeNullEntries({
     indoor_temperature_C: normalizeNumberLike(values.indoorTemperatureC),
+    indoor_humidity_percent: normalizeNumberLike(values.indoorHumidityPercent),
     sample_env: normalizeNullableString(values.sampleEnv),
     abnormal_note: values.abnormalNote.trim(),
   });
@@ -478,19 +621,12 @@ export function mergeEnvironmentPayload(
   existingPayload: Record<string, unknown> | undefined,
   values: EnvironmentValues,
 ) {
-  return mergePayloadFields(
-    existingPayload,
-    {
-      ...toEnvironmentPayload(values),
-      indoor_humidity_percent: asRecord(existingPayload).indoor_humidity_percent,
-    },
-    [
-      "indoor_temperature_C",
-      "indoor_humidity_percent",
-      "sample_env",
-      "abnormal_note",
-    ],
-  );
+  return mergePayloadFields(existingPayload, toEnvironmentPayload(values), [
+    "indoor_temperature_C",
+    "indoor_humidity_percent",
+    "sample_env",
+    "abnormal_note",
+  ]);
 }
 
 export function toPrecursorsPayload(values: PrecursorsValues) {
@@ -501,6 +637,16 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
           hasAnyValue({
             role: item.role,
             type: item.type,
+            brand: item.brand,
+            concentration: item.concentration,
+            concentrationUnit: item.concentrationUnit,
+            method: item.method,
+            meltingTemperatureC: item.meltingTemperatureC,
+            spinSpeedRpm: item.spinSpeedRpm,
+            preSpinSpeedRpm: item.preSpinSpeedRpm,
+            preparationTimeMin: item.preparationTimeMin,
+            massMg: item.massMg,
+            batchNo: item.batchNo,
           }) || hasSourcePayload(item.sourcePayload),
       )
       .map((item) =>
@@ -509,8 +655,31 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
           removeNullEntries({
             role: normalizeNullableString(item.role),
             type: normalizeNullableString(item.type),
+            brand: normalizeNullableString(item.brand),
+            concentration: normalizeNumberLike(item.concentration),
+            concentration_unit: normalizeNullableString(item.concentrationUnit),
+            method: normalizeNullableString(item.method),
+            melting_temperature_C: normalizeNumberLike(item.meltingTemperatureC),
+            spin_speed_rpm: normalizeNumberLike(item.spinSpeedRpm),
+            pre_spin_speed_rpm: normalizeNumberLike(item.preSpinSpeedRpm),
+            preparation_time_min: normalizeNumberLike(item.preparationTimeMin),
+            mass_mg: normalizeNumberLike(item.massMg),
+            batch_no: normalizeNullableString(item.batchNo),
           }),
-          ["role", "type"],
+          [
+            "role",
+            "type",
+            "brand",
+            "concentration",
+            "concentration_unit",
+            "method",
+            "melting_temperature_C",
+            "spin_speed_rpm",
+            "pre_spin_speed_rpm",
+            "preparation_time_min",
+            "mass_mg",
+            "batch_no",
+          ],
         ),
       ),
   };
@@ -534,10 +703,22 @@ export function toSubstratesPayload(values: SubstratesValues) {
           sizeMm: item.sizeMm,
           treatmentMethod: item.treatmentMethod,
           positionMm: item.positionMm,
+          treatmentTemperatureC: item.treatmentTemperatureC,
+          treatmentDurationMin: item.treatmentDurationMin,
+          treatmentPowerW: item.treatmentPowerW,
+          treatmentGas: item.treatmentGas,
         }) || hasSourcePayload(item.sourcePayload),
       )
-      .map((item) =>
-        mergePayloadFields(
+      .map((item) => {
+        const existingTreatmentParams = asRecord(asRecord(item.sourcePayload).treatment_params);
+        const nextTreatmentParams = removeNullEntries({
+          temperature_C: normalizeNumberLike(item.treatmentTemperatureC),
+          duration_min: normalizeNumberLike(item.treatmentDurationMin),
+          power_W: normalizeNumberLike(item.treatmentPowerW),
+          gas: normalizeNullableString(item.treatmentGas),
+        });
+
+        return mergePayloadFields(
           item.sourcePayload,
           removeNullEntries({
             role: normalizeNullableString(item.role),
@@ -546,10 +727,27 @@ export function toSubstratesPayload(values: SubstratesValues) {
             size_mm: normalizeNullableString(item.sizeMm),
             treatment_method: normalizeNullableString(item.treatmentMethod),
             position_mm: normalizeNumberLike(item.positionMm),
+            treatment_params:
+              Object.keys(nextTreatmentParams).length > 0 || Object.keys(existingTreatmentParams).length > 0
+                ? mergePayloadFields(existingTreatmentParams, nextTreatmentParams, [
+                    "temperature_C",
+                    "duration_min",
+                    "power_W",
+                    "gas",
+                  ])
+                : undefined,
           }),
-          ["role", "type", "brand", "size_mm", "treatment_method", "position_mm"],
-        ),
-      ),
+          [
+            "role",
+            "type",
+            "brand",
+            "size_mm",
+            "treatment_method",
+            "position_mm",
+            "treatment_params",
+          ],
+        );
+      }),
   };
 }
 
@@ -619,17 +817,48 @@ export function toGasProgramPayload(values: GasProgramValues) {
   return {
     pre_washing_gas: normalizeNullableString(values.preWashingGas),
     segments: values.segments
-      .map((segment) => ({
-        keep:
-          hasAnyValue({
-            stage: segment.stage,
-            gas: segment.gas,
-            startMin: segment.startMin,
-            endMin: segment.endMin,
-            flowSccm: segment.flowSccm,
-          }) || hasSourcePayload(segment.sourcePayload),
-        payload: removeNullEntries(
-          mergePayloadFields(
+      .map((segment) => {
+        const hasComponentValues = segment.components.some(
+          (component) =>
+            hasAnyValue({
+              gas: component.gas,
+              ratioPercent: component.ratioPercent,
+            }) || hasSourcePayload(component.sourcePayload),
+        );
+
+        return {
+          keep:
+            hasAnyValue({
+              stage: segment.stage,
+              gas: segment.gas,
+              startMin: segment.startMin,
+              endMin: segment.endMin,
+              flowSccm: segment.flowSccm,
+              note: segment.note,
+            }) ||
+            hasComponentValues ||
+            hasSourcePayload(segment.sourcePayload),
+          payload: (() => {
+          const componentPayloads = segment.components
+            .map((component) => ({
+              keep:
+                hasAnyValue({
+                  gas: component.gas,
+                  ratioPercent: component.ratioPercent,
+                }) || hasSourcePayload(component.sourcePayload),
+              payload: mergePayloadFields(
+                component.sourcePayload,
+                removeNullEntries({
+                  name: normalizeNullableString(component.gas),
+                  fraction: normalizeNumberLike(component.ratioPercent),
+                }),
+                ["name", "fraction", "gas", "ratio_percent"],
+              ),
+            }))
+            .filter((component) => component.keep)
+            .map((component) => component.payload);
+
+          return mergePayloadFields(
             segment.sourcePayload,
             removeNullEntries({
               stage: normalizeNullableString(segment.stage),
@@ -637,11 +866,14 @@ export function toGasProgramPayload(values: GasProgramValues) {
               start_min: normalizeNumberLike(segment.startMin),
               end_min: normalizeNumberLike(segment.endMin),
               flow_sccm: normalizeNumberLike(segment.flowSccm),
+              note: normalizeNullableString(segment.note),
+              components: componentPayloads.length > 0 ? componentPayloads : undefined,
             }),
-            ["stage", "gas", "start_min", "end_min", "flow_sccm"],
-          ),
-        ),
-      }))
+            ["stage", "gas", "start_min", "end_min", "flow_sccm", "note", "components"],
+          );
+          })(),
+        };
+      })
       .filter((segment) => segment.keep)
       .map((segment) => segment.payload),
   };
@@ -687,6 +919,8 @@ export function toCharacterizationPayload(values: CharacterizationValues) {
         hasAnyValue({
           method: item.method,
           result: item.result,
+          excitationNm: item.excitationNm,
+          note: item.note,
         }) || hasSourcePayload(item.sourcePayload),
     )
     .map((item) =>
@@ -695,8 +929,11 @@ export function toCharacterizationPayload(values: CharacterizationValues) {
         removeNullEntries({
           method: normalizeNullableString(item.method),
           result: normalizeNullableString(item.result),
+          enabled: item.enabled,
+          excitation_nm: normalizeNumberLike(item.excitationNm),
+          note: normalizeNullableString(item.note),
         }),
-        ["method", "result"],
+        ["method", "result", "enabled", "excitation_nm", "note"],
       ),
     );
 
@@ -721,6 +958,8 @@ export function toResultSummaryPatch(values: ResultSummaryValues): ExperimentUpd
 export function toResultSummaryPayload(values: ResultSummaryValues) {
   return removeNullEntries({
     summary_result: normalizeNullableString(values.summaryResult),
+    quality_label: values.qualityLabel,
+    next_step: normalizeNullableString(values.nextStep),
   });
 }
 
@@ -728,5 +967,9 @@ export function mergeResultSummaryPayload(
   existingPayload: Record<string, unknown> | undefined,
   values: ResultSummaryValues,
 ) {
-  return mergePayloadFields(existingPayload, toResultSummaryPayload(values), ["summary_result"]);
+  return mergePayloadFields(existingPayload, toResultSummaryPayload(values), [
+    "summary_result",
+    "quality_label",
+    "next_step",
+  ]);
 }

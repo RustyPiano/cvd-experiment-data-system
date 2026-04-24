@@ -101,6 +101,18 @@ export type ExperimentModulePayloadUpsertRequest = {
   schema_version?: string;
 };
 
+export type ExperimentValidationIssue = {
+  module_key: string;
+  field_path: string;
+  message: string;
+};
+
+export type ExperimentValidationResponse = {
+  ok: boolean;
+  errors: ExperimentValidationIssue[];
+  warnings: ExperimentValidationIssue[];
+};
+
 export type FileAssetRead = {
   id: string;
   experiment_run_id: string;

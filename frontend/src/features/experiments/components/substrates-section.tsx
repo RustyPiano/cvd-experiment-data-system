@@ -123,6 +123,58 @@ export function SubstratesSection({
                 value={item.positionMm}
               />
             </div>
+            {item.treatmentMethod.trim().length > 0 ? (
+              <>
+                <div className="editor-field">
+                  <Typography.Text strong>{`处理参数温度 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`处理参数温度 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { treatmentTemperatureC: event.target.value });
+                    }}
+                    placeholder="°C"
+                    value={item.treatmentTemperatureC}
+                  />
+                </div>
+                <div className="editor-field">
+                  <Typography.Text strong>{`处理参数时长 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`处理参数时长 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { treatmentDurationMin: event.target.value });
+                    }}
+                    placeholder="min"
+                    value={item.treatmentDurationMin}
+                  />
+                </div>
+                <div className="editor-field">
+                  <Typography.Text strong>{`处理参数功率 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`处理参数功率 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { treatmentPowerW: event.target.value });
+                    }}
+                    placeholder="W"
+                    value={item.treatmentPowerW}
+                  />
+                </div>
+                <div className="editor-field">
+                  <Typography.Text strong>{`处理参数气体 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`处理参数气体 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { treatmentGas: event.target.value });
+                    }}
+                    placeholder="例如 Ar"
+                    value={item.treatmentGas}
+                  />
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ))}

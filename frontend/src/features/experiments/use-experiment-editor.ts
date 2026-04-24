@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { HttpError } from "../../shared/api/http-error";
@@ -6,8 +6,9 @@ import type {
   ExperimentModulePayloadListResponse,
   ExperimentModulePayloadRead,
   ExperimentRead,
+  ExperimentValidationResponse,
 } from "../../shared/types/api";
-import { submitExperiment, updateExperiment, upsertExperimentModule } from "./api";
+import { submitExperiment, updateExperiment, upsertExperimentModule, validateExperiment } from "./api";
 import {
   createInitialSectionStates,
   editorSectionKeys,
@@ -34,6 +35,20 @@ type SubmitState = {
   status: "idle" | "submitting" | "error";
   message: string | null;
 };
+
+function isValidationResponse(payload: unknown): payload is ExperimentValidationResponse {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  return (
+    "ok" in payload &&
+    "errors" in payload &&
+    "warnings" in payload &&
+    Array.isArray((payload as ExperimentValidationResponse).errors) &&
+    Array.isArray((payload as ExperimentValidationResponse).warnings)
+  );
+}
 
 function resolveErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
@@ -98,6 +113,10 @@ export function useExperimentEditor({
     status: "idle",
     message: null,
   });
+  const [validationResult, setValidationResult] = useState<ExperimentValidationResponse | null>(
+    null,
+  );
+  const [hasDirtyChanges, setHasDirtyChanges] = useState(false);
 
   const setSectionState = useCallback(
     (sectionKey: EditorSectionKey, nextState: SectionSaveState) => {
@@ -119,13 +138,22 @@ export function useExperimentEditor({
     setSectionStates(nextSectionStates);
   }, []);
 
+  const getDirtySections = useCallback((draftValues: ExperimentEditorValues) => {
+    return editorSectionKeys.filter(
+      (sectionKey) =>
+        serializeSectionValues(sectionKey, draftValues) !== snapshotsRef.current[sectionKey],
+    );
+  }, []);
+
   const updateValues = useCallback(
     (updater: (current: ExperimentEditorValues) => ExperimentEditorValues) => {
       const nextValues = updater(valuesRef.current);
       valuesRef.current = nextValues;
       setValues(nextValues);
+      setHasDirtyChanges(getDirtySections(nextValues).length > 0);
+      setValidationResult(null);
     },
-    [],
+    [getDirtySections],
   );
 
   const enqueueSave = <T,>(task: () => Promise<T>) => {
@@ -158,10 +186,7 @@ export function useExperimentEditor({
 
   const persistDirtySections = useCallback(
     async (draftValues: ExperimentEditorValues) => {
-      const dirtySections = editorSectionKeys.filter(
-        (sectionKey) =>
-          serializeSectionValues(sectionKey, draftValues) !== snapshotsRef.current[sectionKey],
-      );
+      const dirtySections = getDirtySections(draftValues);
 
       if (!dirtySections.length) {
         return false;
@@ -273,8 +298,12 @@ export function useExperimentEditor({
               experimentId,
               toResultSummaryPatch(draftValues.resultSummary),
             );
-            nextExperiment = patchedExperiment;
-            setExperiment(patchedExperiment);
+            nextExperiment = {
+              ...patchedExperiment,
+              quality_label: draftValues.resultSummary.qualityLabel,
+              summary_result: draftValues.resultSummary.summaryResult.trim() || null,
+            };
+            setExperiment(nextExperiment);
             savedModule = await upsertExperimentModule(
               accessToken,
               experimentId,
@@ -319,6 +348,13 @@ export function useExperimentEditor({
           nextExperiment,
         );
       }
+      if (dirtySections.includes("result_summary")) {
+        void queryClient.invalidateQueries({
+          queryKey: ["experiments", "list", currentUserId],
+        });
+      }
+
+      setHasDirtyChanges(getDirtySections(valuesRef.current).length > 0);
 
       return hasError;
     },
@@ -326,6 +362,7 @@ export function useExperimentEditor({
       accessToken,
       currentUserId,
       experimentId,
+      getDirtySections,
       patchModulesCache,
       queryClient,
       setSectionState,
@@ -337,10 +374,7 @@ export function useExperimentEditor({
       return;
     }
 
-    const dirtySections = editorSectionKeys.filter(
-      (sectionKey) =>
-        serializeSectionValues(sectionKey, valuesRef.current) !== snapshotsRef.current[sectionKey],
-    );
+    const dirtySections = getDirtySections(valuesRef.current);
 
     if (!dirtySections.length) {
       return;
@@ -353,7 +387,7 @@ export function useExperimentEditor({
     autosaveTimerRef.current = window.setTimeout(() => {
       void enqueueSave(() => persistDirtySections(valuesRef.current));
     }, 900);
-  }, [experiment.status, persistDirtySections]);
+  }, [experiment.status, getDirtySections, persistDirtySections]);
 
   const saveSummary = useMemo(() => {
     const summaryStates = Object.values(sectionStates);
@@ -373,6 +407,37 @@ export function useExperimentEditor({
     return "编辑后自动保存";
   }, [sectionStates]);
 
+  const hasSavingSections = useMemo(
+    () => Object.values(sectionStates).some((state) => state.status === "saving"),
+    [sectionStates],
+  );
+  const hasSaveErrors = useMemo(
+    () => Object.values(sectionStates).some((state) => state.status === "error"),
+    [sectionStates],
+  );
+  const shouldWarnOnLeave =
+    experiment.status === "draft" &&
+    (hasSavingSections || (hasSaveErrors && hasDirtyChanges));
+  const leaveWarning = hasSavingSections
+    ? "仍有区块正在保存，确认离开当前编辑页吗？"
+    : "仍有保存失败且未持久化的修改，确认离开当前编辑页吗？";
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!shouldWarnOnLeave) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = leaveWarning;
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [leaveWarning, shouldWarnOnLeave]);
+
   const submitDraft = useCallback(async () => {
     if (experiment.status !== "draft") {
       return;
@@ -387,6 +452,7 @@ export function useExperimentEditor({
       status: "submitting",
       message: null,
     });
+    setValidationResult(null);
 
     try {
       const saveFailed = await enqueueSave(() => persistDirtySections(valuesRef.current));
@@ -399,6 +465,26 @@ export function useExperimentEditor({
           status: "error",
           message: "请先修正保存失败的区块后再提交。",
         });
+        return;
+      }
+
+      const validation = await validateExperiment(accessToken, experimentId);
+      setValidationResult(
+        validation.errors.length > 0 || validation.warnings.length > 0 ? validation : null,
+      );
+      if (validation.errors.length > 0) {
+        setSubmitState({
+          status: "error",
+          message: "请先处理校验错误后再提交。",
+        });
+        return;
+      }
+      if (getDirtySections(valuesRef.current).length > 0) {
+        setSubmitState({
+          status: "error",
+          message: "检测到校验后仍有未保存修改，请等待自动保存后再提交。",
+        });
+        setHasDirtyChanges(true);
         return;
       }
 
@@ -416,11 +502,15 @@ export function useExperimentEditor({
         queryKey: ["experiments", "list", currentUserId],
       });
       resetSectionStates();
+      setHasDirtyChanges(false);
       setSubmitState({
         status: "idle",
         message: null,
       });
     } catch (error) {
+      if (error instanceof HttpError && isValidationResponse(error.payload)) {
+        setValidationResult(error.payload);
+      }
       setSubmitState({
         status: "error",
         message: resolveErrorMessage(error, "提交实验失败"),
@@ -431,6 +521,7 @@ export function useExperimentEditor({
     currentUserId,
     experiment.status,
     experimentId,
+    getDirtySections,
     persistDirtySections,
     queryClient,
     resetSectionStates,
@@ -438,13 +529,17 @@ export function useExperimentEditor({
 
   return {
     experiment,
+    leaveWarning,
     isDraft: experiment.status === "draft",
+    isSubmitting: submitState.status === "submitting",
+    shouldWarnOnLeave,
     saveSummary,
     scheduleAutosave,
     sectionStates,
     submitDraft,
     submitState,
     updateValues,
+    validationResult,
     values,
   };
 }
