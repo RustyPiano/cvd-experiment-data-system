@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.main import app
+from app.models.audit import AuditEvent
 
 client = TestClient(app)
 
@@ -16,6 +18,14 @@ def login(email: str, password: str = "Password123!") -> str:
 
 def auth_headers(email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {login(email)}"}
+
+
+def controlled_vocabulary_audit_events(db_session) -> list[AuditEvent]:
+    db_session.expire_all()
+    statement = select(AuditEvent).where(
+        AuditEvent.entity_type == "controlled_vocabulary",
+    )
+    return list(db_session.scalars(statement).all())
 
 
 def test_list_vocabularies_returns_seeded_active_entries(active_user) -> None:
@@ -106,6 +116,77 @@ def test_admin_can_create_and_update_vocabulary_entry(admin_user) -> None:
     assert admin_list_response.status_code == 200
     values = {item["value"] for item in admin_list_response.json()["items"]}
     assert "mica" in values
+
+
+def test_vocabulary_create_and_update_write_audit_events(
+    admin_user,
+    active_user,
+    db_session,
+) -> None:
+    create_response = client.post(
+        "/api/v1/admin/vocabularies",
+        json={
+            "vocab_key": "substrate_type",
+            "value": "mica",
+            "label_zh": "云母",
+            "label_en": "Mica",
+            "sort_order": 99,
+            "metadata_json": {"source": "lab"},
+        },
+        headers=auth_headers(admin_user.email),
+    )
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+
+    create_events = controlled_vocabulary_audit_events(db_session)
+    assert len(create_events) == 1
+    create_event = create_events[0]
+    assert create_event.entity_type == "controlled_vocabulary"
+    assert str(create_event.entity_id) == created["id"]
+    assert create_event.action == "create"
+    assert create_event.before_json is None
+    assert create_event.after_json["value"] == "mica"
+    assert create_event.after_json["metadata_json"] == {"source": "lab"}
+
+    update_response = client.patch(
+        f"/api/v1/admin/vocabularies/{created['id']}",
+        json={
+            "label_zh": "云母片",
+            "is_active": False,
+            "sort_order": 5,
+        },
+        headers=auth_headers(admin_user.email),
+    )
+
+    assert update_response.status_code == 200
+    events_by_action = {
+        event.action: event for event in controlled_vocabulary_audit_events(db_session)
+    }
+    assert set(events_by_action) == {"create", "update"}
+    update_event = events_by_action["update"]
+    assert update_event.entity_type == "controlled_vocabulary"
+    assert str(update_event.entity_id) == created["id"]
+    assert update_event.before_json["label_zh"] == "云母"
+    assert update_event.before_json["is_active"] is True
+    assert update_event.after_json["label_zh"] == "云母片"
+    assert update_event.after_json["is_active"] is False
+    assert update_event.after_json["sort_order"] == 5
+
+    forbidden_response = client.post(
+        "/api/v1/admin/vocabularies",
+        json={
+            "vocab_key": "gas_label",
+            "value": "N2",
+            "label_zh": "氮气",
+            "label_en": "Nitrogen",
+            "sort_order": 10,
+        },
+        headers=auth_headers(active_user.email),
+    )
+
+    assert forbidden_response.status_code == 403
+    assert len(controlled_vocabulary_audit_events(db_session)) == 2
 
 
 def test_update_vocabulary_rejects_duplicate_value(admin_user) -> None:

@@ -96,6 +96,88 @@ def create_product_sample(experiment_id: str, email: str) -> str:
     return response.json()["id"]
 
 
+def sync_top_substrate_sample(experiment_id: str, email: str) -> str:
+    substrates_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "MTI",
+                        "size_mm": "10x10",
+                        "treatment_method": "acetone",
+                        "position_mm": 12.5,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(email),
+    )
+    assert substrates_response.status_code == 200
+
+    samples_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}&role=top",
+        headers=auth_headers(email),
+    )
+    assert samples_response.status_code == 200
+    samples = samples_response.json()["items"]
+    assert len(samples) == 1
+    return samples[0]["id"]
+
+
+def test_export_includes_related_sample_and_file_audit_events(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+    sample_id = sync_top_substrate_sample(experiment_id, active_user.email)
+
+    sample_update_response = client.patch(
+        f"/api/v1/samples/{sample_id}",
+        json={"storage_location": "box-a1"},
+        headers=auth_headers(active_user.email),
+    )
+    assert sample_update_response.status_code == 200
+
+    file_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={
+            "sample_id": sample_id,
+            "method": "Raman",
+            "file_category": "raw",
+            "note": "linked spectrum",
+        },
+        files={"file": ("linked-raman.txt", b"peak=404", "text/plain")},
+    )
+    assert file_response.status_code == 201
+    file_id = file_response.json()["id"]
+
+    export_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert export_response.status_code == 200
+    audit_events = export_response.json()["audit_events"]
+    entity_types = {event["entity_type"] for event in audit_events}
+    assert {"experiment_run", "sample", "file_asset"} <= entity_types
+    assert any(event["entity_type"] != "experiment_run" for event in audit_events)
+
+    sample_events = [
+        event
+        for event in audit_events
+        if event["entity_type"] == "sample" and event["entity_id"] == sample_id
+    ]
+    assert {"create", "update"} <= {event["action"] for event in sample_events}
+
+    file_events = [
+        event
+        for event in audit_events
+        if event["entity_type"] == "file_asset" and event["entity_id"] == file_id
+    ]
+    assert {"create"} <= {event["action"] for event in file_events}
+
+
 def test_export_experiment_aggregates_modules_samples_files_and_audit(active_user) -> None:
     experiment_id = create_experiment(active_user.email)
 
@@ -165,7 +247,7 @@ def test_export_experiment_aggregates_modules_samples_files_and_audit(active_use
         "modules": 4,
         "samples": 2,
         "files": 1,
-        "audit_events": 8,
+        "audit_events": 11,
     }
     assert {item["module_key"] for item in body["modules"]} == {
         "substrates",

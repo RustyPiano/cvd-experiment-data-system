@@ -42,3 +42,6 @@ class AuditService:
             items=[AuditEventRead.model_validate(item) for item in items],
             total=len(items),
         )
+
+    def list_events_for_entities(self, refs: list[tuple[str, UUID]]) -> list[AuditEventRead]:
+        return [AuditEventRead.model_validate(item) for item in self.audit.list_for_entities(refs)]

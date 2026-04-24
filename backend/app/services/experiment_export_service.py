@@ -12,11 +12,9 @@ from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun
 from app.models.module_payload import normalize_module_payload
-from app.repositories.audit_repository import AuditRepository
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
 from app.repositories.sample_repository import SampleRepository
-from app.schemas.audit import AuditEventRead
 from app.schemas.experiment import (
     ExperimentExportCounts,
     ExperimentExportProvenance,
@@ -25,13 +23,14 @@ from app.schemas.experiment import (
 )
 from app.schemas.module_payload import ExperimentModulePayloadRead
 from app.schemas.sample import SampleRead
+from app.services.audit_service import AuditService
 from app.services.file_asset_service import to_file_asset_read_model
 
 
 class ExperimentExportService:
     def __init__(self, db: Session) -> None:
         self.db = db
-        self.audit = AuditRepository(db)
+        self.audit = AuditService(db)
         self.files = FileAssetRepository(db)
         self.module_payloads = ModulePayloadRepository(db)
         self.samples = SampleRepository(db)
@@ -57,13 +56,10 @@ class ExperimentExportService:
         files = [
             to_file_asset_read_model(item) for item in self.files.list_by_experiment(experiment.id)
         ]
-        audit_events = [
-            AuditEventRead.model_validate(item)
-            for item in self.audit.list_for_entity(
-                entity_type="experiment_run",
-                entity_id=experiment.id,
-            )
-        ]
+        audit_refs = [("experiment_run", experiment.id)]
+        audit_refs.extend(("sample", sample.id) for sample in samples)
+        audit_refs.extend(("file_asset", file_asset.id) for file_asset in files)
+        audit_events = self.audit.list_events_for_entities(audit_refs)
 
         return ExperimentExportRead(
             export_version="cvd_export_v1",

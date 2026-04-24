@@ -13,11 +13,13 @@ from app.schemas.vocabulary import (
     ControlledVocabularyRead,
     ControlledVocabularyUpdate,
 )
+from app.services.audit_service import AuditService
 
 
 class VocabularyService:
     def __init__(self, db: Session) -> None:
         self.db = db
+        self.audit = AuditService(db)
         self.vocabularies = VocabularyRepository(db)
 
     def list_active_vocabularies(
@@ -53,6 +55,14 @@ class VocabularyService:
         entry = ControlledVocabulary(**payload.model_dump())
         try:
             saved = self.vocabularies.create(entry)
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="controlled_vocabulary",
+                entity_id=saved.id,
+                action="create",
+                before_json=None,
+                after_json=self._serialize_vocabulary(saved),
+            )
             self.db.commit()
         except IntegrityError as exc:
             self.db.rollback()
@@ -77,11 +87,20 @@ class VocabularyService:
             )
 
         updates = payload.model_dump(exclude_unset=True)
+        before = self._serialize_vocabulary(entry)
         for field, value in updates.items():
             setattr(entry, field, value)
 
         try:
             saved = self.vocabularies.save(entry)
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="controlled_vocabulary",
+                entity_id=saved.id,
+                action="update",
+                before_json=before,
+                after_json=self._serialize_vocabulary(saved),
+            )
             self.db.commit()
         except IntegrityError as exc:
             self.db.rollback()
@@ -97,3 +116,15 @@ class VocabularyService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
             )
+
+    def _serialize_vocabulary(self, entry: ControlledVocabulary) -> dict:
+        return {
+            "id": str(entry.id),
+            "vocab_key": entry.vocab_key,
+            "value": entry.value,
+            "label_zh": entry.label_zh,
+            "label_en": entry.label_en,
+            "sort_order": entry.sort_order,
+            "is_active": entry.is_active,
+            "metadata_json": entry.metadata_json,
+        }
