@@ -4,12 +4,16 @@ import {
   Alert,
   Button,
   Card,
+  Form,
   Input,
+  Select,
   Spin,
   Table,
   Tag,
   Typography,
+  Upload,
 } from "antd";
+import type { UploadFile } from "antd";
 import dayjs from "dayjs";
 import { ArrowLeftOutlined, DownloadOutlined, UploadOutlined } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
@@ -54,6 +58,17 @@ function formatBytes(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+const fileCategoryOptions = [
+  { label: "raw", value: "raw" },
+  { label: "processed", value: "processed" },
+];
+
+const filterCategoryOptions = [
+  { label: "全部", value: "" },
+  { label: "raw", value: "raw" },
+  { label: "processed", value: "processed" },
+];
+
 export function ExperimentFilesPage() {
   const { experimentId = "" } = useParams();
   const navigate = useNavigate();
@@ -67,7 +82,7 @@ export function ExperimentFilesPage() {
   const [uploadNote, setUploadNote] = useState("");
   const [fileCategory, setFileCategory] = useState("raw");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileInputKey, setFileInputKey] = useState(0);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [downloadFileId, setDownloadFileId] = useState<string | null>(null);
   const [mutationMessage, setMutationMessage] = useState<string | null>(null);
 
@@ -122,6 +137,26 @@ export function ExperimentFilesPage() {
     return sampleMap;
   }, [samplesQuery.data?.items]);
 
+  const methodOptions = useMemo(
+    () =>
+      (vocabulariesQuery.data?.items ?? []).map((item) => ({
+        label: item.label_zh || item.value,
+        value: item.value,
+      })),
+    [vocabulariesQuery.data?.items],
+  );
+
+  const sampleOptions = useMemo(
+    () => [
+      { label: "不关联样品", value: "" },
+      ...(samplesQuery.data?.items ?? []).map((sample) => ({
+        label: sample.sample_code,
+        value: sample.id,
+      })),
+    ],
+    [samplesQuery.data?.items],
+  );
+
   const invalidateFileQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
@@ -154,7 +189,7 @@ export function ExperimentFilesPage() {
       setUploadSampleId("");
       setUploadNote("");
       setFileCategory("raw");
-      setFileInputKey((current) => current + 1);
+      setFileList([]);
       await invalidateFileQueries();
     },
   });
@@ -221,7 +256,7 @@ export function ExperimentFilesPage() {
           title="实验文件"
         />
         <Alert
-          title={resolveErrorMessage(experimentQuery.error, "实验文件页加载失败")}
+          message={resolveErrorMessage(experimentQuery.error, "实验文件页加载失败")}
           showIcon
           type="error"
         />
@@ -230,7 +265,7 @@ export function ExperimentFilesPage() {
   }
 
   if (!experimentQuery.data) {
-    return <Alert title="实验文件页暂不可用" showIcon type="warning" />;
+    return <Alert message="实验文件页暂不可用" showIcon type="warning" />;
   }
 
   const fileRows = filesQuery.data?.items ?? [];
@@ -249,21 +284,21 @@ export function ExperimentFilesPage() {
             返回实验
           </Button>
         }
-        subtitle="上传只对 draft 实验开放；详情页与导出会自动读取这里的最新文件元数据。"
+        subtitle="草稿实验可上传和删除文件；详情页和导出会自动读取最新文件信息。"
         title={`文件管理 · ${experimentQuery.data.run_code}`}
       />
 
-      {mutationMessage ? <Alert title={mutationMessage} showIcon type="error" /> : null}
+      {mutationMessage ? <Alert message={mutationMessage} showIcon type="error" /> : null}
       {uploadMutation.isError ? (
         <Alert
-          title={resolveErrorMessage(uploadMutation.error, "文件上传失败")}
+          message={resolveErrorMessage(uploadMutation.error, "文件上传失败")}
           showIcon
           type="error"
         />
       ) : null}
       {deleteMutation.isError ? (
         <Alert
-          title={resolveErrorMessage(deleteMutation.error, "文件删除失败")}
+          message={resolveErrorMessage(deleteMutation.error, "文件删除失败")}
           showIcon
           type="error"
         />
@@ -285,70 +320,79 @@ export function ExperimentFilesPage() {
                 gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               }}
             >
-              <label>
-                <Typography.Text strong>文件方法</Typography.Text>
-                <Input
+              <Form.Item htmlFor="upload-file-method" label="文件方法" style={{ gridColumn: undefined }}>
+                <Select
                   aria-label="文件方法"
-                  list="file-method-options"
-                  onChange={(event) => {
-                    setUploadMethod(event.target.value);
+                  filterOption
+                  id="upload-file-method"
+                  onChange={(value) => {
+                    setUploadMethod(value);
                   }}
+                  onSearch={(value) => {
+                    setUploadMethod(value);
+                  }}
+                  options={methodOptions}
                   placeholder="例如 Raman / OM / SEM"
-                  value={uploadMethod}
+                  showSearch
+                  style={{ width: "100%" }}
+                  value={uploadMethod || undefined}
+                  virtual={false}
                 />
-              </label>
-              <label>
-                <Typography.Text strong>文件类别</Typography.Text>
-                <select
+              </Form.Item>
+              <Form.Item htmlFor="upload-file-category" label="文件类别">
+                <Select
                   aria-label="文件类别"
-                  onChange={(event) => {
-                    setFileCategory(event.target.value);
+                  id="upload-file-category"
+                  onChange={(value) => {
+                    setFileCategory(value);
                   }}
+                  options={fileCategoryOptions}
+                  style={{ width: "100%" }}
                   value={fileCategory}
-                >
-                  <option value="raw">raw</option>
-                  <option value="processed">processed</option>
-                </select>
-              </label>
-              <label>
-                <Typography.Text strong>关联样品</Typography.Text>
-                <select
+                  virtual={false}
+                />
+              </Form.Item>
+              <Form.Item htmlFor="upload-sample-id" label="关联样品">
+                <Select
                   aria-label="关联样品"
-                  onChange={(event) => {
-                    setUploadSampleId(event.target.value);
+                  id="upload-sample-id"
+                  onChange={(value) => {
+                    setUploadSampleId(value);
                   }}
-                  value={uploadSampleId}
-                >
-                  <option value="">不关联样品</option>
-                  {(samplesQuery.data?.items ?? []).map((sample) => (
-                    <option key={sample.id} value={sample.id}>
-                      {sample.sample_code}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ gridColumn: "1 / -1" }}>
-                <Typography.Text strong>文件备注</Typography.Text>
+                  options={sampleOptions}
+                  style={{ width: "100%" }}
+                  value={uploadSampleId || undefined}
+                  virtual={false}
+                />
+              </Form.Item>
+              <Form.Item htmlFor="upload-file-note" label="文件备注" style={{ gridColumn: "1 / -1" }}>
                 <Input
-                  aria-label="文件备注"
+                  id="upload-file-note"
                   onChange={(event) => {
                     setUploadNote(event.target.value);
                   }}
                   placeholder="补充描述采集条件或处理说明"
                   value={uploadNote}
                 />
-              </label>
-              <label style={{ gridColumn: "1 / -1" }}>
-                <Typography.Text strong>选择文件</Typography.Text>
-                <input
-                  key={fileInputKey}
-                  aria-label="选择文件"
-                  onChange={(event) => {
-                    setSelectedFile(event.target.files?.[0] ?? null);
+              </Form.Item>
+              <Form.Item htmlFor="upload-file-input" label="选择文件" style={{ gridColumn: "1 / -1" }}>
+                <Upload
+                  beforeUpload={(file) => {
+                    setSelectedFile(file);
+                    setFileList([file]);
+                    return false;
                   }}
-                  type="file"
-                />
-              </label>
+                  fileList={fileList}
+                  id="upload-file-input"
+                  maxCount={1}
+                  onRemove={() => {
+                    setSelectedFile(null);
+                    setFileList([]);
+                  }}
+                >
+                  <Button icon={<UploadOutlined />}>选择文件</Button>
+                </Upload>
+              </Form.Item>
               <Button
                 aria-label="上传文件"
                 icon={<UploadOutlined />}
@@ -367,16 +411,8 @@ export function ExperimentFilesPage() {
               </Button>
             </div>
           ) : (
-            <Alert title="当前账号或实验状态不允许修改文件。" showIcon type="info" />
+            <Alert message="当前账号或实验状态不允许修改文件。" showIcon type="info" />
           )}
-
-          <datalist id="file-method-options">
-            {(vocabulariesQuery.data?.items ?? []).map((item) => (
-              <option key={item.id} value={item.value}>
-                {item.label_zh}
-              </option>
-            ))}
-          </datalist>
         </div>
       </Card>
 
@@ -392,36 +428,34 @@ export function ExperimentFilesPage() {
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             }}
           >
-            <label>
-              <Typography.Text strong>筛选方法</Typography.Text>
+            <Form.Item htmlFor="file-method-filter" label="筛选方法">
               <Input
-                aria-label="筛选方法"
+                id="file-method-filter"
                 onChange={(event) => {
                   setMethodFilter(event.target.value);
                 }}
                 placeholder="输入方法名称"
                 value={methodFilter}
               />
-            </label>
-            <label>
-              <Typography.Text strong>筛选类别</Typography.Text>
-              <select
+            </Form.Item>
+            <Form.Item htmlFor="file-category-filter" label="筛选类别">
+              <Select
                 aria-label="筛选类别"
-                onChange={(event) => {
-                  setFileCategoryFilter(event.target.value);
+                id="file-category-filter"
+                onChange={(value) => {
+                  setFileCategoryFilter(value);
                 }}
+                options={filterCategoryOptions}
+                style={{ width: "100%" }}
                 value={fileCategoryFilter}
-              >
-                <option value="">全部</option>
-                <option value="raw">raw</option>
-                <option value="processed">processed</option>
-              </select>
-            </label>
+                virtual={false}
+              />
+            </Form.Item>
           </div>
 
           {filesQuery.isError ? (
             <Alert
-              title={resolveErrorMessage(filesQuery.error, "文件列表加载失败")}
+              message={resolveErrorMessage(filesQuery.error, "文件列表加载失败")}
               showIcon
               type="error"
             />
@@ -436,7 +470,7 @@ export function ExperimentFilesPage() {
           ) : (
             <Table<FileAssetRead>
               dataSource={fileRows}
-              pagination={false}
+              pagination={{ pageSize: 10, showSizeChanger: true }}
               rowKey="id"
               columns={[
                 {
@@ -523,6 +557,9 @@ export function ExperimentFilesPage() {
                           danger
                           loading={deleteMutation.isPending && deleteMutation.variables === file.id}
                           onClick={() => {
+                            if (!window.confirm(`确定删除文件 ${file.original_name}？`)) {
+                              return;
+                            }
                             setMutationMessage(null);
                             deleteMutation.mutate(file.id);
                           }}

@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogoutOutlined } from "@ant-design/icons";
+import { ExperimentOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Layout, Menu, Space, Typography } from "antd";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -25,15 +25,18 @@ export function AppShell() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { clearSession, session } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
   const menuItems = [
     {
       key: "/experiments",
+      icon: <ExperimentOutlined />,
       label: <Link to="/experiments">实验记录</Link>,
     },
     ...(session.currentUser?.role === "admin"
       ? [
           {
             key: "/admin/vocabularies",
+            icon: <SettingOutlined />,
             label: <Link to="/admin/vocabularies">受控词表</Link>,
           },
         ]
@@ -67,10 +70,10 @@ export function AppShell() {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Layout.Sider breakpoint="lg" collapsible theme="light" width={232}>
+      <Layout.Sider breakpoint="lg" collapsible collapsed={collapsed} onCollapse={setCollapsed} theme="light" width={232}>
         <div className="app-brand">
-          <Typography.Text strong>CVD Lab</Typography.Text>
-          <Typography.Text type="secondary">V1 Data Capture</Typography.Text>
+          <Typography.Text strong>{collapsed ? "CVD" : "CVD Lab"}</Typography.Text>
+          {collapsed ? null : <Typography.Text type="secondary">V1 Data Capture</Typography.Text>}
         </div>
         <Menu
           items={menuItems}

@@ -35,7 +35,7 @@ export function ExperimentNewPage() {
   return (
     <div className="content-stack">
       <PageHeader
-        subtitle="当前前端首版先开放空白创建，历史克隆从已锁定实验详情页进入。"
+        subtitle="创建空白实验草稿或从已锁定的历史实验派生。"
         title="新建实验"
       />
       {isViewer ? (
@@ -47,7 +47,7 @@ export function ExperimentNewPage() {
       <Row gutter={[16, 16]}>
         <Col span={12}>
           <Card className="action-card">
-            <Space orientation="vertical" size={12}>
+            <Space direction="vertical" size={12}>
               <Typography.Title level={4} style={{ margin: 0 }}>
                 空白 CVD 实验
               </Typography.Title>
@@ -69,13 +69,13 @@ export function ExperimentNewPage() {
           </Card>
         </Col>
         <Col span={12}>
-          <Card className="action-card" variant="borderless">
-            <Space orientation="vertical" size={12}>
+          <Card className="action-card">
+            <Space direction="vertical" size={12}>
               <Typography.Title level={4} style={{ margin: 0 }}>
                 从历史实验复制
               </Typography.Title>
               <Typography.Paragraph type="secondary">
-                当前后端只允许从 `locked` 实验发起 clone，请先进入历史实验详情页再执行派生。
+                仅可从已锁定实验派生新草稿，请进入历史实验详情页操作。
               </Typography.Paragraph>
             </Space>
           </Card>

@@ -23,6 +23,7 @@ from app.schemas.experiment import (
     ExperimentRead,
     ExperimentUpdate,
 )
+from app.schemas.experiment_validation import ExperimentValidationResponse
 from app.schemas.module_payload import (
     ExperimentModulePayloadListResponse,
     ExperimentModulePayloadRead,
@@ -30,6 +31,10 @@ from app.schemas.module_payload import (
 )
 from app.services.audit_service import AuditService
 from app.services.experiment_export_service import ExperimentExportService
+from app.services.experiment_validation_service import (
+    ExperimentValidationFailed,
+    ExperimentValidationService,
+)
 from app.services.sample_service import SampleService
 
 
@@ -41,6 +46,7 @@ class ExperimentService:
         self.audit = AuditService(db)
         self.exporter = ExperimentExportService(db)
         self.sample_service = SampleService(db)
+        self.validation = ExperimentValidationService(db)
 
     def list_experiments(
         self,
@@ -105,6 +111,14 @@ class ExperimentService:
         experiment = self._get_visible_experiment(experiment_id, current_user)
         return ExperimentRead.model_validate(experiment)
 
+    def validate_experiment(
+        self,
+        experiment_id: UUID,
+        current_user: User,
+    ) -> ExperimentValidationResponse:
+        experiment = self._get_owned_experiment(experiment_id, current_user)
+        return self.validation.validate_experiment(experiment)
+
     def update_experiment(
         self,
         experiment_id: UUID,
@@ -141,7 +155,9 @@ class ExperimentService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Only draft experiments can be submitted",
             )
-        self._validate_submit(experiment)
+        validation_result = self.validation.validate_experiment(experiment)
+        if not validation_result.ok:
+            raise ExperimentValidationFailed(validation_result)
 
         before = self._serialize_experiment(experiment)
         experiment.status = ExperimentStatus.SUBMITTED
@@ -273,38 +289,11 @@ class ExperimentService:
             target_run_id=created.id,
             exclude_module_keys={
                 ExperimentModuleKey.BASIC_INFO.value,
-                ExperimentModuleKey.CHARACTERIZATION.value,
                 ExperimentModuleKey.PROCESS_OBSERVATION.value,
                 ExperimentModuleKey.RESULT_SUMMARY.value,
             },
         )
-        cloned_environment = self.module_payloads.get_by_run_and_key(
-            created.id,
-            ExperimentModuleKey.ENVIRONMENT.value,
-        )
-        if cloned_environment is not None and isinstance(cloned_environment.payload_json, dict):
-            cloned_environment.payload_json = normalize_module_payload(
-                ExperimentModuleKey.ENVIRONMENT.value,
-                {
-                    "sample_env": cloned_environment.payload_json.get("sample_env"),
-                    "abnormal_note": "",
-                },
-            )
-            self.module_payloads.save(cloned_environment)
-
-        cloned_precheck = self.module_payloads.get_by_run_and_key(
-            created.id,
-            ExperimentModuleKey.PRECHECK.value,
-        )
-        if cloned_precheck is not None:
-            cloned_precheck.payload_json = normalize_module_payload(
-                ExperimentModuleKey.PRECHECK.value,
-                {
-                    "seal_intact": None,
-                    "risk_note": "",
-                },
-            )
-            self.module_payloads.save(cloned_precheck)
+        self._apply_clone_payload_rules(source=source, created=created, current_user=current_user)
         self.sample_service.clone_samples(
             source_experiment=source,
             target_experiment=created,
@@ -467,104 +456,82 @@ class ExperimentService:
                         detail="Failed to allocate run code",
                     ) from exc
 
-    def _validate_submit(self, experiment: ExperimentRun) -> None:
-        if self._collect_submit_errors(experiment):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Submit validation failed",
-            )
-
-    def _collect_submit_errors(self, experiment: ExperimentRun) -> list[str]:
-        errors: list[str] = []
-        if (
-            experiment.experiment_date is None
-            or experiment.owner_id is None
-            or not experiment.experiment_type
-            or not experiment.material_system
-        ):
-            errors.append("Missing required main fields")
-
-        module_payloads = {
-            item.module_key: item.payload_json
-            for item in self.module_payloads.list_by_run(experiment.id)
-        }
-
-        precursor_payload = module_payloads.get(ExperimentModuleKey.PRECURSORS.value, {})
-        precursor_items = (
-            precursor_payload.get("items") if isinstance(precursor_payload, dict) else None
+    def _apply_clone_payload_rules(
+        self,
+        *,
+        source: ExperimentRun,
+        created: ExperimentRun,
+        current_user: User,
+    ) -> None:
+        self._upsert_module_payload_json(
+            experiment_id=created.id,
+            module_key=ExperimentModuleKey.BASIC_INFO,
+            payload_json={
+                "operator_id": str(current_user.id),
+                "experiment_type": source.experiment_type,
+                "material_system": source.material_system,
+                "experiment_date": created.experiment_date.isoformat(),
+                "objective": source.objective,
+            },
         )
-        if not isinstance(precursor_items, list) or not precursor_items:
-            errors.append("At least one precursor is required")
-        elif not all(isinstance(item, dict) for item in precursor_items):
-            errors.append("Each precursor item must be an object")
 
-        furnace_payload = module_payloads.get(ExperimentModuleKey.FURNACE_PROGRAM.value, {})
-        furnace_zones = furnace_payload.get("zones") if isinstance(furnace_payload, dict) else None
-        if not isinstance(furnace_zones, list) or not furnace_zones:
-            errors.append("At least one furnace zone is required")
-        else:
-            for zone in furnace_zones:
-                if not isinstance(zone, dict):
-                    errors.append("Each furnace zone must be an object")
-                    continue
-                temperature_program = zone.get("temperature_program")
-                if not isinstance(temperature_program, list) or not temperature_program:
-                    errors.append("Each furnace zone must include a temperature program")
-                    continue
+        cloned_environment = self.module_payloads.get_by_run_and_key(
+            created.id,
+            ExperimentModuleKey.ENVIRONMENT.value,
+        )
+        if cloned_environment is not None and isinstance(cloned_environment.payload_json, dict):
+            cloned_environment.payload_json = normalize_module_payload(
+                ExperimentModuleKey.ENVIRONMENT.value,
+                {
+                    "sample_env": cloned_environment.payload_json.get("sample_env"),
+                    "abnormal_note": "",
+                },
+            )
+            self.module_payloads.save(cloned_environment)
 
-                if not all(isinstance(point, dict) for point in temperature_program):
-                    errors.append("Furnace program points must be objects")
-                    continue
-                time_points = [point.get("time_min") for point in temperature_program]
-                if not all(self._is_number(value) for value in time_points):
-                    errors.append("Furnace program time points must be numeric")
-                    continue
-                if any(
-                    current <= previous
-                    for previous, current in zip(time_points, time_points[1:], strict=False)
-                ):
-                    errors.append("Furnace program time points must be strictly increasing")
-                    break
+        cloned_precheck = self.module_payloads.get_by_run_and_key(
+            created.id,
+            ExperimentModuleKey.PRECHECK.value,
+        )
+        if cloned_precheck is not None:
+            cloned_precheck.payload_json = normalize_module_payload(
+                ExperimentModuleKey.PRECHECK.value,
+                {
+                    "seal_intact": None,
+                    "risk_note": "",
+                },
+            )
+            self.module_payloads.save(cloned_precheck)
 
-        gas_payload = module_payloads.get(ExperimentModuleKey.GAS_PROGRAM.value, {})
-        gas_segments = gas_payload.get("segments") if isinstance(gas_payload, dict) else None
-        if isinstance(gas_segments, list) and gas_segments:
-            normalized_segments: list[tuple[float, float]] = []
-            for segment in gas_segments:
-                if not isinstance(segment, dict):
-                    errors.append("Gas segments must be objects")
-                    continue
-                start = segment.get("start_min")
-                end = segment.get("end_min")
-                if not self._is_number(start) or not self._is_number(end):
-                    errors.append("Gas segment boundaries must be numeric")
-                    continue
-                start_value = float(start)
-                end_value = float(end)
-                if end_value <= start_value:
-                    errors.append("Gas segment end time must be greater than start time")
-                normalized_segments.append((start_value, end_value))
-
-            normalized_segments.sort(key=lambda item: item[0])
-            if any(
-                current_start < previous_end
-                for previous_end, (current_start, _current_end) in zip(
-                    [segment[1] for segment in normalized_segments],
-                    normalized_segments[1:],
-                    strict=False,
-                )
-            ):
-                errors.append("Gas segments must not overlap")
-
-        precheck_payload = module_payloads.get(ExperimentModuleKey.PRECHECK.value, {})
-        if (
-            isinstance(precheck_payload, dict)
-            and precheck_payload.get("seal_intact") is False
-            and not str(precheck_payload.get("risk_note") or "").strip()
+        cloned_characterization = self.module_payloads.get_by_run_and_key(
+            created.id,
+            ExperimentModuleKey.CHARACTERIZATION.value,
+        )
+        if cloned_characterization is not None and isinstance(
+            cloned_characterization.payload_json, dict
         ):
-            errors.append("Risk note is required when seal integrity fails")
+            normalized_payload = normalize_module_payload(
+                ExperimentModuleKey.CHARACTERIZATION.value,
+                cloned_characterization.payload_json,
+            )
+            methods = normalized_payload.get("methods")
+            if isinstance(methods, list):
+                normalized_payload["methods"] = [
+                    {**method, "result": ""} for method in methods if isinstance(method, dict)
+                ]
+            cloned_characterization.payload_json = normalized_payload
+            self.module_payloads.save(cloned_characterization)
 
-        return errors
+        reset_result_summary = self._upsert_module_payload_json(
+            experiment_id=created.id,
+            module_key=ExperimentModuleKey.RESULT_SUMMARY,
+            payload_json={
+                "summary_result": "",
+                "quality_label": QualityLabel.UNKNOWN.value,
+                "next_step": "",
+            },
+        )
+        self._sync_result_summary_quality_label(created, reset_result_summary.payload_json)
 
     def _get_visible_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRun:
         experiment = self.experiments.get_by_id(experiment_id)
@@ -663,6 +630,23 @@ class ExperimentService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid quality_label",
             ) from exc
+
+    def _upsert_module_payload_json(
+        self,
+        *,
+        experiment_id: UUID,
+        module_key: ExperimentModuleKey,
+        payload_json: dict,
+        schema_version: str = "cvd_v1",
+    ) -> ExperimentModulePayload:
+        return self._upsert_module_payload(
+            experiment_id=experiment_id,
+            module_key=module_key,
+            payload=ExperimentModulePayloadUpsert(
+                payload_json=payload_json,
+                schema_version=schema_version,
+            ),
+        )
 
     def _is_number(self, value: object) -> bool:
         return isinstance(value, int | float) and not isinstance(value, bool)

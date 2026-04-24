@@ -4,10 +4,14 @@ import {
   Alert,
   Button,
   Card,
+  Form,
   Input,
+  InputNumber,
   Modal,
+  Select,
   Space,
   Spin,
+  Switch,
   Table,
   Tag,
   Typography,
@@ -221,11 +225,170 @@ function toFormState(item: ControlledVocabularyRead): VocabularyFormState {
   };
 }
 
+function CreateVocabularyForm({
+  formState,
+  onChange,
+  onSubmit,
+  loading,
+}: {
+  formState: VocabularyFormState;
+  onChange: (next: VocabularyFormState) => void;
+  onSubmit: () => void;
+  loading: boolean;
+}) {
+  const metadataError = parseMetadataJson(formState.metadataJson).error;
+
+  return (
+    <Form layout="vertical" requiredMark>
+      <Form.Item htmlFor="vocabulary-create-key" label="词表 key" required>
+        <Input
+          id="vocabulary-create-key"
+          onChange={(e) => onChange({ ...formState, vocabKey: e.target.value })}
+          placeholder="例如 characterization_method"
+          value={formState.vocabKey}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-create-value" label="值" required>
+        <Input
+          id="vocabulary-create-value"
+          onChange={(e) => onChange({ ...formState, value: e.target.value })}
+          placeholder="例如 raman"
+          value={formState.value}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-create-label-zh" label="中文标签" required>
+        <Input
+          id="vocabulary-create-label-zh"
+          onChange={(e) => onChange({ ...formState, labelZh: e.target.value })}
+          placeholder="例如 拉曼光谱"
+          value={formState.labelZh}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-create-label-en" label="英文标签">
+        <Input
+          id="vocabulary-create-label-en"
+          onChange={(e) => onChange({ ...formState, labelEn: e.target.value })}
+          placeholder="例如 Raman Spectroscopy"
+          value={formState.labelEn}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-create-sort-order" label="排序" required>
+        <InputNumber
+          id="vocabulary-create-sort-order"
+          min={0}
+          onChange={(value) => onChange({ ...formState, sortOrder: String(value ?? 0) })}
+          style={{ width: "100%" }}
+          value={Number(formState.sortOrder)}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-create-enabled" label="启用">
+        <Switch
+          aria-label="启用"
+          checked={formState.isActive}
+          id="vocabulary-create-enabled"
+          onChange={(checked) => onChange({ ...formState, isActive: checked })}
+        />
+      </Form.Item>
+      <Form.Item
+        htmlFor="vocabulary-create-metadata"
+        label="元数据 JSON"
+        validateStatus={metadataError ? "error" : undefined}
+        help={metadataError}
+      >
+        <Input.TextArea
+          autoSize={{ maxRows: 8, minRows: 4 }}
+          id="vocabulary-create-metadata"
+          onChange={(e) => onChange({ ...formState, metadataJson: e.target.value })}
+          value={formState.metadataJson}
+        />
+      </Form.Item>
+      <Button loading={loading} onClick={onSubmit} type="primary">
+        创建词条
+      </Button>
+    </Form>
+  );
+}
+
+function EditVocabularyForm({
+  formState,
+  onChange,
+  onSubmit,
+  loading,
+}: {
+  formState: VocabularyFormState;
+  onChange: (next: VocabularyFormState) => void;
+  onSubmit: () => void;
+  loading: boolean;
+}) {
+  const metadataError = parseMetadataJson(formState.metadataJson).error;
+
+  return (
+    <Form layout="vertical" requiredMark>
+      <Form.Item htmlFor="vocabulary-edit-key" label="词表 key">
+        <Input id="vocabulary-edit-key" readOnly value={formState.vocabKey} />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-edit-value" label="值" required>
+        <Input
+          id="vocabulary-edit-value"
+          onChange={(e) => onChange({ ...formState, value: e.target.value })}
+          value={formState.value}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-edit-label-zh" label="中文标签" required>
+        <Input
+          id="vocabulary-edit-label-zh"
+          onChange={(e) => onChange({ ...formState, labelZh: e.target.value })}
+          value={formState.labelZh}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-edit-label-en" label="英文标签">
+        <Input
+          id="vocabulary-edit-label-en"
+          onChange={(e) => onChange({ ...formState, labelEn: e.target.value })}
+          value={formState.labelEn}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-edit-sort-order" label="排序" required>
+        <InputNumber
+          id="vocabulary-edit-sort-order"
+          min={0}
+          onChange={(value) => onChange({ ...formState, sortOrder: String(value ?? 0) })}
+          style={{ width: "100%" }}
+          value={Number(formState.sortOrder)}
+        />
+      </Form.Item>
+      <Form.Item htmlFor="vocabulary-edit-enabled" label="启用">
+        <Switch
+          aria-label="启用"
+          checked={formState.isActive}
+          id="vocabulary-edit-enabled"
+          onChange={(checked) => onChange({ ...formState, isActive: checked })}
+        />
+      </Form.Item>
+      <Form.Item
+        htmlFor="vocabulary-edit-metadata"
+        label="元数据 JSON"
+        validateStatus={metadataError ? "error" : undefined}
+        help={metadataError}
+      >
+        <Input.TextArea
+          autoSize={{ maxRows: 8, minRows: 4 }}
+          id="vocabulary-edit-metadata"
+          onChange={(e) => onChange({ ...formState, metadataJson: e.target.value })}
+          value={formState.metadataJson}
+        />
+      </Form.Item>
+      <Button loading={loading} onClick={onSubmit} type="primary">
+        保存修改
+      </Button>
+    </Form>
+  );
+}
+
 export function VocabularyAdminPage() {
   const queryClient = useQueryClient();
   const { session } = useAuth();
   const currentUser = session.currentUser;
-  const [filterInput, setFilterInput] = useState("");
   const [appliedFilter, setAppliedFilter] = useState("");
   const [feedback, setFeedback] = useState<{ type: "error" | "success"; message: string } | null>(
     null,
@@ -244,13 +407,27 @@ export function VocabularyAdminPage() {
     enabled: session.isAuthenticated && isAdmin,
   });
 
+  const vocabularyKeyOptionsQuery = useQuery({
+    queryKey: [...queryPrefix, "key-options"],
+    queryFn: () => listAdminVocabularies(session.accessToken!, null),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
   const uniqueKeys = useMemo(() => {
     const keys = new Set<string>();
-    for (const item of vocabulariesQuery.data?.items ?? []) {
+    for (const item of vocabularyKeyOptionsQuery.data?.items ?? vocabulariesQuery.data?.items ?? []) {
       keys.add(item.vocab_key);
     }
     return Array.from(keys).sort((left, right) => left.localeCompare(right));
-  }, [vocabulariesQuery.data?.items]);
+  }, [vocabulariesQuery.data?.items, vocabularyKeyOptionsQuery.data?.items]);
+
+  const filterOptions = useMemo(
+    () => [
+      { label: "全部", value: "" },
+      ...uniqueKeys.map((key) => ({ label: key, value: key })),
+    ],
+    [uniqueKeys],
+  );
 
   const invalidateVocabularyQueries = async () => {
     await Promise.all([
@@ -333,7 +510,7 @@ export function VocabularyAdminPage() {
     return (
       <div className="content-stack">
         <PageHeader
-          subtitle="当前页面只开放给 admin，用于维护实验录入依赖的受控词表。"
+          subtitle="受控词表管理仅对管理员开放。"
           title="受控词表"
         />
         <Alert message="当前账号没有词表管理权限。" showIcon type="warning" />
@@ -358,7 +535,7 @@ export function VocabularyAdminPage() {
             新增词条
           </Button>
         }
-        subtitle="当前后台提供列表筛选、创建、编辑与启停用；编辑会直接影响实验页和文件页的候选词。"
+        subtitle="管理受控词表条目，词表变更会影响实验和文件页的候选项。"
         title="受控词表"
       />
 
@@ -366,34 +543,24 @@ export function VocabularyAdminPage() {
 
       <Card>
         <Space align="end" size={16} wrap>
-          <div>
-            <label htmlFor="vocabulary-filter-key">词表 key 筛选</label>
-            <Input
+          <Form.Item htmlFor="vocabulary-filter-key" label="词表 key 筛选" style={{ marginBottom: 0 }}>
+            <Select
+              aria-label="词表 key 筛选"
+              allowClear
               id="vocabulary-filter-key"
-              list="vocabulary-key-options"
-              onChange={(event) => {
-                setFilterInput(event.target.value);
+              onChange={(value) => {
+                setAppliedFilter(value ?? "");
               }}
-              placeholder="例如 characterization_method"
+              options={filterOptions}
+              placeholder="选择或搜索词表 key"
+              showSearch
               style={{ width: 260 }}
-              value={filterInput}
+              value={appliedFilter || undefined}
+              virtual={false}
             />
-            <datalist id="vocabulary-key-options">
-              {uniqueKeys.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
-          </div>
+          </Form.Item>
           <Button
             onClick={() => {
-              setAppliedFilter(filterInput.trim());
-            }}
-          >
-            应用筛选
-          </Button>
-          <Button
-            onClick={() => {
-              setFilterInput("");
               setAppliedFilter("");
             }}
           >
@@ -418,7 +585,7 @@ export function VocabularyAdminPage() {
         ) : (
           <Table
             dataSource={rows}
-            pagination={false}
+            pagination={{ pageSize: 20, showSizeChanger: true }}
             rowKey="id"
             columns={[
               {
@@ -495,88 +662,12 @@ export function VocabularyAdminPage() {
         open={createOpen}
         title="新增词条"
       >
-        <Space orientation="vertical" size={16} style={{ width: "100%" }}>
-          <div>
-            <label htmlFor="vocabulary-create-key">词表 key</label>
-            <Input
-              id="vocabulary-create-key"
-              onChange={(event) => {
-                setCreateForm((current) => ({ ...current, vocabKey: event.target.value }));
-              }}
-              value={createForm.vocabKey}
-            />
-          </div>
-          <div>
-            <label htmlFor="vocabulary-create-value">值</label>
-            <Input
-              id="vocabulary-create-value"
-              onChange={(event) => {
-                setCreateForm((current) => ({ ...current, value: event.target.value }));
-              }}
-              value={createForm.value}
-            />
-          </div>
-          <div>
-            <label htmlFor="vocabulary-create-label-zh">中文标签</label>
-            <Input
-              id="vocabulary-create-label-zh"
-              onChange={(event) => {
-                setCreateForm((current) => ({ ...current, labelZh: event.target.value }));
-              }}
-              value={createForm.labelZh}
-            />
-          </div>
-          <div>
-            <label htmlFor="vocabulary-create-label-en">英文标签</label>
-            <Input
-              id="vocabulary-create-label-en"
-              onChange={(event) => {
-                setCreateForm((current) => ({ ...current, labelEn: event.target.value }));
-              }}
-              value={createForm.labelEn}
-            />
-          </div>
-          <div>
-            <label htmlFor="vocabulary-create-sort-order">排序</label>
-            <Input
-              id="vocabulary-create-sort-order"
-              inputMode="numeric"
-              onChange={(event) => {
-                setCreateForm((current) => ({ ...current, sortOrder: event.target.value }));
-              }}
-              value={createForm.sortOrder}
-            />
-          </div>
-          <div>
-            <label htmlFor="vocabulary-create-enabled">启用</label>
-            <input
-              checked={createForm.isActive}
-              id="vocabulary-create-enabled"
-              onChange={(event) => {
-                setCreateForm((current) => ({ ...current, isActive: event.target.checked }));
-              }}
-              type="checkbox"
-            />
-          </div>
-          <div>
-            <label htmlFor="vocabulary-create-metadata">元数据 JSON</label>
-            <Input.TextArea
-              id="vocabulary-create-metadata"
-              autoSize={{ maxRows: 8, minRows: 4 }}
-              onChange={(event) => {
-                setCreateForm((current) => ({ ...current, metadataJson: event.target.value }));
-              }}
-              value={createForm.metadataJson}
-            />
-          </div>
-          <Button
-            loading={createMutation.isPending}
-            onClick={handleCreateSubmit}
-            type="primary"
-          >
-            创建词条
-          </Button>
-        </Space>
+        <CreateVocabularyForm
+          formState={createForm}
+          loading={createMutation.isPending}
+          onChange={setCreateForm}
+          onSubmit={handleCreateSubmit}
+        />
       </Modal>
 
       <Modal
@@ -590,95 +681,12 @@ export function VocabularyAdminPage() {
         title={editTarget ? `编辑词条 · ${editTarget.vocab_key}` : "编辑词条"}
       >
         {editTarget && editForm ? (
-          <Space orientation="vertical" size={16} style={{ width: "100%" }}>
-            <div>
-              <label htmlFor="vocabulary-edit-key">词表 key</label>
-              <Input id="vocabulary-edit-key" readOnly value={editForm.vocabKey} />
-            </div>
-            <div>
-              <label htmlFor="vocabulary-edit-value">值</label>
-              <Input
-                id="vocabulary-edit-value"
-                onChange={(event) => {
-                  setEditForm((current) =>
-                    current ? { ...current, value: event.target.value } : current,
-                  );
-                }}
-                value={editForm.value}
-              />
-            </div>
-            <div>
-              <label htmlFor="vocabulary-edit-label-zh">中文标签</label>
-              <Input
-                id="vocabulary-edit-label-zh"
-                onChange={(event) => {
-                  setEditForm((current) =>
-                    current ? { ...current, labelZh: event.target.value } : current,
-                  );
-                }}
-                value={editForm.labelZh}
-              />
-            </div>
-            <div>
-              <label htmlFor="vocabulary-edit-label-en">英文标签</label>
-              <Input
-                id="vocabulary-edit-label-en"
-                onChange={(event) => {
-                  setEditForm((current) =>
-                    current ? { ...current, labelEn: event.target.value } : current,
-                  );
-                }}
-                value={editForm.labelEn}
-              />
-            </div>
-            <div>
-              <label htmlFor="vocabulary-edit-sort-order">排序</label>
-              <Input
-                id="vocabulary-edit-sort-order"
-                inputMode="numeric"
-                onChange={(event) => {
-                  setEditForm((current) =>
-                    current ? { ...current, sortOrder: event.target.value } : current,
-                  );
-                }}
-                value={editForm.sortOrder}
-              />
-            </div>
-            <div>
-              <label htmlFor="vocabulary-edit-enabled">启用</label>
-              <input
-                checked={editForm.isActive}
-                id="vocabulary-edit-enabled"
-                onChange={(event) => {
-                  setEditForm((current) =>
-                    current ? { ...current, isActive: event.target.checked } : current,
-                  );
-                }}
-                role="switch"
-                type="checkbox"
-              />
-            </div>
-            <div>
-              <label htmlFor="vocabulary-edit-metadata">元数据 JSON</label>
-              <Input.TextArea
-                id="vocabulary-edit-metadata"
-                autoSize={{ maxRows: 8, minRows: 4 }}
-                onChange={(event) => {
-                  setEditForm((current) =>
-                    current ? { ...current, metadataJson: event.target.value } : current,
-                  );
-                }}
-                value={editForm.metadataJson}
-              />
-            </div>
-            <Button
-              loading={updateMutation.isPending}
-              onClick={handleEditSubmit}
-              type="primary"
-            >
-              保存修改
-            </Button>
-          </Space>
+          <EditVocabularyForm
+            formState={editForm}
+            loading={updateMutation.isPending}
+            onChange={setEditForm}
+            onSubmit={handleEditSubmit}
+          />
         ) : null}
       </Modal>
     </div>

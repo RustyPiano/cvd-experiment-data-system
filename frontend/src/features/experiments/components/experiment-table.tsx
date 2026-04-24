@@ -87,7 +87,7 @@ export function ExperimentTable({ items, loading }: ExperimentTableProps) {
         emptyText: <EmptyState description="当前没有可见实验记录。" />,
       }}
       loading={loading}
-      pagination={false}
+      pagination={{ pageSize: 20, showSizeChanger: true }}
       rowKey="id"
     />
   );

@@ -314,9 +314,48 @@ def test_clone_experiment_resets_basic_info_and_environment_notes(active_user, a
         headers=auth_headers(active_user.email),
     )
 
-    assert clone_basic_info_response.status_code == 404
+    assert clone_basic_info_response.status_code == 200
+    assert clone_basic_info_response.json()["payload_json"]["operator_id"] == str(active_user.id)
+    assert clone_basic_info_response.json()["payload_json"]["experiment_type"] == "cvd_2zone"
+    assert clone_basic_info_response.json()["payload_json"]["material_system"] == "WS2"
+    assert clone_basic_info_response.json()["payload_json"]["objective"] == "Source objective"
+    assert clone_basic_info_response.json()["payload_json"]["experiment_date"] != "2026-04-20"
     assert clone_environment_response.status_code == 200
+    assert clone_environment_response.json()["payload_json"]["sample_env"] == "clean"
     assert clone_environment_response.json()["payload_json"]["abnormal_note"] == ""
+    assert "indoor_temperature_C" not in clone_environment_response.json()["payload_json"]
+
+
+def test_validate_and_failed_submit_do_not_create_audit_events(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": None,
+            "experiment_date": "2026-04-23",
+            "objective": "Validation audit flow",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    validate_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    audit_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/audit-events",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert validate_response.status_code == 200
+    assert submit_response.status_code == 422
+    assert audit_response.status_code == 200
+    assert [item["action"] for item in audit_response.json()["items"]] == ["create"]
 
 
 def test_experiment_audit_tracks_file_upload_and_delete(active_user) -> None:

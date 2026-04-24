@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Spin } from "antd";
+import { Alert, Anchor, Button, Spin } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
@@ -21,6 +21,19 @@ import { ResultSummarySection } from "./components/result-summary-section";
 import { SubstratesSection } from "./components/substrates-section";
 import { createInitialEditorValues, createModulePayloadMap, type ModulePayloadMap } from "./editor-types";
 import { useExperimentEditor } from "./use-experiment-editor";
+
+const sectionAnchors = [
+  { key: "basic_info", label: "基础信息" },
+  { key: "environment", label: "环境条件" },
+  { key: "precheck", label: "预检查" },
+  { key: "precursors", label: "前驱体" },
+  { key: "substrates", label: "基底" },
+  { key: "furnace_program", label: "炉温程序" },
+  { key: "gas_program", label: "气体程序" },
+  { key: "process_observation", label: "过程观察" },
+  { key: "characterization", label: "表征结果" },
+  { key: "result_summary", label: "结果总结" },
+];
 
 function ExperimentEditorWorkspace({
   accessToken,
@@ -59,7 +72,7 @@ function ExperimentEditorWorkspace({
             查看详情
           </Button>
         }
-        subtitle="V1 模块现已接入自动保存和提交闭环，非 draft 状态下会保持只读。"
+        subtitle="各模块修改后自动保存，提交后不可再编辑。"
         title={`编辑 ${editor.experiment.run_code}`}
       />
       <EditorStatusBar
@@ -69,176 +82,206 @@ function ExperimentEditorWorkspace({
         submitState={editor.submitState}
         summary={editor.saveSummary}
       />
-      <EditorSectionCard
-        state={editor.sectionStates.basic_info}
-        subtitle="主记录和 basic_info 模块会一起保存，确保列表、详情和模块数据一致。"
-        title="基础信息"
-      >
-        <ExperimentMainFields
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              basicInfo: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.basicInfo}
+      <div className="editor-workspace-layout">
+        <Anchor
+          affix
+          className="editor-section-anchor"
+          items={sectionAnchors.map((s) => ({ key: s.key, href: `#section-${s.key}`, title: s.label }))}
+          offsetTop={80}
         />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.environment}
-        subtitle="环境条件会保存在独立模块里；clone 时异常备注会被后端自动清空。"
-        title="环境条件"
-      >
-        <EnvironmentSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              environment: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.environment}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.precheck}
-        subtitle="提交前如果密封检查失败，必须补齐风险说明。"
-        title="预检查"
-      >
-        <PrecheckSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              precheck: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.precheck}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.precursors}
-        subtitle="至少保留一条有效前驱体记录。"
-        title="前驱体"
-      >
-        <PrecursorsSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              precursors: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.precursors}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.substrates}
-        subtitle="top / bottom 会同步生成或更新样品记录。"
-        title="基底"
-      >
-        <SubstratesSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              substrates: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.substrates}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.furnace_program}
-        subtitle="提交时要求至少一个温区，且每个温区的时间点严格递增。"
-        title="炉温程序"
-      >
-        <FurnaceProgramSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              furnaceProgram: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.furnaceProgram}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.gas_program}
-        subtitle="气体程序可为空；一旦填写，时间段必须合法且不能重叠。"
-        title="气体程序"
-      >
-        <GasProgramSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              gasProgram: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.gasProgram}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.process_observation}
-        subtitle="记录过程中的颜色变化、沉积和其他异常现象；locked clone 不会复制这一段。"
-        title="过程观察"
-      >
-        <ProcessObservationSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              processObservation: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.processObservation}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.characterization}
-        subtitle="当前先接最小表征记录，文件上传页后续再和表征方法词表联动。"
-        title="表征结果"
-      >
-        <CharacterizationSection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              characterization: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.characterization}
-        />
-      </EditorSectionCard>
-      <EditorSectionCard
-        state={editor.sectionStates.result_summary}
-        subtitle="这一段会同时同步主实验 `summary_result`，保证详情页和列表能直接读取结论。"
-        title="结果总结"
-      >
-        <ResultSummarySection
-          disabled={!editor.isDraft}
-          onChange={(nextValue) => {
-            editor.updateValues((current) => ({
-              ...current,
-              resultSummary: nextValue,
-            }));
-            editor.scheduleAutosave();
-          }}
-          value={editor.values.resultSummary}
-        />
-      </EditorSectionCard>
+        <div className="content-stack" style={{ flex: 1, minWidth: 0 }}>
+          <div className="editor-anchor-target" id="section-basic_info">
+            <EditorSectionCard
+              state={editor.sectionStates.basic_info}
+              subtitle="主记录和基础信息模块会一起保存。"
+              title="基础信息"
+            >
+              <ExperimentMainFields
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    basicInfo: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.basicInfo}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-environment">
+            <EditorSectionCard
+              state={editor.sectionStates.environment}
+              subtitle="记录实验时的环境条件。"
+              title="环境条件"
+            >
+              <EnvironmentSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    environment: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.environment}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-precheck">
+            <EditorSectionCard
+              state={editor.sectionStates.precheck}
+              subtitle="密封检查未通过时须填写风险说明。"
+              title="预检查"
+            >
+              <PrecheckSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    precheck: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.precheck}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-precursors">
+            <EditorSectionCard
+              state={editor.sectionStates.precursors}
+              subtitle="至少保留一条前驱体记录。"
+              title="前驱体"
+            >
+              <PrecursorsSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    precursors: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.precursors}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-substrates">
+            <EditorSectionCard
+              state={editor.sectionStates.substrates}
+              subtitle="上下基底会自动生成对应的样品记录。"
+              title="基底"
+            >
+              <SubstratesSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    substrates: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.substrates}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-furnace_program">
+            <EditorSectionCard
+              state={editor.sectionStates.furnace_program}
+              subtitle="至少一个温区，时间点须严格递增。"
+              title="炉温程序"
+            >
+              <FurnaceProgramSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    furnaceProgram: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.furnaceProgram}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-gas_program">
+            <EditorSectionCard
+              state={editor.sectionStates.gas_program}
+              subtitle="可选填写，时间段不能重叠。"
+              title="气体程序"
+            >
+              <GasProgramSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    gasProgram: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.gasProgram}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-process_observation">
+            <EditorSectionCard
+              state={editor.sectionStates.process_observation}
+              subtitle="记录过程中的颜色变化、沉积和异常现象。"
+              title="过程观察"
+            >
+              <ProcessObservationSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    processObservation: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.processObservation}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-characterization">
+            <EditorSectionCard
+              state={editor.sectionStates.characterization}
+              subtitle="记录表征方法和结果。"
+              title="表征结果"
+            >
+              <CharacterizationSection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    characterization: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.characterization}
+              />
+            </EditorSectionCard>
+          </div>
+          <div className="editor-anchor-target" id="section-result_summary">
+            <EditorSectionCard
+              state={editor.sectionStates.result_summary}
+              subtitle="总结会同步到实验主记录，方便列表和详情页直接读取。"
+              title="结果总结"
+            >
+              <ResultSummarySection
+                disabled={!editor.isDraft}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    resultSummary: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                value={editor.values.resultSummary}
+              />
+            </EditorSectionCard>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

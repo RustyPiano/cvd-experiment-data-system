@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Input, Space, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Form, Input, Space, Spin, Table, Tag, Typography } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate, useParams } from "react-router-dom";
@@ -55,6 +55,20 @@ function buildFormState(sample: SampleRead): SampleFormState {
 function toNullableString(value: string) {
   const normalized = value.trim();
   return normalized ? normalized : null;
+}
+
+function validateMetadataJson(rawValue: string): string | null {
+  const normalized = rawValue.trim();
+  if (!normalized) return null;
+  try {
+    const parsed = JSON.parse(normalized);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return "元数据 JSON 必须是对象";
+    }
+    return null;
+  } catch {
+    return "元数据 JSON 格式无效";
+  }
 }
 
 function buildSampleUpdatePayload(
@@ -178,6 +192,8 @@ export function SampleDetailPage() {
       : sampleQuery.data
         ? buildFormState(sampleQuery.data)
         : null;
+
+  const metadataJsonError = formState ? validateMetadataJson(formState.metadataJson) : null;
 
   const canEdit =
     currentUser !== null &&
@@ -331,13 +347,13 @@ export function SampleDetailPage() {
             </Button>
           </Space>
         }
-        subtitle="样品页当前覆盖读取、编辑和关联文件查看；编辑权限仍以实验 owner/admin + draft 状态为准。"
+        subtitle="查看和编辑样品信息，浏览关联文件。仅草稿实验可编辑。"
         title={`样品详情 · ${sampleQuery.data.sample_code}`}
       />
 
       {message ? (
         <Alert
-          title={message.text}
+          message={message.text}
           showIcon
           type={message.type}
         />
@@ -380,124 +396,124 @@ export function SampleDetailPage() {
             <>
               {!canEdit ? (
                 <Alert
-                  title="当前样品来自非 draft 实验，暂不可编辑。"
+                  message="当前样品来自非 draft 实验，暂不可编辑。"
                   showIcon
                   type="info"
                 />
               ) : null}
-              <div
-                style={{
-                  display: "grid",
-                  gap: 12,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                }}
-              >
-                <label>
-                  <Typography.Text strong>基底类型</Typography.Text>
-                  <Input
-                    aria-label="基底类型"
-                    disabled={formDisabled}
-                    onChange={(event) => {
-                      updateFormState("substrate_type", (current) => ({
-                        ...current,
-                        substrateType: event.target.value,
-                      }));
-                    }}
-                    value={formState.substrateType}
-                  />
-                </label>
-                <label>
-                  <Typography.Text strong>品牌</Typography.Text>
-                  <Input
-                    aria-label="品牌"
-                    disabled={formDisabled}
-                    onChange={(event) => {
-                      updateFormState("brand", (current) => ({
-                        ...current,
-                        brand: event.target.value,
-                      }));
-                    }}
-                    value={formState.brand}
-                  />
-                </label>
-                <label>
-                  <Typography.Text strong>尺寸</Typography.Text>
-                  <Input
-                    aria-label="尺寸"
-                    disabled={formDisabled}
-                    onChange={(event) => {
-                      updateFormState("size_mm", (current) => ({
-                        ...current,
-                        sizeMm: event.target.value,
-                      }));
-                    }}
-                    value={formState.sizeMm}
-                  />
-                </label>
-                <label>
-                  <Typography.Text strong>位置 (mm)</Typography.Text>
-                  <Input
-                    aria-label="位置 (mm)"
-                    disabled={formDisabled}
-                    onChange={(event) => {
-                      updateFormState("position_mm", (current) => ({
-                        ...current,
-                        positionMm: event.target.value,
-                      }));
-                    }}
-                    value={formState.positionMm}
-                  />
-                </label>
-                <label style={{ gridColumn: "1 / -1" }}>
-                  <Typography.Text strong>处理方式</Typography.Text>
-                  <Input.TextArea
-                    aria-label="处理方式"
-                    autoSize={{ minRows: 2, maxRows: 4 }}
-                    disabled={formDisabled}
-                    onChange={(event) => {
-                      updateFormState("treatment", (current) => ({
-                        ...current,
-                        treatment: event.target.value,
-                      }));
-                    }}
-                    value={formState.treatment}
-                  />
-                </label>
-                <label>
-                  <Typography.Text strong>存放位置</Typography.Text>
-                  <Input
-                    aria-label="存放位置"
-                    disabled={formDisabled}
-                    onChange={(event) => {
-                      updateFormState("storage_location", (current) => ({
-                        ...current,
-                        storageLocation: event.target.value,
-                      }));
-                    }}
-                    value={formState.storageLocation}
-                  />
-                </label>
-                <label style={{ gridColumn: "1 / -1" }}>
-                  <Typography.Text strong>元数据 JSON</Typography.Text>
-                  <Input.TextArea
-                    aria-label="元数据 JSON"
-                    autoSize={{ minRows: 6, maxRows: 12 }}
-                    disabled={formDisabled}
-                    onChange={(event) => {
-                      updateFormState("metadata_json", (current) => ({
-                        ...current,
-                        metadataJson: event.target.value,
-                      }));
-                    }}
-                    value={formState.metadataJson}
-                  />
-                </label>
-              </div>
+              <Form layout="vertical">
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 0,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  }}
+                >
+                  <Form.Item label="基底类型">
+                    <Input
+                      aria-label="基底类型"
+                      disabled={formDisabled}
+                      onChange={(event) => {
+                        updateFormState("substrate_type", (current) => ({
+                          ...current,
+                          substrateType: event.target.value,
+                        }));
+                      }}
+                      value={formState.substrateType}
+                    />
+                  </Form.Item>
+                  <Form.Item label="品牌">
+                    <Input
+                      aria-label="品牌"
+                      disabled={formDisabled}
+                      onChange={(event) => {
+                        updateFormState("brand", (current) => ({
+                          ...current,
+                          brand: event.target.value,
+                        }));
+                      }}
+                      value={formState.brand}
+                    />
+                  </Form.Item>
+                  <Form.Item label="尺寸">
+                    <Input
+                      aria-label="尺寸"
+                      disabled={formDisabled}
+                      onChange={(event) => {
+                        updateFormState("size_mm", (current) => ({
+                          ...current,
+                          sizeMm: event.target.value,
+                        }));
+                      }}
+                      value={formState.sizeMm}
+                    />
+                  </Form.Item>
+                  <Form.Item label="位置 (mm)">
+                    <Input
+                      aria-label="位置 (mm)"
+                      disabled={formDisabled}
+                      onChange={(event) => {
+                        updateFormState("position_mm", (current) => ({
+                          ...current,
+                          positionMm: event.target.value,
+                        }));
+                      }}
+                      value={formState.positionMm}
+                    />
+                  </Form.Item>
+                  <Form.Item label="处理方式" style={{ gridColumn: "1 / -1" }}>
+                    <Input.TextArea
+                      aria-label="处理方式"
+                      autoSize={{ minRows: 2, maxRows: 4 }}
+                      disabled={formDisabled}
+                      onChange={(event) => {
+                        updateFormState("treatment", (current) => ({
+                          ...current,
+                          treatment: event.target.value,
+                        }));
+                      }}
+                      value={formState.treatment}
+                    />
+                  </Form.Item>
+                  <Form.Item label="存放位置">
+                    <Input
+                      aria-label="存放位置"
+                      disabled={formDisabled}
+                      onChange={(event) => {
+                        updateFormState("storage_location", (current) => ({
+                          ...current,
+                          storageLocation: event.target.value,
+                        }));
+                      }}
+                      value={formState.storageLocation}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    label="元数据 JSON"
+                    style={{ gridColumn: "1 / -1" }}
+                    validateStatus={metadataJsonError ? "error" : undefined}
+                    help={metadataJsonError}
+                  >
+                    <Input.TextArea
+                      aria-label="元数据 JSON"
+                      autoSize={{ minRows: 6, maxRows: 12 }}
+                      disabled={formDisabled}
+                      onChange={(event) => {
+                        updateFormState("metadata_json", (current) => ({
+                          ...current,
+                          metadataJson: event.target.value,
+                        }));
+                      }}
+                      value={formState.metadataJson}
+                    />
+                  </Form.Item>
+                </div>
+              </Form>
 
               {canEdit ? (
                 <Button
                   aria-label="保存样品"
-                  disabled={!hasDirtyFields}
+                  disabled={!hasDirtyFields || Boolean(metadataJsonError)}
                   loading={saveMutation.isPending}
                   onClick={() => {
                     setMessage(null);
@@ -533,7 +549,7 @@ export function SampleDetailPage() {
           ) : (
             <Table<FileAssetRead>
               dataSource={fileRows}
-              pagination={false}
+              pagination={{ pageSize: 10, showSizeChanger: true }}
               rowKey="id"
               columns={[
                 {

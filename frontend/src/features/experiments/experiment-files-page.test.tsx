@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
 
@@ -257,6 +258,7 @@ describe("ExperimentFilesPage", () => {
   });
 
   it("uploads a new file and refreshes the list", async () => {
+    const user = userEvent.setup();
     const server = createFileServer();
     vi.stubGlobal("fetch", server.fetchMock);
 
@@ -272,12 +274,10 @@ describe("ExperimentFilesPage", () => {
 
     expect(await screen.findByText("raman.txt")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("文件方法"), {
-      target: { value: "SEM" },
-    });
-    fireEvent.change(screen.getByLabelText("关联样品"), {
-      target: { value: "sample-1" },
-    });
+    await user.click(screen.getByLabelText("文件方法"));
+    await user.click(await screen.findByRole("option", { name: "扫描电镜" }));
+    await user.click(screen.getByLabelText("关联样品"));
+    await user.click(await screen.findByRole("option", { name: "S-2026-0001-TOP" }));
     fireEvent.change(screen.getByLabelText("文件备注"), {
       target: { value: "surface image" },
     });
@@ -307,8 +307,10 @@ describe("ExperimentFilesPage", () => {
     expect(formData.get("sample_id")).toBe("sample-1");
     expect(formData.get("note")).toBe("surface image");
 
-    expect(await screen.findByText("sem.png")).toBeInTheDocument();
-  });
+    await waitFor(() => {
+      expect(screen.getAllByText("sem.png").length).toBeGreaterThan(0);
+    });
+  }, 10_000);
 
   it("navigates to a sample detail route from the sample column", async () => {
     const server = createFileServer();
@@ -365,8 +367,10 @@ describe("ExperimentFilesPage", () => {
   });
 
   it("filters files and deletes an existing draft asset", async () => {
+    const user = userEvent.setup();
     const server = createFileServer();
     vi.stubGlobal("fetch", server.fetchMock);
+    vi.stubGlobal("confirm", vi.fn(() => true));
 
     renderWithApp(
       <Routes>
@@ -398,7 +402,7 @@ describe("ExperimentFilesPage", () => {
     expect(await screen.findByText("image.png")).toBeInTheDocument();
     expect(screen.queryByText("raman.txt")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "删除 image.png" }));
+    await user.click(screen.getByRole("button", { name: "删除 image.png" }));
 
     await waitFor(() => {
       expect(
