@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, Button, Checkbox, Input, Modal, Space, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Checkbox, Input, Modal, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 
@@ -63,6 +63,7 @@ export function HistoryCloneDialog({
   onCloned,
   open,
 }: HistoryCloneDialogProps) {
+  const { message } = App.useApp();
   const [draftFilters, setDraftFilters] = useState<HistoryFilters>(defaultFilters);
   const [filters, setFilters] = useState<HistoryFilters>(defaultFilters);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -89,6 +90,7 @@ export function HistoryCloneDialog({
     },
     onSuccess: (experiment) => {
       setActionError(null);
+      message.success("实验复制成功");
       onCloned(experiment);
     },
     onError: (error) => {

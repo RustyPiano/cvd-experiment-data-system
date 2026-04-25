@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Form, Input, InputNumber, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, Modal, Space, Table, Tag, Typography } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useNavigate, useParams } from "react-router-dom";
+import { useBlocker, useNavigate, useParams } from "react-router-dom";
 
 import { useAuth } from "../auth/use-auth";
 import { getExperiment, listExperimentFiles } from "../experiments/api";
@@ -146,6 +146,31 @@ function formatBytes(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+function SampleLeaveGuard({ when }: { when: boolean }) {
+  const blocker = useBlocker(when);
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") {
+      return;
+    }
+
+    Modal.confirm({
+      title: "离开确认",
+      content: "样品信息尚未保存，确认离开吗？",
+      okText: "离开",
+      cancelText: "留下",
+      onOk: () => {
+        blocker.proceed();
+      },
+      onCancel: () => {
+        blocker.reset();
+      },
+    });
+  }, [blocker]);
+
+  return null;
+}
+
 export function SampleDetailPage() {
   const { sampleId = "" } = useParams();
   const navigate = useNavigate();
@@ -160,6 +185,8 @@ export function SampleDetailPage() {
   } | null>(null);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [downloadFileId, setDownloadFileId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autosaveTimerRef = useRef<number | null>(null);
 
   const sampleQuery = useQuery({
     queryKey: ["samples", "detail", viewerKey, sampleId],
@@ -213,6 +240,7 @@ export function SampleDetailPage() {
         throw new Error("样品表单暂不可用");
       }
 
+      setSaveStatus("saving");
       return updateSample(
         session.accessToken!,
         sampleId,
@@ -220,7 +248,7 @@ export function SampleDetailPage() {
       );
     },
     onSuccess: async (savedSample) => {
-      setMessage({ text: "样品保存成功", type: "success" });
+      setSaveStatus("saved");
       setDraftFormState(null);
       queryClient.setQueryData(["samples", "detail", viewerKey, sampleId], savedSample);
       await Promise.all([
@@ -233,6 +261,7 @@ export function SampleDetailPage() {
       ]);
     },
     onError: (error) => {
+      setSaveStatus("error");
       setMessage({
         text: resolveErrorMessage(error, "样品保存失败"),
         type: "error",
@@ -260,6 +289,21 @@ export function SampleDetailPage() {
 
   const fileRows = useMemo(() => filesQuery.data?.items ?? [], [filesQuery.data?.items]);
 
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = window.setTimeout(() => {
+      if (!hasDirtyFields || metadataJsonError || saveMutation.isPending) {
+        return;
+      }
+
+      setMessage(null);
+      saveMutation.mutate();
+    }, 900);
+  }, [hasDirtyFields, metadataJsonError, saveMutation]);
+
   const updateFormState = (
     field: SampleFieldKey,
     updater: (current: SampleFormState) => SampleFormState,
@@ -283,7 +327,35 @@ export function SampleDetailPage() {
         revision: sampleRevision,
       };
     });
+
+    if (canEdit) {
+      scheduleAutosave();
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasDirtyFields && !saveMutation.isPending) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [hasDirtyFields, saveMutation.isPending]);
 
   if (sampleQuery.isLoading) {
     return <LoadingState />;
@@ -321,6 +393,7 @@ export function SampleDetailPage() {
 
   return (
     <div className="content-stack">
+      <SampleLeaveGuard when={hasDirtyFields && !saveMutation.isPending} />
       <PageHeader
         actions={
           <Space wrap>
@@ -354,6 +427,12 @@ export function SampleDetailPage() {
           showIcon
           type={message.type}
         />
+      ) : null}
+      {canEdit && saveStatus === "saving" ? (
+        <Alert message="正在自动保存..." showIcon type="info" />
+      ) : null}
+      {canEdit && saveStatus === "saved" && !hasDirtyFields ? (
+        <Alert message="已自动保存" showIcon type="success" />
       ) : null}
 
       <Card>
@@ -443,21 +522,21 @@ export function SampleDetailPage() {
                       value={formState.sizeMm}
                     />
                   </Form.Item>
-                    <Form.Item label="位置 (mm)">
-                      <InputNumber
-                        aria-label="位置 (mm)"
-                        disabled={formDisabled}
-                        onChange={(value) => {
-                          updateFormState("position_mm", (current) => ({
-                            ...current,
-                            positionMm: value === null ? "" : String(value),
-                          }));
-                        }}
-                        stringMode
-                        style={{ width: "100%" }}
-                        value={formState.positionMm === "" ? null : formState.positionMm}
-                      />
-                    </Form.Item>
+                  <Form.Item label="位置 (mm)">
+                    <InputNumber
+                      aria-label="位置 (mm)"
+                      disabled={formDisabled}
+                      onChange={(value) => {
+                        updateFormState("position_mm", (current) => ({
+                          ...current,
+                          positionMm: value === null ? "" : String(value),
+                        }));
+                      }}
+                      stringMode
+                      style={{ width: "100%" }}
+                      value={formState.positionMm === "" ? null : formState.positionMm}
+                    />
+                  </Form.Item>
                   <Form.Item label="处理方式" style={{ gridColumn: "1 / -1" }}>
                     <Input.TextArea
                       aria-label="处理方式"
@@ -508,18 +587,28 @@ export function SampleDetailPage() {
               </Form>
 
               {canEdit ? (
-                <Button
-                  aria-label="保存样品"
-                  disabled={!hasDirtyFields || Boolean(metadataJsonError)}
-                  loading={saveMutation.isPending}
-                  onClick={() => {
-                    setMessage(null);
-                    saveMutation.mutate();
-                  }}
-                  type="primary"
-                >
-                  保存样品
-                </Button>
+                <Space>
+                  <Button
+                    aria-label="保存样品"
+                    disabled={!hasDirtyFields || Boolean(metadataJsonError)}
+                    loading={saveMutation.isPending}
+                    onClick={() => {
+                      if (autosaveTimerRef.current) {
+                        window.clearTimeout(autosaveTimerRef.current);
+                      }
+                      setMessage(null);
+                      saveMutation.mutate();
+                    }}
+                    type="primary"
+                  >
+                    保存样品
+                  </Button>
+                  {saveMutation.isPending ? null : (
+                    <Typography.Text type="secondary">
+                      {hasDirtyFields ? "有未保存的修改" : "修改后自动保存"}
+                    </Typography.Text>
+                  )}
+                </Space>
               ) : null}
             </>
           ) : null}
@@ -551,27 +640,33 @@ export function SampleDetailPage() {
                   dataIndex: "original_name",
                   key: "original_name",
                   title: "文件名",
+                  sorter: (a, b) => a.original_name.localeCompare(b.original_name),
                 },
                 {
                   dataIndex: "method",
                   key: "method",
                   title: "方法",
+                  sorter: (a, b) => (a.method ?? "").localeCompare(b.method ?? ""),
                 },
                 {
                   dataIndex: "file_category",
                   key: "file_category",
                   title: "类别",
+                  sorter: (a, b) => a.file_category.localeCompare(b.file_category),
                 },
                 {
                   dataIndex: "size_bytes",
                   key: "size_bytes",
                   title: "大小",
+                  sorter: (a, b) => a.size_bytes - b.size_bytes,
                   render: (value: number) => formatBytes(value),
                 },
                 {
                   dataIndex: "created_at",
                   key: "created_at",
                   title: "上传时间",
+                  defaultSortOrder: "descend",
+                  sorter: (a, b) => a.created_at.localeCompare(b.created_at),
                   render: (value: string) => dayjs(value).format("YYYY-MM-DD HH:mm"),
                 },
                 {

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
+  App,
   Button,
   Card,
   Form,
@@ -93,6 +94,7 @@ export function ExperimentFilesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session } = useAuth();
+  const { message } = App.useApp();
   const currentUser = session.currentUser;
   const [methodFilter, setMethodFilter] = useState("");
   const [fileCategoryFilter, setFileCategoryFilter] = useState("");
@@ -175,8 +177,8 @@ export function ExperimentFilesPage() {
         value: sample.id,
       })),
     ],
-      [samplesQuery.data?.items],
-    );
+    [samplesQuery.data?.items],
+  );
 
   const fileRows = useMemo(() => filesQuery.data?.items ?? [], [filesQuery.data?.items]);
   const existingFileMethods = useMemo(
@@ -245,6 +247,7 @@ export function ExperimentFilesPage() {
       }
     },
     onSuccess: async () => {
+      message.success("文件上传成功");
       resetUploadForm();
       await invalidateFileQueries();
     },
@@ -259,6 +262,7 @@ export function ExperimentFilesPage() {
   const deleteMutation = useMutation({
     mutationFn: (fileId: string) => deleteExperimentFile(session.accessToken!, fileId),
     onSuccess: async () => {
+      message.success("文件已删除");
       setMutationMessage(null);
       await invalidateFileQueries();
     },
@@ -524,22 +528,22 @@ export function ExperimentFilesPage() {
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             }}
           >
-              <Form.Item htmlFor="file-method-filter" label="筛选方法">
-                <Select
-                  aria-label="筛选方法"
-                  id="file-method-filter"
-                  onChange={(value) => {
-                    setMethodFilter(value);
-                  }}
-                  optionFilterProp="label"
-                  options={methodFilterOptions}
-                  placeholder="选择方法"
-                  showSearch
-                  style={{ width: "100%" }}
-                  value={methodFilter}
-                  virtual={false}
-                />
-              </Form.Item>
+            <Form.Item htmlFor="file-method-filter" label="筛选方法">
+              <Select
+                aria-label="筛选方法"
+                id="file-method-filter"
+                onChange={(value) => {
+                  setMethodFilter(value);
+                }}
+                optionFilterProp="label"
+                options={methodFilterOptions}
+                placeholder="选择方法"
+                showSearch
+                style={{ width: "100%" }}
+                value={methodFilter}
+                virtual={false}
+              />
+            </Form.Item>
             <Form.Item htmlFor="file-category-filter" label="筛选类别">
               <Select
                 aria-label="筛选类别"
@@ -577,6 +581,7 @@ export function ExperimentFilesPage() {
                   dataIndex: "original_name",
                   key: "original_name",
                   title: "文件名",
+                  sorter: (a, b) => a.original_name.localeCompare(b.original_name),
                   render: (_, file) => (
                     <div className="content-stack" style={{ gap: 4 }}>
                       <Typography.Text strong>{file.original_name}</Typography.Text>
@@ -590,13 +595,15 @@ export function ExperimentFilesPage() {
                   dataIndex: "method",
                   key: "method",
                   title: "方法",
+                  sorter: (a, b) => (a.method ?? "").localeCompare(b.method ?? ""),
                 },
-                  {
-                    dataIndex: "file_category",
-                    key: "file_category",
-                    render: (value: string) => formatFileCategory(value),
-                    title: "类别",
-                  },
+                {
+                  dataIndex: "file_category",
+                  key: "file_category",
+                  render: (value: string) => formatFileCategory(value),
+                  sorter: (a, b) => a.file_category.localeCompare(b.file_category),
+                  title: "类别",
+                },
                 {
                   key: "sample_id",
                   title: "样品",
@@ -623,12 +630,15 @@ export function ExperimentFilesPage() {
                   dataIndex: "size_bytes",
                   key: "size_bytes",
                   title: "大小",
+                  sorter: (a, b) => a.size_bytes - b.size_bytes,
                   render: (value: number) => formatBytes(value),
                 },
                 {
                   dataIndex: "created_at",
                   key: "created_at",
                   title: "上传时间",
+                  defaultSortOrder: "descend",
+                  sorter: (a, b) => a.created_at.localeCompare(b.created_at),
                   render: (value: string) => dayjs(value).format("YYYY-MM-DD HH:mm"),
                 },
                 {

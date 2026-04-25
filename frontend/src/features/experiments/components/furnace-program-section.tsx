@@ -79,7 +79,7 @@ export function FurnaceProgramSection({
                 value={zone.zoneIndex}
               />
             </div>
-            <div className="editor-field">
+            <div className="editor-switch-row">
               <Typography.Text strong>{`放置前驱体 ${zoneIndex + 1}`}</Typography.Text>
               <Switch
                 aria-label={`放置前驱体 ${zoneIndex + 1}`}

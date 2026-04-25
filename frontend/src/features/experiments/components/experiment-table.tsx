@@ -37,6 +37,7 @@ export function ExperimentTable({
       title: "实验编号",
       dataIndex: "run_code",
       key: "run_code",
+      sorter: (a, b) => a.run_code.localeCompare(b.run_code),
       render: (runCode: string, record) => (
         <Link to={`/experiments/${record.id}`}>{runCode}</Link>
       ),
@@ -45,6 +46,7 @@ export function ExperimentTable({
       title: "材料体系",
       dataIndex: "material_system",
       key: "material_system",
+      sorter: (a, b) => (a.material_system ?? "").localeCompare(b.material_system ?? ""),
       render: (value: string | null) =>
         value || <Typography.Text type="secondary">未填写</Typography.Text>,
     },
@@ -52,18 +54,22 @@ export function ExperimentTable({
       title: "实验日期",
       dataIndex: "experiment_date",
       key: "experiment_date",
+      sorter: (a, b) => a.experiment_date.localeCompare(b.experiment_date),
       render: (value: string) => dayjs(value).format("YYYY-MM-DD"),
     },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
+      sorter: (a, b) => a.status.localeCompare(b.status),
       render: (status: ExperimentRead["status"]) => <StatusTag status={status} />,
     },
     {
       title: "更新时间",
       dataIndex: "updated_at",
       key: "updated_at",
+      defaultSortOrder: "descend",
+      sorter: (a, b) => a.updated_at.localeCompare(b.updated_at),
       render: (value: string) => dayjs(value).format("YYYY-MM-DD HH:mm"),
     },
     {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, Row, Space, Typography } from "antd";
+import { Alert, App, Button, Card, Col, Row, Space, Typography } from "antd";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
@@ -26,6 +26,7 @@ function resolveErrorMessage(error: unknown, fallback: string) {
 export function ExperimentNewPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { message } = App.useApp();
   const isViewer = session.currentUser?.role === "viewer";
   const [historyCloneOpen, setHistoryCloneOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function ExperimentNewPage() {
       }),
     onSuccess: (experiment) => {
       setActionError(null);
+      message.success("实验创建成功");
       navigateToEditor(experiment);
     },
     onError: (error) => {
@@ -69,6 +71,7 @@ export function ExperimentNewPage() {
     },
     onSuccess: (experiment) => {
       setActionError(null);
+      message.success("实验复制成功");
       navigateToEditor(experiment);
     },
     onError: (error) => {

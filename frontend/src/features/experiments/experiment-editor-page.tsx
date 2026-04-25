@@ -199,6 +199,7 @@ function ExperimentEditorWorkspace({
           className="editor-section-anchor"
           items={sectionAnchors.map((s) => ({ key: s.key, href: `#section-${s.key}`, title: s.label }))}
           offsetTop={80}
+          targetOffset={96}
         />
         <div className="content-stack" style={{ flex: 1, minWidth: 0 }}>
           <div className="editor-anchor-target" id="section-basic_info">
