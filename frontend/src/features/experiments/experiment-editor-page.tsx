@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Anchor, Button, Spin } from "antd";
+import { Alert, Anchor, Button } from "antd";
 import {
   UNSAFE_DataRouterContext as DataRouterContext,
   useBlocker,
@@ -10,6 +10,7 @@ import {
 
 import { HttpError } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
+import { LoadingState } from "../../shared/ui/loading-state";
 import type { ControlledVocabularyRead } from "../../shared/types/api";
 import { useAuth } from "../auth/use-auth";
 import { getExperiment, listActiveVocabularies, listExperimentModules } from "./api";
@@ -429,11 +430,7 @@ export function ExperimentEditorPage() {
   }, [modulesQuery.data]);
 
   if (experimentQuery.isLoading || modulesQuery.isLoading) {
-    return (
-      <div className="centered-panel">
-        <Spin />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (experimentQuery.error || modulesQuery.error) {
@@ -451,7 +448,7 @@ export function ExperimentEditorPage() {
               返回列表
             </Button>
           }
-          subtitle="当前请求未成功完成。"
+          subtitle="无法加载实验编辑器，请检查网络连接、账号权限或实验状态。"
           title="实验编辑器"
         />
         <Alert

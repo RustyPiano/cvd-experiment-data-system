@@ -78,6 +78,11 @@ a {
   place-items: center;
 }
 
+.loading-panel {
+  min-height: 220px;
+  padding: 24px;
+}
+
 .action-card {
   height: 100%;
 }
@@ -91,7 +96,7 @@ a {
 
 .editor-action-bar {
   position: fixed;
-  left: 280px;
+  left: calc(var(--app-sidebar-width, 232px) + 24px);
   right: 24px;
   bottom: 16px;
   z-index: 10;

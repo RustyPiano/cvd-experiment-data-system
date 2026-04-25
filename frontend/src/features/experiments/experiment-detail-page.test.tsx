@@ -348,7 +348,7 @@ describe("Experiment detail-like pages", () => {
 
     expect(await screen.findByText("本实验派生自 CVD-2026-0001")).toBeInTheDocument();
     expect(screen.getByText(/样品环境/i)).toBeInTheDocument();
-    expect(screen.getByText(/precheck/i)).toBeInTheDocument();
+    expect(screen.getByText(/预检查/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CVD-2026-0001" })).toHaveAttribute(
       "href",
       "/experiments/exp-1",

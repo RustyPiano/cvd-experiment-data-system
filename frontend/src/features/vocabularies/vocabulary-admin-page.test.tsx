@@ -176,12 +176,11 @@ describe("VocabularyAdminPage", () => {
     expect(await screen.findByText("蓝宝石")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "新增词条" }));
-    await user.type(screen.getByLabelText("词表 key"), "gas_label");
-    await user.type(screen.getByLabelText("值"), "N2");
-    await user.type(screen.getByLabelText("中文标签"), "氮气");
-    await user.type(screen.getByLabelText("英文标签"), "Nitrogen");
-    await user.clear(screen.getByLabelText("排序"));
-    await user.type(screen.getByLabelText("排序"), "9");
+    fireEvent.change(screen.getByLabelText("词表 key"), { target: { value: "gas_label" } });
+    fireEvent.change(screen.getByLabelText("值"), { target: { value: "N2" } });
+    fireEvent.change(screen.getByLabelText("中文标签"), { target: { value: "氮气" } });
+    fireEvent.change(screen.getByLabelText("英文标签"), { target: { value: "Nitrogen" } });
+    fireEvent.change(screen.getByLabelText("排序"), { target: { value: "9" } });
     fireEvent.change(screen.getByLabelText("元数据 JSON"), {
       target: { value: '{\n  "source": "manual"\n}' },
     });
@@ -269,6 +268,52 @@ describe("VocabularyAdminPage", () => {
     expect(screen.getByText("词条更新成功")).toBeInTheDocument();
   });
 
+  it("toggles vocabulary active state directly from the table", async () => {
+    const user = userEvent.setup();
+    const server = createVocabularyServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/admin/vocabularies" element={<VocabularyAdminPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/admin/vocabularies"],
+        user: {
+          id: "admin-1",
+          email: "admin@example.com",
+          name: "Admin",
+          role: "admin",
+          is_active: true,
+          last_login_at: null,
+        },
+      },
+    );
+
+    expect(await screen.findByText("蓝宝石")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "启用 substrate_type:sapphire" }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "PATCH" &&
+            request.pathname === "/api/v1/admin/vocabularies/vocab-2",
+        ),
+      ).toBe(true);
+    });
+
+    const patchRequest = server.requests.find(
+      (request) =>
+        request.method === "PATCH" && request.pathname === "/api/v1/admin/vocabularies/vocab-2",
+    );
+    expect(JSON.parse(String(patchRequest?.body))).toEqual({
+      is_active: true,
+    });
+  });
+
   it("shows a permission warning for non-admin users", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -339,9 +384,11 @@ describe("VocabularyAdminPage", () => {
     expect(await screen.findByText("蓝宝石")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "新增词条" }));
-    await user.type(screen.getByLabelText("词表 key"), "characterization_method");
-    await user.type(screen.getByLabelText("值"), "XRD");
-    await user.type(screen.getByLabelText("中文标签"), "X 射线衍射");
+    fireEvent.change(screen.getByLabelText("词表 key"), {
+      target: { value: "characterization_method" },
+    });
+    fireEvent.change(screen.getByLabelText("值"), { target: { value: "XRD" } });
+    fireEvent.change(screen.getByLabelText("中文标签"), { target: { value: "X 射线衍射" } });
     await user.click(screen.getByRole("button", { name: "创建词条" }));
 
     await waitFor(() => {

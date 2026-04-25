@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExperimentOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
@@ -47,14 +48,20 @@ export function AppShell() {
     const handleUnauthorized = () => {
       queryClient.clear();
       clearSession();
-      navigate("/login", { replace: true });
+      navigate("/login", {
+        replace: true,
+        state: {
+          from: `${location.pathname}${location.search}`,
+          reason: "session-expired",
+        },
+      });
     };
 
     window.addEventListener(API_UNAUTHORIZED_EVENT, handleUnauthorized);
     return () => {
       window.removeEventListener(API_UNAUTHORIZED_EVENT, handleUnauthorized);
     };
-  }, [clearSession, navigate, queryClient]);
+  }, [clearSession, location.pathname, location.search, navigate, queryClient]);
 
   const handleLogout = async () => {
     try {
@@ -68,8 +75,13 @@ export function AppShell() {
     }
   };
 
-  return (
-    <Layout style={{ minHeight: "100vh" }}>
+    const shellStyle = {
+      "--app-sidebar-width": collapsed ? "80px" : "232px",
+      minHeight: "100vh",
+    } as CSSProperties;
+
+    return (
+      <Layout data-testid="app-shell-layout" style={shellStyle}>
       <Layout.Sider breakpoint="lg" collapsible collapsed={collapsed} onCollapse={setCollapsed} theme="light" width={232}>
         <div className="app-brand">
           <Typography.Text strong>{collapsed ? "CVD" : "CVD Lab"}</Typography.Text>

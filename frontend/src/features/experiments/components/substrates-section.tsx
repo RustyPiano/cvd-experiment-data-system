@@ -1,4 +1,4 @@
-import { Button, Empty, Input, Select, Typography } from "antd";
+import { Button, Empty, Input, InputNumber, Select, Typography } from "antd";
 
 import {
   createEmptySubstrateItem,
@@ -121,18 +121,20 @@ export function SubstratesSection({
                 value={item.treatmentMethod}
               />
             </div>
-            <div className="editor-field">
-              <Typography.Text strong>{`位置 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`位置 ${index + 1}`}
-                disabled={disabled}
-                onChange={(event) => {
-                  updateItem(index, { positionMm: event.target.value });
-                }}
-                placeholder="例如 1 或 -1"
-                value={item.positionMm}
-              />
-            </div>
+              <div className="editor-field">
+                <Typography.Text strong>{`位置 ${index + 1}`}</Typography.Text>
+                <InputNumber
+                  aria-label={`位置 ${index + 1}`}
+                  disabled={disabled}
+                  onChange={(nextValue) => {
+                    updateItem(index, { positionMm: nextValue === null ? "" : String(nextValue) });
+                  }}
+                  placeholder="例如 1 或 -1"
+                  stringMode
+                  style={{ width: "100%" }}
+                  value={item.positionMm === "" ? null : item.positionMm}
+                />
+              </div>
             {item.treatmentMethod.trim().length > 0 ? (
               <>
                 <div className="editor-field">

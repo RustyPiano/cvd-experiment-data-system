@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppShell } from "../shared/ui/app-shell";
+import { AppErrorFallback } from "../shared/ui/app-error-boundary";
 import { ProtectedRoute } from "./routes/route-guards";
 
 export const router = createBrowserRouter([
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
         <AppShell />
       </ProtectedRoute>
     ),
+    errorElement: <AppErrorFallback />,
     children: [
       {
         path: "/experiments",
@@ -81,6 +83,13 @@ export const router = createBrowserRouter([
             "../features/vocabularies/vocabulary-admin-page"
           );
           return { Component: VocabularyAdminPage };
+        },
+      },
+      {
+        path: "*",
+        lazy: async () => {
+          const { NotFoundPage } = await import("../shared/ui/not-found-page");
+          return { Component: NotFoundPage };
         },
       },
     ],

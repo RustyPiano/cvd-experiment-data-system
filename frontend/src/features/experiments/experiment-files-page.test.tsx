@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
@@ -147,6 +148,27 @@ function createFileServer() {
       metadata_json: {},
       created_at: "2026-04-23T00:12:00Z",
       updated_at: "2026-04-23T00:12:00Z",
+      deleted_at: null,
+      is_deleted: false,
+    },
+    {
+      id: "file-legacy",
+      experiment_run_id: "exp-1",
+      sample_id: null,
+      uploaded_by_id: "u-1",
+      deleted_by_id: null,
+      original_name: "legacy.dat",
+      storage_path: "CVD-2026-0001/file-legacy.dat",
+      download_url: "/api/v1/files/file-legacy/download",
+      content_type: "application/octet-stream",
+      size_bytes: 12,
+      sha256: "hash-legacy",
+      method: "Legacy-XPS",
+      file_category: "raw",
+      note: "legacy method",
+      metadata_json: {},
+      created_at: "2026-04-23T00:14:00Z",
+      updated_at: "2026-04-23T00:14:00Z",
       deleted_at: null,
       is_deleted: false,
     },
@@ -313,6 +335,94 @@ describe("ExperimentFilesPage", () => {
     });
   }, 10_000);
 
+  it("invalidates sample file caches after uploading a linked file", async () => {
+    const user = userEvent.setup();
+    const server = createFileServer();
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    const sampleFilesKey = ["samples", "files", "u-1", "sample-1"];
+    queryClient.setQueryData(sampleFilesKey, { items: [], total: 0 });
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+        queryClient,
+      },
+    );
+
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("文件方法"));
+    await user.click(await screen.findByRole("option", { name: "扫描电镜" }));
+    await user.click(screen.getByLabelText("关联样品"));
+    await user.click(await screen.findByRole("option", { name: "S-2026-0001-TOP" }));
+    fireEvent.change(screen.getByLabelText("选择文件"), {
+      target: {
+        files: [new File(["png-bytes"], "sem.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "上传文件" }));
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(sampleFilesKey)?.isInvalidated).toBe(true);
+    });
+  }, 10_000);
+
+  it("uploads the vocabulary value when users search by Chinese method label", async () => {
+    const user = userEvent.setup();
+    const server = createFileServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+      },
+    );
+
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("文件方法"));
+    await user.keyboard("扫描");
+    await user.click(await screen.findByRole("option", { name: "扫描电镜" }));
+    fireEvent.change(screen.getByLabelText("选择文件"), {
+      target: {
+        files: [new File(["png-bytes"], "sem.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "上传文件" }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" &&
+            request.pathname === "/api/v1/experiments/exp-1/files",
+        ),
+      ).toBe(true);
+    });
+
+    const uploadRequest = server.requests.find(
+      (request) =>
+        request.method === "POST" && request.pathname === "/api/v1/experiments/exp-1/files",
+    );
+    const formData = uploadRequest?.body as FormData;
+    expect(formData.get("method")).toBe("SEM");
+  }, 10_000);
+
   it("navigates to a sample detail route from the sample column", async () => {
     const server = createFileServer();
     vi.stubGlobal("fetch", server.fetchMock);
@@ -385,9 +495,8 @@ describe("ExperimentFilesPage", () => {
 
     expect(await screen.findByText("raman.txt")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("筛选方法"), {
-      target: { value: "OM" },
-    });
+    await user.click(screen.getByLabelText("筛选方法"));
+    await user.click(await screen.findByRole("option", { name: "光学显微镜" }));
 
     await waitFor(() => {
       expect(
@@ -401,6 +510,7 @@ describe("ExperimentFilesPage", () => {
     });
 
     expect(await screen.findByText("image.png")).toBeInTheDocument();
+    expect(screen.getByText("已处理")).toBeInTheDocument();
     expect(screen.queryByText("raman.txt")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "删除 image.png" }));
@@ -416,6 +526,38 @@ describe("ExperimentFilesPage", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("image.png")).not.toBeInTheDocument();
+    });
+  });
+
+  it("offers legacy file methods in the method filter", async () => {
+    const user = userEvent.setup();
+    const server = createFileServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+      },
+    );
+
+    expect(await screen.findByText("legacy.dat")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("筛选方法"));
+    await user.click(await screen.findByRole("option", { name: "Legacy-XPS" }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "GET" &&
+            request.pathname === "/api/v1/files" &&
+            request.search.includes("method=Legacy-XPS"),
+        ),
+      ).toBe(true);
     });
   });
 });

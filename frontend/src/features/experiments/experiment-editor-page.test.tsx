@@ -551,6 +551,40 @@ describe("ExperimentEditorPage", () => {
     ).toBe(false);
   });
 
+  it("blocks autosave when furnace zone index is not an integer", async () => {
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const zoneIndexInput = await screen.findByLabelText("温区编号 1");
+    vi.useFakeTimers();
+    fireEvent.change(zoneIndexInput, { target: { value: "1.5" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    expect(await screen.findByText("温区编号 1 必须是整数")).toBeInTheDocument();
+    expect(
+      server.requests.some(
+        (request) =>
+          request.method === "PUT" &&
+          request.pathname === "/api/v1/experiments/exp-1/modules/furnace_program",
+      ),
+    ).toBe(false);
+  });
+
   it("loads vocabulary-backed editor controls", async () => {
     const user = userEvent.setup();
     const server = createEditorFetchMock();

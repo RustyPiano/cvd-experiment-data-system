@@ -15,6 +15,59 @@ from app.schemas.experiment_validation import (
 )
 from app.schemas.module_payload import validate_module_payload
 
+ISSUE_MESSAGE_ZH = {
+    "Quality label is unknown": "质量标签仍为未知",
+    "Experiment type is required": "实验类型必填",
+    "Material system is required": "材料体系必填",
+    "Experiment date is required": "实验日期必填",
+    "Operator is required": "实验负责人必填",
+    "At least one precursor is required": "至少需要填写一个前驱体",
+    "Precursor item must be an object": "前驱体记录格式无效",
+    "Precursor type is required": "前驱体类型必填",
+    "Precursor method is required": "前驱体方法必填",
+    "Precursor batch_no is missing": "前驱体批号缺失",
+    "Precursor mass_mg is missing": "前驱体质量缺失",
+    "Substrate item must be an object": "基底记录格式无效",
+    "Substrate role is required": "基底角色必填",
+    "Substrate role must be top or bottom": "基底角色必须是 top 或 bottom",
+    "Substrate type is required": "基底类型必填",
+    "At least one furnace zone is required": "至少需要填写一个温区",
+    "Furnace zone must be an object": "温区记录格式无效",
+    "Temperature program is required": "温度程序必填",
+    "Furnace program point must be an object": "温度点记录格式无效",
+    "Furnace program time_min must be numeric": "温度程序时间必须是数字",
+    "Furnace program temperature_C is required and must be numeric": "温度程序温度必填且必须是数字",
+    "Furnace program time points must be strictly increasing": "温度程序时间点必须严格递增",
+    "Gas segment must be an object": "气体程序段格式无效",
+    "Gas segment boundaries must be numeric": "气体程序段起止时间必须是数字",
+    "Gas segment gas is required": "气体程序段气体必填",
+    "Gas segment flow_sccm is required and must be numeric": "气体程序段流量必填且必须是数字",
+    "Gas segment end time must be greater than start time": "气体程序段结束时间必须大于开始时间",
+    "Gas segments overlap": "气体程序段时间存在重叠",
+    "Characterization method record must be an object": "表征方法记录格式无效",
+    "Characterization method is required": "表征方法必填",
+    "Indoor temperature is out of range": "室内温度超出建议范围",
+    "Indoor humidity is missing": "室内湿度缺失",
+    "Indoor humidity is out of range": "室内湿度超出有效范围",
+    "Risk note is required when seal integrity fails": "密封检查失败时必须填写风险说明",
+    "File method is required": "文件方法必填",
+    "File experiment_id is required": "文件关联实验必填",
+    "File experiment_id does not match experiment": "文件关联实验与当前实验不一致",
+    "File is not linked to a sample": "文件未关联样品",
+}
+
+SCHEMA_VALIDATION_MESSAGE_ZH = {
+    "int_type": "必须是整数",
+    "int_parsing": "必须是整数",
+    "float_type": "必须是数字",
+    "float_parsing": "必须是数字",
+    "bool_type": "必须是布尔值",
+    "bool_parsing": "必须是布尔值",
+    "list_type": "必须是列表",
+    "model_type": "必须是对象",
+    "string_type": "必须是文本",
+}
+
 
 class ExperimentValidationFailed(Exception):
     def __init__(self, result: ExperimentValidationResponse) -> None:
@@ -572,7 +625,6 @@ class ExperimentValidationService:
             not self._is_blank(experiment.experiment_type),
             not self._is_blank(experiment.material_system),
             experiment.experiment_date is not None,
-            experiment.owner_id is not None,
             bool(precursor_items),
             self._all_items(precursor_items, lambda item: not self._is_blank(item.get("type"))),
             self._all_items(precursor_items, lambda item: not self._is_blank(item.get("method"))),
@@ -612,10 +664,19 @@ class ExperimentValidationService:
         return round(sum(1 for check in checks if check) / len(checks) * 100)
 
     def _issue(self, module_key: str, field_path: str, message: str) -> ExperimentValidationIssue:
+        translated_message = ISSUE_MESSAGE_ZH.get(message)
+        if translated_message is None and message.endswith(" is high"):
+            field_name = message.removesuffix(" is high")
+            field_label = {
+                "boat_contamination_level": "舟皿污染程度",
+                "tube_contamination_level": "管壁污染程度",
+            }.get(field_name, field_name)
+            translated_message = f"{field_label}偏高"
+
         return ExperimentValidationIssue(
             module_key=module_key,
             field_path=field_path,
-            message=message,
+            message=translated_message or message,
         )
 
     def _schema_validation_issues(
@@ -627,7 +688,10 @@ class ExperimentValidationService:
             self._issue(
                 module_key,
                 self._format_validation_loc(error.get("loc", ())),
-                str(error.get("msg", "Invalid module payload")),
+                SCHEMA_VALIDATION_MESSAGE_ZH.get(
+                    str(error.get("type", "")),
+                    "模块数据格式无效",
+                ),
             )
             for error in exc.errors()
         ]

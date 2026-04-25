@@ -81,10 +81,37 @@ def assert_issue_exists(
     field_path: str,
     message_contains: str,
 ) -> None:
+    accepted_message_fragments = {
+        "required": ["required", "必填", "必须填写", "至少需要"],
+        "strictly increasing": ["strictly increasing", "严格递增"],
+        "overlap": ["overlap", "重叠"],
+        "out of range": ["out of range", "超出"],
+        "missing": ["missing", "缺失"],
+        "high": ["high", "偏高"],
+        "not linked": ["not linked", "未关联"],
+        "unknown": ["unknown", "未知"],
+        "valid number": ["valid number", "必须是数字"],
+    }.get(message_contains, [message_contains])
+
     assert any(
         issue["module_key"] == module_key
         and issue["field_path"] == field_path
-        and message_contains in issue["message"]
+        and any(fragment in issue["message"] for fragment in accepted_message_fragments)
+        for issue in issues
+    ), issues
+
+
+def assert_issue_message(
+    issues: list[dict[str, str]],
+    *,
+    module_key: str,
+    field_path: str,
+    message: str,
+) -> None:
+    assert any(
+        issue["module_key"] == module_key
+        and issue["field_path"] == field_path
+        and issue["message"] == message
         for issue in issues
     ), issues
 
@@ -401,6 +428,12 @@ def test_submit_rejects_missing_required_main_fields(active_user) -> None:
         field_path="material_system",
         message_contains="required",
     )
+    assert_issue_message(
+        body["errors"],
+        module_key="basic_info",
+        field_path="material_system",
+        message="材料体系必填",
+    )
 
 
 def test_validate_returns_structured_errors_and_warnings(active_user, db_session) -> None:
@@ -526,7 +559,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert body["ok"] is False
     assert body["blocking_count"] == len(body["errors"])
     assert body["warning_count"] == len(body["warnings"])
-    assert body["completion_score"] == 58
+    assert body["completion_score"] == 57
     assert_issue_exists(
         body["errors"],
         module_key="basic_info",
@@ -574,6 +607,12 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
         module_key="precheck",
         field_path="boat_contamination_level",
         message_contains="high",
+    )
+    assert_issue_message(
+        body["warnings"],
+        module_key="precheck",
+        field_path="boat_contamination_level",
+        message="舟皿污染程度偏高",
     )
     assert_issue_exists(
         body["warnings"],
@@ -723,7 +762,7 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
     assert body["ok"] is True
     assert body["errors"] == []
     assert body["warnings"] == []
-    assert body["completion_score"] == 58
+    assert body["completion_score"] == 57
 
 
 def test_submit_returns_same_validation_structure_on_failure(active_user, db_session) -> None:

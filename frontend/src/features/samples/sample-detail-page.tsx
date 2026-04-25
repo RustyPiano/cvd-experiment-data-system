@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Form, Input, Space, Spin, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, Space, Table, Tag, Typography } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate, useParams } from "react-router-dom";
@@ -12,6 +12,7 @@ import { HttpError } from "../../shared/api/http-error";
 import { triggerBlobDownload } from "../../shared/lib/download";
 import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
+import { LoadingState } from "../../shared/ui/loading-state";
 import { StatusTag } from "../../shared/ui/status-tag";
 import type { FileAssetRead, SampleRead, SampleUpdateRequest } from "../../shared/types/api";
 import { downloadExperimentFile } from "../experiments/api";
@@ -285,11 +286,7 @@ export function SampleDetailPage() {
   };
 
   if (sampleQuery.isLoading) {
-    return (
-      <div className="centered-panel">
-        <Spin />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (sampleQuery.isError) {
@@ -306,7 +303,7 @@ export function SampleDetailPage() {
               返回列表
             </Button>
           }
-          subtitle="当前请求未成功完成。"
+          subtitle="无法加载样品详情，请检查网络连接或当前账号权限。"
           title="样品详情"
         />
         <Alert
@@ -383,9 +380,7 @@ export function SampleDetailPage() {
             样品信息
           </Typography.Title>
           {experimentQuery.isLoading ? (
-            <div className="centered-panel">
-              <Spin />
-            </div>
+            <LoadingState />
           ) : experimentQuery.isError ? (
             <Alert
               message={resolveErrorMessage(experimentQuery.error, "关联实验加载失败")}
@@ -448,19 +443,21 @@ export function SampleDetailPage() {
                       value={formState.sizeMm}
                     />
                   </Form.Item>
-                  <Form.Item label="位置 (mm)">
-                    <Input
-                      aria-label="位置 (mm)"
-                      disabled={formDisabled}
-                      onChange={(event) => {
-                        updateFormState("position_mm", (current) => ({
-                          ...current,
-                          positionMm: event.target.value,
-                        }));
-                      }}
-                      value={formState.positionMm}
-                    />
-                  </Form.Item>
+                    <Form.Item label="位置 (mm)">
+                      <InputNumber
+                        aria-label="位置 (mm)"
+                        disabled={formDisabled}
+                        onChange={(value) => {
+                          updateFormState("position_mm", (current) => ({
+                            ...current,
+                            positionMm: value === null ? "" : String(value),
+                          }));
+                        }}
+                        stringMode
+                        style={{ width: "100%" }}
+                        value={formState.positionMm === "" ? null : formState.positionMm}
+                      />
+                    </Form.Item>
                   <Form.Item label="处理方式" style={{ gridColumn: "1 / -1" }}>
                     <Input.TextArea
                       aria-label="处理方式"
@@ -535,9 +532,7 @@ export function SampleDetailPage() {
             关联文件
           </Typography.Title>
           {filesQuery.isLoading ? (
-            <div className="centered-panel">
-              <Spin />
-            </div>
+            <LoadingState />
           ) : filesQuery.isError ? (
             <Alert
               message={resolveErrorMessage(filesQuery.error, "样品文件加载失败")}
@@ -545,7 +540,7 @@ export function SampleDetailPage() {
               type="error"
             />
           ) : fileRows.length === 0 ? (
-            <EmptyState description="当前样品还没有关联文件。" />
+            <EmptyState description="当前样品还没有关联文件。上传文件时选择该样品后会显示在这里。" />
           ) : (
             <Table<FileAssetRead>
               dataSource={fileRows}

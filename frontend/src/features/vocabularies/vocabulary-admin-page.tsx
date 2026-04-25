@@ -10,7 +10,6 @@ import {
   Modal,
   Select,
   Space,
-  Spin,
   Switch,
   Table,
   Tag,
@@ -19,6 +18,7 @@ import {
 
 import { HttpError } from "../../shared/api/http-error";
 import { EmptyState } from "../../shared/ui/empty-state";
+import { LoadingState } from "../../shared/ui/loading-state";
 import { PageHeader } from "../../shared/ui/page-header";
 import type {
   ControlledVocabularyCreateRequest,
@@ -571,9 +571,7 @@ export function VocabularyAdminPage() {
 
       <Card>
         {vocabulariesQuery.isLoading ? (
-          <div className="centered-panel">
-            <Spin />
-          </div>
+          <LoadingState />
         ) : vocabulariesQuery.isError ? (
           <Alert
             message={resolveErrorMessage(vocabulariesQuery.error, "词表列表加载失败")}
@@ -581,7 +579,7 @@ export function VocabularyAdminPage() {
             type="error"
           />
         ) : rows.length === 0 ? (
-          <EmptyState description="当前筛选条件下还没有词条。" />
+          <EmptyState description="当前筛选条件下还没有词条。可清空筛选或新增词条。" />
         ) : (
           <Table
             dataSource={rows}
@@ -635,16 +633,31 @@ export function VocabularyAdminPage() {
               {
                 key: "actions",
                 render: (_value: unknown, record: ControlledVocabularyRead) => (
-                  <Button
-                    aria-label={`编辑 ${record.vocab_key}:${record.value}`}
-                    onClick={() => {
-                      setFeedback(null);
-                      setEditTarget(record);
-                      setEditForm(toFormState(record));
-                    }}
-                  >
-                    编辑
-                  </Button>
+                  <Space wrap>
+                    <Button
+                      aria-label={`编辑 ${record.vocab_key}:${record.value}`}
+                      onClick={() => {
+                        setFeedback(null);
+                        setEditTarget(record);
+                        setEditForm(toFormState(record));
+                      }}
+                    >
+                      编辑
+                    </Button>
+                    <Button
+                      aria-label={`${record.is_active ? "停用" : "启用"} ${record.vocab_key}:${record.value}`}
+                      loading={updateMutation.isPending && updateMutation.variables?.vocabId === record.id}
+                      onClick={() => {
+                        setFeedback(null);
+                        updateMutation.mutate({
+                          payload: { is_active: !record.is_active },
+                          vocabId: record.id,
+                        });
+                      }}
+                    >
+                      {record.is_active ? "停用" : "启用"}
+                    </Button>
+                  </Space>
                 ),
                 title: "操作",
               },

@@ -251,7 +251,7 @@ describe("SampleDetailPage", () => {
     expect(await screen.findByText("样品保存成功")).toBeInTheDocument();
   });
 
-  it("rejects non-finite position values before sending a patch", async () => {
+  it("keeps the sample position numeric input from sending non-finite values", async () => {
     const server = createSampleServer();
     vi.stubGlobal("fetch", server.fetchMock);
 
@@ -271,9 +271,8 @@ describe("SampleDetailPage", () => {
     fireEvent.change(screen.getByLabelText("位置 (mm)"), {
       target: { value: "1e309" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "保存样品" }));
 
-    expect(await screen.findByText("位置 (mm) 必须是有限数字")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存样品" })).toBeDisabled();
     expect(
       server.requests.some(
         (request) => request.method === "PATCH" && request.pathname === "/api/v1/samples/sample-1",

@@ -1,19 +1,26 @@
 import { useState } from "react";
 import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, List, Space, Spin, Typography } from "antd";
+import { Alert, Button, Card, List, Space, Typography } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
 import { StatusTag } from "../../shared/ui/status-tag";
 import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
+import { LoadingState } from "../../shared/ui/loading-state";
 import { triggerBlobDownload } from "../../shared/lib/download";
 import { downloadExperimentExcel, downloadExperimentFile, exportExperimentJson, getExperiment, listExperimentAuditEvents, listExperimentFiles, listExperimentSamples } from "./api";
 import { ExperimentSourceBanner } from "./components/experiment-source-banner";
 import { ExperimentStateActions } from "./experiment-state-actions";
 import { ExperimentSummary } from "./components/experiment-summary";
 import { useAuth } from "../auth/use-auth";
+
+function formatFileCategory(value: string) {
+  if (value === "raw") return "原始文件";
+  if (value === "processed") return "已处理";
+  return value;
+}
 
 export function ExperimentDetailPage() {
   const { experimentId = "" } = useParams();
@@ -108,11 +115,7 @@ export function ExperimentDetailPage() {
   };
 
   if (experimentQuery.isLoading) {
-    return (
-      <div className="centered-panel">
-        <Spin />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (experimentQuery.isError) {
@@ -129,7 +132,7 @@ export function ExperimentDetailPage() {
               返回列表
             </Button>
           }
-          subtitle="当前请求未成功完成。"
+          subtitle="无法加载实验详情，请检查网络连接或当前账号权限。"
           title="实验详情"
         />
         <Alert
@@ -253,9 +256,7 @@ export function ExperimentDetailPage() {
             样品概览
           </Typography.Title>
           {samplesQuery.isLoading ? (
-            <div className="centered-panel">
-              <Spin />
-            </div>
+            <LoadingState />
           ) : samplesQuery.isError ? (
             <Alert
               message={resolveErrorMessage(samplesQuery.error, "样品概览加载失败")}
@@ -263,7 +264,7 @@ export function ExperimentDetailPage() {
               type="error"
             />
           ) : (samplesQuery.data?.items.length ?? 0) === 0 ? (
-            <EmptyState description="当前实验还没有样品记录。" />
+            <EmptyState description="当前实验还没有样品记录。在编辑器中添加基底后将自动生成样品。" />
           ) : (
             <List
               dataSource={samplesQuery.data?.items ?? []}
@@ -297,9 +298,7 @@ export function ExperimentDetailPage() {
             文件概览
           </Typography.Title>
           {filesQuery.isLoading ? (
-            <div className="centered-panel">
-              <Spin />
-            </div>
+            <LoadingState />
           ) : filesQuery.isError ? (
             <Alert
               message={resolveErrorMessage(filesQuery.error, "文件概览加载失败")}
@@ -307,7 +306,7 @@ export function ExperimentDetailPage() {
               type="error"
             />
           ) : (filesQuery.data?.items.length ?? 0) === 0 ? (
-            <EmptyState description="当前实验还没有文件记录。" />
+            <EmptyState description="当前实验还没有文件记录。进入文件管理页可上传表征原始文件或处理结果。" />
           ) : (
             <List
               dataSource={(filesQuery.data?.items ?? []).slice(0, 5)}
@@ -327,7 +326,7 @@ export function ExperimentDetailPage() {
                   ]}
                 >
                   <List.Item.Meta
-                    description={`${file.method} · ${file.file_category}${file.note ? ` · ${file.note}` : ""}`}
+                    description={`${file.method} · ${formatFileCategory(file.file_category)}${file.note ? ` · ${file.note}` : ""}`}
                     title={file.original_name}
                   />
                 </List.Item>
@@ -342,9 +341,7 @@ export function ExperimentDetailPage() {
             审计轨迹
           </Typography.Title>
           {auditQuery.isLoading ? (
-            <div className="centered-panel">
-              <Spin />
-            </div>
+            <LoadingState />
           ) : auditQuery.isError ? (
             <Alert
               message={resolveErrorMessage(auditQuery.error, "审计轨迹加载失败")}
@@ -352,7 +349,7 @@ export function ExperimentDetailPage() {
               type="error"
             />
           ) : (auditQuery.data?.items.length ?? 0) === 0 ? (
-            <EmptyState description="当前实验还没有审计事件。" />
+            <EmptyState description="当前实验还没有审计事件。创建、编辑、提交和文件操作会自动记录在这里。" />
           ) : (
             <List
               dataSource={(auditQuery.data?.items ?? []).slice().reverse()}

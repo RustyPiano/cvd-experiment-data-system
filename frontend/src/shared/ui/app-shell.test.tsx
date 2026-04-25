@@ -2,7 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 
 import { API_UNAUTHORIZED_EVENT } from "../api/client";
 import { AppShell } from "./app-shell";
@@ -109,6 +109,67 @@ describe("AppShell", () => {
       expect(queryClient.getQueryData(["experiments", "list", "u-1"])).toBeUndefined();
       expect(window.localStorage.getItem("cvd.auth.session")).toBeNull();
     });
+  });
+
+  it("passes a session expired reason to the login route after an unauthorized event", async () => {
+    function LoginRouteProbe() {
+      const location = useLocation();
+      return (
+        <div>
+          <span>{location.state?.reason}</span>
+          <span>{location.state?.from}</span>
+        </div>
+      );
+    }
+
+    renderWithApp(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/experiments/:experimentId/files" element={<div>workspace</div>} />
+        </Route>
+        <Route path="/login" element={<LoginRouteProbe />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files?tab=raw"],
+        user: {
+          id: "u-1",
+          email: "member@example.com",
+          name: "Member",
+          role: "member",
+          is_active: true,
+          last_login_at: null,
+        },
+      },
+    );
+
+    window.dispatchEvent(new Event(API_UNAUTHORIZED_EVENT));
+
+    expect(await screen.findByText("session-expired")).toBeInTheDocument();
+    expect(screen.getByText("/experiments/exp-1/files?tab=raw")).toBeInTheDocument();
+  });
+
+  it("updates the shell sidebar width variable when the sider collapses", async () => {
+    const user = userEvent.setup();
+
+    renderWithApp(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/experiments" element={<div>workspace</div>} />
+        </Route>
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+      },
+    );
+
+    const shell = screen.getByTestId("app-shell-layout");
+    expect(shell).toHaveStyle({ "--app-sidebar-width": "232px" });
+
+    await user.click(screen.getByLabelText("left"));
+
+    expect(shell).toHaveStyle({ "--app-sidebar-width": "80px" });
   });
 
   it("hides the vocabulary admin entry for non-admin users", async () => {

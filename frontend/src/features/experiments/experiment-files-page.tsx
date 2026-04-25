@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   Select,
-  Spin,
   Table,
   Tag,
   Typography,
@@ -20,6 +19,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
 import { EmptyState } from "../../shared/ui/empty-state";
+import { LoadingState } from "../../shared/ui/loading-state";
 import { PageHeader } from "../../shared/ui/page-header";
 import type { FileAssetRead } from "../../shared/types/api";
 import { triggerBlobDownload } from "../../shared/lib/download";
@@ -59,15 +59,32 @@ function formatBytes(sizeBytes: number) {
 }
 
 const fileCategoryOptions = [
-  { label: "raw", value: "raw" },
-  { label: "processed", value: "processed" },
+  { label: "原始文件", value: "raw" },
+  { label: "已处理", value: "processed" },
 ];
 
 const filterCategoryOptions = [
   { label: "全部", value: "" },
-  { label: "raw", value: "raw" },
-  { label: "processed", value: "processed" },
+  ...fileCategoryOptions,
 ];
+
+function formatFileCategory(value: string) {
+  return fileCategoryOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function mergeMethodOptions(
+  vocabularyOptions: Array<{ label: string; value: string }>,
+  fileMethods: string[],
+) {
+  const seenValues = new Set(vocabularyOptions.map((option) => option.value));
+  return [
+    ...vocabularyOptions,
+    ...fileMethods
+      .map((method) => method.trim())
+      .filter((method) => method.length > 0 && !seenValues.has(method))
+      .map((method) => ({ label: method, value: method })),
+  ];
+}
 
 export function ExperimentFilesPage() {
   const { experimentId = "" } = useParams();
@@ -154,7 +171,18 @@ export function ExperimentFilesPage() {
         value: sample.id,
       })),
     ],
-    [samplesQuery.data?.items],
+      [samplesQuery.data?.items],
+    );
+
+  const fileRows = useMemo(() => filesQuery.data?.items ?? [], [filesQuery.data?.items]);
+  const existingFileMethods = useMemo(
+    () => Array.from(new Set(fileRows.map((file) => file.method).filter(Boolean))).sort(),
+    [fileRows],
+  );
+
+  const methodFilterOptions = useMemo(
+    () => [{ label: "全部", value: "" }, ...mergeMethodOptions(methodOptions, existingFileMethods)],
+    [existingFileMethods, methodOptions],
   );
 
   const invalidateFileQueries = async () => {
@@ -164,6 +192,9 @@ export function ExperimentFilesPage() {
       }),
       queryClient.invalidateQueries({
         queryKey: ["experiments", "audit", currentUser?.id ?? "anonymous", experimentId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["samples", "files"],
       }),
     ]);
   };
@@ -231,11 +262,7 @@ export function ExperimentFilesPage() {
   };
 
   if (experimentQuery.isLoading) {
-    return (
-      <div className="centered-panel">
-        <Spin />
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (experimentQuery.isError) {
@@ -252,7 +279,7 @@ export function ExperimentFilesPage() {
               返回列表
             </Button>
           }
-          subtitle="当前请求未成功完成。"
+          subtitle="无法加载实验文件，请检查网络连接或当前账号权限。"
           title="实验文件"
         />
         <Alert
@@ -267,8 +294,6 @@ export function ExperimentFilesPage() {
   if (!experimentQuery.data) {
     return <Alert message="实验文件页暂不可用" showIcon type="warning" />;
   }
-
-  const fileRows = filesQuery.data?.items ?? [];
 
   return (
     <div className="content-stack">
@@ -328,9 +353,7 @@ export function ExperimentFilesPage() {
                   onChange={(value) => {
                     setUploadMethod(value);
                   }}
-                  onSearch={(value) => {
-                    setUploadMethod(value);
-                  }}
+                  optionFilterProp="label"
                   options={methodOptions}
                   placeholder="例如 Raman / OM / SEM"
                   showSearch
@@ -428,16 +451,22 @@ export function ExperimentFilesPage() {
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
             }}
           >
-            <Form.Item htmlFor="file-method-filter" label="筛选方法">
-              <Input
-                id="file-method-filter"
-                onChange={(event) => {
-                  setMethodFilter(event.target.value);
-                }}
-                placeholder="输入方法名称"
-                value={methodFilter}
-              />
-            </Form.Item>
+              <Form.Item htmlFor="file-method-filter" label="筛选方法">
+                <Select
+                  aria-label="筛选方法"
+                  id="file-method-filter"
+                  onChange={(value) => {
+                    setMethodFilter(value);
+                  }}
+                  optionFilterProp="label"
+                  options={methodFilterOptions}
+                  placeholder="选择方法"
+                  showSearch
+                  style={{ width: "100%" }}
+                  value={methodFilter}
+                  virtual={false}
+                />
+              </Form.Item>
             <Form.Item htmlFor="file-category-filter" label="筛选类别">
               <Select
                 aria-label="筛选类别"
@@ -462,11 +491,9 @@ export function ExperimentFilesPage() {
           ) : null}
 
           {filesQuery.isLoading ? (
-            <div className="centered-panel">
-              <Spin />
-            </div>
+            <LoadingState />
           ) : fileRows.length === 0 ? (
-            <EmptyState description="当前筛选条件下没有文件记录。" />
+            <EmptyState description="当前筛选条件下没有文件记录。可清空筛选或上传新的表征文件。" />
           ) : (
             <Table<FileAssetRead>
               dataSource={fileRows}
@@ -491,11 +518,12 @@ export function ExperimentFilesPage() {
                   key: "method",
                   title: "方法",
                 },
-                {
-                  dataIndex: "file_category",
-                  key: "file_category",
-                  title: "类别",
-                },
+                  {
+                    dataIndex: "file_category",
+                    key: "file_category",
+                    render: (value: string) => formatFileCategory(value),
+                    title: "类别",
+                  },
                 {
                   key: "sample_id",
                   title: "样品",

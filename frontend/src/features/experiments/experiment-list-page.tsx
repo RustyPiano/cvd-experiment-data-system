@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PlusOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Checkbox, Input, Space, Spin, Typography } from "antd";
+import { Alert, Button, Card, Checkbox, Input, Space, Typography } from "antd";
 import { useNavigate } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
 import { triggerBlobDownload } from "../../shared/lib/download";
 import type { ExperimentRead, ExperimentStatus } from "../../shared/types/api";
 import { PageHeader } from "../../shared/ui/page-header";
+import { LoadingState } from "../../shared/ui/loading-state";
 import {
   downloadExperimentExcel,
   exportExperimentJson,
@@ -49,37 +50,34 @@ function resolveErrorMessage(error: unknown, fallback: string) {
 export function ExperimentListPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
-  const [draftFilters, setDraftFilters] = useState<ExperimentListFilters>(defaultFilters);
   const [filters, setFilters] = useState<ExperimentListFilters>(defaultFilters);
   const [listActionError, setListActionError] = useState<string | null>(null);
   const [activeExportKey, setActiveExportKey] = useState<string | null>(null);
   const canCreateExperiment = session.currentUser?.role !== "viewer";
+  const normalizedFilters = useMemo(
+    () => ({
+      ...filters,
+      materialSystem: filters.materialSystem.trim(),
+      q: filters.q.trim(),
+    }),
+    [filters],
+  );
 
   const experimentQuery = useQuery({
-    queryKey: ["experiments", "list", session.currentUser?.id ?? "anonymous", filters],
+    queryKey: ["experiments", "list", session.currentUser?.id ?? "anonymous", normalizedFilters],
     queryFn: () =>
       listExperiments(session.accessToken!, {
-        mine: filters.mine,
-        status: filters.status,
-        materialSystem: filters.materialSystem || null,
-        page: filters.page,
-        pageSize: filters.pageSize,
-        q: filters.q || null,
+        mine: normalizedFilters.mine,
+        status: normalizedFilters.status,
+        materialSystem: normalizedFilters.materialSystem || null,
+        page: normalizedFilters.page,
+        pageSize: normalizedFilters.pageSize,
+        q: normalizedFilters.q || null,
       }),
     enabled: session.isAuthenticated,
   });
 
-  const applyFilters = () => {
-    setFilters({
-      ...draftFilters,
-      materialSystem: draftFilters.materialSystem.trim(),
-      page: 1,
-      q: draftFilters.q.trim(),
-    });
-  };
-
   const resetFilters = () => {
-    setDraftFilters(defaultFilters);
     setFilters(defaultFilters);
     setListActionError(null);
   };
@@ -149,74 +147,71 @@ export function ExperimentListPage() {
         <div className="content-stack">
           <Space align="start" size={12} wrap>
             <Input
-              allowClear
-              aria-label="实验搜索"
-              onChange={(event) => {
-                setDraftFilters((current) => ({
-                  ...current,
-                  q: event.target.value,
-                }));
-              }}
-              onPressEnter={applyFilters}
-              placeholder="搜索实验编号、材料体系或目标"
-              style={{ width: 280 }}
-              value={draftFilters.q}
-            />
-            <Input
-              allowClear
-              aria-label="材料体系筛选"
-              onChange={(event) => {
-                setDraftFilters((current) => ({
-                  ...current,
-                  materialSystem: event.target.value,
-                }));
-              }}
-              onPressEnter={applyFilters}
-              placeholder="材料体系筛选"
-              style={{ width: 180 }}
-              value={draftFilters.materialSystem}
-            />
-            <Checkbox
-              checked={draftFilters.mine}
-              onChange={(event) => {
-                setDraftFilters((current) => ({
-                  ...current,
-                  mine: event.target.checked,
-                }));
-              }}
+                allowClear
+                aria-label="实验搜索"
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    page: 1,
+                    q: event.target.value,
+                  }));
+                }}
+                placeholder="搜索实验编号、材料体系或目标"
+                style={{ width: 280 }}
+                value={filters.q}
+              />
+              <Input
+                allowClear
+                aria-label="材料体系筛选"
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    page: 1,
+                    materialSystem: event.target.value,
+                  }));
+                }}
+                placeholder="材料体系筛选"
+                style={{ width: 180 }}
+                value={filters.materialSystem}
+              />
+              <Checkbox
+                checked={filters.mine}
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    page: 1,
+                    mine: event.target.checked,
+                  }));
+                }}
             >
               我的实验
             </Checkbox>
-            <Checkbox.Group
-              onChange={(checkedValues) => {
-                setDraftFilters((current) => ({
-                  ...current,
-                  status: checkedValues as ExperimentStatus[],
-                }));
-              }}
+              <Checkbox.Group
+                onChange={(checkedValues) => {
+                  setFilters((current) => ({
+                    ...current,
+                    page: 1,
+                    status: checkedValues as ExperimentStatus[],
+                  }));
+                }}
               options={[
                 { label: "草稿", value: "draft" },
                 { label: "已提交", value: "submitted" },
                 { label: "已锁定", value: "locked" },
                 { label: "已作废", value: "invalid" },
               ]}
-              value={draftFilters.status}
-            />
-            <Button onClick={applyFilters} type="primary">
-              应用筛选
-            </Button>
-            <Button onClick={resetFilters}>重置</Button>
+                value={filters.status}
+              />
+              <Button onClick={resetFilters}>重置</Button>
           </Space>
 
           <Typography.Text type="secondary">
             当前共 {experimentQuery.data?.total ?? 0} 条记录，支持列表内直接导出 JSON / Excel。
           </Typography.Text>
 
-          {experimentQuery.isLoading ? (
-            <div className="centered-panel">
-              <Spin />
-            </div>
-          ) : (
+            {experimentQuery.isLoading ? (
+              <LoadingState />
+            ) : (
             <ExperimentTable
               activeExportKey={activeExportKey}
               items={experimentQuery.data?.items ?? []}
@@ -227,14 +222,9 @@ export function ExperimentListPage() {
               onExportJson={(experiment) => {
                 void handleExportJson(experiment);
               }}
-              onPageChange={(page, pageSize) => {
-                setDraftFilters((current) => ({
-                  ...current,
-                  page,
-                  pageSize,
-                }));
-                setFilters((current) => ({
-                  ...current,
+                onPageChange={(page, pageSize) => {
+                  setFilters((current) => ({
+                    ...current,
                   page,
                   pageSize,
                 }));

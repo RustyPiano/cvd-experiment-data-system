@@ -1,8 +1,12 @@
-import { Card, Space, Typography } from "antd";
+import { Alert, Card, Space, Typography } from "antd";
+import { useLocation } from "react-router-dom";
 
 import { LoginForm } from "./login-form";
 
 export function LoginPage() {
+  const location = useLocation();
+  const loginReason = (location.state as { reason?: string } | null)?.reason;
+
   return (
     <div className="auth-page">
       <Card className="auth-panel" variant="borderless">
@@ -12,9 +16,12 @@ export function LoginPage() {
               CVD 实验数据采集系统
             </Typography.Title>
             <Typography.Paragraph type="secondary">
-              登录后进入实验记录、样品和文件管理工作区。
+              CVD 实验数据采集系统 · 请使用管理员分配的账号登录。
             </Typography.Paragraph>
           </div>
+          {loginReason === "session-expired" ? (
+            <Alert message="登录已过期，请重新登录。" showIcon type="warning" />
+          ) : null}
           <LoginForm />
         </Space>
       </Card>

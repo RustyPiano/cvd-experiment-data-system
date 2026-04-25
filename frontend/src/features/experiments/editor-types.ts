@@ -315,8 +315,26 @@ function parseNullableNumber(value: string, label: string): NumberParseResult {
   return { ok: true, value: numericValue };
 }
 
+function parseNullableInteger(value: string, label: string): NumberParseResult {
+  const result = parseNullableNumber(value, label);
+  if (!result.ok || result.value === null) {
+    return result;
+  }
+
+  if (!Number.isInteger(result.value)) {
+    return { ok: false, message: `${label} 必须是整数` };
+  }
+
+  return result;
+}
+
 function normalizeNumberLike(value: string) {
   const result = parseNullableNumber(value, "数值");
+  return result.ok ? result.value : null;
+}
+
+function normalizeIntegerLike(value: string) {
+  const result = parseNullableInteger(value, "数值");
   return result.ok ? result.value : null;
 }
 
@@ -328,6 +346,23 @@ function appendNumberValidationError(
   label: string,
 ) {
   const result = parseNullableNumber(value, label);
+  if (!result.ok) {
+    errors.push({
+      sectionKey,
+      fieldPath,
+      message: result.message,
+    });
+  }
+}
+
+function appendIntegerValidationError(
+  errors: EditorValidationError[],
+  sectionKey: EditorSectionKey,
+  fieldPath: string,
+  value: string,
+  label: string,
+) {
+  const result = parseNullableInteger(value, label);
   if (!result.ok) {
     errors.push({
       sectionKey,
@@ -444,7 +479,7 @@ export function validateSectionValues(
 
   if (sectionKey === "furnace_program") {
     values.furnaceProgram.zones.forEach((zone, zoneIndex) => {
-      appendNumberValidationError(
+      appendIntegerValidationError(
         errors,
         sectionKey,
         `zones.${zoneIndex}.zoneIndex`,
@@ -1036,9 +1071,9 @@ export function toFurnaceProgramPayload(values: FurnaceProgramValues) {
           keep: keepZone,
           payload: mergePayloadFields(
             zone.sourcePayload,
-            {
-              zone_index: normalizeNumberLike(zone.zoneIndex),
-              precursor_placed: zone.precursorPlaced,
+              {
+                zone_index: normalizeIntegerLike(zone.zoneIndex),
+                precursor_placed: zone.precursorPlaced,
               note: zone.note.trim(),
               temperature_program: temperatureProgram,
             },

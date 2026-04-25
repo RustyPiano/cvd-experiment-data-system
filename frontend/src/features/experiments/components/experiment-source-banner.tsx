@@ -19,9 +19,8 @@ export function ExperimentSourceBanner({
       description={
         <div>
           <Typography.Paragraph style={{ marginBottom: 8 }}>
-            已自动复制基础工艺参数与计划字段；`environment` 仅保留样品环境，`precheck`
-            已重置，`characterization` 仅保留计划字段并清空结果，`result_summary`
-            已重置为待重新确认状态。
+            已自动复制基础工艺参数与计划字段；环境条件仅保留样品环境，预检查已重置，
+            表征结果仅保留计划字段并清空结果，结果总结已重置为待重新确认状态。
           </Typography.Paragraph>
           {experiment.derived_from_run_id ? (
             <Typography.Text type="secondary">
