@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Anchor, Button } from "antd";
+import { Alert, Anchor, Button, Modal } from "antd";
 import {
   UNSAFE_DataRouterContext as DataRouterContext,
   useBlocker,
@@ -57,12 +57,18 @@ function EditorRouteLeaveGuard({ message, when }: { message: string; when: boole
       return;
     }
 
-    if (window.confirm(message)) {
-      blocker.proceed();
-      return;
-    }
-
-    blocker.reset();
+    Modal.confirm({
+      title: "离开确认",
+      content: message,
+      okText: "离开",
+      cancelText: "留下",
+      onOk: () => {
+        blocker.proceed();
+      },
+      onCancel: () => {
+        blocker.reset();
+      },
+    });
   }, [blocker, message]);
 
   return null;
@@ -158,7 +164,16 @@ function ExperimentEditorWorkspace({
   };
 
   const navigateToDetail = () => {
-    if (editor.shouldWarnOnLeave && !window.confirm(editor.leaveWarning)) {
+    if (editor.shouldWarnOnLeave) {
+      Modal.confirm({
+        title: "离开确认",
+        content: editor.leaveWarning,
+        okText: "离开",
+        cancelText: "留下",
+        onOk: () => {
+          navigate(`/experiments/${editor.experiment.id}`);
+        },
+      });
       return;
     }
 

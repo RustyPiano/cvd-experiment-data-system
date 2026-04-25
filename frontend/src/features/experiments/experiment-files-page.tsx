@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -6,6 +6,8 @@ import {
   Card,
   Form,
   Input,
+  Modal,
+  Progress,
   Select,
   Table,
   Tag,
@@ -14,7 +16,7 @@ import {
 } from "antd";
 import type { UploadFile } from "antd";
 import dayjs from "dayjs";
-import { ArrowLeftOutlined, DownloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, DownloadOutlined, InboxOutlined } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
@@ -98,10 +100,12 @@ export function ExperimentFilesPage() {
   const [uploadSampleId, setUploadSampleId] = useState("");
   const [uploadNote, setUploadNote] = useState("");
   const [fileCategory, setFileCategory] = useState("raw");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [antFileList, setAntFileList] = useState<UploadFile[]>([]);
   const [downloadFileId, setDownloadFileId] = useState<string | null>(null);
   const [mutationMessage, setMutationMessage] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+  const abortRef = useRef(false);
 
   const experimentQuery = useQuery({
     queryKey: ["experiments", "detail", currentUser?.id ?? "anonymous", experimentId],
@@ -200,28 +204,55 @@ export function ExperimentFilesPage() {
   };
 
   const uploadMutation = useMutation({
-    mutationFn: () => {
-      if (!selectedFile) {
+    mutationFn: async () => {
+      if (selectedFiles.length === 0) {
         throw new Error("请选择要上传的文件");
       }
 
-      return uploadExperimentFile(session.accessToken!, experimentId, {
-        file: selectedFile,
-        fileCategory,
-        method: uploadMethod.trim(),
-        note: uploadNote.trim() || undefined,
-        sampleId: uploadSampleId || null,
-      });
+      if (!uploadMethod.trim()) {
+        throw new Error("请先填写文件方法");
+      }
+
+      abortRef.current = false;
+      setBatchProgress({ done: 0, total: selectedFiles.length });
+
+      let done = 0;
+      const errors: string[] = [];
+
+      for (const file of selectedFiles) {
+        if (abortRef.current) {
+          break;
+        }
+
+        try {
+          await uploadExperimentFile(session.accessToken!, experimentId, {
+            file,
+            fileCategory,
+            method: uploadMethod.trim(),
+            note: uploadNote.trim() || undefined,
+            sampleId: uploadSampleId || null,
+          });
+        } catch (error) {
+          errors.push(`${file.name}: ${resolveErrorMessage(error, "上传失败")}`);
+        }
+
+        done += 1;
+        setBatchProgress({ done, total: selectedFiles.length });
+      }
+
+      if (errors.length > 0) {
+        throw new Error(errors.join("\n"));
+      }
     },
     onSuccess: async () => {
-      setMutationMessage(null);
-      setSelectedFile(null);
-      setUploadMethod("");
-      setUploadSampleId("");
-      setUploadNote("");
-      setFileCategory("raw");
-      setFileList([]);
+      resetUploadForm();
       await invalidateFileQueries();
+    },
+    onError: async () => {
+      await invalidateFileQueries();
+    },
+    onSettled: () => {
+      setBatchProgress(null);
     },
   });
 
@@ -247,8 +278,18 @@ export function ExperimentFilesPage() {
     }
   };
 
+  const resetUploadForm = useCallback(() => {
+    setMutationMessage(null);
+    setSelectedFiles([]);
+    setAntFileList([]);
+    setUploadMethod("");
+    setUploadSampleId("");
+    setUploadNote("");
+    setFileCategory("raw");
+  }, []);
+
   const validateUploadForm = () => {
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
       setMutationMessage("请选择要上传的文件");
       return false;
     }
@@ -398,40 +439,72 @@ export function ExperimentFilesPage() {
                   value={uploadNote}
                 />
               </Form.Item>
-              <Form.Item htmlFor="upload-file-input" label="选择文件" style={{ gridColumn: "1 / -1" }}>
-                <Upload
-                  beforeUpload={(file) => {
-                    setSelectedFile(file);
-                    setFileList([file]);
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Upload.Dragger
+                  beforeUpload={(file, fileList) => {
+                    if (fileList.indexOf(file) === 0) {
+                      setSelectedFiles(fileList.map((f) => f as unknown as File));
+                      setAntFileList(fileList.map((f) => f as unknown as UploadFile));
+                    }
                     return false;
                   }}
-                  fileList={fileList}
+                  fileList={antFileList}
                   id="upload-file-input"
-                  maxCount={1}
-                  onRemove={() => {
-                    setSelectedFile(null);
-                    setFileList([]);
+                  multiple
+                  onRemove={(file) => {
+                    const idx = antFileList.indexOf(file);
+                    if (idx > -1) {
+                      const nextAnt = antFileList.filter((_, i) => i !== idx);
+                      const nextRaw = selectedFiles.filter((_, i) => i !== idx);
+                      setAntFileList(nextAnt);
+                      setSelectedFiles(nextRaw);
+                    }
                   }}
                 >
-                  <Button icon={<UploadOutlined />}>选择文件</Button>
-                </Upload>
-              </Form.Item>
-              <Button
-                aria-label="上传文件"
-                icon={<UploadOutlined />}
-                loading={uploadMutation.isPending}
-                onClick={() => {
-                  if (!validateUploadForm()) {
-                    return;
-                  }
+                  <p className="ant-upload-drag-icon">
+                    <InboxOutlined />
+                  </p>
+                  <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+                  <p className="ant-upload-hint">支持同时选择多个文件，统一填写元数据后批量上传。单个文件不超过 50 MB。</p>
+                </Upload.Dragger>
+              </div>
+              {batchProgress ? (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Progress
+                    percent={Math.round((batchProgress.done / batchProgress.total) * 100)}
+                    format={() => `${batchProgress.done} / ${batchProgress.total}`}
+                    status="active"
+                  />
+                </div>
+              ) : null}
+              <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1" }}>
+                <Button
+                  aria-label="上传文件"
+                  icon={<InboxOutlined />}
+                  loading={uploadMutation.isPending}
+                  onClick={() => {
+                    if (!validateUploadForm()) {
+                      return;
+                    }
 
-                  setMutationMessage(null);
-                  uploadMutation.mutate();
-                }}
-                type="primary"
-              >
-                上传文件
-              </Button>
+                    setMutationMessage(null);
+                    uploadMutation.mutate();
+                  }}
+                  type="primary"
+                >
+                  {selectedFiles.length > 1 ? `上传 ${selectedFiles.length} 个文件` : "上传文件"}
+                </Button>
+                {uploadMutation.isPending ? (
+                  <Button
+                    danger
+                    onClick={() => {
+                      abortRef.current = true;
+                    }}
+                  >
+                    取消上传
+                  </Button>
+                ) : null}
+              </div>
             </div>
           ) : (
             <Alert message="当前账号或实验状态不允许修改文件。" showIcon type="info" />
@@ -585,11 +658,17 @@ export function ExperimentFilesPage() {
                           danger
                           loading={deleteMutation.isPending && deleteMutation.variables === file.id}
                           onClick={() => {
-                            if (!window.confirm(`确定删除文件 ${file.original_name}？`)) {
-                              return;
-                            }
-                            setMutationMessage(null);
-                            deleteMutation.mutate(file.id);
+                            Modal.confirm({
+                              title: "删除确认",
+                              content: `确定删除文件 ${file.original_name}？`,
+                              okText: "删除",
+                              okType: "danger",
+                              cancelText: "取消",
+                              onOk: () => {
+                                setMutationMessage(null);
+                                deleteMutation.mutate(file.id);
+                              },
+                            });
                           }}
                         >
                           删除
