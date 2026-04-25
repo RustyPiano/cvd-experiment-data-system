@@ -1771,6 +1771,47 @@ def test_list_experiments_supports_pagination_and_reports_metadata(active_user) 
     )
 
 
+def test_list_experiments_sorts_before_pagination_and_keeps_nulls_last(active_user) -> None:
+    created: list[dict] = []
+    for material_system in ("WS2", None, "MoS2"):
+        create_response = client.post(
+            "/api/v1/experiments",
+            json={
+                "experiment_type": "cvd_2zone",
+                "material_system": material_system,
+                "experiment_date": "2026-04-23",
+                "objective": f"Sort {material_system or 'empty'}",
+            },
+            headers=auth_headers(active_user.email),
+        )
+        assert create_response.status_code == 201
+        created.append(create_response.json())
+
+    asc_response = client.get(
+        "/api/v1/experiments?mine=true&page=1&page_size=1&sort_by=run_code&sort_order=asc",
+        headers=auth_headers(active_user.email),
+    )
+    desc_response = client.get(
+        "/api/v1/experiments?mine=true&page=1&page_size=1&sort_by=run_code&sort_order=desc",
+        headers=auth_headers(active_user.email),
+    )
+    material_response = client.get(
+        "/api/v1/experiments?mine=true&page=1&page_size=3&sort_by=material_system&sort_order=desc",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert asc_response.status_code == 200
+    assert desc_response.status_code == 200
+    assert material_response.status_code == 200
+    assert asc_response.json()["items"][0]["run_code"] == created[0]["run_code"]
+    assert desc_response.json()["items"][0]["run_code"] == created[-1]["run_code"]
+    assert [item["material_system"] for item in material_response.json()["items"]] == [
+        "WS2",
+        "MoS2",
+        None,
+    ]
+
+
 def test_list_experiments_returns_latest_clone_source_first(active_user) -> None:
     submitted_response = client.post(
         "/api/v1/experiments",

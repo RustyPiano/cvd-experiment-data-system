@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -44,6 +44,11 @@ def list_experiments(
     query_text: Annotated[str | None, Query(alias="q")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    sort_by: Annotated[
+        Literal["run_code", "material_system", "experiment_date", "status", "updated_at"],
+        Query(),
+    ] = "updated_at",
+    sort_order: Annotated[Literal["asc", "desc"], Query()] = "desc",
 ) -> ExperimentListResponse:
     return ExperimentService(db).list_experiments(
         current_user=current_user,
@@ -53,6 +58,8 @@ def list_experiments(
         query_text=query_text,
         page=page,
         page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
 
 

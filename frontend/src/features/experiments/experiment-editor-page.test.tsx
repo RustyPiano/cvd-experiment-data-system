@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { App as AntdApp } from "antd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryRouter, Route, RouterProvider, Routes } from "react-router-dom";
 
@@ -378,7 +379,9 @@ function renderEditorWithDataRouter(queryClient = new QueryClient({ defaultOptio
           }),
         }}
       >
-        <RouterProvider router={router} />
+        <AntdApp>
+          <RouterProvider router={router} />
+        </AntdApp>
       </AuthProvider>
     </QueryClientProvider>,
   );
@@ -1932,9 +1935,8 @@ describe("ExperimentEditorPage", () => {
 
       return server.fetchMock(input, init);
     });
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-
     vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
 
     const { router } = renderEditorWithDataRouter();
 
@@ -1955,15 +1957,17 @@ describe("ExperimentEditorPage", () => {
       await Promise.resolve();
     });
 
-    expect(confirmSpy).toHaveBeenCalled();
+    expect((await screen.findAllByText("离开确认")).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "留下" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "离开" })).not.toBeInTheDocument();
+    });
     expect(screen.queryByText("Experiment detail route")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "基础信息" })).toBeInTheDocument();
 
-    confirmSpy.mockReturnValue(true);
-    await act(async () => {
-      void router.navigate("/experiments/exp-1");
-      await Promise.resolve();
-    });
+    await user.click(screen.getByRole("button", { name: "返回详情" }));
+    expect((await screen.findAllByRole("button", { name: "离开" })).length).toBe(1);
+    await user.click(await screen.findByRole("button", { name: "离开" }));
 
     await waitFor(() => {
       expect(screen.getByText("Experiment detail route")).toBeInTheDocument();

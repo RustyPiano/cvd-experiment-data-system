@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Form, Input, InputNumber, Modal, Space, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Form, Input, InputNumber, Space, Table, Tag, Typography } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useBlocker, useNavigate, useParams } from "react-router-dom";
+import {
+  UNSAFE_DataRouterContext as DataRouterContext,
+  useBlocker,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import { useAuth } from "../auth/use-auth";
 import { getExperiment, listExperimentFiles } from "../experiments/api";
@@ -147,28 +152,47 @@ function formatBytes(sizeBytes: number) {
 }
 
 function SampleLeaveGuard({ when }: { when: boolean }) {
+  const { modal } = App.useApp();
   const blocker = useBlocker(when);
+  const confirmRef = useRef<{ destroy: () => void } | null>(null);
 
   useEffect(() => {
     if (blocker.state !== "blocked") {
+      confirmRef.current?.destroy();
+      confirmRef.current = null;
       return;
     }
 
-    Modal.confirm({
+    if (confirmRef.current) {
+      return;
+    }
+
+    confirmRef.current = modal.confirm({
       title: "离开确认",
       content: "样品信息尚未保存，确认离开吗？",
+      maskTransitionName: "",
+      transitionName: "",
       okText: "离开",
+      okButtonProps: { "aria-label": "离开" },
       cancelText: "留下",
+      cancelButtonProps: { "aria-label": "留下" },
       onOk: () => {
+        confirmRef.current?.destroy();
         blocker.proceed();
       },
       onCancel: () => {
+        confirmRef.current?.destroy();
         blocker.reset();
       },
     });
-  }, [blocker]);
+  }, [blocker, modal]);
 
   return null;
+}
+
+function SampleRouteLeaveGuard({ when }: { when: boolean }) {
+  const dataRouterContext = useContext(DataRouterContext);
+  return dataRouterContext ? <SampleLeaveGuard when={when} /> : null;
 }
 
 export function SampleDetailPage() {
@@ -187,6 +211,7 @@ export function SampleDetailPage() {
   const [downloadFileId, setDownloadFileId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const autosaveTimerRef = useRef<number | null>(null);
+  const saveTriggerRef = useRef<"auto" | "manual" | null>(null);
 
   const sampleQuery = useQuery({
     queryKey: ["samples", "detail", viewerKey, sampleId],
@@ -249,6 +274,9 @@ export function SampleDetailPage() {
     },
     onSuccess: async (savedSample) => {
       setSaveStatus("saved");
+      if (saveTriggerRef.current === "manual") {
+        setMessage({ text: "样品保存成功", type: "success" });
+      }
       setDraftFormState(null);
       queryClient.setQueryData(["samples", "detail", viewerKey, sampleId], savedSample);
       await Promise.all([
@@ -266,6 +294,9 @@ export function SampleDetailPage() {
         text: resolveErrorMessage(error, "样品保存失败"),
         type: "error",
       });
+    },
+    onSettled: () => {
+      saveTriggerRef.current = null;
     },
   });
   const formDisabled = !canEdit || saveMutation.isPending;
@@ -288,21 +319,6 @@ export function SampleDetailPage() {
   };
 
   const fileRows = useMemo(() => filesQuery.data?.items ?? [], [filesQuery.data?.items]);
-
-  const scheduleAutosave = useCallback(() => {
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-    }
-
-    autosaveTimerRef.current = window.setTimeout(() => {
-      if (!hasDirtyFields || metadataJsonError || saveMutation.isPending) {
-        return;
-      }
-
-      setMessage(null);
-      saveMutation.mutate();
-    }, 900);
-  }, [hasDirtyFields, metadataJsonError, saveMutation]);
 
   const updateFormState = (
     field: SampleFieldKey,
@@ -328,10 +344,30 @@ export function SampleDetailPage() {
       };
     });
 
-    if (canEdit) {
-      scheduleAutosave();
-    }
   };
+
+  useEffect(() => {
+    if (!canEdit || !hasDirtyFields || metadataJsonError || saveMutation.isPending) {
+      return;
+    }
+
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = window.setTimeout(() => {
+      saveTriggerRef.current = "auto";
+      setMessage(null);
+      saveMutation.mutate();
+    }, 900);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [canEdit, hasDirtyFields, metadataJsonError, saveMutation]);
 
   useEffect(() => {
     return () => {
@@ -379,7 +415,7 @@ export function SampleDetailPage() {
           title="样品详情"
         />
         <Alert
-          message={resolveErrorMessage(sampleQuery.error, "样品详情加载失败")}
+          title={resolveErrorMessage(sampleQuery.error, "样品详情加载失败")}
           showIcon
           type="error"
         />
@@ -388,12 +424,12 @@ export function SampleDetailPage() {
   }
 
   if (!sampleQuery.data) {
-    return <Alert message="样品详情暂不可用" showIcon type="warning" />;
+    return <Alert title="样品详情暂不可用" showIcon type="warning" />;
   }
 
   return (
     <div className="content-stack">
-      <SampleLeaveGuard when={hasDirtyFields && !saveMutation.isPending} />
+      <SampleRouteLeaveGuard when={hasDirtyFields && !saveMutation.isPending} />
       <PageHeader
         actions={
           <Space wrap>
@@ -423,16 +459,16 @@ export function SampleDetailPage() {
 
       {message ? (
         <Alert
-          message={message.text}
+          title={message.text}
           showIcon
           type={message.type}
         />
       ) : null}
       {canEdit && saveStatus === "saving" ? (
-        <Alert message="正在自动保存..." showIcon type="info" />
+        <Alert title="正在自动保存..." showIcon type="info" />
       ) : null}
       {canEdit && saveStatus === "saved" && !hasDirtyFields ? (
-        <Alert message="已自动保存" showIcon type="success" />
+        <Alert title="已自动保存" showIcon type="success" />
       ) : null}
 
       <Card>
@@ -462,7 +498,7 @@ export function SampleDetailPage() {
             <LoadingState />
           ) : experimentQuery.isError ? (
             <Alert
-              message={resolveErrorMessage(experimentQuery.error, "关联实验加载失败")}
+              title={resolveErrorMessage(experimentQuery.error, "关联实验加载失败")}
               showIcon
               type="error"
             />
@@ -470,7 +506,7 @@ export function SampleDetailPage() {
             <>
               {!canEdit ? (
                 <Alert
-                  message="当前样品来自非 draft 实验，暂不可编辑。"
+                  title="当前样品来自非 draft 实验，暂不可编辑。"
                   showIcon
                   type="info"
                 />
@@ -595,7 +631,9 @@ export function SampleDetailPage() {
                     onClick={() => {
                       if (autosaveTimerRef.current) {
                         window.clearTimeout(autosaveTimerRef.current);
+                        autosaveTimerRef.current = null;
                       }
+                      saveTriggerRef.current = "manual";
                       setMessage(null);
                       saveMutation.mutate();
                     }}
@@ -624,7 +662,7 @@ export function SampleDetailPage() {
             <LoadingState />
           ) : filesQuery.isError ? (
             <Alert
-              message={resolveErrorMessage(filesQuery.error, "样品文件加载失败")}
+              title={resolveErrorMessage(filesQuery.error, "样品文件加载失败")}
               showIcon
               type="error"
             />

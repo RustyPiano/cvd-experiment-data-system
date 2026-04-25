@@ -13,6 +13,7 @@ import {
   downloadExperimentExcel,
   exportExperimentJson,
   listExperiments,
+  type ExperimentSortField,
 } from "./api";
 import { ExperimentTable } from "./components/experiment-table";
 import { useAuth } from "../auth/use-auth";
@@ -23,6 +24,8 @@ type ExperimentListFilters = {
   page: number;
   pageSize: number;
   q: string;
+  sortBy: ExperimentSortField;
+  sortOrder: "asc" | "desc";
   status: ExperimentStatus[];
 };
 
@@ -32,6 +35,8 @@ const defaultFilters: ExperimentListFilters = {
   page: 1,
   pageSize: 10,
   q: "",
+  sortBy: "updated_at",
+  sortOrder: "desc",
   status: [],
 };
 
@@ -73,6 +78,8 @@ export function ExperimentListPage() {
         page: normalizedFilters.page,
         pageSize: normalizedFilters.pageSize,
         q: normalizedFilters.q || null,
+        sortBy: normalizedFilters.sortBy,
+        sortOrder: normalizedFilters.sortOrder,
       }),
     enabled: session.isAuthenticated,
   });
@@ -136,12 +143,12 @@ export function ExperimentListPage() {
 
       {experimentQuery.isError ? (
         <Alert
-          message={resolveErrorMessage(experimentQuery.error, "实验列表加载失败")}
+          title={resolveErrorMessage(experimentQuery.error, "实验列表加载失败")}
           showIcon
           type="error"
         />
       ) : null}
-      {listActionError ? <Alert message={listActionError} showIcon type="error" /> : null}
+      {listActionError ? <Alert title={listActionError} showIcon type="error" /> : null}
 
       <Card>
         <div className="content-stack">
@@ -222,15 +229,19 @@ export function ExperimentListPage() {
               onExportJson={(experiment) => {
                 void handleExportJson(experiment);
               }}
-                onPageChange={(page, pageSize) => {
+                onTableChange={(page, pageSize, sortField, sortOrder) => {
                   setFilters((current) => ({
                     ...current,
                   page,
                   pageSize,
+                  sortBy: sortField,
+                  sortOrder: sortOrder === "ascend" ? "asc" : "desc",
                 }));
               }}
               page={experimentQuery.data?.page ?? filters.page}
               pageSize={experimentQuery.data?.page_size ?? filters.pageSize}
+              sortField={filters.sortBy}
+              sortOrder={filters.sortOrder === "asc" ? "ascend" : "descend"}
               total={experimentQuery.data?.total ?? 0}
             />
           )}

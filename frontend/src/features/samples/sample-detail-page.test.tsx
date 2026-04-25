@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
 
@@ -147,6 +147,7 @@ function createSampleServer(options?: {
 describe("SampleDetailPage", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -198,6 +199,51 @@ describe("SampleDetailPage", () => {
     });
 
     expect(await screen.findByText("样品保存成功")).toBeInTheDocument();
+  });
+
+  it("autosaves the first dirty field without requiring a manual save", async () => {
+    const server = createSampleServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/samples/:sampleId" element={<SampleDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/samples/sample-1"],
+      },
+    );
+
+    expect(await screen.findByText("S-2026-0001-TOP")).toBeInTheDocument();
+    const storageLocationInput = await screen.findByLabelText("存放位置");
+    vi.useFakeTimers();
+
+    fireEvent.change(storageLocationInput, {
+      target: { value: "drawer-2" },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(950);
+      await Promise.resolve();
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) => request.method === "PATCH" && request.pathname === "/api/v1/samples/sample-1",
+        ),
+      ).toBe(true);
+    });
+
+    const saveRequest = server.requests.find(
+      (request) => request.method === "PATCH" && request.pathname === "/api/v1/samples/sample-1",
+    );
+    expect(JSON.parse(String(saveRequest?.body))).toEqual({
+      storage_location: "drawer-2",
+    });
+    expect(await screen.findByText("已自动保存")).toBeInTheDocument();
   });
 
   it("falls back to read-only when the sample is not editable", async () => {

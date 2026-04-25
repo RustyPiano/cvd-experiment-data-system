@@ -38,7 +38,7 @@ export function EditorSectionCard({
       </div>
       {state.status === "error" && state.message ? (
         <Alert
-          message={state.message}
+          title={state.message}
           showIcon
           style={{ marginBottom: 16 }}
           type="error"

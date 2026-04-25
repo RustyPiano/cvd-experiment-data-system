@@ -125,7 +125,7 @@ describe("ExperimentListPage", () => {
       expect(
         requests.some((request) =>
           request.includes(
-            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=1&page_size=10",
+            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=1&page_size=10&sort_by=updated_at&sort_order=desc",
           ),
         ),
       ).toBe(true);
@@ -139,7 +139,7 @@ describe("ExperimentListPage", () => {
       expect(
         requests.some((request) =>
           request.includes(
-            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=2&page_size=10",
+            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=2&page_size=10&sort_by=updated_at&sort_order=desc",
           ),
         ),
       ).toBe(true);
@@ -186,9 +186,89 @@ describe("ExperimentListPage", () => {
     await waitFor(() => {
       expect(
         requests.some((request) =>
-          request.includes("/api/v1/experiments?material_system=MoS2&q=growth&page=1&page_size=10"),
+          request.includes("/api/v1/experiments?material_system=MoS2&q=growth&page=1&page_size=10&sort_by=updated_at&sort_order=desc"),
         ),
       ).toBe(true);
+    });
+  });
+
+  it("passes table sorting to the backend instead of sorting only the current page", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "exp-1",
+                run_code: "CVD-2026-0001",
+                owner_id: "u-1",
+                derived_from_run_id: null,
+                derived_from_run_code: null,
+                experiment_type: "cvd",
+                material_system: "MoS2",
+                experiment_date: "2026-04-23",
+                objective: "baseline",
+                status: "draft",
+                quality_label: "unknown",
+                summary_result: null,
+                invalid_reason: null,
+                created_at: "2026-04-23T00:00:00Z",
+                updated_at: "2026-04-23T00:00:00Z",
+                submitted_at: null,
+                locked_at: null,
+              },
+            ],
+            total: 1,
+            page: 1,
+            page_size: 10,
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+    });
+
+    expect(await screen.findByText("CVD-2026-0001")).toBeInTheDocument();
+    await user.click(screen.getByText("实验编号"));
+
+    await waitFor(() => {
+      expect(
+        requests.some((request) =>
+          request.includes("/api/v1/experiments?page=1&page_size=10&sort_by=run_code&sort_order=asc"),
+        ),
+      ).toBe(true);
+    });
+
+    await user.click(screen.getByText("实验编号"));
+    await waitFor(() => {
+      expect(
+        requests.some((request) =>
+          request.includes("/api/v1/experiments?page=1&page_size=10&sort_by=run_code&sort_order=desc"),
+        ),
+      ).toBe(true);
+    });
+
+    await user.click(screen.getByText("实验编号"));
+    await waitFor(() => {
+      expect(requests.at(-1)).toContain(
+        "/api/v1/experiments?page=1&page_size=10&sort_by=updated_at&sort_order=desc",
+      );
     });
   });
 

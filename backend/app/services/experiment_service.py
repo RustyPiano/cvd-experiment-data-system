@@ -61,6 +61,8 @@ class ExperimentService:
         query_text: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc",
     ) -> ExperimentListResponse:
         status_filters = self._parse_status_filters(status_filter)
         items, total = self.experiments.list_visible(
@@ -71,6 +73,8 @@ class ExperimentService:
             query_text=query_text,
             page=page,
             page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
         return ExperimentListResponse(
             items=[ExperimentRead.model_validate(item) for item in items],

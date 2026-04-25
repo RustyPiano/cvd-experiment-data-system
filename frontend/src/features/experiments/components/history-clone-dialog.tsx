@@ -108,7 +108,7 @@ export function HistoryCloneDialog({
         dataIndex: "run_code",
         key: "run_code",
         render: (value: string, record) => (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Typography.Text strong>{value}</Typography.Text>
             {record.derived_from_run_code ? <Tag color="blue">派生自 {record.derived_from_run_code}</Tag> : null}
           </Space>
@@ -256,10 +256,10 @@ export function HistoryCloneDialog({
           <Button onClick={resetFilters}>重置</Button>
         </Space>
 
-        {actionError ? <Alert message={actionError} showIcon type="error" /> : null}
+        {actionError ? <Alert title={actionError} showIcon type="error" /> : null}
         {experimentsQuery.isError ? (
           <Alert
-            message={resolveErrorMessage(experimentsQuery.error, "历史实验加载失败")}
+            title={resolveErrorMessage(experimentsQuery.error, "历史实验加载失败")}
             showIcon
             type="error"
           />

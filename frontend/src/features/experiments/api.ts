@@ -26,6 +26,13 @@ type ListExperimentFilesFilters = {
   sampleId?: string | null;
 };
 
+export type ExperimentSortField =
+  | "run_code"
+  | "material_system"
+  | "experiment_date"
+  | "status"
+  | "updated_at";
+
 export type ListExperimentsFilters = {
   mine?: boolean;
   status?: string[];
@@ -33,6 +40,8 @@ export type ListExperimentsFilters = {
   q?: string | null;
   page?: number;
   pageSize?: number;
+  sortBy?: ExperimentSortField | null;
+  sortOrder?: "asc" | "desc" | null;
 };
 
 type UploadExperimentFileInput = {
@@ -41,6 +50,7 @@ type UploadExperimentFileInput = {
   method: string;
   note?: string;
   sampleId?: string | null;
+  signal?: AbortSignal;
 };
 
 function buildQueryString(
@@ -67,6 +77,8 @@ export function listExperiments(token: string, filters: ListExperimentsFilters =
       q: filters.q ?? null,
       page: filters.page ?? null,
       page_size: filters.pageSize ?? null,
+      sort_by: filters.sortBy ?? null,
+      sort_order: filters.sortOrder ?? null,
     })}`,
     {
       token,
@@ -214,6 +226,7 @@ export function uploadExperimentFile(
   return apiRequest<FileAssetRead>(`/api/v1/experiments/${experimentId}/files`, {
     method: "POST",
     body: formData,
+    signal: payload.signal,
     token,
   });
 }

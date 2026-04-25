@@ -7,7 +7,6 @@ import {
   Card,
   Form,
   Input,
-  Modal,
   Progress,
   Select,
   Table,
@@ -75,6 +74,26 @@ function formatFileCategory(value: string) {
   return fileCategoryOptions.find((option) => option.value === value)?.label ?? value;
 }
 
+class UploadCanceledError extends Error {
+  successfulIndices: number[];
+  total: number;
+
+  constructor(successfulIndices: number[], total: number) {
+    super(`已取消上传，已成功 ${successfulIndices.length} / ${total} 个文件。`);
+    this.name = "UploadCanceledError";
+    this.successfulIndices = successfulIndices;
+    this.total = total;
+  }
+}
+
+function isUploadCanceledError(error: unknown): error is UploadCanceledError {
+  return error instanceof UploadCanceledError;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 function mergeMethodOptions(
   vocabularyOptions: Array<{ label: string; value: string }>,
   fileMethods: string[],
@@ -94,7 +113,7 @@ export function ExperimentFilesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session } = useAuth();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const currentUser = session.currentUser;
   const [methodFilter, setMethodFilter] = useState("");
   const [fileCategoryFilter, setFileCategoryFilter] = useState("");
@@ -108,6 +127,7 @@ export function ExperimentFilesPage() {
   const [mutationMessage, setMutationMessage] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
   const abortRef = useRef(false);
+  const uploadAbortControllerRef = useRef<AbortController | null>(null);
 
   const experimentQuery = useQuery({
     queryKey: ["experiments", "detail", currentUser?.id ?? "anonymous", experimentId],
@@ -218,13 +238,16 @@ export function ExperimentFilesPage() {
       abortRef.current = false;
       setBatchProgress({ done: 0, total: selectedFiles.length });
 
-      let done = 0;
+      const successfulIndices: number[] = [];
       const errors: string[] = [];
 
-      for (const file of selectedFiles) {
+      for (const [index, file] of selectedFiles.entries()) {
         if (abortRef.current) {
-          break;
+          throw new UploadCanceledError(successfulIndices, selectedFiles.length);
         }
+
+        const abortController = new AbortController();
+        uploadAbortControllerRef.current = abortController;
 
         try {
           await uploadExperimentFile(session.accessToken!, experimentId, {
@@ -233,13 +256,23 @@ export function ExperimentFilesPage() {
             method: uploadMethod.trim(),
             note: uploadNote.trim() || undefined,
             sampleId: uploadSampleId || null,
+            signal: abortController.signal,
           });
         } catch (error) {
+          if (abortRef.current || isAbortError(error)) {
+            throw new UploadCanceledError(successfulIndices, selectedFiles.length);
+          }
+
           errors.push(`${file.name}: ${resolveErrorMessage(error, "上传失败")}`);
+          continue;
+        } finally {
+          if (uploadAbortControllerRef.current === abortController) {
+            uploadAbortControllerRef.current = null;
+          }
         }
 
-        done += 1;
-        setBatchProgress({ done, total: selectedFiles.length });
+        successfulIndices.push(index);
+        setBatchProgress({ done: successfulIndices.length, total: selectedFiles.length });
       }
 
       if (errors.length > 0) {
@@ -251,10 +284,24 @@ export function ExperimentFilesPage() {
       resetUploadForm();
       await invalidateFileQueries();
     },
-    onError: async () => {
+    onError: async (error) => {
+      if (isUploadCanceledError(error)) {
+        const successfulIndices = new Set(error.successfulIndices);
+        const remainingFiles = selectedFiles.filter((_, index) => !successfulIndices.has(index));
+        const remainingAntFiles = antFileList.filter((_, index) => !successfulIndices.has(index));
+        setSelectedFiles(remainingFiles);
+        setAntFileList(remainingAntFiles);
+        setMutationMessage(error.message);
+        message.warning("文件上传已取消");
+        await invalidateFileQueries();
+        return;
+      }
+
       await invalidateFileQueries();
     },
     onSettled: () => {
+      abortRef.current = false;
+      uploadAbortControllerRef.current = null;
       setBatchProgress(null);
     },
   });
@@ -328,7 +375,7 @@ export function ExperimentFilesPage() {
           title="实验文件"
         />
         <Alert
-          message={resolveErrorMessage(experimentQuery.error, "实验文件页加载失败")}
+          title={resolveErrorMessage(experimentQuery.error, "实验文件页加载失败")}
           showIcon
           type="error"
         />
@@ -337,7 +384,7 @@ export function ExperimentFilesPage() {
   }
 
   if (!experimentQuery.data) {
-    return <Alert message="实验文件页暂不可用" showIcon type="warning" />;
+    return <Alert title="实验文件页暂不可用" showIcon type="warning" />;
   }
 
   return (
@@ -358,17 +405,17 @@ export function ExperimentFilesPage() {
         title={`文件管理 · ${experimentQuery.data.run_code}`}
       />
 
-      {mutationMessage ? <Alert message={mutationMessage} showIcon type="error" /> : null}
-      {uploadMutation.isError ? (
+      {mutationMessage ? <Alert title={mutationMessage} showIcon type="error" /> : null}
+      {uploadMutation.isError && !isUploadCanceledError(uploadMutation.error) ? (
         <Alert
-          message={resolveErrorMessage(uploadMutation.error, "文件上传失败")}
+          title={resolveErrorMessage(uploadMutation.error, "文件上传失败")}
           showIcon
           type="error"
         />
       ) : null}
       {deleteMutation.isError ? (
         <Alert
-          message={resolveErrorMessage(deleteMutation.error, "文件删除失败")}
+          title={resolveErrorMessage(deleteMutation.error, "文件删除失败")}
           showIcon
           type="error"
         />
@@ -443,7 +490,7 @@ export function ExperimentFilesPage() {
                   value={uploadNote}
                 />
               </Form.Item>
-              <div style={{ gridColumn: "1 / -1" }}>
+              <Form.Item htmlFor="upload-file-input" label="选择文件" style={{ gridColumn: "1 / -1" }}>
                 <Upload.Dragger
                   beforeUpload={(file, fileList) => {
                     if (fileList.indexOf(file) === 0) {
@@ -471,7 +518,7 @@ export function ExperimentFilesPage() {
                   <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
                   <p className="ant-upload-hint">支持同时选择多个文件，统一填写元数据后批量上传。单个文件不超过 50 MB。</p>
                 </Upload.Dragger>
-              </div>
+              </Form.Item>
               {batchProgress ? (
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Progress
@@ -483,7 +530,7 @@ export function ExperimentFilesPage() {
               ) : null}
               <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1" }}>
                 <Button
-                  aria-label="上传文件"
+                  aria-label={selectedFiles.length > 1 ? `上传 ${selectedFiles.length} 个文件` : "上传文件"}
                   icon={<InboxOutlined />}
                   loading={uploadMutation.isPending}
                   onClick={() => {
@@ -503,6 +550,7 @@ export function ExperimentFilesPage() {
                     danger
                     onClick={() => {
                       abortRef.current = true;
+                      uploadAbortControllerRef.current?.abort();
                     }}
                   >
                     取消上传
@@ -511,7 +559,7 @@ export function ExperimentFilesPage() {
               </div>
             </div>
           ) : (
-            <Alert message="当前账号或实验状态不允许修改文件。" showIcon type="info" />
+            <Alert title="当前账号或实验状态不允许修改文件。" showIcon type="info" />
           )}
         </div>
       </Card>
@@ -561,7 +609,7 @@ export function ExperimentFilesPage() {
 
           {filesQuery.isError ? (
             <Alert
-              message={resolveErrorMessage(filesQuery.error, "文件列表加载失败")}
+              title={resolveErrorMessage(filesQuery.error, "文件列表加载失败")}
               showIcon
               type="error"
             />
@@ -668,12 +716,16 @@ export function ExperimentFilesPage() {
                           danger
                           loading={deleteMutation.isPending && deleteMutation.variables === file.id}
                           onClick={() => {
-                            Modal.confirm({
+                            modal.confirm({
                               title: "删除确认",
                               content: `确定删除文件 ${file.original_name}？`,
+                              maskTransitionName: "",
+                              transitionName: "",
                               okText: "删除",
+                              okButtonProps: { "aria-label": "删除" },
                               okType: "danger",
                               cancelText: "取消",
+                              cancelButtonProps: { "aria-label": "取消" },
                               onOk: () => {
                                 setMutationMessage(null);
                                 deleteMutation.mutate(file.id);

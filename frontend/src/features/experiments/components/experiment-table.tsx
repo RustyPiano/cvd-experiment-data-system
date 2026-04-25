@@ -6,6 +6,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { EmptyState } from "../../../shared/ui/empty-state";
 import { StatusTag } from "../../../shared/ui/status-tag";
 import type { ExperimentRead } from "../../../shared/types/api";
+import type { ExperimentSortField } from "../api";
+
+export type ExperimentSortOrder = "ascend" | "descend";
 
 type ExperimentTableProps = {
   activeExportKey: string | null;
@@ -13,11 +16,30 @@ type ExperimentTableProps = {
   loading: boolean;
   onExportExcel: (experiment: ExperimentRead) => void;
   onExportJson: (experiment: ExperimentRead) => void;
-  onPageChange: (page: number, pageSize: number) => void;
+  onTableChange: (
+    page: number,
+    pageSize: number,
+    sortField: ExperimentSortField,
+    sortOrder: ExperimentSortOrder,
+  ) => void;
   page: number;
   pageSize: number;
+  sortField: ExperimentSortField;
+  sortOrder: ExperimentSortOrder;
   total: number;
 };
+
+const sortableFields = new Set<ExperimentSortField>([
+  "run_code",
+  "material_system",
+  "experiment_date",
+  "status",
+  "updated_at",
+]);
+
+function isExperimentSortField(value: unknown): value is ExperimentSortField {
+  return typeof value === "string" && sortableFields.has(value as ExperimentSortField);
+}
 
 export function ExperimentTable({
   activeExportKey,
@@ -25,19 +47,23 @@ export function ExperimentTable({
   loading,
   onExportExcel,
   onExportJson,
-  onPageChange,
+  onTableChange,
   page,
   pageSize,
+  sortField,
+  sortOrder,
   total,
 }: ExperimentTableProps) {
   const navigate = useNavigate();
+  const resolveSortOrder = (field: ExperimentSortField) => (sortField === field ? sortOrder : null);
 
   const columns: ColumnsType<ExperimentRead> = [
     {
       title: "实验编号",
       dataIndex: "run_code",
       key: "run_code",
-      sorter: (a, b) => a.run_code.localeCompare(b.run_code),
+      sortOrder: resolveSortOrder("run_code"),
+      sorter: true,
       render: (runCode: string, record) => (
         <Link to={`/experiments/${record.id}`}>{runCode}</Link>
       ),
@@ -46,7 +72,8 @@ export function ExperimentTable({
       title: "材料体系",
       dataIndex: "material_system",
       key: "material_system",
-      sorter: (a, b) => (a.material_system ?? "").localeCompare(b.material_system ?? ""),
+      sortOrder: resolveSortOrder("material_system"),
+      sorter: true,
       render: (value: string | null) =>
         value || <Typography.Text type="secondary">未填写</Typography.Text>,
     },
@@ -54,22 +81,24 @@ export function ExperimentTable({
       title: "实验日期",
       dataIndex: "experiment_date",
       key: "experiment_date",
-      sorter: (a, b) => a.experiment_date.localeCompare(b.experiment_date),
+      sortOrder: resolveSortOrder("experiment_date"),
+      sorter: true,
       render: (value: string) => dayjs(value).format("YYYY-MM-DD"),
     },
     {
       title: "状态",
       dataIndex: "status",
       key: "status",
-      sorter: (a, b) => a.status.localeCompare(b.status),
+      sortOrder: resolveSortOrder("status"),
+      sorter: true,
       render: (status: ExperimentRead["status"]) => <StatusTag status={status} />,
     },
     {
       title: "更新时间",
       dataIndex: "updated_at",
       key: "updated_at",
-      defaultSortOrder: "descend",
-      sorter: (a, b) => a.updated_at.localeCompare(b.updated_at),
+      sortOrder: resolveSortOrder("updated_at"),
+      sorter: true,
       render: (value: string) => dayjs(value).format("YYYY-MM-DD HH:mm"),
     },
     {
@@ -130,8 +159,29 @@ export function ExperimentTable({
         emptyText: <EmptyState description="当前没有可见实验记录。" />,
       }}
       loading={loading}
-      onChange={(pagination) => {
-        onPageChange(pagination.current ?? page, pagination.pageSize ?? pageSize);
+      onChange={(pagination, _filters, sorter) => {
+        const activeSorter = Array.isArray(sorter) ? sorter[0] : sorter;
+        if (!activeSorter?.order) {
+          onTableChange(
+            pagination.current ?? page,
+            pagination.pageSize ?? pageSize,
+            "updated_at",
+            "descend",
+          );
+          return;
+        }
+
+        const nextField = isExperimentSortField(activeSorter?.columnKey)
+          ? activeSorter.columnKey
+          : "updated_at";
+        const nextOrder = activeSorter?.order === "ascend" ? "ascend" : "descend";
+
+        onTableChange(
+          pagination.current ?? page,
+          pagination.pageSize ?? pageSize,
+          nextField,
+          nextOrder,
+        );
       }}
       pagination={{
         current: page,

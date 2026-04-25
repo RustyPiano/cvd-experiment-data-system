@@ -1,6 +1,6 @@
-import { useContext, useEffect, useMemo } from "react";
+import { useContext, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Anchor, Button, Modal } from "antd";
+import { Alert, Anchor, App, Button } from "antd";
 import {
   UNSAFE_DataRouterContext as DataRouterContext,
   useBlocker,
@@ -50,26 +50,40 @@ const sectionAnchors = [
 ];
 
 function EditorRouteLeaveGuard({ message, when }: { message: string; when: boolean }) {
+  const { modal } = App.useApp();
   const blocker = useBlocker(when);
+  const confirmRef = useRef<{ destroy: () => void } | null>(null);
 
   useEffect(() => {
     if (blocker.state !== "blocked") {
+      confirmRef.current?.destroy();
+      confirmRef.current = null;
       return;
     }
 
-    Modal.confirm({
+    if (confirmRef.current) {
+      return;
+    }
+
+    confirmRef.current = modal.confirm({
       title: "离开确认",
       content: message,
+      maskTransitionName: "",
+      transitionName: "",
       okText: "离开",
+      okButtonProps: { "aria-label": "离开" },
       cancelText: "留下",
+      cancelButtonProps: { "aria-label": "留下" },
       onOk: () => {
+        confirmRef.current?.destroy();
         blocker.proceed();
       },
       onCancel: () => {
+        confirmRef.current?.destroy();
         blocker.reset();
       },
     });
-  }, [blocker, message]);
+  }, [blocker, message, modal]);
 
   return null;
 }
@@ -117,6 +131,7 @@ function ExperimentEditorWorkspace({
   initialValues: ReturnType<typeof createInitialEditorValues>;
 }) {
   const navigate = useNavigate();
+  const { modal } = App.useApp();
   const editor = useExperimentEditor({
     accessToken,
     currentUserId,
@@ -164,12 +179,16 @@ function ExperimentEditorWorkspace({
   };
 
   const navigateToDetail = () => {
-    if (editor.shouldWarnOnLeave) {
-      Modal.confirm({
+    if (editor.shouldWarnOnLeave && !dataRouterContext) {
+      modal.confirm({
         title: "离开确认",
         content: editor.leaveWarning,
+        maskTransitionName: "",
+        transitionName: "",
         okText: "离开",
+        okButtonProps: { "aria-label": "离开" },
         cancelText: "留下",
+        cancelButtonProps: { "aria-label": "留下" },
         onOk: () => {
           navigate(`/experiments/${editor.experiment.id}`);
         },
@@ -468,7 +487,7 @@ export function ExperimentEditorPage() {
           title="实验编辑器"
         />
         <Alert
-          message={
+          title={
             error instanceof HttpError ? error.detail || "实验编辑器加载失败" : "实验编辑器加载失败"
           }
           showIcon
@@ -481,7 +500,7 @@ export function ExperimentEditorPage() {
   if (!experimentQuery.data || !initialValues || !initialModulePayloads) {
     return (
       <Alert
-        message="实验编辑器暂不可用"
+        title="实验编辑器暂不可用"
         showIcon
         type="warning"
       />

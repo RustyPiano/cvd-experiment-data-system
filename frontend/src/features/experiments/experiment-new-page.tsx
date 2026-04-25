@@ -86,9 +86,9 @@ export function ExperimentNewPage() {
         title="新建实验"
       />
       {isViewer ? (
-        <Alert message="当前账号没有创建实验权限。" showIcon type="warning" />
+        <Alert title="当前账号没有创建实验权限。" showIcon type="warning" />
       ) : null}
-      {actionError ? <Alert message={actionError} showIcon type="error" /> : null}
+      {actionError ? <Alert title={actionError} showIcon type="error" /> : null}
       <Row gutter={[16, 16]}>
         <Col md={8} xs={24}>
           <Card className="action-card">

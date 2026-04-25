@@ -136,7 +136,7 @@ export function ExperimentDetailPage() {
           title="实验详情"
         />
         <Alert
-          message={
+          title={
             experimentQuery.error instanceof HttpError
               ? experimentQuery.error.detail || "实验详情加载失败"
               : "实验详情加载失败"
@@ -151,7 +151,7 @@ export function ExperimentDetailPage() {
   if (!experimentQuery.data) {
     return (
       <Alert
-        message="实验详情暂不可用"
+        title="实验详情暂不可用"
         showIcon
         type="warning"
       />
@@ -197,7 +197,7 @@ export function ExperimentDetailPage() {
         subtitle="查看实验状态、样品、文件、审计记录，并导出数据。"
         title="实验详情"
       />
-      {downloadMessage ? <Alert message={downloadMessage} showIcon type="error" /> : null}
+      {downloadMessage ? <Alert title={downloadMessage} showIcon type="error" /> : null}
       <ExperimentSourceBanner experiment={experimentQuery.data} />
       {session.accessToken && currentUser ? (
         <Card>
@@ -259,7 +259,7 @@ export function ExperimentDetailPage() {
             <LoadingState />
           ) : samplesQuery.isError ? (
             <Alert
-              message={resolveErrorMessage(samplesQuery.error, "样品概览加载失败")}
+              title={resolveErrorMessage(samplesQuery.error, "样品概览加载失败")}
               showIcon
               type="error"
             />
@@ -301,7 +301,7 @@ export function ExperimentDetailPage() {
             <LoadingState />
           ) : filesQuery.isError ? (
             <Alert
-              message={resolveErrorMessage(filesQuery.error, "文件概览加载失败")}
+              title={resolveErrorMessage(filesQuery.error, "文件概览加载失败")}
               showIcon
               type="error"
             />
@@ -344,7 +344,7 @@ export function ExperimentDetailPage() {
             <LoadingState />
           ) : auditQuery.isError ? (
             <Alert
-              message={resolveErrorMessage(auditQuery.error, "审计轨迹加载失败")}
+              title={resolveErrorMessage(auditQuery.error, "审计轨迹加载失败")}
               showIcon
               type="error"
             />

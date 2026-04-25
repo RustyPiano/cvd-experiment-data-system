@@ -29,7 +29,11 @@ type FileFixture = {
   is_deleted: boolean;
 };
 
-function createFileServer() {
+function createFileServer(options?: {
+  failUploadNames?: string[];
+  holdUploadNames?: string[];
+  holdUploadUntilAbort?: boolean;
+}) {
   const experiment = {
     id: "exp-1",
     run_code: "CVD-2026-0001",
@@ -234,6 +238,22 @@ function createFileServer() {
     if (url.pathname === "/api/v1/experiments/exp-1/files" && method === "POST") {
       const formData = body as FormData;
       const file = formData.get("file") as File;
+
+      if (options?.failUploadNames?.includes(file.name)) {
+        return new Response(JSON.stringify({ detail: `${file.name} upload failed` }), {
+          headers: { "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
+
+      if (options?.holdUploadUntilAbort || options?.holdUploadNames?.includes(file.name)) {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      }
+
       files.push({
         id: "file-3",
         experiment_run_id: "exp-1",
@@ -423,6 +443,83 @@ describe("ExperimentFilesPage", () => {
     expect(formData.get("method")).toBe("SEM");
   }, 10_000);
 
+  it("keeps selected files and avoids success feedback when a batch upload is canceled", async () => {
+    const user = userEvent.setup();
+    const server = createFileServer({ holdUploadUntilAbort: true });
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+      },
+    );
+
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("文件方法"));
+    await user.click(await screen.findByRole("option", { name: "扫描电镜" }));
+    fireEvent.change(screen.getByLabelText("选择文件"), {
+      target: {
+        files: [
+          new File(["a"], "a.png", { type: "image/png" }),
+          new File(["b"], "b.png", { type: "image/png" }),
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "上传 2 个文件" }));
+    await user.click(await screen.findByRole("button", { name: "取消上传" }));
+
+    expect(await screen.findByText("已取消上传，已成功 0 / 2 个文件。")).toBeInTheDocument();
+    expect(screen.getByText("a.png")).toBeInTheDocument();
+    expect(screen.getByText("b.png")).toBeInTheDocument();
+    expect(screen.queryByText("文件上传成功")).not.toBeInTheDocument();
+  }, 20_000);
+
+  it("keeps failed and pending files when a batch upload is canceled after an upload error", async () => {
+    const user = userEvent.setup();
+    const server = createFileServer({
+      failUploadNames: ["a.png"],
+      holdUploadNames: ["b.png"],
+    });
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+      },
+    );
+
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("文件方法"));
+    await user.click(await screen.findByRole("option", { name: "扫描电镜" }));
+    fireEvent.change(screen.getByLabelText("选择文件"), {
+      target: {
+        files: [
+          new File(["a"], "a.png", { type: "image/png" }),
+          new File(["b"], "b.png", { type: "image/png" }),
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "上传 2 个文件" }));
+    await user.click(await screen.findByRole("button", { name: "取消上传" }));
+
+    expect(await screen.findByText("已取消上传，已成功 0 / 2 个文件。")).toBeInTheDocument();
+    expect(screen.getByText("a.png")).toBeInTheDocument();
+    expect(screen.getByText("b.png")).toBeInTheDocument();
+    expect(screen.queryByText("文件上传成功")).not.toBeInTheDocument();
+  }, 20_000);
+
   it("navigates to a sample detail route from the sample column", async () => {
     const server = createFileServer();
     vi.stubGlobal("fetch", server.fetchMock);
@@ -514,6 +611,7 @@ describe("ExperimentFilesPage", () => {
     expect(screen.queryByText("raman.txt")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "删除 image.png" }));
+    await user.click(await screen.findByRole("button", { name: "删除" }));
 
     await waitFor(() => {
       expect(
