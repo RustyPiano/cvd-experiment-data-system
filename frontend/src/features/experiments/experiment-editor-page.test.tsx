@@ -739,6 +739,83 @@ describe("ExperimentEditorPage", () => {
     );
   });
 
+  it("clears inheritance retry state after a later normal autosave recovers the failed section", async () => {
+    const server = createEditorFetchMock();
+    const storedInheritancePayload = JSON.stringify({
+      sourceExperimentId: "exp-source",
+      sourceRunCode: "CVD-2026-0009",
+      environment: {
+        indoor_temperature_C: 23,
+        indoor_humidity_percent: 41,
+        sample_env: "glovebox shelf",
+        abnormal_note: "old abnormal note",
+      },
+      precheck: {
+        seal_intact: true,
+        hood_clean: false,
+        flange_blocked: true,
+        boat_contamination_level: false,
+        tube_contamination_level: true,
+        risk_note: "old risk note",
+      },
+    });
+    window.sessionStorage.setItem("experiment:inherit:exp-source", storedInheritancePayload);
+    let failNextPrecheckSave = true;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (
+        url.pathname === "/api/v1/experiments/exp-1/modules/precheck" &&
+        method === "PUT" &&
+        failNextPrecheckSave
+      ) {
+        failNextPrecheckSave = false;
+        return jsonResponse({ detail: "Inherited precheck save failed" }, { status: 500 });
+      }
+
+      return server.fetchMock(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { router } = renderEditorWithDataRouter({
+      initialEntry: "/experiments/exp-1/edit?inheritFrom=exp-source",
+    });
+
+    expect(await screen.findByText("Inherited precheck save failed")).toBeInTheDocument();
+    expect(router.state.location.search).toBe("?inheritFrom=exp-source");
+    expect(window.sessionStorage.getItem("experiment:inherit:exp-source")).toBe(
+      storedInheritancePayload,
+    );
+
+    const sealIntactGroup = screen.getByRole("radiogroup", { name: "密封完好" });
+    fireEvent.click(within(sealIntactGroup).getByRole("radio", { name: "是" }));
+    await waitFor(() => {
+      expect(
+        server.requests.some((request) => {
+          if (
+            request.method !== "PUT" ||
+            request.pathname !== "/api/v1/experiments/exp-1/modules/precheck"
+          ) {
+            return false;
+          }
+
+          const payload = (
+            request.body as {
+              payload_json?: {
+                seal_intact?: boolean | null;
+              };
+            }
+          ).payload_json;
+
+          return payload?.seal_intact === true;
+        }),
+      ).toBe(true);
+      expect(router.state.location.search).toBe("");
+      expect(window.sessionStorage.getItem("experiment:inherit:exp-source")).toBeNull();
+    });
+  });
+
   it("shows an inheritance error and keeps inheritFrom when fallback module loading fails", async () => {
     const server = createEditorFetchMock();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

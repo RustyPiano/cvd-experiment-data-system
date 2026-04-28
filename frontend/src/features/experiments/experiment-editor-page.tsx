@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, App, Button } from "antd";
 import {
   UNSAFE_DataRouterContext as DataRouterContext,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -471,8 +472,9 @@ function ExperimentEditorWorkspace({
 
 export function ExperimentEditorPage() {
   const { experimentId = "" } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const currentUserId = session.currentUser?.id ?? "anonymous";
   const inheritFrom = searchParams.get("inheritFrom");
@@ -558,7 +560,13 @@ export function ExperimentEditorPage() {
       onInheritanceConsumed={() => {
         const nextSearchParams = new URLSearchParams(searchParams);
         nextSearchParams.delete("inheritFrom");
-        setSearchParams(nextSearchParams, { replace: true });
+        navigate(
+          {
+            pathname: location.pathname,
+            search: nextSearchParams.toString(),
+          },
+          { replace: true },
+        );
       }}
     />
   );

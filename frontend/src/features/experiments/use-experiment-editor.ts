@@ -163,6 +163,10 @@ function buildInheritedValues({
   };
 }
 
+function isInheritedSectionKey(sectionKey: EditorSectionKey): sectionKey is InheritedSectionKey {
+  return sectionKey === "environment" || sectionKey === "precheck";
+}
+
 function isValidationResponse(payload: unknown): payload is ExperimentValidationResponse {
   if (!payload || typeof payload !== "object") {
     return false;
@@ -251,6 +255,9 @@ export function useExperimentEditor({
   const modulePayloadsRef = useRef<ModulePayloadMap>(initialModulePayloads);
   const sectionStatesRef = useRef(createInitialSectionStates());
   const inheritanceAppliedRef = useRef(false);
+  const inheritedSourceIdRef = useRef<string | null>(null);
+  const pendingInheritedSectionsRef = useRef<Set<InheritedSectionKey>>(new Set());
+  const inheritanceCleanupTimerRef = useRef<number | null>(null);
 
   const [experiment, setExperiment] = useState(initialExperiment);
   const [values, setValues] = useState(initialValues);
@@ -311,6 +318,46 @@ export function useExperimentEditor({
     saveQueueRef.current = nextTask.catch(() => undefined);
     return nextTask;
   }, []);
+
+  const consumeInheritanceIfComplete = useCallback(() => {
+    const inheritedSourceId = inheritedSourceIdRef.current ?? inheritFrom ?? null;
+    if (!inheritedSourceId || pendingInheritedSectionsRef.current.size > 0) {
+      return;
+    }
+
+    if (inheritanceCleanupTimerRef.current) {
+      window.clearTimeout(inheritanceCleanupTimerRef.current);
+    }
+
+    inheritanceCleanupTimerRef.current = window.setTimeout(() => {
+      inheritanceCleanupTimerRef.current = null;
+      if (
+        pendingInheritedSectionsRef.current.size > 0 ||
+        inheritedSourceIdRef.current !== inheritedSourceId
+      ) {
+        return;
+      }
+
+      removeInheritancePayload(inheritedSourceId);
+      inheritedSourceIdRef.current = null;
+      onInheritanceConsumed?.();
+    }, 0);
+  }, [inheritFrom, onInheritanceConsumed]);
+
+  const markInheritedSectionSaved = useCallback(
+    (sectionKey: EditorSectionKey) => {
+      if (
+        !isInheritedSectionKey(sectionKey) ||
+        !pendingInheritedSectionsRef.current.has(sectionKey)
+      ) {
+        return;
+      }
+
+      pendingInheritedSectionsRef.current.delete(sectionKey);
+      consumeInheritanceIfComplete();
+    },
+    [consumeInheritanceIfComplete],
+  );
 
   const patchModulesCache = useCallback(
     (savedModule: ExperimentModulePayloadRead) => {
@@ -503,6 +550,7 @@ export function useExperimentEditor({
             status: "saved",
             message: "已自动保存",
           });
+          markInheritedSectionSaved(sectionKey);
         } catch (error) {
           hasError = true;
           setSectionState(sectionKey, {
@@ -539,6 +587,7 @@ export function useExperimentEditor({
       getDirtySections,
       patchModulesCache,
       queryClient,
+      markInheritedSectionSaved,
       setSectionState,
     ],
   );
@@ -620,6 +669,10 @@ export function useExperimentEditor({
           ...(inheritedValues.environment ? (["environment"] as const) : []),
           ...(inheritedValues.precheck ? (["precheck"] as const) : []),
         ];
+        inheritedSourceIdRef.current = inheritFrom;
+        pendingInheritedSectionsRef.current = new Set(
+          forceSaveSections.filter(isInheritedSectionKey),
+        );
 
         valuesRef.current = nextValues;
         setValues(nextValues);
@@ -636,9 +689,7 @@ export function useExperimentEditor({
         if (saveFailed) {
           return;
         }
-
-        removeInheritancePayload(inheritFrom);
-        onInheritanceConsumed?.();
+        consumeInheritanceIfComplete();
       } catch (error) {
         setInheritanceError(resolveErrorMessage(error, "继承参数加载失败"));
       }
@@ -647,6 +698,7 @@ export function useExperimentEditor({
     void applyInheritance();
   }, [
     accessToken,
+    consumeInheritanceIfComplete,
     enqueueSave,
     experiment.status,
     getDirtySections,
@@ -688,6 +740,14 @@ export function useExperimentEditor({
   const leaveWarning = hasSavingSections
     ? "仍有区块正在保存，确认离开当前编辑页吗？"
     : "仍有保存失败且未持久化的修改，确认离开当前编辑页吗？";
+
+  useEffect(() => {
+    return () => {
+      if (inheritanceCleanupTimerRef.current) {
+        window.clearTimeout(inheritanceCleanupTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
