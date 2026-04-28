@@ -131,6 +131,10 @@ export function ExperimentStateActions({
         name: normalizedName,
         ...(normalizedDescription ? { description: normalizedDescription } : {}),
       });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["recipes"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin", "recipes"] }),
+      ]);
       message.success("Recipe 已保存");
       closeRecipeModal();
     } catch (error) {

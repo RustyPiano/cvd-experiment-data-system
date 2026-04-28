@@ -609,6 +609,36 @@ describe("Experiment state actions", () => {
     });
   });
 
+  it("invalidates Recipe caches after saving an experiment as a Recipe", async () => {
+    const server = createLifecycleFetchMock(createExperiment("submitted"));
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    const { queryClient } = renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: anotherMember,
+      },
+    );
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    fireEvent.click(await screen.findByRole("button", { name: "保存为 Recipe" }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Recipe 名称"), {
+      target: { value: "MoS2 baseline" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /保\s*存/ }));
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["recipes"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["admin", "recipes"] });
+    });
+  });
+
   it("validates save as Recipe name before submitting", async () => {
     const server = createLifecycleFetchMock(createExperiment("submitted"));
     vi.stubGlobal("fetch", server.fetchMock);
