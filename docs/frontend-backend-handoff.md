@@ -4,7 +4,7 @@
 
 ## 0. 当前前端已实现范围
 
-截至 2026-04-23，仓库里的前端当前已接通：
+截至 2026-04-28，仓库里的前端当前已接通：
 
 - `/login`
 - `/experiments`
@@ -28,7 +28,7 @@
 - `return-to-draft / lock / invalidate / clone`
 - draft 自动保存与 `submit` 提交
 - 文件列表、筛选、上传、下载、软删除
-- 详情页文件概览、审计轨迹、JSON/Excel 导出入口
+- 详情页概览/参数/样品/文件/审计 Tabs、文件概览、审计轨迹、JSON/Excel 导出入口
 - 详情页样品概览与样品详情跳转
 - 样品详情读取、draft 编辑、关联文件查看与下载
 - 受控词表后台的列表筛选、创建、编辑与启停用
@@ -47,7 +47,7 @@
 - 当前编辑器只在 `draft` 开启自动保存和提交；`submitted / locked / invalid` 一律只读。
 - 详情页当前已根据“owner/admin vs. 其他 member/viewer”以及实验状态控制动作按钮显示；状态切换请求进行中会互斥禁用其他动作；`clone` 成功后会直接跳到新草稿的编辑页。
 - 当前前端已经封装带 Bearer Token 的 blob 下载能力，用于文件下载和 Excel 导出。
-- 详情页当前直接调用文件列表和审计接口，不依赖聚合导出接口做页面渲染。
+- 详情页当前直接调用模块、文件列表、样品列表和审计接口，不依赖聚合导出接口做页面渲染。
 - 当前 Vite 构建按 React、router/query、Ant Design 和 rc 依赖拆分 vendor chunk；新增重量级前端依赖时应先检查 `bun run build` 输出，避免重新合并到首屏共享 chunk。
 - 文件页当前会额外读取 `GET /api/v1/samples?experiment_id=...` 和 `GET /api/v1/vocabularies?vocab_key=characterization_method`，分别用于样品关联和上传方法建议。
 - 样品详情页当前会额外读取所属实验和 `GET /api/v1/files?experiment_id=...&sample_id=...`，形成单样品视角。
@@ -185,6 +185,12 @@ invalid
 
 - `mine=true`
 - `status=draft|submitted|locked|invalid`
+- `q=...`
+- `material_system=...`
+- `page=1`
+- `page_size=10`
+- `sort_by=run_code|material_system|experiment_date|status|updated_at`
+- `sort_order=asc|desc`
 
 注意：
 
@@ -197,6 +203,7 @@ invalid
 ### `/experiments/:id`
 
 - `GET /api/v1/experiments/{id}`
+- `GET /api/v1/experiments/{id}/modules`
 - `GET /api/v1/samples?experiment_id={id}`
 - `GET /api/v1/files?experiment_id={id}`
 - `POST /api/v1/experiments/{id}/return-to-draft`
@@ -210,6 +217,7 @@ invalid
 当前详情页实际消费方式：
 
 - 实验主信息：`GET /api/v1/experiments/{id}`
+- 参数 Tab：`GET /api/v1/experiments/{id}/modules`
 - 样品概览：`GET /api/v1/samples?experiment_id={id}`
 - 文件概览：`GET /api/v1/files?experiment_id={id}`
 - 审计轨迹：`GET /api/v1/experiments/{id}/audit-events`

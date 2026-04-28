@@ -5,7 +5,7 @@
 ## 当前前端能力
 
 - Bun + Vite + React + TypeScript 工程初始化
-- Ant Design 主题、全局样式与应用壳层
+- Ant Design 主题、全局样式与带全局搜索的应用壳层
 - Bearer Token 登录、登出与本地会话持久化
 - 受保护路由与基础导航
 - `/login`
@@ -19,7 +19,7 @@
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - draft 自动保存、实验日期修正、区块级保存状态、固定操作区、带完整度评分的提交前验证汇总和 `submit` 提交闭环
 - `/experiments/:id` 已接通 `return-to-draft / lock / invalidate / clone`
-- 详情页已接通文件概览、审计轨迹、JSON/Excel 导出入口
+- 详情页已接通概览/参数/样品/文件/审计 Tabs、文件概览、审计轨迹、JSON/Excel 导出入口
 - 详情页已接通样品概览，并支持跳转样品详情
 - 文件页已接通文件列表、筛选、上传、下载、软删除
 - 样品详情页已接通样品读取、draft 编辑、关联文件查看与下载
@@ -40,7 +40,7 @@
 - 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
 - 当前实验编辑器现已覆盖全部 V1 模块 key、draft 自动保存、draft 实验日期修正、固定底部操作区、提交前验证完整度汇总和提交闭环；非 draft 实验会切换为只读。
 - 实验详情页现已按权限和状态显示 `return-to-draft / lock / invalidate / clone` 按钮；`locked` 实验仅允许派生草稿。
-- 实验详情页现在会并行显示文件概览、审计轨迹，并提供结构化 JSON / Excel 导出按钮。
+- 实验详情页现在会按 Tabs 显示概览、只读模块参数、样品概览、文件概览和审计轨迹，并提供结构化 JSON / Excel 导出按钮。
 - 实验详情页现在会并行显示样品概览，并支持直接进入样品详情页。
 - 文件页现在支持按方法和文件类别筛选，并接通带鉴权的文件下载、draft 上传和软删除。
 - 文件上传表单会读取 `characterization_method` 词表与当前实验样品列表，支持可选 `sample_id` 关联。
@@ -51,7 +51,7 @@
 - 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，显示 `completion_score / blocking_count / warning_count` 和模块跳转按钮，有 `errors` 时阻止提交并展示逐项问题。
 - 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
 - 前端生产构建现在使用 Vite/Rolldown vendor 拆包，将 React、router/query、Ant Design、rc 依赖拆成独立 chunk，避免超过 500 kB 的 chunk size 警告。
-- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`123 passed`），前端 `lint / typecheck / test` 通过（`71 passed`），前端 `build` 通过且无 Vite chunk size 警告。
+- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`123 passed`），前端 `lint / typecheck / test` 通过（`90 passed`），前端 `build` 通过且无 Vite chunk size 警告。
 
 ## 当前后端能力
 
