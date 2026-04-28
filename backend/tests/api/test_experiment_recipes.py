@@ -1,12 +1,14 @@
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.main import app
 from app.models.audit import AuditEvent
+from app.models.experiment import ExperimentRun
 from app.models.module_payload import ExperimentModulePayload
 from app.models.recipe import Recipe
+from app.models.sample import Sample
 
 client = TestClient(app)
 
@@ -120,6 +122,19 @@ def audit_actions_for(db_session, *, entity_type: str, entity_id: str) -> list[s
         .order_by(AuditEvent.created_at.asc())
     ).all()
     return [row.action for row in rows]
+
+
+def samples_for(db_session, experiment_id: str) -> dict[str, Sample]:
+    db_session.expire_all()
+    rows = db_session.scalars(
+        select(Sample).where(Sample.experiment_run_id == UUID(experiment_id))
+    ).all()
+    return {row.role: row for row in rows}
+
+
+def table_count(db_session, model: type) -> int:
+    db_session.expire_all()
+    return db_session.scalar(select(func.count()).select_from(model)) or 0
 
 
 def create_experiment(email: str, *, status_ready: bool = False) -> str:
@@ -238,6 +253,123 @@ def test_create_from_recipe_creates_draft_with_recipe_id_and_allowed_modules(
         entity_type="experiment_run",
         entity_id=body["id"],
     ) == ["create_from_recipe"]
+
+
+def test_create_from_recipe_syncs_substrate_samples(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
+    recipe_payload = allowed_recipe_payload()
+    recipe_payload["substrates"] = {
+        "items": [
+            {
+                "role": "top",
+                "type": "SiO2/Si",
+                "brand": "Brand A",
+                "size_mm": "5x10",
+                "treatment_method": "plasma_cleaning",
+                "position_mm": 1.0,
+            },
+            {
+                "role": "bottom",
+                "type": "sapphire",
+                "brand": "Brand B",
+                "size_mm": "10x10",
+                "treatment_method": "annealing",
+                "position_mm": -1.0,
+            },
+        ]
+    }
+    recipe = create_recipe_row(
+        db_session,
+        created_by=admin_user,
+        default_payload_json=recipe_payload,
+    )
+
+    response = client.post(
+        "/api/v1/experiments/from-recipe",
+        json={"recipe_id": str(recipe.id), "experiment_date": "2026-04-25"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 201
+    samples = samples_for(db_session, response.json()["id"])
+    assert set(samples) == {"top", "bottom"}
+    assert samples["top"].sample_code.endswith("-TOP")
+    assert samples["top"].substrate_type == "SiO2/Si"
+    assert samples["top"].metadata_json["source_module"] == "substrates"
+    assert samples["bottom"].sample_code.endswith("-BOTTOM")
+    assert samples["bottom"].brand == "Brand B"
+
+
+def test_create_from_recipe_rejects_duplicate_substrate_roles_without_partial_commit(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
+    recipe_payload = allowed_recipe_payload()
+    recipe_payload["substrates"] = {
+        "items": [
+            {"role": "top", "type": "SiO2/Si"},
+            {"role": "top", "type": "sapphire"},
+        ]
+    }
+    recipe = create_recipe_row(
+        db_session,
+        created_by=admin_user,
+        default_payload_json=recipe_payload,
+    )
+    before_experiments = table_count(db_session, ExperimentRun)
+    before_modules = table_count(db_session, ExperimentModulePayload)
+    before_samples = table_count(db_session, Sample)
+    before_audit_events = table_count(db_session, AuditEvent)
+
+    response = client.post(
+        "/api/v1/experiments/from-recipe",
+        json={"recipe_id": str(recipe.id), "experiment_date": "2026-04-25"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Duplicate substrate role in payload"
+    assert table_count(db_session, ExperimentRun) == before_experiments
+    assert table_count(db_session, ExperimentModulePayload) == before_modules
+    assert table_count(db_session, Sample) == before_samples
+    assert table_count(db_session, AuditEvent) == before_audit_events
+
+
+def test_create_from_recipe_rejects_malformed_allowed_module_without_partial_commit(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
+    recipe_payload = {
+        **allowed_recipe_payload(),
+        "precursors": [],
+    }
+    recipe = create_recipe_row(
+        db_session,
+        created_by=admin_user,
+        default_payload_json=recipe_payload,
+    )
+    before_experiments = table_count(db_session, ExperimentRun)
+    before_modules = table_count(db_session, ExperimentModulePayload)
+    before_samples = table_count(db_session, Sample)
+    before_audit_events = table_count(db_session, AuditEvent)
+
+    response = client.post(
+        "/api/v1/experiments/from-recipe",
+        json={"recipe_id": str(recipe.id), "experiment_date": "2026-04-25"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Recipe module payload for precursors must be an object"
+    assert table_count(db_session, ExperimentRun) == before_experiments
+    assert table_count(db_session, ExperimentModulePayload) == before_modules
+    assert table_count(db_session, Sample) == before_samples
+    assert table_count(db_session, AuditEvent) == before_audit_events
 
 
 def test_create_from_recipe_rejects_missing_inactive_and_viewer(

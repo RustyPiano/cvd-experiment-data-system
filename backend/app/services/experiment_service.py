@@ -148,6 +148,7 @@ class ExperimentService:
                 detail="Recipe not found",
             )
 
+        module_payloads = self._validated_recipe_module_payloads(recipe)
         experiment_date = payload.experiment_date or date.today()
         created = self._create_experiment_with_retry(
             experiment_date=experiment_date,
@@ -176,16 +177,18 @@ class ExperimentService:
             },
         )
 
-        recipe_payload = recipe.default_payload_json
-        if isinstance(recipe_payload, dict):
-            for module_key in self.RECIPE_MODULE_KEYS:
-                module_payload = recipe_payload.get(module_key.value)
-                if isinstance(module_payload, dict):
-                    self._upsert_module_payload_json(
-                        experiment_id=created.id,
-                        module_key=module_key,
-                        payload_json=deepcopy(module_payload),
-                    )
+        for module_key, module_payload in module_payloads:
+            saved = self._upsert_module_payload_json(
+                experiment_id=created.id,
+                module_key=module_key,
+                payload_json=deepcopy(module_payload),
+            )
+            if module_key == ExperimentModuleKey.SUBSTRATES:
+                self.sample_service.sync_substrate_samples(
+                    experiment=created,
+                    current_user=current_user,
+                    substrates_payload=saved.payload_json,
+                )
 
         self.audit.record_event(
             actor=current_user,
@@ -746,6 +749,27 @@ class ExperimentService:
                 detail="Insufficient permissions",
             )
         return experiment
+
+    def _validated_recipe_module_payloads(
+        self,
+        recipe: Recipe,
+    ) -> list[tuple[ExperimentModuleKey, dict[str, Any]]]:
+        recipe_payload = recipe.default_payload_json
+        if not isinstance(recipe_payload, dict):
+            return []
+
+        module_payloads: list[tuple[ExperimentModuleKey, dict[str, Any]]] = []
+        for module_key in self.RECIPE_MODULE_KEYS:
+            if module_key.value not in recipe_payload:
+                continue
+            module_payload = recipe_payload[module_key.value]
+            if not isinstance(module_payload, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Recipe module payload for {module_key.value} must be an object",
+                )
+            module_payloads.append((module_key, module_payload))
+        return module_payloads
 
     def _recipe_payload_from_experiment(self, experiment_id: UUID) -> dict[str, Any]:
         payloads: dict[str, Any] = {}
