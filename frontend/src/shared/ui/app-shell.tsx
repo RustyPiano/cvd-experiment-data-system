@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ExperimentOutlined,
+  BookOutlined,
   LogoutOutlined,
   PlusOutlined,
   SearchOutlined,
@@ -17,6 +18,10 @@ import { useAuth } from "../../features/auth/use-auth";
 import { API_UNAUTHORIZED_EVENT } from "../api/client";
 
 function resolveSelectedKey(pathname: string) {
+  if (pathname.startsWith("/admin/recipes")) {
+    return "/admin/recipes";
+  }
+
   if (pathname.startsWith("/admin/vocabularies")) {
     return "/admin/vocabularies";
   }
@@ -62,6 +67,11 @@ export function AppShell() {
               key: "/admin/vocabularies-settings",
               icon: <SettingOutlined />,
               label: <Link to="/admin/vocabularies">字段字典</Link>,
+            },
+            {
+              key: "/admin/recipes",
+              icon: <BookOutlined />,
+              label: <Link to="/admin/recipes">Recipe</Link>,
             },
           ]
         : []),

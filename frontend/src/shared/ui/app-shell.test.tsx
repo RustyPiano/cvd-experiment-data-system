@@ -174,7 +174,7 @@ describe("AppShell", () => {
     expect(shell).toHaveStyle({ "--app-sidebar-width": "80px" });
   });
 
-  it("hides the vocabulary admin entry for non-admin users", async () => {
+  it("hides admin configuration entries for non-admin users", async () => {
     renderWithApp(
       <Routes>
         <Route element={<AppShell />}>
@@ -197,9 +197,10 @@ describe("AppShell", () => {
     );
 
     expect(screen.queryByRole("link", { name: "受控词表" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Recipe" })).not.toBeInTheDocument();
   });
 
-  it("shows the vocabulary admin entry for admin users", async () => {
+  it("shows admin configuration entries for admin users", async () => {
     renderWithApp(
       <Routes>
         <Route element={<AppShell />}>
@@ -222,6 +223,7 @@ describe("AppShell", () => {
     );
 
     expect(screen.queryAllByRole("link", { name: "受控词表" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "Recipe" })).toHaveAttribute("href", "/admin/recipes");
   });
 
   it("renders the sidebar create entry as a standalone button", () => {

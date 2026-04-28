@@ -30,6 +30,7 @@ export type ExperimentRead = {
   owner_id: string;
   derived_from_run_id: string | null;
   derived_from_run_code: string | null;
+  recipe_id: string | null;
   experiment_type: string;
   material_system: string | null;
   experiment_date: string;
@@ -232,6 +233,40 @@ export type ControlledVocabularyUpdateRequest = {
   sort_order?: number | null;
   is_active?: boolean | null;
   metadata_json?: Record<string, unknown> | null;
+};
+
+export type RecipeRead = {
+  id: string;
+  name: string;
+  template_version_id: string | null;
+  project_id: string | null;
+  material_system: string | null;
+  default_payload_json: Record<string, unknown>;
+  description: string | null;
+  created_by: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RecipeListResponse = {
+  items: RecipeRead[];
+  total: number;
+};
+
+export type RecipeCreateRequest = {
+  name: string;
+  material_system?: string;
+  default_payload_json?: Record<string, unknown>;
+  description?: string;
+};
+
+export type RecipeUpdateRequest = {
+  name?: string;
+  material_system?: string | null;
+  default_payload_json?: Record<string, unknown>;
+  description?: string | null;
+  is_active?: boolean;
 };
 
 export type ExperimentExportRead = {

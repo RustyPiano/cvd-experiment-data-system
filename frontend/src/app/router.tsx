@@ -86,6 +86,13 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: "/admin/recipes",
+        lazy: async () => {
+          const { RecipeAdminPage } = await import("../features/recipes/recipe-admin-page");
+          return { Component: RecipeAdminPage };
+        },
+      },
+      {
         path: "*",
         lazy: async () => {
           const { NotFoundPage } = await import("../shared/ui/not-found-page");
