@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { PlusOutlined } from "@ant-design/icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Checkbox, Col, Empty, Input, Row, Space, Statistic, Typography } from "antd";
 import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,9 +13,12 @@ import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { StatusTag } from "../../shared/ui/status-tag";
 import {
+  cloneExperiment,
   downloadExperimentExcel,
   exportExperimentJson,
+  invalidateExperiment,
   listExperiments,
+  lockExperiment,
   type ExperimentSortField,
 } from "./api";
 import { ExperimentTable } from "./components/experiment-table";
@@ -105,6 +108,7 @@ function resolveErrorMessage(error: unknown, fallback: string) {
 
 export function ExperimentListPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const searchParamString = searchParams.toString();
@@ -262,6 +266,69 @@ export function ExperimentListPage() {
       setListActionError(resolveErrorMessage(error, "Excel 导出失败"));
     } finally {
       setActiveExportKey(null);
+    }
+  };
+
+  const refreshExperimentCaches = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["experiments"],
+    });
+  };
+
+  const handleLock = async (experiment: ExperimentRead) => {
+    const confirmed = window.confirm(
+      `锁定实验 ${experiment.run_code}？锁定后不可修改，只能派生新实验。此操作会写入审计日志。`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setListActionError(null);
+
+    try {
+      await lockExperiment(session.accessToken!, experiment.id);
+      await refreshExperimentCaches();
+    } catch (error) {
+      setListActionError(resolveErrorMessage(error, "锁定实验失败"));
+    }
+  };
+
+  const handleClone = async (experiment: ExperimentRead) => {
+    const confirmed = window.confirm(
+      `将派生实验 ${experiment.run_code} 的参数为新草稿。确定继续？`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setListActionError(null);
+
+    try {
+      const clonedExperiment = await cloneExperiment(session.accessToken!, experiment.id);
+      await refreshExperimentCaches();
+      navigate(`/experiments/${clonedExperiment.id}/edit`);
+    } catch (error) {
+      setListActionError(resolveErrorMessage(error, "派生草稿失败"));
+    }
+  };
+
+  const handleInvalidate = async (experiment: ExperimentRead) => {
+    const confirmed = window.confirm(
+      `作废实验 ${experiment.run_code}？将使用原因：列表快捷操作作废。此操作会写入审计日志。`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setListActionError(null);
+
+    try {
+      await invalidateExperiment(session.accessToken!, experiment.id, {
+        reason: "列表快捷操作作废",
+      });
+      await refreshExperimentCaches();
+    } catch (error) {
+      setListActionError(resolveErrorMessage(error, "作废实验失败"));
     }
   };
 
@@ -441,11 +508,20 @@ export function ExperimentListPage() {
               activeExportKey={activeExportKey}
               items={experimentQuery.data?.items ?? []}
               loading={false}
+              onClone={(experiment) => {
+                void handleClone(experiment);
+              }}
               onExportExcel={(experiment) => {
                 void handleExportExcel(experiment);
               }}
               onExportJson={(experiment) => {
                 void handleExportJson(experiment);
+              }}
+              onInvalidate={(experiment) => {
+                void handleInvalidate(experiment);
+              }}
+              onLock={(experiment) => {
+                void handleLock(experiment);
               }}
                 onTableChange={(page, pageSize, sortField, sortOrder) => {
                   setFilters((current) => ({

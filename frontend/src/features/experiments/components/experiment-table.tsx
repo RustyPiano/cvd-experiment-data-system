@@ -1,5 +1,7 @@
-import { Button, Space, Table, Typography } from "antd";
+import { MoreOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Space, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { MenuProps } from "antd";
 import dayjs from "dayjs";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -16,6 +18,9 @@ type ExperimentTableProps = {
   loading: boolean;
   onExportExcel: (experiment: ExperimentRead) => void;
   onExportJson: (experiment: ExperimentRead) => void;
+  onClone: (experiment: ExperimentRead) => void;
+  onInvalidate: (experiment: ExperimentRead) => void;
+  onLock: (experiment: ExperimentRead) => void;
   onTableChange: (
     page: number,
     pageSize: number,
@@ -45,8 +50,11 @@ export function ExperimentTable({
   activeExportKey,
   items,
   loading,
+  onClone,
   onExportExcel,
   onExportJson,
+  onInvalidate,
+  onLock,
   onTableChange,
   page,
   pageSize,
@@ -57,6 +65,61 @@ export function ExperimentTable({
   const navigate = useNavigate();
   const resolveSortOrder = (field: ExperimentSortField) =>
     sortField === field && sortOrder ? sortOrder : null;
+
+  const buildActionMenuItems = (record: ExperimentRead): MenuProps["items"] => {
+    if (record.status === "draft") {
+      return [
+        { key: "export-json", label: "导出 JSON" },
+        { key: "export-excel", label: "导出 Excel" },
+        { key: "invalidate", label: "作废", danger: true },
+      ];
+    }
+
+    if (record.status === "submitted") {
+      return [
+        { key: "lock", label: "锁定" },
+        { key: "clone", label: "派生" },
+        { key: "export-json", label: "导出 JSON" },
+        { key: "export-excel", label: "导出 Excel" },
+      ];
+    }
+
+    if (record.status === "locked") {
+      return [
+        { key: "clone", label: "派生" },
+        { key: "export-json", label: "导出 JSON" },
+        { key: "export-excel", label: "导出 Excel" },
+      ];
+    }
+
+    return [{ key: "export-json", label: "导出 JSON" }];
+  };
+
+  const handleMenuAction = (record: ExperimentRead, key: string) => {
+    if (key === "export-json") {
+      onExportJson(record);
+      return;
+    }
+
+    if (key === "export-excel") {
+      onExportExcel(record);
+      return;
+    }
+
+    if (key === "lock") {
+      onLock(record);
+      return;
+    }
+
+    if (key === "clone") {
+      onClone(record);
+      return;
+    }
+
+    if (key === "invalidate") {
+      onInvalidate(record);
+    }
+  };
 
   const columns: ColumnsType<ExperimentRead> = [
     {
@@ -111,50 +174,50 @@ export function ExperimentTable({
     {
       title: "操作",
       key: "actions",
-      render: (_, record) => (
-        <Space size="small">
-          <Button
-            onClick={() => {
-              navigate(`/experiments/${record.id}`);
-            }}
-            size="small"
-            type="link"
-          >
-            查看
-          </Button>
-          {record.status === "draft" ? (
+      render: (_, record) => {
+        const primaryAction =
+          record.status === "draft"
+            ? {
+                label: "继续填写",
+                path: `/experiments/${record.id}/edit`,
+              }
+            : {
+                label: "查看",
+                path: `/experiments/${record.id}`,
+              };
+
+        return (
+          <Space size="small">
             <Button
+              aria-label={primaryAction.label}
               onClick={() => {
-                navigate(`/experiments/${record.id}/edit`);
+                navigate(primaryAction.path);
               }}
               size="small"
-              type="link"
+              type="primary"
             >
-              继续填写
+              {primaryAction.label}
             </Button>
-          ) : null}
-          <Button
-            loading={activeExportKey === `${record.id}:json`}
-            onClick={() => {
-              onExportJson(record);
-            }}
-            size="small"
-            type="link"
-          >
-            导出 JSON
-          </Button>
-          <Button
-            loading={activeExportKey === `${record.id}:excel`}
-            onClick={() => {
-              onExportExcel(record);
-            }}
-            size="small"
-            type="link"
-          >
-            导出 Excel
-          </Button>
-        </Space>
-      ),
+            <Dropdown
+              menu={{
+                items: buildActionMenuItems(record),
+                onClick: ({ key }) => {
+                  handleMenuAction(record, key);
+                },
+              }}
+              placement="bottomRight"
+              trigger={["click"]}
+            >
+              <Button
+                aria-label={`更多操作 ${record.run_code}`}
+                icon={<MoreOutlined />}
+                loading={activeExportKey?.startsWith(`${record.id}:`) ?? false}
+                size="small"
+              />
+            </Dropdown>
+          </Space>
+        );
+      },
     },
   ];
 
