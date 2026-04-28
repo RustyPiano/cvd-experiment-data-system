@@ -163,6 +163,7 @@ export function EditorStepper({
           const completionLabel = resolveCompletionLabel(item.label, item.completion);
           return (
             <div
+              aria-label={completionLabel}
               className={`editor-stepper-item ${isCurrent ? "current" : ""}`}
               key={item.key}
               onClick={() => {
@@ -205,8 +206,10 @@ export function EditorStepper({
       <div className="editor-stepper-mobile">
         {items.map((item) => {
           const isCurrent = item.key === currentKey;
+          const completionLabel = resolveCompletionLabel(item.label, item.completion);
           return (
             <button
+              aria-label={completionLabel}
               className={resolveMobileItemClass(item.completion, item.status, isCurrent)}
               key={item.key}
               onClick={() => {

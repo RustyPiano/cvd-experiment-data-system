@@ -42,7 +42,7 @@ describe("EditorStepper", () => {
   });
 
   it("renders completion state indicators on step dots", () => {
-    const { container, getByLabelText } = render(
+    const { container, getAllByLabelText } = render(
       <EditorStepper
         currentKey="environment"
         items={[
@@ -77,7 +77,28 @@ describe("EditorStepper", () => {
 
     expect(container.querySelector(".editor-stepper-dot.complete")).not.toBeNull();
     expect(container.querySelector(".editor-stepper-dot.partial.high")).not.toBeNull();
-    expect(getByLabelText("预检查：提示 2 项，完成度 100%")).toBeTruthy();
-    expect(getByLabelText("气体程序：阻塞 1 项，完成度 50%")).toBeTruthy();
+    expect(getAllByLabelText("预检查：提示 2 项，完成度 100%").length).toBeGreaterThan(0);
+    expect(getAllByLabelText("气体程序：阻塞 1 项，完成度 50%").length).toBeGreaterThan(0);
+  });
+
+  it("exposes completion state on step controls", () => {
+    const { getAllByRole } = render(
+      <EditorStepper
+        currentKey="basic_info"
+        items={[
+          {
+            key: "precheck",
+            label: "预检查",
+            status: "empty",
+            completion: { state: "warning", percent: 100, warnings: 2 },
+          },
+        ]}
+        onChange={() => undefined}
+      />,
+    );
+
+    expect(
+      getAllByRole("button", { name: "预检查：提示 2 项，完成度 100%" }),
+    ).toHaveLength(2);
   });
 });

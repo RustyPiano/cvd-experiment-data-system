@@ -41,6 +41,58 @@ describe("computeModuleCompletion", () => {
     ).toEqual({ state: "complete", percent: 100 });
   });
 
+  it("keeps collection modules partial when any included row is incomplete", () => {
+    expect(
+      computeModuleCompletion("precursors", {
+        items: [
+          { species: "MoO3", method: "spin_coating" },
+          { species: "S", method: "" },
+        ],
+      }),
+    ).toEqual({ state: "partial", percent: 50 });
+
+    expect(
+      computeModuleCompletion("substrates", {
+        items: [
+          { type: "SiO2/Si", role: "top" },
+          { type: "sapphire", role: "" },
+        ],
+      }),
+    ).toEqual({ state: "partial", percent: 50 });
+
+    expect(
+      computeModuleCompletion("gas_program", {
+        segments: [{ flow_sccm: 30 }, { flow_sccm: 0 }],
+      }),
+    ).toEqual({ state: "partial", percent: 50 });
+  });
+
+  it("marks collection modules complete only when every included row is valid", () => {
+    expect(
+      computeModuleCompletion("precursors", {
+        items: [
+          { species: "MoO3", method: "spin_coating" },
+          { species: "S", method: "evaporation" },
+        ],
+      }),
+    ).toEqual({ state: "complete", percent: 100 });
+
+    expect(
+      computeModuleCompletion("substrates", {
+        items: [
+          { type: "SiO2/Si", role: "top" },
+          { type: "sapphire", role: "bottom" },
+        ],
+      }),
+    ).toEqual({ state: "complete", percent: 100 });
+
+    expect(
+      computeModuleCompletion("gas_program", {
+        segments: [{ flow_sccm: 30 }, { flow_sccm: "15" }],
+      }),
+    ).toEqual({ state: "complete", percent: 100 });
+  });
+
   it("requires every furnace zone to have at least two temperature points", () => {
     expect(
       computeModuleCompletion("furnace_program", {

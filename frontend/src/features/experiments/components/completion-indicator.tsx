@@ -142,7 +142,7 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       return 0;
     }
 
-    return items.some((item) => isFilled(item.species) && isFilled(item.method)) ? 100 : 50;
+    return items.every((item) => isFilled(item.species) && isFilled(item.method)) ? 100 : 50;
   }
 
   if (moduleKey === "substrates") {
@@ -151,7 +151,7 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       return 0;
     }
 
-    return items.some((item) => isFilled(item.type) && isFilled(item.role)) ? 100 : 50;
+    return items.every((item) => isFilled(item.type) && isFilled(item.role)) ? 100 : 50;
   }
 
   if (moduleKey === "furnace_program") {
@@ -173,7 +173,7 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       return 0;
     }
 
-    return segments.some((segment) => isPositiveNumberLike(segment.flow_sccm ?? segment.flowSccm))
+    return segments.every((segment) => isPositiveNumberLike(segment.flow_sccm ?? segment.flowSccm))
       ? 100
       : 50;
   }

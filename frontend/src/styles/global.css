@@ -115,7 +115,7 @@ a {
 }
 
 .editor-completion-summary {
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .editor-section-header {

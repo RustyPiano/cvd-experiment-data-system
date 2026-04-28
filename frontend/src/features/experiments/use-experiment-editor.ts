@@ -806,23 +806,31 @@ export function useExperimentEditor({
   const completionSummary = useMemo<CompletionSummary>(() => {
     const statuses = editorSectionKeys.map((sectionKey) => moduleCompletionMap[sectionKey]);
     const totalCount = statuses.length;
+    const frontendPercent = Math.round(
+      statuses.reduce((total, status) => total + status.percent, 0) / totalCount,
+    );
 
     return {
-      percent: Math.round(
-        statuses.reduce((total, status) => total + status.percent, 0) / totalCount,
-      ),
+      percent:
+        typeof validationResult?.completion_score === "number"
+          ? validationResult.completion_score
+          : frontendPercent,
       completedCount: statuses.filter((status) => status.state === "complete").length,
       totalCount,
-      blockingCount: statuses.reduce(
-        (total, status) => total + (status.state === "error" ? status.errors : 0),
-        0,
-      ),
-      warningCount: statuses.reduce(
-        (total, status) => total + (status.state === "warning" ? status.warnings : 0),
-        0,
-      ),
+      blockingCount: validationResult
+        ? (validationResult.blocking_count ?? validationResult.errors.length)
+        : statuses.reduce(
+            (total, status) => total + (status.state === "error" ? status.errors : 0),
+            0,
+          ),
+      warningCount: validationResult
+        ? (validationResult.warning_count ?? validationResult.warnings.length)
+        : statuses.reduce(
+            (total, status) => total + (status.state === "warning" ? status.warnings : 0),
+            0,
+          ),
     };
-  }, [moduleCompletionMap]);
+  }, [moduleCompletionMap, validationResult]);
 
   const hasSavingSections = useMemo(
     () => Object.values(sectionStates).some((state) => state.status === "saving"),

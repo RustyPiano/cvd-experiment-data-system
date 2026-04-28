@@ -1,11 +1,20 @@
 import type { PropsWithChildren } from "react";
-import { cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ExperimentRead } from "../../shared/types/api";
 import type { ExperimentEditorValues } from "./editor-types";
+import { validateExperiment } from "./api";
 import { useExperimentEditor } from "./use-experiment-editor";
+
+vi.mock("./api", () => ({
+  listExperimentModules: vi.fn(),
+  submitExperiment: vi.fn(),
+  updateExperiment: vi.fn(),
+  upsertExperimentModule: vi.fn(),
+  validateExperiment: vi.fn(),
+}));
 
 const experiment: ExperimentRead = {
   id: "exp-1",
@@ -101,6 +110,7 @@ function createWrapper() {
 describe("useExperimentEditor completion", () => {
   afterEach(() => {
     cleanup();
+    vi.clearAllMocks();
   });
 
   it("treats an enabled characterization row in current editor values as complete", () => {
@@ -124,6 +134,52 @@ describe("useExperimentEditor completion", () => {
     expect(result.current.completionSummary).toMatchObject({
       completedCount: 1,
       percent: 10,
+    });
+  });
+
+  it("uses backend validation counts for non-editor module summary issues", async () => {
+    vi.mocked(validateExperiment).mockResolvedValue({
+      ok: false,
+      completion_score: 63,
+      blocking_count: 2,
+      warning_count: 4,
+      errors: [
+        {
+          module_key: "files",
+          field_path: "uploads",
+          message: "缺少表征文件",
+        },
+      ],
+      warnings: [
+        {
+          module_key: "files",
+          field_path: "uploads",
+          message: "建议补充原始文件",
+        },
+      ],
+    });
+
+    const { result } = renderHook(
+      () =>
+        useExperimentEditor({
+          accessToken: "token",
+          currentUserId: "user-1",
+          experimentId: experiment.id,
+          initialExperiment: experiment,
+          initialModulePayloads: {},
+          initialValues: valuesWithEnabledCharacterizationOnly,
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      await result.current.submitDraft();
+    });
+
+    expect(result.current.completionSummary).toMatchObject({
+      blockingCount: 2,
+      percent: 63,
+      warningCount: 4,
     });
   });
 });
