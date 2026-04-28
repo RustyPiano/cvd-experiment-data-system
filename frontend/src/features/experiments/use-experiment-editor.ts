@@ -90,9 +90,15 @@ function readInheritancePayload(sourceExperimentId: string): InheritanceStorageP
     };
   } catch {
     return null;
-  } finally {
-    window.sessionStorage.removeItem(inheritanceStorageKey(sourceExperimentId));
   }
+}
+
+function removeInheritancePayload(sourceExperimentId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(inheritanceStorageKey(sourceExperimentId));
 }
 
 function createInheritedModulePayload(
@@ -260,6 +266,7 @@ export function useExperimentEditor({
   );
   const [hasDirtyChanges, setHasDirtyChanges] = useState(false);
   const [inheritedFrom, setInheritedFrom] = useState<InheritedFromState>({});
+  const [inheritanceError, setInheritanceError] = useState<string | null>(null);
 
   const setSectionState = useCallback(
     (sectionKey: EditorSectionKey, nextState: SectionSaveState) => {
@@ -576,52 +583,65 @@ export function useExperimentEditor({
     inheritanceAppliedRef.current = true;
 
     const applyInheritance = async () => {
-      const storedPayload = readInheritancePayload(inheritFrom);
-      const sourceRunCode = storedPayload?.sourceRunCode || inheritFrom;
-      let environment = storedPayload?.environment ?? null;
-      let precheck = storedPayload?.precheck ?? null;
+      try {
+        setInheritanceError(null);
+        const storedPayload = readInheritancePayload(inheritFrom);
+        const sourceRunCode = storedPayload?.sourceRunCode || inheritFrom;
+        let environment = storedPayload?.environment ?? null;
+        let precheck = storedPayload?.precheck ?? null;
 
-      if (!environment && !precheck) {
-        const sourceModules = await listExperimentModules(accessToken, inheritFrom);
-        const sourcePayloads = Object.fromEntries(
-          sourceModules.items.map((module) => [module.module_key, module.payload_json]),
+        if (!environment && !precheck) {
+          const sourceModules = await listExperimentModules(accessToken, inheritFrom);
+          const sourcePayloads = Object.fromEntries(
+            sourceModules.items.map((module) => [module.module_key, module.payload_json]),
+          );
+          environment = asRecord(sourcePayloads.environment);
+          precheck = asRecord(sourcePayloads.precheck);
+        }
+
+        const inheritedValues = buildInheritedValues({
+          environment,
+          experiment: initialExperiment,
+          precheck,
+        });
+
+        if (!inheritedValues) {
+          removeInheritancePayload(inheritFrom);
+          onInheritanceConsumed?.();
+          return;
+        }
+
+        const nextValues: ExperimentEditorValues = {
+          ...valuesRef.current,
+          environment: inheritedValues.environment ?? valuesRef.current.environment,
+          precheck: inheritedValues.precheck ?? valuesRef.current.precheck,
+        };
+        const forceSaveSections: EditorSectionKey[] = [
+          ...(inheritedValues.environment ? (["environment"] as const) : []),
+          ...(inheritedValues.precheck ? (["precheck"] as const) : []),
+        ];
+
+        valuesRef.current = nextValues;
+        setValues(nextValues);
+        setHasDirtyChanges(getDirtySections(nextValues).length > 0);
+        setValidationResult(null);
+        setInheritedFrom({
+          ...(inheritedValues.environment ? { environment: sourceRunCode } : {}),
+          ...(inheritedValues.precheck ? { precheck: sourceRunCode } : {}),
+        });
+
+        const saveFailed = await enqueueSave(() =>
+          persistDirtySections(nextValues, forceSaveSections),
         );
-        environment = asRecord(sourcePayloads.environment);
-        precheck = asRecord(sourcePayloads.precheck);
-      }
+        if (saveFailed) {
+          return;
+        }
 
-      const inheritedValues = buildInheritedValues({
-        environment,
-        experiment: initialExperiment,
-        precheck,
-      });
-
-      if (!inheritedValues) {
+        removeInheritancePayload(inheritFrom);
         onInheritanceConsumed?.();
-        return;
+      } catch (error) {
+        setInheritanceError(resolveErrorMessage(error, "继承参数加载失败"));
       }
-
-      const nextValues: ExperimentEditorValues = {
-        ...valuesRef.current,
-        environment: inheritedValues.environment ?? valuesRef.current.environment,
-        precheck: inheritedValues.precheck ?? valuesRef.current.precheck,
-      };
-      const forceSaveSections: EditorSectionKey[] = [
-        ...(inheritedValues.environment ? (["environment"] as const) : []),
-        ...(inheritedValues.precheck ? (["precheck"] as const) : []),
-      ];
-
-      valuesRef.current = nextValues;
-      setValues(nextValues);
-      setHasDirtyChanges(getDirtySections(nextValues).length > 0);
-      setValidationResult(null);
-      setInheritedFrom({
-        ...(inheritedValues.environment ? { environment: sourceRunCode } : {}),
-        ...(inheritedValues.precheck ? { precheck: sourceRunCode } : {}),
-      });
-
-      await enqueueSave(() => persistDirtySections(nextValues, forceSaveSections));
-      onInheritanceConsumed?.();
     };
 
     void applyInheritance();
@@ -779,6 +799,7 @@ export function useExperimentEditor({
     isDraft: experiment.status === "draft",
     isSubmitting: submitState.status === "submitting",
     shouldWarnOnLeave,
+    inheritanceError,
     saveSummary,
     scheduleAutosave,
     sectionStates,

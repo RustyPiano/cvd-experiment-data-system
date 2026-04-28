@@ -234,6 +234,9 @@ function ExperimentEditorWorkspace({
       ) : null}
       <PageHeader subtitle="各模块修改后自动保存，提交后不可再编辑。" title={`编辑 ${editor.experiment.run_code}`} />
       <ExperimentSourceBanner experiment={editor.experiment} />
+      {editor.inheritanceError ? (
+        <Alert title={editor.inheritanceError} showIcon type="error" />
+      ) : null}
       {editor.validationResult ? (
         <ValidationSummary
           onJumpToModule={scrollToSection}

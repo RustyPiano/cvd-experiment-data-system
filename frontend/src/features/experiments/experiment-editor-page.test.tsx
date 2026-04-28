@@ -694,6 +694,73 @@ describe("ExperimentEditorPage", () => {
     });
   });
 
+  it("keeps inheritFrom and session storage when forced inherited save fails", async () => {
+    const server = createEditorFetchMock();
+    const storedInheritancePayload = JSON.stringify({
+      sourceExperimentId: "exp-source",
+      sourceRunCode: "CVD-2026-0009",
+      environment: {
+        indoor_temperature_C: 23,
+        indoor_humidity_percent: 41,
+        sample_env: "glovebox shelf",
+        abnormal_note: "old abnormal note",
+      },
+      precheck: {
+        seal_intact: true,
+        hood_clean: false,
+        flange_blocked: true,
+        boat_contamination_level: false,
+        tube_contamination_level: true,
+        risk_note: "old risk note",
+      },
+    });
+    window.sessionStorage.setItem("experiment:inherit:exp-source", storedInheritancePayload);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-1/modules/precheck" && method === "PUT") {
+        return jsonResponse({ detail: "Inherited precheck save failed" }, { status: 500 });
+      }
+
+      return server.fetchMock(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { router } = renderEditorWithDataRouter({
+      initialEntry: "/experiments/exp-1/edit?inheritFrom=exp-source",
+    });
+
+    expect(await screen.findAllByText("以下参数继承自 CVD-2026-0009，请确认或修改。")).toHaveLength(2);
+    expect(await screen.findByText("Inherited precheck save failed")).toBeInTheDocument();
+    expect(router.state.location.search).toBe("?inheritFrom=exp-source");
+    expect(window.sessionStorage.getItem("experiment:inherit:exp-source")).toBe(
+      storedInheritancePayload,
+    );
+  });
+
+  it("shows an inheritance error and keeps inheritFrom when fallback module loading fails", async () => {
+    const server = createEditorFetchMock();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-source/modules" && method === "GET") {
+        return jsonResponse({ detail: "Source modules unavailable" }, { status: 500 });
+      }
+
+      return server.fetchMock(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { router } = renderEditorWithDataRouter({
+      initialEntry: "/experiments/exp-1/edit?inheritFrom=exp-source",
+    });
+
+    expect(await screen.findByText("Source modules unavailable")).toBeInTheDocument();
+    expect(router.state.location.search).toBe("?inheritFrom=exp-source");
+  });
+
   it("autosaves contamination checks as trinary boolean values", async () => {
     const server = createEditorFetchMock();
     vi.stubGlobal("fetch", server.fetchMock);
