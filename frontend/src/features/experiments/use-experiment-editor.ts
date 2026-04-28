@@ -328,8 +328,17 @@ export function useExperimentEditor({
   );
 
   const persistDirtySections = useCallback(
-    async (draftValues: ExperimentEditorValues) => {
-      const dirtySections = getDirtySections(draftValues);
+    async (
+      draftValues: ExperimentEditorValues,
+      forceSaveSections: EditorSectionKey[] = [],
+    ) => {
+      const sectionKeysToSave = new Set<EditorSectionKey>([
+        ...getDirtySections(draftValues),
+        ...forceSaveSections,
+      ]);
+      const dirtySections = editorSectionKeys.filter((sectionKey) =>
+        sectionKeysToSave.has(sectionKey),
+      );
 
       if (!dirtySections.length) {
         return false;
@@ -597,6 +606,10 @@ export function useExperimentEditor({
         environment: inheritedValues.environment ?? valuesRef.current.environment,
         precheck: inheritedValues.precheck ?? valuesRef.current.precheck,
       };
+      const forceSaveSections: EditorSectionKey[] = [
+        ...(inheritedValues.environment ? (["environment"] as const) : []),
+        ...(inheritedValues.precheck ? (["precheck"] as const) : []),
+      ];
 
       valuesRef.current = nextValues;
       setValues(nextValues);
@@ -607,7 +620,7 @@ export function useExperimentEditor({
         ...(inheritedValues.precheck ? { precheck: sourceRunCode } : {}),
       });
 
-      await enqueueSave(() => persistDirtySections(nextValues));
+      await enqueueSave(() => persistDirtySections(nextValues, forceSaveSections));
       onInheritanceConsumed?.();
     };
 

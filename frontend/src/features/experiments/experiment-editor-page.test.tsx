@@ -631,6 +631,69 @@ describe("ExperimentEditorPage", () => {
     expect(screen.queryAllByText("以下参数继承自 CVD-2026-0009，请确认或修改。")).toHaveLength(1);
   });
 
+  it("force-saves inherited precheck defaults when the target draft has no precheck module", async () => {
+    const server = createEditorFetchMock();
+    server.modules.delete("precheck");
+    window.sessionStorage.setItem(
+      "experiment:inherit:exp-source",
+      JSON.stringify({
+        sourceExperimentId: "exp-source",
+        sourceRunCode: "CVD-2026-0009",
+        environment: null,
+        precheck: {
+          seal_intact: true,
+          hood_clean: false,
+          flange_blocked: true,
+          boat_contamination_level: false,
+          tube_contamination_level: true,
+          risk_note: "old risk note",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderEditorWithDataRouter({
+      initialEntry: "/experiments/exp-1/edit?inheritFrom=exp-source",
+    });
+
+    expect(await screen.findByText("以下参数继承自 CVD-2026-0009，请确认或修改。")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        server.requests.some((request) => {
+          if (
+            request.method !== "PUT" ||
+            request.pathname !== "/api/v1/experiments/exp-1/modules/precheck"
+          ) {
+            return false;
+          }
+
+          const payload = (
+            request.body as {
+              payload_json?: {
+                boat_contamination_level?: boolean | null;
+                flange_blocked?: boolean | null;
+                hood_clean?: boolean | null;
+                risk_note?: string;
+                seal_intact?: boolean | null;
+                tube_contamination_level?: boolean | null;
+              };
+            }
+          ).payload_json;
+
+          return (
+            payload?.seal_intact === null &&
+            payload?.hood_clean === null &&
+            payload?.flange_blocked === null &&
+            payload?.boat_contamination_level === null &&
+            payload?.tube_contamination_level === null &&
+            payload?.risk_note === ""
+          );
+        }),
+      ).toBe(true);
+    });
+  });
+
   it("autosaves contamination checks as trinary boolean values", async () => {
     const server = createEditorFetchMock();
     vi.stubGlobal("fetch", server.fetchMock);
