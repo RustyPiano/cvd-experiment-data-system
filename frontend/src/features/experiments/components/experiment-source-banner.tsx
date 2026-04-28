@@ -1,12 +1,14 @@
-import { Alert, Typography } from "antd";
+import { Alert, Button, Space, Typography } from "antd";
 import { Link } from "react-router-dom";
 
 import type { ExperimentRead } from "../../../shared/types/api";
 
 export function ExperimentSourceBanner({
   experiment,
+  onViewDiff,
 }: {
   experiment: Pick<ExperimentRead, "derived_from_run_code" | "derived_from_run_id">;
+  onViewDiff?: () => void;
 }) {
   if (!experiment.derived_from_run_id && !experiment.derived_from_run_code) {
     return null;
@@ -23,10 +25,17 @@ export function ExperimentSourceBanner({
             表征结果仅保留计划字段并清空结果，结果总结已重置为待重新确认状态。
           </Typography.Paragraph>
           {experiment.derived_from_run_id ? (
-            <Typography.Text type="secondary">
-              来源实验：
-              <Link to={`/experiments/${experiment.derived_from_run_id}`}>{sourceLabel}</Link>
-            </Typography.Text>
+            <Space wrap>
+              <Typography.Text type="secondary">
+                来源实验：
+                <Link to={`/experiments/${experiment.derived_from_run_id}`}>{sourceLabel}</Link>
+              </Typography.Text>
+              {onViewDiff ? (
+                <Button onClick={onViewDiff} size="small" type="default">
+                  查看差异
+                </Button>
+              ) : null}
+            </Space>
           ) : (
             <Typography.Text type="secondary">来源实验：{sourceLabel}</Typography.Text>
           )}

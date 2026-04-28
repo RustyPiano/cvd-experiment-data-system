@@ -23,6 +23,7 @@ import { EditorSectionCard } from "./components/editor-section-card";
 import { EditorStepper, type StepperItem } from "./components/editor-stepper";
 import { EnvironmentSection } from "./components/environment-section";
 import { ExperimentMainFields } from "./components/experiment-main-fields";
+import { ExperimentDiffModal } from "./components/experiment-diff-modal";
 import { ExperimentSourceBanner } from "./components/experiment-source-banner";
 import { FurnaceProgramSection } from "./components/furnace-program-section";
 import { GasProgramSection } from "./components/gas-program-section";
@@ -79,6 +80,18 @@ function useActiveVocabularyOptions({
   });
 
   return useMemo(() => toVocabularyOptions(query.data?.items), [query.data?.items]);
+}
+
+function resolveErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof HttpError) {
+    return error.detail || fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 function ExperimentEditorWorkspace({
@@ -152,6 +165,25 @@ function ExperimentEditorWorkspace({
   const recipeTemplates = recipeTemplatesQuery.data?.items ?? [];
 
   const [currentSection, setCurrentSection] = useState<EditorSectionKey>("basic_info");
+  const [diffOpen, setDiffOpen] = useState(false);
+  const sourceModulesQuery = useQuery({
+    queryKey: [
+      "experiments",
+      "modules",
+      currentUserId,
+      editor.experiment.derived_from_run_id,
+      "diff-source",
+    ],
+    queryFn: () => listExperimentModules(accessToken, editor.experiment.derived_from_run_id!),
+    enabled: diffOpen && Boolean(editor.experiment.derived_from_run_id),
+  });
+  const sourceModulePayloads = useMemo(() => {
+    if (!sourceModulesQuery.data) {
+      return {};
+    }
+
+    return createModulePayloadMap(sourceModulesQuery.data.items);
+  }, [sourceModulesQuery.data]);
 
   const scrollToSection = (moduleKey: string) => {
     setCurrentSection(moduleKey as EditorSectionKey);
@@ -242,7 +274,23 @@ function ExperimentEditorWorkspace({
         <RouteLeaveGuard message={editor.leaveWarning} when={editor.shouldWarnOnLeave} />
       ) : null}
       <PageHeader subtitle="各模块修改后自动保存，提交后不可再编辑。" title={`编辑 ${editor.experiment.run_code}`} />
-      <ExperimentSourceBanner experiment={editor.experiment} />
+      <ExperimentSourceBanner
+        experiment={editor.experiment}
+        onViewDiff={editor.experiment.derived_from_run_id ? () => setDiffOpen(true) : undefined}
+      />
+      <ExperimentDiffModal
+        currentModules={editor.currentModulePayloads}
+        errorMessage={
+          sourceModulesQuery.isError
+            ? resolveErrorMessage(sourceModulesQuery.error, "来源实验参数加载失败")
+            : null
+        }
+        loading={sourceModulesQuery.isFetching}
+        onClose={() => setDiffOpen(false)}
+        open={diffOpen}
+        sourceModules={sourceModulePayloads}
+        sourceRunCode={editor.experiment.derived_from_run_code}
+      />
       {editor.inheritanceError ? (
         <Alert title={editor.inheritanceError} showIcon type="error" />
       ) : null}

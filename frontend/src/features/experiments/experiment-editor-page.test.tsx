@@ -245,6 +245,24 @@ function createEditorFetchMock() {
       }),
     ],
   ]);
+  const sourceModules = new Map<string, ModulePayload>([
+    [
+      "environment",
+      createModulePayload("exp-source", "environment", {
+        indoor_temperature_C: 22,
+        indoor_humidity_percent: 45,
+        sample_env: "clean",
+      }),
+    ],
+    [
+      "result_summary",
+      createModulePayload("exp-source", "result_summary", {
+        summary_result: "Source film observed",
+        quality_label: "partial",
+        next_step: "Tune temperature",
+      }),
+    ],
+  ]);
 
   const vocabularyItems = [
     createVocabularyItem("material_system", "MoS2", "二硫化钼", 1),
@@ -304,6 +322,13 @@ function createEditorFetchMock() {
       });
     }
 
+    if (url.pathname === "/api/v1/experiments/exp-source/modules" && method === "GET") {
+      return jsonResponse({
+        items: [...sourceModules.values()],
+        total: sourceModules.size,
+      });
+    }
+
     if (url.pathname === "/api/v1/experiments/exp-1/validate" && method === "POST") {
       return jsonResponse({
         ok: true,
@@ -345,6 +370,7 @@ function createEditorFetchMock() {
     experiment,
     modules,
     requests,
+    sourceModules,
     fetchMock,
   };
 }
@@ -509,6 +535,97 @@ describe("ExperimentEditorPage", () => {
       "href",
       "/experiments/exp-source",
     );
+  });
+
+  it("opens a diff modal for cloned drafts and fetches source modules on demand", async () => {
+    const user = userEvent.setup();
+    const server = createEditorFetchMock();
+    server.experiment.derived_from_run_id = "exp-source";
+    server.experiment.derived_from_run_code = "CVD-2026-0001";
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    await user.click(await screen.findByRole("button", { name: "查看差异" }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "GET" &&
+            request.pathname === "/api/v1/experiments/exp-source/modules",
+        ),
+      ).toBe(true);
+    });
+    expect(await screen.findByText("实验差异")).toBeInTheDocument();
+    expect(screen.getByText("室内温度 (C)")).toBeInTheDocument();
+    expect(screen.getByText("22")).toBeInTheDocument();
+    expect(screen.getAllByText("25").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("已修改").length).toBeGreaterThan(0);
+  });
+
+  it("shows a diff loading error instead of treating every current module as added", async () => {
+    const user = userEvent.setup();
+    const server = createEditorFetchMock();
+    server.experiment.derived_from_run_id = "exp-source";
+    server.experiment.derived_from_run_code = "CVD-2026-0001";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-source/modules" && method === "GET") {
+        return jsonResponse({ detail: "Source modules unavailable" }, { status: 500 });
+      }
+
+      return server.fetchMock(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    await user.click(await screen.findByRole("button", { name: "查看差异" }));
+
+    const errorMessage = await screen.findByText("Source modules unavailable");
+    expect(errorMessage).toBeInTheDocument();
+    const diffDialog = errorMessage.closest<HTMLElement>(".ant-modal");
+    expect(diffDialog).not.toBeNull();
+    expect(within(diffDialog!).queryByText("基础信息")).not.toBeInTheDocument();
+    expect(within(diffDialog!).queryByText("新增")).not.toBeInTheDocument();
+  });
+
+  it("does not show diff action for recipe-created drafts without a source run", async () => {
+    const server = createEditorFetchMock();
+    server.experiment.derived_from_run_code = "Recipe A";
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    expect(await screen.findByText("本实验派生自 Recipe A")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "查看差异" })).not.toBeInTheDocument();
   });
 
   it("inherits environment and precheck once from session storage, sanitizes transient fields, and clears alerts after edits", async () => {

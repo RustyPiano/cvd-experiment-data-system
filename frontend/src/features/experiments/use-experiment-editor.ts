@@ -765,6 +765,14 @@ export function useExperimentEditor({
     [currentUserId, values],
   );
 
+  const diffModulePayloads = useMemo<Record<EditorSectionKey, Record<string, unknown>>>(
+    () => ({
+      ...currentModulePayloads,
+      characterization: mergeCharacterizationPayload(undefined, values.characterization),
+    }),
+    [currentModulePayloads, values.characterization],
+  );
+
   const completionValidationIssues = useMemo<CompletionValidationIssue[]>(() => {
     if (!validationResult) {
       return [];
@@ -977,6 +985,7 @@ export function useExperimentEditor({
     clearInheritedSection,
     updateValues,
     validationResult,
+    currentModulePayloads: diffModulePayloads,
     values,
   };
 }
