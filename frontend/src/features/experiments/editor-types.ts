@@ -50,12 +50,12 @@ export type BasicInfoValues = {
 };
 
 export type PrecheckValues = {
-  sealIntact: boolean;
+  sealIntact: NullableBooleanValue;
   riskNote: string;
   hoodClean: NullableBooleanValue;
   flangeBlocked: NullableBooleanValue;
-  boatContaminationLevel: string;
-  tubeContaminationLevel: string;
+  boatContaminationLevel: NullableBooleanValue;
+  tubeContaminationLevel: NullableBooleanValue;
 };
 
 export type EnvironmentValues = {
@@ -72,8 +72,7 @@ type PayloadBackedValue = {
 export type NullableBooleanValue = "" | "true" | "false";
 
 export type PrecursorItemValues = PayloadBackedValue & {
-  role: string;
-  type: string;
+  species: string;
   brand: string;
   concentration: string;
   concentrationUnit: string;
@@ -574,8 +573,7 @@ function hasAnyValue(record: Record<string, string>) {
 
 export function createEmptyPrecursorItem(): PrecursorItemValues {
   return {
-    role: "",
-    type: "",
+    species: "",
     brand: "",
     concentration: "",
     concentrationUnit: "",
@@ -688,6 +686,7 @@ export function createInitialEditorValues(
   const environment = asRecord(payloads.environment);
   const precheck = asRecord(payloads.precheck);
   const precursors = asRecord(payloads.precursors);
+  const precursorItems = asObjectArray(precursors.items);
   const substrates = asRecord(payloads.substrates);
   const furnaceProgram = asRecord(payloads.furnace_program);
   const gasProgram = asRecord(payloads.gas_program);
@@ -710,29 +709,31 @@ export function createInitialEditorValues(
       abnormalNote: asString(environment.abnormal_note),
     },
     precheck: {
-      sealIntact: asBoolean(precheck.seal_intact),
+      sealIntact: asNullableBooleanValue(precheck.seal_intact),
       riskNote: asString(precheck.risk_note),
       hoodClean: asNullableBooleanValue(precheck.hood_clean),
       flangeBlocked: asNullableBooleanValue(precheck.flange_blocked),
-      boatContaminationLevel: asString(precheck.boat_contamination_level),
-      tubeContaminationLevel: asString(precheck.tube_contamination_level),
+      boatContaminationLevel: asNullableBooleanValue(precheck.boat_contamination_level),
+      tubeContaminationLevel: asNullableBooleanValue(precheck.tube_contamination_level),
     },
     precursors: {
-      items: asObjectArray(precursors.items).map((item) => ({
-        sourcePayload: item,
-        role: asString(item.role),
-        type: asString(item.type),
-        brand: asString(item.brand),
-        concentration: asString(item.concentration),
-        concentrationUnit: asString(item.concentration_unit),
-        method: asString(item.method),
-        meltingTemperatureC: asString(item.melting_temperature_C),
-        spinSpeedRpm: asString(item.spin_speed_rpm),
-        preSpinSpeedRpm: asString(item.pre_spin_speed_rpm),
-        preparationTimeMin: asString(item.preparation_time_min),
-        massMg: asString(item.mass_mg),
-        batchNo: asString(item.batch_no),
-      })),
+      items:
+        precursorItems.length > 0
+          ? precursorItems.map((item) => ({
+              sourcePayload: item,
+              species: asString(item.species),
+              brand: asString(item.brand),
+              concentration: asString(item.concentration),
+              concentrationUnit: asString(item.concentration_unit),
+              method: asString(item.method),
+              meltingTemperatureC: asString(item.melting_temperature_C),
+              spinSpeedRpm: asString(item.spin_speed_rpm),
+              preSpinSpeedRpm: asString(item.pre_spin_speed_rpm),
+              preparationTimeMin: asString(item.preparation_time_min),
+              massMg: asString(item.mass_mg),
+              batchNo: asString(item.batch_no),
+            }))
+          : [createEmptyPrecursorItem(), createEmptyPrecursorItem()],
     },
     substrates: {
       items: asObjectArray(substrates.items).map((item) => ({
@@ -865,12 +866,12 @@ export function mergeBasicInfoPayload(
 
 export function toPrecheckPayload(values: PrecheckValues) {
   return {
-    seal_intact: values.sealIntact,
+    seal_intact: normalizeNullableBoolean(values.sealIntact),
     risk_note: values.riskNote.trim(),
     hood_clean: normalizeNullableBoolean(values.hoodClean),
     flange_blocked: normalizeNullableBoolean(values.flangeBlocked),
-    boat_contamination_level: normalizeNullableString(values.boatContaminationLevel),
-    tube_contamination_level: normalizeNullableString(values.tubeContaminationLevel),
+    boat_contamination_level: normalizeNullableBoolean(values.boatContaminationLevel),
+    tube_contamination_level: normalizeNullableBoolean(values.tubeContaminationLevel),
   };
 }
 
@@ -915,8 +916,7 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
       .filter(
         (item) =>
           hasAnyValue({
-            role: item.role,
-            type: item.type,
+            species: item.species,
             brand: item.brand,
             concentration: item.concentration,
             concentrationUnit: item.concentrationUnit,
@@ -933,8 +933,7 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
         mergePayloadFields(
           item.sourcePayload,
           removeNullEntries({
-            role: normalizeNullableString(item.role),
-            type: normalizeNullableString(item.type),
+            species: normalizeNullableString(item.species),
             brand: normalizeNullableString(item.brand),
             concentration: normalizeNumberLike(item.concentration),
             concentration_unit: normalizeNullableString(item.concentrationUnit),
@@ -949,6 +948,7 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
           [
             "role",
             "type",
+            "species",
             "brand",
             "concentration",
             "concentration_unit",

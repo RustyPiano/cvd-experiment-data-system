@@ -41,7 +41,7 @@ def create_experiment(email: str, *, objective: str = "Export flow") -> str:
 def populate_required_modules(experiment_id: str, email: str) -> None:
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
+        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
         headers=auth_headers(email),
     )
     assert precursors_response.status_code == 200
@@ -380,8 +380,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
             "payload_json": {
                 "items": [
                     {
-                        "role": "metal_source",
-                        "type": "MoO3",
+                        "species": "MoO3",
                         "brand": "Sigma",
                         "concentration": 0.25,
                         "concentration_unit": "mol/L",
@@ -542,8 +541,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",
         "precursor_index": 0,
-        "role": "metal_source",
-        "type": "MoO3",
+        "species": "MoO3",
         "brand": "Sigma",
         "concentration": 0.25,
         "concentration_unit": "mol/L",

@@ -23,7 +23,7 @@ ISSUE_MESSAGE_ZH = {
     "Operator is required": "实验负责人必填",
     "At least one precursor is required": "至少需要填写一个前驱体",
     "Precursor item must be an object": "前驱体记录格式无效",
-    "Precursor type is required": "前驱体类型必填",
+    "Precursor species is required": "前驱体种类必填",
     "Precursor method is required": "前驱体方法必填",
     "Precursor batch_no is missing": "前驱体批号缺失",
     "Precursor mass_mg is missing": "前驱体质量缺失",
@@ -50,6 +50,8 @@ ISSUE_MESSAGE_ZH = {
     "Indoor humidity is missing": "室内湿度缺失",
     "Indoor humidity is out of range": "室内湿度超出有效范围",
     "Risk note is required when seal integrity fails": "密封检查失败时必须填写风险说明",
+    "Boat contamination is present": "瓷舟存在污染",
+    "Tube contamination is present": "石英管存在污染",
     "File method is required": "文件方法必填",
     "File experiment_id is required": "文件关联实验必填",
     "File experiment_id does not match experiment": "文件关联实验与当前实验不一致",
@@ -192,12 +194,12 @@ class ExperimentValidationService:
                     )
                 )
                 continue
-            if self._is_blank(item.get("type")):
+            if self._is_blank(item.get("species")):
                 errors.append(
                     self._issue(
                         "precursors",
-                        f"items[{index}].type",
-                        "Precursor type is required",
+                        f"items[{index}].species",
+                        "Precursor species is required",
                     )
                 )
             if self._is_blank(item.get("method")):
@@ -544,13 +546,17 @@ class ExperimentValidationService:
             )
 
         for field_name in ("boat_contamination_level", "tube_contamination_level"):
-            value = str(precheck_payload.get(field_name) or "").strip().lower()
-            if value == "high":
+            if precheck_payload.get(field_name) is True:
+                message = (
+                    "Boat contamination is present"
+                    if field_name == "boat_contamination_level"
+                    else "Tube contamination is present"
+                )
                 warnings.append(
                     self._issue(
                         "precheck",
                         field_name,
-                        f"{field_name} is high",
+                        message,
                     )
                 )
 
@@ -626,7 +632,7 @@ class ExperimentValidationService:
             not self._is_blank(experiment.material_system),
             experiment.experiment_date is not None,
             bool(precursor_items),
-            self._all_items(precursor_items, lambda item: not self._is_blank(item.get("type"))),
+            self._all_items(precursor_items, lambda item: not self._is_blank(item.get("species"))),
             self._all_items(precursor_items, lambda item: not self._is_blank(item.get("method"))),
             self._all_items(
                 precursor_items,
@@ -665,13 +671,6 @@ class ExperimentValidationService:
 
     def _issue(self, module_key: str, field_path: str, message: str) -> ExperimentValidationIssue:
         translated_message = ISSUE_MESSAGE_ZH.get(message)
-        if translated_message is None and message.endswith(" is high"):
-            field_name = message.removesuffix(" is high")
-            field_label = {
-                "boat_contamination_level": "舟皿污染程度",
-                "tube_contamination_level": "管壁污染程度",
-            }.get(field_name, field_name)
-            translated_message = f"{field_label}偏高"
 
         return ExperimentValidationIssue(
             module_key=module_key,

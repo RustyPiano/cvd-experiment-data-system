@@ -43,6 +43,8 @@
 - 编辑器当前采用“主表单 + 模块表单 + 区块级 debounced autosave”的结构；`basic_info` 会同时写主实验记录和模块 payload。
 - `result_summary` 也会同时写主实验 `summary_result` 和模块 payload，保证详情页能直接读取结论。
 - 当前编辑器按最小可用字段集建模；自动保存时会保留原模块 payload 中前端暂未暴露的字段。
+- 预检查项统一按三态展示和保存：`null` 为“未检查”，`true` 为“是”，`false` 为“否”；风险说明常显并放在预检查区块最后。
+- 前驱体模块使用 `items[].species` 表示“前驱体种类”，不再使用前驱体 `role` 或 `type`；空白/无 payload 草稿的编辑器默认显示 2 条空前驱体。
 - 当前 `PATCH /experiments/{id}` 支持 draft 下更新 `experiment_type`、`material_system`、`experiment_date`、`objective` 和 `summary_result`；修正 `experiment_date` 不会改写既有 `run_code`。
 - 当前编辑器只在 `draft` 开启自动保存和提交；`submitted / locked / invalid` 一律只读。
 - 详情页当前已根据“owner/admin vs. 其他 member/viewer”以及实验状态控制动作按钮显示；状态切换请求进行中会互斥禁用其他动作；`clone` 成功后会直接跳到新草稿的编辑页。
@@ -329,12 +331,13 @@ result_summary
 - 主表字段里 `experiment_type`、`material_system`、`experiment_date` 有值。
 - 已知模块 payload 必须通过后端 typed schema 校验；历史脏数据里的数字字段字符串会作为阻塞错误返回。
 - `precursors.items` 至少一项，且每项必须是对象。
+- `precursors.items[].species` 为前驱体种类，提交时必填；前驱体 `role/type` 不再属于 payload 契约。
 - `furnace_program.zones` 至少一项。
 - 每个 `zone.temperature_program` 至少一项，且 `time_min` 严格递增。
 - `gas_program.segments` 如果存在，则要求时间段合法且不能重叠。
 - `substrates.items` 如果存在，则要求 `role` 为 `top/bottom` 且 `type` 非空。
 - `characterization.methods` 如果存在启用项，则要求 `method` 非空。
-- `precheck.seal_intact=false` 时必须填 `risk_note`。
+- `precheck` 的检查项保存为 `true/false/null` 三态；`precheck.seal_intact=false` 时必须填 `risk_note`，`null` 表示未检查且不阻塞提交。
 - `POST /api/v1/experiments/{id}/validate` 返回 `ok/errors/warnings/completion_score/blocking_count/warning_count`；前端提交前汇总应展示完整度分数、阻塞/提示计数，并按 `module_key` 提供跳转按钮。
 
 基底模块还会触发样品同步：

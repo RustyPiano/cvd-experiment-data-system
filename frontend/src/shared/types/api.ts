@@ -279,8 +279,7 @@ export type ExperimentAnalysisPrecursorRow = {
   experiment_id: string;
   run_code: string;
   precursor_index: number;
-  role: string | null;
-  type: string | null;
+  species: string | null;
   brand: string | null;
   concentration: number | null;
   concentration_unit: string | null;

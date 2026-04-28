@@ -61,27 +61,15 @@ export function PrecursorsSection({
           </div>
           <div className="editor-form-grid">
             <div className="editor-field">
-              <Typography.Text strong>{`前驱体角色 ${index + 1}`}</Typography.Text>
+              <Typography.Text strong>{`前驱体种类 ${index + 1}`}</Typography.Text>
               <Input
-                aria-label={`前驱体角色 ${index + 1}`}
+                aria-label={`前驱体种类 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
-                  updateItem(index, { role: event.target.value });
-                }}
-                placeholder="例如 A"
-                value={item.role}
-              />
-            </div>
-            <div className="editor-field">
-              <Typography.Text strong>{`前驱体类型 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`前驱体类型 ${index + 1}`}
-                disabled={disabled}
-                onChange={(event) => {
-                  updateItem(index, { type: event.target.value });
+                  updateItem(index, { species: event.target.value });
                 }}
                 placeholder="例如 MoO3"
-                value={item.type}
+                value={item.species}
               />
             </div>
             <div className="editor-field">

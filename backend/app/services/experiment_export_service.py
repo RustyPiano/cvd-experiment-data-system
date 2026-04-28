@@ -337,8 +337,7 @@ class ExperimentExportService:
             ExperimentAnalysisPrecursorRow(
                 **context,
                 precursor_index=index,
-                role=item.get("role"),
-                type=item.get("type"),
+                species=item.get("species"),
                 brand=item.get("brand"),
                 concentration=item.get("concentration"),
                 concentration_unit=item.get("concentration_unit"),

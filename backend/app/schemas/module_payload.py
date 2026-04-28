@@ -23,13 +23,14 @@ class PrecheckPayload(ModulePayloadBase):
     risk_note: str | None = None
     hood_clean: StrictBool | None = None
     flange_blocked: StrictBool | None = None
-    boat_contamination_level: str | None = None
-    tube_contamination_level: str | None = None
+    boat_contamination_level: StrictBool | None = None
+    tube_contamination_level: StrictBool | None = None
 
 
 class PrecursorItemPayload(ModulePayloadBase):
-    role: str | None = None
-    type: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    species: str | None = None
     brand: str | None = None
     concentration: StrictFloat | None = None
     concentration_unit: str | None = None

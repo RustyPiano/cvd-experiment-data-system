@@ -134,8 +134,8 @@ function createEditorFetchMock() {
         risk_note: "",
         hood_clean: true,
         flange_blocked: false,
-        boat_contamination_level: "low",
-        tube_contamination_level: "medium",
+        boat_contamination_level: false,
+        tube_contamination_level: true,
       }),
     ],
     [
@@ -143,8 +143,7 @@ function createEditorFetchMock() {
       createModulePayload(experiment.id, "precursors", {
         items: [
           {
-            role: "A",
-            type: "MoO3",
+            species: "MoO3",
             brand: "Alfa",
             concentration: 0.5,
             concentration_unit: "mol/L",
@@ -425,9 +424,15 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByLabelText("实验目的")).toHaveValue("Baseline growth");
     expect(screen.getByLabelText("样品环境")).toHaveValue("clean");
     expect(screen.getByLabelText("室内湿度 (%)")).toHaveValue("45");
+    expect(screen.getByRole("radiogroup", { name: "密封完好" })).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "通风橱已清洁" })).toBeInTheDocument();
-    expect(screen.getAllByRole("radio", { name: "未检查" }).length).toBeGreaterThanOrEqual(3);
-    expect(screen.getByLabelText("前驱体类型 1")).toHaveValue("MoO3");
+    expect(screen.getAllByRole("radio", { name: "未检查" }).length).toBeGreaterThanOrEqual(4);
+    const precheckFields = Array.from(
+      document.querySelectorAll("#section-precheck .editor-field, #section-precheck .editor-switch-row"),
+    );
+    expect(precheckFields.at(-1)?.textContent).toContain("风险说明");
+    expect(screen.queryByLabelText("前驱体角色 1")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("前驱体种类 1")).toHaveValue("MoO3");
     expect(screen.getByLabelText("前驱体品牌 1")).toHaveValue("Alfa");
     expect(screen.getByLabelText("前驱体批次 1")).toHaveValue("MO-2026-01");
     expect(screen.getByLabelText("处理参数温度 1")).toHaveValue("300");
@@ -441,6 +446,38 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByRole("radiogroup", { name: "质量评级" })).toBeInTheDocument();
     expect(screen.getByLabelText("下一步建议")).toHaveValue("Repeat growth");
     expect(screen.getByRole("button", { name: "提交实验" })).toBeInTheDocument();
+  });
+
+  it("defaults empty precheck values to unchecked and shows two blank precursor rows", async () => {
+    const server = createEditorFetchMock();
+    server.modules.delete("precheck");
+    server.modules.delete("precursors");
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    expect(await screen.findByRole("heading", { name: "预检查" })).toBeInTheDocument();
+
+    for (const label of ["密封完好", "通风橱已清洁", "法兰已堵住", "瓷舟污染", "石英管污染"]) {
+      expect(
+        within(screen.getByRole("radiogroup", { name: label })).getByRole("radio", {
+          name: "未检查",
+          checked: true,
+        }),
+      ).toBeInTheDocument();
+    }
+
+    expect(screen.getAllByText(/^前驱体 \d$/)).toHaveLength(2);
+    expect(screen.getByLabelText("前驱体种类 1")).toHaveValue("");
+    expect(screen.getByLabelText("前驱体种类 2")).toHaveValue("");
   });
 
   it("shows source banner for a cloned draft", async () => {
@@ -466,7 +503,7 @@ describe("ExperimentEditorPage", () => {
     );
   });
 
-  it("autosaves contamination level as null when cleared to unchecked", async () => {
+  it("autosaves contamination checks as trinary boolean values", async () => {
     const server = createEditorFetchMock();
     vi.stubGlobal("fetch", server.fetchMock);
 
@@ -481,8 +518,10 @@ describe("ExperimentEditorPage", () => {
     );
 
     const boatContaminationGroup = await screen.findByRole("radiogroup", {
-      name: "瓷舟污染等级",
+      name: "瓷舟污染",
     });
+    expect(within(boatContaminationGroup).getByRole("radio", { name: "是" })).toBeInTheDocument();
+    expect(within(boatContaminationGroup).getByRole("radio", { name: "否" })).toBeChecked();
     vi.useFakeTimers();
     fireEvent.click(within(boatContaminationGroup).getByRole("radio", { name: "未检查" }));
 
@@ -505,15 +544,15 @@ describe("ExperimentEditorPage", () => {
           const payload = (
             request.body as {
               payload_json?: {
-                boat_contamination_level?: string | null;
-                tube_contamination_level?: string | null;
+                boat_contamination_level?: boolean | null;
+                tube_contamination_level?: boolean | null;
               };
             }
           ).payload_json;
 
           return (
             payload?.boat_contamination_level === null &&
-            payload?.tube_contamination_level === "medium"
+            payload?.tube_contamination_level === true
           );
         }),
       ).toBe(true);
@@ -760,7 +799,7 @@ describe("ExperimentEditorPage", () => {
       ),
     ).toBe(true);
 
-    const precursorTypeInput = screen.getByLabelText("前驱体类型 1");
+    const precursorTypeInput = screen.getByLabelText("前驱体种类 1");
     fireEvent.change(precursorTypeInput, { target: { value: "WO3" } });
 
     await act(async () => {
@@ -769,25 +808,28 @@ describe("ExperimentEditorPage", () => {
     });
 
     expect(
-      server.requests.some(
-        (request) =>
-          request.method === "PUT" &&
-          request.pathname === "/api/v1/experiments/exp-1/modules/precursors" &&
-          Array.isArray(
-            (request.body as { payload_json?: { items?: Array<{ type?: string }> } }).payload_json
-              ?.items,
-          ) &&
-          (
-            request.body as {
-              payload_json?: { items?: Array<{ mass_mg?: number; type?: string }> };
-            }
-          ).payload_json?.items?.[0]?.type === "WO3" &&
-          (
-            request.body as {
-              payload_json?: { items?: Array<{ mass_mg?: number }> };
-            }
-          ).payload_json?.items?.[0]?.mass_mg === 15,
-      ),
+      server.requests.some((request) => {
+        if (
+          request.method !== "PUT" ||
+          request.pathname !== "/api/v1/experiments/exp-1/modules/precursors"
+        ) {
+          return false;
+        }
+
+        const item = (
+          request.body as {
+            payload_json?: { items?: Array<Record<string, unknown>> };
+          }
+        ).payload_json?.items?.[0];
+
+        return (
+          item !== undefined &&
+          item.species === "WO3" &&
+          item.mass_mg === 15 &&
+          !("role" in item) &&
+          !("type" in item)
+        );
+      }),
     ).toBe(true);
 
     const substrateBrandInput = screen.getByLabelText("品牌 1");
@@ -1323,7 +1365,7 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    const precursorTypeInput = await screen.findByLabelText("前驱体类型 1");
+    const precursorTypeInput = await screen.findByLabelText("前驱体种类 1");
     vi.useFakeTimers();
     fireEvent.change(precursorTypeInput, { target: { value: "WO3" } });
 
@@ -1346,7 +1388,7 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    expect(await screen.findByLabelText("前驱体类型 1")).toHaveValue("WO3");
+    expect(await screen.findByLabelText("前驱体种类 1")).toHaveValue("WO3");
   });
 
   it("keeps patched basic info visible when the module write fails after PATCH", async () => {
@@ -1637,7 +1679,7 @@ describe("ExperimentEditorPage", () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText("实验目的")).toBeDisabled();
-      expect(screen.getByLabelText("前驱体类型 1")).toBeDisabled();
+      expect(screen.getByLabelText("前驱体种类 1")).toBeDisabled();
     });
 
     resolveValidate();
@@ -1715,7 +1757,7 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    const precursorTypeInput = await screen.findByLabelText("前驱体类型 1");
+    const precursorTypeInput = await screen.findByLabelText("前驱体种类 1");
     vi.useFakeTimers();
     fireEvent.change(precursorTypeInput, { target: { value: "WO3" } });
 
@@ -1899,7 +1941,7 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    const precursorTypeInput = await screen.findByLabelText("前驱体类型 1");
+    const precursorTypeInput = await screen.findByLabelText("前驱体种类 1");
     vi.useFakeTimers();
     fireEvent.change(precursorTypeInput, { target: { value: "WO3" } });
 
@@ -1940,7 +1982,7 @@ describe("ExperimentEditorPage", () => {
 
     const { router } = renderEditorWithDataRouter();
 
-    const precursorTypeInput = await screen.findByLabelText("前驱体类型 1");
+    const precursorTypeInput = await screen.findByLabelText("前驱体种类 1");
     vi.useFakeTimers();
     fireEvent.change(precursorTypeInput, { target: { value: "WO3" } });
 

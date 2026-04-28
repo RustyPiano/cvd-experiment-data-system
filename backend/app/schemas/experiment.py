@@ -107,8 +107,7 @@ class ExperimentAnalysisPrecursorRow(BaseModel):
     experiment_id: UUID
     run_code: str
     precursor_index: int
-    role: str | None
-    type: str | None
+    species: str | None
     brand: str | None
     concentration: float | None
     concentration_unit: str | None

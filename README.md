@@ -51,7 +51,7 @@
 - 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，显示 `completion_score / blocking_count / warning_count` 和模块跳转按钮，有 `errors` 时阻止提交并展示逐项问题。
 - 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
 - 前端生产构建现在使用 Vite/Rolldown vendor 拆包，将 React、router/query、Ant Design、rc 依赖拆成独立 chunk，避免超过 500 kB 的 chunk size 警告。
-- 当前完整质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`123 passed`），前端 `lint / typecheck / test` 通过（`90 passed`），前端 `build` 通过且无 Vite chunk size 警告。
+- 当前常规质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`128 passed`），前端 `lint / typecheck / test` 通过（`91 passed`）。
 
 ## 当前后端能力
 
@@ -271,7 +271,9 @@ docker compose up --build
 - 模块 payload 当前支持 `basic_info`、`environment`、`precheck`、`precursors`、`substrates`、`furnace_program`、`gas_program`、`process_observation`、`characterization`、`result_summary`。
 - `clone` 权限规则：owner/admin 可从自己的 `submitted/locked` 实验发起，非 owner 只能从 `locked` 实验发起；新实验会回到 `draft`。
 - `clone` 会复制主实验参数、模块 payload 和样品，但不会复制 `summary_result`、作废原因、状态时间戳和已上传文件；新样品会按新实验编号重新分配 `sample_code`。
-- 提交前校验现在覆盖主字段、typed 模块 payload、前驱体、基底、炉温、气体、预检查、表征和文件关联：至少一个前驱体、至少一个温区程序、温区时间严格递增；如果填写了基底或气体程序，则要求角色、类型、时间段和流量等数据库关键字段合法；`seal_intact=false` 时必须填写 `risk_note`；`quality_label=unknown`、环境越界、污染程度偏高、缺少批号或文件未关联样品会返回 warning。校验响应包含 `completion_score`、`blocking_count` 和 `warning_count`，前端据此展示提交前完整度和跳转目标。
+- `precheck` 检查项统一为 `true/false/null` 三态，`null` 表示“未检查”；新建、无 payload 草稿和 clone 后默认未检查，风险说明常显并位于预检查区块最后。
+- `precursors` 使用 `items[].species` 表示“前驱体种类”，不再使用前驱体 `role/type`；空白/无 payload 草稿编辑器默认显示 2 条空前驱体。
+- 提交前校验现在覆盖主字段、typed 模块 payload、前驱体、基底、炉温、气体、预检查、表征和文件关联：至少一个前驱体、前驱体种类、至少一个温区程序、温区时间严格递增；如果填写了基底或气体程序，则要求角色、类型、时间段和流量等数据库关键字段合法；`seal_intact=false` 时必须填写 `risk_note`，`seal_intact=null` 不阻塞提交；`quality_label=unknown`、环境越界、污染项为“是”、缺少批号或文件未关联样品会返回 warning。校验响应包含 `completion_score`、`blocking_count` 和 `warning_count`，前端据此展示提交前完整度和跳转目标。
 - `substrates` 模块会同步生成或更新 `TOP/BOTTOM` 样品；移除某一基底角色时，未被文件或子样品引用的样品会标记 `deleted_at/deleted_by_id` 并从默认列表隐藏，而不是物理删除。
 - 如果后续重新添加已软删除的 `TOP/BOTTOM` 角色，后端会恢复保留的样品行并更新字段，避免唯一 `sample_code` 冲突。
 - 模块 payload 的非法对象形状会在后端转成 `422`，避免把脏 JSON 打成 `500`。

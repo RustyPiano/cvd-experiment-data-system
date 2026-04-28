@@ -45,6 +45,12 @@ function safeString(value: unknown): string {
   return "";
 }
 
+function formatPrecheckState(value: unknown): string {
+  if (value === true) return "是";
+  if (value === false) return "否";
+  return "未检查";
+}
+
 function safeArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   return [];
@@ -127,12 +133,12 @@ function renderPrecheckParams(modules: ExperimentModulePayloadRead[] | undefined
   const payload = getModulePayload(modules, "precheck");
   return (
     <div className="content-stack">
-      <Typography.Text>密封完好：{safeString(payload.seal_intact) || "—"}</Typography.Text>
-      <Typography.Text>风险备注：{safeString(payload.risk_note) || "—"}</Typography.Text>
-      <Typography.Text>通风橱清洁：{safeString(payload.hood_clean) || "—"}</Typography.Text>
-      <Typography.Text>法兰堵塞：{safeString(payload.flange_blocked) || "—"}</Typography.Text>
-      <Typography.Text>舟污染等级：{safeString(payload.boat_contamination_level) || "—"}</Typography.Text>
-      <Typography.Text>管污染等级：{safeString(payload.tube_contamination_level) || "—"}</Typography.Text>
+      <Typography.Text>密封完好：{formatPrecheckState(payload.seal_intact)}</Typography.Text>
+      <Typography.Text>通风橱清洁：{formatPrecheckState(payload.hood_clean)}</Typography.Text>
+      <Typography.Text>法兰堵塞：{formatPrecheckState(payload.flange_blocked)}</Typography.Text>
+      <Typography.Text>瓷舟污染：{formatPrecheckState(payload.boat_contamination_level)}</Typography.Text>
+      <Typography.Text>石英管污染：{formatPrecheckState(payload.tube_contamination_level)}</Typography.Text>
+      <Typography.Text>风险说明：{safeString(payload.risk_note) || "—"}</Typography.Text>
     </div>
   );
 }
@@ -146,8 +152,7 @@ function renderPrecursorsParams(modules: ExperimentModulePayloadRead[] | undefin
   return (
     <Table
       columns={[
-        { title: "角色", dataIndex: "role", render: (v: unknown) => safeString(v) || "—" },
-        { title: "类型", dataIndex: "type", render: (v: unknown) => safeString(v) || "—" },
+        { title: "种类", dataIndex: "species", render: (v: unknown) => safeString(v) || "—" },
         { title: "品牌", dataIndex: "brand", render: (v: unknown) => safeString(v) || "—" },
         {
           title: "浓度",

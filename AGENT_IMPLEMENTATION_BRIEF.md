@@ -305,14 +305,16 @@ result_summary
 
 ```json
 {
-  "hood_clean": true,
-  "flange_blocked": false,
-  "boat_contamination_level": 0,
-  "tube_contamination_level": 0,
-  "seal_intact": true,
+  "seal_intact": null,
+  "hood_clean": null,
+  "flange_blocked": null,
+  "boat_contamination_level": null,
+  "tube_contamination_level": null,
   "risk_note": ""
 }
 ```
+
+预检查项统一为三态：`null` 表示“未检查”，`true` 表示“是”，`false` 表示“否”。新建空白实验、无 payload 草稿和 clone 后的预检查默认都应为 `null`；`risk_note` 在 UI 中常显并放在预检查区块最后。
 
 ### 9.5 precursors
 
@@ -320,8 +322,7 @@ result_summary
 {
   "items": [
     {
-      "role": "A",
-      "type": "MoO3",
+      "species": "MoO3",
       "brand": "",
       "concentration": null,
       "concentration_unit": "",
@@ -336,6 +337,8 @@ result_summary
   ]
 }
 ```
+
+前驱体不再保存 `role` 字段；原 `type` 字段已更名为 `species`，界面标签为“前驱体种类”。空白实验或无前驱体 payload 的草稿，编辑器默认显示 2 条空前驱体记录。
 
 ### 9.6 substrates
 
@@ -474,19 +477,20 @@ result_summary
 1. 没有实验日期。
 2. 没有实验人员。
 3. 没有前驱体。
-4. 没有温区程序。
-5. 温区时间点不是递增。
-6. 气体 segment 的 `end_min <= start_min`。
-7. 气体 segment 时间重叠。
-8. `seal_intact=false` 且没有 `risk_note`。
-9. 上传文件没有 method。
-10. 上传文件没有关联 experiment。
+4. 任一前驱体缺少 `species` 或 `method`。
+5. 没有温区程序。
+6. 温区时间点不是递增。
+7. 气体 segment 的 `end_min <= start_min`。
+8. 气体 segment 时间重叠。
+9. `seal_intact=false` 且没有 `risk_note`；`seal_intact=null` 不阻止提交。
+10. 上传文件没有 method。
+11. 上传文件没有关联 experiment。
 
 ### 10.2 警告但不阻止
 
 1. 室内温度不在 15–35 ℃。
 2. 湿度不在 0–100%。
-3. 管/舟污染程度大于 2。
+3. `boat_contamination_level=true` 或 `tube_contamination_level=true`。
 4. 继承的高风险字段未确认。
 5. 前驱体没有 batch_no。
 6. 文件没有关联 sample。

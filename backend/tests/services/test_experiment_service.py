@@ -62,7 +62,7 @@ def test_upsert_module_retries_unique_conflict(active_user, db_session, monkeypa
     )
     db_session.commit()
     payload = ExperimentModulePayloadUpsert(
-        payload_json={"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}
+        payload_json={"items": [{"species": "MoO3", "method": "powder"}]}
     )
     attempts = {"count": 0}
 
@@ -90,4 +90,4 @@ def test_upsert_module_retries_unique_conflict(active_user, db_session, monkeypa
 
     assert attempts["count"] == 2
     assert result.module_key == "precursors"
-    assert result.payload_json["items"][0]["type"] == "MoO3"
+    assert result.payload_json["items"][0]["species"] == "MoO3"

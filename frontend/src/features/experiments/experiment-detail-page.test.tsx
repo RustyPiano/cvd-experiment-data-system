@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
 
@@ -383,11 +383,11 @@ describe("Experiment detail-like pages", () => {
                   schema_version: "1",
                   payload_json: {
                     seal_intact: true,
-                    risk_note: "",
-                    hood_clean: "true",
-                    flange_blocked: "false",
-                    boat_contamination_level: "low",
-                    tube_contamination_level: "low",
+                    risk_note: "复核密封圈",
+                    hood_clean: null,
+                    flange_blocked: false,
+                    boat_contamination_level: false,
+                    tube_contamination_level: true,
                   },
                   note: null,
                   created_at: "2026-04-24T00:00:00Z",
@@ -401,8 +401,7 @@ describe("Experiment detail-like pages", () => {
                   payload_json: {
                     items: [
                       {
-                        role: "metal",
-                        type: "MoO3",
+                        species: "MoO3",
                         brand: "Sigma",
                         melting_temperature_C: 795,
                         spin_speed_rpm: 3000,
@@ -491,7 +490,19 @@ describe("Experiment detail-like pages", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "参数" }));
     expect(await screen.findByText("样品环境：room")).toBeInTheDocument();
-    expect(screen.getByText("密封完好：是")).toBeInTheDocument();
+    const precheckCard = screen.getByText("预检查").closest(".ant-card");
+    expect(precheckCard).not.toBeNull();
+    const precheck = within(precheckCard as HTMLElement);
+    expect(precheck.getByText("密封完好：是")).toBeInTheDocument();
+    expect(precheck.getByText("通风橱清洁：未检查")).toBeInTheDocument();
+    expect(precheck.getByText("法兰堵塞：否")).toBeInTheDocument();
+    expect(precheck.getByText("瓷舟污染：否")).toBeInTheDocument();
+    expect(precheck.getByText("石英管污染：是")).toBeInTheDocument();
+    expect(precheck.getByText("风险说明：复核密封圈")).toBeInTheDocument();
+    const precheckText = precheckCard?.textContent ?? "";
+    expect(precheckText.indexOf("石英管污染：是")).toBeLessThan(
+      precheckText.indexOf("风险说明：复核密封圈"),
+    );
     expect(screen.getByText("预清洗气体：Ar")).toBeInTheDocument();
     expect(screen.getByText("Ar: 95%；H2: 5%")).toBeInTheDocument();
     expect(screen.getByText("795 °C / 3000 rpm / 15 min")).toBeInTheDocument();

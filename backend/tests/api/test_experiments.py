@@ -26,7 +26,7 @@ def auth_headers(email: str) -> dict[str, str]:
 def populate_required_modules(experiment_id: str, email: str) -> None:
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
+        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
         headers=auth_headers(email),
     )
     assert precursors_response.status_code == 200
@@ -87,7 +87,7 @@ def assert_issue_exists(
         "overlap": ["overlap", "重叠"],
         "out of range": ["out of range", "超出"],
         "missing": ["missing", "缺失"],
-        "high": ["high", "偏高"],
+        "present": ["present", "存在污染"],
         "not linked": ["not linked", "未关联"],
         "unknown": ["unknown", "未知"],
         "valid number": ["valid number", "必须是数字"],
@@ -467,7 +467,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
             "payload_json": {
                 "seal_intact": False,
                 "risk_note": "",
-                "boat_contamination_level": "high",
+                "boat_contamination_level": True,
             }
         },
         headers=auth_headers(active_user.email),
@@ -478,7 +478,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
         json={
             "payload_json": {
-                "items": [{"role": "A", "type": "MoO3", "brand": "Sigma", "method": "powder"}],
+                "items": [{"species": "MoO3", "brand": "Sigma", "method": "powder"}],
             }
         },
         headers=auth_headers(active_user.email),
@@ -606,13 +606,13 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
         body["warnings"],
         module_key="precheck",
         field_path="boat_contamination_level",
-        message_contains="high",
+        message_contains="present",
     )
     assert_issue_message(
         body["warnings"],
         module_key="precheck",
         field_path="boat_contamination_level",
-        message="舟皿污染程度偏高",
+        message="瓷舟存在污染",
     )
     assert_issue_exists(
         body["warnings"],
@@ -673,14 +673,13 @@ def test_validate_score_uses_fixed_checklist_for_repeated_rows(active_user) -> N
         return experiment_id
 
     one_row_id = create_experiment_with_precursors(
-        [{"role": "A", "type": "MoO3", "method": "powder", "mass_mg": 5}]
+        [{"species": "MoO3", "method": "powder", "mass_mg": 5}]
     )
     two_row_id = create_experiment_with_precursors(
         [
-            {"role": "A", "type": "MoO3", "method": "powder", "mass_mg": 5},
+            {"species": "MoO3", "method": "powder", "mass_mg": 5},
             {
-                "role": "B",
-                "type": "S",
+                "species": "S",
                 "method": "evaporation",
                 "mass_mg": 2,
                 "batch_no": "S-001",
@@ -715,8 +714,7 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
             "payload_json": {
                 "items": [
                     {
-                        "role": "A",
-                        "type": "MoO3",
+                        "species": "MoO3",
                         "method": "powder",
                         "mass_mg": 5,
                         "batch_no": "MO-001",
@@ -833,8 +831,7 @@ def test_submit_rejects_legacy_invalid_numeric_module_payload(active_user, db_se
             "payload_json": {
                 "items": [
                     {
-                        "role": "A",
-                        "type": "MoO3",
+                        "species": "MoO3",
                         "method": "powder",
                         "batch_no": "MO-0424",
                         "mass_mg": 12.5,
@@ -882,7 +879,7 @@ def test_submit_reports_database_critical_missing_fields(active_user) -> None:
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "mass_mg": 5}]}},
+        json={"payload_json": {"items": [{"mass_mg": 5}]}},
         headers=auth_headers(active_user.email),
     )
     assert precursors_response.status_code == 200
@@ -945,8 +942,8 @@ def test_submit_reports_database_critical_missing_fields(active_user) -> None:
     assert_issue_exists(
         errors,
         module_key="precursors",
-        field_path="items[0].type",
-        message_contains="required",
+        field_path="items[0].species",
+        message_contains="前驱体种类必填",
     )
     assert_issue_exists(
         errors,
@@ -1005,8 +1002,7 @@ def test_put_and_get_experiment_module_payload(active_user) -> None:
             "payload_json": {
                 "items": [
                     {
-                        "role": "A",
-                        "type": "MoO3",
+                        "species": "MoO3",
                         "brand": "Sigma",
                         "concentration": None,
                         "concentration_unit": "",
@@ -1035,7 +1031,9 @@ def test_put_and_get_experiment_module_payload(active_user) -> None:
     assert put_response.status_code == 200
     assert put_response.json()["module_key"] == "precursors"
     assert put_response.json()["schema_version"] == "cvd_v1"
-    assert put_response.json()["payload_json"]["items"][0]["type"] == "MoO3"
+    assert put_response.json()["payload_json"]["items"][0]["species"] == "MoO3"
+    assert "role" not in put_response.json()["payload_json"]["items"][0]
+    assert "type" not in put_response.json()["payload_json"]["items"][0]
     assert get_response.status_code == 200
     assert get_response.json()["payload_json"]["items"][0]["batch_no"] == "MO-001"
     assert list_response.status_code == 200
@@ -1052,7 +1050,7 @@ def test_upsert_module_rejects_non_numeric_scientific_values(active_user) -> Non
     invalid_payloads = [
         (
             "precursors",
-            {"items": [{"role": "A", "type": "MoO3", "method": "powder", "mass_mg": "abc"}]},
+            {"items": [{"species": "MoO3", "method": "powder", "mass_mg": "abc"}]},
             "mass_mg",
         ),
         (
@@ -1199,7 +1197,7 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
+        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
         headers=auth_headers(active_user.email),
     )
     assert precursors_response.status_code == 200
@@ -1289,7 +1287,7 @@ def test_upsert_rejects_malformed_furnace_zone_payload_without_500(active_user) 
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
+        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
         headers=auth_headers(active_user.email),
     )
     assert precursors_response.status_code == 200
@@ -1344,7 +1342,7 @@ def test_submit_allows_missing_gas_program(active_user) -> None:
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"role": "A", "type": "MoO3", "method": "powder"}]}},
+        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
         headers=auth_headers(active_user.email),
     )
     assert precursors_response.status_code == 200
@@ -1893,7 +1891,7 @@ def test_get_module_backfills_stage3_defaults_for_legacy_payload(active_user, db
             ExperimentModulePayload(
                 experiment_run_id=experiment_id,
                 module_key=ExperimentModuleKey.PRECURSORS.value,
-                payload_json={"items": [{"role": "A", "type": "MoO3", "method": "powder"}]},
+                payload_json={"items": [{"species": "MoO3", "method": "powder"}]},
             ),
             ExperimentModulePayload(
                 experiment_run_id=experiment_id,
@@ -2027,8 +2025,8 @@ def test_upsert_module_persists_stage3_fields_and_syncs_quality_label(active_use
                 "risk_note": "",
                 "hood_clean": True,
                 "flange_blocked": False,
-                "boat_contamination_level": "low",
-                "tube_contamination_level": "medium",
+                "boat_contamination_level": False,
+                "tube_contamination_level": True,
             }
         },
         headers=auth_headers(active_user.email),
@@ -2039,8 +2037,7 @@ def test_upsert_module_persists_stage3_fields_and_syncs_quality_label(active_use
             "payload_json": {
                 "items": [
                     {
-                        "role": "A",
-                        "type": "MoO3",
+                        "species": "MoO3",
                         "brand": "Alfa",
                         "batch_no": "MO-01",
                     }
@@ -2126,7 +2123,7 @@ def test_upsert_module_persists_stage3_fields_and_syncs_quality_label(active_use
     assert environment_response.status_code == 200
     assert environment_response.json()["payload_json"]["indoor_humidity_percent"] == 41
     assert precheck_response.status_code == 200
-    assert precheck_response.json()["payload_json"]["tube_contamination_level"] == "medium"
+    assert precheck_response.json()["payload_json"]["tube_contamination_level"] is True
     assert precursors_response.status_code == 200
     assert precursors_response.json()["payload_json"]["items"][0]["batch_no"] == "MO-01"
     assert substrates_response.status_code == 200
@@ -2183,14 +2180,14 @@ def test_clone_normalizes_legacy_payloads_before_copy(active_user, db_session) -
                     "risk_note": "legacy leak",
                     "hood_clean": True,
                     "flange_blocked": True,
-                    "boat_contamination_level": "high",
-                    "tube_contamination_level": "high",
+                    "boat_contamination_level": True,
+                    "tube_contamination_level": True,
                 },
             ),
             ExperimentModulePayload(
                 experiment_run_id=source_id,
                 module_key=ExperimentModuleKey.PRECURSORS.value,
-                payload_json={"items": [{"role": "A", "type": "WO3", "method": "powder"}]},
+                payload_json={"items": [{"species": "WO3", "method": "powder"}]},
             ),
             ExperimentModulePayload(
                 experiment_run_id=source_id,
