@@ -231,12 +231,6 @@ export function ExperimentListPage() {
   };
 
   const applyMyDraftsFilter = () => {
-    setFilters((current) => ({
-      ...current,
-      mine: true,
-      page: 1,
-      status: ["draft"],
-    }));
     navigate("/experiments?mine=true&status=draft");
   };
 

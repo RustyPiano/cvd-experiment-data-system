@@ -1,5 +1,6 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import dayjs from "dayjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useNavigate } from "react-router-dom";
 
@@ -57,6 +58,14 @@ function ExperimentListPageWithUrlControls() {
         type="button"
       >
         清空地址栏筛选
+      </button>
+      <button
+        onClick={() => {
+          navigate(-1);
+        }}
+        type="button"
+      >
+        返回上一页
       </button>
       <ExperimentListPage />
     </>
@@ -218,6 +227,77 @@ describe("ExperimentListPage", () => {
     });
   });
 
+  it("clears dashboard-applied filters when navigating back to a blank URL", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        const status = url.searchParams.get("status");
+        const pageSize = Number(url.searchParams.get("page_size") ?? "10");
+        const items =
+          status === "draft" && pageSize === 10
+            ? [
+                createExperimentFixture({
+                  id: "draft-after-card",
+                  run_code: "CVD-DASHBOARD-DRAFT",
+                  status: "draft",
+                }),
+              ]
+            : pageSize === 10 && !status && url.searchParams.get("mine") !== "true"
+              ? [
+                  createExperimentFixture({
+                    id: "all-after-back",
+                    run_code: "CVD-BACK-ALL",
+                    status: "submitted",
+                  }),
+                ]
+              : [];
+
+        return new Response(
+          JSON.stringify(
+            createExperimentListResponse(items, {
+              pageSize,
+              total: items.length,
+            }),
+          ),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPageWithUrlControls />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+    });
+
+    expect(await screen.findByText("CVD-BACK-ALL")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /我的草稿/ }));
+
+    expect(await screen.findByText("CVD-DASHBOARD-DRAFT")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "我的实验" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "草稿" })).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "返回上一页" }));
+
+    expect(await screen.findByText("CVD-BACK-ALL")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "我的实验" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "草稿" })).not.toBeChecked();
+
+    await waitFor(() => {
+      expect(requests.at(-1)).toBe("/api/v1/experiments?page=1&page_size=10");
+    });
+  });
+
   it("hydrates mine and draft status filters from the URL", async () => {
     const requests: string[] = [];
 
@@ -364,6 +444,7 @@ describe("ExperimentListPage", () => {
         updated_at: "2026-04-23T03:04:00Z",
       }),
     ];
+    const expectedUpdatedAt = dayjs(recentItems[0].updated_at).format("YYYY-MM-DD HH:mm");
 
     vi.stubGlobal(
       "fetch",
@@ -401,7 +482,7 @@ describe("ExperimentListPage", () => {
     });
     expect(within(recentCard).getByText("WS2")).toBeInTheDocument();
     expect(within(recentCard).getByText("已提交")).toBeInTheDocument();
-    expect(within(recentCard).getByText(/2026-04-24 13:06/)).toBeInTheDocument();
+    expect(within(recentCard).getByText(expectedUpdatedAt)).toBeInTheDocument();
     expect(within(recentCard).getByText("CVD-RECENT-2")).toBeInTheDocument();
     expect(within(recentCard).getByText("MoSe2")).toBeInTheDocument();
     expect(within(recentCard).getByText("已锁定")).toBeInTheDocument();
