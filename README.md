@@ -79,7 +79,7 @@
 - 单实验 analysis-ready 归一化导出
 - 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_treatment_method / gas_label / characterization_method / quality_label`
 - Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe
-- Alembic 迁移 `20260423_0001` 到 `20260425_0011`
+- Alembic 迁移 `20260423_0001` 到 `20260428_0012`
 - 前端联调 handoff 文档，见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
 
 ## 环境准备
