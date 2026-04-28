@@ -41,6 +41,44 @@ describe("computeModuleCompletion", () => {
     ).toEqual({ state: "complete", percent: 100 });
   });
 
+  it("requires every furnace zone to have at least two temperature points", () => {
+    expect(
+      computeModuleCompletion("furnace_program", {
+        zones: [
+          {
+            temperature_program: [
+              { time_min: 0, temperature_C: 25 },
+              { time_min: 10, temperature_C: 720 },
+            ],
+          },
+          {
+            temperature_program: [{ time_min: 0, temperature_C: 25 }],
+          },
+        ],
+      }),
+    ).toEqual({ state: "partial", percent: 50 });
+  });
+
+  it("requires gas segment flow to be greater than zero", () => {
+    expect(
+      computeModuleCompletion("gas_program", {
+        segments: [{ flow_sccm: 0 }],
+      }),
+    ).toEqual({ state: "partial", percent: 50 });
+
+    expect(
+      computeModuleCompletion("gas_program", {
+        segments: [{ flow_sccm: -5 }],
+      }),
+    ).toEqual({ state: "partial", percent: 50 });
+
+    expect(
+      computeModuleCompletion("gas_program", {
+        segments: [{ flow_sccm: "30" }],
+      }),
+    ).toEqual({ state: "complete", percent: 100 });
+  });
+
   it("overrides completion with warning or error validation state", () => {
     const issue: ExperimentValidationIssue = {
       module_key: "gas_program",

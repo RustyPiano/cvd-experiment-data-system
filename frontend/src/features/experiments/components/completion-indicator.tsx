@@ -88,6 +88,19 @@ function scoreBooleanSteps(completed: number, total: number) {
   return 50;
 }
 
+function isPositiveNumberLike(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0;
+  }
+
+  if (typeof value === "string") {
+    const numericValue = Number(value.trim());
+    return Number.isFinite(numericValue) && numericValue > 0;
+  }
+
+  return false;
+}
+
 function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
   if (moduleKey === "basic_info") {
     return scoreBooleanSteps(
@@ -147,7 +160,7 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       return 0;
     }
 
-    return zones.some(
+    return zones.every(
       (zone) => asRecordArray(zone.temperature_program ?? zone.temperatureProgram).length >= 2,
     )
       ? 100
@@ -160,7 +173,9 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       return 0;
     }
 
-    return segments.some((segment) => isFilled(segment.flow_sccm ?? segment.flowSccm)) ? 100 : 50;
+    return segments.some((segment) => isPositiveNumberLike(segment.flow_sccm ?? segment.flowSccm))
+      ? 100
+      : 50;
   }
 
   if (moduleKey === "process_observation") {
