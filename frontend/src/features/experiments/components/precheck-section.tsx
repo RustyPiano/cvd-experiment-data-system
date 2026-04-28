@@ -1,4 +1,4 @@
-import { Input, Radio, Typography } from "antd";
+import { Alert, Input, Radio, Typography } from "antd";
 
 import type { PrecheckValues } from "../editor-types";
 
@@ -10,15 +10,24 @@ const nullableBooleanOptions = [
 ];
 export function PrecheckSection({
   disabled,
+  inheritedFrom,
   onChange,
   value,
 }: {
   disabled: boolean;
+  inheritedFrom?: string;
   onChange: (nextValue: PrecheckValues) => void;
   value: PrecheckValues;
 }) {
   return (
     <div className="content-stack">
+      {inheritedFrom ? (
+        <Alert
+          showIcon
+          title={`以下参数继承自 ${inheritedFrom}，请确认或修改。`}
+          type="info"
+        />
+      ) : null}
       <div className="editor-field">
         <Typography.Text strong>密封完好</Typography.Text>
         <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">

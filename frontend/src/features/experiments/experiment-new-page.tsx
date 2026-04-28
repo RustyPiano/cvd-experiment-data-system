@@ -12,6 +12,7 @@ import {
   cloneExperiment,
   createExperiment,
   createExperimentFromRecipe,
+  listExperimentModules,
   listExperiments,
 } from "./api";
 import { HistoryCloneDialog } from "./components/history-clone-dialog";
@@ -45,6 +46,44 @@ function groupRecipesByMaterialSystem(recipes: RecipeRead[]) {
   }, []);
 }
 
+const inheritanceStoragePrefix = "experiment:inherit:";
+
+function inheritanceStorageKey(sourceExperimentId: string) {
+  return `${inheritanceStoragePrefix}${sourceExperimentId}`;
+}
+
+function writeInheritancePayload({
+  environment,
+  precheck,
+  sourceExperiment,
+}: {
+  environment?: Record<string, unknown>;
+  precheck?: Record<string, unknown>;
+  sourceExperiment: ExperimentRead;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(
+    inheritanceStorageKey(sourceExperiment.id),
+    JSON.stringify({
+      sourceExperimentId: sourceExperiment.id,
+      sourceRunCode: sourceExperiment.run_code,
+      environment: environment ?? null,
+      precheck: precheck ?? null,
+    }),
+  );
+}
+
+function removeInheritancePayload(sourceExperimentId: string | null) {
+  if (!sourceExperimentId || typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(inheritanceStorageKey(sourceExperimentId));
+}
+
 export function ExperimentNewPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
@@ -55,22 +94,54 @@ export function ExperimentNewPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [recipeCreateError, setRecipeCreateError] = useState<string | null>(null);
 
-  const navigateToEditor = (experiment: ExperimentRead) => {
-    navigate(`/experiments/${experiment.id}/edit`);
+  const navigateToEditor = (experiment: ExperimentRead, inheritFrom?: string | null) => {
+    const searchParams = inheritFrom ? `?inheritFrom=${encodeURIComponent(inheritFrom)}` : "";
+    navigate(`/experiments/${experiment.id}/edit${searchParams}`);
   };
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      createExperiment(session.accessToken!, {
-        experiment_type: "cvd",
-        material_system: null,
-        experiment_date: dayjs().format("YYYY-MM-DD"),
-        objective: null,
-      }),
-    onSuccess: (experiment) => {
+    mutationFn: async () => {
+      let inheritFrom: string | null = null;
+      const recentResponse = await listExperiments(session.accessToken!, {
+        mine: true,
+        status: ["draft", "submitted", "locked"],
+        sortBy: "updated_at",
+        sortOrder: "desc",
+        page: 1,
+        pageSize: 1,
+      });
+      const sourceExperiment = recentResponse.items[0];
+
+      if (sourceExperiment) {
+        const modulesResponse = await listExperimentModules(session.accessToken!, sourceExperiment.id);
+        const modulePayloads = Object.fromEntries(
+          modulesResponse.items.map((module) => [module.module_key, module.payload_json]),
+        );
+        writeInheritancePayload({
+          environment: modulePayloads.environment,
+          precheck: modulePayloads.precheck,
+          sourceExperiment,
+        });
+        inheritFrom = sourceExperiment.id;
+      }
+
+      try {
+        const experiment = await createExperiment(session.accessToken!, {
+          experiment_type: "cvd",
+          material_system: null,
+          experiment_date: dayjs().format("YYYY-MM-DD"),
+          objective: null,
+        });
+        return { experiment, inheritFrom };
+      } catch (error) {
+        removeInheritancePayload(inheritFrom);
+        throw error;
+      }
+    },
+    onSuccess: ({ experiment, inheritFrom }) => {
       setActionError(null);
       message.success("实验创建成功");
-      navigateToEditor(experiment);
+      navigateToEditor(experiment, inheritFrom);
     },
     onError: (error) => {
       setActionError(resolveErrorMessage(error, "创建实验失败"));

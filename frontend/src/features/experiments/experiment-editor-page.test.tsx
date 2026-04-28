@@ -349,7 +349,13 @@ function createEditorFetchMock() {
   };
 }
 
-function renderEditorWithDataRouter(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+function renderEditorWithDataRouter({
+  initialEntry = "/experiments/exp-1/edit",
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+}: {
+  initialEntry?: string;
+  queryClient?: QueryClient;
+} = {}) {
   const router = createMemoryRouter(
     [
       {
@@ -361,7 +367,7 @@ function renderEditorWithDataRouter(queryClient = new QueryClient({ defaultOptio
         element: <div>Experiment detail route</div>,
       },
     ],
-    { initialEntries: ["/experiments/exp-1/edit"] },
+    { initialEntries: [initialEntry] },
   );
 
   render(
@@ -391,6 +397,7 @@ function renderEditorWithDataRouter(queryClient = new QueryClient({ defaultOptio
 describe("ExperimentEditorPage", () => {
   afterEach(() => {
     cleanup();
+    window.sessionStorage.clear();
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -467,12 +474,13 @@ describe("ExperimentEditorPage", () => {
     expect(await screen.findByRole("heading", { name: "预检查" })).toBeInTheDocument();
 
     for (const label of ["密封完好", "通风橱已清洁", "法兰已堵住", "瓷舟污染", "石英管污染"]) {
-      expect(
-        within(screen.getByRole("radiogroup", { name: label })).getByRole("radio", {
-          name: "未检查",
-          checked: true,
-        }),
-      ).toBeInTheDocument();
+      const uncheckedRadio = within(screen.getByRole("radiogroup", { name: label })).getByRole(
+        "radio",
+        { name: "未检查" },
+      );
+      expect(uncheckedRadio.closest(".ant-radio-button-wrapper")).toHaveClass(
+        "ant-radio-button-wrapper-checked",
+      );
     }
 
     expect(screen.getAllByText(/^前驱体 \d$/)).toHaveLength(2);
@@ -501,6 +509,126 @@ describe("ExperimentEditorPage", () => {
       "href",
       "/experiments/exp-source",
     );
+  });
+
+  it("inherits environment and precheck once from session storage, sanitizes transient fields, and clears alerts after edits", async () => {
+    const server = createEditorFetchMock();
+    window.sessionStorage.setItem(
+      "experiment:inherit:exp-source",
+      JSON.stringify({
+        sourceExperimentId: "exp-source",
+        sourceRunCode: "CVD-2026-0009",
+        environment: {
+          indoor_temperature_C: 23,
+          indoor_humidity_percent: 41,
+          sample_env: "glovebox shelf",
+          abnormal_note: "old abnormal note",
+        },
+        precheck: {
+          seal_intact: true,
+          hood_clean: false,
+          flange_blocked: true,
+          boat_contamination_level: false,
+          tube_contamination_level: true,
+          risk_note: "old risk note",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    const { router } = renderEditorWithDataRouter({
+      initialEntry: "/experiments/exp-1/edit?inheritFrom=exp-source",
+    });
+
+    expect(await screen.findByLabelText("样品环境")).toHaveValue("glovebox shelf");
+    expect(screen.getByLabelText("异常备注")).toHaveValue("");
+    expect(screen.getByLabelText("风险说明")).toHaveValue("");
+    for (const label of ["密封完好", "通风橱已清洁", "法兰已堵住", "瓷舟污染", "石英管污染"]) {
+      const uncheckedRadio = within(screen.getByRole("radiogroup", { name: label })).getByRole(
+        "radio",
+        { name: "未检查" },
+      );
+      expect(uncheckedRadio.closest(".ant-radio-button-wrapper")).toHaveClass(
+        "ant-radio-button-wrapper-checked",
+      );
+    }
+
+    expect(
+      screen.getAllByText("以下参数继承自 CVD-2026-0009，请确认或修改。"),
+    ).toHaveLength(2);
+
+    await waitFor(() => {
+      expect(
+        server.requests.some((request) => {
+          if (
+            request.method !== "PUT" ||
+            request.pathname !== "/api/v1/experiments/exp-1/modules/environment"
+          ) {
+            return false;
+          }
+
+          const payload = (
+            request.body as {
+              payload_json?: {
+                abnormal_note?: string;
+                indoor_humidity_percent?: number;
+                indoor_temperature_C?: number;
+                sample_env?: string;
+              };
+            }
+          ).payload_json;
+
+          return (
+            payload?.indoor_temperature_C === 23 &&
+            payload?.indoor_humidity_percent === 41 &&
+            payload?.sample_env === "glovebox shelf" &&
+            payload?.abnormal_note === ""
+          );
+        }),
+      ).toBe(true);
+      expect(
+        server.requests.some((request) => {
+          if (
+            request.method !== "PUT" ||
+            request.pathname !== "/api/v1/experiments/exp-1/modules/precheck"
+          ) {
+            return false;
+          }
+
+          const payload = (
+            request.body as {
+              payload_json?: {
+                boat_contamination_level?: boolean | null;
+                flange_blocked?: boolean | null;
+                hood_clean?: boolean | null;
+                risk_note?: string;
+                seal_intact?: boolean | null;
+                tube_contamination_level?: boolean | null;
+              };
+            }
+          ).payload_json;
+
+          return (
+            payload?.seal_intact === null &&
+            payload?.hood_clean === null &&
+            payload?.flange_blocked === null &&
+            payload?.boat_contamination_level === null &&
+            payload?.tube_contamination_level === null &&
+            payload?.risk_note === ""
+          );
+        }),
+      ).toBe(true);
+    });
+
+    expect(window.sessionStorage.getItem("experiment:inherit:exp-source")).toBeNull();
+    await waitFor(() => {
+      expect(router.state.location.search).toBe("");
+    });
+
+    fireEvent.change(screen.getByLabelText("样品环境"), {
+      target: { value: "edited sample env" },
+    });
+    expect(screen.queryAllByText("以下参数继承自 CVD-2026-0009，请确认或修改。")).toHaveLength(1);
   });
 
   it("autosaves contamination checks as trinary boolean values", async () => {

@@ -1,7 +1,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 
 import { ExperimentNewPage } from "./experiment-new-page";
 import { renderWithApp } from "../../test/render";
@@ -48,9 +48,20 @@ function buildRecipe(overrides: Partial<RecipeRead> = {}): RecipeRead {
   };
 }
 
+function EditorRouteProbe() {
+  const location = useLocation();
+  return (
+    <div>
+      <div>编辑器路由</div>
+      <div aria-label="editor search">{location.search}</div>
+    </div>
+  );
+}
+
 describe("ExperimentNewPage", () => {
   afterEach(() => {
     cleanup();
+    window.sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
@@ -77,6 +88,152 @@ describe("ExperimentNewPage", () => {
     await user.click(screen.getByRole("button", { name: "立即创建" }));
 
     expect(await screen.findByText("Insufficient permissions")).toBeInTheDocument();
+  });
+
+  it("loads the latest experiment modules before creating a blank experiment and passes inheritFrom", async () => {
+    const user = userEvent.setup();
+    const requests: Array<{ body: unknown; method: string; pathname: string; search: string }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+      requests.push({
+        body: init?.body ? JSON.parse(init.body.toString()) : null,
+        method,
+        pathname: url.pathname,
+        search: url.search,
+      });
+
+      if (url.pathname === "/api/v1/experiments" && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            items: [
+              buildExperiment({
+                id: "exp-source",
+                run_code: "CVD-2026-0009",
+                status: "locked",
+                updated_at: "2026-04-27T00:00:00Z",
+              }),
+            ],
+            total: 1,
+            page: 1,
+            page_size: 1,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (url.pathname === "/api/v1/experiments/exp-source/modules" && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "module-environment",
+                experiment_run_id: "exp-source",
+                module_key: "environment",
+                schema_version: "cvd_v1",
+                payload_json: {
+                  indoor_temperature_C: 24,
+                  indoor_humidity_percent: 42,
+                  sample_env: "glovebox",
+                  abnormal_note: "source abnormal note",
+                },
+                note: null,
+                created_at: "2026-04-27T00:00:00Z",
+                updated_at: "2026-04-27T00:00:00Z",
+              },
+              {
+                id: "module-precheck",
+                experiment_run_id: "exp-source",
+                module_key: "precheck",
+                schema_version: "cvd_v1",
+                payload_json: {
+                  seal_intact: true,
+                  hood_clean: false,
+                  flange_blocked: true,
+                  boat_contamination_level: false,
+                  tube_contamination_level: true,
+                  risk_note: "source risk note",
+                },
+                note: null,
+                created_at: "2026-04-27T00:00:00Z",
+                updated_at: "2026-04-27T00:00:00Z",
+              },
+            ],
+            total: 2,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (url.pathname === "/api/v1/experiments" && method === "POST") {
+        return new Response(
+          JSON.stringify(
+            buildExperiment({
+              id: "exp-new",
+              run_code: "CVD-2026-0010",
+            }),
+          ),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      return new Response("Not found", { status: 404 });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/new" element={<ExperimentNewPage />} />
+        <Route path="/experiments/:experimentId/edit" element={<EditorRouteProbe />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/new"],
+      },
+    );
+
+    await user.click(screen.getByRole("button", { name: "立即创建" }));
+
+    expect(await screen.findByText("编辑器路由")).toBeInTheDocument();
+    expect(screen.getByLabelText("editor search")).toHaveTextContent("?inheritFrom=exp-source");
+    expect(requests.map((request) => `${request.method} ${request.pathname}`)).toEqual([
+      "GET /api/v1/experiments",
+      "GET /api/v1/experiments/exp-source/modules",
+      "POST /api/v1/experiments",
+    ]);
+    expect(Object.fromEntries(new URLSearchParams(requests[0].search))).toEqual({
+      mine: "true",
+      status: "draft,submitted,locked",
+      sort_by: "updated_at",
+      sort_order: "desc",
+      page: "1",
+      page_size: "1",
+    });
+
+    const storedPayload = window.sessionStorage.getItem("experiment:inherit:exp-source");
+    expect(storedPayload).not.toBeNull();
+    expect(JSON.parse(storedPayload ?? "{}")).toMatchObject({
+      sourceExperimentId: "exp-source",
+      sourceRunCode: "CVD-2026-0009",
+      environment: {
+        indoor_temperature_C: 24,
+        abnormal_note: "source abnormal note",
+      },
+      precheck: {
+        seal_intact: true,
+        risk_note: "source risk note",
+      },
+    });
   });
 
   it("shows a friendly message when there is no recent experiment to clone", async () => {

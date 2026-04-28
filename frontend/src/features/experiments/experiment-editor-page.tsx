@@ -5,6 +5,7 @@ import {
   UNSAFE_DataRouterContext as DataRouterContext,
   useNavigate,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
@@ -82,16 +83,20 @@ function ExperimentEditorWorkspace({
   accessToken,
   currentUserId,
   experimentId,
+  inheritFrom,
   initialExperiment,
   initialModulePayloads,
   initialValues,
+  onInheritanceConsumed,
 }: {
   accessToken: string;
   currentUserId: string;
   experimentId: string;
+  inheritFrom?: string | null;
   initialExperiment: ReturnType<typeof getExperiment> extends Promise<infer T> ? T : never;
   initialModulePayloads: ModulePayloadMap;
   initialValues: ReturnType<typeof createInitialEditorValues>;
+  onInheritanceConsumed?: () => void;
 }) {
   const navigate = useNavigate();
   const { modal } = App.useApp();
@@ -99,9 +104,11 @@ function ExperimentEditorWorkspace({
     accessToken,
     currentUserId,
     experimentId,
+    inheritFrom,
     initialExperiment,
     initialModulePayloads,
     initialValues,
+    onInheritanceConsumed,
   });
   const dataRouterContext = useContext(DataRouterContext);
   const editorDisabled = !editor.isDraft || editor.isSubmitting;
@@ -270,7 +277,9 @@ function ExperimentEditorWorkspace({
             >
               <EnvironmentSection
                 disabled={editorDisabled}
+                inheritedFrom={editor.inheritedFrom.environment}
                 onChange={(nextValue) => {
+                  editor.clearInheritedSection("environment");
                   editor.updateValues((current) => ({
                     ...current,
                     environment: nextValue,
@@ -289,7 +298,9 @@ function ExperimentEditorWorkspace({
             >
               <PrecheckSection
                 disabled={editorDisabled}
+                inheritedFrom={editor.inheritedFrom.precheck}
                 onChange={(nextValue) => {
+                  editor.clearInheritedSection("precheck");
                   editor.updateValues((current) => ({
                     ...current,
                     precheck: nextValue,
@@ -458,8 +469,10 @@ function ExperimentEditorWorkspace({
 export function ExperimentEditorPage() {
   const { experimentId = "" } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuth();
   const currentUserId = session.currentUser?.id ?? "anonymous";
+  const inheritFrom = searchParams.get("inheritFrom");
 
   const experimentQuery = useQuery({
     queryKey: ["experiments", "editor", currentUserId, experimentId],
@@ -535,9 +548,15 @@ export function ExperimentEditorPage() {
       accessToken={session.accessToken!}
       currentUserId={currentUserId}
       experimentId={experimentId}
+      inheritFrom={inheritFrom}
       initialExperiment={experimentQuery.data}
       initialModulePayloads={initialModulePayloads}
       initialValues={initialValues}
+      onInheritanceConsumed={() => {
+        const nextSearchParams = new URLSearchParams(searchParams);
+        nextSearchParams.delete("inheritFrom");
+        setSearchParams(nextSearchParams, { replace: true });
+      }}
     />
   );
 }

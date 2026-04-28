@@ -1,4 +1,4 @@
-import { Input, Typography } from "antd";
+import { Alert, Input, Typography } from "antd";
 
 import type { EnvironmentValues } from "../editor-types";
 
@@ -6,15 +6,25 @@ const { TextArea } = Input;
 
 export function EnvironmentSection({
   disabled,
+  inheritedFrom,
   onChange,
   value,
 }: {
   disabled: boolean;
+  inheritedFrom?: string;
   onChange: (nextValue: EnvironmentValues) => void;
   value: EnvironmentValues;
 }) {
   return (
     <div className="editor-form-grid">
+      {inheritedFrom ? (
+        <Alert
+          className="editor-field-wide"
+          showIcon
+          title={`以下参数继承自 ${inheritedFrom}，请确认或修改。`}
+          type="info"
+        />
+      ) : null}
       <div className="editor-field">
         <Typography.Text strong>环境温度 (°C)</Typography.Text>
         <Input
