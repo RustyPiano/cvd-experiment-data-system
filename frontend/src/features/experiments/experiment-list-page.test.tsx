@@ -1,9 +1,48 @@
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ExperimentListPage } from "./experiment-list-page";
 import { renderWithApp } from "../../test/render";
+import type { ExperimentRead } from "../../shared/types/api";
+
+function createExperimentFixture(
+  overrides: Partial<ExperimentRead> = {},
+): ExperimentRead {
+  return {
+    id: "exp-1",
+    run_code: "CVD-2026-0001",
+    owner_id: "u-1",
+    derived_from_run_id: null,
+    derived_from_run_code: null,
+    recipe_id: null,
+    experiment_type: "cvd",
+    material_system: "MoS2",
+    experiment_date: "2026-04-23",
+    objective: "baseline",
+    status: "draft",
+    quality_label: "unknown",
+    summary_result: null,
+    invalid_reason: null,
+    created_at: "2026-04-23T00:00:00Z",
+    updated_at: "2026-04-23T00:00:00Z",
+    submitted_at: null,
+    locked_at: null,
+    ...overrides,
+  };
+}
+
+function createExperimentListResponse(
+  items: ExperimentRead[] = [],
+  options: { page?: number; pageSize?: number; total?: number } = {},
+) {
+  return {
+    items,
+    total: options.total ?? items.length,
+    page: options.page ?? 1,
+    page_size: options.pageSize ?? 10,
+  };
+}
 
 describe("ExperimentListPage", () => {
   afterEach(() => {
@@ -57,9 +96,167 @@ describe("ExperimentListPage", () => {
       initialEntries: ["/experiments"],
     });
 
-    expect(await screen.findByText("CVD-2026-0001")).toBeInTheDocument();
-    expect(screen.getByText("MoS2")).toBeInTheDocument();
+    expect((await screen.findAllByText("CVD-2026-0001")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("MoS2").length).toBeGreaterThan(0);
     expect(screen.getByText(/当前共/i)).toBeInTheDocument();
+  });
+
+  it("queries dashboard cards with listExperiments-compatible filters", async () => {
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        return new Response(JSON.stringify(createExperimentListResponse()), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+    });
+
+    await screen.findByText(/当前共 0 条记录/);
+
+    await waitFor(() => {
+      expect(requests).toEqual(
+        expect.arrayContaining([
+          "/api/v1/experiments?mine=true&status=draft&page=1&page_size=1",
+          "/api/v1/experiments?mine=true&status=submitted&page=1&page_size=1",
+          "/api/v1/experiments?mine=true&page=1&page_size=3&sort_by=updated_at&sort_order=desc",
+        ]),
+      );
+    });
+  });
+
+  it("clicking my drafts applies the mine and draft filters to the list", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        const status = url.searchParams.get("status");
+        const pageSize = Number(url.searchParams.get("page_size") ?? "10");
+        const items =
+          status === "draft" && pageSize === 10
+            ? [
+                createExperimentFixture({
+                  id: "draft-exp",
+                  run_code: "CVD-DRAFT-1",
+                  status: "draft",
+                }),
+              ]
+            : [];
+
+        return new Response(
+          JSON.stringify(
+            createExperimentListResponse(items, {
+              pageSize,
+              total: items.length,
+            }),
+          ),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+    });
+
+    await screen.findByText(/当前共 0 条记录/);
+    await user.click(screen.getByRole("button", { name: /我的草稿/ }));
+
+    expect(await screen.findByText("CVD-DRAFT-1")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "我的实验" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "草稿" })).toBeChecked();
+
+    await waitFor(() => {
+      expect(
+        requests.some(
+          (request) =>
+            request === "/api/v1/experiments?mine=true&status=draft&page=1&page_size=10",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("renders recent edited experiments with status, material, run code, and update time", async () => {
+    const recentItems = [
+      createExperimentFixture({
+        id: "recent-1",
+        run_code: "CVD-RECENT-1",
+        material_system: "WS2",
+        status: "submitted",
+        updated_at: "2026-04-24T05:06:00Z",
+      }),
+      createExperimentFixture({
+        id: "recent-2",
+        run_code: "CVD-RECENT-2",
+        material_system: "MoSe2",
+        status: "locked",
+        updated_at: "2026-04-23T03:04:00Z",
+      }),
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        const sortBy = url.searchParams.get("sort_by");
+        const items = sortBy === "updated_at" ? recentItems : [];
+        const pageSize = Number(url.searchParams.get("page_size") ?? "10");
+
+        return new Response(
+          JSON.stringify(
+            createExperimentListResponse(items, {
+              pageSize,
+              total: items.length,
+            }),
+          ),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+    });
+
+    const recentCard = await screen.findByTestId("recent-experiments-card");
+    await waitFor(() => {
+      expect(within(recentCard).getByText("CVD-RECENT-1")).toBeInTheDocument();
+    });
+    expect(within(recentCard).getByText("WS2")).toBeInTheDocument();
+    expect(within(recentCard).getByText("已提交")).toBeInTheDocument();
+    expect(within(recentCard).getByText(/2026-04-24 13:06/)).toBeInTheDocument();
+    expect(within(recentCard).getByText("CVD-RECENT-2")).toBeInTheDocument();
+    expect(within(recentCard).getByText("MoSe2")).toBeInTheDocument();
+    expect(within(recentCard).getByText("已锁定")).toBeInTheDocument();
   });
 
   it("passes filters and pagination to the backend", async () => {
@@ -114,7 +311,7 @@ describe("ExperimentListPage", () => {
       initialEntries: ["/experiments"],
     });
 
-    expect(await screen.findByText("CVD-2026-0001")).toBeInTheDocument();
+    expect((await screen.findAllByText("CVD-2026-0001")).length).toBeGreaterThan(0);
 
     await user.type(screen.getByRole("textbox", { name: "实验搜索" }), "growth");
     await user.type(screen.getByRole("textbox", { name: "材料体系筛选" }), "MoS2");
@@ -244,7 +441,7 @@ describe("ExperimentListPage", () => {
       initialEntries: ["/experiments"],
     });
 
-    expect(await screen.findByText("CVD-2026-0001")).toBeInTheDocument();
+    expect((await screen.findAllByText("CVD-2026-0001")).length).toBeGreaterThan(0);
     await user.click(screen.getByText("实验编号"));
 
     await waitFor(() => {

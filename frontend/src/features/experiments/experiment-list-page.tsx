@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { PlusOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Checkbox, Input, Space, Typography } from "antd";
+import { Alert, Button, Card, Checkbox, Col, Empty, Input, Row, Space, Statistic, Typography } from "antd";
+import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
@@ -10,6 +11,7 @@ import { useDebounce } from "../../shared/lib/use-debounce";
 import type { ExperimentRead, ExperimentStatus } from "../../shared/types/api";
 import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
+import { StatusTag } from "../../shared/ui/status-tag";
 import {
   downloadExperimentExcel,
   exportExperimentJson,
@@ -132,9 +134,56 @@ export function ExperimentListPage() {
     enabled: session.isAuthenticated,
   });
 
+  const myDraftsQuery = useQuery({
+    queryKey: ["experiments", "dashboard", "my-drafts", session.currentUser?.id ?? "anonymous"],
+    queryFn: () =>
+      listExperiments(session.accessToken!, {
+        mine: true,
+        status: ["draft"],
+        page: 1,
+        pageSize: 1,
+      }),
+    enabled: session.isAuthenticated,
+  });
+
+  const pendingActionQuery = useQuery({
+    queryKey: ["experiments", "dashboard", "pending-action", session.currentUser?.id ?? "anonymous"],
+    queryFn: () =>
+      listExperiments(session.accessToken!, {
+        mine: true,
+        status: ["submitted"],
+        page: 1,
+        pageSize: 1,
+      }),
+    enabled: session.isAuthenticated,
+  });
+
+  const recentEditedQuery = useQuery({
+    queryKey: ["experiments", "dashboard", "recent-edited", session.currentUser?.id ?? "anonymous"],
+    queryFn: () =>
+      listExperiments(session.accessToken!, {
+        mine: true,
+        sortBy: "updated_at",
+        sortOrder: "desc",
+        page: 1,
+        pageSize: 3,
+      }),
+    enabled: session.isAuthenticated,
+  });
+
   const resetFilters = () => {
     setFilters(() => defaultFilters);
     setListActionError(null);
+  };
+
+  const applyMyDraftsFilter = () => {
+    setFilters((current) => ({
+      ...current,
+      mine: true,
+      page: 1,
+      status: ["draft"],
+    }));
+    navigate("/experiments?mine=true&status=draft");
   };
 
   const handleExportJson = async (experiment: ExperimentRead) => {
@@ -188,6 +237,79 @@ export function ExperimentListPage() {
         subtitle="管理 CVD 实验、样品、表征文件和导出任务。"
         title="实验记录"
       />
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={8}>
+          <Card
+            aria-label="我的草稿"
+            hoverable
+            loading={myDraftsQuery.isLoading}
+            onClick={applyMyDraftsFilter}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                applyMyDraftsFilter();
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <Statistic
+              title="我的草稿"
+              value={myDraftsQuery.isError ? "-" : (myDraftsQuery.data?.total ?? 0)}
+            />
+            {myDraftsQuery.isError ? (
+              <Typography.Text type="danger">加载失败</Typography.Text>
+            ) : null}
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card loading={pendingActionQuery.isLoading}>
+            <Statistic
+              title="待操作"
+              value={pendingActionQuery.isError ? "-" : (pendingActionQuery.data?.total ?? 0)}
+            />
+            {pendingActionQuery.isError ? (
+              <Typography.Text type="danger">加载失败</Typography.Text>
+            ) : null}
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card data-testid="recent-experiments-card" loading={recentEditedQuery.isLoading} title="最近编辑">
+            {recentEditedQuery.isError ? (
+              <Typography.Text type="danger">加载失败</Typography.Text>
+            ) : recentEditedQuery.data?.items.length ? (
+              <div role="list">
+                {recentEditedQuery.data.items.map((experiment) => (
+                  <div
+                    key={experiment.id}
+                    role="listitem"
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: "8px 0",
+                    }}
+                  >
+                    <Space size={8} wrap>
+                      <Typography.Text strong>{experiment.run_code}</Typography.Text>
+                      <StatusTag status={experiment.status} />
+                    </Space>
+                    <div style={{ marginTop: 4 }}>
+                      <Space size={8} wrap>
+                        <Typography.Text>{experiment.material_system || "未填写"}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {dayjs(experiment.updated_at).format("YYYY-MM-DD HH:mm")}
+                        </Typography.Text>
+                      </Space>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty description="暂无最近编辑" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
+          </Card>
+        </Col>
+      </Row>
 
       {experimentQuery.isError ? (
         <Alert
