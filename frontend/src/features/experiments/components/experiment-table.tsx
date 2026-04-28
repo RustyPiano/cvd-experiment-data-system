@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import { Link, useNavigate } from "react-router-dom";
 
 import { EmptyState } from "../../../shared/ui/empty-state";
-import { StatusTag } from "../../../shared/ui/status-tag";
+import { QualityTag, StatusTag } from "../../../shared/ui/status-tag";
 import type { ExperimentRead } from "../../../shared/types/api";
 import type { ExperimentSortField } from "../api";
 
@@ -19,13 +19,13 @@ type ExperimentTableProps = {
   onTableChange: (
     page: number,
     pageSize: number,
-    sortField: ExperimentSortField,
-    sortOrder: ExperimentSortOrder,
+    sortField: ExperimentSortField | null,
+    sortOrder: ExperimentSortOrder | null,
   ) => void;
   page: number;
   pageSize: number;
-  sortField: ExperimentSortField;
-  sortOrder: ExperimentSortOrder;
+  sortField: ExperimentSortField | null;
+  sortOrder: ExperimentSortOrder | null;
   total: number;
 };
 
@@ -55,7 +55,8 @@ export function ExperimentTable({
   total,
 }: ExperimentTableProps) {
   const navigate = useNavigate();
-  const resolveSortOrder = (field: ExperimentSortField) => (sortField === field ? sortOrder : null);
+  const resolveSortOrder = (field: ExperimentSortField) =>
+    sortField === field && sortOrder ? sortOrder : null;
 
   const columns: ColumnsType<ExperimentRead> = [
     {
@@ -76,6 +77,12 @@ export function ExperimentTable({
       sorter: true,
       render: (value: string | null) =>
         value || <Typography.Text type="secondary">未填写</Typography.Text>,
+    },
+    {
+      title: "质量标签",
+      dataIndex: "quality_label",
+      key: "quality_label",
+      render: (value: ExperimentRead["quality_label"]) => <QualityTag label={value} />,
     },
     {
       title: "实验日期",
@@ -165,15 +172,15 @@ export function ExperimentTable({
           onTableChange(
             pagination.current ?? page,
             pagination.pageSize ?? pageSize,
-            "updated_at",
-            "descend",
+            null,
+            null,
           );
           return;
         }
 
         const nextField = isExperimentSortField(activeSorter?.columnKey)
           ? activeSorter.columnKey
-          : "updated_at";
+          : null;
         const nextOrder = activeSorter?.order === "ascend" ? "ascend" : "descend";
 
         onTableChange(

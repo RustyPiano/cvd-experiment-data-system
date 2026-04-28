@@ -12,6 +12,8 @@ export function EditorActionBar({
   experiment,
   isDraft,
   onBack,
+  onPrev,
+  onNext,
   onSubmit,
   saveSummary,
   submitState,
@@ -19,6 +21,8 @@ export function EditorActionBar({
   experiment: ExperimentRead;
   isDraft: boolean;
   onBack: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
   onSubmit: () => void;
   saveSummary: string;
   submitState: SubmitState;
@@ -41,15 +45,27 @@ export function EditorActionBar({
         <Space wrap>
           <Button onClick={onBack}>返回详情</Button>
           {isDraft ? (
-            <Button
-              loading={submitState.status === "submitting"}
-              onClick={() => {
-                void onSubmit();
-              }}
-              type="primary"
-            >
-              提交实验
-            </Button>
+            <>
+              {onPrev ? (
+                <Button onClick={onPrev} size="small">
+                  上一步
+                </Button>
+              ) : null}
+              {onNext ? (
+                <Button onClick={onNext} size="small">
+                  下一步
+                </Button>
+              ) : null}
+              <Button
+                loading={submitState.status === "submitting"}
+                onClick={() => {
+                  void onSubmit();
+                }}
+                type="primary"
+              >
+                提交实验
+              </Button>
+            </>
           ) : null}
         </Space>
       </div>

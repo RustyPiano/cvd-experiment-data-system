@@ -194,6 +194,19 @@ describe("Experiment detail-like pages", () => {
         );
       }
 
+      if (url.pathname === "/api/v1/experiments/exp-1/modules" && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            items: [],
+            total: 0,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
       if (url.pathname === "/api/v1/experiments/exp-1/export/json" && method === "GET") {
         return new Response(
           JSON.stringify({
@@ -238,13 +251,25 @@ describe("Experiment detail-like pages", () => {
       },
     );
 
-    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
-    expect(screen.getByText("upload_file")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "查看样品 S-2026-0001-TOP" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "管理文件" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "导出 JSON" })).toBeInTheDocument();
+    // Overview tab is active by default
+    expect(await screen.findByRole("button", { name: "导出 JSON" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出 Excel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "管理文件" })).toBeInTheDocument();
 
+    // Switch to Files tab
+    fireEvent.click(screen.getByRole("tab", { name: "文件" }));
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    // Switch to Audit tab
+    fireEvent.click(screen.getByRole("tab", { name: "审计" }));
+    expect(await screen.findByText("upload_file")).toBeInTheDocument();
+
+    // Switch to Samples tab
+    fireEvent.click(screen.getByRole("tab", { name: "样品" }));
+    expect(await screen.findByLabelText("查看样品 S-2026-0001-TOP")).toBeInTheDocument();
+
+    // Switch back to Overview and click exports
+    fireEvent.click(screen.getByRole("tab", { name: "概览" }));
     fireEvent.click(screen.getByRole("button", { name: "导出 JSON" }));
     fireEvent.click(screen.getByRole("button", { name: "导出 Excel" }));
 
@@ -267,7 +292,7 @@ describe("Experiment detail-like pages", () => {
 
     expect(clickSpy).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "查看样品 S-2026-0001-TOP" }));
+    fireEvent.click(screen.getByLabelText("查看样品 S-2026-0001-TOP"));
     expect(await screen.findByText("样品详情路由")).toBeInTheDocument();
   });
 
@@ -332,6 +357,52 @@ describe("Experiment detail-like pages", () => {
           );
         }
 
+        if (url.pathname === "/api/v1/experiments/exp-2/modules") {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: "mod-env",
+                  experiment_run_id: "exp-2",
+                  module_key: "environment",
+                  schema_version: "1",
+                  payload_json: {
+                    indoor_temperature_C: 24,
+                    indoor_humidity_percent: 45,
+                    sample_env: "room",
+                    abnormal_note: "",
+                  },
+                  note: null,
+                  created_at: "2026-04-24T00:00:00Z",
+                  updated_at: "2026-04-24T00:00:00Z",
+                },
+                {
+                  id: "mod-precheck",
+                  experiment_run_id: "exp-2",
+                  module_key: "precheck",
+                  schema_version: "1",
+                  payload_json: {
+                    seal_intact: true,
+                    risk_note: "",
+                    hood_clean: "true",
+                    flange_blocked: "false",
+                    boat_contamination_level: "low",
+                    tube_contamination_level: "low",
+                  },
+                  note: null,
+                  created_at: "2026-04-24T00:00:00Z",
+                  updated_at: "2026-04-24T00:00:00Z",
+                },
+              ],
+              total: 2,
+            }),
+            {
+              headers: { "Content-Type": "application/json" },
+              status: 200,
+            },
+          );
+        }
+
         return new Response("Not found", { status: 404 });
       }),
     );
@@ -347,8 +418,10 @@ describe("Experiment detail-like pages", () => {
     );
 
     expect(await screen.findByText("本实验派生自 CVD-2026-0001")).toBeInTheDocument();
-    expect(screen.getByText(/样品环境/i)).toBeInTheDocument();
-    expect(screen.getByText(/预检查/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "参数" }));
+    expect(await screen.findByText("样品环境：room")).toBeInTheDocument();
+    expect(screen.getByText("密封完好：是")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CVD-2026-0001" })).toHaveAttribute(
       "href",
       "/experiments/exp-1",

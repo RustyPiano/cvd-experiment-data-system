@@ -1,11 +1,10 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Form, Input, InputNumber, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, Space, Table, Tag, Typography } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   UNSAFE_DataRouterContext as DataRouterContext,
-  useBlocker,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -18,6 +17,7 @@ import { triggerBlobDownload } from "../../shared/lib/download";
 import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { LoadingState } from "../../shared/ui/loading-state";
+import { RouteLeaveGuard } from "../../shared/ui/route-leave-guard";
 import { StatusTag } from "../../shared/ui/status-tag";
 import type { FileAssetRead, SampleRead, SampleUpdateRequest } from "../../shared/types/api";
 import { downloadExperimentFile } from "../experiments/api";
@@ -151,48 +151,11 @@ function formatBytes(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-function SampleLeaveGuard({ when }: { when: boolean }) {
-  const { modal } = App.useApp();
-  const blocker = useBlocker(when);
-  const confirmRef = useRef<{ destroy: () => void } | null>(null);
-
-  useEffect(() => {
-    if (blocker.state !== "blocked") {
-      confirmRef.current?.destroy();
-      confirmRef.current = null;
-      return;
-    }
-
-    if (confirmRef.current) {
-      return;
-    }
-
-    confirmRef.current = modal.confirm({
-      title: "离开确认",
-      content: "样品信息尚未保存，确认离开吗？",
-      maskTransitionName: "",
-      transitionName: "",
-      okText: "离开",
-      okButtonProps: { "aria-label": "离开" },
-      cancelText: "留下",
-      cancelButtonProps: { "aria-label": "留下" },
-      onOk: () => {
-        confirmRef.current?.destroy();
-        blocker.proceed();
-      },
-      onCancel: () => {
-        confirmRef.current?.destroy();
-        blocker.reset();
-      },
-    });
-  }, [blocker, modal]);
-
-  return null;
-}
-
 function SampleRouteLeaveGuard({ when }: { when: boolean }) {
   const dataRouterContext = useContext(DataRouterContext);
-  return dataRouterContext ? <SampleLeaveGuard when={when} /> : null;
+  return dataRouterContext ? (
+    <RouteLeaveGuard message="样品信息尚未保存，确认离开吗？" when={when} />
+  ) : null;
 }
 
 export function SampleDetailPage() {

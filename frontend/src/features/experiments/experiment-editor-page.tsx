@@ -1,9 +1,8 @@
-import { useContext, useEffect, useMemo, useRef } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Anchor, App, Button } from "antd";
+import { Alert, App, Button } from "antd";
 import {
   UNSAFE_DataRouterContext as DataRouterContext,
-  useBlocker,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -11,12 +10,14 @@ import {
 import { HttpError } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
+import { RouteLeaveGuard } from "../../shared/ui/route-leave-guard";
 import type { ControlledVocabularyRead } from "../../shared/types/api";
 import { useAuth } from "../auth/use-auth";
 import { getExperiment, listActiveVocabularies, listExperimentModules } from "./api";
 import { CharacterizationSection } from "./components/characterization-section";
 import { EditorActionBar } from "./components/editor-action-bar";
 import { EditorSectionCard } from "./components/editor-section-card";
+import { EditorStepper, type StepperItem } from "./components/editor-stepper";
 import { EnvironmentSection } from "./components/environment-section";
 import { ExperimentMainFields } from "./components/experiment-main-fields";
 import { ExperimentSourceBanner } from "./components/experiment-source-banner";
@@ -31,12 +32,13 @@ import { ValidationSummary } from "./components/validation-summary";
 import {
   createInitialEditorValues,
   createModulePayloadMap,
+  type EditorSectionKey,
   type ModulePayloadMap,
   type VocabularySelectOption,
 } from "./editor-types";
 import { useExperimentEditor } from "./use-experiment-editor";
 
-const sectionAnchors = [
+const sectionAnchorList: { key: EditorSectionKey; label: string }[] = [
   { key: "basic_info", label: "基础信息" },
   { key: "environment", label: "环境条件" },
   { key: "precheck", label: "预检查" },
@@ -48,45 +50,6 @@ const sectionAnchors = [
   { key: "characterization", label: "表征结果" },
   { key: "result_summary", label: "结果总结" },
 ];
-
-function EditorRouteLeaveGuard({ message, when }: { message: string; when: boolean }) {
-  const { modal } = App.useApp();
-  const blocker = useBlocker(when);
-  const confirmRef = useRef<{ destroy: () => void } | null>(null);
-
-  useEffect(() => {
-    if (blocker.state !== "blocked") {
-      confirmRef.current?.destroy();
-      confirmRef.current = null;
-      return;
-    }
-
-    if (confirmRef.current) {
-      return;
-    }
-
-    confirmRef.current = modal.confirm({
-      title: "离开确认",
-      content: message,
-      maskTransitionName: "",
-      transitionName: "",
-      okText: "离开",
-      okButtonProps: { "aria-label": "离开" },
-      cancelText: "留下",
-      cancelButtonProps: { "aria-label": "留下" },
-      onOk: () => {
-        confirmRef.current?.destroy();
-        blocker.proceed();
-      },
-      onCancel: () => {
-        confirmRef.current?.destroy();
-        blocker.reset();
-      },
-    });
-  }, [blocker, message, modal]);
-
-  return null;
-}
 
 function toVocabularyOptions(
   items: ControlledVocabularyRead[] | undefined,
@@ -173,10 +136,68 @@ function ExperimentEditorWorkspace({
     vocabKey: "characterization_method",
   });
 
+  const [currentSection, setCurrentSection] = useState<EditorSectionKey>("basic_info");
+
   const scrollToSection = (moduleKey: string) => {
+    setCurrentSection(moduleKey as EditorSectionKey);
     const section = document.getElementById(`section-${moduleKey}`);
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const currentSectionIndex = sectionAnchorList.findIndex((s) => s.key === currentSection);
+  const goPrev = () => {
+    if (currentSectionIndex > 0) {
+      scrollToSection(sectionAnchorList[currentSectionIndex - 1].key);
+    }
+  };
+  const goNext = () => {
+    if (currentSectionIndex < sectionAnchorList.length - 1) {
+      scrollToSection(sectionAnchorList[currentSectionIndex + 1].key);
+    }
+  };
+
+  const stepperItems: StepperItem[] = useMemo(() => {
+    return sectionAnchorList.map((s) => {
+      const state = editor.sectionStates[s.key];
+      let status: StepperItem["status"] = "empty";
+      if (s.key === currentSection) {
+        status = "current";
+      } else if (state.status === "error") {
+        status = "error";
+      } else if (state.status === "saved") {
+        status = "saved";
+      } else if (state.status === "saving") {
+        status = "editing";
+      }
+      return { key: s.key, label: s.label, status };
+    });
+  }, [editor.sectionStates, currentSection]);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            const key = id.replace("section-", "") as EditorSectionKey;
+            setCurrentSection(key);
+          }
+        });
+      },
+      { rootMargin: "-40% 0px -50% 0px", threshold: 0 },
+    );
+
+    sectionAnchorList.forEach((s) => {
+      const el = document.getElementById(`section-${s.key}`);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   const navigateToDetail = () => {
     if (editor.shouldWarnOnLeave && !dataRouterContext) {
@@ -202,7 +223,7 @@ function ExperimentEditorWorkspace({
   return (
     <div className="content-stack experiment-editor-page">
       {dataRouterContext ? (
-        <EditorRouteLeaveGuard message={editor.leaveWarning} when={editor.shouldWarnOnLeave} />
+        <RouteLeaveGuard message={editor.leaveWarning} when={editor.shouldWarnOnLeave} />
       ) : null}
       <PageHeader subtitle="各模块修改后自动保存，提交后不可再编辑。" title={`编辑 ${editor.experiment.run_code}`} />
       <ExperimentSourceBanner experiment={editor.experiment} />
@@ -213,12 +234,12 @@ function ExperimentEditorWorkspace({
         />
       ) : null}
       <div className="editor-workspace-layout">
-        <Anchor
-          affix
-          className="editor-section-anchor"
-          items={sectionAnchors.map((s) => ({ key: s.key, href: `#section-${s.key}`, title: s.label }))}
-          offsetTop={80}
-          targetOffset={96}
+        <EditorStepper
+          currentKey={currentSection}
+          items={stepperItems}
+          onChange={(key) => {
+            scrollToSection(key);
+          }}
         />
         <div className="content-stack" style={{ flex: 1, minWidth: 0 }}>
           <div className="editor-anchor-target" id="section-basic_info">
@@ -424,6 +445,8 @@ function ExperimentEditorWorkspace({
         experiment={editor.experiment}
         isDraft={editor.isDraft}
         onBack={navigateToDetail}
+        onNext={goNext}
+        onPrev={goPrev}
         onSubmit={editor.submitDraft}
         saveSummary={editor.saveSummary}
         submitState={editor.submitState}

@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { PlusOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Card, Checkbox, Input, Space, Typography } from "antd";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
 import { triggerBlobDownload } from "../../shared/lib/download";
+import { useDebounce } from "../../shared/lib/use-debounce";
 import type { ExperimentRead, ExperimentStatus } from "../../shared/types/api";
 import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
@@ -24,8 +25,8 @@ type ExperimentListFilters = {
   page: number;
   pageSize: number;
   q: string;
-  sortBy: ExperimentSortField;
-  sortOrder: "asc" | "desc";
+  sortBy: ExperimentSortField | null;
+  sortOrder: "asc" | "desc" | null;
   status: ExperimentStatus[];
 };
 
@@ -35,8 +36,8 @@ const defaultFilters: ExperimentListFilters = {
   page: 1,
   pageSize: 10,
   q: "",
-  sortBy: "updated_at",
-  sortOrder: "desc",
+  sortBy: null,
+  sortOrder: null,
   status: [],
 };
 
@@ -54,18 +55,28 @@ function resolveErrorMessage(error: unknown, fallback: string) {
 
 export function ExperimentListPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
-  const [filters, setFilters] = useState<ExperimentListFilters>(defaultFilters);
+  const urlQ = searchParams.get("q") || "";
+
+  const [filters, setFilters] = useState<ExperimentListFilters>({
+    ...defaultFilters,
+    q: urlQ,
+  });
   const [listActionError, setListActionError] = useState<string | null>(null);
   const [activeExportKey, setActiveExportKey] = useState<string | null>(null);
   const canCreateExperiment = session.currentUser?.role !== "viewer";
+
+  const debouncedQ = useDebounce(filters.q, 400);
+  const debouncedMaterialSystem = useDebounce(filters.materialSystem, 400);
+
   const normalizedFilters = useMemo(
     () => ({
       ...filters,
-      materialSystem: filters.materialSystem.trim(),
-      q: filters.q.trim(),
+      materialSystem: debouncedMaterialSystem.trim(),
+      q: debouncedQ.trim(),
     }),
-    [filters],
+    [filters, debouncedQ, debouncedMaterialSystem],
   );
 
   const experimentQuery = useQuery({
@@ -232,16 +243,16 @@ export function ExperimentListPage() {
                 onTableChange={(page, pageSize, sortField, sortOrder) => {
                   setFilters((current) => ({
                     ...current,
-                  page,
-                  pageSize,
-                  sortBy: sortField,
-                  sortOrder: sortOrder === "ascend" ? "asc" : "desc",
-                }));
-              }}
+                    page,
+                    pageSize,
+                    sortBy: sortField,
+                    sortOrder: sortOrder === "ascend" ? "asc" : sortOrder === "descend" ? "desc" : null,
+                  }));
+                }}
               page={experimentQuery.data?.page ?? filters.page}
               pageSize={experimentQuery.data?.page_size ?? filters.pageSize}
               sortField={filters.sortBy}
-              sortOrder={filters.sortOrder === "asc" ? "ascend" : "descend"}
+              sortOrder={filters.sortOrder === "asc" ? "ascend" : filters.sortOrder === "desc" ? "descend" : null}
               total={experimentQuery.data?.total ?? 0}
             />
           )}

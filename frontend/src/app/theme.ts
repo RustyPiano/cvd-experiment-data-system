@@ -7,7 +7,7 @@ export const appTheme: ThemeConfig = {
     colorPrimary: "#1D4ED8",
     colorText: "#0F172A",
     colorTextSecondary: "#475569",
-    borderRadius: 12,
+    borderRadius: 8,
     colorInfo: "#2563EB",
     colorSuccess: "#15803D",
     colorWarning: "#B45309",
@@ -25,11 +25,30 @@ export const appTheme: ThemeConfig = {
     Menu: {
       itemSelectedBg: "#DBEAFE",
       itemSelectedColor: "#1D4ED8",
-      itemBorderRadius: 10,
+      itemBorderRadius: 8,
     },
     Card: {
       bodyPadding: 20,
-      borderRadiusLG: 16,
+      borderRadiusLG: 12,
+      borderRadius: 12,
+    },
+    Button: {
+      borderRadius: 8,
+    },
+    Input: {
+      borderRadius: 8,
+    },
+    Select: {
+      borderRadius: 8,
+    },
+    Tag: {
+      borderRadius: 9999,
+    },
+    Alert: {
+      borderRadius: 8,
+    },
+    Modal: {
+      borderRadius: 16,
     },
   },
 };

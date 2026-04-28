@@ -125,7 +125,7 @@ describe("ExperimentListPage", () => {
       expect(
         requests.some((request) =>
           request.includes(
-            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=1&page_size=10&sort_by=updated_at&sort_order=desc",
+            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=1&page_size=10",
           ),
         ),
       ).toBe(true);
@@ -139,7 +139,7 @@ describe("ExperimentListPage", () => {
       expect(
         requests.some((request) =>
           request.includes(
-            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=2&page_size=10&sort_by=updated_at&sort_order=desc",
+            "/api/v1/experiments?mine=true&status=submitted%2Clocked&material_system=MoS2&q=growth&page=2&page_size=10",
           ),
         ),
       ).toBe(true);
@@ -186,7 +186,7 @@ describe("ExperimentListPage", () => {
     await waitFor(() => {
       expect(
         requests.some((request) =>
-          request.includes("/api/v1/experiments?material_system=MoS2&q=growth&page=1&page_size=10&sort_by=updated_at&sort_order=desc"),
+          request.includes("/api/v1/experiments?material_system=MoS2&q=growth&page=1&page_size=10"),
         ),
       ).toBe(true);
     });
@@ -266,9 +266,8 @@ describe("ExperimentListPage", () => {
 
     await user.click(screen.getByText("实验编号"));
     await waitFor(() => {
-      expect(requests.at(-1)).toContain(
-        "/api/v1/experiments?page=1&page_size=10&sort_by=updated_at&sort_order=desc",
-      );
+      expect(requests.at(-1)).toContain("/api/v1/experiments?page=1&page_size=10");
+      expect(requests.at(-1)).not.toContain("sort_by=");
     });
   });
 
