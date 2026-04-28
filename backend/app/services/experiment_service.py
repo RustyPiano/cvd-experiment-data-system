@@ -1,4 +1,6 @@
+from copy import deepcopy
 from datetime import UTC, date, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -12,17 +14,21 @@ from app.models.module_payload import (
     ExperimentModulePayload,
     normalize_module_payload,
 )
+from app.models.recipe import Recipe
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
+from app.repositories.recipe_repository import RecipeRepository
 from app.schemas.audit import AuditEventListResponse
 from app.schemas.experiment import (
     ExperimentAnalysisExportRead,
     ExperimentCreate,
     ExperimentExportRead,
+    ExperimentFromRecipeCreate,
     ExperimentInvalidateRequest,
     ExperimentListResponse,
     ExperimentRead,
+    ExperimentSaveAsRecipeRequest,
     ExperimentUpdate,
 )
 from app.schemas.experiment_validation import ExperimentValidationResponse
@@ -32,6 +38,7 @@ from app.schemas.module_payload import (
     ExperimentModulePayloadUpsert,
     validate_module_payload,
 )
+from app.schemas.recipe import RecipeRead
 from app.services.audit_service import AuditService
 from app.services.experiment_export_service import ExperimentExportService
 from app.services.experiment_validation_service import (
@@ -42,10 +49,19 @@ from app.services.sample_service import SampleService
 
 
 class ExperimentService:
+    RECIPE_MODULE_KEYS = (
+        ExperimentModuleKey.PRECURSORS,
+        ExperimentModuleKey.SUBSTRATES,
+        ExperimentModuleKey.FURNACE_PROGRAM,
+        ExperimentModuleKey.GAS_PROGRAM,
+        ExperimentModuleKey.CHARACTERIZATION,
+    )
+
     def __init__(self, db: Session) -> None:
         self.db = db
         self.experiments = ExperimentRepository(db)
         self.module_payloads = ModulePayloadRepository(db)
+        self.recipes = RecipeRepository(db)
         self.audit = AuditService(db)
         self.exporter = ExperimentExportService(db)
         self.sample_service = SampleService(db)
@@ -110,6 +126,77 @@ class ExperimentService:
             action="create",
             before_json=None,
             after_json=self._serialize_experiment(created),
+        )
+        self.db.commit()
+        return ExperimentRead.model_validate(created)
+
+    def create_from_recipe(
+        self,
+        payload: ExperimentFromRecipeCreate,
+        current_user: User,
+    ) -> ExperimentRead:
+        if current_user.role == UserRole.VIEWER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+
+        recipe = self.recipes.get_by_id(payload.recipe_id)
+        if recipe is None or not recipe.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Recipe not found",
+            )
+
+        experiment_date = payload.experiment_date or date.today()
+        created = self._create_experiment_with_retry(
+            experiment_date=experiment_date,
+            build_experiment=lambda run_code: ExperimentRun(
+                run_code=run_code,
+                owner_id=current_user.id,
+                experiment_type="cvd_2zone",
+                material_system=recipe.material_system,
+                experiment_date=experiment_date,
+                objective=payload.objective,
+                status=ExperimentStatus.DRAFT,
+                quality_label=QualityLabel.UNKNOWN,
+                recipe_id=recipe.id,
+            ),
+        )
+
+        self._upsert_module_payload_json(
+            experiment_id=created.id,
+            module_key=ExperimentModuleKey.BASIC_INFO,
+            payload_json={
+                "operator_id": str(current_user.id),
+                "experiment_type": created.experiment_type,
+                "material_system": created.material_system,
+                "experiment_date": created.experiment_date.isoformat(),
+                "objective": created.objective,
+            },
+        )
+
+        recipe_payload = recipe.default_payload_json
+        if isinstance(recipe_payload, dict):
+            for module_key in self.RECIPE_MODULE_KEYS:
+                module_payload = recipe_payload.get(module_key.value)
+                if isinstance(module_payload, dict):
+                    self._upsert_module_payload_json(
+                        experiment_id=created.id,
+                        module_key=module_key,
+                        payload_json=deepcopy(module_payload),
+                    )
+
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=created.id,
+            action="create_from_recipe",
+            before_json=None,
+            after_json={
+                **self._serialize_experiment(created),
+                "source_recipe": self._serialize_recipe(recipe),
+            },
         )
         self.db.commit()
         return ExperimentRead.model_validate(created)
@@ -339,6 +426,59 @@ class ExperimentService:
         )
         self.db.commit()
         return ExperimentRead.model_validate(created)
+
+    def save_as_recipe(
+        self,
+        experiment_id: UUID,
+        payload: ExperimentSaveAsRecipeRequest,
+        current_user: User,
+    ) -> RecipeRead:
+        if current_user.role == UserRole.VIEWER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+
+        experiment = self._get_visible_experiment(experiment_id, current_user)
+        if experiment.status not in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only submitted or locked experiments can be saved as recipes",
+            )
+
+        default_payload_json = self._recipe_payload_from_experiment(experiment.id)
+        recipe = Recipe(
+            name=payload.name,
+            description=payload.description,
+            material_system=experiment.material_system,
+            template_version_id=experiment.template_version_id,
+            project_id=experiment.project_id,
+            created_by=current_user.id,
+            default_payload_json=default_payload_json,
+            is_active=True,
+        )
+        saved = self.recipes.create(recipe)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="recipe",
+            entity_id=saved.id,
+            action="create",
+            before_json=None,
+            after_json=self._serialize_recipe(saved),
+        )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=experiment.id,
+            action="save_as_recipe",
+            before_json=self._serialize_experiment(experiment),
+            after_json={
+                **self._serialize_experiment(experiment),
+                "created_recipe": self._serialize_recipe(saved),
+            },
+        )
+        self.db.commit()
+        return RecipeRead.model_validate(saved)
 
     def list_audit_events(self, experiment_id: UUID, current_user: User) -> AuditEventListResponse:
         experiment = self._get_visible_experiment(experiment_id, current_user)
@@ -607,11 +747,44 @@ class ExperimentService:
             )
         return experiment
 
+    def _recipe_payload_from_experiment(self, experiment_id: UUID) -> dict[str, Any]:
+        payloads: dict[str, Any] = {}
+        module_payloads = {
+            item.module_key: item for item in self.module_payloads.list_by_run(experiment_id)
+        }
+        for module_key in self.RECIPE_MODULE_KEYS:
+            module_payload = module_payloads.get(module_key.value)
+            if module_payload is None:
+                continue
+            payload_json = validate_module_payload(
+                module_key.value,
+                normalize_module_payload(module_key.value, module_payload.payload_json),
+            )
+            if module_key == ExperimentModuleKey.PRECURSORS:
+                payload_json = self._sanitize_recipe_precursors(payload_json)
+            payloads[module_key.value] = payload_json
+        return payloads
+
+    def _sanitize_recipe_precursors(self, payload_json: dict[str, Any]) -> dict[str, Any]:
+        sanitized = deepcopy(payload_json)
+        items = sanitized.get("items")
+        if not isinstance(items, list):
+            return sanitized
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if "batch_no" in item:
+                item["batch_no"] = ""
+            if "mass_mg" in item:
+                item["mass_mg"] = None
+        return sanitized
+
     def _serialize_experiment(self, experiment: ExperimentRun) -> dict:
         return {
             "id": str(experiment.id),
             "run_code": experiment.run_code,
             "owner_id": str(experiment.owner_id),
+            "recipe_id": str(experiment.recipe_id) if experiment.recipe_id else None,
             "derived_from_run_id": (
                 str(experiment.derived_from_run_id) if experiment.derived_from_run_id else None
             ),
@@ -628,6 +801,21 @@ class ExperimentService:
                 experiment.submitted_at.isoformat() if experiment.submitted_at else None
             ),
             "locked_at": experiment.locked_at.isoformat() if experiment.locked_at else None,
+        }
+
+    def _serialize_recipe(self, recipe: Recipe) -> dict:
+        return {
+            "id": str(recipe.id),
+            "name": recipe.name,
+            "template_version_id": (
+                str(recipe.template_version_id) if recipe.template_version_id else None
+            ),
+            "project_id": str(recipe.project_id) if recipe.project_id else None,
+            "material_system": recipe.material_system,
+            "default_payload_json": recipe.default_payload_json,
+            "description": recipe.description,
+            "created_by": str(recipe.created_by) if recipe.created_by else None,
+            "is_active": recipe.is_active,
         }
 
     def _serialize_module_payload(self, payload: ExperimentModulePayload | None) -> dict | None:

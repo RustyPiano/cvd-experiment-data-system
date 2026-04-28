@@ -114,6 +114,7 @@ class ExperimentExportService:
             experiment=ExperimentAnalysisExperimentRow(
                 **context,
                 owner_id=export_payload.experiment.owner_id,
+                recipe_id=export_payload.experiment.recipe_id,
                 derived_from_run_id=export_payload.experiment.derived_from_run_id,
                 derived_from_run_code=export_payload.experiment.derived_from_run_code,
                 experiment_type=export_payload.experiment.experiment_type,
@@ -171,6 +172,7 @@ class ExperimentExportService:
             "run_code",
             "id",
             "owner_id",
+            "recipe_id",
             "derived_from_run_id",
             "experiment_type",
             "material_system",

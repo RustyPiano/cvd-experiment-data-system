@@ -17,6 +17,17 @@ class ExperimentCreate(BaseModel):
     objective: str | None = None
 
 
+class ExperimentFromRecipeCreate(BaseModel):
+    recipe_id: UUID
+    experiment_date: date | None = None
+    objective: str | None = None
+
+
+class ExperimentSaveAsRecipeRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+
+
 class ExperimentUpdate(BaseModel):
     experiment_type: str | None = Field(default=None, min_length=1, max_length=64)
     material_system: str | None = Field(default=None, max_length=64)
@@ -35,6 +46,7 @@ class ExperimentRead(BaseModel):
     id: UUID
     run_code: str
     owner_id: UUID
+    recipe_id: UUID | None
     derived_from_run_id: UUID | None
     derived_from_run_code: str | None = None
     experiment_type: str
@@ -87,6 +99,7 @@ class ExperimentAnalysisExperimentRow(BaseModel):
     experiment_id: UUID
     run_code: str
     owner_id: UUID
+    recipe_id: UUID | None
     derived_from_run_id: UUID | None
     derived_from_run_code: str | None
     experiment_type: str

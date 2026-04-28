@@ -15,9 +15,11 @@ from app.schemas.experiment import (
     ExperimentAnalysisExportRead,
     ExperimentCreate,
     ExperimentExportRead,
+    ExperimentFromRecipeCreate,
     ExperimentInvalidateRequest,
     ExperimentListResponse,
     ExperimentRead,
+    ExperimentSaveAsRecipeRequest,
     ExperimentUpdate,
 )
 from app.schemas.experiment_validation import ExperimentValidationResponse
@@ -26,6 +28,7 @@ from app.schemas.module_payload import (
     ExperimentModulePayloadRead,
     ExperimentModulePayloadUpsert,
 )
+from app.schemas.recipe import RecipeRead
 from app.services.experiment_service import ExperimentService
 from app.services.experiment_validation_service import ExperimentValidationFailed
 
@@ -70,6 +73,15 @@ def create_experiment(
     current_user: CurrentUser,
 ) -> ExperimentRead:
     return ExperimentService(db).create_experiment(payload, current_user)
+
+
+@router.post("/from-recipe", response_model=ExperimentRead, status_code=status.HTTP_201_CREATED)
+def create_experiment_from_recipe(
+    payload: ExperimentFromRecipeCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentRead:
+    return ExperimentService(db).create_from_recipe(payload, current_user)
 
 
 @router.get("/{experiment_id}", response_model=ExperimentRead)
@@ -199,6 +211,20 @@ def clone_experiment(
     current_user: CurrentUser,
 ) -> ExperimentRead:
     return ExperimentService(db).clone_experiment(experiment_id, current_user)
+
+
+@router.post(
+    "/{experiment_id}/save-as-recipe",
+    response_model=RecipeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def save_experiment_as_recipe(
+    experiment_id: UUID,
+    payload: ExperimentSaveAsRecipeRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> RecipeRead:
+    return ExperimentService(db).save_as_recipe(experiment_id, payload, current_user)
 
 
 @router.get("/{experiment_id}/audit-events", response_model=AuditEventListResponse)
