@@ -50,6 +50,48 @@ function safeArray(value: unknown): unknown[] {
   return [];
 }
 
+function formatWithUnit(value: unknown, unit: string): string {
+  const text = safeString(value);
+  return text ? `${text} ${unit}` : "";
+}
+
+function joinReadableParts(parts: string[]): string {
+  const visibleParts = parts.filter(Boolean);
+  return visibleParts.length > 0 ? visibleParts.join(" / ") : "—";
+}
+
+function formatPrecursorPreparation(record: Record<string, unknown>) {
+  return joinReadableParts([
+    formatWithUnit(record.melting_temperature_C, "°C"),
+    formatWithUnit(record.spin_speed_rpm, "rpm"),
+    safeString(record.pre_spin_speed_rpm) ? `预旋 ${safeString(record.pre_spin_speed_rpm)} rpm` : "",
+    formatWithUnit(record.preparation_time_min, "min"),
+  ]);
+}
+
+function formatSubstrateTreatmentParams(record: Record<string, unknown>) {
+  const params = safeRecord(record.treatment_params);
+  return joinReadableParts([
+    formatWithUnit(params.temperature_C, "°C"),
+    formatWithUnit(params.duration_min, "min"),
+    formatWithUnit(params.power_W, "W"),
+    safeString(params.gas),
+  ]);
+}
+
+function formatGasComponents(value: unknown) {
+  const components = safeArray(value)
+    .map((component) => {
+      const record = safeRecord(component);
+      const name = safeString(record.name) || safeString(record.gas);
+      const ratio = safeString(record.fraction) || safeString(record.ratio_percent);
+      if (!name && !ratio) return "";
+      return ratio ? `${name || "组分"}: ${ratio}%` : name;
+    })
+    .filter(Boolean);
+  return components.length > 0 ? components.join("；") : "—";
+}
+
 function getModulePayload(
   modules: ExperimentModulePayloadRead[] | undefined,
   key: ExperimentModuleKey,
@@ -114,6 +156,10 @@ function renderPrecursorsParams(modules: ExperimentModulePayloadRead[] | undefin
         },
         { title: "方法", dataIndex: "method", render: (v: unknown) => safeString(v) || "—" },
         { title: "质量 (mg)", dataIndex: "mass_mg", render: (v: unknown) => safeString(v) || "—" },
+        {
+          title: "制备参数",
+          render: (_: unknown, record: Record<string, unknown>) => formatPrecursorPreparation(record),
+        },
         { title: "批号", dataIndex: "batch_no", render: (v: unknown) => safeString(v) || "—" },
       ]}
       dataSource={items}
@@ -138,6 +184,10 @@ function renderSubstratesParams(modules: ExperimentModulePayloadRead[] | undefin
         { title: "品牌", dataIndex: "brand", render: (v: unknown) => safeString(v) || "—" },
         { title: "尺寸 (mm)", dataIndex: "size_mm", render: (v: unknown) => safeString(v) || "—" },
         { title: "处理方法", dataIndex: "treatment_method", render: (v: unknown) => safeString(v) || "—" },
+        {
+          title: "处理参数",
+          render: (_: unknown, record: Record<string, unknown>) => formatSubstrateTreatmentParams(record),
+        },
         { title: "位置 (mm)", dataIndex: "position_mm", render: (v: unknown) => safeString(v) || "—" },
       ]}
       dataSource={items}
@@ -191,24 +241,34 @@ function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined)
 function renderGasParams(modules: ExperimentModulePayloadRead[] | undefined) {
   const payload = getModulePayload(modules, "gas_program");
   const segments = safeArray(payload.segments).map((item) => safeRecord(item));
-  if (segments.length === 0) {
+  const preWashingGas = safeString(payload.pre_washing_gas);
+  if (segments.length === 0 && !preWashingGas) {
     return <Typography.Text type="secondary">无气体程序记录</Typography.Text>;
   }
   return (
-    <Table
-      columns={[
-        { title: "阶段", dataIndex: "stage", render: (v: unknown) => safeString(v) || "—" },
-        { title: "气体", dataIndex: "gas", render: (v: unknown) => safeString(v) || "—" },
-        { title: "开始 (min)", dataIndex: "start_min", render: (v: unknown) => safeString(v) || "—" },
-        { title: "结束 (min)", dataIndex: "end_min", render: (v: unknown) => safeString(v) || "—" },
-        { title: "流量 (sccm)", dataIndex: "flow_sccm", render: (v: unknown) => safeString(v) || "—" },
-        { title: "备注", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
-      ]}
-      dataSource={segments}
-      pagination={false}
-      rowKey={(_, index) => `segment-${index}`}
-      size="small"
-    />
+    <div className="content-stack">
+      <Typography.Text>预清洗气体：{preWashingGas || "—"}</Typography.Text>
+      {segments.length > 0 ? (
+        <Table
+          columns={[
+            { title: "阶段", dataIndex: "stage", render: (v: unknown) => safeString(v) || "—" },
+            { title: "气体", dataIndex: "gas", render: (v: unknown) => safeString(v) || "—" },
+            { title: "开始 (min)", dataIndex: "start_min", render: (v: unknown) => safeString(v) || "—" },
+            { title: "结束 (min)", dataIndex: "end_min", render: (v: unknown) => safeString(v) || "—" },
+            { title: "流量 (sccm)", dataIndex: "flow_sccm", render: (v: unknown) => safeString(v) || "—" },
+            {
+              title: "组分",
+              render: (_: unknown, record: Record<string, unknown>) => formatGasComponents(record.components),
+            },
+            { title: "备注", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
+          ]}
+          dataSource={segments}
+          pagination={false}
+          rowKey={(_, index) => `segment-${index}`}
+          size="small"
+        />
+      ) : null}
+    </div>
   );
 }
 

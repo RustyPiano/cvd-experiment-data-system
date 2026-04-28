@@ -114,15 +114,16 @@ export function EditorStepper({
         {items.map((item) => {
           const isCurrent = item.key === currentKey;
           return (
-            <div
+            <button
               className={`editor-stepper-mobile-item ${isCurrent ? "current" : ""} ${item.status === "error" ? "error" : ""}`}
               key={item.key}
               onClick={() => {
                 onChange(item.key);
               }}
+              type="button"
             >
               {item.label}
-            </div>
+            </button>
           );
         })}
       </div>

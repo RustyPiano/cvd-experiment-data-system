@@ -30,6 +30,11 @@ type ExperimentListFilters = {
   status: ExperimentStatus[];
 };
 
+type ExperimentListFilterState = {
+  filters: ExperimentListFilters;
+  urlQ: string;
+};
+
 const defaultFilters: ExperimentListFilters = {
   materialSystem: "",
   mine: false,
@@ -59,10 +64,42 @@ export function ExperimentListPage() {
   const { session } = useAuth();
   const urlQ = searchParams.get("q") || "";
 
-  const [filters, setFilters] = useState<ExperimentListFilters>({
-    ...defaultFilters,
-    q: urlQ,
+  const [filterState, setFilterState] = useState<ExperimentListFilterState>({
+    filters: {
+      ...defaultFilters,
+      q: urlQ,
+    },
+    urlQ,
   });
+  const filters = useMemo(
+    () =>
+      filterState.urlQ === urlQ
+        ? filterState.filters
+        : {
+            ...filterState.filters,
+            page: 1,
+            q: urlQ,
+          },
+    [filterState, urlQ],
+  );
+  const setFilters = (
+    updater: (current: ExperimentListFilters) => ExperimentListFilters,
+  ) => {
+    setFilterState((current) => {
+      const currentFilters =
+        current.urlQ === urlQ
+          ? current.filters
+          : {
+              ...current.filters,
+              page: 1,
+              q: urlQ,
+            };
+      return {
+        filters: updater(currentFilters),
+        urlQ,
+      };
+    });
+  };
   const [listActionError, setListActionError] = useState<string | null>(null);
   const [activeExportKey, setActiveExportKey] = useState<string | null>(null);
   const canCreateExperiment = session.currentUser?.role !== "viewer";
@@ -96,7 +133,7 @@ export function ExperimentListPage() {
   });
 
   const resetFilters = () => {
-    setFilters(defaultFilters);
+    setFilters(() => defaultFilters);
     setListActionError(null);
   };
 

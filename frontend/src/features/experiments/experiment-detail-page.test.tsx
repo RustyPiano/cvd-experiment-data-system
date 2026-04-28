@@ -393,8 +393,78 @@ describe("Experiment detail-like pages", () => {
                   created_at: "2026-04-24T00:00:00Z",
                   updated_at: "2026-04-24T00:00:00Z",
                 },
+                {
+                  id: "mod-precursors",
+                  experiment_run_id: "exp-2",
+                  module_key: "precursors",
+                  schema_version: "1",
+                  payload_json: {
+                    items: [
+                      {
+                        role: "metal",
+                        type: "MoO3",
+                        brand: "Sigma",
+                        melting_temperature_C: 795,
+                        spin_speed_rpm: 3000,
+                        preparation_time_min: 15,
+                      },
+                    ],
+                  },
+                  note: null,
+                  created_at: "2026-04-24T00:00:00Z",
+                  updated_at: "2026-04-24T00:00:00Z",
+                },
+                {
+                  id: "mod-substrates",
+                  experiment_run_id: "exp-2",
+                  module_key: "substrates",
+                  schema_version: "1",
+                  payload_json: {
+                    items: [
+                      {
+                        role: "top",
+                        type: "SiO2/Si",
+                        treatment_method: "plasma",
+                        treatment_params: {
+                          temperature_C: 120,
+                          duration_min: 10,
+                          power_W: 80,
+                          gas: "Ar",
+                        },
+                      },
+                    ],
+                  },
+                  note: null,
+                  created_at: "2026-04-24T00:00:00Z",
+                  updated_at: "2026-04-24T00:00:00Z",
+                },
+                {
+                  id: "mod-gas",
+                  experiment_run_id: "exp-2",
+                  module_key: "gas_program",
+                  schema_version: "1",
+                  payload_json: {
+                    pre_washing_gas: "Ar",
+                    segments: [
+                      {
+                        stage: "growth",
+                        gas: "Ar/H2",
+                        start_min: 0,
+                        end_min: 30,
+                        flow_sccm: 80,
+                        components: [
+                          { name: "Ar", fraction: 95 },
+                          { name: "H2", fraction: 5 },
+                        ],
+                      },
+                    ],
+                  },
+                  note: null,
+                  created_at: "2026-04-24T00:00:00Z",
+                  updated_at: "2026-04-24T00:00:00Z",
+                },
               ],
-              total: 2,
+              total: 5,
             }),
             {
               headers: { "Content-Type": "application/json" },
@@ -422,6 +492,10 @@ describe("Experiment detail-like pages", () => {
     fireEvent.click(screen.getByRole("tab", { name: "参数" }));
     expect(await screen.findByText("样品环境：room")).toBeInTheDocument();
     expect(screen.getByText("密封完好：是")).toBeInTheDocument();
+    expect(screen.getByText("预清洗气体：Ar")).toBeInTheDocument();
+    expect(screen.getByText("Ar: 95%；H2: 5%")).toBeInTheDocument();
+    expect(screen.getByText("795 °C / 3000 rpm / 15 min")).toBeInTheDocument();
+    expect(screen.getByText("120 °C / 10 min / 80 W / Ar")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CVD-2026-0001" })).toHaveAttribute(
       "href",
       "/experiments/exp-1",

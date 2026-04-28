@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes, useLocation } from "react-router-dom";
@@ -7,9 +7,11 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import { API_UNAUTHORIZED_EVENT } from "../api/client";
 import { AppShell } from "./app-shell";
 import { renderWithApp } from "../../test/render";
+import { ExperimentListPage } from "../../features/experiments/experiment-list-page";
 
 describe("AppShell", () => {
   afterEach(() => {
+    cleanup();
     window.localStorage.clear();
     vi.unstubAllGlobals();
   });
@@ -220,5 +222,70 @@ describe("AppShell", () => {
     );
 
     expect(screen.queryAllByRole("link", { name: "受控词表" }).length).toBeGreaterThan(0);
+  });
+
+  it("renders the sidebar create entry as a standalone button", () => {
+    renderWithApp(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/experiments" element={<div>workspace</div>} />
+        </Route>
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+      },
+    );
+
+    const createButton = screen.getByRole("button", { name: "新建实验" });
+    expect(createButton.closest("a")).toBeNull();
+  });
+
+  it("applies global search to an already mounted experiment list", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        return new Response(
+          JSON.stringify({
+            items: [],
+            total: 0,
+            page: 1,
+            page_size: 10,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }),
+    );
+
+    renderWithApp(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/experiments" element={<ExperimentListPage />} />
+        </Route>
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+      },
+    );
+
+    await screen.findByText(/当前共 0 条记录/);
+    await user.type(screen.getByRole("textbox", { name: "全局搜索" }), "growth{Enter}");
+
+    await waitFor(
+      () => {
+        expect(requests.some((request) => request.includes("/api/v1/experiments?q=growth"))).toBe(true);
+      },
+      { timeout: 2000 },
+    );
   });
 });

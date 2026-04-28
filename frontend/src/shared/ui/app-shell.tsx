@@ -133,11 +133,17 @@ export function AppShell() {
         </div>
         {!isViewer && !collapsed ? (
           <div style={{ padding: "0 16px 12px" }}>
-            <Link to="/experiments/new">
-              <Button block icon={<PlusOutlined />} type="primary">
-                新建实验
-              </Button>
-            </Link>
+            <Button
+              aria-label="新建实验"
+              block
+              icon={<PlusOutlined />}
+              onClick={() => {
+                navigate("/experiments/new");
+              }}
+              type="primary"
+            >
+              新建实验
+            </Button>
           </div>
         ) : null}
         <Menu

@@ -207,6 +207,12 @@ a {
   background: #f1f5f9;
 }
 
+.editor-stepper-item:focus-visible,
+.editor-stepper-mobile-item:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
 .editor-stepper-item.current {
   background: #eff6ff;
 }
@@ -369,11 +375,15 @@ a {
   }
 
   .editor-stepper-mobile-item {
+    appearance: none;
+    background: #fff;
     flex-shrink: 0;
     padding: 4px 12px;
     border-radius: 999px;
+    font-family: inherit;
     font-size: 12px;
     font-weight: 500;
+    line-height: 1.5;
     white-space: nowrap;
     border: 1px solid #e2e8f0;
     color: #64748b;
