@@ -48,6 +48,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // UI-heavy Ant Design tests share jsdom/browser mocks and time out under file-level parallelism.
+    fileParallelism: false,
     setupFiles: "./src/test/setup.ts",
     testTimeout: 10_000,
   },
