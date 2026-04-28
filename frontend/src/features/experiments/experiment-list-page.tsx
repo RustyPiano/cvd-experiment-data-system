@@ -34,7 +34,7 @@ type ExperimentListFilters = {
 
 type ExperimentListFilterState = {
   filters: ExperimentListFilters;
-  urlQ: string;
+  urlKey: string;
 };
 
 const defaultFilters: ExperimentListFilters = {
@@ -47,6 +47,49 @@ const defaultFilters: ExperimentListFilters = {
   sortOrder: null,
   status: [],
 };
+
+const urlFilterStatuses = new Set<ExperimentStatus>([
+  "draft",
+  "submitted",
+  "locked",
+  "invalid",
+]);
+
+function isExperimentStatus(value: string): value is ExperimentStatus {
+  return urlFilterStatuses.has(value as ExperimentStatus);
+}
+
+function parseUrlStatusFilters(searchParams: URLSearchParams) {
+  const statuses: ExperimentStatus[] = [];
+
+  for (const statusParam of searchParams.getAll("status")) {
+    for (const status of statusParam.split(",")) {
+      const normalizedStatus = status.trim();
+      if (isExperimentStatus(normalizedStatus) && !statuses.includes(normalizedStatus)) {
+        statuses.push(normalizedStatus);
+      }
+    }
+  }
+
+  return statuses;
+}
+
+function parseUrlFilters(searchParams: URLSearchParams) {
+  const q = searchParams.get("q") || "";
+  const mine = searchParams.get("mine") === "true";
+  const status = parseUrlStatusFilters(searchParams);
+
+  return {
+    key: JSON.stringify({
+      mine,
+      q,
+      status,
+    }),
+    mine,
+    q,
+    status,
+  };
+}
 
 function resolveErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
@@ -64,41 +107,51 @@ export function ExperimentListPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { session } = useAuth();
-  const urlQ = searchParams.get("q") || "";
+  const searchParamString = searchParams.toString();
+  const urlFilters = useMemo(
+    () => parseUrlFilters(new URLSearchParams(searchParamString)),
+    [searchParamString],
+  );
 
   const [filterState, setFilterState] = useState<ExperimentListFilterState>({
     filters: {
       ...defaultFilters,
-      q: urlQ,
+      mine: urlFilters.mine,
+      q: urlFilters.q,
+      status: urlFilters.status,
     },
-    urlQ,
+    urlKey: urlFilters.key,
   });
   const filters = useMemo(
     () =>
-      filterState.urlQ === urlQ
+      filterState.urlKey === urlFilters.key
         ? filterState.filters
         : {
             ...filterState.filters,
             page: 1,
-            q: urlQ,
+            mine: urlFilters.mine,
+            q: urlFilters.q,
+            status: urlFilters.status,
           },
-    [filterState, urlQ],
+    [filterState, urlFilters],
   );
   const setFilters = (
     updater: (current: ExperimentListFilters) => ExperimentListFilters,
   ) => {
     setFilterState((current) => {
       const currentFilters =
-        current.urlQ === urlQ
+        current.urlKey === urlFilters.key
           ? current.filters
           : {
               ...current.filters,
               page: 1,
-              q: urlQ,
+              mine: urlFilters.mine,
+              q: urlFilters.q,
+              status: urlFilters.status,
             };
       return {
         filters: updater(currentFilters),
-        urlQ,
+        urlKey: urlFilters.key,
       };
     });
   };
@@ -173,6 +226,7 @@ export function ExperimentListPage() {
 
   const resetFilters = () => {
     setFilters(() => defaultFilters);
+    navigate("/experiments");
     setListActionError(null);
   };
 

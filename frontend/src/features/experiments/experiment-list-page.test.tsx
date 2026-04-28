@@ -1,6 +1,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useNavigate } from "react-router-dom";
 
 import { ExperimentListPage } from "./experiment-list-page";
 import { renderWithApp } from "../../test/render";
@@ -42,6 +43,24 @@ function createExperimentListResponse(
     page: options.page ?? 1,
     page_size: options.pageSize ?? 10,
   };
+}
+
+function ExperimentListPageWithUrlControls() {
+  const navigate = useNavigate();
+
+  return (
+    <>
+      <button
+        onClick={() => {
+          navigate("/experiments");
+        }}
+        type="button"
+      >
+        清空地址栏筛选
+      </button>
+      <ExperimentListPage />
+    </>
+  );
 }
 
 describe("ExperimentListPage", () => {
@@ -196,6 +215,135 @@ describe("ExperimentListPage", () => {
             request === "/api/v1/experiments?mine=true&status=draft&page=1&page_size=10",
         ),
       ).toBe(true);
+    });
+  });
+
+  it("hydrates mine and draft status filters from the URL", async () => {
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        const isFilteredList =
+          url.searchParams.get("mine") === "true" &&
+          url.searchParams.get("status") === "draft" &&
+          url.searchParams.get("page_size") === "10";
+        const items = isFilteredList
+          ? [
+              createExperimentFixture({
+                id: "url-draft",
+                run_code: "CVD-URL-DRAFT",
+                status: "draft",
+              }),
+            ]
+          : [];
+
+        return new Response(
+          JSON.stringify(
+            createExperimentListResponse(items, {
+              pageSize: Number(url.searchParams.get("page_size") ?? "10"),
+              total: items.length,
+            }),
+          ),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments?mine=true&status=draft"],
+    });
+
+    expect(await screen.findByText("CVD-URL-DRAFT")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "我的实验" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "草稿" })).toBeChecked();
+
+    await waitFor(() => {
+      expect(
+        requests.some(
+          (request) =>
+            request === "/api/v1/experiments?mine=true&status=draft&page=1&page_size=10",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("clears URL-owned mine and status filters when search params change", async () => {
+    const user = userEvent.setup();
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        const status = url.searchParams.get("status");
+        const pageSize = Number(url.searchParams.get("page_size") ?? "10");
+        const items =
+          status === "submitted,locked" && pageSize === 10
+            ? [
+                createExperimentFixture({
+                  id: "submitted-exp",
+                  run_code: "CVD-SUBMITTED-1",
+                  status: "submitted",
+                }),
+              ]
+            : pageSize === 10 && !status && url.searchParams.get("mine") !== "true"
+              ? [
+                  createExperimentFixture({
+                    id: "all-exp",
+                    run_code: "CVD-ALL-1",
+                    status: "draft",
+                  }),
+                ]
+              : [];
+
+        return new Response(
+          JSON.stringify(
+            createExperimentListResponse(items, {
+              pageSize,
+              total: items.length,
+            }),
+          ),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPageWithUrlControls />, {
+      authenticated: true,
+      initialEntries: ["/experiments?mine=true&status=submitted,locked"],
+    });
+
+    expect(await screen.findByText("CVD-SUBMITTED-1")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "我的实验" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "已提交" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "已锁定" })).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "清空地址栏筛选" }));
+
+    expect(await screen.findByText("CVD-ALL-1")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "我的实验" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "已提交" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "已锁定" })).not.toBeChecked();
+
+    await waitFor(() => {
+      expect(requests.at(-1)).toBe("/api/v1/experiments?page=1&page_size=10");
     });
   });
 
