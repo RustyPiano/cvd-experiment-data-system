@@ -31,7 +31,6 @@ import {
   mergeSubstratesPayload,
   serializeSectionValues,
   toBasicInfoPayload,
-  toCharacterizationPayload,
   toEnvironmentPayload,
   toExperimentPatch,
   toFurnaceProgramPayload,
@@ -223,6 +222,14 @@ function shouldShowValidationResult(validation: ExperimentValidationResponse) {
     validation.warnings.length > 0 ||
     (typeof validation.completion_score === "number" && validation.completion_score < 100)
   );
+}
+
+function toCharacterizationCompletionPayload(values: ExperimentEditorValues["characterization"]) {
+  return {
+    methods: values.methods.map((method) => ({
+      enabled: method.enabled,
+    })),
+  };
 }
 
 export function useExperimentEditor({
@@ -752,7 +759,7 @@ export function useExperimentEditor({
       furnace_program: toFurnaceProgramPayload(values.furnaceProgram),
       gas_program: toGasProgramPayload(values.gasProgram),
       process_observation: toProcessObservationPayload(values.processObservation),
-      characterization: toCharacterizationPayload(values.characterization),
+      characterization: toCharacterizationCompletionPayload(values.characterization),
       result_summary: toResultSummaryPayload(values.resultSummary),
     }),
     [currentUserId, values],
