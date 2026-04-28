@@ -15,20 +15,27 @@
 - `/experiments/:id/files`
 - `/samples/:id`
 - `/admin/vocabularies`
+- `/admin/recipes`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的 Beta 编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - draft 自动保存、实验日期修正、区块级保存状态、固定操作区、带完整度评分的提交前验证汇总和 `submit` 提交闭环
+- 新建空白实验支持继承最近实验的环境和预检查默认值；新建页支持从 Recipe 创建实验
+- 编辑器支持温区/气体快捷模板、模块完成度指示和 clone 来源 Diff 视图
+- 实验列表支持 Dashboard 卡片、状态相关快捷操作、权限门禁和用户填写作废原因
 - `/experiments/:id` 已接通 `return-to-draft / lock / invalidate / clone`
 - 详情页已接通概览/参数/样品/文件/审计 Tabs、文件概览、审计轨迹、JSON/Excel 导出入口
+- 详情页支持将实验保存为 Recipe
 - 详情页已接通样品概览，并支持跳转样品详情
 - 文件页已接通文件列表、筛选、上传、下载、软删除
 - 样品详情页已接通样品读取、draft 编辑、关联文件查看与下载
 - 受控词表后台已接通列表筛选、创建、编辑与启停用
+- Recipe 后台已接通列表、创建、编辑与停用
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端尚未完成的部分：
 
 - 文件预览、批量上传和更细的元数据编辑
+- Recipe Diff、多实验任意对比和更细粒度的 Recipe 权限/版本治理
 - 更细的运行时性能优化
 
 ## 本轮交付质量状态
@@ -51,7 +58,7 @@
 - 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，显示 `completion_score / blocking_count / warning_count` 和模块跳转按钮，有 `errors` 时阻止提交并展示逐项问题。
 - 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
 - 前端生产构建现在使用 Vite/Rolldown vendor 拆包，将 React、router/query、Ant Design、rc 依赖拆成独立 chunk，避免超过 500 kB 的 chunk size 警告。
-- 当前常规质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`128 passed`），前端 `lint / typecheck / test` 通过（`91 passed`）。
+- 当前常规质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`149 passed`），前端 `lint / typecheck / test` 通过（`151 passed`）。
 
 ## 当前后端能力
 
@@ -71,6 +78,7 @@
 - 单实验 Excel 导出
 - 单实验 analysis-ready 归一化导出
 - 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_treatment_method / gas_label / characterization_method / quality_label`
+- Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe
 - Alembic 迁移 `20260423_0001` 到 `20260425_0011`
 - 前端联调 handoff 文档，见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
 
@@ -228,6 +236,8 @@ docker compose up --build
 - `POST /api/v1/experiments/{id}/lock`
 - `POST /api/v1/experiments/{id}/invalidate`
 - `POST /api/v1/experiments/{id}/clone`
+- `POST /api/v1/experiments/from-recipe`
+- `POST /api/v1/experiments/{id}/save-as-recipe`
 - `POST /api/v1/experiments/{id}/validate`
 - `GET /api/v1/experiments/{id}/export`
 - `GET /api/v1/experiments/{id}/export/json`
@@ -256,6 +266,12 @@ docker compose up --build
 - `GET /api/v1/admin/vocabularies`
 - `POST /api/v1/admin/vocabularies`
 - `PATCH /api/v1/admin/vocabularies/{id}`
+
+- Recipe
+- `GET /api/v1/recipes`
+- `GET /api/v1/recipes/{id}`
+- `POST /api/v1/recipes`
+- `PATCH /api/v1/recipes/{id}`
 
 ## 当前行为边界
 

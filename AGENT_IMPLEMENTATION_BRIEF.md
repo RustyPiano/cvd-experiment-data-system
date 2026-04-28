@@ -78,6 +78,8 @@ storage/
 15. 基础文件上传：OM、Raman、PL、AFM、SEM 文件可上传并关联实验、样品、方法。
 16. 样品自动编号。
 17. 管理后台：受控词表的最小 CRUD。
+18. Recipe 管理：创建、编辑、停用、从 Recipe 创建实验、从实验保存为 Recipe。
+19. 实验填写易用性优化：空白实验智能继承、温区/气体快捷模板、完成度指示、列表 Dashboard 与快捷操作、clone 来源 Diff 视图。
 
 ### 3.2 第一版不实现
 
@@ -105,6 +107,7 @@ storage/
 /experiments/:id/files
 /samples/:id
 /admin/vocabularies
+/admin/recipes
 ```
 
 ### 4.2 暂缓页面
@@ -112,7 +115,6 @@ storage/
 ```text
 /admin/fields
 /admin/templates
-/admin/recipes
 /admin/users
 ```
 
