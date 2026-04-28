@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.models.recipe import Recipe
 
 
@@ -33,3 +36,17 @@ def test_recipe_schemas_are_exported_and_validate_orm_recipe(db_session, active_
     assert read_schema.created_by == active_user.id
     assert read_schema.default_payload_json == {"temperature_c": 720}
     assert response_schema.total == 1
+
+
+def test_recipe_create_rejects_empty_name() -> None:
+    from app.schemas import RecipeCreate
+
+    with pytest.raises(ValidationError):
+        RecipeCreate(name="")
+
+
+def test_recipe_update_rejects_empty_name() -> None:
+    from app.schemas import RecipeUpdate
+
+    with pytest.raises(ValidationError):
+        RecipeUpdate(name="")

@@ -6,14 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class RecipeCreate(BaseModel):
-    name: str = Field(..., max_length=255)
+    name: str = Field(..., min_length=1, max_length=255)
     material_system: str | None = Field(default=None, max_length=64)
     default_payload_json: dict[str, Any] = Field(default_factory=dict)
     description: str | None = None
 
 
 class RecipeUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=255)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     material_system: str | None = Field(default=None, max_length=64)
     default_payload_json: dict[str, Any] | None = None
     description: str | None = None

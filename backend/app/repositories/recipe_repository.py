@@ -33,11 +33,10 @@ class RecipeRepository:
         is_active: bool | None = None,
     ) -> list[Recipe]:
         statement = select(Recipe)
-        statement = self._apply_filters(
-            statement,
-            material_system=material_system,
-            is_active=is_active,
-        )
+        if material_system is not None:
+            statement = statement.where(Recipe.material_system == material_system)
+        if is_active is not None:
+            statement = statement.where(Recipe.is_active.is_(is_active))
         statement = statement.order_by(Recipe.created_at.desc())
         return list(self.db.scalars(statement).all())
 
@@ -48,22 +47,8 @@ class RecipeRepository:
         is_active: bool | None = None,
     ) -> int:
         statement = select(func.count()).select_from(Recipe)
-        statement = self._apply_filters(
-            statement,
-            material_system=material_system,
-            is_active=is_active,
-        )
-        return self.db.scalar(statement) or 0
-
-    def _apply_filters(
-        self,
-        statement,
-        *,
-        material_system: str | None,
-        is_active: bool | None,
-    ):
         if material_system is not None:
             statement = statement.where(Recipe.material_system == material_system)
         if is_active is not None:
             statement = statement.where(Recipe.is_active.is_(is_active))
-        return statement
+        return self.db.scalar(statement) or 0
