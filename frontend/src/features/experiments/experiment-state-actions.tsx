@@ -134,6 +134,9 @@ export function ExperimentStateActions({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["recipes"] }),
         queryClient.invalidateQueries({ queryKey: ["admin", "recipes"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["experiments", "audit", currentUser.id, experiment.id],
+        }),
       ]);
       message.success("Recipe 已保存");
       closeRecipeModal();

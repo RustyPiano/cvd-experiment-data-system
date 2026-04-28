@@ -609,7 +609,7 @@ describe("Experiment state actions", () => {
     });
   });
 
-  it("invalidates Recipe caches after saving an experiment as a Recipe", async () => {
+  it("invalidates Recipe and audit caches after saving an experiment as a Recipe", async () => {
     const server = createLifecycleFetchMock(createExperiment("submitted"));
     vi.stubGlobal("fetch", server.fetchMock);
 
@@ -636,6 +636,9 @@ describe("Experiment state actions", () => {
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["recipes"] });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["admin", "recipes"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["experiments", "audit", anotherMember.id, "exp-1"],
+      });
     });
   });
 
