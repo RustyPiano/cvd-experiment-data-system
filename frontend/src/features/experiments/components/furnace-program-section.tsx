@@ -1,22 +1,95 @@
-import { Button, Empty, Input, Switch, Typography } from "antd";
+import { Alert, Button, Empty, Input, Switch, Typography } from "antd";
+import { useState } from "react";
 
+import type { RecipeRead } from "../../../shared/types/api";
+import { BUILTIN_FURNACE_TEMPLATES, type QuickTemplate } from "../data/builtin-templates";
 import {
   createEmptyFurnacePoint,
   createEmptyFurnaceZone,
   type FurnaceProgramValues,
 } from "../editor-types";
+import { QuickTemplateMenu } from "./quick-template-menu";
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asObjectArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === "object" && !Array.isArray(item),
+  );
+}
+
+function asString(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  return "";
+}
+
+function asBoolean(value: unknown) {
+  return value === true;
+}
+
+function toFurnaceProgramValues(payload: Record<string, unknown>): FurnaceProgramValues {
+  return {
+    zones: asObjectArray(payload.zones).map((zone) => ({
+      sourcePayload: zone,
+      zoneIndex: asString(zone.zone_index),
+      precursorPlaced: asBoolean(zone.precursor_placed),
+      note: asString(zone.note),
+      temperatureProgram: asObjectArray(zone.temperature_program).map((point) => ({
+        sourcePayload: point,
+        timeMin: asString(point.time_min),
+        temperatureC: asString(point.temperature_C),
+      })),
+    })),
+  };
+}
 
 export function FurnaceProgramSection({
   disabled,
+  materialSystem,
   onChange,
+  recipeTemplates = [],
+  templates = BUILTIN_FURNACE_TEMPLATES,
   value,
 }: {
   disabled: boolean;
+  materialSystem?: string;
   onChange: (nextValue: FurnaceProgramValues) => void;
+  recipeTemplates?: RecipeRead[];
+  templates?: QuickTemplate[];
   value: FurnaceProgramValues;
 }) {
+  const [appliedTemplateLabel, setAppliedTemplateLabel] = useState<string | null>(null);
+
+  const emitManualChange = (nextValue: FurnaceProgramValues) => {
+    setAppliedTemplateLabel(null);
+    onChange(nextValue);
+  };
+
+  const applyTemplate = (template: QuickTemplate) => {
+    setAppliedTemplateLabel(template.label);
+    onChange(toFurnaceProgramValues(asRecord(template.payload)));
+  };
+
   const updateZone = (index: number, patch: Partial<(typeof value.zones)[number]>) => {
-    onChange({
+    emitManualChange({
       ...value,
       zones: value.zones.map((zone, zoneIndex) =>
         zoneIndex === index ? { ...zone, ...patch } : zone,
@@ -29,7 +102,7 @@ export function FurnaceProgramSection({
     pointIndex: number,
     patch: Partial<(typeof value.zones)[number]["temperatureProgram"][number]>,
   ) => {
-    onChange({
+    emitManualChange({
       ...value,
       zones: value.zones.map((zone, currentZoneIndex) =>
         currentZoneIndex === zoneIndex
@@ -46,6 +119,23 @@ export function FurnaceProgramSection({
 
   return (
     <div className="content-stack">
+      <div>
+        <QuickTemplateMenu
+          disabled={disabled}
+          materialSystem={materialSystem}
+          moduleKey="furnace_program"
+          onSelect={applyTemplate}
+          recipeTemplates={recipeTemplates}
+          templates={templates}
+        />
+      </div>
+      {appliedTemplateLabel ? (
+        <Alert
+          message={`已应用模板：${appliedTemplateLabel}，请确认或修改。`}
+          showIcon
+          type="success"
+        />
+      ) : null}
       {value.zones.length === 0 ? <Empty description="尚未添加温区" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : null}
       {value.zones.map((zone, zoneIndex) => (
         <div className="editor-array-card" key={`zone-${zoneIndex + 1}`}>
@@ -55,7 +145,7 @@ export function FurnaceProgramSection({
               danger
               disabled={disabled}
               onClick={() => {
-                onChange({
+                emitManualChange({
                   ...value,
                   zones: value.zones.filter((_, currentZoneIndex) => currentZoneIndex !== zoneIndex),
                 });
@@ -164,7 +254,7 @@ export function FurnaceProgramSection({
       <Button
         disabled={disabled}
         onClick={() => {
-          onChange({
+          emitManualChange({
             ...value,
             zones: [...value.zones, createEmptyFurnaceZone()],
           });

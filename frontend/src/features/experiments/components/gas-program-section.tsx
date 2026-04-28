@@ -1,28 +1,101 @@
-import { Button, Empty, Input, Typography } from "antd";
+import { Alert, Button, Empty, Input, Typography } from "antd";
+import { useState } from "react";
 
+import type { RecipeRead } from "../../../shared/types/api";
+import { BUILTIN_GAS_TEMPLATES, type QuickTemplate } from "../data/builtin-templates";
 import {
   createEmptyGasComponent,
   createEmptyGasSegment,
   type GasProgramValues,
   type VocabularySelectOption,
 } from "../editor-types";
+import { QuickTemplateMenu } from "./quick-template-menu";
 import { VocabularyCombobox } from "./vocabulary-combobox";
 
 const { TextArea } = Input;
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asObjectArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === "object" && !Array.isArray(item),
+  );
+}
+
+function asString(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  return "";
+}
+
+function toGasProgramValues(payload: Record<string, unknown>): GasProgramValues {
+  return {
+    preWashingGas: asString(payload.pre_washing_gas),
+    segments: asObjectArray(payload.segments).map((segment) => ({
+      sourcePayload: segment,
+      stage: asString(segment.stage),
+      gas: asString(segment.gas),
+      startMin: asString(segment.start_min),
+      endMin: asString(segment.end_min),
+      flowSccm: asString(segment.flow_sccm),
+      note: asString(segment.note),
+      components: asObjectArray(segment.components).map((component) => ({
+        sourcePayload: component,
+        gas: asString(component.name) || asString(component.gas),
+        ratioPercent: asString(component.fraction) || asString(component.ratio_percent),
+      })),
+    })),
+  };
+}
+
 export function GasProgramSection({
   disabled,
   gasOptions,
+  materialSystem,
   onChange,
+  recipeTemplates = [],
+  templates = BUILTIN_GAS_TEMPLATES,
   value,
 }: {
   disabled: boolean;
   gasOptions: VocabularySelectOption[];
+  materialSystem?: string;
   onChange: (nextValue: GasProgramValues) => void;
+  recipeTemplates?: RecipeRead[];
+  templates?: QuickTemplate[];
   value: GasProgramValues;
 }) {
+  const [appliedTemplateLabel, setAppliedTemplateLabel] = useState<string | null>(null);
+
+  const emitManualChange = (nextValue: GasProgramValues) => {
+    setAppliedTemplateLabel(null);
+    onChange(nextValue);
+  };
+
+  const applyTemplate = (template: QuickTemplate) => {
+    setAppliedTemplateLabel(template.label);
+    onChange(toGasProgramValues(asRecord(template.payload)));
+  };
+
   const updateSegment = (index: number, patch: Partial<(typeof value.segments)[number]>) => {
-    onChange({
+    emitManualChange({
       ...value,
       segments: value.segments.map((segment, segmentIndex) =>
         segmentIndex === index ? { ...segment, ...patch } : segment,
@@ -35,7 +108,7 @@ export function GasProgramSection({
     componentIndex: number,
     patch: Partial<(typeof value.segments)[number]["components"][number]>,
   ) => {
-    onChange({
+    emitManualChange({
       ...value,
       segments: value.segments.map((segment, currentSegmentIndex) =>
         currentSegmentIndex === segmentIndex
@@ -52,13 +125,30 @@ export function GasProgramSection({
 
   return (
     <div className="content-stack">
+      <div>
+        <QuickTemplateMenu
+          disabled={disabled}
+          materialSystem={materialSystem}
+          moduleKey="gas_program"
+          onSelect={applyTemplate}
+          recipeTemplates={recipeTemplates}
+          templates={templates}
+        />
+      </div>
+      {appliedTemplateLabel ? (
+        <Alert
+          message={`已应用模板：${appliedTemplateLabel}，请确认或修改。`}
+          showIcon
+          type="success"
+        />
+      ) : null}
       <div className="editor-field">
         <Typography.Text strong>预清洗气体</Typography.Text>
         <VocabularyCombobox
           ariaLabel="预清洗气体"
           disabled={disabled}
           onChange={(nextValue) => {
-            onChange({
+            emitManualChange({
               ...value,
               preWashingGas: nextValue,
             });
@@ -77,7 +167,7 @@ export function GasProgramSection({
               danger
               disabled={disabled}
               onClick={() => {
-                onChange({
+                emitManualChange({
                   ...value,
                   segments: value.segments.filter((_, segmentIndex) => segmentIndex !== index),
                 });
@@ -237,7 +327,7 @@ export function GasProgramSection({
       <Button
         disabled={disabled}
         onClick={() => {
-          onChange({
+          emitManualChange({
             ...value,
             segments: [...value.segments, createEmptyGasSegment()],
           });

@@ -15,6 +15,7 @@ import { LoadingState } from "../../shared/ui/loading-state";
 import { RouteLeaveGuard } from "../../shared/ui/route-leave-guard";
 import type { ControlledVocabularyRead } from "../../shared/types/api";
 import { useAuth } from "../auth/use-auth";
+import { listActiveRecipes } from "../recipes/api";
 import { getExperiment, listActiveVocabularies, listExperimentModules } from "./api";
 import { CharacterizationSection } from "./components/characterization-section";
 import { EditorActionBar } from "./components/editor-action-bar";
@@ -143,6 +144,12 @@ function ExperimentEditorWorkspace({
     currentUserId,
     vocabKey: "characterization_method",
   });
+  const recipeTemplatesQuery = useQuery({
+    queryKey: ["recipes", "active", "experiment-editor", currentUserId],
+    queryFn: () => listActiveRecipes(accessToken),
+    enabled: Boolean(accessToken),
+  });
+  const recipeTemplates = recipeTemplatesQuery.data?.items ?? [];
 
   const [currentSection, setCurrentSection] = useState<EditorSectionKey>("basic_info");
 
@@ -366,6 +373,7 @@ function ExperimentEditorWorkspace({
             >
               <FurnaceProgramSection
                 disabled={editorDisabled}
+                materialSystem={editor.values.basicInfo.materialSystem}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -373,6 +381,7 @@ function ExperimentEditorWorkspace({
                   }));
                   editor.scheduleAutosave();
                 }}
+                recipeTemplates={recipeTemplates}
                 value={editor.values.furnaceProgram}
               />
             </EditorSectionCard>
@@ -386,6 +395,7 @@ function ExperimentEditorWorkspace({
               <GasProgramSection
                 disabled={editorDisabled}
                 gasOptions={gasOptions}
+                materialSystem={editor.values.basicInfo.materialSystem}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -393,6 +403,7 @@ function ExperimentEditorWorkspace({
                   }));
                   editor.scheduleAutosave();
                 }}
+                recipeTemplates={recipeTemplates}
                 value={editor.values.gasProgram}
               />
             </EditorSectionCard>
