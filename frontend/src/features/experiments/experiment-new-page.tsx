@@ -53,6 +53,7 @@ export function ExperimentNewPage() {
   const [historyCloneOpen, setHistoryCloneOpen] = useState(false);
   const [recipeModalOpen, setRecipeModalOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [recipeCreateError, setRecipeCreateError] = useState<string | null>(null);
 
   const navigateToEditor = (experiment: ExperimentRead) => {
     navigate(`/experiments/${experiment.id}/edit`);
@@ -121,12 +122,13 @@ export function ExperimentNewPage() {
       }),
     onSuccess: (experiment) => {
       setActionError(null);
+      setRecipeCreateError(null);
       setRecipeModalOpen(false);
       message.success("实验创建成功");
       navigateToEditor(experiment);
     },
     onError: (error) => {
-      setActionError(resolveErrorMessage(error, "从 Recipe 创建实验失败"));
+      setRecipeCreateError(resolveErrorMessage(error, "从 Recipe 创建实验失败"));
     },
   });
 
@@ -212,6 +214,7 @@ export function ExperimentNewPage() {
                 <Button
                   onClick={() => {
                     setActionError(null);
+                    setRecipeCreateError(null);
                     setRecipeModalOpen(true);
                   }}
                 >
@@ -242,6 +245,7 @@ export function ExperimentNewPage() {
         destroyOnHidden
         footer={null}
         onCancel={() => {
+          setRecipeCreateError(null);
           setRecipeModalOpen(false);
         }}
         open={recipeModalOpen}
@@ -261,7 +265,8 @@ export function ExperimentNewPage() {
         ) : groupedRecipes.length === 0 ? (
           <EmptyState description="当前没有可用的 Recipe。" />
         ) : (
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+          <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+            {recipeCreateError ? <Alert message={recipeCreateError} showIcon type="error" /> : null}
             {groupedRecipes.map((group) => (
               <section key={group.materialSystem}>
                 <Divider plain titlePlacement="left">
@@ -281,6 +286,7 @@ export function ExperimentNewPage() {
                           loading={createFromRecipeMutation.isPending}
                           onClick={() => {
                             setActionError(null);
+                            setRecipeCreateError(null);
                             createFromRecipeMutation.mutate(recipe.id);
                           }}
                           type="primary"

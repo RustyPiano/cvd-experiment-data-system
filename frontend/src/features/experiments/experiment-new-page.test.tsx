@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
@@ -365,6 +365,50 @@ describe("ExperimentNewPage", () => {
         experiment_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       },
     });
+  });
+
+  it("shows recipe creation errors inside the still-open recipe modal", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/recipes" && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            items: [buildRecipe({ id: "recipe-1", name: "MoS2 baseline" })],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (url.pathname === "/api/v1/experiments/from-recipe" && method === "POST") {
+        return new Response(JSON.stringify({ detail: "Recipe create blocked" }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response("Not found", { status: 404 });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(<ExperimentNewPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments/new"],
+    });
+
+    await user.click(screen.getByRole("button", { name: "选择 Recipe" }));
+    const dialog = await screen.findByRole("dialog", { name: "从 Recipe 创建实验" });
+    await user.click(await within(dialog).findByRole("button", { name: "使用 MoS2 baseline" }));
+
+    expect(await within(dialog).findByText("Recipe create blocked")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "从 Recipe 创建实验" })).toBeInTheDocument();
   });
 
   it("shows an empty state when there are no active recipes", async () => {
