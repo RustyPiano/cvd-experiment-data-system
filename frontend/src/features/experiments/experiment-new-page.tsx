@@ -1,15 +1,22 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Col, Row, Space, Typography } from "antd";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Alert, App, Button, Card, Col, Divider, List, Modal, Row, Space, Spin, Typography } from "antd";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
-import type { ExperimentRead } from "../../shared/types/api";
+import type { ExperimentRead, RecipeRead } from "../../shared/types/api";
+import { EmptyState } from "../../shared/ui/empty-state";
 import { PageHeader } from "../../shared/ui/page-header";
-import { cloneExperiment, createExperiment, listExperiments } from "./api";
+import {
+  cloneExperiment,
+  createExperiment,
+  createExperimentFromRecipe,
+  listExperiments,
+} from "./api";
 import { HistoryCloneDialog } from "./components/history-clone-dialog";
 import { useAuth } from "../auth/use-auth";
+import { listActiveRecipes } from "../recipes/api";
 
 function resolveErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
@@ -23,12 +30,28 @@ function resolveErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+function groupRecipesByMaterialSystem(recipes: RecipeRead[]) {
+  return recipes.reduce<Array<{ materialSystem: string; recipes: RecipeRead[] }>>((groups, recipe) => {
+    const materialSystem = recipe.material_system || "未分组";
+    const existingGroup = groups.find((group) => group.materialSystem === materialSystem);
+
+    if (existingGroup) {
+      existingGroup.recipes.push(recipe);
+      return groups;
+    }
+
+    groups.push({ materialSystem, recipes: [recipe] });
+    return groups;
+  }, []);
+}
+
 export function ExperimentNewPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const { message } = App.useApp();
   const isViewer = session.currentUser?.role === "viewer";
   const [historyCloneOpen, setHistoryCloneOpen] = useState(false);
+  const [recipeModalOpen, setRecipeModalOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const navigateToEditor = (experiment: ExperimentRead) => {
@@ -79,10 +102,38 @@ export function ExperimentNewPage() {
     },
   });
 
+  const recipesQuery = useQuery({
+    enabled: recipeModalOpen && Boolean(session.accessToken) && !isViewer,
+    queryFn: () => listActiveRecipes(session.accessToken!),
+    queryKey: ["recipes", "active", "experiment-new"],
+  });
+
+  const groupedRecipes = useMemo(
+    () => groupRecipesByMaterialSystem(recipesQuery.data?.items ?? []),
+    [recipesQuery.data?.items],
+  );
+
+  const createFromRecipeMutation = useMutation({
+    mutationFn: (recipeId: string) =>
+      createExperimentFromRecipe(session.accessToken!, {
+        recipe_id: recipeId,
+        experiment_date: dayjs().format("YYYY-MM-DD"),
+      }),
+    onSuccess: (experiment) => {
+      setActionError(null);
+      setRecipeModalOpen(false);
+      message.success("实验创建成功");
+      navigateToEditor(experiment);
+    },
+    onError: (error) => {
+      setActionError(resolveErrorMessage(error, "从 Recipe 创建实验失败"));
+    },
+  });
+
   return (
     <div className="content-stack">
       <PageHeader
-        subtitle="支持空白创建、复制最近一条实验，或从历史实验中搜索复制。"
+        subtitle="支持空白创建、复制最近一条实验，或从 Recipe 快速创建标准化草稿。"
         title="新建实验"
       />
       {isViewer ? (
@@ -124,15 +175,26 @@ export function ExperimentNewPage() {
                 系统会优先查找你最近更新的一条已提交或已锁定实验，并直接派生出新草稿。
               </Typography.Paragraph>
               {!isViewer ? (
-                <Button
-                  loading={recentCloneMutation.isPending}
-                  onClick={() => {
-                    setActionError(null);
-                    recentCloneMutation.mutate();
-                  }}
-                >
-                  复制最近一条
-                </Button>
+                <Space wrap>
+                  <Button
+                    loading={recentCloneMutation.isPending}
+                    onClick={() => {
+                      setActionError(null);
+                      recentCloneMutation.mutate();
+                    }}
+                  >
+                    复制最近一条
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setActionError(null);
+                      setHistoryCloneOpen(true);
+                    }}
+                    type="link"
+                  >
+                    搜索历史实验
+                  </Button>
+                </Space>
               ) : null}
             </Space>
           </Card>
@@ -141,19 +203,19 @@ export function ExperimentNewPage() {
           <Card className="action-card">
             <Space orientation="vertical" size={12}>
               <Typography.Title level={4} style={{ margin: 0 }}>
-                从历史实验复制
+                从 Recipe 创建
               </Typography.Title>
               <Typography.Paragraph type="secondary">
-                在弹窗里搜索并筛选历史实验，确认来源后直接复制到新的草稿编辑页。
+                选择已维护的 Recipe，将默认参数带入新草稿，适合重复工艺快速起步。
               </Typography.Paragraph>
               {!isViewer ? (
                 <Button
                   onClick={() => {
                     setActionError(null);
-                    setHistoryCloneOpen(true);
+                    setRecipeModalOpen(true);
                   }}
                 >
-                  打开历史实验
+                  选择 Recipe
                 </Button>
               ) : null}
             </Space>
@@ -175,6 +237,70 @@ export function ExperimentNewPage() {
           open={historyCloneOpen}
         />
       ) : null}
+
+      <Modal
+        destroyOnHidden
+        footer={null}
+        onCancel={() => {
+          setRecipeModalOpen(false);
+        }}
+        open={recipeModalOpen}
+        title="从 Recipe 创建实验"
+        width={760}
+      >
+        {recipesQuery.isLoading ? (
+          <div style={{ padding: "32px 0", textAlign: "center" }}>
+            <Spin />
+          </div>
+        ) : recipesQuery.isError ? (
+          <Alert
+            message={resolveErrorMessage(recipesQuery.error, "Recipe 列表加载失败")}
+            showIcon
+            type="error"
+          />
+        ) : groupedRecipes.length === 0 ? (
+          <EmptyState description="当前没有可用的 Recipe。" />
+        ) : (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            {groupedRecipes.map((group) => (
+              <section key={group.materialSystem}>
+                <Divider plain titlePlacement="left">
+                  <Typography.Title level={5} style={{ margin: 0 }}>
+                    {group.materialSystem}
+                  </Typography.Title>
+                </Divider>
+                <List
+                  dataSource={group.recipes}
+                  itemLayout="vertical"
+                  renderItem={(recipe) => (
+                    <List.Item
+                      actions={[
+                        <Button
+                          disabled={createFromRecipeMutation.isPending}
+                          key="create"
+                          loading={createFromRecipeMutation.isPending}
+                          onClick={() => {
+                            setActionError(null);
+                            createFromRecipeMutation.mutate(recipe.id);
+                          }}
+                          type="primary"
+                        >
+                          使用 {recipe.name}
+                        </Button>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        description={recipe.description || "暂无描述"}
+                        title={recipe.name}
+                      />
+                    </List.Item>
+                  )}
+                />
+              </section>
+            ))}
+          </Space>
+        )}
+      </Modal>
     </div>
   );
 }
