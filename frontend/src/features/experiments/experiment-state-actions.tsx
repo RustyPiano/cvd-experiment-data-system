@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Input, Modal, Space } from "antd";
+import { Alert, App, Button, Input, Modal, Space } from "antd";
 import { useNavigate } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
@@ -11,11 +11,12 @@ import {
   invalidateExperiment,
   lockExperiment,
   returnExperimentToDraft,
+  saveExperimentAsRecipe,
 } from "./api";
 
 const { TextArea } = Input;
 
-type ActionKind = "return-to-draft" | "lock" | "invalidate" | "clone" | null;
+type ActionKind = "return-to-draft" | "lock" | "invalidate" | "clone" | "save-recipe" | null;
 
 function resolveErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
@@ -51,11 +52,17 @@ export function ExperimentStateActions({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { message } = App.useApp();
   const [activeAction, setActiveAction] = useState<ActionKind>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [invalidateReason, setInvalidateReason] = useState("");
   const [invalidateValidation, setInvalidateValidation] = useState<string | null>(null);
   const [invalidateOpen, setInvalidateOpen] = useState(false);
+  const [recipeOpen, setRecipeOpen] = useState(false);
+  const [recipeName, setRecipeName] = useState("");
+  const [recipeDescription, setRecipeDescription] = useState("");
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+  const [recipeValidation, setRecipeValidation] = useState<string | null>(null);
 
   const isOwnerOrAdmin =
     currentUser.role === "admin" || currentUser.id === experiment.owner_id;
@@ -68,6 +75,9 @@ export function ExperimentStateActions({
   const canClone =
     currentUser.role !== "viewer" &&
     (experiment.status === "locked" || (experiment.status === "submitted" && isOwner));
+  const canSaveAsRecipe =
+    currentUser.role !== "viewer" &&
+    (experiment.status === "submitted" || experiment.status === "locked");
 
   const syncExperiment = async (nextExperiment: ExperimentRead) => {
     updateExperimentCache(queryClient, currentUser.id, nextExperiment);
@@ -95,7 +105,42 @@ export function ExperimentStateActions({
     }
   };
 
-  if (!canReturnToDraft && !canLock && !canInvalidate && !canClone) {
+  const closeRecipeModal = () => {
+    setRecipeOpen(false);
+    setRecipeName("");
+    setRecipeDescription("");
+    setRecipeError(null);
+    setRecipeValidation(null);
+  };
+
+  const submitRecipe = async () => {
+    const normalizedName = recipeName.trim();
+    const normalizedDescription = recipeDescription.trim();
+
+    if (!normalizedName) {
+      setRecipeValidation("请填写 Recipe 名称");
+      return;
+    }
+
+    setActiveAction("save-recipe");
+    setRecipeError(null);
+    setRecipeValidation(null);
+
+    try {
+      await saveExperimentAsRecipe(accessToken, experiment.id, {
+        name: normalizedName,
+        ...(normalizedDescription ? { description: normalizedDescription } : {}),
+      });
+      message.success("Recipe 已保存");
+      closeRecipeModal();
+    } catch (error) {
+      setRecipeError(resolveErrorMessage(error, "保存 Recipe 失败"));
+    } finally {
+      setActiveAction(null);
+    }
+  };
+
+  if (!canReturnToDraft && !canLock && !canInvalidate && !canClone && !canSaveAsRecipe) {
     return null;
   }
 
@@ -158,6 +203,20 @@ export function ExperimentStateActions({
             }}
           >
             派生草稿
+          </Button>
+        ) : null}
+        {canSaveAsRecipe ? (
+          <Button
+            disabled={isBusy}
+            loading={activeAction === "save-recipe"}
+            onClick={() => {
+              setActionError(null);
+              setRecipeError(null);
+              setRecipeValidation(null);
+              setRecipeOpen(true);
+            }}
+          >
+            保存为 Recipe
           </Button>
         ) : null}
         {canInvalidate ? (
@@ -243,6 +302,52 @@ export function ExperimentStateActions({
           ) : null}
         </div>
       </Modal>
+
+      {recipeOpen ? (
+        <Modal
+          cancelText="取消"
+          okText="保存"
+          onCancel={() => {
+            if (activeAction === "save-recipe") {
+              return;
+            }
+            closeRecipeModal();
+          }}
+          onOk={() => {
+            void submitRecipe();
+          }}
+          open
+          confirmLoading={activeAction === "save-recipe"}
+          title="保存为 Recipe"
+        >
+          <div className="content-stack">
+            <Input
+              aria-label="Recipe 名称"
+              disabled={activeAction === "save-recipe"}
+              onChange={(event) => {
+                setRecipeName(event.target.value);
+                if (recipeValidation) {
+                  setRecipeValidation(null);
+                }
+              }}
+              placeholder="例如 MoS2 标准生长流程"
+              value={recipeName}
+            />
+            <TextArea
+              aria-label="Recipe 描述"
+              autoSize={{ minRows: 3, maxRows: 5 }}
+              disabled={activeAction === "save-recipe"}
+              onChange={(event) => {
+                setRecipeDescription(event.target.value);
+              }}
+              placeholder="可选：说明适用材料、窗口参数或注意事项"
+              value={recipeDescription}
+            />
+            {recipeValidation ? <Alert title={recipeValidation} showIcon type="error" /> : null}
+            {recipeError ? <Alert title={recipeError} showIcon type="error" /> : null}
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

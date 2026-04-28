@@ -541,14 +541,6 @@ export function ExperimentDetailPage() {
                   <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
                     仅草稿状态可编辑，已提交/已锁定实验仅保留可执行操作。
                   </Typography.Paragraph>
-                  {session.accessToken && currentUser ? (
-                    <ExperimentStateActions
-                      accessToken={session.accessToken}
-                      currentUser={currentUser}
-                      experiment={experiment}
-                      onUpdated={() => undefined}
-                    />
-                  ) : null}
                 </div>
               </Card>
               <Card>
@@ -589,6 +581,14 @@ export function ExperimentDetailPage() {
                       导出 Excel
                     </Button>
                   </Space>
+                  {session.accessToken && currentUser ? (
+                    <ExperimentStateActions
+                      accessToken={session.accessToken}
+                      currentUser={currentUser}
+                      experiment={experiment}
+                      onUpdated={() => undefined}
+                    />
+                  ) : null}
                 </div>
               </Card>
             </div>

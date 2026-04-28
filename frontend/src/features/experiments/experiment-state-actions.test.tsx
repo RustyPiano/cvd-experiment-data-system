@@ -6,6 +6,7 @@ import { ExperimentDetailPage } from "./experiment-detail-page";
 import { ExperimentEditorPage } from "./experiment-editor-page";
 import { renderWithApp } from "../../test/render";
 import type { SessionUser } from "../auth/auth-store";
+import type { RecipeRead } from "../../shared/types/api";
 
 type ExperimentFixture = {
   id: string;
@@ -13,6 +14,7 @@ type ExperimentFixture = {
   owner_id: string;
   derived_from_run_id: string | null;
   derived_from_run_code: string | null;
+  recipe_id: string | null;
   experiment_type: string;
   material_system: string | null;
   experiment_date: string;
@@ -56,6 +58,15 @@ const anotherMember: SessionUser = {
   last_login_at: null,
 };
 
+const viewerUser: SessionUser = {
+  id: "u-3",
+  email: "viewer@example.com",
+  name: "Viewer",
+  role: "viewer",
+  is_active: true,
+  last_login_at: null,
+};
+
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
     headers: {
@@ -72,6 +83,7 @@ function createExperiment(status: ExperimentFixture["status"]): ExperimentFixtur
     owner_id: "u-1",
     derived_from_run_id: null,
     derived_from_run_code: null,
+    recipe_id: null,
     experiment_type: "cvd_2zone",
     material_system: "MoS2",
     experiment_date: "2026-04-23",
@@ -113,6 +125,7 @@ function createLifecycleFetchMock(initialExperiment: ExperimentFixture) {
     owner_id: "u-2",
     derived_from_run_id: initialExperiment.id,
     derived_from_run_code: initialExperiment.run_code,
+    recipe_id: null,
     experiment_date: "2026-04-24",
     status: "draft",
     summary_result: null,
@@ -128,6 +141,19 @@ function createLifecycleFetchMock(initialExperiment: ExperimentFixture) {
       abnormal_note: "",
     }),
   ];
+  const savedRecipe: RecipeRead = {
+    id: "recipe-1",
+    name: "MoS2 baseline",
+    template_version_id: null,
+    project_id: null,
+    material_system: initialExperiment.material_system,
+    default_payload_json: {},
+    description: "Baseline growth recipe",
+    created_by: "u-2",
+    is_active: true,
+    created_at: "2026-04-24T01:00:00Z",
+    updated_at: "2026-04-24T01:00:00Z",
+  };
   const requests: Array<{ method: string; pathname: string; body: unknown }> = [];
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -170,6 +196,18 @@ function createLifecycleFetchMock(initialExperiment: ExperimentFixture) {
 
     if (url.pathname === "/api/v1/experiments/exp-1/clone" && method === "POST") {
       return jsonResponse(clonedExperiment, { status: 201 });
+    }
+
+    if (url.pathname === "/api/v1/experiments/exp-1/save-as-recipe" && method === "POST") {
+      return jsonResponse(
+        {
+          ...savedRecipe,
+          name: (body as { name?: string } | null)?.name ?? savedRecipe.name,
+          description:
+            (body as { description?: string } | null)?.description ?? savedRecipe.description,
+        },
+        { status: 201 },
+      );
     }
 
     if (url.pathname === "/api/v1/experiments/exp-2" && method === "GET") {
@@ -465,5 +503,180 @@ describe("Experiment state actions", () => {
     expect(screen.queryByRole("button", { name: "退回草稿" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "锁定实验" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "作废实验" })).not.toBeInTheDocument();
+  });
+
+  it.each(["submitted", "locked"] as const)(
+    "shows save as Recipe for non-viewer users viewing a %s experiment",
+    async (status) => {
+      const server = createLifecycleFetchMock(createExperiment(status));
+      vi.stubGlobal("fetch", server.fetchMock);
+
+      renderWithApp(
+        <Routes>
+          <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+        </Routes>,
+        {
+          authenticated: true,
+          initialEntries: ["/experiments/exp-1"],
+          user: anotherMember,
+        },
+      );
+
+      expect(await screen.findByRole("button", { name: "保存为 Recipe" })).toBeInTheDocument();
+    },
+  );
+
+  it("hides save as Recipe for draft experiments and viewer users", async () => {
+    const draftServer = createLifecycleFetchMock(createExperiment("draft"));
+    vi.stubGlobal("fetch", draftServer.fetchMock);
+
+    const { unmount } = renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: ownerUser,
+      },
+    );
+
+    await screen.findByText("实验详情");
+    expect(screen.queryByRole("button", { name: "保存为 Recipe" })).not.toBeInTheDocument();
+    unmount();
+
+    const lockedServer = createLifecycleFetchMock(createExperiment("locked"));
+    vi.stubGlobal("fetch", lockedServer.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: viewerUser,
+      },
+    );
+
+    await screen.findByText("实验详情");
+    expect(screen.queryByRole("button", { name: "保存为 Recipe" })).not.toBeInTheDocument();
+  });
+
+  it("saves a submitted experiment as a Recipe from the modal", async () => {
+    const server = createLifecycleFetchMock(createExperiment("submitted"));
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: anotherMember,
+      },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "保存为 Recipe" }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Recipe 名称"), {
+      target: { value: "MoS2 baseline" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Recipe 描述"), {
+      target: { value: "Baseline growth recipe" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /保\s*存/ }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" &&
+            request.pathname === "/api/v1/experiments/exp-1/save-as-recipe" &&
+            (request.body as { name?: string; description?: string } | null)?.name ===
+              "MoS2 baseline" &&
+            (request.body as { name?: string; description?: string } | null)?.description ===
+              "Baseline growth recipe",
+        ),
+      ).toBe(true);
+    });
+
+    expect(await screen.findByText("Recipe 已保存")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("validates save as Recipe name before submitting", async () => {
+    const server = createLifecycleFetchMock(createExperiment("submitted"));
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: anotherMember,
+      },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "保存为 Recipe" }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /保\s*存/ }));
+
+    expect(await screen.findByText("请填写 Recipe 名称")).toBeInTheDocument();
+    expect(
+      server.requests.some(
+        (request) =>
+          request.method === "POST" &&
+          request.pathname === "/api/v1/experiments/exp-1/save-as-recipe",
+      ),
+    ).toBe(false);
+  });
+
+  it("shows backend errors in the save as Recipe modal", async () => {
+    const server = createLifecycleFetchMock(createExperiment("submitted"));
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+      const method = init?.method ?? "GET";
+
+      if (url.pathname === "/api/v1/experiments/exp-1/save-as-recipe" && method === "POST") {
+        return Promise.resolve(
+          jsonResponse(
+            { detail: "当前实验不能保存为 Recipe" },
+            { status: 409 },
+          ),
+        );
+      }
+
+      return server.fetchMock(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: anotherMember,
+      },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "保存为 Recipe" }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Recipe 名称"), {
+      target: { value: "MoS2 baseline" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /保\s*存/ }));
+
+    expect(await within(dialog).findByText("当前实验不能保存为 Recipe")).toBeInTheDocument();
   });
 });
