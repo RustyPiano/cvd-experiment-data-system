@@ -30,7 +30,17 @@ import {
   mergeResultSummaryPayload,
   mergeSubstratesPayload,
   serializeSectionValues,
+  toBasicInfoPayload,
+  toCharacterizationPayload,
+  toEnvironmentPayload,
   toExperimentPatch,
+  toFurnaceProgramPayload,
+  toGasProgramPayload,
+  toPrecheckPayload,
+  toPrecursorsPayload,
+  toProcessObservationPayload,
+  toResultSummaryPayload,
+  toSubstratesPayload,
   type ModulePayloadMap,
   toResultSummaryPatch,
   validateSectionValues,
@@ -39,6 +49,12 @@ import {
   type ExperimentEditorValues,
   type SectionSaveState,
 } from "./editor-types";
+import {
+  computeModuleCompletion,
+  type CompletionSummary,
+  type CompletionValidationIssue,
+  type ModuleCompletionStatus,
+} from "./components/completion-indicator";
 
 type SubmitState = {
   status: "idle" | "submitting" | "error";
@@ -726,6 +742,81 @@ export function useExperimentEditor({
     return "编辑后自动保存";
   }, [sectionStates]);
 
+  const currentModulePayloads = useMemo<Record<EditorSectionKey, Record<string, unknown>>>(
+    () => ({
+      basic_info: toBasicInfoPayload(values.basicInfo, currentUserId),
+      environment: toEnvironmentPayload(values.environment),
+      precheck: toPrecheckPayload(values.precheck),
+      precursors: toPrecursorsPayload(values.precursors),
+      substrates: toSubstratesPayload(values.substrates),
+      furnace_program: toFurnaceProgramPayload(values.furnaceProgram),
+      gas_program: toGasProgramPayload(values.gasProgram),
+      process_observation: toProcessObservationPayload(values.processObservation),
+      characterization: toCharacterizationPayload(values.characterization),
+      result_summary: toResultSummaryPayload(values.resultSummary),
+    }),
+    [currentUserId, values],
+  );
+
+  const completionValidationIssues = useMemo<CompletionValidationIssue[]>(() => {
+    if (!validationResult) {
+      return [];
+    }
+
+    return [
+      ...validationResult.errors.map((issue) => ({ ...issue, severity: "error" as const })),
+      ...validationResult.warnings.map((issue) => ({ ...issue, severity: "warning" as const })),
+    ];
+  }, [validationResult]);
+
+  const moduleCompletionMap = useMemo<Record<EditorSectionKey, ModuleCompletionStatus>>(
+    () =>
+      editorSectionKeys.reduce<Record<EditorSectionKey, ModuleCompletionStatus>>(
+        (result, sectionKey) => {
+          result[sectionKey] = computeModuleCompletion(
+            sectionKey,
+            currentModulePayloads[sectionKey],
+            completionValidationIssues,
+          );
+          return result;
+        },
+        {
+          basic_info: { state: "empty", percent: 0 },
+          environment: { state: "empty", percent: 0 },
+          precheck: { state: "empty", percent: 0 },
+          precursors: { state: "empty", percent: 0 },
+          substrates: { state: "empty", percent: 0 },
+          furnace_program: { state: "empty", percent: 0 },
+          gas_program: { state: "empty", percent: 0 },
+          process_observation: { state: "empty", percent: 0 },
+          characterization: { state: "empty", percent: 0 },
+          result_summary: { state: "empty", percent: 0 },
+        },
+      ),
+    [completionValidationIssues, currentModulePayloads],
+  );
+
+  const completionSummary = useMemo<CompletionSummary>(() => {
+    const statuses = editorSectionKeys.map((sectionKey) => moduleCompletionMap[sectionKey]);
+    const totalCount = statuses.length;
+
+    return {
+      percent: Math.round(
+        statuses.reduce((total, status) => total + status.percent, 0) / totalCount,
+      ),
+      completedCount: statuses.filter((status) => status.state === "complete").length,
+      totalCount,
+      blockingCount: statuses.reduce(
+        (total, status) => total + (status.state === "error" ? status.errors : 0),
+        0,
+      ),
+      warningCount: statuses.reduce(
+        (total, status) => total + (status.state === "warning" ? status.warnings : 0),
+        0,
+      ),
+    };
+  }, [moduleCompletionMap]);
+
   const hasSavingSections = useMemo(
     () => Object.values(sectionStates).some((state) => state.status === "saving"),
     [sectionStates],
@@ -860,9 +951,11 @@ export function useExperimentEditor({
     isSubmitting: submitState.status === "submitting",
     shouldWarnOnLeave,
     inheritanceError,
+    completionSummary,
     saveSummary,
     scheduleAutosave,
     sectionStates,
+    moduleCompletionMap,
     submitDraft,
     submitState,
     inheritedFrom,

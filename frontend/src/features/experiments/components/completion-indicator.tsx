@@ -1,0 +1,205 @@
+import type { ExperimentValidationIssue } from "../../../shared/types/api";
+
+export type ModuleCompletionStatus =
+  | { state: "empty"; percent: number }
+  | { state: "partial"; percent: number }
+  | { state: "complete"; percent: number }
+  | { state: "warning"; percent: number; warnings: number }
+  | { state: "error"; percent: number; errors: number };
+
+export type CompletionValidationIssue = ExperimentValidationIssue & {
+  severity?: "error" | "warning";
+};
+
+export type CompletionSummary = {
+  percent: number;
+  completedCount: number;
+  totalCount: number;
+  blockingCount: number;
+  warningCount: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+function asRecordArray(value: unknown) {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function isFilled(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+
+  if (typeof value === "boolean") {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(isFilled);
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value).some(isFilled);
+  }
+
+  return false;
+}
+
+function getValue(payload: Record<string, unknown>, keys: string[]) {
+  const matchingKey = keys.find((key) => key in payload);
+  return matchingKey ? payload[matchingKey] : undefined;
+}
+
+function toStepStatus(percent: number): ModuleCompletionStatus {
+  if (percent <= 0) {
+    return { state: "empty", percent: 0 };
+  }
+
+  if (percent >= 100) {
+    return { state: "complete", percent: 100 };
+  }
+
+  return { state: "partial", percent };
+}
+
+function scoreBooleanSteps(completed: number, total: number) {
+  if (completed <= 0) {
+    return 0;
+  }
+
+  if (completed >= total) {
+    return 100;
+  }
+
+  return 50;
+}
+
+function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
+  if (moduleKey === "basic_info") {
+    return scoreBooleanSteps(
+      [
+        getValue(payload, ["experiment_date", "experimentDate"]),
+        getValue(payload, ["material_system", "materialSystem"]),
+      ].filter(isFilled).length,
+      2,
+    );
+  }
+
+  if (moduleKey === "environment") {
+    return scoreBooleanSteps(
+      [
+        getValue(payload, ["indoor_temperature_C", "indoorTemperatureC"]),
+        getValue(payload, ["indoor_humidity_percent", "indoorHumidityPercent"]),
+      ].filter(isFilled).length,
+      2,
+    );
+  }
+
+  if (moduleKey === "precheck") {
+    const requiredFields = [
+      ["seal_intact", "sealIntact"],
+      ["hood_clean", "hoodClean"],
+      ["flange_blocked", "flangeBlocked"],
+      ["boat_contamination_level", "boatContaminationLevel"],
+      ["tube_contamination_level", "tubeContaminationLevel"],
+    ];
+    return scoreBooleanSteps(
+      requiredFields.filter((keys) => isFilled(getValue(payload, keys))).length,
+      requiredFields.length,
+    );
+  }
+
+  if (moduleKey === "precursors") {
+    const items = asRecordArray(payload.items);
+    if (!items.length) {
+      return 0;
+    }
+
+    return items.some((item) => isFilled(item.species) && isFilled(item.method)) ? 100 : 50;
+  }
+
+  if (moduleKey === "substrates") {
+    const items = asRecordArray(payload.items);
+    if (!items.length) {
+      return 0;
+    }
+
+    return items.some((item) => isFilled(item.type) && isFilled(item.role)) ? 100 : 50;
+  }
+
+  if (moduleKey === "furnace_program") {
+    const zones = asRecordArray(payload.zones);
+    if (!zones.length) {
+      return 0;
+    }
+
+    return zones.some(
+      (zone) => asRecordArray(zone.temperature_program ?? zone.temperatureProgram).length >= 2,
+    )
+      ? 100
+      : 50;
+  }
+
+  if (moduleKey === "gas_program") {
+    const segments = asRecordArray(payload.segments);
+    if (!segments.length) {
+      return 0;
+    }
+
+    return segments.some((segment) => isFilled(segment.flow_sccm ?? segment.flowSccm)) ? 100 : 50;
+  }
+
+  if (moduleKey === "process_observation") {
+    return isFilled(payload) ? 100 : 0;
+  }
+
+  if (moduleKey === "characterization") {
+    return asRecordArray(payload.methods).some((method) => method.enabled === true) ? 100 : 0;
+  }
+
+  if (moduleKey === "result_summary") {
+    const qualityLabel = getValue(payload, ["quality_label", "qualityLabel"]);
+    return isFilled(qualityLabel) && qualityLabel !== "unknown" ? 100 : 0;
+  }
+
+  return 0;
+}
+
+function issuesForModule(moduleKey: string, validationIssues: CompletionValidationIssue[]) {
+  return validationIssues.filter((issue) => issue.module_key === moduleKey);
+}
+
+export function computeModuleCompletion(
+  moduleKey: string,
+  payload: Record<string, unknown> | null | undefined,
+  validationErrors: CompletionValidationIssue[] = [],
+): ModuleCompletionStatus {
+  const safePayload = asRecord(payload);
+  const percent = baseCompletion(moduleKey, safePayload);
+  const moduleIssues = issuesForModule(moduleKey, validationErrors);
+  const errorCount = moduleIssues.filter((issue) => issue.severity !== "warning").length;
+  if (errorCount > 0) {
+    return { state: "error", percent, errors: errorCount };
+  }
+
+  const warningCount = moduleIssues.filter((issue) => issue.severity === "warning").length;
+  if (warningCount > 0) {
+    return { state: "warning", percent, warnings: warningCount };
+  }
+
+  return toStepStatus(percent);
+}

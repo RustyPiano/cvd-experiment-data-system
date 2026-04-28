@@ -2,6 +2,7 @@ import { Alert, Button, Card, Space, Typography } from "antd";
 
 import type { ExperimentRead } from "../../../shared/types/api";
 import { StatusTag } from "../../../shared/ui/status-tag";
+import type { CompletionSummary } from "./completion-indicator";
 
 type SubmitState = {
   status: "idle" | "submitting" | "error";
@@ -9,6 +10,7 @@ type SubmitState = {
 };
 
 export function EditorActionBar({
+  completionSummary,
   experiment,
   isDraft,
   onBack,
@@ -18,6 +20,7 @@ export function EditorActionBar({
   saveSummary,
   submitState,
 }: {
+  completionSummary: CompletionSummary;
   experiment: ExperimentRead;
   isDraft: boolean;
   onBack: () => void;
@@ -27,6 +30,8 @@ export function EditorActionBar({
   saveSummary: string;
   submitState: SubmitState;
 }) {
+  const completionText = `总完成度 ${completionSummary.percent}% · 已完成 ${completionSummary.completedCount}/${completionSummary.totalCount} · 阻塞 ${completionSummary.blockingCount} · 提示 ${completionSummary.warningCount}`;
+
   return (
     <Card className="editor-action-bar">
       <div className="editor-action-bar-content">
@@ -35,6 +40,9 @@ export function EditorActionBar({
             <Typography.Text code>{experiment.run_code}</Typography.Text>
             <StatusTag status={experiment.status} />
             <Typography.Text type="secondary">{saveSummary}</Typography.Text>
+            <Typography.Text className="editor-completion-summary" type="secondary">
+              {completionText}
+            </Typography.Text>
           </Space>
           <Typography.Paragraph style={{ marginBottom: 0, marginTop: 8 }} type="secondary">
             {isDraft

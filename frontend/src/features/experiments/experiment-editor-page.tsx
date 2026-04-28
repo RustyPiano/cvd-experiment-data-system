@@ -167,6 +167,7 @@ function ExperimentEditorWorkspace({
   const stepperItems: StepperItem[] = useMemo(() => {
     return sectionAnchorList.map((s) => {
       const state = editor.sectionStates[s.key];
+      const completion = editor.moduleCompletionMap[s.key];
       let status: StepperItem["status"] = "empty";
       if (s.key === currentSection) {
         status = "current";
@@ -177,9 +178,9 @@ function ExperimentEditorWorkspace({
       } else if (state.status === "saving") {
         status = "editing";
       }
-      return { key: s.key, label: s.label, status };
+      return { key: s.key, label: s.label, status, completion };
     });
-  }, [editor.sectionStates, currentSection]);
+  }, [editor.moduleCompletionMap, editor.sectionStates, currentSection]);
 
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") {
@@ -457,6 +458,7 @@ function ExperimentEditorWorkspace({
         </div>
       </div>
       <EditorActionBar
+        completionSummary={editor.completionSummary}
         experiment={editor.experiment}
         isDraft={editor.isDraft}
         onBack={navigateToDetail}

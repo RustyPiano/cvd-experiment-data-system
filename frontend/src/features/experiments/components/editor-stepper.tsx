@@ -1,4 +1,5 @@
 import type { EditorSectionKey } from "../editor-types";
+import type { ModuleCompletionStatus } from "./completion-indicator";
 
 export type StepperItemStatus =
   | "empty"
@@ -12,6 +13,7 @@ export type StepperItem = {
   key: EditorSectionKey;
   label: string;
   status: StepperItemStatus;
+  completion?: ModuleCompletionStatus;
 };
 
 const stepperDotClass: Record<StepperItemStatus, string> = {
@@ -23,36 +25,116 @@ const stepperDotClass: Record<StepperItemStatus, string> = {
   current: "editor-stepper-dot current",
 };
 
-function StepperIcon({ status }: { status: StepperItemStatus }) {
-  if (status === "saved") {
+function resolveCompletionDotClass(
+  completion: ModuleCompletionStatus | undefined,
+  status: StepperItemStatus,
+) {
+  if (!completion) {
+    return stepperDotClass[status];
+  }
+
+  if (completion.state === "error") {
+    return "editor-stepper-dot error";
+  }
+  if (completion.state === "warning") {
+    return "editor-stepper-dot warning";
+  }
+  if (completion.state === "complete") {
+    return "editor-stepper-dot complete";
+  }
+  if (completion.state === "partial") {
+    return `editor-stepper-dot partial ${completion.percent < 50 ? "low" : "high"}`;
+  }
+
+  return "editor-stepper-dot empty";
+}
+
+function resolveCompletionLabel(label: string, completion: ModuleCompletionStatus | undefined) {
+  if (!completion) {
+    return undefined;
+  }
+
+  if (completion.state === "error") {
+    return `${label}：阻塞 ${completion.errors} 项，完成度 ${completion.percent}%`;
+  }
+  if (completion.state === "warning") {
+    return `${label}：提示 ${completion.warnings} 项，完成度 ${completion.percent}%`;
+  }
+
+  return `${label}：完成度 ${completion.percent}%`;
+}
+
+function resolveMobileItemClass(
+  completion: ModuleCompletionStatus | undefined,
+  status: StepperItemStatus,
+  isCurrent: boolean,
+) {
+  return [
+    "editor-stepper-mobile-item",
+    isCurrent ? "current" : "",
+    completion?.state === "error" || status === "error" ? "error" : "",
+    completion?.state === "warning" ? "warning" : "",
+    completion?.state === "complete" ? "complete" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function StepperIcon({
+  completion,
+  status,
+}: {
+  completion: ModuleCompletionStatus | undefined;
+  status: StepperItemStatus;
+}) {
+  const iconState = completion?.state ?? status;
+  if (iconState === "complete" || iconState === "saved") {
     return (
       <svg fill="none" height="10" viewBox="0 0 12 10" width="12">
-        <path d="M1 5.5L4 8.5L11 1.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+        <path
+          d="M1 5.5L4 8.5L11 1.5"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
       </svg>
     );
   }
-  if (status === "error") {
+  if (iconState === "error") {
     return (
       <svg fill="none" height="10" viewBox="0 0 10 10" width="10">
-        <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+        <path
+          d="M1 1L9 9M9 1L1 9"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
       </svg>
     );
   }
-  if (status === "warning") {
+  if (iconState === "warning") {
     return (
       <svg fill="none" height="10" viewBox="0 0 4 10" width="4">
-        <path d="M2 0V6M2 8.5V9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+        <path
+          d="M2 0V6M2 8.5V9"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
       </svg>
     );
   }
-  if (status === "current") {
+  if (iconState === "current") {
     return (
       <svg fill="none" height="6" viewBox="0 0 6 6" width="6">
         <circle cx="3" cy="3" fill="currentColor" r="3" />
       </svg>
     );
   }
-  if (status === "editing") {
+  if (iconState === "editing") {
     return (
       <svg fill="none" height="6" viewBox="0 0 6 6" width="6">
         <circle cx="3" cy="3" fill="currentColor" r="3" />
@@ -78,6 +160,7 @@ export function EditorStepper({
         {items.map((item, index) => {
           const isCurrent = item.key === currentKey;
           const isLast = index === items.length - 1;
+          const completionLabel = resolveCompletionLabel(item.label, item.completion);
           return (
             <div
               className={`editor-stepper-item ${isCurrent ? "current" : ""}`}
@@ -94,12 +177,21 @@ export function EditorStepper({
               tabIndex={0}
             >
               <div className="editor-stepper-track">
-                <div className={stepperDotClass[item.status]}>
-                  <StepperIcon status={item.status} />
+                <div
+                  aria-label={completionLabel}
+                  className={resolveCompletionDotClass(item.completion, item.status)}
+                >
+                  <StepperIcon completion={item.completion} status={item.status} />
                 </div>
                 {!isLast ? (
                   <div
-                    className={`editor-stepper-line ${item.status === "saved" || item.status === "current" ? "active" : ""}`}
+                    className={`editor-stepper-line ${
+                      item.completion?.percent === 100 ||
+                      item.status === "saved" ||
+                      item.status === "current"
+                        ? "active"
+                        : ""
+                    }`}
                   />
                 ) : null}
               </div>
@@ -115,14 +207,20 @@ export function EditorStepper({
           const isCurrent = item.key === currentKey;
           return (
             <button
-              className={`editor-stepper-mobile-item ${isCurrent ? "current" : ""} ${item.status === "error" ? "error" : ""}`}
+              className={resolveMobileItemClass(item.completion, item.status, isCurrent)}
               key={item.key}
               onClick={() => {
                 onChange(item.key);
               }}
               type="button"
             >
-              {item.label}
+              <span
+                aria-hidden="true"
+                className={resolveCompletionDotClass(item.completion, item.status)}
+              >
+                <StepperIcon completion={item.completion} status={item.status} />
+              </span>
+              <span>{item.label}</span>
             </button>
           );
         })}
