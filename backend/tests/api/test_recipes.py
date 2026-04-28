@@ -32,6 +32,13 @@ def recipe_count(db_session) -> int:
     return db_session.scalar(select(func.count()).select_from(Recipe)) or 0
 
 
+def get_recipe_row(db_session, recipe_id) -> Recipe:
+    db_session.expire_all()
+    recipe = db_session.get(Recipe, recipe_id)
+    assert recipe is not None
+    return recipe
+
+
 def create_recipe_row(
     db_session,
     *,
@@ -224,6 +231,112 @@ def test_non_admin_create_returns_403_and_writes_no_recipe_or_audit(
     assert response.status_code == 403
     assert recipe_count(db_session) == before_count
     assert recipe_audit_events(db_session) == []
+
+
+def test_non_admin_users_cannot_access_recipe_admin_endpoints(
+    admin_user,
+    active_user,
+    db_session,
+) -> None:
+    recipe = create_recipe_row(
+        db_session,
+        created_by=admin_user,
+        name="Admin only",
+        material_system="MoS2",
+    )
+    headers = auth_headers(active_user.email)
+
+    list_response = client.get("/api/v1/admin/recipes", headers=headers)
+    get_response = client.get(f"/api/v1/admin/recipes/{recipe.id}", headers=headers)
+    patch_response = client.patch(
+        f"/api/v1/admin/recipes/{recipe.id}",
+        json={"name": "Unauthorized rename"},
+        headers=headers,
+    )
+    delete_response = client.delete(
+        f"/api/v1/admin/recipes/{recipe.id}",
+        headers=headers,
+    )
+
+    assert list_response.status_code == 403
+    assert get_response.status_code == 403
+    assert patch_response.status_code == 403
+    assert delete_response.status_code == 403
+    assert recipe_audit_events(db_session) == []
+    stored_recipe = get_recipe_row(db_session, recipe.id)
+    assert stored_recipe.name == "Admin only"
+    assert stored_recipe.is_active is True
+
+
+def test_recipe_endpoints_require_authentication(admin_user, db_session) -> None:
+    recipe = create_recipe_row(
+        db_session,
+        created_by=admin_user,
+        name="Authenticated only",
+        material_system="graphene",
+    )
+    before_count = recipe_count(db_session)
+
+    responses = [
+        client.get("/api/v1/recipes"),
+        client.get(f"/api/v1/recipes/{recipe.id}"),
+        client.get("/api/v1/admin/recipes"),
+        client.post(
+            "/api/v1/admin/recipes",
+            json={
+                "name": "Unauthenticated create",
+                "material_system": "MoS2",
+                "default_payload_json": {},
+            },
+        ),
+    ]
+
+    assert all(response.status_code == 401 for response in responses)
+    assert recipe_count(db_session) == before_count
+    assert recipe_audit_events(db_session) == []
+
+
+def test_admin_recipe_list_filters_by_active_state(admin_user, db_session) -> None:
+    active_recipe = create_recipe_row(
+        db_session,
+        created_by=admin_user,
+        name="WSe2 active",
+        material_system="WSe2",
+    )
+    inactive_recipe = create_recipe_row(
+        db_session,
+        created_by=admin_user,
+        name="WSe2 inactive",
+        material_system="WSe2",
+        is_active=False,
+    )
+
+    default_response = client.get(
+        "/api/v1/admin/recipes?material_system=WSe2",
+        headers=auth_headers(admin_user.email),
+    )
+    inactive_response = client.get(
+        "/api/v1/admin/recipes?material_system=WSe2&is_active=false",
+        headers=auth_headers(admin_user.email),
+    )
+    active_response = client.get(
+        "/api/v1/admin/recipes?material_system=WSe2&is_active=true",
+        headers=auth_headers(admin_user.email),
+    )
+
+    assert default_response.status_code == 200
+    assert inactive_response.status_code == 200
+    assert active_response.status_code == 200
+    assert {item["id"] for item in default_response.json()["items"]} == {
+        str(active_recipe.id),
+        str(inactive_recipe.id),
+    }
+    assert [item["id"] for item in inactive_response.json()["items"]] == [
+        str(inactive_recipe.id),
+    ]
+    assert [item["id"] for item in active_response.json()["items"]] == [
+        str(active_recipe.id),
+    ]
 
 
 def test_public_get_active_recipe_and_admin_get_inactive_recipe(
