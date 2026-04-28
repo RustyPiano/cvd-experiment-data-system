@@ -71,4 +71,41 @@ describe("GasProgramSection", () => {
 
     expect(screen.queryByText("已应用模板：Ar 清洗 + Ar 生长，请确认或修改。")).not.toBeInTheDocument();
   });
+
+  it("maps the Ar + H2 built-in template with normalized component fractions", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <GasProgramSection
+        disabled={false}
+        gasOptions={[]}
+        onChange={onChange}
+        templates={BUILTIN_GAS_TEMPLATES}
+        value={{ preWashingGas: "", segments: [] }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "套用模板" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Ar + H2 生长" }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      preWashingGas: "Ar",
+      segments: [
+        {
+          components: [
+            expect.objectContaining({ gas: "Ar", ratioPercent: "0.95" }),
+            expect.objectContaining({ gas: "H2", ratioPercent: "0.05" }),
+          ],
+          endMin: "45",
+          flowSccm: "100",
+          gas: "Ar/H2",
+          note: "还原性气氛生长",
+          sourcePayload: expect.objectContaining({ stage: "growth" }),
+          stage: "growth",
+          startMin: "0",
+        },
+      ],
+    });
+  });
 });
