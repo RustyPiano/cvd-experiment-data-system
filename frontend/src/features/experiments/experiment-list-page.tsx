@@ -1,7 +1,20 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { PlusOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Checkbox, Col, Empty, Input, Row, Space, Statistic, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Empty,
+  Input,
+  Modal,
+  Row,
+  Space,
+  Statistic,
+  Typography,
+} from "antd";
 import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -39,6 +52,8 @@ type ExperimentListFilterState = {
   filters: ExperimentListFilters;
   urlKey: string;
 };
+
+type TransitionAction = "lock" | "clone" | "invalidate";
 
 const defaultFilters: ExperimentListFilters = {
   materialSystem: "",
@@ -161,6 +176,11 @@ export function ExperimentListPage() {
   };
   const [listActionError, setListActionError] = useState<string | null>(null);
   const [activeExportKey, setActiveExportKey] = useState<string | null>(null);
+  const [activeTransitionKey, setActiveTransitionKey] = useState<string | null>(null);
+  const [invalidateTarget, setInvalidateTarget] = useState<ExperimentRead | null>(null);
+  const [invalidateReason, setInvalidateReason] = useState("");
+  const [invalidateValidation, setInvalidateValidation] = useState<string | null>(null);
+  const activeTransitionRef = useRef<string | null>(null);
   const canCreateExperiment = session.currentUser?.role !== "viewer";
 
   const debouncedQ = useDebounce(filters.q, 400);
@@ -275,7 +295,35 @@ export function ExperimentListPage() {
     });
   };
 
+  const runTransition = async (
+    experiment: ExperimentRead,
+    action: TransitionAction,
+    task: () => Promise<void>,
+  ) => {
+    const transitionKey = `${experiment.id}:${action}`;
+    if (activeTransitionRef.current) {
+      return false;
+    }
+
+    activeTransitionRef.current = transitionKey;
+    setActiveTransitionKey(transitionKey);
+    setListActionError(null);
+
+    try {
+      await task();
+      await refreshExperimentCaches();
+      return true;
+    } finally {
+      activeTransitionRef.current = null;
+      setActiveTransitionKey(null);
+    }
+  };
+
   const handleLock = async (experiment: ExperimentRead) => {
+    if (activeTransitionRef.current) {
+      return;
+    }
+
     const confirmed = window.confirm(
       `锁定实验 ${experiment.run_code}？锁定后不可修改，只能派生新实验。此操作会写入审计日志。`,
     );
@@ -283,17 +331,20 @@ export function ExperimentListPage() {
       return;
     }
 
-    setListActionError(null);
-
     try {
-      await lockExperiment(session.accessToken!, experiment.id);
-      await refreshExperimentCaches();
+      await runTransition(experiment, "lock", async () => {
+        await lockExperiment(session.accessToken!, experiment.id);
+      });
     } catch (error) {
       setListActionError(resolveErrorMessage(error, "锁定实验失败"));
     }
   };
 
   const handleClone = async (experiment: ExperimentRead) => {
+    if (activeTransitionRef.current) {
+      return;
+    }
+
     const confirmed = window.confirm(
       `将派生实验 ${experiment.run_code} 的参数为新草稿。确定继续？`,
     );
@@ -301,32 +352,60 @@ export function ExperimentListPage() {
       return;
     }
 
-    setListActionError(null);
-
     try {
-      const clonedExperiment = await cloneExperiment(session.accessToken!, experiment.id);
-      await refreshExperimentCaches();
-      navigate(`/experiments/${clonedExperiment.id}/edit`);
+      let clonedExperimentId: string | null = null;
+      const didRun = await runTransition(experiment, "clone", async () => {
+        const clonedExperiment = await cloneExperiment(session.accessToken!, experiment.id);
+        clonedExperimentId = clonedExperiment.id;
+      });
+      if (!didRun || !clonedExperimentId) {
+        return;
+      }
+      navigate(`/experiments/${clonedExperimentId}/edit`);
     } catch (error) {
       setListActionError(resolveErrorMessage(error, "派生草稿失败"));
     }
   };
 
-  const handleInvalidate = async (experiment: ExperimentRead) => {
-    const confirmed = window.confirm(
-      `作废实验 ${experiment.run_code}？将使用原因：列表快捷操作作废。此操作会写入审计日志。`,
-    );
-    if (!confirmed) {
+  const openInvalidateModal = (experiment: ExperimentRead) => {
+    if (activeTransitionRef.current) {
       return;
     }
 
     setListActionError(null);
+    setInvalidateValidation(null);
+    setInvalidateReason("");
+    setInvalidateTarget(experiment);
+  };
+
+  const closeInvalidateModal = () => {
+    if (activeTransitionKey?.endsWith(":invalidate")) {
+      return;
+    }
+
+    setInvalidateTarget(null);
+    setInvalidateReason("");
+    setInvalidateValidation(null);
+  };
+
+  const submitInvalidate = async () => {
+    if (!invalidateTarget || activeTransitionRef.current) {
+      return;
+    }
+
+    const normalizedReason = invalidateReason.trim();
+    if (!normalizedReason) {
+      setInvalidateValidation("请填写作废原因");
+      return;
+    }
 
     try {
-      await invalidateExperiment(session.accessToken!, experiment.id, {
-        reason: "列表快捷操作作废",
+      await runTransition(invalidateTarget, "invalidate", async () => {
+        await invalidateExperiment(session.accessToken!, invalidateTarget.id, {
+          reason: normalizedReason,
+        });
       });
-      await refreshExperimentCaches();
+      closeInvalidateModal();
     } catch (error) {
       setListActionError(resolveErrorMessage(error, "作废实验失败"));
     }
@@ -506,6 +585,8 @@ export function ExperimentListPage() {
             ) : (
             <ExperimentTable
               activeExportKey={activeExportKey}
+              activeTransitionKey={activeTransitionKey}
+              currentUser={session.currentUser ?? null}
               items={experimentQuery.data?.items ?? []}
               loading={false}
               onClone={(experiment) => {
@@ -518,7 +599,7 @@ export function ExperimentListPage() {
                 void handleExportJson(experiment);
               }}
               onInvalidate={(experiment) => {
-                void handleInvalidate(experiment);
+                openInvalidateModal(experiment);
               }}
               onLock={(experiment) => {
                 void handleLock(experiment);
@@ -541,6 +622,35 @@ export function ExperimentListPage() {
           )}
         </div>
       </Card>
+      <Modal
+        cancelText="取消"
+        confirmLoading={activeTransitionKey?.endsWith(":invalidate") ?? false}
+        okText="确认作废"
+        okType="danger"
+        onCancel={closeInvalidateModal}
+        onOk={() => {
+          void submitInvalidate();
+        }}
+        open={Boolean(invalidateTarget)}
+        title={invalidateTarget ? `作废实验 ${invalidateTarget.run_code}` : "作废实验"}
+      >
+        <div className="content-stack">
+          <Input.TextArea
+            aria-label="作废原因"
+            autoSize={{ minRows: 3, maxRows: 5 }}
+            disabled={activeTransitionKey?.endsWith(":invalidate") ?? false}
+            onChange={(event) => {
+              setInvalidateReason(event.target.value);
+              if (invalidateValidation) {
+                setInvalidateValidation(null);
+              }
+            }}
+            placeholder="说明污染、设备异常或其他作废原因"
+            value={invalidateReason}
+          />
+          {invalidateValidation ? <Alert title={invalidateValidation} showIcon type="error" /> : null}
+        </div>
+      </Modal>
     </div>
   );
 }

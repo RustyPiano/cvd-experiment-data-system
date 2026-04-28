@@ -8,12 +8,15 @@ import { Link, useNavigate } from "react-router-dom";
 import { EmptyState } from "../../../shared/ui/empty-state";
 import { QualityTag, StatusTag } from "../../../shared/ui/status-tag";
 import type { ExperimentRead } from "../../../shared/types/api";
+import type { SessionUser } from "../../auth/auth-store";
 import type { ExperimentSortField } from "../api";
 
 export type ExperimentSortOrder = "ascend" | "descend";
 
 type ExperimentTableProps = {
   activeExportKey: string | null;
+  activeTransitionKey: string | null;
+  currentUser: SessionUser | null;
   items: ExperimentRead[];
   loading: boolean;
   onExportExcel: (experiment: ExperimentRead) => void;
@@ -48,6 +51,8 @@ function isExperimentSortField(value: unknown): value is ExperimentSortField {
 
 export function ExperimentTable({
   activeExportKey,
+  activeTransitionKey,
+  currentUser,
   items,
   loading,
   onClone,
@@ -67,18 +72,28 @@ export function ExperimentTable({
     sortField === field && sortOrder ? sortOrder : null;
 
   const buildActionMenuItems = (record: ExperimentRead): MenuProps["items"] => {
+    const isOwnerOrAdmin =
+      currentUser?.role === "admin" || currentUser?.id === record.owner_id;
+    const isOwner = currentUser?.id === record.owner_id;
+    const canMutate = Boolean(currentUser && currentUser.role !== "viewer");
+    const canInvalidate =
+      canMutate && isOwnerOrAdmin && record.status !== "invalid" && record.status !== "locked";
+    const canLock = canMutate && isOwnerOrAdmin && record.status === "submitted";
+    const canClone =
+      canMutate && (record.status === "locked" || (record.status === "submitted" && isOwner));
+
     if (record.status === "draft") {
       return [
         { key: "export-json", label: "导出 JSON" },
         { key: "export-excel", label: "导出 Excel" },
-        { key: "invalidate", label: "作废", danger: true },
+        ...(canInvalidate ? [{ key: "invalidate", label: "作废", danger: true }] : []),
       ];
     }
 
     if (record.status === "submitted") {
       return [
-        { key: "lock", label: "锁定" },
-        { key: "clone", label: "派生" },
+        ...(canLock ? [{ key: "lock", label: "锁定" }] : []),
+        ...(canClone ? [{ key: "clone", label: "派生" }] : []),
         { key: "export-json", label: "导出 JSON" },
         { key: "export-excel", label: "导出 Excel" },
       ];
@@ -86,7 +101,7 @@ export function ExperimentTable({
 
     if (record.status === "locked") {
       return [
-        { key: "clone", label: "派生" },
+        ...(canClone ? [{ key: "clone", label: "派生" }] : []),
         { key: "export-json", label: "导出 JSON" },
         { key: "export-excel", label: "导出 Excel" },
       ];
@@ -175,8 +190,13 @@ export function ExperimentTable({
       title: "操作",
       key: "actions",
       render: (_, record) => {
+        const isOwnerOrAdmin =
+          currentUser?.role === "admin" || currentUser?.id === record.owner_id;
+        const canEditDraft =
+          currentUser?.role !== "viewer" && record.status === "draft" && isOwnerOrAdmin;
+        const isTransitionBusy = activeTransitionKey?.startsWith(`${record.id}:`) ?? false;
         const primaryAction =
-          record.status === "draft"
+          canEditDraft
             ? {
                 label: "继续填写",
                 path: `/experiments/${record.id}/edit`,
@@ -190,6 +210,7 @@ export function ExperimentTable({
           <Space size="small">
             <Button
               aria-label={primaryAction.label}
+              disabled={isTransitionBusy}
               onClick={() => {
                 navigate(primaryAction.path);
               }}
@@ -210,8 +231,11 @@ export function ExperimentTable({
             >
               <Button
                 aria-label={`更多操作 ${record.run_code}`}
+                disabled={isTransitionBusy}
                 icon={<MoreOutlined />}
-                loading={activeExportKey?.startsWith(`${record.id}:`) ?? false}
+                loading={
+                  isTransitionBusy || (activeExportKey?.startsWith(`${record.id}:`) ?? false)
+                }
                 size="small"
               />
             </Dropdown>

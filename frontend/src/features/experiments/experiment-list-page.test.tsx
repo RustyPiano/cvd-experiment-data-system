@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes, useNavigate } from "react-router-dom";
 
 import { ExperimentListPage } from "./experiment-list-page";
+import { ExperimentTable } from "./components/experiment-table";
 import { renderWithApp } from "../../test/render";
 import type { ExperimentRead } from "../../shared/types/api";
 
@@ -72,6 +73,13 @@ function ExperimentListPageWithUrlControls() {
   );
 }
 
+function openRowActions(runCode: string) {
+  const row = screen.getByText(runCode).closest("tr");
+  expect(row).not.toBeNull();
+  fireEvent.click(within(row!).getByRole("button", { name: `更多操作 ${runCode}` }));
+  return row!;
+}
+
 describe("ExperimentListPage", () => {
   afterEach(() => {
     cleanup();
@@ -129,54 +137,58 @@ describe("ExperimentListPage", () => {
     expect(screen.getByText(/当前共/i)).toBeInTheDocument();
   });
 
-  it("shows draft quick actions with continue as primary and export plus invalidate in the menu", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
-        const pageSize = Number(url.searchParams.get("page_size") ?? "10");
-        const items =
-          pageSize === 10
-            ? [
-                createExperimentFixture({
-                  id: "draft-exp",
-                  run_code: "CVD-2026-0001",
-                  status: "draft",
-                }),
-              ]
-            : [];
-
-        return new Response(
-          JSON.stringify(createExperimentListResponse(items, { pageSize })),
-          {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        );
-      }),
+  it("shows draft quick actions with continue as primary and export plus invalidate in the menu", () => {
+    renderWithApp(
+      <ExperimentTable
+        activeExportKey={null}
+        activeTransitionKey={null}
+        currentUser={{
+          id: "u-1",
+          email: "member@example.com",
+          name: "Member",
+          role: "member",
+          is_active: true,
+          last_login_at: null,
+        }}
+        items={[
+          createExperimentFixture({
+            id: "draft-exp",
+            run_code: "CVD-2026-0001",
+            status: "draft",
+          }),
+        ]}
+        loading={false}
+        onClone={vi.fn()}
+        onExportExcel={vi.fn()}
+        onExportJson={vi.fn()}
+        onInvalidate={vi.fn()}
+        onLock={vi.fn()}
+        onTableChange={vi.fn()}
+        page={1}
+        pageSize={10}
+        sortField={null}
+        sortOrder={null}
+        total={1}
+      />,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+      },
     );
 
-    renderWithApp(<ExperimentListPage />, {
-      authenticated: true,
-      initialEntries: ["/experiments"],
-    });
-
-    const row = (await screen.findByText("CVD-2026-0001")).closest("tr");
+    const row = screen.getByText("CVD-2026-0001").closest("tr");
     expect(row).not.toBeNull();
     expect(within(row!).getByRole("button", { name: "继续填写" })).toBeInTheDocument();
     expect(within(row!).queryByRole("button", { name: "查看" })).not.toBeInTheDocument();
 
-    fireEvent.click(within(row!).getByRole("button", { name: "更多操作 CVD-2026-0001" }));
+    openRowActions("CVD-2026-0001");
 
-    const menu = screen.getByRole("menu", { hidden: true });
-    expect(within(menu).getByRole("menuitem", { hidden: true, name: "导出 JSON" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitem", { hidden: true, name: "导出 Excel" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitem", { hidden: true, name: "作废" })).toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { hidden: true, name: "锁定" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { hidden: true, name: "派生" })).not.toBeInTheDocument();
-  }, 20_000);
+    expect(screen.getByText("导出 JSON")).toBeInTheDocument();
+    expect(screen.getByText("导出 Excel")).toBeInTheDocument();
+    expect(screen.getByText("作废")).toBeInTheDocument();
+    expect(screen.queryByText("锁定")).not.toBeInTheDocument();
+    expect(screen.queryByText("派生")).not.toBeInTheDocument();
+  });
 
   it("locks a submitted experiment from the quick action menu and refreshes the list", async () => {
     const requests: Array<{ method: string; pathname: string }> = [];
@@ -241,10 +253,9 @@ describe("ExperimentListPage", () => {
       initialEntries: ["/experiments"],
     });
 
-    const row = (await screen.findByText("CVD-2026-0002")).closest("tr");
-    expect(row).not.toBeNull();
-    fireEvent.click(within(row!).getByRole("button", { name: "更多操作 CVD-2026-0002" }));
-    fireEvent.click(await screen.findByRole("menuitem", { hidden: true, name: "锁定" }));
+    await screen.findByText("CVD-2026-0002");
+    openRowActions("CVD-2026-0002");
+    fireEvent.click(screen.getByText("锁定"));
 
     await waitFor(() => {
       expect(requests).toContainEqual({
@@ -327,10 +338,9 @@ describe("ExperimentListPage", () => {
       },
     );
 
-    const row = (await screen.findByText("CVD-2026-0003")).closest("tr");
-    expect(row).not.toBeNull();
-    fireEvent.click(within(row!).getByRole("button", { name: "更多操作 CVD-2026-0003" }));
-    fireEvent.click(await screen.findByRole("menuitem", { hidden: true, name: "派生" }));
+    await screen.findByText("CVD-2026-0003");
+    openRowActions("CVD-2026-0003");
+    fireEvent.click(screen.getByText("派生"));
 
     await waitFor(() => {
       expect(requests).toContainEqual({
@@ -383,14 +393,249 @@ describe("ExperimentListPage", () => {
     expect(row).not.toBeNull();
     expect(within(row!).getByRole("button", { name: "查看" })).toBeInTheDocument();
 
-    fireEvent.click(within(row!).getByRole("button", { name: "更多操作 CVD-2026-0005" }));
+    openRowActions("CVD-2026-0005");
 
-    const menu = await screen.findByRole("menu", { hidden: true });
-    expect(within(menu).getByRole("menuitem", { hidden: true, name: "导出 JSON" })).toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { hidden: true, name: "导出 Excel" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { hidden: true, name: "作废" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { hidden: true, name: "锁定" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { hidden: true, name: "派生" })).not.toBeInTheDocument();
+    expect(screen.getByText("导出 JSON")).toBeInTheDocument();
+    expect(screen.queryByText("导出 Excel")).not.toBeInTheDocument();
+    expect(screen.queryByText("作废")).not.toBeInTheDocument();
+    expect(screen.queryByText("锁定")).not.toBeInTheDocument();
+    expect(screen.queryByText("派生")).not.toBeInTheDocument();
+  });
+
+  it("hides mutating quick actions from viewer users", () => {
+    renderWithApp(
+      <ExperimentTable
+        activeExportKey={null}
+        activeTransitionKey={null}
+        currentUser={{
+          id: "viewer-1",
+          email: "viewer@example.com",
+          name: "Viewer",
+          role: "viewer",
+          is_active: true,
+          last_login_at: null,
+        }}
+        items={[
+          createExperimentFixture({
+            id: "viewer-draft",
+            run_code: "CVD-VIEWER-DRAFT",
+            owner_id: "viewer-1",
+            status: "draft",
+          }),
+        ]}
+        loading={false}
+        onClone={vi.fn()}
+        onExportExcel={vi.fn()}
+        onExportJson={vi.fn()}
+        onInvalidate={vi.fn()}
+        onLock={vi.fn()}
+        onTableChange={vi.fn()}
+        page={1}
+        pageSize={10}
+        sortField={null}
+        sortOrder={null}
+        total={1}
+      />,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+      },
+    );
+
+    const row = screen.getByText("CVD-VIEWER-DRAFT").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByRole("button", { name: "查看" })).toBeInTheDocument();
+    expect(within(row!).queryByRole("button", { name: "继续填写" })).not.toBeInTheDocument();
+
+    openRowActions("CVD-VIEWER-DRAFT");
+
+    expect(screen.getByText("导出 JSON")).toBeInTheDocument();
+    expect(screen.getByText("导出 Excel")).toBeInTheDocument();
+    expect(screen.queryByText("作废")).not.toBeInTheDocument();
+    expect(screen.queryByText("锁定")).not.toBeInTheDocument();
+    expect(screen.queryByText("派生")).not.toBeInTheDocument();
+  });
+
+  it("hides owner-only quick actions from members viewing another owner's submitted experiment", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        const pageSize = Number(url.searchParams.get("page_size") ?? "10");
+        const items =
+          pageSize === 10
+            ? [
+                createExperimentFixture({
+                  id: "other-submitted",
+                  run_code: "CVD-OTHER-SUBMITTED",
+                  owner_id: "other-user",
+                  status: "submitted",
+                  submitted_at: "2026-04-23T01:00:00Z",
+                }),
+              ]
+            : [];
+
+        return new Response(
+          JSON.stringify(createExperimentListResponse(items, { pageSize })),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+    });
+
+    await screen.findByText("CVD-OTHER-SUBMITTED");
+    openRowActions("CVD-OTHER-SUBMITTED");
+
+    expect(screen.getByText("导出 JSON")).toBeInTheDocument();
+    expect(screen.getByText("导出 Excel")).toBeInTheDocument();
+    expect(screen.queryByText("锁定")).not.toBeInTheDocument();
+    expect(screen.queryByText("派生")).not.toBeInTheDocument();
+  });
+
+  it("requires a user-provided invalidation reason before invalidating from the quick action menu", async () => {
+    const requests: Array<{ body: unknown; method: string; pathname: string }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        const method = init?.method ?? "GET";
+        requests.push({
+          body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+          method,
+          pathname: url.pathname,
+        });
+
+        if (method === "POST" && url.pathname === "/api/v1/experiments/draft-exp/invalidate") {
+          return new Response(
+            JSON.stringify(
+              createExperimentFixture({
+                id: "draft-exp",
+                run_code: "CVD-INVALIDATE-PROMPT",
+                status: "invalid",
+                invalid_reason: "炉管污染",
+              }),
+            ),
+            {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+              },
+            },
+          );
+        }
+
+        const pageSize = Number(url.searchParams.get("page_size") ?? "10");
+        const items =
+          pageSize === 10
+            ? [
+                createExperimentFixture({
+                  id: "draft-exp",
+                  run_code: "CVD-INVALIDATE-PROMPT",
+                  status: "draft",
+                }),
+              ]
+            : [];
+
+        return new Response(
+          JSON.stringify(createExperimentListResponse(items, { pageSize })),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments"],
+    });
+
+    await screen.findByText("CVD-INVALIDATE-PROMPT");
+    openRowActions("CVD-INVALIDATE-PROMPT");
+    fireEvent.click(screen.getByText("作废"));
+
+    fireEvent.click(screen.getByRole("button", { name: "确认作废" }));
+    expect(await screen.findByText("请填写作废原因")).toBeInTheDocument();
+    expect(
+      requests.some(
+        (request) =>
+          request.method === "POST" &&
+          request.pathname === "/api/v1/experiments/draft-exp/invalidate",
+      ),
+    ).toBe(false);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "作废原因" }), {
+      target: { value: "炉管污染" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "确认作废" }));
+
+    await waitFor(() => {
+      expect(requests).toContainEqual({
+        body: { reason: "炉管污染" },
+        method: "POST",
+        pathname: "/api/v1/experiments/draft-exp/invalidate",
+      });
+    });
+  });
+
+  it("disables row transition controls while a lock request is pending", () => {
+    renderWithApp(
+      <ExperimentTable
+        activeExportKey={null}
+        activeTransitionKey="pending-lock:lock"
+        currentUser={{
+          id: "u-1",
+          email: "member@example.com",
+          name: "Member",
+          role: "member",
+          is_active: true,
+          last_login_at: null,
+        }}
+        items={[
+          createExperimentFixture({
+            id: "pending-lock",
+            run_code: "CVD-PENDING-LOCK",
+            status: "submitted",
+            submitted_at: "2026-04-23T01:00:00Z",
+          }),
+        ]}
+        loading={false}
+        onClone={vi.fn()}
+        onExportExcel={vi.fn()}
+        onExportJson={vi.fn()}
+        onInvalidate={vi.fn()}
+        onLock={vi.fn()}
+        onTableChange={vi.fn()}
+        page={1}
+        pageSize={10}
+        sortField={null}
+        sortOrder={null}
+        total={1}
+      />,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments"],
+      },
+    );
+
+    const row = screen.getByText("CVD-PENDING-LOCK").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByRole("button", { name: "查看" })).toBeDisabled();
+    expect(
+      within(row!).getByRole("button", { name: "更多操作 CVD-PENDING-LOCK" }),
+    ).toBeDisabled();
   });
 
   it("queries dashboard cards with listExperiments-compatible filters", async () => {
