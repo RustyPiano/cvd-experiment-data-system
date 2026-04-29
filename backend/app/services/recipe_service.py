@@ -127,7 +127,7 @@ class RecipeService:
             self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Recipe already exists",
+                detail="Update conflicted with existing data",
             ) from exc
         return RecipeRead.model_validate(saved)
 
@@ -143,16 +143,23 @@ class RecipeService:
         before = self._serialize_recipe(recipe)
         recipe.is_active = False
 
-        saved = self.recipes.save(recipe)
-        self.audit.record_event(
-            actor=current_user,
-            entity_type="recipe",
-            entity_id=saved.id,
-            action="deactivate",
-            before_json=before,
-            after_json=self._serialize_recipe(saved),
-        )
-        self.db.commit()
+        try:
+            saved = self.recipes.save(recipe)
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="recipe",
+                entity_id=saved.id,
+                action="deactivate",
+                before_json=before,
+                after_json=self._serialize_recipe(saved),
+            )
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Deactivation conflicted with existing data",
+            ) from exc
 
     def _require_admin(self, current_user: User) -> None:
         if current_user.role != UserRole.ADMIN:
