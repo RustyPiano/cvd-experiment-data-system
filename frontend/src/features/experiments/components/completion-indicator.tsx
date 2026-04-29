@@ -194,6 +194,59 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
   return 0;
 }
 
+function isInRange(value: unknown, min: number, max: number) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n >= min && n <= max;
+}
+
+function countFrontendWarnings(moduleKey: string, payload: Record<string, unknown>) {
+  if (moduleKey === "environment") {
+    const temperature = getValue(payload, ["indoor_temperature_C", "indoorTemperatureC"]);
+    const humidity = getValue(payload, ["indoor_humidity_percent", "indoorHumidityPercent"]);
+    let count = 0;
+    if (isFilled(temperature) && !isInRange(temperature, 15, 35)) {
+      count += 1;
+    }
+    if (isFilled(humidity) && !isInRange(humidity, 0, 100)) {
+      count += 1;
+    }
+    return count;
+  }
+
+  if (moduleKey === "precheck") {
+    const sealIntact = getValue(payload, ["seal_intact", "sealIntact"]);
+    const riskNote = getValue(payload, ["risk_note", "riskNote"]);
+    const boatContaminationLevel = getValue(payload, [
+      "boat_contamination_level",
+      "boatContaminationLevel",
+    ]);
+    const tubeContaminationLevel = getValue(payload, [
+      "tube_contamination_level",
+      "tubeContaminationLevel",
+    ]);
+    let count = 0;
+    if (isFilled(sealIntact) && sealIntact === false && !isFilled(riskNote)) {
+      count += 1;
+    }
+    if (isFilled(boatContaminationLevel) && boatContaminationLevel === true) {
+      count += 1;
+    }
+    if (isFilled(tubeContaminationLevel) && tubeContaminationLevel === true) {
+      count += 1;
+    }
+    return count;
+  }
+
+  if (moduleKey === "result_summary") {
+    const qualityLabel = getValue(payload, ["quality_label", "qualityLabel"]);
+    if (isFilled(qualityLabel) && qualityLabel === "unknown") {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 function issuesForModule(moduleKey: string, validationIssues: CompletionValidationIssue[]) {
   return validationIssues.filter((issue) => issue.module_key === moduleKey);
 }
@@ -206,14 +259,23 @@ export function computeModuleCompletion(
   const safePayload = asRecord(payload);
   const percent = baseCompletion(moduleKey, safePayload);
   const moduleIssues = issuesForModule(moduleKey, validationErrors);
-  const errorCount = moduleIssues.filter((issue) => issue.severity !== "warning").length;
-  if (errorCount > 0) {
-    return { state: "error", percent, errors: errorCount };
+  const hasApiIssues = moduleIssues.length > 0;
+
+  if (hasApiIssues) {
+    const errorCount = moduleIssues.filter((issue) => issue.severity !== "warning").length;
+    if (errorCount > 0) {
+      return { state: "error", percent, errors: errorCount };
+    }
+    const warningCount = moduleIssues.filter((issue) => issue.severity === "warning").length;
+    if (warningCount > 0) {
+      return { state: "warning", percent, warnings: warningCount };
+    }
+    return toStepStatus(percent);
   }
 
-  const warningCount = moduleIssues.filter((issue) => issue.severity === "warning").length;
-  if (warningCount > 0) {
-    return { state: "warning", percent, warnings: warningCount };
+  const frontendWarningCount = countFrontendWarnings(moduleKey, safePayload);
+  if (frontendWarningCount > 0) {
+    return { state: "warning", percent, warnings: frontendWarningCount };
   }
 
   return toStepStatus(percent);

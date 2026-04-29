@@ -71,14 +71,15 @@ export function ExperimentTable({
   const resolveSortOrder = (field: ExperimentSortField) =>
     sortField === field && sortOrder ? sortOrder : null;
 
+  const isOwnerOrAdmin = (record: ExperimentRead) =>
+    currentUser?.role === "admin" || currentUser?.id === record.owner_id;
+
   const buildActionMenuItems = (record: ExperimentRead): MenuProps["items"] => {
-    const isOwnerOrAdmin =
-      currentUser?.role === "admin" || currentUser?.id === record.owner_id;
     const isOwner = currentUser?.id === record.owner_id;
     const canMutate = Boolean(currentUser && currentUser.role !== "viewer");
     const canInvalidate =
-      canMutate && isOwnerOrAdmin && record.status !== "invalid" && record.status !== "locked";
-    const canLock = canMutate && isOwnerOrAdmin && record.status === "submitted";
+      canMutate && isOwnerOrAdmin(record) && record.status !== "invalid" && record.status !== "locked";
+    const canLock = canMutate && isOwnerOrAdmin(record) && record.status === "submitted";
     const canClone =
       canMutate && (record.status === "locked" || (record.status === "submitted" && isOwner));
 
@@ -190,10 +191,8 @@ export function ExperimentTable({
       title: "操作",
       key: "actions",
       render: (_, record) => {
-        const isOwnerOrAdmin =
-          currentUser?.role === "admin" || currentUser?.id === record.owner_id;
         const canEditDraft =
-          currentUser?.role !== "viewer" && record.status === "draft" && isOwnerOrAdmin;
+          currentUser?.role !== "viewer" && record.status === "draft" && isOwnerOrAdmin(record);
         const isTransitionBusy = activeTransitionKey?.startsWith(`${record.id}:`) ?? false;
         const primaryAction =
           canEditDraft

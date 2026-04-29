@@ -193,7 +193,6 @@ describe("ExperimentListPage", () => {
   it("locks a submitted experiment from the quick action menu and refreshes the list", async () => {
     const requests: Array<{ method: string; pathname: string }> = [];
     let locked = false;
-    vi.stubGlobal("confirm", vi.fn(() => true));
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -257,15 +256,15 @@ describe("ExperimentListPage", () => {
     openRowActions("CVD-2026-0002");
     fireEvent.click(screen.getByText("锁定"));
 
+    const confirmLockButton = await screen.findByText("确认锁定");
+    fireEvent.click(confirmLockButton);
+
     await waitFor(() => {
       expect(requests).toContainEqual({
         method: "POST",
         pathname: "/api/v1/experiments/submitted-exp/lock",
       });
     });
-    expect(window.confirm).toHaveBeenCalledWith(
-      "锁定实验 CVD-2026-0002？锁定后不可修改，只能派生新实验。此操作会写入审计日志。",
-    );
     await waitFor(() => {
       const refreshedRow = screen.getByText("CVD-2026-0002").closest("tr");
       expect(refreshedRow).not.toBeNull();
@@ -275,7 +274,6 @@ describe("ExperimentListPage", () => {
 
   it("clones a locked experiment from the quick action menu and navigates to the cloned draft editor", async () => {
     const requests: Array<{ method: string; pathname: string }> = [];
-    vi.stubGlobal("confirm", vi.fn(() => true));
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -342,15 +340,15 @@ describe("ExperimentListPage", () => {
     openRowActions("CVD-2026-0003");
     fireEvent.click(screen.getByText("派生"));
 
+    const confirmCloneButton = await screen.findByText("确认派生");
+    fireEvent.click(confirmCloneButton);
+
     await waitFor(() => {
       expect(requests).toContainEqual({
         method: "POST",
         pathname: "/api/v1/experiments/locked-exp/clone",
       });
     });
-    expect(window.confirm).toHaveBeenCalledWith(
-      "将派生实验 CVD-2026-0003 的参数为新草稿。确定继续？",
-    );
     expect(await screen.findByText("克隆草稿编辑页")).toBeInTheDocument();
   });
 

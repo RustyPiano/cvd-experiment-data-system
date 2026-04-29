@@ -324,20 +324,21 @@ export function ExperimentListPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `锁定实验 ${experiment.run_code}？锁定后不可修改，只能派生新实验。此操作会写入审计日志。`,
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await runTransition(experiment, "lock", async () => {
-        await lockExperiment(session.accessToken!, experiment.id);
-      });
-    } catch (error) {
-      setListActionError(resolveErrorMessage(error, "锁定实验失败"));
-    }
+    Modal.confirm({
+      title: `锁定实验 ${experiment.run_code}`,
+      content: "锁定后不可修改，只能派生新实验。此操作会写入审计日志。",
+      okText: "确认锁定",
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          await runTransition(experiment, "lock", async () => {
+            await lockExperiment(session.accessToken!, experiment.id);
+          });
+        } catch (error) {
+          setListActionError(resolveErrorMessage(error, "锁定实验失败"));
+        }
+      },
+    });
   };
 
   const handleClone = async (experiment: ExperimentRead) => {
@@ -345,26 +346,27 @@ export function ExperimentListPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `将派生实验 ${experiment.run_code} 的参数为新草稿。确定继续？`,
-    );
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      let clonedExperimentId: string | null = null;
-      const didRun = await runTransition(experiment, "clone", async () => {
-        const clonedExperiment = await cloneExperiment(session.accessToken!, experiment.id);
-        clonedExperimentId = clonedExperiment.id;
-      });
-      if (!didRun || !clonedExperimentId) {
-        return;
-      }
-      navigate(`/experiments/${clonedExperimentId}/edit`);
-    } catch (error) {
-      setListActionError(resolveErrorMessage(error, "派生草稿失败"));
-    }
+    Modal.confirm({
+      title: `派生实验 ${experiment.run_code}`,
+      content: "将派生实验的参数为新草稿。确定继续？",
+      okText: "确认派生",
+      cancelText: "取消",
+      onOk: async () => {
+        try {
+          let clonedExperimentId: string | null = null;
+          const didRun = await runTransition(experiment, "clone", async () => {
+            const clonedExperiment = await cloneExperiment(session.accessToken!, experiment.id);
+            clonedExperimentId = clonedExperiment.id;
+          });
+          if (!didRun || !clonedExperimentId) {
+            return;
+          }
+          navigate(`/experiments/${clonedExperimentId}/edit`);
+        } catch (error) {
+          setListActionError(resolveErrorMessage(error, "派生草稿失败"));
+        }
+      },
+    });
   };
 
   const openInvalidateModal = (experiment: ExperimentRead) => {
