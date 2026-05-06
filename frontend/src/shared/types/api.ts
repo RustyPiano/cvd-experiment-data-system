@@ -235,6 +235,72 @@ export type ControlledVocabularyUpdateRequest = {
   metadata_json?: Record<string, unknown> | null;
 };
 
+export type FieldType =
+  | "text"
+  | "number"
+  | "boolean"
+  | "select"
+  | "textarea"
+  | "date"
+  | "multi_select"
+  | "array";
+
+export type FieldDefinitionRead = {
+  id: string;
+  field_key: string;
+  module_key: string;
+  label_zh: string;
+  label_en: string | null;
+  field_type: FieldType;
+  unit: string | null;
+  required: boolean;
+  default_strategy: string | null;
+  inheritable: boolean;
+  vocab_key: string | null;
+  sort_order: number;
+  is_active: boolean;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FieldDefinitionListResponse = {
+  items: FieldDefinitionRead[];
+  total: number;
+};
+
+export type FieldDefinitionCreateRequest = {
+  field_key: string;
+  module_key: string;
+  label_zh: string;
+  label_en?: string | null;
+  field_type?: FieldType;
+  unit?: string | null;
+  required?: boolean;
+  default_strategy?: string | null;
+  inheritable?: boolean;
+  vocab_key?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+  metadata_json?: Record<string, unknown>;
+};
+
+export type FieldDefinitionUpdateRequest = {
+  field_key?: string;
+  module_key?: string;
+  label_zh?: string;
+  label_en?: string | null;
+  field_type?: FieldType;
+  unit?: string | null;
+  required?: boolean;
+  default_strategy?: string | null;
+  inheritable?: boolean;
+  vocab_key?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+  metadata_json?: Record<string, unknown> | null;
+};
+
 export type RecipeRead = {
   id: string;
   name: string;

@@ -77,6 +77,15 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: "/admin/fields",
+        lazy: async () => {
+          const { FieldDefinitionAdminPage } = await import(
+            "../features/field-definitions/field-definition-admin-page"
+          );
+          return { Component: FieldDefinitionAdminPage };
+        },
+      },
+      {
         path: "/admin/vocabularies",
         lazy: async () => {
           const { VocabularyAdminPage } = await import(
