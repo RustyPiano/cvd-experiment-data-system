@@ -11,3 +11,4 @@ backend/.ruff_cache/
 backend/.coverage
 backend/htmlcov/
 storage/
+backups/

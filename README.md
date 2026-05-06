@@ -110,7 +110,7 @@ bun install
 bun run dev --host 0.0.0.0 --port 5173
 ```
 
-## Docker Compose 启动
+## Docker Compose 本地开发
 
 ```bash
 cp .env.example .env
@@ -119,7 +119,7 @@ docker compose config
 docker compose up --build
 ```
 
-启动后默认入口：
+开发模式默认入口：
 
 - 前端：`http://localhost:5173`
 - 后端 OpenAPI：`http://localhost:8000/docs`
@@ -127,6 +127,60 @@ docker compose up --build
 - Compose 会在 backend 容器启动时自动执行 `uv run alembic upgrade head`。
 - 首次启动后需要进入 backend 容器或本地 `backend/` 目录运行用户创建命令。
 - 如果当前 Docker Desktop 环境触发 `failed to dial gRPC`，可先分别执行 `docker build -f backend/Dockerfile -t cvd-backend .` 和 `docker build -f frontend/Dockerfile -t cvd-frontend .`，再执行 `docker compose up -d --no-build --force-recreate`。
+
+## 生产部署
+
+```bash
+# 1. 初始化配置
+cp .env.production.example .env
+# 编辑 .env，用 openssl 生成强密钥：
+#   JWT_SECRET_KEY:  openssl rand -hex 32
+#   POSTGRES_PASSWORD: openssl rand -base64 24
+
+# 2. 一键部署
+./deploy.sh
+
+# 3. 创建管理员账户（首次必需）
+docker compose exec backend uv run python -m app.commands.create_admin --email your@email.com --name "Your Name"
+```
+
+生产模式默认入口（端口可在 `.env` 中修改）：
+
+- 前端：`http://<服务器 IP>:80`
+- 后端健康检查：`http://<服务器 IP>:8000/health`
+
+## 数据备份
+
+```bash
+# 手动备份（数据库 + 文件存储）
+./backup.sh
+
+# 设置每天凌晨 2 点自动备份
+crontab -e
+# 添加: 0 2 * * * /path/to/backup.sh >> /var/log/cvd-backup.log 2>&1
+```
+
+备份文件存放在 `./backups/` 目录下，按时间戳分目录（`YYYYMMDD_HHMMSS/`），保留最近 7 天。
+
+### 恢复备份
+
+```bash
+# 数据库恢复
+docker compose exec -T postgres psql -U postgres cvd < backups/YYYYMMDD_HHMMSS/database.sql
+
+# 文件恢复
+docker compose exec -T backend tar xzf - -C / < backups/YYYYMMDD_HHMMSS/storage.tar.gz
+```
+
+## Docker Compose 说明
+
+- `backend` 容器会先执行 `uv run alembic upgrade head`，再启动 `uvicorn app.main:app`。
+- `frontend` 容器会在启动时生成 `runtime-config.js`，默认以同源 `/api` 方式访问后端；如需跨域访问，可覆盖 `VITE_API_BASE_URL`。
+- `postgres_data` 和 `storage_data` 两个命名卷分别持久化数据库与实验文件。
+- 所有服务均配置了 `restart: unless-stopped`，服务器重启后自动恢复。
+- 日志轮转：每个容器最多保留 3 个日志文件，每个最大 10 MB。
+- 容器内存限制：postgres 512M / backend 1G / frontend 256M。
+- PostgreSQL 和 backend 端口仅在 `127.0.0.1` 监听，不对外暴露。
 
 ## 用户命令
 
@@ -204,12 +258,6 @@ cd ..
 docker compose config
 docker compose up --build
 ```
-
-## Docker Compose 说明
-
-- `backend` 容器会先执行 `uv run alembic upgrade head`，再启动 `uvicorn app.main:app`。
-- `frontend` 容器会在启动时生成 `runtime-config.js`，默认以同源 `/api` 方式访问后端；如需跨域访问，可覆盖 `VITE_API_BASE_URL`。
-- `postgres_data` 和 `storage_data` 两个命名卷分别持久化数据库与实验文件。
 
 ## 常见故障
 
