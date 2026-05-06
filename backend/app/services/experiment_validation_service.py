@@ -697,7 +697,17 @@ class ExperimentValidationService:
             self._all_items(gas_segments, lambda item: not self._is_blank(item.get("gas"))),
             self._all_items(
                 gas_segments,
-                lambda item: self._is_number(item.get("flow_sccm")),
+                lambda item: (
+                    self._is_number(item.get("flow_sccm"))
+                    or (
+                        isinstance(item.get("components"), list)
+                        and len(item["components"]) > 0
+                        and any(
+                            isinstance(c, dict) and self._is_number(c.get("flow_sccm"))
+                            for c in item["components"]
+                        )
+                    )
+                ),
             ),
             self._gas_segments_do_not_overlap(gas_segments),
             self._is_number(indoor_temperature) and 15 <= float(indoor_temperature) <= 35,

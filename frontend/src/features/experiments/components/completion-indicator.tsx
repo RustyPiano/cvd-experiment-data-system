@@ -173,7 +173,13 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       return 0;
     }
 
-    return segments.every((segment) => isPositiveNumberLike(segment.flow_sccm ?? segment.flowSccm))
+    return segments.every((segment) => {
+      if (isPositiveNumberLike(segment.flow_sccm ?? segment.flowSccm)) {
+        return true;
+      }
+      const components = asRecordArray(segment.components);
+      return components.length > 0 && components.some((c) => isPositiveNumberLike(c.flow_sccm));
+    })
       ? 100
       : 50;
   }
