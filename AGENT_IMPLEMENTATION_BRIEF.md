@@ -425,8 +425,8 @@ result_summary
       "end_min": 0,
       "gas": "Ar+H2",
       "components": [
-        {"name": "Ar", "fraction": 0.95},
-        {"name": "H2", "fraction": 0.05}
+        {"name": "Ar", "flow_sccm": 95},
+        {"name": "H2", "flow_sccm": 5}
       ],
       "flow_sccm": 100
     },
@@ -436,7 +436,7 @@ result_summary
       "end_min": 45,
       "gas": "Ar",
       "components": [
-        {"name": "Ar", "fraction": 1}
+        {"name": "Ar", "flow_sccm": 80}
       ],
       "flow_sccm": 80
     }

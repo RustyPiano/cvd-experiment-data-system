@@ -531,7 +531,7 @@
 - 编辑器不再只是最小字段演示，而是能支撑真实实验记录。
 
 **2026-04-24 实施记录：**
-- 已扩展前端编辑器值模型、初始化、序列化和 merge 逻辑，覆盖 `basic_info.experimentType`、环境湿度、预检查扩展项、前驱体扩展字段、基底 `treatment_params`、气体程序 `components/note`、表征 `enabled/excitationNm/note`、结果总结 `qualityLabel/nextStep`；保存时继续保留各条目 `sourcePayload` 中未被 UI 建模的字段，并将气体组分写回为后端约定的 `name/fraction` 结构。
+- 已扩展前端编辑器值模型、初始化、序列化和 merge 逻辑，覆盖 `basic_info.experimentType`、环境湿度、预检查扩展项、前驱体扩展字段、基底 `treatment_params`、气体程序 `components/note`、表征 `enabled/excitationNm/note`、结果总结 `qualityLabel/nextStep`；保存时继续保留各条目 `sourcePayload` 中未被 UI 建模的字段，并将气体组分写回为后端约定的 `name/flow_sccm` 结构（`fraction`/`ratio_percent` 由后端根据流量之和自动计算）。
 - 已在现有卡片式编辑器内补齐最小可编辑 UI：前驱体按方法显示溶液/旋涂/熔融相关字段，基底在填写处理方式后显示处理参数，气体程序支持组分列表，表征方法支持启用开关、激发波长和备注，`qualityLabel` 使用固定受控选项。
 - 已新增 `editor-action-bar` 作为底部固定操作区，持续展示 run code、状态、自动保存摘要、返回详情和提交动作；非 draft 实验保持只读提示并隐藏提交入口。
 - 已新增 `validation-summary` 并接入提交流：提交前先调用 `POST /api/v1/experiments/{id}/validate`，有错误时阻止 submit 并展示 `errors/warnings` 汇总，点击条目会滚动到对应模块卡片；若后端 submit 仍返回结构化 422，也会复用同一汇总。
