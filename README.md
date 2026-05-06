@@ -15,6 +15,7 @@
 - `/experiments/:id/files`
 - `/samples/:id`
 - `/admin/vocabularies`
+- `/admin/fields`
 - `/admin/recipes`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的 Beta 编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
@@ -29,7 +30,8 @@
 - 文件页已接通文件列表、筛选、上传、下载、软删除
 - 样品详情页已接通样品读取、draft 编辑、关联文件查看与下载
 - 受控词表后台已接通列表筛选、创建、编辑与启停用
-- Recipe 后台已接通列表、创建、编辑与停用
+- 字段词典后台已接通 `/admin/fields`，支持模块筛选、CRUD、受控词表关联与启停用
+- Recipe 后台已接通列表、创建、编辑与停用、重新激活
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端尚未完成的部分：
@@ -53,6 +55,7 @@
 - 文件上传表单会读取 `characterization_method` 词表与当前实验样品列表，支持可选 `sample_id` 关联。
 - 样品详情页现在会读取样品本体、所属实验和关联文件；owner/admin 在 `draft` 下可直接编辑样品字段并保存。
 - 受控词表后台现在已接通 `/admin/vocabularies`，支持 admin 列表筛选、创建、编辑和启停用；非 admin 会隐藏侧栏入口并在直达路由时收到权限提示。
+- 字段词典后台已接通 `/admin/fields`，支持按模块筛选、CRUD、词表关联和启停用；非 admin 同样受限。
 - 编辑器 autosave 现在会先同步最新表单快照，再调度保存，避免连续编辑时遗漏后改动区块。
 - 当前模块 autosave 会保留后端 payload 中前端暂未建模的字段，避免最小表单覆盖掉已有结构化数据。
 - 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，显示 `completion_score / blocking_count / warning_count` 和模块跳转按钮，有 `errors` 时阻止提交并展示逐项问题。
@@ -78,8 +81,9 @@
 - 单实验 Excel 导出
 - 单实验 analysis-ready 归一化导出
 - 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_treatment_method / gas_label / characterization_method / quality_label`
-- Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe
-- Alembic 迁移 `20260423_0001` 到 `20260428_0012`
+- 字段词典（`ExperimentFieldDefinition`）：定义每个实验模块字段的元数据（类型、单位、必填、可继承、关联词表），含种子数据 78 条，覆盖 9 个模块
+- Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe（Recipe 管理页使用结构化表单编辑器替代原始 JSON）
+- Alembic 迁移 `20260423_0001` 到 `20260506_0014`
 - 前端联调 handoff 文档，见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
 
 ## 环境准备
@@ -314,6 +318,15 @@ docker compose up --build
 - `GET /api/v1/admin/vocabularies`
 - `POST /api/v1/admin/vocabularies`
 - `PATCH /api/v1/admin/vocabularies/{id}`
+
+- 字段词典
+- `GET /api/v1/field-definitions`
+- `GET /api/v1/field-definitions/{id}`
+- `GET /api/v1/admin/field-definitions`
+- `POST /api/v1/admin/field-definitions`
+- `PATCH /api/v1/admin/field-definitions/{id}`
+- `POST /api/v1/admin/field-definitions/{id}/deactivate`
+- `POST /api/v1/admin/field-definitions/{id}/reactivate`
 
 - Recipe
 - `GET /api/v1/recipes`

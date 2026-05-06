@@ -108,17 +108,17 @@ storage/
 /samples/:id
 /admin/vocabularies
 /admin/recipes
+/admin/fields
 ```
 
 ### 4.2 暂缓页面
 
 ```text
-/admin/fields
 /admin/templates
 /admin/users
 ```
 
-V1 可以先把字段 schema 和模板写死在代码和数据库 seed 中，不做完整字段字典 UI。
+字段词典（`/admin/fields`）已实现，定义了每个实验模块字段的元数据：field_key、类型、单位、必填、可继承、关联词表。种子数据覆盖 9 个模块共 78 个字段。
 
 ---
 
