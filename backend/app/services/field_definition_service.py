@@ -156,6 +156,15 @@ class FieldDefinitionService:
         self.db.commit()
         return FieldDefinitionRead.model_validate(saved)
 
+    def get_definition(self, field_id: UUID) -> FieldDefinitionRead:
+        entry = self.field_definitions.get_by_id(field_id)
+        if entry is None or not entry.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Field definition not found",
+            )
+        return FieldDefinitionRead.model_validate(entry)
+
     def _require_admin(self, current_user: User) -> None:
         if current_user.role != UserRole.ADMIN:
             raise HTTPException(

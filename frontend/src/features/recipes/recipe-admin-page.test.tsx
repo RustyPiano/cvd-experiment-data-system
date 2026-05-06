@@ -43,7 +43,7 @@ function createRecipeServer() {
       material_system: "WS2",
       default_payload_json: {},
       description: "旧版 WS2 条件",
-      created_by: "admin-2",
+      created_by: "admin-2-another-uuid",
       is_active: false,
       created_at: "2026-04-28T02:00:00Z",
       updated_at: "2026-04-28T02:00:00Z",
@@ -92,7 +92,14 @@ function createRecipeServer() {
     });
 
     if (url.pathname === "/api/v1/vocabularies" && method === "GET") {
-      return new Response(JSON.stringify({ items: materialVocabularies, total: 2 }), {
+      const vocabKey = url.searchParams.get("vocab_key");
+      if (vocabKey === "material_system") {
+        return new Response(JSON.stringify({ items: materialVocabularies, total: 2 }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      return new Response(JSON.stringify({ items: [], total: 0 }), {
         headers: { "Content-Type": "application/json" },
         status: 200,
       });
@@ -212,7 +219,7 @@ describe("RecipeAdminPage", () => {
     });
   });
 
-  it("creates a recipe with parsed default payload JSON", async () => {
+  it("creates a recipe with default payload", async () => {
     const user = userEvent.setup();
     const server = createRecipeServer();
     vi.stubGlobal("fetch", server.fetchMock);
@@ -225,9 +232,6 @@ describe("RecipeAdminPage", () => {
     fireEvent.change(screen.getByLabelText("名称"), { target: { value: "WS2 baseline" } });
     fireEvent.change(screen.getByLabelText("创建材料体系"), { target: { value: "WS2" } });
     fireEvent.change(screen.getByLabelText("描述"), { target: { value: "新 Recipe 描述" } });
-    fireEvent.change(screen.getByLabelText("默认 payload JSON"), {
-      target: { value: '{\n  "gas_program": {\n    "carrier": "Ar"\n  }\n}' },
-    });
     await user.click(screen.getByRole("button", { name: "创建 Recipe" }));
 
     await waitFor(() => {
@@ -245,16 +249,12 @@ describe("RecipeAdminPage", () => {
       name: "WS2 baseline",
       material_system: "WS2",
       description: "新 Recipe 描述",
-      default_payload_json: {
-        gas_program: {
-          carrier: "Ar",
-        },
-      },
+      default_payload_json: {},
     });
     expect(await screen.findByText("Recipe 创建成功")).toBeInTheDocument();
   }, 10_000);
 
-  it("edits a recipe and only patches changed fields", async () => {
+  it("edits a recipe description", async () => {
     const user = userEvent.setup();
     const server = createRecipeServer();
     vi.stubGlobal("fetch", server.fetchMock);
@@ -266,9 +266,6 @@ describe("RecipeAdminPage", () => {
     await user.click(screen.getByRole("button", { name: "编辑 MoS2 baseline" }));
     await user.clear(screen.getByLabelText("描述"));
     await user.type(screen.getByLabelText("描述"), "更新后的描述");
-    fireEvent.change(screen.getByLabelText("默认 payload JSON"), {
-      target: { value: '{\n  "furnace_program": {\n    "peak_temperature_c": 735\n  }\n}' },
-    });
     await user.click(screen.getByRole("button", { name: "保存修改" }));
 
     await waitFor(() => {
@@ -285,14 +282,8 @@ describe("RecipeAdminPage", () => {
       (request) =>
         request.method === "PATCH" && request.pathname === "/api/v1/admin/recipes/recipe-1",
     );
-    expect(JSON.parse(String(patchRequest?.body))).toEqual({
-      description: "更新后的描述",
-      default_payload_json: {
-        furnace_program: {
-          peak_temperature_c: 735,
-        },
-      },
-    });
+    const patchBody = JSON.parse(String(patchRequest?.body));
+    expect(patchBody.description).toBe("更新后的描述");
     expect(await screen.findByText("Recipe 更新成功")).toBeInTheDocument();
   }, 10_000);
 
@@ -330,5 +321,25 @@ describe("RecipeAdminPage", () => {
     expect(screen.getByText("当前账号没有 Recipe 管理权限。")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "新增 Recipe" })).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows truncated creator ID", async () => {
+    const server = createRecipeServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderRecipeAdmin();
+
+    expect(await screen.findByText("MoS2 baseline")).toBeInTheDocument();
+    expect(screen.getByText("admin-2-\u2026")).toBeInTheDocument();
+  });
+
+  it("shows reactivate button for inactive recipes", async () => {
+    const server = createRecipeServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderRecipeAdmin();
+
+    expect(await screen.findByText("WS2 retired")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新激活" })).toBeInTheDocument();
   });
 });

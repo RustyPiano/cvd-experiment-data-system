@@ -12,11 +12,11 @@ import {
   Space,
   Table,
   Tag,
-  Typography,
 } from "antd";
 
 import { HttpError } from "../../shared/api/http-error";
 import type {
+  ExperimentRead,
   RecipeCreateRequest,
   RecipeRead,
   RecipeUpdateRequest,
@@ -25,7 +25,7 @@ import { EmptyState } from "../../shared/ui/empty-state";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { PageHeader } from "../../shared/ui/page-header";
 import { useAuth } from "../auth/use-auth";
-import { listActiveVocabularies } from "../experiments/api";
+import { listExperimentModules, listExperiments, listActiveVocabularies } from "../experiments/api";
 import { VocabularyCombobox } from "../experiments/components/vocabulary-combobox";
 import type { VocabularySelectOption } from "../experiments/editor-types";
 import {
@@ -34,19 +34,20 @@ import {
   listAdminRecipes,
   updateRecipe,
 } from "./api";
+import { RecipePayloadEditor } from "./recipe-payload-editor";
 
 type RecipeFormState = {
   name: string;
   materialSystem: string;
   description: string;
-  defaultPayloadJson: string;
+  defaultPayloadJson: Record<string, unknown>;
 };
 
 const defaultCreateFormState: RecipeFormState = {
   name: "",
   materialSystem: "",
   description: "",
-  defaultPayloadJson: "{}",
+  defaultPayloadJson: {},
 };
 
 function resolveErrorMessage(error: unknown, fallback: string) {
@@ -66,62 +67,7 @@ function normalizeOptionalText(value: string) {
   return normalized ? normalized : null;
 }
 
-function stableSerialize(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
-  }
-
-  if (value && typeof value === "object") {
-    const objectEntries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-      a.localeCompare(b),
-    );
-    return `{${objectEntries
-      .map(([key, itemValue]) => `${JSON.stringify(key)}:${stableSerialize(itemValue)}`)
-      .join(",")}}`;
-  }
-
-  return JSON.stringify(value);
-}
-
-function parseDefaultPayloadJson(rawValue: string) {
-  const normalized = rawValue.trim();
-  if (!normalized) {
-    return {
-      error: null,
-      value: {},
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(normalized) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {
-        error: "默认 payload JSON 必须是 JSON 对象",
-        value: null,
-      };
-    }
-
-    return {
-      error: null,
-      value: parsed as Record<string, unknown>,
-    };
-  } catch {
-    return {
-      error: "默认 payload JSON 不是合法的 JSON 对象",
-      value: null,
-    };
-  }
-}
-
 function buildCreatePayload(formState: RecipeFormState) {
-  const payloadResult = parseDefaultPayloadJson(formState.defaultPayloadJson);
-  if (payloadResult.error) {
-    return {
-      error: payloadResult.error,
-      payload: null,
-    };
-  }
-
   const name = formState.name.trim();
   if (!name) {
     return {
@@ -132,7 +78,7 @@ function buildCreatePayload(formState: RecipeFormState) {
 
   const payload: RecipeCreateRequest = {
     name,
-    default_payload_json: payloadResult.value ?? {},
+    default_payload_json: formState.defaultPayloadJson,
   };
   const materialSystem = normalizeOptionalText(formState.materialSystem);
   const description = normalizeOptionalText(formState.description);
@@ -150,14 +96,6 @@ function buildCreatePayload(formState: RecipeFormState) {
 }
 
 function buildEditPayload(original: RecipeRead, formState: RecipeFormState) {
-  const payloadResult = parseDefaultPayloadJson(formState.defaultPayloadJson);
-  if (payloadResult.error) {
-    return {
-      error: payloadResult.error,
-      payload: null,
-    };
-  }
-
   const nextName = formState.name.trim();
   if (!nextName) {
     return {
@@ -173,17 +111,16 @@ function buildEditPayload(original: RecipeRead, formState: RecipeFormState) {
   if (nextName !== original.name) {
     payload.name = nextName;
   }
-  if (nextMaterialSystem !== original.material_system) {
+  if (nextMaterialSystem !== (original.material_system ?? "")) {
     payload.material_system = nextMaterialSystem;
   }
-  if (nextDescription !== original.description) {
+  if (nextDescription !== (original.description ?? "")) {
     payload.description = nextDescription;
   }
-  if (
-    stableSerialize(payloadResult.value ?? {}) !==
-    stableSerialize(original.default_payload_json ?? {})
-  ) {
-    payload.default_payload_json = payloadResult.value ?? {};
+
+  const originalPayload = original.default_payload_json ?? {};
+  if (JSON.stringify(formState.defaultPayloadJson) !== JSON.stringify(originalPayload)) {
+    payload.default_payload_json = formState.defaultPayloadJson;
   }
 
   return {
@@ -197,7 +134,7 @@ function toFormState(recipe: RecipeRead): RecipeFormState {
     name: recipe.name,
     materialSystem: recipe.material_system ?? "",
     description: recipe.description ?? "",
-    defaultPayloadJson: JSON.stringify(recipe.default_payload_json ?? {}, null, 2),
+    defaultPayloadJson: recipe.default_payload_json ?? {},
   };
 }
 
@@ -212,25 +149,60 @@ function formatDateTime(value: string) {
   });
 }
 
+const RECIPE_MODULE_KEYS = new Set([
+  "precursors",
+  "substrates",
+  "furnace_program",
+  "gas_program",
+  "characterization",
+]);
+
+function sanitizeModulePayload(
+  moduleKey: string,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  if (moduleKey === "precursors") {
+    const items = payload.items;
+    if (!Array.isArray(items)) return payload;
+    return {
+      ...payload,
+      items: items
+        .filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === "object" && !Array.isArray(item),
+        )
+        .map((item) => {
+          const { batch_no, mass_mg, ...rest } = item;
+          void batch_no;
+          void mass_mg;
+          return rest;
+        }),
+    };
+  }
+  return payload;
+}
+
 function RecipeForm({
   formState,
   loading,
   materialOptions,
   materialSystemAriaLabel,
+  vocabularyOptions,
   onChange,
   onSubmit,
   submitText,
+  onImportFromExperiment,
 }: {
   formState: RecipeFormState;
   loading: boolean;
   materialOptions: VocabularySelectOption[];
   materialSystemAriaLabel: string;
+  vocabularyOptions: Record<string, VocabularySelectOption[]>;
   onChange: (next: RecipeFormState) => void;
   onSubmit: () => void;
   submitText: string;
+  onImportFromExperiment?: () => void;
 }) {
-  const payloadError = parseDefaultPayloadJson(formState.defaultPayloadJson).error;
-
   return (
     <Form layout="vertical" requiredMark>
       <Form.Item htmlFor="recipe-name" label="名称" required>
@@ -259,20 +231,30 @@ function RecipeForm({
           value={formState.description}
         />
       </Form.Item>
-      <Form.Item
-        htmlFor="recipe-default-payload"
-        label="默认 payload JSON"
-        validateStatus={payloadError ? "error" : undefined}
-        help={payloadError}
+      {onImportFromExperiment ? (
+        <Space style={{ marginBottom: 8 }}>
+          <span style={{ fontWeight: 500 }}>默认参数</span>
+          <Button onClick={onImportFromExperiment} size="small" type="link">
+            从实验导入
+          </Button>
+        </Space>
+      ) : (
+        <span style={{ fontWeight: 500, marginBottom: 8, display: "block" }}>
+          默认参数
+        </span>
+      )}
+      <RecipePayloadEditor
+        value={formState.defaultPayloadJson}
+        onChange={(next) => onChange({ ...formState, defaultPayloadJson: next })}
+        vocabularyOptions={vocabularyOptions}
+      />
+      <Button
+        htmlType="submit"
+        loading={loading}
+        onClick={onSubmit}
+        style={{ marginTop: 16 }}
+        type="primary"
       >
-        <Input.TextArea
-          autoSize={{ maxRows: 12, minRows: 6 }}
-          id="recipe-default-payload"
-          onChange={(e) => onChange({ ...formState, defaultPayloadJson: e.target.value })}
-          value={formState.defaultPayloadJson}
-        />
-      </Form.Item>
-      <Button loading={loading} onClick={onSubmit} type="primary">
         {submitText}
       </Button>
     </Form>
@@ -291,6 +273,8 @@ export function RecipeAdminPage() {
   const [editTarget, setEditTarget] = useState<RecipeRead | null>(null);
   const [createForm, setCreateForm] = useState(defaultCreateFormState);
   const [editForm, setEditForm] = useState<RecipeFormState | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importSearch, setImportSearch] = useState("");
 
   const isAdmin = currentUser?.role === "admin";
   const queryPrefix = ["admin", "recipes", currentUser?.id ?? "anonymous"];
@@ -301,19 +285,71 @@ export function RecipeAdminPage() {
     enabled: session.isAuthenticated && isAdmin,
   });
 
-  const materialVocabulariesQuery = useQuery({
+  const materialSystemVocabQuery = useQuery({
     queryKey: ["vocabularies", "material_system", currentUser?.id ?? "anonymous"],
     queryFn: () => listActiveVocabularies(session.accessToken!, "material_system"),
     enabled: session.isAuthenticated && isAdmin,
   });
 
+  const precursorMethodVocabQuery = useQuery({
+    queryKey: ["vocabularies", "precursor_method", currentUser?.id ?? "anonymous"],
+    queryFn: () => listActiveVocabularies(session.accessToken!, "precursor_method"),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
+  const substrateTypeVocabQuery = useQuery({
+    queryKey: ["vocabularies", "substrate_type", currentUser?.id ?? "anonymous"],
+    queryFn: () => listActiveVocabularies(session.accessToken!, "substrate_type"),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
+  const substrateTreatmentVocabQuery = useQuery({
+    queryKey: ["vocabularies", "substrate_treatment_method", currentUser?.id ?? "anonymous"],
+    queryFn: () => listActiveVocabularies(session.accessToken!, "substrate_treatment_method"),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
+  const gasLabelVocabQuery = useQuery({
+    queryKey: ["vocabularies", "gas_label", currentUser?.id ?? "anonymous"],
+    queryFn: () => listActiveVocabularies(session.accessToken!, "gas_label"),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
+  const characterizationMethodVocabQuery = useQuery({
+    queryKey: ["vocabularies", "characterization_method", currentUser?.id ?? "anonymous"],
+    queryFn: () => listActiveVocabularies(session.accessToken!, "characterization_method"),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
+  const toOptions = (query: typeof materialSystemVocabQuery) =>
+    (query.data?.items ?? []).map((item) => ({
+      label: item.label_zh || item.value,
+      value: item.value,
+    }));
+
+  const vocabularyOptions = useMemo(
+    () => ({
+      material_system: toOptions(materialSystemVocabQuery),
+      precursor_method: toOptions(precursorMethodVocabQuery),
+      substrate_type: toOptions(substrateTypeVocabQuery),
+      substrate_treatment_method: toOptions(substrateTreatmentVocabQuery),
+      gas_label: toOptions(gasLabelVocabQuery),
+      characterization_method: toOptions(characterizationMethodVocabQuery),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      materialSystemVocabQuery.data,
+      precursorMethodVocabQuery.data,
+      substrateTypeVocabQuery.data,
+      substrateTreatmentVocabQuery.data,
+      gasLabelVocabQuery.data,
+      characterizationMethodVocabQuery.data,
+    ],
+  );
+
   const materialOptions = useMemo(
-    () =>
-      (materialVocabulariesQuery.data?.items ?? []).map((item) => ({
-        label: item.label_zh || item.value,
-        value: item.value,
-      })),
-    [materialVocabulariesQuery.data?.items],
+    () => vocabularyOptions.material_system,
+    [vocabularyOptions.material_system],
   );
 
   const filterOptions = useMemo(
@@ -326,6 +362,43 @@ export function RecipeAdminPage() {
     ],
     [materialOptions],
   );
+
+  const experimentsQuery = useQuery({
+    queryKey: ["experiments", "import", importSearch, currentUser?.id ?? "anonymous"],
+    queryFn: () =>
+      listExperiments(session.accessToken!, {
+        status: ["submitted", "locked"],
+        q: importSearch || undefined,
+      }),
+    enabled: session.isAuthenticated && isAdmin && importOpen,
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async (experimentId: string) => {
+      const modules = await listExperimentModules(session.accessToken!, experimentId);
+      const payload: Record<string, unknown> = {};
+      for (const mod of modules.items) {
+        if (RECIPE_MODULE_KEYS.has(mod.module_key)) {
+          payload[mod.module_key] = sanitizeModulePayload(
+            mod.module_key,
+            mod.payload_json,
+          );
+        }
+      }
+      return payload;
+    },
+    onSuccess: (payload) => {
+      setCreateForm((prev) => ({ ...prev, defaultPayloadJson: payload }));
+      setImportOpen(false);
+      setFeedback({ message: "已从实验导入参数", type: "success" });
+    },
+    onError: (error) => {
+      setFeedback({
+        message: resolveErrorMessage(error, "导入实验参数失败"),
+        type: "error",
+      });
+    },
+  });
 
   const invalidateRecipeQueries = async () => {
     await Promise.all([
@@ -385,6 +458,21 @@ export function RecipeAdminPage() {
     },
   });
 
+  const reactivateMutation = useMutation({
+    mutationFn: (recipeId: string) =>
+      updateRecipe(session.accessToken!, recipeId, { is_active: true }),
+    onSuccess: async () => {
+      setFeedback({ message: "Recipe 已重新激活", type: "success" });
+      await invalidateRecipeQueries();
+    },
+    onError: (error) => {
+      setFeedback({
+        message: resolveErrorMessage(error, "Recipe 重新激活失败"),
+        type: "error",
+      });
+    },
+  });
+
   const handleCreateSubmit = () => {
     setFeedback(null);
     const result = buildCreatePayload(createForm);
@@ -422,6 +510,45 @@ export function RecipeAdminPage() {
 
   const rows = recipesQuery.data?.items ?? [];
 
+  const experimentColumns = [
+    {
+      dataIndex: "run_code",
+      key: "run_code",
+      title: "运行编号",
+    },
+    {
+      dataIndex: "material_system",
+      key: "material_system",
+      render: (value: string | null) => value || "-",
+      title: "材料体系",
+    },
+    {
+      dataIndex: "status",
+      key: "status",
+      title: "状态",
+    },
+    {
+      dataIndex: "created_at",
+      key: "created_at",
+      render: (value: string) => formatDateTime(value),
+      title: "创建时间",
+    },
+    {
+      key: "actions",
+      render: (_value: unknown, record: ExperimentRead) => (
+        <Button
+          loading={importMutation.isPending}
+          onClick={() => importMutation.mutate(record.id)}
+          size="small"
+          type="link"
+        >
+          导入
+        </Button>
+      ),
+      title: "操作",
+    },
+  ];
+
   return (
     <div className="content-stack">
       <PageHeader
@@ -450,7 +577,7 @@ export function RecipeAdminPage() {
               aria-label="材料体系筛选"
               allowClear
               id="recipe-filter-material"
-              loading={materialVocabulariesQuery.isLoading}
+              loading={materialSystemVocabQuery.isLoading}
               onChange={(value) => {
                 setAppliedFilter(value ?? "");
               }}
@@ -506,7 +633,8 @@ export function RecipeAdminPage() {
               {
                 dataIndex: "created_by",
                 key: "created_by",
-                render: (value: string | null) => value || "-",
+                render: (value: string | null) =>
+                  value ? value.slice(0, 8) + "\u2026" : "-",
                 title: "创建者",
               },
               {
@@ -562,7 +690,19 @@ export function RecipeAdminPage() {
                         </Button>
                       </Popconfirm>
                     ) : (
-                      <Typography.Text type="secondary">已停用</Typography.Text>
+                      <Button
+                        loading={
+                          reactivateMutation.isPending &&
+                          reactivateMutation.variables === record.id
+                        }
+                        onClick={() => {
+                          setFeedback(null);
+                          reactivateMutation.mutate(record.id);
+                        }}
+                        type="link"
+                      >
+                        重新激活
+                      </Button>
                     )}
                   </Space>
                 ),
@@ -584,6 +724,7 @@ export function RecipeAdminPage() {
         }}
         open={createOpen}
         title="新增 Recipe"
+        width={960}
       >
         <RecipeForm
           formState={createForm}
@@ -591,8 +732,10 @@ export function RecipeAdminPage() {
           materialOptions={materialOptions}
           materialSystemAriaLabel="创建材料体系"
           onChange={setCreateForm}
+          onImportFromExperiment={() => setImportOpen(true)}
           onSubmit={handleCreateSubmit}
           submitText="创建 Recipe"
+          vocabularyOptions={vocabularyOptions}
         />
       </Modal>
 
@@ -604,7 +747,8 @@ export function RecipeAdminPage() {
           setEditForm(null);
         }}
         open={editTarget !== null && editForm !== null}
-        title={editTarget ? `编辑 Recipe · ${editTarget.name}` : "编辑 Recipe"}
+        title={editTarget ? `编辑 Recipe \u00B7 ${editTarget.name}` : "编辑 Recipe"}
+        width={960}
       >
         {editTarget && editForm ? (
           <RecipeForm
@@ -615,8 +759,44 @@ export function RecipeAdminPage() {
             onChange={setEditForm}
             onSubmit={handleEditSubmit}
             submitText="保存修改"
+            vocabularyOptions={vocabularyOptions}
           />
         ) : null}
+      </Modal>
+
+      <Modal
+        destroyOnHidden
+        onCancel={() => setImportOpen(false)}
+        open={importOpen}
+        title="从实验导入"
+        width={800}
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Input.Search
+            allowClear
+            enterButton
+            onSearch={(value) => setImportSearch(value)}
+            placeholder="搜索实验编号或材料体系"
+          />
+          {experimentsQuery.isLoading ? (
+            <LoadingState />
+          ) : experimentsQuery.isError ? (
+            <Alert
+              message={resolveErrorMessage(experimentsQuery.error, "实验列表加载失败")}
+              showIcon
+              type="error"
+            />
+          ) : (
+            <Table
+              columns={experimentColumns}
+              dataSource={experimentsQuery.data?.items ?? []}
+              pagination={{ pageSize: 10 }}
+              rowKey="id"
+              scroll={{ y: 400 }}
+              size="small"
+            />
+          )}
+        </Space>
       </Modal>
     </div>
   );

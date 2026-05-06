@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Col, Divider, List, Modal, Row, Space, Spin, Typography } from "antd";
+import { Alert, App, Button, Card, Col, Divider, List, Modal, Row, Space, Spin, Tag, Typography } from "antd";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
@@ -18,6 +18,72 @@ import {
 import { HistoryCloneDialog } from "./components/history-clone-dialog";
 import { useAuth } from "../auth/use-auth";
 import { listActiveRecipes } from "../recipes/api";
+
+const MODULE_LABELS: Record<string, string> = {
+  precursors: "前驱体",
+  substrates: "基底",
+  furnace_program: "温区程序",
+  gas_program: "气体程序",
+  characterization: "表征计划",
+};
+
+const RECIPE_MODULE_KEYS = ["precursors", "substrates", "furnace_program", "gas_program", "characterization"];
+
+function getModuleSummary(moduleKey: string, data: Record<string, unknown>): string {
+  switch (moduleKey) {
+    case "precursors": {
+      const items = Array.isArray(data.items) ? data.items : [];
+      const species = items.map((item: Record<string, unknown>) => (item.species as string) || "未命名").join(", ");
+      return `${items.length} 条${species ? ` (${species})` : ""}`;
+    }
+    case "substrates": {
+      const items = Array.isArray(data.items) ? data.items : [];
+      return `${items.length} 条`;
+    }
+    case "furnace_program": {
+      const zones = Array.isArray(data.zones) ? data.zones : [];
+      return `${zones.length} 个温区`;
+    }
+    case "gas_program": {
+      const segments = Array.isArray(data.segments) ? data.segments : [];
+      return `${segments.length} 段${data.pre_washing_gas ? `，洗炉: ${data.pre_washing_gas}` : ""}`;
+    }
+    case "characterization": {
+      const methods = Array.isArray(data.methods) ? data.methods : [];
+      const methodNames = methods.map((m: Record<string, unknown>) => (m.method as string) || "未命名").join(", ");
+      return `${methods.length} 个方法${methodNames ? ` (${methodNames})` : ""}`;
+    }
+    default:
+      return "已配置";
+  }
+}
+
+function RecipeModuleSummaries({ payload }: { payload: Record<string, unknown> }) {
+  return (
+    <Space direction="vertical" size={8} style={{ width: "100%" }}>
+      {RECIPE_MODULE_KEYS.map((key) => {
+        const moduleData = payload[key];
+        const label = MODULE_LABELS[key];
+        if (!moduleData || typeof moduleData !== "object") {
+          return (
+            <div key={key} style={{ display: "flex", justifyContent: "space-between" }}>
+              <Typography.Text type="secondary">{label}</Typography.Text>
+              <Tag>空</Tag>
+            </div>
+          );
+        }
+
+        const summary = getModuleSummary(key, moduleData as Record<string, unknown>);
+        return (
+          <div key={key} style={{ display: "flex", justifyContent: "space-between" }}>
+            <Typography.Text>{label}</Typography.Text>
+            <Tag color="green">{summary}</Tag>
+          </div>
+        );
+      })}
+    </Space>
+  );
+}
 
 function resolveErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
@@ -93,6 +159,7 @@ export function ExperimentNewPage() {
   const [recipeModalOpen, setRecipeModalOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [recipeCreateError, setRecipeCreateError] = useState<string | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<RecipeRead | null>(null);
 
   const navigateToEditor = (experiment: ExperimentRead, inheritFrom?: string | null) => {
     const searchParams = inheritFrom ? `?inheritFrom=${encodeURIComponent(inheritFrom)}` : "";
@@ -194,6 +261,7 @@ export function ExperimentNewPage() {
     onSuccess: (experiment) => {
       setActionError(null);
       setRecipeCreateError(null);
+      setSelectedRecipe(null);
       setRecipeModalOpen(false);
       message.success("实验创建成功");
       navigateToEditor(experiment);
@@ -317,13 +385,60 @@ export function ExperimentNewPage() {
         footer={null}
         onCancel={() => {
           setRecipeCreateError(null);
+          setSelectedRecipe(null);
           setRecipeModalOpen(false);
         }}
         open={recipeModalOpen}
         title="从 Recipe 创建实验"
         width={760}
       >
-        {recipesQuery.isLoading ? (
+        {selectedRecipe ? (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            {recipeCreateError ? <Alert message={recipeCreateError} showIcon type="error" /> : null}
+            <div>
+              <Typography.Title level={4} style={{ margin: 0 }}>
+                {selectedRecipe.name}
+              </Typography.Title>
+              {selectedRecipe.description ? (
+                <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0" }}>
+                  {selectedRecipe.description}
+                </Typography.Paragraph>
+              ) : null}
+              {selectedRecipe.material_system ? (
+                <Tag color="blue" style={{ marginTop: 4 }}>
+                  {selectedRecipe.material_system}
+                </Tag>
+              ) : null}
+            </div>
+            <Divider style={{ margin: 0 }} />
+            {Object.keys(selectedRecipe.default_payload_json).length === 0 ? (
+              <Alert message="此 Recipe 未配置默认参数，将创建空白实验。" showIcon type="info" />
+            ) : (
+              <RecipeModuleSummaries payload={selectedRecipe.default_payload_json} />
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <Button
+                onClick={() => {
+                  setSelectedRecipe(null);
+                  setRecipeCreateError(null);
+                }}
+              >
+                返回
+              </Button>
+              <Button
+                loading={createFromRecipeMutation.isPending}
+                onClick={() => {
+                  setActionError(null);
+                  setRecipeCreateError(null);
+                  createFromRecipeMutation.mutate(selectedRecipe.id);
+                }}
+                type="primary"
+              >
+                确认创建实验
+              </Button>
+            </div>
+          </Space>
+        ) : recipesQuery.isLoading ? (
           <div style={{ padding: "32px 0", textAlign: "center" }}>
             <Spin />
           </div>
@@ -336,7 +451,7 @@ export function ExperimentNewPage() {
         ) : groupedRecipes.length === 0 ? (
           <EmptyState description="当前没有可用的 Recipe。" />
         ) : (
-          <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
             {recipeCreateError ? <Alert message={recipeCreateError} showIcon type="error" /> : null}
             {groupedRecipes.map((group) => (
               <section key={group.materialSystem}>
@@ -352,17 +467,15 @@ export function ExperimentNewPage() {
                     <List.Item
                       actions={[
                         <Button
-                          disabled={createFromRecipeMutation.isPending}
-                          key="create"
-                          loading={createFromRecipeMutation.isPending}
+                          key="preview"
                           onClick={() => {
                             setActionError(null);
                             setRecipeCreateError(null);
-                            createFromRecipeMutation.mutate(recipe.id);
+                            setSelectedRecipe(recipe);
                           }}
                           type="primary"
                         >
-                          使用 {recipe.name}
+                          预览 {recipe.name}
                         </Button>,
                       ]}
                     >

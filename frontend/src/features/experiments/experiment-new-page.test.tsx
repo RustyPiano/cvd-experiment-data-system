@@ -511,7 +511,8 @@ describe("ExperimentNewPage", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "选择 Recipe" }));
-    await user.click(await screen.findByRole("button", { name: "使用 MoS2 baseline" }));
+    await user.click(await screen.findByRole("button", { name: "预览 MoS2 baseline" }));
+    await user.click(await screen.findByRole("button", { name: "确认创建实验" }));
 
     expect(await screen.findByText("编辑器路由")).toBeInTheDocument();
     expect(requests).toContainEqual({
@@ -562,7 +563,8 @@ describe("ExperimentNewPage", () => {
 
     await user.click(screen.getByRole("button", { name: "选择 Recipe" }));
     const dialog = await screen.findByRole("dialog", { name: "从 Recipe 创建实验" });
-    await user.click(await within(dialog).findByRole("button", { name: "使用 MoS2 baseline" }));
+    await user.click(await within(dialog).findByRole("button", { name: "预览 MoS2 baseline" }));
+    await user.click(await within(dialog).findByRole("button", { name: "确认创建实验" }));
 
     expect(await within(dialog).findByText("Recipe create blocked")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "从 Recipe 创建实验" })).toBeInTheDocument();
