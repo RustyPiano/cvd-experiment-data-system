@@ -63,7 +63,7 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
                         "start_min": 0,
                         "end_min": 45,
                         "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
                         "flow_sccm": 80,
                     }
                 ],

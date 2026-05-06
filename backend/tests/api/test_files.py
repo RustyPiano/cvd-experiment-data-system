@@ -262,7 +262,7 @@ def test_upload_file_rejects_locked_experiment(active_user) -> None:
                         "start_min": 0,
                         "end_min": 45,
                         "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
                         "flow_sccm": 80,
                     }
                 ]

@@ -191,6 +191,7 @@ class ExperimentAnalysisGasComponentRow(BaseModel):
     segment_gas: str | None
     component_name: str | None
     component_gas: str | None
+    component_flow_sccm: float | None
     fraction: float | None
     ratio_percent: float | None
 

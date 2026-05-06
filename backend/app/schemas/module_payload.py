@@ -87,6 +87,7 @@ class FurnaceProgramPayload(ModulePayloadBase):
 class GasComponentPayload(ModulePayloadBase):
     name: str | None = None
     gas: str | None = None
+    flow_sccm: StrictFloat | None = None
     fraction: StrictFloat | None = None
     ratio_percent: StrictFloat | None = None
 

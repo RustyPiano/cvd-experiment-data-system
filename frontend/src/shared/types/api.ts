@@ -451,6 +451,7 @@ export type ExperimentAnalysisGasComponentRow = {
   segment_gas: string | null;
   component_name: string | null;
   component_gas: string | null;
+  component_flow_sccm: number | null;
   fraction: number | null;
   ratio_percent: number | null;
 };

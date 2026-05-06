@@ -453,10 +453,10 @@ describe("Experiment detail-like pages", () => {
                         start_min: 0,
                         end_min: 30,
                         flow_sccm: 80,
-                        components: [
-                          { name: "Ar", fraction: 95 },
-                          { name: "H2", fraction: 5 },
-                        ],
+components: [
+                           { name: "Ar", flow_sccm: 76, fraction: 0.95 },
+                           { name: "H2", flow_sccm: 4, fraction: 0.05 },
+                         ],
                       },
                     ],
                   },
@@ -506,7 +506,7 @@ describe("Experiment detail-like pages", () => {
       precheckText.indexOf("风险说明：复核密封圈"),
     );
     expect(screen.getByText("预清洗气体：Ar")).toBeInTheDocument();
-    expect(screen.getByText("Ar: 95%；H2: 5%")).toBeInTheDocument();
+    expect(screen.getByText("Ar 76 sccm (95%)；H2 4 sccm (5%)")).toBeInTheDocument();
     expect(screen.getByText("795 °C / 3000 rpm / 15 min")).toBeInTheDocument();
     expect(screen.getByText("120 °C / 10 min / 80 W / Ar")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CVD-2026-0001" })).toHaveAttribute(

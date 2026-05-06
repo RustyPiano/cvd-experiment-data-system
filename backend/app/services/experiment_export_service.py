@@ -457,7 +457,24 @@ class ExperimentExportService:
         rows: list[ExperimentAnalysisGasComponentRow] = []
         for segment_index, segment in enumerate(segments):
             components = self._list_payload_items(segment.get("components"))
+            total_flow: float | None = None
+            component_flows: list[float | None] = []
+            for component in components:
+                cf = component.get("flow_sccm")
+                if isinstance(cf, (int, float)):
+                    component_flows.append(float(cf))
+                else:
+                    component_flows.append(None)
+            known_flows = [f for f in component_flows if f is not None]
+            if known_flows:
+                total_flow = sum(known_flows)
             for component_index, component in enumerate(components):
+                component_flow_sccm = component_flows[component_index]
+                fraction: float | None = None
+                ratio_percent: float | None = None
+                if component_flow_sccm is not None and total_flow and total_flow > 0:
+                    fraction = round(component_flow_sccm / total_flow, 6)
+                    ratio_percent = round(component_flow_sccm / total_flow * 100, 2)
                 rows.append(
                     ExperimentAnalysisGasComponentRow(
                         **context,
@@ -467,8 +484,9 @@ class ExperimentExportService:
                         segment_gas=segment.get("gas"),
                         component_name=component.get("name"),
                         component_gas=component.get("gas"),
-                        fraction=component.get("fraction"),
-                        ratio_percent=component.get("ratio_percent"),
+                        component_flow_sccm=component_flow_sccm,
+                        fraction=fraction,
+                        ratio_percent=ratio_percent,
                     )
                 )
         return rows

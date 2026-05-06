@@ -73,7 +73,7 @@ const fieldLabels: Record<string, string> = {
   pre_washing_gas: "预清洗气体",
   preparation_time_min: "制备时间 (min)",
   quality_label: "质量评级",
-  ratio_percent: "比例 (%)",
+  ratio_percent: "占比 (%)",
   result: "结果",
   risk_note: "风险说明",
   role: "角色",

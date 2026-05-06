@@ -41,7 +41,11 @@ ISSUE_MESSAGE_ZH = {
     "Gas segment must be an object": "气体程序段格式无效",
     "Gas segment boundaries must be numeric": "气体程序段起止时间必须是数字",
     "Gas segment gas is required": "气体程序段气体必填",
-    "Gas segment flow_sccm is required and must be numeric": "气体程序段流量必填且必须是数字",
+    "Gas segment flow_sccm is required and must be numeric when no components are specified": (
+        "气体程序段流量必填且必须是数字（无组分时）"
+    ),
+    "Gas component flow_sccm must be a positive number": "气体组分流量必须是正数",
+    "Gas component flow_sccm values must sum to a positive number": "气体组分流量之和必须为正数",
     "Gas segment end time must be greater than start time": "气体程序段结束时间必须大于开始时间",
     "Gas segments overlap": "气体程序段时间存在重叠",
     "Characterization method record must be an object": "表征方法记录格式无效",
@@ -413,16 +417,49 @@ class ExperimentValidationService:
                 )
                 malformed = True
                 continue
-            if not self._is_number(segment.get("flow_sccm")):
+            components = segment.get("components")
+            has_components = isinstance(components, list) and len(components) > 0
+            if not has_components and not self._is_number(segment.get("flow_sccm")):
                 errors.append(
                     self._issue(
                         "gas_program",
                         f"segments[{index}].flow_sccm",
-                        "Gas segment flow_sccm is required and must be numeric",
+                        (
+                            "Gas segment flow_sccm is required"
+                            " and must be numeric when no components"
+                        ),
                     )
                 )
                 malformed = True
                 continue
+            if has_components:
+                component_flow_sum = 0.0
+                component_flow_valid = True
+                for comp_index, component in enumerate(components):
+                    if not isinstance(component, dict):
+                        continue
+                    comp_flow = component.get("flow_sccm")
+                    if not self._is_number(comp_flow) or float(comp_flow) <= 0:
+                        errors.append(
+                            self._issue(
+                                "gas_program",
+                                f"segments[{index}].components[{comp_index}].flow_sccm",
+                                "Gas component flow_sccm must be a positive number",
+                            )
+                        )
+                        component_flow_valid = False
+                    else:
+                        component_flow_sum += float(comp_flow)
+                if component_flow_valid and has_components and component_flow_sum <= 0:
+                    errors.append(
+                        self._issue(
+                            "gas_program",
+                            f"segments[{index}].components",
+                            "Gas component flow_sccm values must sum to a positive number",
+                        )
+                    )
+                    malformed = True
+                    continue
             start_value = float(start)
             end_value = float(end)
             if end_value <= start_value:

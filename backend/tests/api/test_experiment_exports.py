@@ -77,7 +77,7 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
                         "start_min": 0,
                         "end_min": 45,
                         "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
                         "flow_sccm": 80,
                     }
                 ]
@@ -460,8 +460,8 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
                         "flow_sccm": 80,
                         "note": "stable",
                         "components": [
-                            {"name": "Ar", "fraction": 0.9},
-                            {"name": "H2", "ratio_percent": 10},
+                            {"name": "Ar", "fraction": 0.9, "flow_sccm": 72},
+                            {"name": "H2", "ratio_percent": 10, "flow_sccm": 8},
                         ],
                     }
                 ],

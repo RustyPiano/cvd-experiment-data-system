@@ -63,7 +63,7 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
                         "start_min": 0,
                         "end_min": 45,
                         "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
                         "flow_sccm": 80,
                     }
                 ],
@@ -1234,7 +1234,7 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
                         "start_min": 0,
                         "end_min": 10,
                         "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
                         "flow_sccm": 80,
                     },
                     {
@@ -1242,7 +1242,7 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
                         "start_min": 5,
                         "end_min": 10,
                         "gas": "Ar+H2",
-                        "components": [{"name": "Ar", "fraction": 0.95}],
+                        "components": [{"name": "Ar", "fraction": 0.95, "flow_sccm": 95}],
                         "flow_sccm": 100,
                     },
                 ],
@@ -2079,7 +2079,7 @@ def test_upsert_module_persists_stage3_fields_and_syncs_quality_label(active_use
                         "end_min": 35,
                         "gas": "Ar",
                         "flow_sccm": 50,
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 50}],
                         "note": "stable flow",
                     }
                 ]

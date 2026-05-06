@@ -85,14 +85,38 @@ function formatSubstrateTreatmentParams(record: Record<string, unknown>) {
   ]);
 }
 
-function formatGasComponents(value: unknown) {
+function formatGasComponents(value: unknown, segmentFlowSccm?: unknown) {
+  const totalFlow = typeof segmentFlowSccm === "number"
+    ? segmentFlowSccm
+    : Number(segmentFlowSccm);
   const components = safeArray(value)
     .map((component) => {
       const record = safeRecord(component);
       const name = safeString(record.name) || safeString(record.gas);
-      const ratio = safeString(record.fraction) || safeString(record.ratio_percent);
-      if (!name && !ratio) return "";
-      return ratio ? `${name || "组分"}: ${ratio}%` : name;
+      const flow = record.flow_sccm ?? record.flowSccm;
+      const flowNum = Number(flow);
+      if (!name && flow == null) return "";
+      const label = name || "组分";
+      if (Number.isFinite(flowNum)) {
+        const pct = Number.isFinite(totalFlow) && totalFlow > 0
+          ? `${Math.round((flowNum / totalFlow) * 10000) / 100}%`
+          : null;
+        return pct ? `${label} ${flowNum} sccm (${pct})` : `${label} ${flowNum} sccm`;
+      }
+      if (record.fraction != null) {
+        const f = Number(record.fraction);
+        if (Number.isFinite(f)) {
+          const pct = Math.round(f * 10000) / 100;
+          return `${label}: ${pct}%`;
+        }
+      }
+      if (record.ratio_percent != null) {
+        const rp = Number(record.ratio_percent);
+        if (Number.isFinite(rp)) {
+          return `${label}: ${Math.round(rp * 100) / 100}%`;
+        }
+      }
+      return label;
     })
     .filter(Boolean);
   return components.length > 0 ? components.join("；") : "—";
@@ -263,7 +287,7 @@ function renderGasParams(modules: ExperimentModulePayloadRead[] | undefined) {
             { title: "流量 (sccm)", dataIndex: "flow_sccm", render: (v: unknown) => safeString(v) || "—" },
             {
               title: "组分",
-              render: (_: unknown, record: Record<string, unknown>) => formatGasComponents(record.components),
+              render: (_: unknown, record: Record<string, unknown>) => formatGasComponents(record.components, record.flow_sccm),
             },
             { title: "备注", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
           ]}

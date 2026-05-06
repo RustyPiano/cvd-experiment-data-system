@@ -94,7 +94,7 @@ def allowed_recipe_payload() -> dict:
                     "end_min": 45.0,
                     "gas": "Ar",
                     "flow_sccm": 80.0,
-                    "components": [{"name": "Ar", "fraction": 1.0}],
+                    "components": [{"name": "Ar", "fraction": 1.0, "flow_sccm": 80.0}],
                 }
             ],
         },

@@ -239,7 +239,7 @@ function createEditorFetchMock() {
             end_min: 45,
             flow_sccm: 80,
             note: "keep carrier stable",
-            components: [{ name: "H2", fraction: 0.05 }],
+            components: [{ name: "H2", flow_sccm: 4, fraction: 0.05 }],
           },
         ],
       }),
@@ -470,7 +470,7 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByLabelText("前驱体批次 1")).toHaveValue("MO-2026-01");
     expect(screen.getByLabelText("处理参数温度 1")).toHaveValue("300");
     expect(screen.getByLabelText("程序段备注 1")).toHaveValue("keep carrier stable");
-    expect(screen.getByLabelText("组件气体 1-1")).toHaveValue("H2");
+    expect(screen.getByLabelText("组分流量 1-1")).toHaveValue("4");
     expect(screen.getByLabelText("颜色变化")).toHaveValue("center area darkened");
     expect(screen.getByLabelText("表征方法 1")).toHaveValue("Raman");
     expect(screen.getByRole("switch", { name: "启用表征 1" })).toBeChecked();
@@ -1359,9 +1359,9 @@ describe("ExperimentEditorPage", () => {
       ).toBe(true);
     });
 
-    const gasFlowInput = screen.getByLabelText("流量 1");
+    const gasComponentFlowInput = screen.getByLabelText("组分流量 1-1");
     vi.useFakeTimers();
-    fireEvent.change(gasFlowInput, { target: { value: "90" } });
+    fireEvent.change(gasComponentFlowInput, { target: { value: "4.5" } });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);
@@ -1383,7 +1383,7 @@ describe("ExperimentEditorPage", () => {
             request.body as {
               payload_json?: {
                 segments?: Array<{
-                  components?: Array<{ name?: string; fraction?: number }>;
+                  components?: Array<{ name?: string; flow_sccm?: number }>;
                   flow_sccm?: number;
                 }>;
               };
@@ -1392,10 +1392,10 @@ describe("ExperimentEditorPage", () => {
 
           return (
             Array.isArray(segments) &&
-            segments[0]?.flow_sccm === 90 &&
+            segments[0]?.flow_sccm === 4.5 &&
             Array.isArray(segments[0]?.components) &&
             segments[0]?.components?.[0]?.name === "H2" &&
-            segments[0]?.components?.[0]?.fraction === 0.05
+            segments[0]?.components?.[0]?.flow_sccm === 4.5
           );
         }),
       ).toBe(true);

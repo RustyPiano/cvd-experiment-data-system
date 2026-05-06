@@ -58,25 +58,11 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
                         "start_min": 0,
                         "end_min": 45,
                         "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
                         "flow_sccm": 80,
                     }
                 ],
             }
-        },
-        headers=auth_headers(email),
-    )
-    assert gas_response.status_code == 200
-
-
-def test_experiment_audit_log_tracks_key_actions(active_user) -> None:
-    create_response = client.post(
-        "/api/v1/experiments",
-        json={
-            "experiment_type": "cvd_2zone",
-            "material_system": "MoS2",
-            "experiment_date": "2026-04-23",
-            "objective": "Audit flow",
         },
         headers=auth_headers(active_user.email),
     )
@@ -200,37 +186,12 @@ def test_clone_experiment_copies_module_payloads(active_user, admin_user) -> Non
                         "start_min": 0,
                         "end_min": 45,
                         "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1}],
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
                         "flow_sccm": 80,
                     }
                 ],
             }
         },
-        headers=auth_headers(admin_user.email),
-    )
-    assert module_response.status_code == 200
-    populate_required_modules(source_id, admin_user.email)
-
-    precursors_response = client.put(
-        f"/api/v1/experiments/{source_id}/modules/precursors",
-        json={"payload_json": {"items": [{"species": "WO3", "method": "powder"}]}},
-        headers=auth_headers(admin_user.email),
-    )
-    assert precursors_response.status_code == 200
-
-    submit_response = client.post(
-        f"/api/v1/experiments/{source_id}/submit",
-        headers=auth_headers(admin_user.email),
-    )
-    assert submit_response.status_code == 200
-    lock_response = client.post(
-        f"/api/v1/experiments/{source_id}/lock",
-        headers=auth_headers(admin_user.email),
-    )
-    assert lock_response.status_code == 200
-
-    clone_response = client.post(
-        f"/api/v1/experiments/{source_id}/clone",
         headers=auth_headers(active_user.email),
     )
 

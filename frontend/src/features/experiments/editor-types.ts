@@ -139,7 +139,7 @@ export type GasProgramValues = {
 
 export type GasComponentValues = PayloadBackedValue & {
   gas: string;
-  ratioPercent: string;
+  flowSccm: string;
 };
 
 export type ProcessObservationValues = {
@@ -219,6 +219,29 @@ function asString(value: unknown) {
     return String(value);
   }
 
+  return "";
+}
+
+export function inferComponentFlowSccm(
+  component: Record<string, unknown>,
+  segment: Record<string, unknown>,
+): string {
+  const segmentFlow = Number(segment.flow_sccm);
+  if (!Number.isFinite(segmentFlow) || segmentFlow <= 0) {
+    return "";
+  }
+  if (component.fraction != null) {
+    const f = Number(component.fraction);
+    if (Number.isFinite(f)) {
+      return String(Math.round(f * segmentFlow * 1000) / 1000);
+    }
+  }
+  if (component.ratio_percent != null) {
+    const rp = Number(component.ratio_percent);
+    if (Number.isFinite(rp)) {
+      return String(Math.round((rp / 100) * segmentFlow * 1000) / 1000);
+    }
+  }
   return "";
 }
 
@@ -532,9 +555,9 @@ export function validateSectionValues(
         appendNumberValidationError(
           errors,
           sectionKey,
-          `segments.${segmentIndex}.components.${componentIndex}.ratioPercent`,
-          component.ratioPercent,
-          `组分比例 ${rowNumber}-${componentIndex + 1}`,
+          `segments.${segmentIndex}.components.${componentIndex}.flowSccm`,
+          component.flowSccm,
+          `组分流量 ${rowNumber}-${componentIndex + 1}`,
         );
       });
     });
@@ -633,7 +656,7 @@ export function createEmptyGasSegment(): GasSegmentValues {
 export function createEmptyGasComponent(): GasComponentValues {
   return {
     gas: "",
-    ratioPercent: "",
+    flowSccm: "",
   };
 }
 
@@ -776,7 +799,7 @@ export function createInitialEditorValues(
         components: asObjectArray(segment.components).map((component) => ({
           sourcePayload: component,
           gas: asString(component.name) || asString(component.gas),
-          ratioPercent: asString(component.fraction) || asString(component.ratio_percent),
+          flowSccm: asString(component.flow_sccm) || inferComponentFlowSccm(component, segment),
         })),
       })),
     },
@@ -1102,7 +1125,7 @@ export function toGasProgramPayload(values: GasProgramValues) {
           (component) =>
             hasAnyValue({
               gas: component.gas,
-              ratioPercent: component.ratioPercent,
+              flowSccm: component.flowSccm,
             }) || hasSourcePayload(component.sourcePayload),
         );
 
@@ -1124,19 +1147,39 @@ export function toGasProgramPayload(values: GasProgramValues) {
               keep:
                 hasAnyValue({
                   gas: component.gas,
-                  ratioPercent: component.ratioPercent,
+                  flowSccm: component.flowSccm,
                 }) || hasSourcePayload(component.sourcePayload),
               payload: mergePayloadFields(
                 component.sourcePayload,
                 removeNullEntries({
                   name: normalizeNullableString(component.gas),
-                  fraction: normalizeNumberLike(component.ratioPercent),
+                  flow_sccm: normalizeNumberLike(component.flowSccm),
                 }),
-                ["name", "fraction", "gas", "ratio_percent"],
+                ["name", "flow_sccm", "gas", "fraction", "ratio_percent"],
               ),
             }))
             .filter((component) => component.keep)
             .map((component) => component.payload);
+
+          const validComponentFlows = segment.components
+            .map((c) => Number(c.flowSccm))
+            .filter((v) => Number.isFinite(v) && v > 0);
+          const totalComponentFlow = validComponentFlows.reduce((sum, v) => sum + v, 0);
+
+          const computedSegmentFlow = componentPayloads.length > 0 && totalComponentFlow > 0
+            ? totalComponentFlow
+            : normalizeNumberLike(segment.flowSccm);
+
+          for (const cp of componentPayloads) {
+            const compFlow = cp.flow_sccm as number | null;
+            if (typeof compFlow === "number" && totalComponentFlow > 0) {
+              cp.fraction = Math.round((compFlow / totalComponentFlow) * 1000000) / 1000000;
+              cp.ratio_percent = Math.round((compFlow / totalComponentFlow) * 10000) / 100;
+            } else {
+              cp.fraction = null;
+              cp.ratio_percent = null;
+            }
+          }
 
           return mergePayloadFields(
             segment.sourcePayload,
@@ -1145,7 +1188,7 @@ export function toGasProgramPayload(values: GasProgramValues) {
               gas: normalizeNullableString(segment.gas),
               start_min: normalizeNumberLike(segment.startMin),
               end_min: normalizeNumberLike(segment.endMin),
-              flow_sccm: normalizeNumberLike(segment.flowSccm),
+              flow_sccm: computedSegmentFlow,
               note: normalizeNullableString(segment.note),
               components: componentPayloads.length > 0 ? componentPayloads : undefined,
             }),

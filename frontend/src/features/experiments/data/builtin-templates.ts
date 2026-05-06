@@ -194,8 +194,8 @@ export const BUILTIN_GAS_TEMPLATES: QuickTemplate[] = [
           flow_sccm: 100,
           note: "还原性气氛生长",
           components: [
-            { name: "Ar", fraction: 0.95 },
-            { name: "H2", fraction: 0.05 },
+            { name: "Ar", flow_sccm: 95 },
+            { name: "H2", flow_sccm: 5 },
           ],
         },
       ],

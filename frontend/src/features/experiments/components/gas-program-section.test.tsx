@@ -72,7 +72,7 @@ describe("GasProgramSection", () => {
     expect(screen.queryByText("已应用模板：Ar 清洗 + Ar 生长，请确认或修改。")).not.toBeInTheDocument();
   });
 
-  it("maps the Ar + H2 built-in template with normalized component fractions", async () => {
+  it("maps the Ar + H2 built-in template with component flow_sccm inferred from fraction", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
@@ -94,8 +94,8 @@ describe("GasProgramSection", () => {
       segments: [
         {
           components: [
-            expect.objectContaining({ gas: "Ar", ratioPercent: "0.95" }),
-            expect.objectContaining({ gas: "H2", ratioPercent: "0.05" }),
+            expect.objectContaining({ gas: "Ar", flowSccm: "95" }),
+            expect.objectContaining({ gas: "H2", flowSccm: "5" }),
           ],
           endMin: "45",
           flowSccm: "100",

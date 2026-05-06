@@ -7,6 +7,7 @@ import {
   createEmptyGasComponent,
   createEmptyGasSegment,
   type GasProgramValues,
+  inferComponentFlowSccm,
   type VocabularySelectOption,
 } from "../editor-types";
 import { QuickTemplateMenu } from "./quick-template-menu";
@@ -59,10 +60,18 @@ function toGasProgramValues(payload: Record<string, unknown>): GasProgramValues 
       components: asObjectArray(segment.components).map((component) => ({
         sourcePayload: component,
         gas: asString(component.name) || asString(component.gas),
-        ratioPercent: asString(component.fraction) || asString(component.ratio_percent),
+        flowSccm: asString(component.flow_sccm) || inferComponentFlowSccm(component, segment),
       })),
     })),
   };
+}
+
+function computeComponentPercent(flowSccm: string, totalFlow: number): string | null {
+  const value = Number(flowSccm);
+  if (!Number.isFinite(value) || value <= 0 || totalFlow <= 0) {
+    return null;
+  }
+  return `${Math.round((value / totalFlow) * 10000) / 100}%`;
 }
 
 export function GasProgramSection({
@@ -92,6 +101,13 @@ export function GasProgramSection({
   const applyTemplate = (template: QuickTemplate) => {
     setAppliedTemplateLabel(template.label);
     onChange(toGasProgramValues(asRecord(template.payload)));
+  };
+
+  const getSegmentTotalFlow = (segment: (typeof value.segments)[number]) => {
+    return segment.components.reduce((sum, c) => {
+      const v = Number(c.flowSccm);
+      return Number.isFinite(v) && v > 0 ? sum + v : sum;
+    }, 0);
   };
 
   const updateSegment = (index: number, patch: Partial<(typeof value.segments)[number]>) => {
@@ -230,15 +246,28 @@ export function GasProgramSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`流量 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`流量 ${index + 1}`}
-                disabled={disabled}
-                onChange={(event) => {
-                  updateSegment(index, { flowSccm: event.target.value });
-                }}
-                placeholder="flow_sccm"
-                value={segment.flowSccm}
-              />
+              {(() => {
+                const totalComponentFlow = getSegmentTotalFlow(segment);
+                const isAutoFlow = totalComponentFlow > 0;
+                return isAutoFlow ? (
+                  <Input
+                    aria-label={`流量 ${index + 1}`}
+                    disabled
+                    placeholder="由组分流量自动合计"
+                    value={String(totalComponentFlow)}
+                  />
+                ) : (
+                  <Input
+                    aria-label={`流量 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateSegment(index, { flowSccm: event.target.value });
+                    }}
+                    placeholder="flow_sccm"
+                    value={segment.flowSccm}
+                  />
+                );
+              })()}
             </div>
             <div className="editor-field editor-field-wide">
               <Typography.Text strong>{`程序段备注 ${index + 1}`}</Typography.Text>
@@ -277,17 +306,26 @@ export function GasProgramSection({
                       />
                     </div>
                     <div className="editor-field">
-                      <Typography.Text strong>{`组分比例 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
+                      <Typography.Text strong>{`组分流量 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
                       <Input
-                        aria-label={`组分比例 ${index + 1}-${componentIndex + 1}`}
+                        aria-label={`组分流量 ${index + 1}-${componentIndex + 1}`}
                         disabled={disabled}
                         onChange={(event) => {
                           updateComponent(index, componentIndex, {
-                            ratioPercent: event.target.value,
+                            flowSccm: event.target.value,
                           });
                         }}
-                        placeholder="%"
-                        value={component.ratioPercent}
+                        placeholder="sccm"
+                        value={component.flowSccm}
+                      />
+                    </div>
+                    <div className="editor-field">
+                      <Typography.Text strong>{`占比 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
+                      <Input
+                        aria-label={`占比 ${index + 1}-${componentIndex + 1}`}
+                        disabled
+                        placeholder="自动计算"
+                        value={computeComponentPercent(component.flowSccm, getSegmentTotalFlow(segment)) ?? ""}
                       />
                     </div>
                     <div className="editor-inline-actions">
