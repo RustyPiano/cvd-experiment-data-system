@@ -1,5 +1,6 @@
 from app.models.audit import AuditEvent
 from app.models.experiment import ExperimentRun, ExperimentStatus, QualityLabel
+from app.models.field_definition import FieldDefinition, FieldType
 from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
 from app.models.recipe import Recipe, RecipeStatus
@@ -14,6 +15,8 @@ __all__ = [
     "ExperimentModuleKey",
     "ExperimentModulePayload",
     "ExperimentStatus",
+    "FieldDefinition",
+    "FieldType",
     "FileAsset",
     "QualityLabel",
     "Recipe",
