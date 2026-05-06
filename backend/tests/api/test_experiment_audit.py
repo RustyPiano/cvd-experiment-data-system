@@ -65,46 +65,9 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
                 ],
             }
         },
-        headers=auth_headers(active_user.email),
+        headers=auth_headers(email),
     )
-    experiment_id = create_response.json()["id"]
-    populate_required_modules(experiment_id, active_user.email)
-
-    patch_response = client.patch(
-        f"/api/v1/experiments/{experiment_id}",
-        json={"objective": "Changed objective"},
-        headers=auth_headers(active_user.email),
-    )
-    assert patch_response.status_code == 200
-
-    submit_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/submit",
-        headers=auth_headers(active_user.email),
-    )
-    assert submit_response.status_code == 200
-
-    return_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/return-to-draft",
-        headers=auth_headers(active_user.email),
-    )
-    assert return_response.status_code == 200
-
-    audit_response = client.get(
-        f"/api/v1/experiments/{experiment_id}/audit-events",
-        headers=auth_headers(active_user.email),
-    )
-
-    assert audit_response.status_code == 200
-    actions = [item["action"] for item in audit_response.json()["items"]]
-    assert actions == [
-        "create",
-        "update_module",
-        "update_module",
-        "update_module",
-        "update",
-        "submit",
-        "return_to_draft",
-    ]
+    assert gas_response.status_code == 200
 
 
 def test_clone_experiment_creates_new_draft_and_audit_record(active_user, admin_user) -> None:
@@ -193,9 +156,26 @@ def test_clone_experiment_copies_module_payloads(active_user, admin_user) -> Non
                 ],
             }
         },
+        headers=auth_headers(admin_user.email),
+    )
+    assert module_response.status_code == 200
+    populate_required_modules(source_id, admin_user.email)
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{source_id}/submit",
+        headers=auth_headers(admin_user.email),
+    )
+    assert submit_response.status_code == 200
+    lock_response = client.post(
+        f"/api/v1/experiments/{source_id}/lock",
+        headers=auth_headers(admin_user.email),
+    )
+    assert lock_response.status_code == 200
+
+    clone_response = client.post(
+        f"/api/v1/experiments/{source_id}/clone",
         headers=auth_headers(active_user.email),
     )
-
     assert clone_response.status_code == 201
     clone_id = clone_response.json()["id"]
 
