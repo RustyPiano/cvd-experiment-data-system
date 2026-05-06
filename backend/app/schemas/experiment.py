@@ -149,16 +149,26 @@ class ExperimentAnalysisSubstrateRow(BaseModel):
     treatment_params_gas: str | None
 
 
-class ExperimentAnalysisFurnacePointRow(BaseModel):
+class ExperimentAnalysisFurnaceStepRow(BaseModel):
     experiment_id: UUID
     run_code: str
-    furnace_zone_index: int
-    zone_index: int | None
-    temperature_point_index: int
-    precursor_placed: bool | None
-    zone_note: str | None
-    time_min: float | None
+    step_index: int
+    step_name: str | None
+    duration_min: float | None
+    is_hold: bool | None
+    zone_key: str | None
     temperature_C: float | None
+    note: str | None
+
+
+class ExperimentAnalysisFurnacePrecursorRow(BaseModel):
+    experiment_id: UUID
+    run_code: str
+    precursor_index: int
+    material: str | None
+    position_cm: float | None
+    mass_mg: float | None
+    note: str | None
 
 
 class ExperimentAnalysisGasSegmentRow(BaseModel):
@@ -251,7 +261,8 @@ class ExperimentAnalysisExportRead(BaseModel):
     experiment: ExperimentAnalysisExperimentRow
     precursor_rows: list[ExperimentAnalysisPrecursorRow]
     substrate_rows: list[ExperimentAnalysisSubstrateRow]
-    furnace_point_rows: list[ExperimentAnalysisFurnacePointRow]
+    furnace_step_rows: list[ExperimentAnalysisFurnaceStepRow]
+    furnace_precursor_rows: list[ExperimentAnalysisFurnacePrecursorRow]
     gas_program_rows: list[ExperimentAnalysisGasProgramRow]
     gas_segment_rows: list[ExperimentAnalysisGasSegmentRow]
     gas_component_rows: list[ExperimentAnalysisGasComponentRow]

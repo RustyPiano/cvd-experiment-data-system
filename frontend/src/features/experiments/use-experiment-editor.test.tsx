@@ -65,7 +65,13 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
     items: [],
   },
   furnaceProgram: {
-    zones: [],
+    furnaceInfo: {
+      zonesCount: "2",
+      model: "",
+      initialTemperaturesC: { zone_1: "25", zone_2: "25" },
+    },
+    precursors: [],
+    steps: [],
   },
   gasProgram: {
     preWashingGas: "",

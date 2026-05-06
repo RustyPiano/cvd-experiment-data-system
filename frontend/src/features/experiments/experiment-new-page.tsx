@@ -41,8 +41,8 @@ function getModuleSummary(moduleKey: string, data: Record<string, unknown>): str
       return `${items.length} 条`;
     }
     case "furnace_program": {
-      const zones = Array.isArray(data.zones) ? data.zones : [];
-      return `${zones.length} 个温区`;
+      const steps = Array.isArray(data.steps) ? data.steps : [];
+      return `${steps.length} 步`;
     }
     case "gas_program": {
       const segments = Array.isArray(data.segments) ? data.segments : [];

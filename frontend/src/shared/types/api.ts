@@ -409,16 +409,26 @@ export type ExperimentAnalysisSubstrateRow = {
   treatment_params_gas: string | null;
 };
 
-export type ExperimentAnalysisFurnacePointRow = {
+export type ExperimentAnalysisFurnaceStepRow = {
   experiment_id: string;
   run_code: string;
-  furnace_zone_index: number;
-  zone_index: number | null;
-  temperature_point_index: number;
-  precursor_placed: boolean | null;
-  zone_note: string | null;
-  time_min: number | null;
+  step_index: number;
+  step_name: string | null;
+  duration_min: number | null;
+  is_hold: boolean | null;
+  zone_key: string | null;
   temperature_C: number | null;
+  note: string | null;
+};
+
+export type ExperimentAnalysisFurnacePrecursorRow = {
+  experiment_id: string;
+  run_code: string;
+  precursor_index: number;
+  material: string | null;
+  position_cm: number | null;
+  mass_mg: number | null;
+  note: string | null;
 };
 
 export type ExperimentAnalysisGasSegmentRow = {
@@ -511,7 +521,8 @@ export type ExperimentAnalysisExportRead = {
   experiment: ExperimentAnalysisExperimentRow;
   precursor_rows: ExperimentAnalysisPrecursorRow[];
   substrate_rows: ExperimentAnalysisSubstrateRow[];
-  furnace_point_rows: ExperimentAnalysisFurnacePointRow[];
+  furnace_step_rows: ExperimentAnalysisFurnaceStepRow[];
+  furnace_precursor_rows: ExperimentAnalysisFurnacePrecursorRow[];
   gas_program_rows: ExperimentAnalysisGasProgramRow[];
   gas_segment_rows: ExperimentAnalysisGasSegmentRow[];
   gas_component_rows: ExperimentAnalysisGasComponentRow[];

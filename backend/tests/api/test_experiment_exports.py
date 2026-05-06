@@ -50,17 +50,18 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "precursor_placed": True,
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": 25},
-                            {"time_min": 30, "temperature_C": 750},
-                        ],
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
                         "note": "",
-                    }
-                ]
+                    },
+                ],
             }
         },
         headers=auth_headers(email),
@@ -429,17 +430,20 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [
+                    {"material": "", "position_cm": None, "mass_mg": None, "note": "center"}
+                ],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "precursor_placed": True,
-                        "note": "center",
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": 25},
-                            {"time_min": 30, "temperature_C": 750},
-                        ],
-                    }
-                ]
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
+                        "note": "",
+                    },
+                ],
             }
         },
         headers=auth_headers(active_user.email),
@@ -520,7 +524,8 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
         "experiment",
         "precursor_rows",
         "substrate_rows",
-        "furnace_point_rows",
+        "furnace_step_rows",
+        "furnace_precursor_rows",
         "gas_program_rows",
         "gas_segment_rows",
         "gas_component_rows",
@@ -555,8 +560,8 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     }
     assert body["substrate_rows"][0]["substrate_index"] == 0
     assert body["substrate_rows"][0]["treatment_params_gas"] == "O2"
-    assert body["furnace_point_rows"][1]["temperature_point_index"] == 1
-    assert body["furnace_point_rows"][1]["temperature_C"] == 750.0
+    assert body["furnace_step_rows"][0]["step_index"] == 1
+    assert body["furnace_step_rows"][0]["temperature_C"] == 750.0
     assert body["gas_program_rows"][0] == {
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",

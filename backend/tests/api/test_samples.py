@@ -35,17 +35,18 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "precursor_placed": True,
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": 25},
-                            {"time_min": 30, "temperature_C": 750},
-                        ],
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
                         "note": "",
-                    }
-                ]
+                    },
+                ],
             }
         },
         headers=auth_headers(email),

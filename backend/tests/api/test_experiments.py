@@ -35,17 +35,18 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "precursor_placed": True,
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": 25},
-                            {"time_min": 30, "temperature_C": 750},
-                        ],
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
                         "note": "",
-                    }
-                ]
+                    },
+                ],
             }
         },
         headers=auth_headers(email),
@@ -82,7 +83,7 @@ def assert_issue_exists(
     message_contains: str,
 ) -> None:
     accepted_message_fragments = {
-        "required": ["required", "必填", "必须填写", "至少需要"],
+        "required": ["required", "必填", "必须填写", "至少需要", "at least one", "至少一个"],
         "strictly increasing": ["strictly increasing", "严格递增"],
         "overlap": ["overlap", "重叠"],
         "out of range": ["out of range", "超出"],
@@ -91,6 +92,7 @@ def assert_issue_exists(
         "not linked": ["not linked", "未关联"],
         "unknown": ["unknown", "未知"],
         "valid number": ["valid number", "必须是数字"],
+        "positive": ["positive", "正数"],
     }.get(message_contains, [message_contains])
 
     assert any(
@@ -489,15 +491,18 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "temperature_program": [
-                            {"time_min": 10, "temperature_C": 750},
-                            {"time_min": 5, "temperature_C": 700},
-                        ],
-                    }
-                ]
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": -5,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
+                        "note": "",
+                    },
+                ],
             }
         },
         headers=auth_headers(active_user.email),
@@ -559,7 +564,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert body["ok"] is False
     assert body["blocking_count"] == len(body["errors"])
     assert body["warning_count"] == len(body["warnings"])
-    assert body["completion_score"] == 57
+    assert body["completion_score"] == 52
     assert_issue_exists(
         body["errors"],
         module_key="basic_info",
@@ -569,8 +574,8 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert_issue_exists(
         body["errors"],
         module_key="furnace_program",
-        field_path="zones[0].temperature_program",
-        message_contains="strictly increasing",
+        field_path="steps[0].duration_min",
+        message_contains="positive",
     )
     assert_issue_exists(
         body["errors"],
@@ -650,15 +655,18 @@ def test_validate_score_uses_fixed_checklist_for_repeated_rows(active_user) -> N
             f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
             json={
                 "payload_json": {
-                    "zones": [
+                    "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                    "precursors": [],
+                    "steps": [
                         {
-                            "zone_index": 1,
-                            "temperature_program": [
-                                {"time_min": 0, "temperature_C": 25},
-                                {"time_min": 30, "temperature_C": 750},
-                            ],
-                        }
-                    ]
+                            "step_index": 1,
+                            "step_name": "升温",
+                            "duration_min": 30,
+                            "is_hold": False,
+                            "temperatures_C": {"zone_1": 750},
+                            "note": "",
+                        },
+                    ],
                 }
             },
             headers=auth_headers(active_user.email),
@@ -729,15 +737,18 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": 25},
-                            {"time_min": 30, "temperature_C": 750},
-                        ],
-                    }
-                ]
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
+                        "note": "",
+                    },
+                ],
             }
         },
         headers=auth_headers(active_user.email),
@@ -760,7 +771,7 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
     assert body["ok"] is True
     assert body["errors"] == []
     assert body["warnings"] == []
-    assert body["completion_score"] == 57
+    assert body["completion_score"] == 52
 
 
 def test_submit_returns_same_validation_structure_on_failure(active_user, db_session) -> None:
@@ -895,12 +906,18 @@ def test_submit_reports_database_critical_missing_fields(active_user) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "temperature_program": [{"time_min": 0}],
-                    }
-                ]
+                        "step_index": 1,
+                        "step_name": "",
+                        "duration_min": None,
+                        "is_hold": False,
+                        "temperatures_C": {},
+                        "note": "",
+                    },
+                ],
             }
         },
         headers=auth_headers(active_user.email),
@@ -966,7 +983,7 @@ def test_submit_reports_database_critical_missing_fields(active_user) -> None:
     assert_issue_exists(
         errors,
         module_key="furnace_program",
-        field_path="zones[0].temperature_program[0].temperature_C",
+        field_path="steps[0].temperatures_C",
         message_contains="required",
     )
     assert_issue_exists(
@@ -1071,16 +1088,20 @@ def test_upsert_module_rejects_non_numeric_scientific_values(active_user) -> Non
         (
             "furnace_program",
             {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": "hot"},
-                        ],
-                    }
-                ]
+                        "step_index": 1,
+                        "step_name": "",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": "hot"},
+                        "note": "",
+                    },
+                ],
             },
-            "temperature_C",
+            "temperatures_C",
         ),
     ]
 
@@ -1177,7 +1198,7 @@ def test_submit_rejects_missing_required_modules(active_user) -> None:
     assert_issue_exists(
         response.json()["errors"],
         module_key="furnace_program",
-        field_path="zones",
+        field_path="steps",
         message_contains="required",
     )
 
@@ -1206,17 +1227,20 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [
+                    {"material": "MoO3", "position_cm": None, "mass_mg": None, "note": ""}
+                ],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "precursor_placed": True,
-                        "temperature_program": [
-                            {"time_min": 30, "temperature_C": 750},
-                            {"time_min": 20, "temperature_C": 700},
-                        ],
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": -5,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
                         "note": "",
-                    }
-                ]
+                    },
+                ],
             }
         },
         headers=auth_headers(active_user.email),
@@ -1261,8 +1285,8 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
     assert_issue_exists(
         submit_response.json()["errors"],
         module_key="furnace_program",
-        field_path="zones[0].temperature_program",
-        message_contains="strictly increasing",
+        field_path="steps[0].duration_min",
+        message_contains="positive",
     )
     assert_issue_exists(
         submit_response.json()["errors"],
@@ -1294,13 +1318,13 @@ def test_upsert_rejects_malformed_furnace_zone_payload_without_500(active_user) 
 
     furnace_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
-        json={"payload_json": {"zones": ["bad-zone"]}},
+        json={"payload_json": {"steps": ["bad-step"]}},
         headers=auth_headers(active_user.email),
     )
 
     assert furnace_response.status_code == 422
     detail = furnace_response.json()["detail"]
-    assert any("zones.0" in ".".join(str(part) for part in error["loc"]) for error in detail)
+    assert any("steps.0" in ".".join(str(part) for part in error["loc"]) for error in detail)
 
 
 def test_upsert_rejects_malformed_precursor_payload_without_500(active_user) -> None:
@@ -1350,17 +1374,18 @@ def test_submit_allows_missing_gas_program(active_user) -> None:
         f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
         json={
             "payload_json": {
-                "zones": [
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [],
+                "steps": [
                     {
-                        "zone_index": 1,
-                        "precursor_placed": True,
-                        "temperature_program": [
-                            {"time_min": 0, "temperature_C": 25},
-                            {"time_min": 30, "temperature_C": 750},
-                        ],
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 750},
                         "note": "",
-                    }
-                ]
+                    },
+                ],
             }
         },
         headers=auth_headers(active_user.email),
@@ -2200,16 +2225,18 @@ def test_clone_normalizes_legacy_payloads_before_copy(active_user, db_session) -
                 experiment_run_id=source_id,
                 module_key=ExperimentModuleKey.FURNACE_PROGRAM.value,
                 payload_json={
-                    "zones": [
+                    "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                    "precursors": [],
+                    "steps": [
                         {
-                            "zone_index": 1,
-                            "precursor_placed": True,
-                            "temperature_program": [
-                                {"time_min": 0, "temperature_C": 25},
-                                {"time_min": 30, "temperature_C": 850},
-                            ],
-                        }
-                    ]
+                            "step_index": 1,
+                            "step_name": "升温",
+                            "duration_min": 30,
+                            "is_hold": False,
+                            "temperatures_C": {"zone_1": 850},
+                            "note": "",
+                        },
+                    ],
                 },
             ),
             ExperimentModulePayload(

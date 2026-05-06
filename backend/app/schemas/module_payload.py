@@ -68,20 +68,32 @@ class SubstratesPayload(ModulePayloadBase):
     items: list[SubstrateItemPayload] | None = None
 
 
-class FurnacePointPayload(ModulePayloadBase):
-    time_min: StrictFloat | None = None
-    temperature_C: StrictFloat | None = None
+class FurnaceInfoPayload(ModulePayloadBase):
+    zones_count: StrictInt | None = None
+    model: str | None = None
+    initial_temperatures_C: dict[str, StrictFloat | None] | None = None
 
 
-class FurnaceZonePayload(ModulePayloadBase):
-    zone_index: StrictInt | None = None
-    precursor_placed: StrictBool | None = None
-    temperature_program: list[FurnacePointPayload] | None = None
+class FurnacePrecursorPayload(ModulePayloadBase):
+    material: str | None = None
+    position_cm: StrictFloat | None = None
+    mass_mg: StrictFloat | None = None
+    note: str | None = None
+
+
+class FurnaceStepPayload(ModulePayloadBase):
+    step_index: StrictInt | None = None
+    step_name: str | None = None
+    duration_min: StrictFloat | None = None
+    is_hold: StrictBool | None = None
+    temperatures_C: dict[str, StrictFloat | None] | None = None
     note: str | None = None
 
 
 class FurnaceProgramPayload(ModulePayloadBase):
-    zones: list[FurnaceZonePayload] | None = None
+    furnace_info: FurnaceInfoPayload | None = None
+    precursors: list[FurnacePrecursorPayload] | None = None
+    steps: list[FurnaceStepPayload] | None = None
 
 
 class GasComponentPayload(ModulePayloadBase):

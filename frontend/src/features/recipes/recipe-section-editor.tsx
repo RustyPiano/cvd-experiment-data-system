@@ -38,6 +38,13 @@ function asBoolean(value: unknown, defaultValue: boolean): boolean {
   return defaultValue;
 }
 
+function asObject(value: unknown): Record<string, unknown> {
+  if (Boolean(value) && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
 function asObjectArray(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
@@ -296,126 +303,141 @@ function FurnaceProgramEditor({
   onChange: (value: Record<string, unknown>) => void;
   vocabularyOptions: Record<string, VocabularySelectOption[]>;
 }) {
-  const zones = asObjectArray(value.zones);
+  const steps = asObjectArray(value.steps);
 
-  const updateZone = (index: number, updated: Record<string, unknown>) => {
-    onChange(updateList(value, "zones", (arr) => arr.map((it, i) => (i === index ? updated : it))));
+  const updateStep = (index: number, updated: Record<string, unknown>) => {
+    onChange(updateList(value, "steps", (arr) => arr.map((it, i) => (i === index ? updated : it))));
   };
 
-  const removeZone = (index: number) => {
-    onChange(updateList(value, "zones", (arr) => arr.filter((_, i) => i !== index)));
+  const removeStep = (index: number) => {
+    onChange(updateList(value, "steps", (arr) => arr.filter((_, i) => i !== index)));
   };
 
-  const addZone = () => {
+  const addStep = () => {
     onChange(
-      updateList(value, "zones", (arr) => [
+      updateList(value, "steps", (arr) => [
         ...arr,
         {
-          zone_index: null,
-          precursor_placed: false,
+          step_index: null,
+          step_name: "",
+          duration_min: null,
+          is_hold: false,
+          temperatures_C: {},
           note: "",
-          temperature_program: [],
         },
       ]),
     );
   };
 
+  const furnaceInfoRaw = value.furnace_info as Record<string, unknown> | undefined;
+  const furnaceInfo = furnaceInfoRaw && typeof furnaceInfoRaw === "object" ? furnaceInfoRaw : {};
+  const zonesCount = asNumber(furnaceInfo.zones_count) ?? 2;
+  const zoneKeys = Array.from({ length: zonesCount }, (_, i) => `zone_${i + 1}`);
+  const initialTempsRaw = asObject(furnaceInfo.initial_temperatures_C);
+
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
-      {zones.map((zone, zoneIndex) => {
-        const tempProgram = asObjectArray(zone.temperature_program);
-
-        const updateTempPoint = (
-          pointIndex: number,
-          updated: Record<string, unknown>,
-        ) => {
-          const newProgram = tempProgram.map((pt, i) => (i === pointIndex ? updated : pt));
-          updateZone(zoneIndex, { ...zone, temperature_program: newProgram });
-        };
-
-        const removeTempPoint = (pointIndex: number) => {
-          const newProgram = tempProgram.filter((_, i) => i !== pointIndex);
-          updateZone(zoneIndex, { ...zone, temperature_program: newProgram });
-        };
-
-        const addTempPoint = () => {
-          const newProgram = [...tempProgram, { time_min: null, temperature_C: null }];
-          updateZone(zoneIndex, { ...zone, temperature_program: newProgram });
-        };
+      <div style={{ marginBottom: 8, fontWeight: 500 }}>炉体信息</div>
+      <Form.Item label="温区数量" style={{ marginBottom: 8 }}>
+        <InputNumber
+          value={zonesCount}
+          onChange={(v) => {
+            const newCount = v ?? 2;
+            const newZoneKeys = Array.from({ length: newCount }, (_, i) => `zone_${i + 1}`);
+            const newInitialTemps: Record<string, number | null> = {};
+            for (const zk of newZoneKeys) {
+              newInitialTemps[zk] = (initialTempsRaw[zk] as number) ?? 25;
+            }
+            onChange({
+              ...value,
+              furnace_info: {
+                zones_count: newCount,
+                model: asString(furnaceInfo.model),
+                initial_temperatures_C: newInitialTemps,
+              },
+            });
+          }}
+          style={{ width: "100%" }}
+        />
+      </Form.Item>
+      {zoneKeys.map((zoneKey) => (
+        <Form.Item key={zoneKey} label={`初始温度 ${zoneKey} (°C)`} style={{ marginBottom: 8 }}>
+          <InputNumber
+            value={asNumber(initialTempsRaw[zoneKey])}
+            onChange={(v) => {
+              const newInitialTemps = { ...initialTempsRaw, [zoneKey]: v };
+              onChange({
+                ...value,
+                furnace_info: { ...furnaceInfo, initial_temperatures_C: newInitialTemps },
+              });
+            }}
+            style={{ width: "100%" }}
+          />
+        </Form.Item>
+      ))}
+      {steps.map((step, stepIndex) => {
+        const temperaturesC = asObject(step.temperatures_C);
 
         return (
           <Card
-            key={zoneIndex}
+            key={stepIndex}
             size="small"
-            title={`温区 ${zoneIndex + 1}`}
+            title={`步骤 ${stepIndex + 1}`}
             extra={
               <Button
                 danger
                 icon={<DeleteOutlined />}
-                onClick={() => removeZone(zoneIndex)}
+                onClick={() => removeStep(stepIndex)}
                 size="small"
               />
             }
           >
-            <Form.Item label="温区编号" style={{ marginBottom: 8 }}>
+            <Form.Item label="步骤名称" style={{ marginBottom: 8 }}>
+              <Input
+                value={asString(step.step_name)}
+                onChange={(e) => updateStep(stepIndex, { ...step, step_name: e.target.value })}
+                placeholder="例如 升温"
+              />
+            </Form.Item>
+            <Form.Item label="持续时间 (min)" style={{ marginBottom: 8 }}>
               <InputNumber
-                value={asNumber(zone.zone_index)}
-                onChange={(v) => updateZone(zoneIndex, { ...zone, zone_index: v })}
+                value={asNumber(step.duration_min)}
+                onChange={(v) => updateStep(stepIndex, { ...step, duration_min: v })}
                 style={{ width: "100%" }}
               />
             </Form.Item>
-            <Form.Item label="前驱体放置" style={{ marginBottom: 8 }}>
+            <Form.Item label="恒温保持" style={{ marginBottom: 8 }}>
               <Switch
-                checked={asBoolean(zone.precursor_placed, false)}
-                onChange={(v) => updateZone(zoneIndex, { ...zone, precursor_placed: v })}
+                checked={asBoolean(step.is_hold, false)}
+                onChange={(v) => updateStep(stepIndex, { ...step, is_hold: v })}
               />
             </Form.Item>
             <Form.Item label="备注" style={{ marginBottom: 8 }}>
               <Input
-                value={asString(zone.note)}
-                onChange={(e) => updateZone(zoneIndex, { ...zone, note: e.target.value })}
+                value={asString(step.note)}
+                onChange={(e) => updateStep(stepIndex, { ...step, note: e.target.value })}
               />
             </Form.Item>
             <div style={{ marginLeft: 16 }}>
-              <div style={{ marginBottom: 4, fontWeight: 500 }}>温度程序</div>
-              {tempProgram.map((point, pointIndex) => (
-                <Space key={pointIndex} style={{ marginBottom: 4 }}>
+              <div style={{ marginBottom: 4, fontWeight: 500 }}>温度</div>
+              {zoneKeys.map((zoneKey) => (
+                <Form.Item key={zoneKey} label={`${zoneKey} 温度 (°C)`} style={{ marginBottom: 4 }}>
                   <InputNumber
-                    addonBefore="时间 (min)"
-                    value={asNumber(point.time_min)}
-                    onChange={(v) => updateTempPoint(pointIndex, { ...point, time_min: v })}
-                    style={{ width: 180 }}
+                    value={asNumber(temperaturesC[zoneKey])}
+                    onChange={(v) => {
+                      const newTemps = { ...temperaturesC, [zoneKey]: v };
+                      updateStep(stepIndex, { ...step, temperatures_C: newTemps });
+                    }}
+                    style={{ width: "100%" }}
                   />
-                  <InputNumber
-                    addonBefore="温度 (°C)"
-                    value={asNumber(point.temperature_C)}
-                    onChange={(v) =>
-                      updateTempPoint(pointIndex, { ...point, temperature_C: v })
-                    }
-                    style={{ width: 180 }}
-                  />
-                  <Button
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => removeTempPoint(pointIndex)}
-                    size="small"
-                  />
-                </Space>
+                </Form.Item>
               ))}
-              <Button
-                icon={<PlusOutlined />}
-                onClick={addTempPoint}
-                size="small"
-                type="dashed"
-              >
-                添加温度点
-              </Button>
             </div>
           </Card>
         );
       })}
-      <Button icon={<PlusOutlined />} onClick={addZone} type="dashed">
-        添加温区
+      <Button icon={<PlusOutlined />} onClick={addStep} type="dashed">
+        添加步骤
       </Button>
     </Space>
   );

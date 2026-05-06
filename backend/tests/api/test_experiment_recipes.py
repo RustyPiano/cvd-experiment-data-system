@@ -73,17 +73,18 @@ def allowed_recipe_payload() -> dict:
             ]
         },
         "furnace_program": {
-            "zones": [
+            "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+            "precursors": [],
+            "steps": [
                 {
-                    "zone_index": 1,
-                    "precursor_placed": True,
-                    "temperature_program": [
-                        {"time_min": 0.0, "temperature_C": 25.0},
-                        {"time_min": 30.0, "temperature_C": 750.0},
-                    ],
+                    "step_index": 1,
+                    "step_name": "升温",
+                    "duration_min": 30.0,
+                    "is_hold": False,
+                    "temperatures_C": {"zone_1": 750.0},
                     "note": "growth zone",
-                }
-            ]
+                },
+            ],
         },
         "gas_program": {
             "pre_washing_gas": "Ar",
@@ -243,9 +244,7 @@ def test_create_from_recipe_creates_draft_with_recipe_id_and_allowed_modules(
     }
     assert payloads["precursors"]["items"][0]["species"] == "MoO3"
     assert payloads["substrates"]["items"][0]["type"] == "sapphire"
-    assert (
-        payloads["furnace_program"]["zones"][0]["temperature_program"][1]["temperature_C"] == 750.0
-    )
+    assert payloads["furnace_program"]["steps"][0]["temperatures_C"]["zone_1"] == 750.0
     assert payloads["gas_program"]["segments"][0]["flow_sccm"] == 80.0
     assert payloads["characterization"]["methods"][0]["method"] == "Raman"
     assert audit_actions_for(

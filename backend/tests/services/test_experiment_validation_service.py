@@ -66,7 +66,7 @@ def test_completion_score_does_not_award_points_for_not_null_owner_id(
 
     result = ExperimentValidationService(db_session).validate_experiment(experiment)
 
-    assert result.completion_score == 13
+    assert result.completion_score == 14
 
 
 def test_schema_validation_reports_string_type_in_chinese(

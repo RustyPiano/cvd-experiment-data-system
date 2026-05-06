@@ -29,12 +29,12 @@ describe("computeModuleCompletion", () => {
 
     expect(
       computeModuleCompletion("furnace_program", {
-        zones: [
+        furnace_info: { zones_count: 1 },
+        precursors: [],
+        steps: [
           {
-            temperature_program: [
-              { time_min: 0, temperature_C: 25 },
-              { time_min: 10, temperature_C: 720 },
-            ],
+            duration_min: 10,
+            temperatures_C: { zone_1: 720 },
           },
         ],
       }),
@@ -96,15 +96,16 @@ describe("computeModuleCompletion", () => {
   it("requires every furnace zone to have at least two temperature points", () => {
     expect(
       computeModuleCompletion("furnace_program", {
-        zones: [
+        furnace_info: { zones_count: 2 },
+        precursors: [],
+        steps: [
           {
-            temperature_program: [
-              { time_min: 0, temperature_C: 25 },
-              { time_min: 10, temperature_C: 720 },
-            ],
+            duration_min: 10,
+            temperatures_C: { zone_1: 720, zone_2: 780 },
           },
           {
-            temperature_program: [{ time_min: 0, temperature_C: 25 }],
+            duration_min: 5,
+            temperatures_C: { zone_1: 25 },
           },
         ],
       }),

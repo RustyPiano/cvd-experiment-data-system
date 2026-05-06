@@ -155,16 +155,19 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
   }
 
   if (moduleKey === "furnace_program") {
-    const zones = asRecordArray(payload.zones);
-    if (!zones.length) {
+    const steps = asRecordArray(payload.steps);
+    if (!steps.length) {
       return 0;
     }
 
-    return zones.every(
-      (zone) => asRecordArray(zone.temperature_program ?? zone.temperatureProgram).length >= 2,
-    )
-      ? 100
-      : 50;
+    const hasValidDuration = steps.every(
+      (step) => isPositiveNumberLike(step.duration_min),
+    );
+    const hasValidTemps = steps.every((step) => {
+      const temps = asRecord(step.temperatures_C);
+      return Object.keys(temps).length > 0 && Object.values(temps).every((v) => isFilled(v) || isPositiveNumberLike(v));
+    });
+    return hasValidDuration && hasValidTemps ? 100 : 50;
   }
 
   if (moduleKey === "gas_program") {

@@ -22,7 +22,8 @@ from app.schemas.experiment import (
     ExperimentAnalysisExperimentRow,
     ExperimentAnalysisExportRead,
     ExperimentAnalysisFileRow,
-    ExperimentAnalysisFurnacePointRow,
+    ExperimentAnalysisFurnacePrecursorRow,
+    ExperimentAnalysisFurnaceStepRow,
     ExperimentAnalysisGasComponentRow,
     ExperimentAnalysisGasProgramRow,
     ExperimentAnalysisGasSegmentRow,
@@ -132,7 +133,8 @@ class ExperimentExportService:
             ),
             precursor_rows=self._build_precursor_rows(payloads, context),
             substrate_rows=self._build_substrate_rows(payloads, context),
-            furnace_point_rows=self._build_furnace_point_rows(payloads, context),
+            furnace_step_rows=self._build_furnace_step_rows(payloads, context),
+            furnace_precursor_rows=self._build_furnace_precursor_rows(payloads, context),
             gas_program_rows=self._build_gas_program_rows(payloads, context),
             gas_segment_rows=self._build_gas_segment_rows(payloads, context),
             gas_component_rows=self._build_gas_component_rows(payloads, context),
@@ -222,21 +224,24 @@ class ExperimentExportService:
         self, worksheet: Worksheet, export_payload: ExperimentExportRead
     ) -> None:
         payloads = self._module_map(export_payload)
+        furnace = payloads.get("furnace_program", {})
+
         rows: list[dict[str, Any]] = []
-        for zone in payloads.get("furnace_program", {}).get("zones", []):
+        for step in furnace.get("steps", []):
+            temperatures = step.get("temperatures_C", {})
             base = {
-                "zone_index": zone.get("zone_index"),
-                "precursor_placed": zone.get("precursor_placed"),
-                "zone_note": zone.get("note"),
+                "step_index": step.get("step_index"),
+                "step_name": step.get("step_name"),
+                "duration_min": step.get("duration_min"),
+                "is_hold": step.get("is_hold"),
+                "note": step.get("note"),
             }
-            for point in zone.get("temperature_program", []):
-                rows.append(
-                    {
-                        **base,
-                        "time_min": point.get("time_min"),
-                        "temperature_C": point.get("temperature_C"),
-                    }
-                )
+            if temperatures:
+                for zone_key, temp in temperatures.items():
+                    rows.append({**base, "zone_key": zone_key, "temperature_C": temp})
+            else:
+                rows.append({**base, "zone_key": None, "temperature_C": None})
+
         self._write_list_of_dicts(worksheet, rows)
 
     def _write_gas_sheet(self, worksheet: Worksheet, export_payload: ExperimentExportRead) -> None:
@@ -383,28 +388,62 @@ class ExperimentExportService:
             )
         return rows
 
-    def _build_furnace_point_rows(
+    def _build_furnace_step_rows(
         self,
         payloads: dict[str, dict[str, Any]],
         context: dict[str, Any],
-    ) -> list[ExperimentAnalysisFurnacePointRow]:
-        zones = self._list_payload_items(payloads.get("furnace_program", {}).get("zones"))
-        rows: list[ExperimentAnalysisFurnacePointRow] = []
-        for zone_payload_index, zone in enumerate(zones):
-            temperature_program = self._list_payload_items(zone.get("temperature_program"))
-            for point_index, point in enumerate(temperature_program):
+    ) -> list[ExperimentAnalysisFurnaceStepRow]:
+        steps = self._list_payload_items(payloads.get("furnace_program", {}).get("steps"))
+        rows: list[ExperimentAnalysisFurnaceStepRow] = []
+        for step_index, step in enumerate(steps):
+            temperatures = step.get("temperatures_C", {})
+            if temperatures:
+                for zone_key, temp in temperatures.items():
+                    rows.append(
+                        ExperimentAnalysisFurnaceStepRow(
+                            **context,
+                            step_index=step.get("step_index", step_index),
+                            step_name=step.get("step_name"),
+                            duration_min=step.get("duration_min"),
+                            is_hold=step.get("is_hold"),
+                            zone_key=zone_key,
+                            temperature_C=temp,
+                            note=step.get("note"),
+                        )
+                    )
+            else:
                 rows.append(
-                    ExperimentAnalysisFurnacePointRow(
+                    ExperimentAnalysisFurnaceStepRow(
                         **context,
-                        furnace_zone_index=zone_payload_index,
-                        zone_index=zone.get("zone_index"),
-                        temperature_point_index=point_index,
-                        precursor_placed=zone.get("precursor_placed"),
-                        zone_note=zone.get("note"),
-                        time_min=point.get("time_min"),
-                        temperature_C=point.get("temperature_C"),
+                        step_index=step.get("step_index", step_index),
+                        step_name=step.get("step_name"),
+                        duration_min=step.get("duration_min"),
+                        is_hold=step.get("is_hold"),
+                        zone_key=None,
+                        temperature_C=None,
+                        note=step.get("note"),
                     )
                 )
+        return rows
+
+    def _build_furnace_precursor_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisFurnacePrecursorRow]:
+        precursors = self._list_payload_items(payloads.get("furnace_program", {}).get("precursors"))
+        rows: list[ExperimentAnalysisFurnacePrecursorRow] = []
+        for precursor_index, precursor in enumerate(precursors):
+            rows.append(
+                ExperimentAnalysisFurnacePrecursorRow(
+                    **context,
+                    precursor_index=precursor_index,
+                    material=precursor.get("material"),
+                    position_cm=precursor.get("position_cm"),
+                    mass_mg=precursor.get("mass_mg"),
+                    note=precursor.get("note"),
+                )
+            )
         return rows
 
     def _build_gas_program_rows(

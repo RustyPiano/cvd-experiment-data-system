@@ -31,13 +31,14 @@ ISSUE_MESSAGE_ZH = {
     "Substrate role is required": "基底角色必填",
     "Substrate role must be top or bottom": "基底角色必须是 top 或 bottom",
     "Substrate type is required": "基底类型必填",
-    "At least one furnace zone is required": "至少需要填写一个温区",
-    "Furnace zone must be an object": "温区记录格式无效",
-    "Temperature program is required": "温度程序必填",
-    "Furnace program point must be an object": "温度点记录格式无效",
-    "Furnace program time_min must be numeric": "温度程序时间必须是数字",
-    "Furnace program temperature_C is required and must be numeric": "温度程序温度必填且必须是数字",
-    "Furnace program time points must be strictly increasing": "温度程序时间点必须严格递增",
+    "At least one furnace step is required": "至少需要填写一个步骤",
+    "Furnace step must be an object": "步骤记录格式无效",
+    "Duration must be a positive number": "持续时间必须是正数",
+    "Each step must specify temperatures for at least one zone": (
+        "每个步骤必须指定至少一个温区的温度"
+    ),
+    "Zones count must be a positive integer": "温区数量必须是正整数",
+    "Temperature for {zone_key} must be a number": "温区温度必须是数字",
     "Gas segment must be an object": "气体程序段格式无效",
     "Gas segment boundaries must be numeric": "气体程序段起止时间必须是数字",
     "Gas segment gas is required": "气体程序段气体必填",
@@ -286,94 +287,71 @@ class ExperimentValidationService:
         furnace_payload: dict | None,
         errors: list[ExperimentValidationIssue],
     ) -> None:
-        furnace_zones = furnace_payload.get("zones") if isinstance(furnace_payload, dict) else None
-        if not isinstance(furnace_zones, list) or not furnace_zones:
+        steps = furnace_payload.get("steps") if isinstance(furnace_payload, dict) else None
+        if not isinstance(steps, list) or not steps:
             errors.append(
                 self._issue(
                     "furnace_program",
-                    "zones",
-                    "At least one furnace zone is required",
+                    "steps",
+                    "At least one furnace step is required",
                 )
             )
             return
 
-        for zone_index, zone in enumerate(furnace_zones):
-            if not isinstance(zone, dict):
+        furnace_info = (
+            furnace_payload.get("furnace_info") if isinstance(furnace_payload, dict) else None
+        )
+        if isinstance(furnace_info, dict):
+            zones_count = furnace_info.get("zones_count")
+            if zones_count is not None and not (isinstance(zones_count, int) and zones_count > 0):
                 errors.append(
                     self._issue(
                         "furnace_program",
-                        f"zones[{zone_index}]",
-                        "Furnace zone must be an object",
+                        "furnace_info.zones_count",
+                        "Zones count must be a positive integer",
+                    )
+                )
+
+        for step_index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                errors.append(
+                    self._issue(
+                        "furnace_program",
+                        f"steps[{step_index}]",
+                        "Furnace step must be an object",
                     )
                 )
                 continue
 
-            temperature_program = zone.get("temperature_program")
-            if not isinstance(temperature_program, list) or not temperature_program:
+            duration_min = step.get("duration_min")
+            if not self._is_number(duration_min) or float(duration_min) <= 0:
                 errors.append(
                     self._issue(
                         "furnace_program",
-                        f"zones[{zone_index}].temperature_program",
-                        "Temperature program is required",
+                        f"steps[{step_index}].duration_min",
+                        "Duration must be a positive number",
                     )
                 )
-                continue
 
-            time_points: list[float] = []
-            malformed = False
-            for point_index, point in enumerate(temperature_program):
-                if not isinstance(point, dict):
-                    errors.append(
-                        self._issue(
-                            "furnace_program",
-                            f"zones[{zone_index}].temperature_program[{point_index}]",
-                            "Furnace program point must be an object",
-                        )
-                    )
-                    malformed = True
-                    continue
-
-                time_min = point.get("time_min")
-                if not self._is_number(time_min):
-                    errors.append(
-                        self._issue(
-                            "furnace_program",
-                            f"zones[{zone_index}].temperature_program[{point_index}].time_min",
-                            "Furnace program time_min must be numeric",
-                        )
-                    )
-                    malformed = True
-                    continue
-                temperature = point.get("temperature_C")
-                if not self._is_number(temperature):
-                    errors.append(
-                        self._issue(
-                            "furnace_program",
-                            (
-                                f"zones[{zone_index}].temperature_program"
-                                f"[{point_index}].temperature_C"
-                            ),
-                            "Furnace program temperature_C is required and must be numeric",
-                        )
-                    )
-                    malformed = True
-                    continue
-                time_points.append(float(time_min))
-
-            if malformed:
-                continue
-
-            if any(
-                current <= previous
-                for previous, current in zip(time_points, time_points[1:], strict=False)
-            ):
+            temperatures_C = step.get("temperatures_C")
+            if not isinstance(temperatures_C, dict) or not temperatures_C:
                 errors.append(
                     self._issue(
                         "furnace_program",
-                        f"zones[{zone_index}].temperature_program",
-                        "Furnace program time points must be strictly increasing",
+                        f"steps[{step_index}].temperatures_C",
+                        "Each step must specify temperatures for at least one zone",
                     )
                 )
+            else:
+                for zone_key, temp in temperatures_C.items():
+                    if not self._is_number(temp):
+                        errors.append(
+                            self._issue(
+                                "furnace_program",
+                                f"steps[{step_index}].temperatures_C.{zone_key}",
+                                f"Temperature for {zone_key} must be a number",
+                            )
+                        )
 
     def _validate_gas_program(
         self,
@@ -649,7 +627,7 @@ class ExperimentValidationService:
         substrate_payload = module_payloads.get(ExperimentModuleKey.SUBSTRATES.value)
         substrate_items = self._payload_items(substrate_payload, "items")
         furnace_payload = module_payloads.get(ExperimentModuleKey.FURNACE_PROGRAM.value)
-        furnace_zones = self._payload_items(furnace_payload, "zones")
+        furnace_steps = self._payload_items(furnace_payload, "steps")
         gas_payload = module_payloads.get(ExperimentModuleKey.GAS_PROGRAM.value)
         gas_segments = self._payload_items(gas_payload, "segments")
         environment_payload = module_payloads.get(ExperimentModuleKey.ENVIRONMENT.value)
@@ -687,11 +665,9 @@ class ExperimentValidationService:
                 lambda item: item.get("role") in {"top", "bottom"},
             ),
             self._all_items(substrate_items, lambda item: not self._is_blank(item.get("type"))),
-            bool(furnace_zones),
-            self._all_furnace_zones_have_temperature_program(furnace_zones),
-            self._all_furnace_points_have_numeric_field(furnace_zones, "time_min"),
-            self._all_furnace_points_have_numeric_field(furnace_zones, "temperature_C"),
-            self._all_furnace_programs_strictly_increasing(furnace_zones),
+            bool(furnace_steps),
+            self._all_furnace_steps_have_duration(furnace_steps),
+            self._all_furnace_steps_have_temperatures(furnace_steps),
             bool(gas_segments),
             self._all_gas_segments_have_valid_boundaries(gas_segments),
             self._all_items(gas_segments, lambda item: not self._is_blank(item.get("gas"))),
@@ -773,44 +749,21 @@ class ExperimentValidationService:
     def _all_items(self, items: list[dict], predicate) -> bool:
         return bool(items) and all(predicate(item) for item in items)
 
-    def _furnace_temperature_programs(self, zones: list[dict]) -> list[list[dict]]:
-        programs: list[list[dict]] = []
-        for zone in zones:
-            temperature_program = zone.get("temperature_program")
-            if not isinstance(temperature_program, list):
-                programs.append([])
-                continue
-            programs.append([point for point in temperature_program if isinstance(point, dict)])
-        return programs
-
-    def _all_furnace_zones_have_temperature_program(self, zones: list[dict]) -> bool:
-        programs = self._furnace_temperature_programs(zones)
-        return bool(programs) and all(bool(program) for program in programs)
-
-    def _all_furnace_points_have_numeric_field(
-        self,
-        zones: list[dict],
-        field_name: str,
-    ) -> bool:
-        programs = self._furnace_temperature_programs(zones)
-        return bool(programs) and all(
-            bool(program) and all(self._is_number(point.get(field_name)) for point in program)
-            for program in programs
+    def _all_furnace_steps_have_duration(self, steps: list[dict]) -> bool:
+        return bool(steps) and all(
+            self._is_number(step.get("duration_min")) and float(step.get("duration_min", 0)) > 0
+            for step in steps
+            if isinstance(step, dict)
         )
 
-    def _all_furnace_programs_strictly_increasing(self, zones: list[dict]) -> bool:
-        programs = self._furnace_temperature_programs(zones)
-        if not programs:
-            return False
-        for program in programs:
-            time_points = [
-                float(point["time_min"])
-                for point in program
-                if self._is_number(point.get("time_min"))
-            ]
-            if len(time_points) != len(program) or not self._is_strictly_increasing(time_points):
-                return False
-        return True
+    def _all_furnace_steps_have_temperatures(self, steps: list[dict]) -> bool:
+        return bool(steps) and all(
+            isinstance(step.get("temperatures_C"), dict)
+            and len(step["temperatures_C"]) > 0
+            and all(self._is_number(v) for v in step["temperatures_C"].values())
+            for step in steps
+            if isinstance(step, dict)
+        )
 
     def _all_gas_segments_have_valid_boundaries(self, segments: list[dict]) -> bool:
         return bool(segments) and all(
@@ -827,13 +780,6 @@ class ExperimentValidationService:
             (float(segment["start_min"]), float(segment["end_min"])) for segment in segments
         ]
         return self._has_non_overlapping_segments(normalized_segments)
-
-    def _is_strictly_increasing(self, values: list[float]) -> bool:
-        if not values:
-            return False
-        return all(
-            current > previous for previous, current in zip(values, values[1:], strict=False)
-        )
 
     def _has_non_overlapping_segments(self, segments: list[tuple[float, float]]) -> bool:
         if not segments:

@@ -13,29 +13,19 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
     materialSystem: "MoS2",
     moduleKey: "furnace_program",
     payload: {
-      zones: [
-        {
-          zone_index: 1,
-          precursor_placed: true,
-          note: "MoO3 前驱体温区",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 35, temperature_C: 650 },
-            { time_min: 50, temperature_C: 650 },
-            { time_min: 85, temperature_C: 25 },
-          ],
-        },
-        {
-          zone_index: 2,
-          precursor_placed: false,
-          note: "生长基底温区",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 35, temperature_C: 780 },
-            { time_min: 50, temperature_C: 780 },
-            { time_min: 85, temperature_C: 25 },
-          ],
-        },
+      furnace_info: {
+        zones_count: 2,
+        model: "",
+        initial_temperatures_C: { zone_1: 25, zone_2: 25 },
+      },
+      precursors: [
+        { material: "MoO3", position_cm: -15, mass_mg: 15, note: "上游温区" },
+        { material: "S", position_cm: -25, mass_mg: 200, note: "硫粉上游" },
+      ],
+      steps: [
+        { step_index: 1, step_name: "升温", duration_min: 35, is_hold: false, temperatures_C: { zone_1: 650, zone_2: 780 }, note: "" },
+        { step_index: 2, step_name: "恒温沉积", duration_min: 15, is_hold: true, temperatures_C: { zone_1: 650, zone_2: 780 }, note: "" },
+        { step_index: 3, step_name: "降温", duration_min: 50, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
       ],
     },
   },
@@ -45,29 +35,19 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
     materialSystem: "WS2",
     moduleKey: "furnace_program",
     payload: {
-      zones: [
-        {
-          zone_index: 1,
-          precursor_placed: true,
-          note: "WO3 前驱体温区",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 40, temperature_C: 750 },
-            { time_min: 55, temperature_C: 750 },
-            { time_min: 90, temperature_C: 25 },
-          ],
-        },
-        {
-          zone_index: 2,
-          precursor_placed: false,
-          note: "生长基底温区",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 40, temperature_C: 850 },
-            { time_min: 55, temperature_C: 850 },
-            { time_min: 90, temperature_C: 25 },
-          ],
-        },
+      furnace_info: {
+        zones_count: 2,
+        model: "",
+        initial_temperatures_C: { zone_1: 25, zone_2: 25 },
+      },
+      precursors: [
+        { material: "WO3", position_cm: -15, mass_mg: 20, note: "上游温区" },
+        { material: "S", position_cm: -25, mass_mg: 200, note: "硫粉上游" },
+      ],
+      steps: [
+        { step_index: 1, step_name: "升温", duration_min: 40, is_hold: false, temperatures_C: { zone_1: 750, zone_2: 850 }, note: "" },
+        { step_index: 2, step_name: "恒温沉积", duration_min: 15, is_hold: true, temperatures_C: { zone_1: 750, zone_2: 850 }, note: "" },
+        { step_index: 3, step_name: "降温", duration_min: 55, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
       ],
     },
   },
@@ -77,29 +57,18 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
     materialSystem: "hBN",
     moduleKey: "furnace_program",
     payload: {
-      zones: [
-        {
-          zone_index: 1,
-          precursor_placed: true,
-          note: "硼氮前驱体温区",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 30, temperature_C: 95 },
-            { time_min: 55, temperature_C: 95 },
-            { time_min: 80, temperature_C: 25 },
-          ],
-        },
-        {
-          zone_index: 2,
-          precursor_placed: false,
-          note: "催化基底温区",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 30, temperature_C: 1030 },
-            { time_min: 55, temperature_C: 1030 },
-            { time_min: 100, temperature_C: 25 },
-          ],
-        },
+      furnace_info: {
+        zones_count: 2,
+        model: "",
+        initial_temperatures_C: { zone_1: 25, zone_2: 25 },
+      },
+      precursors: [
+        { material: "硼氮前驱体", position_cm: -10, mass_mg: 50, note: "上游温区" },
+      ],
+      steps: [
+        { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: 95, zone_2: 1030 }, note: "" },
+        { step_index: 2, step_name: "恒温沉积", duration_min: 25, is_hold: true, temperatures_C: { zone_1: 95, zone_2: 1030 }, note: "" },
+        { step_index: 3, step_name: "降温", duration_min: 70, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
       ],
     },
   },
@@ -108,27 +77,16 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
     label: "空白两区",
     moduleKey: "furnace_program",
     payload: {
-      zones: [
-        {
-          zone_index: 1,
-          precursor_placed: false,
-          note: "",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 30, temperature_C: null },
-            { time_min: 60, temperature_C: 25 },
-          ],
-        },
-        {
-          zone_index: 2,
-          precursor_placed: false,
-          note: "",
-          temperature_program: [
-            { time_min: 0, temperature_C: 25 },
-            { time_min: 30, temperature_C: null },
-            { time_min: 60, temperature_C: 25 },
-          ],
-        },
+      furnace_info: {
+        zones_count: 2,
+        model: "",
+        initial_temperatures_C: { zone_1: 25, zone_2: 25 },
+      },
+      precursors: [],
+      steps: [
+        { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: null, zone_2: null }, note: "" },
+        { step_index: 2, step_name: "恒温", duration_min: 30, is_hold: true, temperatures_C: { zone_1: null, zone_2: null }, note: "" },
+        { step_index: 3, step_name: "降温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
       ],
     },
   },

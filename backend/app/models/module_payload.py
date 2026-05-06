@@ -104,6 +104,9 @@ def normalize_module_payload(
             payload["items"] = [_normalize_substrate_item(item) for item in items]
         return payload
 
+    if module_key == ExperimentModuleKey.FURNACE_PROGRAM.value:
+        return _normalize_furnace_program(payload)
+
     if module_key == ExperimentModuleKey.GAS_PROGRAM.value:
         segments = payload.get("segments")
         if isinstance(segments, list):
@@ -156,6 +159,33 @@ def _normalize_gas_segment(segment: object) -> object:
     if "components" not in normalized:
         normalized["components"] = []
     normalized.setdefault("note", "")
+    return normalized
+
+
+def _normalize_furnace_step(step: object) -> object:
+    if not isinstance(step, dict):
+        return step
+    normalized = deepcopy(step)
+    normalized.setdefault("step_name", "")
+    normalized.setdefault("duration_min", None)
+    normalized.setdefault("is_hold", False)
+    normalized.setdefault("temperatures_C", {})
+    normalized.setdefault("note", "")
+    return normalized
+
+
+def _normalize_furnace_program(payload: dict) -> dict:
+    normalized = deepcopy(payload)
+    if not isinstance(normalized.get("furnace_info"), dict):
+        normalized["furnace_info"] = {"zones_count": 2}
+    else:
+        normalized["furnace_info"].setdefault("zones_count", 2)
+    if not isinstance(normalized.get("precursors"), list):
+        normalized["precursors"] = []
+    if not isinstance(normalized.get("steps"), list):
+        normalized["steps"] = []
+    else:
+        normalized["steps"] = [_normalize_furnace_step(s) for s in normalized["steps"]]
     return normalized
 
 

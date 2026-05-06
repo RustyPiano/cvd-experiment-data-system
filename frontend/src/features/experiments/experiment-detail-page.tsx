@@ -229,40 +229,64 @@ function renderSubstratesParams(modules: ExperimentModulePayloadRead[] | undefin
 
 function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined) {
   const payload = getModulePayload(modules, "furnace_program");
-  const zones = safeArray(payload.zones).map((item) => safeRecord(item));
-  if (zones.length === 0) {
+  const furnaceInfo = safeRecord(payload.furnace_info);
+  const precursors = safeArray(payload.precursors).map((item) => safeRecord(item));
+  const steps = safeArray(payload.steps).map((item) => safeRecord(item));
+  if (steps.length === 0 && precursors.length === 0 && !furnaceInfo.model) {
     return <Typography.Text type="secondary">无炉温程序记录</Typography.Text>;
   }
+  const zoneKeys = steps.length > 0
+    ? Object.keys(safeRecord(steps[0].temperatures_C))
+    : [];
   return (
     <div className="content-stack">
-      {zones.map((zone, zoneIndex) => {
-        const program = safeArray(zone.temperature_program).map((p) => safeRecord(p));
-        return (
-          <div key={`zone-${zoneIndex}`}>
-            <Space>
-              <Typography.Text strong>
-                温区 {safeString(zone.zone_index) || zoneIndex + 1}
-              </Typography.Text>
-              {zone.precursor_placed ? <Typography.Text type="secondary">· 已放置前驱体</Typography.Text> : null}
-              {zone.note ? <Typography.Text type="secondary">· {safeString(zone.note)}</Typography.Text> : null}
-            </Space>
-            {program.length > 0 ? (
-              <Table
-                columns={[
-                  { title: "时间 (min)", dataIndex: "time_min", render: (v: unknown) => safeString(v) || "—" },
-                  { title: "温度 (°C)", dataIndex: "temperature_C", render: (v: unknown) => safeString(v) || "—" },
-                ]}
-                dataSource={program}
-                pagination={false}
-                rowKey={(_, index) => `point-${zoneIndex}-${index}`}
-                size="small"
-              />
-            ) : (
-              <Typography.Text type="secondary">无温度程序点</Typography.Text>
-            )}
-          </div>
-        );
-      })}
+      <Space>
+        <Typography.Text strong>炉子信息</Typography.Text>
+        <Typography.Text type="secondary">{safeString(furnaceInfo.model) || "—"}</Typography.Text>
+        <Typography.Text type="secondary">温区数：{safeString(furnaceInfo.zones_count) || "—"}</Typography.Text>
+      </Space>
+      {precursors.length > 0 ? (
+        <Table
+          columns={[
+            { title: "材料", dataIndex: "material", render: (v: unknown) => safeString(v) || "—" },
+            { title: "位置 (cm)", dataIndex: "position_cm", render: (v: unknown) => safeString(v) || "—" },
+            { title: "质量 (mg)", dataIndex: "mass_mg", render: (v: unknown) => safeString(v) || "—" },
+            { title: "备注", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
+          ]}
+          dataSource={precursors}
+          pagination={false}
+          rowKey={(_, index) => `precursor-${index}`}
+          size="small"
+          title={() => <Typography.Text strong>前驱体</Typography.Text>}
+        />
+      ) : null}
+      {steps.length > 0 ? (
+        <Table
+          columns={[
+            { title: "步骤", dataIndex: "step_index", render: (v: unknown) => safeString(v) || "—" },
+            { title: "名称", dataIndex: "step_name", render: (v: unknown) => safeString(v) || "—" },
+            { title: "时长 (min)", dataIndex: "duration_min", render: (v: unknown) => safeString(v) || "—" },
+            {
+              title: "恒温",
+              dataIndex: "is_hold",
+              render: (v: unknown) => (v === true ? "是" : v === false ? "否" : "—"),
+            },
+            ...zoneKeys.map((zoneKey) => ({
+              title: `${zoneKey} (°C)`,
+              render: (_: unknown, record: Record<string, unknown>) => {
+                const temps = safeRecord(record.temperatures_C);
+                return safeString(temps[zoneKey]) || "—";
+              },
+            })),
+            { title: "备注", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
+          ]}
+          dataSource={steps}
+          pagination={false}
+          rowKey={(_, index) => `step-${index}`}
+          size="small"
+          title={() => <Typography.Text strong>温度步骤</Typography.Text>}
+        />
+      ) : null}
     </div>
   );
 }

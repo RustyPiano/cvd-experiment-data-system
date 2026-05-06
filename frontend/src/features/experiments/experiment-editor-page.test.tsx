@@ -213,17 +213,10 @@ function createEditorFetchMock() {
     [
       "furnace_program",
       createModulePayload(experiment.id, "furnace_program", {
-        zones: [
-          {
-            zone_index: 1,
-            precursor_placed: true,
-            note: "",
-            temperature_program: [
-              { time_min: 0, temperature_C: 25, ramp_rate_C_per_min: 10 },
-              { time_min: 30, temperature_C: 750, ramp_rate_C_per_min: 20 },
-            ],
-            position_mm: 10,
-          },
+        furnace_info: { zones_count: 1, initial_temperatures_C: { zone_1: 25 } },
+        precursors: [],
+        steps: [
+          { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: 750 }, note: "" },
         ],
       }),
     ],
@@ -1045,7 +1038,7 @@ describe("ExperimentEditorPage", () => {
     ).toBe(false);
   });
 
-  it("blocks autosave when furnace zone index is not an integer", async () => {
+  it("blocks autosave when furnace step duration is not a valid number", async () => {
     const server = createEditorFetchMock();
     vi.stubGlobal("fetch", server.fetchMock);
 
@@ -1059,9 +1052,9 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    const zoneIndexInput = await screen.findByLabelText("温区编号 1");
+    const durationInput = await screen.findByLabelText("持续时间 1");
     vi.useFakeTimers();
-    fireEvent.change(zoneIndexInput, { target: { value: "1.5" } });
+    fireEvent.change(durationInput, { target: { value: "abc" } });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);
@@ -1069,7 +1062,7 @@ describe("ExperimentEditorPage", () => {
     });
 
     vi.useRealTimers();
-    expect(await screen.findByText("温区编号 1 必须是整数")).toBeInTheDocument();
+    expect(await screen.findByText("持续时间 步骤1 必须是数字")).toBeInTheDocument();
     expect(
       server.requests.some(
         (request) =>
@@ -1337,23 +1330,22 @@ describe("ExperimentEditorPage", () => {
             return false;
           }
 
-          const zones = (
+          const steps = (
             request.body as {
               payload_json?: {
-                zones?: Array<{
-                  position_mm?: number;
-                  temperature_program?: Array<{ ramp_rate_C_per_min?: number; temperature_C?: number }>;
+                steps?: Array<{
+                  step_index?: number;
+                  duration_min?: number;
+                  temperatures_C?: Record<string, number>;
                 }>;
               };
             }
-          ).payload_json?.zones;
+          ).payload_json?.steps;
 
           return (
-            Array.isArray(zones) &&
-            zones[0]?.position_mm === 10 &&
-            Array.isArray(zones[0]?.temperature_program) &&
-            zones[0]?.temperature_program?.[1]?.temperature_C === 760 &&
-            zones[0]?.temperature_program?.[1]?.ramp_rate_C_per_min === 20
+            Array.isArray(steps) &&
+            steps[0]?.step_index === 1 &&
+            steps[0]?.temperatures_C?.zone_1 === 760
           );
         }),
       ).toBe(true);
