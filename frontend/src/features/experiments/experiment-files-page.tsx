@@ -90,6 +90,20 @@ function isUploadCanceledError(error: unknown): error is UploadCanceledError {
   return error instanceof UploadCanceledError;
 }
 
+class UploadPartialFailureError extends Error {
+  successfulIndices: number[];
+
+  constructor(message: string, successfulIndices: number[]) {
+    super(message);
+    this.name = "UploadPartialFailureError";
+    this.successfulIndices = successfulIndices;
+  }
+}
+
+function isUploadPartialFailureError(error: unknown): error is UploadPartialFailureError {
+  return error instanceof UploadPartialFailureError;
+}
+
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
 }
@@ -225,6 +239,12 @@ export function ExperimentFilesPage() {
     ]);
   };
 
+  const removeSuccessfulUploadSelections = useCallback((successfulIndices: number[]) => {
+    const uploadedIndices = new Set(successfulIndices);
+    setSelectedFiles((files) => files.filter((_, index) => !uploadedIndices.has(index)));
+    setAntFileList((files) => files.filter((_, index) => !uploadedIndices.has(index)));
+  }, []);
+
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (selectedFiles.length === 0) {
@@ -276,7 +296,7 @@ export function ExperimentFilesPage() {
       }
 
       if (errors.length > 0) {
-        throw new Error(errors.join("\n"));
+        throw new UploadPartialFailureError(errors.join("\n"), successfulIndices);
       }
     },
     onSuccess: async () => {
@@ -285,12 +305,14 @@ export function ExperimentFilesPage() {
       await invalidateFileQueries();
     },
     onError: async (error) => {
+      if (isUploadPartialFailureError(error)) {
+        removeSuccessfulUploadSelections(error.successfulIndices);
+        await invalidateFileQueries();
+        return;
+      }
+
       if (isUploadCanceledError(error)) {
-        const successfulIndices = new Set(error.successfulIndices);
-        const remainingFiles = selectedFiles.filter((_, index) => !successfulIndices.has(index));
-        const remainingAntFiles = antFileList.filter((_, index) => !successfulIndices.has(index));
-        setSelectedFiles(remainingFiles);
-        setAntFileList(remainingAntFiles);
+        removeSuccessfulUploadSelections(error.successfulIndices);
         setMutationMessage(error.message);
         message.warning("文件上传已取消");
         await invalidateFileQueries();

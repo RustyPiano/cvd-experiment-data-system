@@ -254,15 +254,16 @@ function createFileServer(options?: {
         });
       }
 
+      const uploadedFileId = `file-upload-${files.length + 1}`;
       files.push({
-        id: "file-3",
+        id: uploadedFileId,
         experiment_run_id: "exp-1",
         sample_id: (formData.get("sample_id") as string) || null,
         uploaded_by_id: "u-1",
         deleted_by_id: null,
         original_name: file.name,
-        storage_path: `CVD-2026-0001/file-3-${file.name}`,
-        download_url: "/api/v1/files/file-3/download",
+        storage_path: `CVD-2026-0001/${uploadedFileId}-${file.name}`,
+        download_url: `/api/v1/files/${uploadedFileId}/download`,
         content_type: file.type,
         size_bytes: file.size,
         sha256: "hash-3",
@@ -519,6 +520,57 @@ describe("ExperimentFilesPage", () => {
     expect(screen.getByText("b.png")).toBeInTheDocument();
     expect(screen.queryByText("文件上传成功")).not.toBeInTheDocument();
   }, 20_000);
+
+  it("keeps only failed files selected after a partial batch upload failure", async () => {
+    const user = userEvent.setup();
+    const server = createFileServer({ failUploadNames: ["b.png"] });
+    vi.stubGlobal("fetch", server.fetchMock);
+    const uploadedFileNames = () =>
+      server.requests
+        .filter(
+          (request) =>
+            request.method === "POST" &&
+            request.pathname === "/api/v1/experiments/exp-1/files",
+        )
+        .map((request) => ((request.body as FormData).get("file") as File).name);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+      },
+    );
+
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("文件方法"));
+    await user.click(await screen.findByRole("option", { name: "扫描电镜" }));
+    fireEvent.change(screen.getByLabelText("选择文件"), {
+      target: {
+        files: [
+          new File(["a"], "a.png", { type: "image/png" }),
+          new File(["b"], "b.png", { type: "image/png" }),
+          new File(["c"], "c.png", { type: "image/png" }),
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "上传 3 个文件" }));
+
+    await waitFor(() => {
+      expect(uploadedFileNames()).toEqual(["a.png", "b.png", "c.png"]);
+    });
+    expect(await screen.findByText("b.png: b.png upload failed")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "上传文件" }));
+
+    await waitFor(() => {
+      expect(uploadedFileNames()).toEqual(["a.png", "b.png", "c.png", "b.png"]);
+    });
+  }, 10_000);
 
   it("navigates to a sample detail route from the sample column", async () => {
     const server = createFileServer();

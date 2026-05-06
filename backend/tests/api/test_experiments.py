@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
+from app.models.user import UserRole
 
 client = TestClient(app)
 
@@ -339,6 +340,83 @@ def test_patch_experiment_preserves_unset_fields(active_user) -> None:
     assert patch_response.status_code == 200
     assert patch_response.json()["objective"] == "Only objective changed"
     assert patch_response.json()["material_system"] == "MoS2"
+
+
+def test_viewer_owner_cannot_mutate_owned_draft_after_role_downgrade(
+    active_user,
+    db_session,
+) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Downgraded owner draft",
+    )
+    populate_required_modules(experiment_id, active_user.email)
+
+    active_user.role = UserRole.VIEWER
+    db_session.add(active_user)
+    db_session.commit()
+    viewer_headers = auth_headers(active_user.email)
+
+    patch_response = client.patch(
+        f"/api/v1/experiments/{experiment_id}",
+        json={"objective": "Viewer should not patch"},
+        headers=viewer_headers,
+    )
+    module_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/environment",
+        json={"payload_json": {"indoor_temperature_C": 24}},
+        headers=viewer_headers,
+    )
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=viewer_headers,
+    )
+
+    assert patch_response.status_code == 403
+    assert module_response.status_code == 403
+    assert submit_response.status_code == 403
+
+
+def test_viewer_owner_cannot_transition_owned_submitted_after_role_downgrade(
+    active_user,
+    db_session,
+) -> None:
+    experiment_ids: list[str] = []
+    for index in range(3):
+        experiment_id = create_experiment_for_test(
+            active_user.email,
+            objective=f"Downgraded owner submitted {index}",
+        )
+        populate_required_modules(experiment_id, active_user.email)
+        submit_response = client.post(
+            f"/api/v1/experiments/{experiment_id}/submit",
+            headers=auth_headers(active_user.email),
+        )
+        assert submit_response.status_code == 200
+        experiment_ids.append(experiment_id)
+
+    active_user.role = UserRole.VIEWER
+    db_session.add(active_user)
+    db_session.commit()
+    viewer_headers = auth_headers(active_user.email)
+
+    lock_response = client.post(
+        f"/api/v1/experiments/{experiment_ids[0]}/lock",
+        headers=viewer_headers,
+    )
+    return_response = client.post(
+        f"/api/v1/experiments/{experiment_ids[1]}/return-to-draft",
+        headers=viewer_headers,
+    )
+    invalidate_response = client.post(
+        f"/api/v1/experiments/{experiment_ids[2]}/invalidate",
+        json={"reason": "Viewer should not invalidate"},
+        headers=viewer_headers,
+    )
+
+    assert lock_response.status_code == 403
+    assert return_response.status_code == 403
+    assert invalidate_response.status_code == 403
 
 
 def test_submit_then_lock_updates_status_timestamps(active_user) -> None:

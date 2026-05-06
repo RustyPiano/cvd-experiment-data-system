@@ -737,6 +737,12 @@ class ExperimentService:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experiment not found")
 
     def _get_owned_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRun:
+        if current_user.role == UserRole.VIEWER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+
         experiment = self.experiments.get_by_id(experiment_id)
         if experiment is None:
             raise HTTPException(

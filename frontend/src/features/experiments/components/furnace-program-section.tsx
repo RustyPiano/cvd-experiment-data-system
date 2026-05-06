@@ -431,11 +431,11 @@ export function FurnaceProgramSection({
                 </div>
               </div>
               <div className="editor-form-grid" style={{ marginTop: 12 }}>
-                {zoneKeys.map((zoneKey) => (
+                {zoneKeys.map((zoneKey, zoneIndex) => (
                   <div className="editor-field" key={`step-${stepIndex + 1}-temp-${zoneKey}`}>
-                    <Typography.Text strong>{`温度 ${zoneKey}`}</Typography.Text>
+                    <Typography.Text strong>{`温度 ${zoneIndex + 1}`}</Typography.Text>
                     <Input
-                      aria-label={`温度 ${zoneKey} 步骤${stepIndex + 1}`}
+                      aria-label={`温度 ${stepIndex + 1}-${zoneIndex + 1}`}
                       disabled={disabled}
                       onChange={(e) => updateStepTemperature(stepIndex, zoneKey, e.target.value)}
                       placeholder="°C"

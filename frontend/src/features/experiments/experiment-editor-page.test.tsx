@@ -1310,7 +1310,7 @@ describe("ExperimentEditorPage", () => {
       ).toBe(true);
     });
 
-    const furnaceTemperatureInput = screen.getByLabelText("温度 1-2");
+    const furnaceTemperatureInput = screen.getByLabelText("温度 1-1");
     vi.useFakeTimers();
     fireEvent.change(furnaceTemperatureInput, { target: { value: "760" } });
 

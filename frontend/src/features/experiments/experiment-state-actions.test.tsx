@@ -505,6 +505,29 @@ describe("Experiment state actions", () => {
     expect(screen.queryByRole("button", { name: "作废实验" })).not.toBeInTheDocument();
   });
 
+  it("hides mutating lifecycle buttons from viewer users even when they own the experiment", async () => {
+    const server = createLifecycleFetchMock(createExperiment("submitted"));
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId" element={<ExperimentDetailPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1"],
+        user: { ...ownerUser, role: "viewer" },
+      },
+    );
+
+    await screen.findByText("实验详情");
+    expect(screen.queryByRole("button", { name: "退回草稿" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "锁定实验" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "作废实验" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "派生草稿" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "保存为 Recipe" })).not.toBeInTheDocument();
+  });
+
   it.each(["submitted", "locked"] as const)(
     "shows save as Recipe for non-viewer users viewing a %s experiment",
     async (status) => {

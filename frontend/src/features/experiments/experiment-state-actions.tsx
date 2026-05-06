@@ -64,8 +64,9 @@ export function ExperimentStateActions({
   const [recipeError, setRecipeError] = useState<string | null>(null);
   const [recipeValidation, setRecipeValidation] = useState<string | null>(null);
 
+  const canMutate = currentUser.role !== "viewer";
   const isOwnerOrAdmin =
-    currentUser.role === "admin" || currentUser.id === experiment.owner_id;
+    canMutate && (currentUser.role === "admin" || currentUser.id === experiment.owner_id);
   const isOwner = currentUser.id === experiment.owner_id;
   const isBusy = activeAction !== null;
   const canReturnToDraft = isOwnerOrAdmin && experiment.status === "submitted";

@@ -101,6 +101,19 @@ function isPositiveNumberLike(value: unknown) {
   return false;
 }
 
+function getDeclaredFurnaceZoneKeys(payload: Record<string, unknown>) {
+  const furnaceInfo = asRecord(payload.furnace_info);
+  const rawZonesCount = getValue(furnaceInfo, ["zones_count", "zonesCount"]);
+  const zonesCount =
+    typeof rawZonesCount === "number" ? rawZonesCount : Number(String(rawZonesCount ?? "").trim());
+
+  if (!Number.isFinite(zonesCount) || zonesCount < 1) {
+    return [];
+  }
+
+  return Array.from({ length: Math.floor(zonesCount) }, (_, index) => `zone_${index + 1}`);
+}
+
 function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
   if (moduleKey === "basic_info") {
     return scoreBooleanSteps(
@@ -160,11 +173,16 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       return 0;
     }
 
+    const declaredZoneKeys = getDeclaredFurnaceZoneKeys(payload);
     const hasValidDuration = steps.every(
       (step) => isPositiveNumberLike(step.duration_min),
     );
     const hasValidTemps = steps.every((step) => {
       const temps = asRecord(step.temperatures_C);
+      if (declaredZoneKeys.length > 0) {
+        return declaredZoneKeys.every((zoneKey) => isFilled(temps[zoneKey]) || isPositiveNumberLike(temps[zoneKey]));
+      }
+
       return Object.keys(temps).length > 0 && Object.values(temps).every((v) => isFilled(v) || isPositiveNumberLike(v));
     });
     return hasValidDuration && hasValidTemps ? 100 : 50;
