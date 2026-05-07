@@ -267,7 +267,12 @@ function createEditorFetchMock() {
     createVocabularyItem("substrate_treatment_method", "anneal", "退火", 1),
     createVocabularyItem("substrate_treatment_method", "plasma_cleaning", "等离子清洗", 2),
     createVocabularyItem("gas_label", "Ar", "氩气", 1),
-    createVocabularyItem("gas_label", "H2", "氢气", 2),
+    createVocabularyItem("gas_label", "CO2", "二氧化碳", 2),
+    createVocabularyItem("gas_label", "O2", "氧气", 3),
+    createVocabularyItem("gas_label", "Ar+H2", "氩氢混合", 4),
+    createVocabularyItem("gas_label", "Ar+O2", "氩氧混合", 5),
+    createVocabularyItem("gas_label", "H2+CO2", "氢气二氧化碳混合", 6),
+    createVocabularyItem("gas_label", "CO+Ar", "一氧化碳氩气混合", 7),
     createVocabularyItem("characterization_method", "Raman", "拉曼", 1),
     createVocabularyItem("characterization_method", "SEM", "扫描电镜", 2),
   ];

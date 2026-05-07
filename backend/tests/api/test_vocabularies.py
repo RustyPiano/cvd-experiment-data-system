@@ -55,7 +55,7 @@ def test_mvp_0_2_required_vocabulary_keys_are_seeded(active_user) -> None:
             "solvent_cleaning",
             "other",
         },
-        "gas_label": {"Ar", "H2", "O2", "CO2", "CO", "Ar+H2", "Ar+O2", "H2+CO2", "Ar+CO", "other"},
+        "gas_label": {"Ar", "CO2", "O2", "Ar+H2", "Ar+O2", "H2+CO2", "CO+Ar"},
         "characterization_method": {"OM", "Raman", "PL", "AFM", "SEM", "Other"},
         "quality_label": {"success", "partial", "failed", "unknown"},
     }
@@ -69,8 +69,11 @@ def test_mvp_0_2_required_vocabulary_keys_are_seeded(active_user) -> None:
         assert response.status_code == 200
         body = response.json()
         values = {item["value"] for item in body["items"]}
-        assert expected_values <= values
-        assert body["total"] >= len(expected_values)
+        if vocab_key == "gas_label":
+            assert values == expected_values
+        else:
+            assert expected_values <= values
+            assert body["total"] >= len(expected_values)
         assert all(item["is_active"] is True for item in body["items"])
 
 

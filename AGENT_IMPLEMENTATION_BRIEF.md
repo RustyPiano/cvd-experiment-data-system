@@ -687,7 +687,7 @@ admin@example.com / ChangeMe123!
 - precursor_method: melting, spin_coating, powder, solution, other
 - substrate_role: top, bottom, control, product
 - substrate_treatment: none, plasma_cleaning, solvent_cleaning, annealing, uv_ozone, other
-- gas: Ar, H2, O2, CO2, CO, Ar+H2, Ar+O2, H2+CO2, Ar+CO, other
+- gas: Ar, CO2, O2, Ar+H2, Ar+O2, H2+CO2, CO+Ar
 - characterization_method: OM, Raman, PL, AFM, SEM, Other
 - quality_label: success, partial, failed, unknown
 
