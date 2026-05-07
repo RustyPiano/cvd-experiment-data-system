@@ -97,10 +97,25 @@ class FurnaceStepPayload(ModulePayloadBase):
     note: str | None = None
 
 
+class FurnaceTemperatureNodePayload(ModulePayloadBase):
+    node_index: StrictInt | None = None
+    time_min: StrictFloat | None = None
+    temperature_C: StrictFloat | None = None
+    note: str | None = None
+
+
+class FurnaceZonePayload(ModulePayloadBase):
+    zone_key: str | None = None
+    zone_index: StrictInt | None = None
+    temperature_program: list[FurnaceTemperatureNodePayload] | None = None
+    note: str | None = None
+
+
 class FurnaceProgramPayload(ModulePayloadBase):
     furnace_info: FurnaceInfoPayload | None = None
     placements: list[FurnacePlacementPayload] | None = None
     precursors: list[FurnacePrecursorPayload] | None = None
+    zones: list[FurnaceZonePayload] | None = None
     steps: list[FurnaceStepPayload] | None = None
 
 

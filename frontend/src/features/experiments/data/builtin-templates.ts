@@ -18,10 +18,27 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      steps: [
-        { step_index: 1, step_name: "升温", duration_min: 35, is_hold: false, temperatures_C: { zone_1: 650, zone_2: 780 }, note: "" },
-        { step_index: 2, step_name: "恒温沉积", duration_min: 15, is_hold: true, temperatures_C: { zone_1: 650, zone_2: 780 }, note: "" },
-        { step_index: 3, step_name: "降温", duration_min: 50, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
+      zones: [
+        {
+          zone_key: "zone_1",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 35, temperature_C: 650, note: "升温结束" },
+            { node_index: 3, time_min: 50, temperature_C: 650, note: "恒温结束" },
+            { node_index: 4, time_min: 100, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
+        {
+          zone_key: "zone_2",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 35, temperature_C: 780, note: "升温结束" },
+            { node_index: 3, time_min: 50, temperature_C: 780, note: "恒温结束" },
+            { node_index: 4, time_min: 100, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
       ],
     },
   },
@@ -36,10 +53,27 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      steps: [
-        { step_index: 1, step_name: "升温", duration_min: 40, is_hold: false, temperatures_C: { zone_1: 750, zone_2: 850 }, note: "" },
-        { step_index: 2, step_name: "恒温沉积", duration_min: 15, is_hold: true, temperatures_C: { zone_1: 750, zone_2: 850 }, note: "" },
-        { step_index: 3, step_name: "降温", duration_min: 55, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
+      zones: [
+        {
+          zone_key: "zone_1",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 40, temperature_C: 750, note: "升温结束" },
+            { node_index: 3, time_min: 55, temperature_C: 750, note: "恒温结束" },
+            { node_index: 4, time_min: 110, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
+        {
+          zone_key: "zone_2",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 40, temperature_C: 850, note: "升温结束" },
+            { node_index: 3, time_min: 55, temperature_C: 850, note: "恒温结束" },
+            { node_index: 4, time_min: 110, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
       ],
     },
   },
@@ -54,10 +88,27 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      steps: [
-        { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: 95, zone_2: 1030 }, note: "" },
-        { step_index: 2, step_name: "恒温沉积", duration_min: 25, is_hold: true, temperatures_C: { zone_1: 95, zone_2: 1030 }, note: "" },
-        { step_index: 3, step_name: "降温", duration_min: 70, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
+      zones: [
+        {
+          zone_key: "zone_1",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 30, temperature_C: 95, note: "升温结束" },
+            { node_index: 3, time_min: 55, temperature_C: 95, note: "恒温结束" },
+            { node_index: 4, time_min: 125, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
+        {
+          zone_key: "zone_2",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 30, temperature_C: 1030, note: "升温结束" },
+            { node_index: 3, time_min: 55, temperature_C: 1030, note: "恒温结束" },
+            { node_index: 4, time_min: 125, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
       ],
     },
   },
@@ -71,10 +122,27 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      steps: [
-        { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: null, zone_2: null }, note: "" },
-        { step_index: 2, step_name: "恒温", duration_min: 30, is_hold: true, temperatures_C: { zone_1: null, zone_2: null }, note: "" },
-        { step_index: 3, step_name: "降温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: 25, zone_2: 25 }, note: "" },
+      zones: [
+        {
+          zone_key: "zone_1",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 30, temperature_C: null, note: "升温结束" },
+            { node_index: 3, time_min: 60, temperature_C: null, note: "恒温结束" },
+            { node_index: 4, time_min: 90, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
+        {
+          zone_key: "zone_2",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 30, temperature_C: null, note: "升温结束" },
+            { node_index: 3, time_min: 60, temperature_C: null, note: "恒温结束" },
+            { node_index: 4, time_min: 90, temperature_C: 25, note: "降温结束" },
+          ],
+          note: "",
+        },
       ],
     },
   },

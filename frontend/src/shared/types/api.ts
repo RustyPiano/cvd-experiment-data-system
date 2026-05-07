@@ -421,6 +421,16 @@ export type ExperimentAnalysisFurnaceStepRow = {
   note: string | null;
 };
 
+export type ExperimentAnalysisFurnaceTemperatureRow = {
+  experiment_id: string;
+  run_code: string;
+  zone_key: string | null;
+  node_index: number;
+  time_min: number | null;
+  temperature_C: number | null;
+  note: string | null;
+};
+
 export type ExperimentAnalysisFurnacePrecursorRow = {
   experiment_id: string;
   run_code: string;
@@ -522,6 +532,7 @@ export type ExperimentAnalysisExportRead = {
   precursor_rows: ExperimentAnalysisPrecursorRow[];
   substrate_rows: ExperimentAnalysisSubstrateRow[];
   furnace_step_rows: ExperimentAnalysisFurnaceStepRow[];
+  furnace_temperature_rows: ExperimentAnalysisFurnaceTemperatureRow[];
   furnace_precursor_rows: ExperimentAnalysisFurnacePrecursorRow[];
   gas_program_rows: ExperimentAnalysisGasProgramRow[];
   gas_segment_rows: ExperimentAnalysisGasSegmentRow[];

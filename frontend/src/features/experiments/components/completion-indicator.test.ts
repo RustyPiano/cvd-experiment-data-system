@@ -31,10 +31,13 @@ describe("computeModuleCompletion", () => {
       computeModuleCompletion("furnace_program", {
         furnace_info: { zones_count: 1 },
         precursors: [],
-        steps: [
+        zones: [
           {
-            duration_min: 10,
-            temperatures_C: { zone_1: 720 },
+            zone_key: "zone_1",
+            temperature_program: [
+              { time_min: 0, temperature_C: 25 },
+              { time_min: 10, temperature_C: 720 },
+            ],
           },
         ],
       }),
@@ -98,14 +101,17 @@ describe("computeModuleCompletion", () => {
       computeModuleCompletion("furnace_program", {
         furnace_info: { zones_count: 2 },
         precursors: [],
-        steps: [
+        zones: [
           {
-            duration_min: 10,
-            temperatures_C: { zone_1: 720, zone_2: 780 },
+            zone_key: "zone_1",
+            temperature_program: [
+              { time_min: 0, temperature_C: 25 },
+              { time_min: 10, temperature_C: 720 },
+            ],
           },
           {
-            duration_min: 5,
-            temperatures_C: { zone_1: 25 },
+            zone_key: "zone_2",
+            temperature_program: [{ time_min: 0, temperature_C: 25 }],
           },
         ],
       }),

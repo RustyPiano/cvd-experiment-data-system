@@ -403,20 +403,28 @@ result_summary
       "note": "上游温区"
     }
   ],
-  "steps": [
+  "zones": [
     {
-      "step_index": 1,
-      "step_name": "升温",
-      "duration_min": 30,
-      "is_hold": false,
-      "temperatures_C": {"zone_1": 750, "zone_2": 200},
+      "zone_key": "zone_1",
+      "temperature_program": [
+        {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": "起始"},
+        {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": "升温结束"}
+      ],
+      "note": ""
+    },
+    {
+      "zone_key": "zone_2",
+      "temperature_program": [
+        {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": "起始"},
+        {"node_index": 2, "time_min": 30, "temperature_C": 200, "note": "升温结束"}
+      ],
       "note": ""
     }
   ]
 }
 ```
 
-`placements[].precursor_index` 引用 `precursors.items[index]`。前驱体种类、质量、批号等主信息只在 `precursors` 模块维护；旧 `furnace_program.precursors[]` 仅用于历史 payload 读取兼容。
+`placements[].precursor_index` 引用 `precursors.items[index]`。前驱体种类、质量、批号等主信息只在 `precursors` 模块维护；旧 `furnace_program.precursors[]` 和旧 `steps[].temperatures_C` 仅用于历史 payload 读取兼容。
 
 ### 9.8 gas_program
 

@@ -174,6 +174,165 @@ def _normalize_furnace_step(step: object) -> object:
     return normalized
 
 
+def _is_number_like(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _zone_sort_key(zone_key: str) -> tuple[int, str]:
+    prefix = "zone_"
+    if zone_key.startswith(prefix):
+        suffix = zone_key[len(prefix) :]
+        if suffix.isdigit():
+            return (int(suffix), zone_key)
+    return (10_000, zone_key)
+
+
+def _declared_furnace_zone_keys(payload: dict) -> list[str]:
+    furnace_info = payload.get("furnace_info")
+    if not isinstance(furnace_info, dict):
+        furnace_info = {}
+
+    zones_count = furnace_info.get("zones_count")
+    if isinstance(zones_count, int) and not isinstance(zones_count, bool) and zones_count > 0:
+        return [f"zone_{index + 1}" for index in range(zones_count)]
+
+    zone_keys: set[str] = set()
+    initial_temperatures = furnace_info.get("initial_temperatures_C")
+    if isinstance(initial_temperatures, dict):
+        zone_keys.update(str(key) for key in initial_temperatures)
+
+    zones = payload.get("zones")
+    if isinstance(zones, list):
+        for zone in zones:
+            if isinstance(zone, dict):
+                zone_key = zone.get("zone_key")
+                if isinstance(zone_key, str) and zone_key.strip():
+                    zone_keys.add(zone_key)
+                zone_index = zone.get("zone_index")
+                if (
+                    isinstance(zone_index, int)
+                    and not isinstance(zone_index, bool)
+                    and zone_index > 0
+                ):
+                    zone_keys.add(f"zone_{zone_index}")
+
+    steps = payload.get("steps")
+    if isinstance(steps, list):
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            temperatures = step.get("temperatures_C")
+            if isinstance(temperatures, dict):
+                zone_keys.update(str(key) for key in temperatures)
+
+    return sorted(zone_keys, key=_zone_sort_key)
+
+
+def _normalize_furnace_temperature_node(node: object, index: int) -> object:
+    if not isinstance(node, dict):
+        return node
+    normalized = deepcopy(node)
+    normalized.setdefault("node_index", index + 1)
+    normalized.setdefault("time_min", None)
+    normalized.setdefault("temperature_C", None)
+    normalized.setdefault("note", "")
+    return normalized
+
+
+def _normalize_furnace_zone(zone: object, index: int) -> object:
+    if not isinstance(zone, dict):
+        return zone
+    normalized = deepcopy(zone)
+    zone_key = normalized.get("zone_key")
+    if not isinstance(zone_key, str) or not zone_key.strip():
+        zone_index = normalized.get("zone_index")
+        if isinstance(zone_index, int) and not isinstance(zone_index, bool) and zone_index > 0:
+            normalized["zone_key"] = f"zone_{zone_index}"
+    normalized.setdefault("note", "")
+    temperature_program = normalized.get("temperature_program")
+    if not isinstance(temperature_program, list):
+        normalized["temperature_program"] = []
+    else:
+        normalized["temperature_program"] = [
+            _normalize_furnace_temperature_node(node, node_index)
+            for node_index, node in enumerate(temperature_program)
+        ]
+    return normalized
+
+
+def _legacy_steps_to_furnace_zones(payload: dict) -> list[dict]:
+    steps = payload.get("steps")
+    if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+        return []
+
+    furnace_info = (
+        payload.get("furnace_info") if isinstance(payload.get("furnace_info"), dict) else {}
+    )
+    initial_temperatures = furnace_info.get("initial_temperatures_C")
+    if not isinstance(initial_temperatures, dict):
+        initial_temperatures = {}
+
+    zones: list[dict] = []
+    for zone_key in _declared_furnace_zone_keys(payload):
+        elapsed_min = 0.0
+        nodes: list[dict] = []
+        initial_temperature = initial_temperatures.get(zone_key)
+        if _is_number_like(initial_temperature):
+            nodes.append(
+                {
+                    "node_index": 1,
+                    "time_min": elapsed_min,
+                    "temperature_C": initial_temperature,
+                    "note": "",
+                }
+            )
+
+        for step in steps:
+            duration_min = step.get("duration_min")
+            if _is_number_like(duration_min):
+                elapsed_min += float(duration_min)
+            temperatures = step.get("temperatures_C")
+            if not isinstance(temperatures, dict) or zone_key not in temperatures:
+                continue
+            temperature = temperatures.get(zone_key)
+            note = step.get("note") if isinstance(step.get("note"), str) else ""
+            nodes.append(
+                {
+                    "node_index": len(nodes) + 1,
+                    "time_min": elapsed_min,
+                    "temperature_C": temperature,
+                    "note": note,
+                }
+            )
+
+        if not nodes:
+            nodes.append(
+                {
+                    "node_index": 1,
+                    "time_min": 0.0,
+                    "temperature_C": None,
+                    "note": "",
+                }
+            )
+        elif nodes[0].get("time_min") != 0:
+            nodes.insert(
+                0,
+                {
+                    "node_index": 1,
+                    "time_min": 0.0,
+                    "temperature_C": nodes[0].get("temperature_C"),
+                    "note": "",
+                },
+            )
+
+        for index, node in enumerate(nodes):
+            node["node_index"] = index + 1
+
+        zones.append({"zone_key": zone_key, "temperature_program": nodes, "note": ""})
+
+    return zones
+
+
 def _normalize_furnace_program(payload: dict) -> dict:
     normalized = deepcopy(payload)
     if not isinstance(normalized.get("furnace_info"), dict):
@@ -184,8 +343,24 @@ def _normalize_furnace_program(payload: dict) -> dict:
         normalized["placements"] = []
     if "precursors" in normalized and not isinstance(normalized.get("precursors"), list):
         normalized["precursors"] = []
-    if not isinstance(normalized.get("steps"), list):
-        normalized["steps"] = []
+
+    zones = normalized.get("zones")
+    steps = normalized.get("steps")
+    if isinstance(zones, list) and zones:
+        normalized["zones"] = [
+            _normalize_furnace_zone(zone, index) for index, zone in enumerate(zones)
+        ]
+        normalized.pop("steps", None)
+        return normalized
+
+    if isinstance(steps, list) and all(isinstance(step, dict) for step in steps):
+        normalized["zones"] = _legacy_steps_to_furnace_zones(normalized)
+        normalized.pop("steps", None)
+        return normalized
+
+    if not isinstance(steps, list):
+        normalized["zones"] = []
+        normalized.pop("steps", None)
     else:
         normalized["steps"] = [_normalize_furnace_step(s) for s in normalized["steps"]]
     return normalized

@@ -439,13 +439,18 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
                         "note": "center",
                     }
                 ],
-                "steps": [
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 750},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": "起始"},
+                            {
+                                "node_index": 2,
+                                "time_min": 30,
+                                "temperature_C": 750,
+                                "note": "升温结束",
+                            },
+                        ],
                         "note": "",
                     },
                 ],
@@ -530,6 +535,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
         "precursor_rows",
         "substrate_rows",
         "furnace_step_rows",
+        "furnace_temperature_rows",
         "furnace_precursor_rows",
         "gas_program_rows",
         "gas_segment_rows",
@@ -565,8 +571,17 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     }
     assert body["substrate_rows"][0]["substrate_index"] == 0
     assert body["substrate_rows"][0]["treatment_params_gas"] == "O2"
-    assert body["furnace_step_rows"][0]["step_index"] == 1
-    assert body["furnace_step_rows"][0]["temperature_C"] == 750.0
+    assert body["furnace_temperature_rows"][1] == {
+        "experiment_id": experiment_id,
+        "run_code": "CVD-2026-0001",
+        "zone_key": "zone_1",
+        "node_index": 2,
+        "time_min": 30.0,
+        "temperature_C": 750.0,
+        "note": "升温结束",
+    }
+    assert body["furnace_step_rows"][1]["step_index"] == 2
+    assert body["furnace_step_rows"][1]["temperature_C"] == 750.0
     assert body["furnace_precursor_rows"][0] == {
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",
@@ -655,6 +670,70 @@ def test_export_analysis_falls_back_to_legacy_furnace_precursors(active_user) ->
             "note": "legacy",
         }
     ]
+
+
+def test_export_analysis_preserves_raw_legacy_furnace_step_rows(
+    active_user,
+    db_session,
+) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Legacy furnace step rows")
+
+    db_session.add(
+        ExperimentModulePayload(
+            experiment_run_id=UUID(experiment_id),
+            module_key=ExperimentModuleKey.FURNACE_PROGRAM.value,
+            payload_json={
+                "furnace_info": {
+                    "zones_count": 2,
+                    "initial_temperatures_C": {"zone_1": 25, "zone_2": 25},
+                },
+                "steps": [
+                    {
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 650, "zone_2": 780},
+                        "note": "legacy ramp",
+                    }
+                ],
+            },
+        )
+    )
+    db_session.commit()
+
+    export_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/analysis",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert export_response.status_code == 200
+    body = export_response.json()
+    assert body["furnace_step_rows"] == [
+        {
+            "experiment_id": experiment_id,
+            "run_code": "CVD-2026-0001",
+            "step_index": 1,
+            "step_name": "升温",
+            "duration_min": 30.0,
+            "is_hold": False,
+            "zone_key": "zone_1",
+            "temperature_C": 650.0,
+            "note": "legacy ramp",
+        },
+        {
+            "experiment_id": experiment_id,
+            "run_code": "CVD-2026-0001",
+            "step_index": 1,
+            "step_name": "升温",
+            "duration_min": 30.0,
+            "is_hold": False,
+            "zone_key": "zone_2",
+            "temperature_C": 780.0,
+            "note": "legacy ramp",
+        },
+    ]
+    assert body["furnace_temperature_rows"][1]["time_min"] == 30.0
 
 
 def test_export_analysis_keeps_program_level_gas_and_flat_metadata(active_user) -> None:

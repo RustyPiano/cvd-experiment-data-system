@@ -642,7 +642,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert body["ok"] is False
     assert body["blocking_count"] == len(body["errors"])
     assert body["warning_count"] == len(body["warnings"])
-    assert body["completion_score"] == 52
+    assert body["completion_score"] == 48
     assert_issue_exists(
         body["errors"],
         module_key="basic_info",
@@ -652,8 +652,8 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert_issue_exists(
         body["errors"],
         module_key="furnace_program",
-        field_path="steps[0].duration_min",
-        message_contains="positive",
+        field_path="zones[0].temperature_program[1].time_min",
+        message_contains="非负",
     )
     assert_issue_exists(
         body["errors"],
@@ -1061,7 +1061,7 @@ def test_submit_reports_database_critical_missing_fields(active_user) -> None:
     assert_issue_exists(
         errors,
         module_key="furnace_program",
-        field_path="steps[0].temperatures_C",
+        field_path="zones[0].temperature_program",
         message_contains="required",
     )
     assert_issue_exists(
@@ -1179,7 +1179,7 @@ def test_upsert_module_rejects_non_numeric_scientific_values(active_user) -> Non
                     },
                 ],
             },
-            "temperatures_C",
+            "temperature_C",
         ),
     ]
 
@@ -1276,7 +1276,7 @@ def test_submit_rejects_missing_required_modules(active_user) -> None:
     assert_issue_exists(
         response.json()["errors"],
         module_key="furnace_program",
-        field_path="steps",
+        field_path="zones",
         message_contains="required",
     )
 
@@ -1363,14 +1363,198 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
     assert_issue_exists(
         submit_response.json()["errors"],
         module_key="furnace_program",
-        field_path="steps[0].duration_min",
-        message_contains="positive",
+        field_path="zones[0].temperature_program[1].time_min",
+        message_contains="非负",
     )
     assert_issue_exists(
         submit_response.json()["errors"],
         module_key="gas_program",
         field_path="segments",
         message_contains="overlap",
+    )
+
+
+def test_submit_rejects_non_increasing_furnace_zone_temperature_program(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Zone temperature validation",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    precursors_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
+        headers=auth_headers(active_user.email),
+    )
+    assert precursors_response.status_code == 200
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "furnace_info": {"zones_count": 1},
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750},
+                            {"node_index": 3, "time_min": 30, "temperature_C": 750},
+                        ],
+                    }
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 422
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="furnace_program",
+        field_path="zones[0].temperature_program[2].time_min",
+        message_contains="递增",
+    )
+
+
+def test_submit_rejects_missing_declared_furnace_zone(active_user) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Missing declared furnace zone",
+    )
+    populate_required_modules(experiment_id, active_user.email)
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "furnace_info": {"zones_count": 2},
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750},
+                        ],
+                    }
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 422
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="furnace_program",
+        field_path="zones",
+        message_contains="声明温区",
+    )
+
+
+def test_submit_rejects_duplicate_furnace_zone_key(active_user) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Duplicate furnace zone",
+    )
+    populate_required_modules(experiment_id, active_user.email)
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "furnace_info": {"zones_count": 2},
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750},
+                        ],
+                    },
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 760},
+                        ],
+                    },
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 422
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="furnace_program",
+        field_path="zones",
+        message_contains="重复",
+    )
+
+
+def test_submit_rejects_missing_furnace_zone_key(active_user) -> None:
+    experiment_id = create_experiment_for_test(
+        active_user.email,
+        objective="Missing furnace zone key",
+    )
+    populate_required_modules(experiment_id, active_user.email)
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "furnace_info": {"zones_count": 1},
+                "zones": [
+                    {
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750},
+                        ],
+                    }
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert submit_response.status_code == 422
+    assert_issue_exists(
+        submit_response.json()["errors"],
+        module_key="furnace_program",
+        field_path="zones[0].zone_key",
+        message_contains="required",
     )
 
 

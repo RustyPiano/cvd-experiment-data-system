@@ -234,13 +234,10 @@ function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined)
   );
   const furnaceInfo = safeRecord(payload.furnace_info);
   const placements = furnacePlacements(payload, precursorItems);
-  const steps = safeArray(payload.steps).map((item) => safeRecord(item));
-  if (steps.length === 0 && placements.length === 0 && !furnaceInfo.model) {
+  const zones = safeArray(payload.zones).map((item) => safeRecord(item));
+  if (zones.length === 0 && placements.length === 0 && !furnaceInfo.model) {
     return <Typography.Text type="secondary">无炉温程序记录</Typography.Text>;
   }
-  const zoneKeys = steps.length > 0
-    ? Object.keys(safeRecord(steps[0].temperatures_C))
-    : [];
   return (
     <div className="content-stack">
       <Space>
@@ -263,33 +260,23 @@ function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined)
           title={() => <Typography.Text strong>前驱体放置</Typography.Text>}
         />
       ) : null}
-      {steps.length > 0 ? (
+      {zones.map((zone, zoneIndex) => (
         <Table
           columns={[
-            { title: "步骤", dataIndex: "step_index", render: (v: unknown) => safeString(v) || "—" },
-            { title: "名称", dataIndex: "step_name", render: (v: unknown) => safeString(v) || "—" },
-            { title: "时长 (min)", dataIndex: "duration_min", render: (v: unknown) => safeString(v) || "—" },
-            {
-              title: "恒温",
-              dataIndex: "is_hold",
-              render: (v: unknown) => (v === true ? "是" : v === false ? "否" : "—"),
-            },
-            ...zoneKeys.map((zoneKey) => ({
-              title: `${zoneKey} (°C)`,
-              render: (_: unknown, record: Record<string, unknown>) => {
-                const temps = safeRecord(record.temperatures_C);
-                return safeString(temps[zoneKey]) || "—";
-              },
-            })),
-            { title: "备注", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
+            { title: "节点", dataIndex: "node_index", render: (v: unknown) => safeString(v) || "—" },
+            { title: "时间 (min)", dataIndex: "time_min", render: (v: unknown) => safeString(v) || "—" },
+            { title: "温度 (°C)", dataIndex: "temperature_C", render: (v: unknown) => safeString(v) || "—" },
+            { title: "说明", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
           ]}
-          dataSource={steps}
+          dataSource={safeArray(zone.temperature_program).map((item) => safeRecord(item))}
           pagination={false}
-          rowKey={(_, index) => `step-${index}`}
+          rowKey={(_, index) => `${safeString(zone.zone_key) || zoneIndex}-node-${index}`}
           size="small"
-          title={() => <Typography.Text strong>温度步骤</Typography.Text>}
+          title={() => (
+            <Typography.Text strong>{`温区 ${zoneIndex + 1} 温度变化`}</Typography.Text>
+          )}
         />
-      ) : null}
+      ))}
     </div>
   );
 }

@@ -1043,7 +1043,7 @@ describe("ExperimentEditorPage", () => {
     ).toBe(false);
   });
 
-  it("blocks autosave when furnace step duration is not a valid number", async () => {
+  it("blocks autosave when furnace node time is not a valid number", async () => {
     const server = createEditorFetchMock();
     vi.stubGlobal("fetch", server.fetchMock);
 
@@ -1057,7 +1057,7 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    const durationInput = await screen.findByLabelText("持续时间 1");
+    const durationInput = await screen.findByLabelText("温区 1 节点 2 时间");
     vi.useFakeTimers();
     fireEvent.change(durationInput, { target: { value: "abc" } });
 
@@ -1067,7 +1067,7 @@ describe("ExperimentEditorPage", () => {
     });
 
     vi.useRealTimers();
-    expect(await screen.findByText("持续时间 步骤1 必须是数字")).toBeInTheDocument();
+    expect(await screen.findByText("时间 温区1-2 必须是数字")).toBeInTheDocument();
     expect(
       server.requests.some(
         (request) =>
@@ -1315,7 +1315,7 @@ describe("ExperimentEditorPage", () => {
       ).toBe(true);
     });
 
-    const furnaceTemperatureInput = screen.getByLabelText("温度 1-1");
+    const furnaceTemperatureInput = screen.getByLabelText("温区 1 节点 2 温度");
     vi.useFakeTimers();
     fireEvent.change(furnaceTemperatureInput, { target: { value: "760" } });
 
@@ -1335,22 +1335,25 @@ describe("ExperimentEditorPage", () => {
             return false;
           }
 
-          const steps = (
+          const zones = (
             request.body as {
               payload_json?: {
-                steps?: Array<{
-                  step_index?: number;
-                  duration_min?: number;
-                  temperatures_C?: Record<string, number>;
+                zones?: Array<{
+                  zone_key?: string;
+                  temperature_program?: Array<{
+                    node_index?: number;
+                    temperature_C?: number;
+                  }>;
                 }>;
               };
             }
-          ).payload_json?.steps;
+          ).payload_json?.zones;
 
           return (
-            Array.isArray(steps) &&
-            steps[0]?.step_index === 1 &&
-            steps[0]?.temperatures_C?.zone_1 === 760
+            Array.isArray(zones) &&
+            zones[0]?.zone_key === "zone_1" &&
+            zones[0]?.temperature_program?.[1]?.node_index === 2 &&
+            zones[0]?.temperature_program?.[1]?.temperature_C === 760
           );
         }),
       ).toBe(true);

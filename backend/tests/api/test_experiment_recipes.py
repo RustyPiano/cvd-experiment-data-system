@@ -244,7 +244,9 @@ def test_create_from_recipe_creates_draft_with_recipe_id_and_allowed_modules(
     }
     assert payloads["precursors"]["items"][0]["species"] == "MoO3"
     assert payloads["substrates"]["items"][0]["type"] == "sapphire"
-    assert payloads["furnace_program"]["steps"][0]["temperatures_C"]["zone_1"] == 750.0
+    assert (
+        payloads["furnace_program"]["zones"][0]["temperature_program"][1]["temperature_C"] == 750.0
+    )
     assert payloads["gas_program"]["segments"][0]["flow_sccm"] == 80.0
     assert payloads["characterization"]["methods"][0]["method"] == "Raman"
     assert audit_actions_for(

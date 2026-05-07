@@ -88,7 +88,9 @@ const fieldLabels: Record<string, string> = {
   summary_result: "总结结论",
   surface_finish: "表面状态",
   temperature_C: "温度 (C)",
+  temperature_program: "温度程序",
   temperatures_C: "温度",
+  time_min: "时间 (min)",
   treatment_method: "处理方法",
   treatment_params: "处理参数",
   tube_contamination_level: "石英管污染",
@@ -99,8 +101,11 @@ const fieldLabels: Record<string, string> = {
   zones_count: "温区数量",
   initial_temperatures_C: "初始温度",
   model: "型号",
+  node_index: "节点序号",
   position_cm: "位置 (cm)",
   material: "前驱体材料",
+  zone_key: "温区",
+  zones: "温区程序",
 };
 
 const statusLabels: Record<DiffStatus, string> = {

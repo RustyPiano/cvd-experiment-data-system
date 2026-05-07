@@ -1,14 +1,16 @@
-import { Alert, Button, Card, Empty, Input, Select, Switch, Typography } from "antd";
+import { Alert, Button, Card, Empty, Input, Select, Typography } from "antd";
 import { useCallback, useState } from "react";
 
 import type { RecipeRead } from "../../../shared/types/api";
 import { BUILTIN_FURNACE_TEMPLATES, type QuickTemplate } from "../data/builtin-templates";
 import {
   createEmptyFurnacePlacement,
-  createEmptyFurnaceStep,
+  createEmptyFurnaceTemperatureNode,
+  createEmptyFurnaceZone,
   type FurnacePlacementValues,
   type FurnaceProgramValues,
-  type FurnaceStepValues,
+  type FurnaceTemperatureNodeValues,
+  type FurnaceZoneValues,
   type PrecursorItemValues,
 } from "../editor-types";
 import { QuickTemplateMenu } from "./quick-template-menu";
@@ -42,10 +44,6 @@ function asString(value: unknown) {
   }
 
   return "";
-}
-
-function asBoolean(value: unknown) {
-  return value === true;
 }
 
 function getZoneKeys(zonesCount: number): string[] {
@@ -112,22 +110,56 @@ function toFurnaceProgramValues(
       initialTemperaturesC,
     },
     placements: toPlacements(payload, precursorItems),
-    steps: asObjectArray(payload.steps).map((s) => {
-      const temps = asRecord(s.temperatures_C);
-      const temperaturesC: Record<string, string> = {};
-      for (const zoneKey of getZoneKeys(validZonesCount)) {
-        temperaturesC[zoneKey] = asString(temps[zoneKey]);
-      }
-      return {
-        sourcePayload: s,
-        stepName: asString(s.step_name),
-        durationMin: asString(s.duration_min),
-        isHold: asBoolean(s.is_hold),
-        temperaturesC,
-        note: asString(s.note),
-      };
-    }),
+    zones: toZones(payload, info, validZonesCount),
   };
+}
+
+function toZones(
+  payload: Record<string, unknown>,
+  info: Record<string, unknown>,
+  zonesCount: number,
+): FurnaceZoneValues[] {
+  const zones = asObjectArray(payload.zones);
+  if (zones.length > 0) {
+    return zones.map((zone, index) => ({
+      sourcePayload: zone,
+      zoneKey: asString(zone.zone_key) || `zone_${index + 1}`,
+      note: asString(zone.note),
+      temperatureProgram: asObjectArray(zone.temperature_program).map((node) => ({
+        sourcePayload: node,
+        timeMin: asString(node.time_min),
+        temperatureC: asString(node.temperature_C),
+        note: asString(node.note),
+      })),
+    }));
+  }
+
+  const initialTemps = asRecord(info.initial_temperatures_C);
+  const steps = asObjectArray(payload.steps);
+  return getZoneKeys(zonesCount).map((zoneKey) => {
+    let elapsedMin = 0;
+    const temperatureProgram: FurnaceTemperatureNodeValues[] = [];
+    const initialTemperature = asString(initialTemps[zoneKey]);
+    if (initialTemperature) {
+      temperatureProgram.push({ timeMin: "0", temperatureC: initialTemperature, note: "" });
+    }
+    for (const step of steps) {
+      const duration = Number(asString(step.duration_min));
+      if (Number.isFinite(duration)) {
+        elapsedMin += duration;
+      }
+      const temps = asRecord(step.temperatures_C);
+      if (!(zoneKey in temps)) {
+        continue;
+      }
+      temperatureProgram.push({
+        timeMin: String(elapsedMin),
+        temperatureC: asString(temps[zoneKey]),
+        note: asString(step.note),
+      });
+    }
+    return { zoneKey, temperatureProgram, note: "" };
+  });
 }
 
 export function FurnaceProgramSection({
@@ -185,13 +217,16 @@ export function FurnaceProgramSection({
         newInitialTemperaturesC[key] = value.furnaceInfo.initialTemperaturesC[key] ?? "25";
       }
 
-      const newSteps = value.steps.map((step) => {
-        const newTemperaturesC: Record<string, string> = {};
-        for (const key of newZoneKeys) {
-          newTemperaturesC[key] = step.temperaturesC[key] ?? "";
-        }
-        return { ...step, temperaturesC: newTemperaturesC };
+      const newZoneKeySet = new Set(newZoneKeys);
+      const newZones = newZoneKeys.map((zoneKey) => {
+        const existingZone = value.zones.find((zone) => zone.zoneKey === zoneKey);
+        return existingZone ?? createEmptyFurnaceZone(zoneKey);
       });
+      const newPlacements = value.placements.map((placement) =>
+        placement.zoneKey && !newZoneKeySet.has(placement.zoneKey)
+          ? { ...placement, zoneKey: "" }
+          : placement,
+      );
 
       emitManualChange({
         furnaceInfo: {
@@ -199,8 +234,8 @@ export function FurnaceProgramSection({
           zonesCount: newZonesCountStr,
           initialTemperaturesC: newInitialTemperaturesC,
         },
-        placements: value.placements,
-        steps: newSteps,
+        placements: newPlacements,
+        zones: newZones,
       });
     },
     [value, emitManualChange],
@@ -211,19 +246,6 @@ export function FurnaceProgramSection({
       emitManualChange({
         ...value,
         furnaceInfo: { ...value.furnaceInfo, ...patch },
-      });
-    },
-    [value, emitManualChange],
-  );
-
-  const updateInitialTemperature = useCallback(
-    (zoneKey: string, temperature: string) => {
-      emitManualChange({
-        ...value,
-        furnaceInfo: {
-          ...value.furnaceInfo,
-          initialTemperaturesC: { ...value.furnaceInfo.initialTemperaturesC, [zoneKey]: temperature },
-        },
       });
     },
     [value, emitManualChange],
@@ -252,39 +274,68 @@ export function FurnaceProgramSection({
     [value, emitManualChange],
   );
 
-  const addStep = useCallback(() => {
-    const newStep: FurnaceStepValues = {
-      ...createEmptyFurnaceStep(),
-      temperaturesC: Object.fromEntries(zoneKeys.map((key) => [key, ""])),
-    };
-    emitManualChange({ ...value, steps: [...value.steps, newStep] });
-  }, [value, zoneKeys, emitManualChange]);
-
-  const removeStep = useCallback(
-    (index: number) => {
-      emitManualChange({ ...value, steps: value.steps.filter((_, i) => i !== index) });
-    },
-    [value, emitManualChange],
-  );
-
-  const updateStep = useCallback(
-    (index: number, patch: Partial<FurnaceStepValues>) => {
+  const updateZone = useCallback(
+    (zoneKey: string, patch: Partial<FurnaceZoneValues>) => {
       emitManualChange({
         ...value,
-        steps: value.steps.map((s, i) => (i === index ? { ...s, ...patch } : s)),
+        zones: value.zones.map((zone) =>
+          zone.zoneKey === zoneKey ? { ...zone, ...patch } : zone,
+        ),
       });
     },
     [value, emitManualChange],
   );
 
-  const updateStepTemperature = useCallback(
-    (stepIndex: number, zoneKey: string, temperature: string) => {
+  const addTemperatureNode = useCallback(
+    (zoneKey: string) => {
       emitManualChange({
         ...value,
-        steps: value.steps.map((s, i) =>
-          i === stepIndex
-            ? { ...s, temperaturesC: { ...s.temperaturesC, [zoneKey]: temperature } }
-            : s,
+        zones: value.zones.map((zone) =>
+          zone.zoneKey === zoneKey
+            ? {
+                ...zone,
+                temperatureProgram: [
+                  ...zone.temperatureProgram,
+                  createEmptyFurnaceTemperatureNode(),
+                ],
+              }
+            : zone,
+        ),
+      });
+    },
+    [value, emitManualChange],
+  );
+
+  const removeTemperatureNode = useCallback(
+    (zoneKey: string, nodeIndex: number) => {
+      emitManualChange({
+        ...value,
+        zones: value.zones.map((zone) =>
+          zone.zoneKey === zoneKey
+            ? {
+                ...zone,
+                temperatureProgram: zone.temperatureProgram.filter((_, i) => i !== nodeIndex),
+              }
+            : zone,
+        ),
+      });
+    },
+    [value, emitManualChange],
+  );
+
+  const updateTemperatureNode = useCallback(
+    (zoneKey: string, nodeIndex: number, patch: Partial<FurnaceTemperatureNodeValues>) => {
+      emitManualChange({
+        ...value,
+        zones: value.zones.map((zone) =>
+          zone.zoneKey === zoneKey
+            ? {
+                ...zone,
+                temperatureProgram: zone.temperatureProgram.map((node, i) =>
+                  i === nodeIndex ? { ...node, ...patch } : node,
+                ),
+              }
+            : zone,
         ),
       });
     },
@@ -333,20 +384,6 @@ export function FurnaceProgramSection({
               value={value.furnaceInfo.model}
             />
           </div>
-        </div>
-        <div className="editor-form-grid" style={{ marginTop: 12 }}>
-          {zoneKeys.map((zoneKey) => (
-            <div className="editor-field" key={`init-temp-${zoneKey}`}>
-              <Typography.Text strong>{`初始温度 ${zoneKey}`}</Typography.Text>
-              <Input
-                aria-label={`初始温度 ${zoneKey}`}
-                disabled={disabled}
-                onChange={(e) => updateInitialTemperature(zoneKey, e.target.value)}
-                placeholder="°C"
-                value={value.furnaceInfo.initialTemperaturesC[zoneKey] ?? ""}
-              />
-            </div>
-          ))}
         </div>
       </Card>
 
@@ -422,86 +459,98 @@ export function FurnaceProgramSection({
       </Card>
 
       <div className="content-stack">
-        {value.steps.length === 0 ? (
-          <Empty description="尚未添加步骤" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        {value.zones.length === 0 ? (
+          <Empty description="尚未添加温区程序" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
-          value.steps.map((step, stepIndex) => (
+          value.zones.map((zone, zoneIndex) => (
             <Card
-              key={`step-${stepIndex}`}
+              key={zone.zoneKey || `zone-${zoneIndex}`}
               size="small"
-              title={`步骤 ${stepIndex + 1}`}
+              title={`温区 ${zoneIndex + 1} 温度变化`}
               extra={
                 <Button
-                  danger
                   disabled={disabled}
-                  onClick={() => removeStep(stepIndex)}
+                  onClick={() => addTemperatureNode(zone.zoneKey)}
                   size="small"
-                  type="text"
                 >
-                  删除步骤
+                  {`添加温区 ${zoneIndex + 1} 节点`}
                 </Button>
               }
             >
-              <div className="editor-form-grid">
-                <div className="editor-field">
-                  <Typography.Text strong>步骤名称</Typography.Text>
-                  <Input
-                    aria-label={`步骤名称 ${stepIndex + 1}`}
-                    disabled={disabled}
-                    onChange={(e) => updateStep(stepIndex, { stepName: e.target.value })}
-                    placeholder="例如 升温"
-                    value={step.stepName}
-                  />
+              {zone.temperatureProgram.length === 0 ? (
+                <Empty description="尚未添加温度节点" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                <div className="content-stack">
+                  {zone.temperatureProgram.map((node, nodeIndex) => (
+                    <div className="editor-form-grid" key={`${zone.zoneKey}-node-${nodeIndex}`}>
+                      <div className="editor-field">
+                        <Typography.Text strong>{`节点 ${nodeIndex + 1} 时间`}</Typography.Text>
+                        <Input
+                          aria-label={`温区 ${zoneIndex + 1} 节点 ${nodeIndex + 1} 时间`}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            updateTemperatureNode(zone.zoneKey, nodeIndex, {
+                              timeMin: e.target.value,
+                            })
+                          }
+                          placeholder="min"
+                          value={node.timeMin}
+                        />
+                      </div>
+                      <div className="editor-field">
+                        <Typography.Text strong>{`节点 ${nodeIndex + 1} 温度`}</Typography.Text>
+                        <Input
+                          aria-label={`温区 ${zoneIndex + 1} 节点 ${nodeIndex + 1} 温度`}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            updateTemperatureNode(zone.zoneKey, nodeIndex, {
+                              temperatureC: e.target.value,
+                            })
+                          }
+                          placeholder="°C"
+                          value={node.temperatureC}
+                        />
+                      </div>
+                      <div className="editor-field editor-field-wide">
+                        <Typography.Text strong>{`节点 ${nodeIndex + 1} 说明`}</Typography.Text>
+                        <Input
+                          aria-label={`温区 ${zoneIndex + 1} 节点 ${nodeIndex + 1} 说明`}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            updateTemperatureNode(zone.zoneKey, nodeIndex, {
+                              note: e.target.value,
+                            })
+                          }
+                          value={node.note}
+                        />
+                      </div>
+                      <div className="editor-inline-actions">
+                        <Button
+                          danger
+                          disabled={disabled}
+                          onClick={() => removeTemperatureNode(zone.zoneKey, nodeIndex)}
+                          size="small"
+                          type="text"
+                        >
+                          删除节点
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="editor-field">
-                  <Typography.Text strong>持续时间</Typography.Text>
-                  <Input
-                    aria-label={`持续时间 ${stepIndex + 1}`}
-                    disabled={disabled}
-                    onChange={(e) => updateStep(stepIndex, { durationMin: e.target.value })}
-                    placeholder="duration_min"
-                    value={step.durationMin}
-                  />
-                </div>
-                <div className="editor-switch-row">
-                  <Typography.Text strong>恒温保持</Typography.Text>
-                  <Switch
-                    aria-label={`恒温保持 ${stepIndex + 1}`}
-                    checked={step.isHold}
-                    disabled={disabled}
-                    onChange={(checked) => updateStep(stepIndex, { isHold: checked })}
-                  />
-                </div>
-              </div>
-              <div className="editor-form-grid" style={{ marginTop: 12 }}>
-                {zoneKeys.map((zoneKey, zoneIndex) => (
-                  <div className="editor-field" key={`step-${stepIndex + 1}-temp-${zoneKey}`}>
-                    <Typography.Text strong>{`温度 ${zoneIndex + 1}`}</Typography.Text>
-                    <Input
-                      aria-label={`温度 ${stepIndex + 1}-${zoneIndex + 1}`}
-                      disabled={disabled}
-                      onChange={(e) => updateStepTemperature(stepIndex, zoneKey, e.target.value)}
-                      placeholder="°C"
-                      value={step.temperaturesC[zoneKey] ?? ""}
-                    />
-                  </div>
-                ))}
-              </div>
+              )}
               <div className="editor-field editor-field-wide" style={{ marginTop: 12 }}>
-                <Typography.Text strong>步骤备注</Typography.Text>
+                <Typography.Text strong>温区备注</Typography.Text>
                 <Input
-                  aria-label={`步骤备注 ${stepIndex + 1}`}
+                  aria-label={`温区 ${zoneIndex + 1} 备注`}
                   disabled={disabled}
-                  onChange={(e) => updateStep(stepIndex, { note: e.target.value })}
-                  value={step.note}
+                  onChange={(e) => updateZone(zone.zoneKey, { note: e.target.value })}
+                  value={zone.note}
                 />
               </div>
             </Card>
           ))
         )}
-        <Button disabled={disabled} onClick={addStep}>
-          添加步骤
-        </Button>
       </div>
     </div>
   );

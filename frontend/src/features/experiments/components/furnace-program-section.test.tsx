@@ -26,13 +26,22 @@ function createValue(): FurnaceProgramValues {
         note: "upstream",
       },
     ],
-    steps: [
+    zones: [
       {
-        stepName: "升温",
-        durationMin: "35",
-        isHold: false,
-        temperaturesC: { zone_1: "650", zone_2: "780" },
+        zoneKey: "zone_1",
         note: "",
+        temperatureProgram: [
+          { timeMin: "0", temperatureC: "25", note: "起始" },
+          { timeMin: "35", temperatureC: "650", note: "升温结束" },
+        ],
+      },
+      {
+        zoneKey: "zone_2",
+        note: "",
+        temperatureProgram: [
+          { timeMin: "0", temperatureC: "25", note: "起始" },
+          { timeMin: "35", temperatureC: "780", note: "升温结束" },
+        ],
       },
     ],
   };
@@ -86,8 +95,9 @@ describe("FurnaceProgramSection", () => {
     expect(screen.queryByLabelText("材料 1")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("质量 1")).not.toBeInTheDocument();
     expect(screen.getByText("zone_1")).toBeInTheDocument();
-    expect(screen.getByText("步骤 1")).toBeInTheDocument();
-    expect(screen.getByLabelText("温度 1-2")).toHaveValue("780");
+    expect(screen.getByText("温区 1 温度变化")).toBeInTheDocument();
+    expect(screen.getByText("温区 2 温度变化")).toBeInTheDocument();
+    expect(screen.getByLabelText("温区 2 节点 2 温度")).toHaveValue("780");
   });
 
   it("applies a built-in furnace template and clears the applied alert on manual edit", async () => {
@@ -114,10 +124,12 @@ describe("FurnaceProgramSection", () => {
           zonesCount: "2",
           initialTemperaturesC: { zone_1: "25", zone_2: "25" },
         }),
-        steps: expect.arrayContaining([
+        zones: expect.arrayContaining([
           expect.objectContaining({
-            durationMin: "35",
-            temperaturesC: { zone_1: "650", zone_2: "780" },
+            zoneKey: "zone_1",
+            temperatureProgram: expect.arrayContaining([
+              expect.objectContaining({ timeMin: "35", temperatureC: "650" }),
+            ]),
           }),
         ]),
       }),
@@ -144,7 +156,7 @@ describe("FurnaceProgramSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("updates zone temperatures when zonesCount changes", () => {
+  it("updates zones and clears removed placement zone when zonesCount changes", () => {
     const onChange = vi.fn();
 
     render(
@@ -157,25 +169,54 @@ describe("FurnaceProgramSection", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("温区数量"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("温区数量"), { target: { value: "1" } });
 
     expect(onChange).toHaveBeenCalledWith({
       furnaceInfo: {
-        zonesCount: "3",
+        zonesCount: "1",
         model: "OTF-1200X",
-        initialTemperaturesC: { zone_1: "25", zone_2: "25", zone_3: "25" },
+        initialTemperaturesC: { zone_1: "25" },
       },
       placements: createValue().placements,
-      steps: [
+      zones: [
         {
-          stepName: "升温",
-          durationMin: "35",
-          isHold: false,
-          temperaturesC: { zone_1: "650", zone_2: "780", zone_3: "" },
+          zoneKey: "zone_1",
           note: "",
+          temperatureProgram: [
+            { timeMin: "0", temperatureC: "25", note: "起始" },
+            { timeMin: "35", temperatureC: "650", note: "升温结束" },
+          ],
         },
       ],
     });
+  });
+
+  it("adds and updates temperature nodes inside a single zone", () => {
+    const onChange = vi.fn();
+
+    render(
+      <FurnaceProgramSection
+        disabled={false}
+        onChange={onChange}
+        precursorItems={precursorItems}
+        templates={BUILTIN_FURNACE_TEMPLATES}
+        value={{ ...createValue(), zones: [{ zoneKey: "zone_1", note: "", temperatureProgram: [] }] }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "添加温区 1 节点" }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zones: [
+          {
+            zoneKey: "zone_1",
+            note: "",
+            temperatureProgram: [{ timeMin: "", temperatureC: "", note: "" }],
+          },
+        ],
+      }),
+    );
   });
 
   it("shows matching recipe templates and applies their furnace payload", async () => {
@@ -203,14 +244,14 @@ describe("FurnaceProgramSection", () => {
                 note: "recipe placement",
               },
             ],
-            steps: [
+            zones: [
               {
-                step_index: 1,
-                step_name: "Recipe hold",
-                duration_min: 20,
-                is_hold: true,
-                temperatures_C: { zone_1: 700 },
-                note: "recipe step",
+                zone_key: "zone_1",
+                temperature_program: [
+                  { node_index: 1, time_min: 0, temperature_C: 30, note: "" },
+                  { node_index: 2, time_min: 20, temperature_C: 700, note: "recipe step" },
+                ],
+                note: "recipe zone",
               },
             ],
           },
@@ -276,14 +317,25 @@ describe("FurnaceProgramSection", () => {
           note: "recipe placement",
         },
       ],
-      steps: [
+      zones: [
         {
-          sourcePayload: expect.objectContaining({ step_name: "Recipe hold" }),
-          stepName: "Recipe hold",
-          durationMin: "20",
-          isHold: true,
-          temperaturesC: { zone_1: "700" },
-          note: "recipe step",
+          sourcePayload: expect.objectContaining({ zone_key: "zone_1" }),
+          zoneKey: "zone_1",
+          temperatureProgram: [
+            {
+              sourcePayload: expect.objectContaining({ node_index: 1 }),
+              timeMin: "0",
+              temperatureC: "30",
+              note: "",
+            },
+            {
+              sourcePayload: expect.objectContaining({ node_index: 2 }),
+              timeMin: "20",
+              temperatureC: "700",
+              note: "recipe step",
+            },
+          ],
+          note: "recipe zone",
         },
       ],
     });

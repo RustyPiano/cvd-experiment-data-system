@@ -161,6 +161,16 @@ class ExperimentAnalysisFurnaceStepRow(BaseModel):
     note: str | None
 
 
+class ExperimentAnalysisFurnaceTemperatureRow(BaseModel):
+    experiment_id: UUID
+    run_code: str
+    zone_key: str | None
+    node_index: int
+    time_min: float | None
+    temperature_C: float | None
+    note: str | None
+
+
 class ExperimentAnalysisFurnacePrecursorRow(BaseModel):
     experiment_id: UUID
     run_code: str
@@ -263,6 +273,7 @@ class ExperimentAnalysisExportRead(BaseModel):
     precursor_rows: list[ExperimentAnalysisPrecursorRow]
     substrate_rows: list[ExperimentAnalysisSubstrateRow]
     furnace_step_rows: list[ExperimentAnalysisFurnaceStepRow]
+    furnace_temperature_rows: list[ExperimentAnalysisFurnaceTemperatureRow]
     furnace_precursor_rows: list[ExperimentAnalysisFurnacePrecursorRow]
     gas_program_rows: list[ExperimentAnalysisGasProgramRow]
     gas_segment_rows: list[ExperimentAnalysisGasSegmentRow]

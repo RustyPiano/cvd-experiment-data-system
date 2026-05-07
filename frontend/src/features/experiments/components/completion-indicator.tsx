@@ -101,6 +101,24 @@ function isPositiveNumberLike(value: unknown) {
   return false;
 }
 
+function isNonNegativeNumberLike(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0;
+  }
+
+  if (typeof value === "string") {
+    const numericValue = Number(value.trim());
+    return Number.isFinite(numericValue) && numericValue >= 0;
+  }
+
+  return false;
+}
+
+function numericValue(value: unknown) {
+  const parsed = typeof value === "number" ? value : Number(String(value ?? "").trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function getDeclaredFurnaceZoneKeys(payload: Record<string, unknown>) {
   const furnaceInfo = asRecord(payload.furnace_info);
   const rawZonesCount = getValue(furnaceInfo, ["zones_count", "zonesCount"]);
@@ -112,6 +130,26 @@ function getDeclaredFurnaceZoneKeys(payload: Record<string, unknown>) {
   }
 
   return Array.from({ length: Math.floor(zonesCount) }, (_, index) => `zone_${index + 1}`);
+}
+
+function furnaceZoneHasValidTemperatureProgram(zone: Record<string, unknown>) {
+  const nodes = asRecordArray(zone.temperature_program);
+  if (nodes.length < 2) {
+    return false;
+  }
+
+  let previousTime: number | null = null;
+  for (const node of nodes) {
+    if (!isNonNegativeNumberLike(node.time_min) || !isFilled(node.temperature_C)) {
+      return false;
+    }
+    const currentTime = numericValue(node.time_min);
+    if (currentTime === null || (previousTime !== null && currentTime <= previousTime)) {
+      return false;
+    }
+    previousTime = currentTime;
+  }
+  return true;
 }
 
 function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
@@ -168,24 +206,21 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
   }
 
   if (moduleKey === "furnace_program") {
-    const steps = asRecordArray(payload.steps);
-    if (!steps.length) {
+    const zones = asRecordArray(payload.zones);
+    if (!zones.length) {
       return 0;
     }
 
     const declaredZoneKeys = getDeclaredFurnaceZoneKeys(payload);
-    const hasValidDuration = steps.every(
-      (step) => isPositiveNumberLike(step.duration_min),
-    );
-    const hasValidTemps = steps.every((step) => {
-      const temps = asRecord(step.temperatures_C);
-      if (declaredZoneKeys.length > 0) {
-        return declaredZoneKeys.every((zoneKey) => isFilled(temps[zoneKey]) || isPositiveNumberLike(temps[zoneKey]));
-      }
-
-      return Object.keys(temps).length > 0 && Object.values(temps).every((v) => isFilled(v) || isPositiveNumberLike(v));
-    });
-    return hasValidDuration && hasValidTemps ? 100 : 50;
+    const expectedZoneKeys = declaredZoneKeys.length
+      ? declaredZoneKeys
+      : zones.map((zone) => String(zone.zone_key ?? "")).filter(Boolean);
+    const zoneByKey = new Map(zones.map((zone) => [String(zone.zone_key ?? ""), zone]));
+    const hasAllZones =
+      expectedZoneKeys.length > 0 && expectedZoneKeys.every((zoneKey) => zoneByKey.has(zoneKey));
+    const hasValidPrograms =
+      hasAllZones && expectedZoneKeys.every((zoneKey) => furnaceZoneHasValidTemperatureProgram(zoneByKey.get(zoneKey)!));
+    return hasValidPrograms ? 100 : 50;
   }
 
   if (moduleKey === "gas_program") {

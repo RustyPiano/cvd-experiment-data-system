@@ -71,7 +71,7 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
       initialTemperaturesC: { zone_1: "25", zone_2: "25" },
     },
     placements: [],
-    steps: [],
+    zones: [],
   },
   gasProgram: {
     preWashingGas: "",

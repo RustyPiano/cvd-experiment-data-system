@@ -39,8 +39,8 @@ function moduleHasContent(
       return Array.isArray(items) && items.length > 0;
     }
     case "furnace_program": {
-      const steps = value.steps;
-      return Array.isArray(steps) && steps.length > 0;
+      const zones = value.zones;
+      return Array.isArray(zones) && zones.length > 0;
     }
     case "gas_program": {
       const segments = value.segments;

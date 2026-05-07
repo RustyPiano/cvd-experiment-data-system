@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from copy import deepcopy
 from datetime import UTC, datetime
 from io import BytesIO
 from typing import Any
@@ -24,6 +25,7 @@ from app.schemas.experiment import (
     ExperimentAnalysisFileRow,
     ExperimentAnalysisFurnacePrecursorRow,
     ExperimentAnalysisFurnaceStepRow,
+    ExperimentAnalysisFurnaceTemperatureRow,
     ExperimentAnalysisGasComponentRow,
     ExperimentAnalysisGasProgramRow,
     ExperimentAnalysisGasSegmentRow,
@@ -102,6 +104,7 @@ class ExperimentExportService:
         )
 
     def build_analysis_export(self, experiment: ExperimentRun) -> ExperimentAnalysisExportRead:
+        raw_payloads = self._raw_module_map(experiment)
         export_payload = self.build_json_export(experiment)
         payloads = self._validated_module_map(export_payload)
         context = {
@@ -133,7 +136,8 @@ class ExperimentExportService:
             ),
             precursor_rows=self._build_precursor_rows(payloads, context),
             substrate_rows=self._build_substrate_rows(payloads, context),
-            furnace_step_rows=self._build_furnace_step_rows(payloads, context),
+            furnace_step_rows=self._build_furnace_step_rows(payloads, context, raw_payloads),
+            furnace_temperature_rows=self._build_furnace_temperature_rows(payloads, context),
             furnace_precursor_rows=self._build_furnace_precursor_rows(payloads, context),
             gas_program_rows=self._build_gas_program_rows(payloads, context),
             gas_segment_rows=self._build_gas_segment_rows(payloads, context),
@@ -227,20 +231,17 @@ class ExperimentExportService:
         furnace = payloads.get("furnace_program", {})
 
         rows: list[dict[str, Any]] = []
-        for step in furnace.get("steps", []):
-            temperatures = step.get("temperatures_C", {})
-            base = {
-                "step_index": step.get("step_index"),
-                "step_name": step.get("step_name"),
-                "duration_min": step.get("duration_min"),
-                "is_hold": step.get("is_hold"),
-                "note": step.get("note"),
-            }
-            if temperatures:
-                for zone_key, temp in temperatures.items():
-                    rows.append({**base, "zone_key": zone_key, "temperature_C": temp})
-            else:
-                rows.append({**base, "zone_key": None, "temperature_C": None})
+        for zone in self._list_payload_items(furnace.get("zones")):
+            for node in self._list_payload_items(zone.get("temperature_program")):
+                rows.append(
+                    {
+                        "zone_key": zone.get("zone_key"),
+                        "node_index": node.get("node_index"),
+                        "time_min": node.get("time_min"),
+                        "temperature_C": node.get("temperature_C"),
+                        "note": node.get("note"),
+                    }
+                )
 
         self._write_list_of_dicts(worksheet, rows)
 
@@ -392,8 +393,11 @@ class ExperimentExportService:
         self,
         payloads: dict[str, dict[str, Any]],
         context: dict[str, Any],
+        raw_payloads: dict[str, dict[str, Any]] | None = None,
     ) -> list[ExperimentAnalysisFurnaceStepRow]:
-        steps = self._list_payload_items(payloads.get("furnace_program", {}).get("steps"))
+        legacy_payloads = raw_payloads or payloads
+        furnace_program = legacy_payloads.get("furnace_program", {})
+        steps = self._list_payload_items(furnace_program.get("steps"))
         rows: list[ExperimentAnalysisFurnaceStepRow] = []
         for step_index, step in enumerate(steps):
             temperatures = step.get("temperatures_C", {})
@@ -422,6 +426,45 @@ class ExperimentExportService:
                         zone_key=None,
                         temperature_C=None,
                         note=step.get("note"),
+                    )
+                )
+        if rows:
+            return rows
+
+        for row in self._build_furnace_temperature_rows(payloads, context):
+            rows.append(
+                ExperimentAnalysisFurnaceStepRow(
+                    **context,
+                    step_index=row.node_index,
+                    step_name=None,
+                    duration_min=row.time_min,
+                    is_hold=None,
+                    zone_key=row.zone_key,
+                    temperature_C=row.temperature_C,
+                    note=row.note,
+                )
+            )
+        return rows
+
+    def _build_furnace_temperature_rows(
+        self,
+        payloads: dict[str, dict[str, Any]],
+        context: dict[str, Any],
+    ) -> list[ExperimentAnalysisFurnaceTemperatureRow]:
+        zones = self._list_payload_items(payloads.get("furnace_program", {}).get("zones"))
+        rows: list[ExperimentAnalysisFurnaceTemperatureRow] = []
+        for zone in zones:
+            for node_index, node in enumerate(
+                self._list_payload_items(zone.get("temperature_program"))
+            ):
+                rows.append(
+                    ExperimentAnalysisFurnaceTemperatureRow(
+                        **context,
+                        zone_key=zone.get("zone_key"),
+                        node_index=node.get("node_index", node_index + 1),
+                        time_min=node.get("time_min"),
+                        temperature_C=node.get("temperature_C"),
+                        note=node.get("note"),
                     )
                 )
         return rows
@@ -648,6 +691,14 @@ class ExperimentExportService:
 
     def _module_map(self, export_payload: ExperimentExportRead) -> dict[str, dict[str, Any]]:
         return {module.module_key: module.payload_json for module in export_payload.modules}
+
+    def _raw_module_map(self, experiment: ExperimentRun) -> dict[str, dict[str, Any]]:
+        return {
+            item.module_key: (
+                deepcopy(item.payload_json) if isinstance(item.payload_json, dict) else {}
+            )
+            for item in self.module_payloads.list_by_run(experiment.id)
+        }
 
     def _validated_module_map(
         self,

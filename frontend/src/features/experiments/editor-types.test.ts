@@ -45,7 +45,7 @@ function modulePayload(
 }
 
 describe("furnace placement editor payloads", () => {
-  it("serializes canonical placements without legacy furnace precursors", () => {
+  it("serializes canonical furnace zones without legacy steps", () => {
     const payload = toFurnaceProgramPayload({
       furnaceInfo: {
         zonesCount: "2",
@@ -60,10 +60,32 @@ describe("furnace placement editor payloads", () => {
           note: "upstream",
         },
       ],
-      steps: [],
+      zones: [
+        {
+          zoneKey: "zone_1",
+          note: "upstream zone",
+          temperatureProgram: [
+            { timeMin: "0", temperatureC: "25", note: "起始" },
+            { timeMin: "30", temperatureC: "750", note: "升温结束" },
+          ],
+        },
+        {
+          zoneKey: "zone_2",
+          note: "",
+          temperatureProgram: [
+            { timeMin: "0", temperatureC: "25", note: "" },
+            { timeMin: "30", temperatureC: "200", note: "" },
+          ],
+        },
+      ],
     });
 
     expect(payload).toMatchObject({
+      furnace_info: {
+        zones_count: 2,
+        model: "OTF-1200X",
+        initial_temperatures_C: { zone_1: 25, zone_2: 25 },
+      },
       placements: [
         {
           precursor_index: 0,
@@ -72,8 +94,26 @@ describe("furnace placement editor payloads", () => {
           note: "upstream",
         },
       ],
+      zones: [
+        {
+          zone_key: "zone_1",
+          note: "upstream zone",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+            { node_index: 2, time_min: 30, temperature_C: 750, note: "升温结束" },
+          ],
+        },
+        {
+          zone_key: "zone_2",
+          temperature_program: [
+            { node_index: 1, time_min: 0, temperature_C: 25 },
+            { node_index: 2, time_min: 30, temperature_C: 200 },
+          ],
+        },
+      ],
     });
     expect(payload).not.toHaveProperty("precursors");
+    expect(payload).not.toHaveProperty("steps");
   });
 
   it("maps legacy furnace precursors to placements by matching precursor species", () => {
@@ -85,9 +125,18 @@ describe("furnace placement editor payloads", () => {
         ],
       }),
       modulePayload("furnace_program", {
-        furnace_info: { zones_count: 2 },
+        furnace_info: { zones_count: 2, initial_temperatures_C: { zone_1: 25, zone_2: 25 } },
         precursors: [{ material: "S", position_cm: -25, mass_mg: 200, note: "legacy sulfur" }],
-        steps: [],
+        steps: [
+          {
+            step_index: 1,
+            step_name: "升温",
+            duration_min: 30,
+            is_hold: false,
+            temperatures_C: { zone_1: 650, zone_2: 780 },
+            note: "legacy ramp",
+          },
+        ],
       }),
     ]);
 
@@ -100,6 +149,18 @@ describe("furnace placement editor payloads", () => {
         note: "legacy sulfur",
       },
     ]);
+    expect(values.furnaceProgram.zones[0]).toEqual({
+      zoneKey: "zone_1",
+      note: "",
+      temperatureProgram: [
+        { timeMin: "0", temperatureC: "25", note: "" },
+        { timeMin: "30", temperatureC: "650", note: "legacy ramp" },
+      ],
+    });
+    expect(values.furnaceProgram.zones[1].temperatureProgram[1]).toMatchObject({
+      timeMin: "30",
+      temperatureC: "780",
+    });
   });
 
   it("drops legacy material and mass fields when saving migrated placements", () => {
@@ -118,7 +179,16 @@ describe("furnace placement editor payloads", () => {
           note: "migrated",
         },
       ],
-      steps: [],
+      zones: [
+        {
+          zoneKey: "zone_1",
+          note: "",
+          temperatureProgram: [
+            { timeMin: "0", temperatureC: "25", note: "" },
+            { timeMin: "30", temperatureC: "750", note: "" },
+          ],
+        },
+      ],
     });
 
     expect(payload.placements[0]).toEqual({

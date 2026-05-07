@@ -119,18 +119,22 @@ export type FurnacePlacementValues = PayloadBackedValue & {
   note: string;
 };
 
-export type FurnaceStepValues = PayloadBackedValue & {
-  stepName: string;
-  durationMin: string;
-  isHold: boolean;
-  temperaturesC: Record<string, string>;
+export type FurnaceTemperatureNodeValues = PayloadBackedValue & {
+  timeMin: string;
+  temperatureC: string;
+  note: string;
+};
+
+export type FurnaceZoneValues = PayloadBackedValue & {
+  zoneKey: string;
+  temperatureProgram: FurnaceTemperatureNodeValues[];
   note: string;
 };
 
 export type FurnaceProgramValues = {
   furnaceInfo: FurnaceInfoValues;
   placements: FurnacePlacementValues[];
-  steps: FurnaceStepValues[];
+  zones: FurnaceZoneValues[];
 };
 
 export type GasSegmentValues = PayloadBackedValue & {
@@ -254,10 +258,6 @@ export function inferComponentFlowSccm(
     }
   }
   return "";
-}
-
-function asBoolean(value: unknown) {
-  return value === true;
 }
 
 function asBooleanWithDefault(value: unknown, defaultValue: boolean) {
@@ -511,32 +511,50 @@ export function validateSectionValues(
         `前驱体放置位置 ${placementIndex + 1}`,
       );
     });
-    values.furnaceProgram.steps.forEach((step, stepIndex) => {
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `steps.${stepIndex}.durationMin`,
-        step.durationMin,
-        `持续时间 步骤${stepIndex + 1}`,
-      );
-      const expectedZones = Number.isNaN(zonesCount) ? 0 : zonesCount;
-      const zoneKeys = Object.keys(step.temperaturesC);
-      if (expectedZones > 0 && zoneKeys.length !== expectedZones) {
+    const allowedZoneKeys = new Set(getValidFurnaceZoneKeys(values.furnaceProgram.furnaceInfo.zonesCount));
+    values.furnaceProgram.zones.forEach((zone, zoneIndex) => {
+      if (allowedZoneKeys.size > 0 && !allowedZoneKeys.has(zone.zoneKey)) {
         errors.push({
           sectionKey,
-          fieldPath: `steps.${stepIndex}.temperaturesC`,
-          message: `步骤 ${stepIndex + 1} 应有 ${expectedZones} 个温区温度，当前有 ${zoneKeys.length} 个`,
+          fieldPath: `zones.${zoneIndex}.zoneKey`,
+          message: `温区 ${zoneIndex + 1} 不在声明温区范围内`,
         });
       }
-      for (const [zoneKey, tempStr] of Object.entries(step.temperaturesC)) {
+      let previousTime: number | null = null;
+      zone.temperatureProgram.forEach((node, nodeIndex) => {
         appendNumberValidationError(
           errors,
           sectionKey,
-          `steps.${stepIndex}.temperaturesC.${zoneKey}`,
-          tempStr,
-          `${zoneKey} 温度 步骤${stepIndex + 1}`,
+          `zones.${zoneIndex}.temperatureProgram.${nodeIndex}.timeMin`,
+          node.timeMin,
+          `时间 温区${zoneIndex + 1}-${nodeIndex + 1}`,
         );
-      }
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `zones.${zoneIndex}.temperatureProgram.${nodeIndex}.temperatureC`,
+          node.temperatureC,
+          `温度 温区${zoneIndex + 1}-${nodeIndex + 1}`,
+        );
+        const timeResult = parseNullableNumber(node.timeMin, "时间");
+        if (timeResult.ok && timeResult.value !== null) {
+          if (timeResult.value < 0) {
+            errors.push({
+              sectionKey,
+              fieldPath: `zones.${zoneIndex}.temperatureProgram.${nodeIndex}.timeMin`,
+              message: `温区 ${zoneIndex + 1} 的时间必须非负`,
+            });
+          }
+          if (previousTime !== null && timeResult.value <= previousTime) {
+            errors.push({
+              sectionKey,
+              fieldPath: `zones.${zoneIndex}.temperatureProgram.${nodeIndex}.timeMin`,
+              message: `温区 ${zoneIndex + 1} 的时间节点必须递增`,
+            });
+          }
+          previousTime = timeResult.value;
+        }
+      });
     });
   }
 
@@ -607,6 +625,15 @@ function hasAnyValue(record: Record<string, string>) {
   return Object.values(record).some((value) => value.trim().length > 0);
 }
 
+function getFurnaceZoneKeys(zonesCount: number) {
+  return Array.from({ length: zonesCount }, (_, index) => `zone_${index + 1}`);
+}
+
+function getValidFurnaceZoneKeys(zonesCountValue: string) {
+  const zonesCount = parseInt(zonesCountValue, 10);
+  return Number.isFinite(zonesCount) && zonesCount > 0 ? getFurnaceZoneKeys(zonesCount) : [];
+}
+
 export function createEmptyPrecursorItem(): PrecursorItemValues {
   return {
     species: "",
@@ -638,12 +665,18 @@ export function createEmptySubstrateItem(): SubstrateItemValues {
   };
 }
 
-export function createEmptyFurnaceStep(): FurnaceStepValues {
+export function createEmptyFurnaceTemperatureNode(): FurnaceTemperatureNodeValues {
   return {
-    stepName: "",
-    durationMin: "",
-    isHold: false,
-    temperaturesC: {},
+    timeMin: "",
+    temperatureC: "",
+    note: "",
+  };
+}
+
+export function createEmptyFurnaceZone(zoneKey = ""): FurnaceZoneValues {
+  return {
+    zoneKey,
+    temperatureProgram: [],
     note: "",
   };
 }
@@ -761,6 +794,98 @@ function toFurnacePlacements(
   }));
 }
 
+function zoneSortKey(zoneKey: string) {
+  const match = /^zone_(\d+)$/.exec(zoneKey);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+
+function getDeclaredZoneKeysFromPayload(
+  furnaceProgram: Record<string, unknown>,
+  furnaceInfo: Record<string, unknown>,
+) {
+  const rawZonesCount = Number(asString(furnaceInfo.zones_count));
+  if (Number.isInteger(rawZonesCount) && rawZonesCount > 0) {
+    return getFurnaceZoneKeys(rawZonesCount);
+  }
+
+  const zoneKeys = new Set<string>();
+  for (const key of Object.keys(asRecord(furnaceInfo.initial_temperatures_C))) {
+    zoneKeys.add(key);
+  }
+  for (const zone of asObjectArray(furnaceProgram.zones)) {
+    const zoneKey = asString(zone.zone_key);
+    if (zoneKey) {
+      zoneKeys.add(zoneKey);
+    }
+  }
+  for (const step of asObjectArray(furnaceProgram.steps)) {
+    for (const key of Object.keys(asRecord(step.temperatures_C))) {
+      zoneKeys.add(key);
+    }
+  }
+
+  return [...zoneKeys].sort((a, b) => zoneSortKey(a) - zoneSortKey(b) || a.localeCompare(b));
+}
+
+function toFurnaceZones(
+  furnaceProgram: Record<string, unknown>,
+  furnaceInfo: Record<string, unknown>,
+): FurnaceZoneValues[] {
+  const zones = asObjectArray(furnaceProgram.zones);
+  if (zones.length > 0) {
+    return zones.map((zone, index) => ({
+      sourcePayload: zone,
+      zoneKey: asString(zone.zone_key) || `zone_${index + 1}`,
+      note: asString(zone.note),
+      temperatureProgram: asObjectArray(zone.temperature_program).map((node) => ({
+        sourcePayload: node,
+        timeMin: asString(node.time_min),
+        temperatureC: asString(node.temperature_C),
+        note: asString(node.note),
+      })),
+    }));
+  }
+
+  const steps = asObjectArray(furnaceProgram.steps);
+  const zoneKeys = getDeclaredZoneKeysFromPayload(furnaceProgram, furnaceInfo);
+  const initialTemperatures = asRecord(furnaceInfo.initial_temperatures_C);
+
+  return zoneKeys.map((zoneKey) => {
+    let elapsedMin = 0;
+    const temperatureProgram: FurnaceTemperatureNodeValues[] = [];
+    const initialTemperature = asString(initialTemperatures[zoneKey]);
+    if (initialTemperature) {
+      temperatureProgram.push({
+        timeMin: "0",
+        temperatureC: initialTemperature,
+        note: "",
+      });
+    }
+
+    for (const step of steps) {
+      const duration = Number(asString(step.duration_min));
+      if (Number.isFinite(duration)) {
+        elapsedMin += duration;
+      }
+      const temperatures = asRecord(step.temperatures_C);
+      if (!(zoneKey in temperatures)) {
+        continue;
+      }
+      temperatureProgram.push({
+        timeMin: String(elapsedMin),
+        temperatureC: asString(temperatures[zoneKey]),
+        note: asString(step.note),
+      });
+    }
+
+    return {
+      zoneKey,
+      note: "",
+      temperatureProgram,
+    };
+  });
+}
+
 export function createInitialEditorValues(
   experiment: ExperimentRead,
   items: ExperimentModulePayloadRead[],
@@ -849,21 +974,7 @@ export function createInitialEditorValues(
           initialTemperaturesC,
         },
         placements: toFurnacePlacements(fp, precursorItems),
-        steps: asObjectArray(fp.steps).map((s) => {
-          const temps = asRecord(s.temperatures_C);
-          const temperaturesC: Record<string, string> = {};
-          for (const [key, value] of Object.entries(temps)) {
-            temperaturesC[key] = asString(value);
-          }
-          return {
-            sourcePayload: s,
-            stepName: asString(s.step_name),
-            durationMin: asString(s.duration_min),
-            isHold: asBoolean(s.is_hold),
-            temperaturesC,
-            note: asString(s.note),
-          };
-        }),
+        zones: toFurnaceZones(fp, info),
       };
     })(),
     gasProgram: {
@@ -1144,8 +1255,9 @@ export function mergeSubstratesPayload(
 export function toFurnaceProgramPayload(values: FurnaceProgramValues) {
   const zonesCount = normalizeIntegerLike(values.furnaceInfo.zonesCount) ?? 2;
   const initialTemperaturesC: Record<string, number | null> = {};
-  for (const [key, value] of Object.entries(values.furnaceInfo.initialTemperaturesC)) {
-    initialTemperaturesC[key] = normalizeNumberLike(value);
+  for (const zone of values.zones) {
+    const firstNode = zone.temperatureProgram[0];
+    initialTemperaturesC[zone.zoneKey] = firstNode ? normalizeNumberLike(firstNode.temperatureC) : null;
   }
 
   return {
@@ -1176,37 +1288,40 @@ export function toFurnaceProgramPayload(values: FurnaceProgramValues) {
           ["precursor_index", "zone_key", "position_cm", "note", "material", "mass_mg"],
         ),
       ),
-    steps: values.steps
-      .map((step, index) => {
-        const temperaturesC: Record<string, number | null> = {};
-        for (const [key, value] of Object.entries(step.temperaturesC)) {
-          temperaturesC[key] = normalizeNumberLike(value);
-        }
+    zones: values.zones.map((zone) =>
+      mergePayloadFields(
+        zone.sourcePayload,
+        removeNullEntries({
+          zone_key: normalizeNullableString(zone.zoneKey),
+          temperature_program: zone.temperatureProgram
+            .map((node, index) => {
+              const keep =
+                node.timeMin.trim().length > 0 ||
+                node.temperatureC.trim().length > 0 ||
+                node.note.trim().length > 0 ||
+                hasSourcePayload(node.sourcePayload);
 
-        const keep =
-          step.stepName.trim().length > 0 ||
-          step.durationMin.trim().length > 0 ||
-          Object.values(step.temperaturesC).some((v) => v.trim().length > 0) ||
-          hasSourcePayload(step.sourcePayload);
-
-        return {
-          keep,
-          payload: mergePayloadFields(
-            step.sourcePayload,
-            removeNullEntries({
-              step_index: index + 1,
-              step_name: normalizeNullableString(step.stepName),
-              duration_min: normalizeNumberLike(step.durationMin),
-              is_hold: step.isHold,
-              temperatures_C: temperaturesC,
-              note: normalizeNullableString(step.note),
-            }),
-            ["step_index", "step_name", "duration_min", "is_hold", "temperatures_C", "note"],
-          ),
-        };
-      })
-      .filter((step) => step.keep)
-      .map((step) => step.payload),
+              return {
+                keep,
+                payload: mergePayloadFields(
+                  node.sourcePayload,
+                  removeNullEntries({
+                    node_index: index + 1,
+                    time_min: normalizeNumberLike(node.timeMin),
+                    temperature_C: normalizeNumberLike(node.temperatureC),
+                    note: normalizeNullableString(node.note),
+                  }),
+                  ["node_index", "time_min", "temperature_C", "note"],
+                ),
+              };
+            })
+            .filter((node) => node.keep)
+            .map((node) => node.payload),
+          note: normalizeNullableString(zone.note),
+        }),
+        ["zone_key", "temperature_program", "note", "zone_index", "precursor_placed"],
+      ),
+    ),
   };
 }
 
@@ -1218,6 +1333,7 @@ export function mergeFurnaceProgramPayload(
     "furnace_info",
     "placements",
     "precursors",
+    "zones",
     "steps",
   ]);
 }

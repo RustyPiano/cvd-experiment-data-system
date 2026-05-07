@@ -333,7 +333,7 @@ result_summary
 - `precursors.items` 至少一项，且每项必须是对象。
 - `precursors.items[].species` 为前驱体种类，提交时必填；前驱体 `role/type` 不再属于 payload 契约。
 - `furnace_program.zones` 至少一项。
-- 每个 `zone.temperature_program` 至少一项，且 `time_min` 严格递增。
+- 每个 `zone.temperature_program` 至少两个节点，节点包含 `time_min` 和 `temperature_C`，且同一温区内 `time_min` 必须非负并严格递增。
 - `gas_program.segments` 如果存在，则要求时间段合法且不能重叠。
 - `substrates.items` 如果存在，则要求 `role` 为 `top/bottom` 且 `type` 非空。
 - `characterization.methods` 如果存在启用项，则要求 `method` 非空。
