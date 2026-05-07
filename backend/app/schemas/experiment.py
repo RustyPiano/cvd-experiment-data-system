@@ -164,10 +164,11 @@ class ExperimentAnalysisFurnaceStepRow(BaseModel):
 class ExperimentAnalysisFurnacePrecursorRow(BaseModel):
     experiment_id: UUID
     run_code: str
-    precursor_index: int
-    material: str | None
+    placement_index: int
+    precursor_index: int | None
+    species: str | None
+    zone_key: str | None
     position_cm: float | None
-    mass_mg: float | None
     note: str | None
 
 

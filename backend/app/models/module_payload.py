@@ -180,7 +180,9 @@ def _normalize_furnace_program(payload: dict) -> dict:
         normalized["furnace_info"] = {"zones_count": 2}
     else:
         normalized["furnace_info"].setdefault("zones_count", 2)
-    if not isinstance(normalized.get("precursors"), list):
+    if not isinstance(normalized.get("placements"), list):
+        normalized["placements"] = []
+    if "precursors" in normalized and not isinstance(normalized.get("precursors"), list):
         normalized["precursors"] = []
     if not isinstance(normalized.get("steps"), list):
         normalized["steps"] = []

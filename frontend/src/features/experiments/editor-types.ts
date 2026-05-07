@@ -112,10 +112,10 @@ export type FurnaceInfoValues = {
   initialTemperaturesC: Record<string, string>;
 };
 
-export type FurnacePrecursorValues = PayloadBackedValue & {
-  material: string;
+export type FurnacePlacementValues = PayloadBackedValue & {
+  precursorIndex: string;
+  zoneKey: string;
   positionCm: string;
-  massMg: string;
   note: string;
 };
 
@@ -129,7 +129,7 @@ export type FurnaceStepValues = PayloadBackedValue & {
 
 export type FurnaceProgramValues = {
   furnaceInfo: FurnaceInfoValues;
-  precursors: FurnacePrecursorValues[];
+  placements: FurnacePlacementValues[];
   steps: FurnaceStepValues[];
 };
 
@@ -502,20 +502,13 @@ export function validateSectionValues(
         message: "温区数量必须是正整数",
       });
     }
-    values.furnaceProgram.precursors.forEach((precursor, precursorIndex) => {
+    values.furnaceProgram.placements.forEach((placement, placementIndex) => {
       appendNumberValidationError(
         errors,
         sectionKey,
-        `precursors.${precursorIndex}.positionCm`,
-        precursor.positionCm,
-        `前驱体位置 ${precursorIndex + 1}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `precursors.${precursorIndex}.massMg`,
-        precursor.massMg,
-        `前驱体质量 ${precursorIndex + 1}`,
+        `placements.${placementIndex}.positionCm`,
+        placement.positionCm,
+        `前驱体放置位置 ${placementIndex + 1}`,
       );
     });
     values.furnaceProgram.steps.forEach((step, stepIndex) => {
@@ -655,11 +648,11 @@ export function createEmptyFurnaceStep(): FurnaceStepValues {
   };
 }
 
-export function createEmptyFurnacePrecursor(): FurnacePrecursorValues {
+export function createEmptyFurnacePlacement(): FurnacePlacementValues {
   return {
-    material: "",
+    precursorIndex: "",
+    zoneKey: "",
     positionCm: "",
-    massMg: "",
     note: "",
   };
 }
@@ -729,6 +722,43 @@ export function createModulePayloadMap(items: ExperimentModulePayloadRead[]): Mo
     result[item.module_key as EditorSectionKey] = asRecord(item.payload_json);
     return result;
   }, {});
+}
+
+function findPrecursorIndexBySpecies(
+  precursorItems: Record<string, unknown>[],
+  species: unknown,
+): string {
+  const speciesString = asString(species).trim();
+  if (!speciesString) {
+    return "";
+  }
+
+  const index = precursorItems.findIndex((item) => asString(item.species).trim() === speciesString);
+  return index >= 0 ? String(index) : "";
+}
+
+function toFurnacePlacements(
+  furnaceProgram: Record<string, unknown>,
+  precursorItems: Record<string, unknown>[],
+): FurnacePlacementValues[] {
+  const placements = asObjectArray(furnaceProgram.placements);
+  if (placements.length > 0) {
+    return placements.map((placement) => ({
+      sourcePayload: placement,
+      precursorIndex: asString(placement.precursor_index),
+      zoneKey: asString(placement.zone_key),
+      positionCm: asString(placement.position_cm),
+      note: asString(placement.note),
+    }));
+  }
+
+  return asObjectArray(furnaceProgram.precursors).map((legacy) => ({
+    sourcePayload: legacy,
+    precursorIndex: findPrecursorIndexBySpecies(precursorItems, legacy.material),
+    zoneKey: "",
+    positionCm: asString(legacy.position_cm),
+    note: asString(legacy.note),
+  }));
 }
 
 export function createInitialEditorValues(
@@ -818,13 +848,7 @@ export function createInitialEditorValues(
           model: asString(info.model),
           initialTemperaturesC,
         },
-        precursors: asObjectArray(fp.precursors).map((p) => ({
-          sourcePayload: p,
-          material: asString(p.material),
-          positionCm: asString(p.position_cm),
-          massMg: asString(p.mass_mg),
-          note: asString(p.note),
-        })),
+        placements: toFurnacePlacements(fp, precursorItems),
         steps: asObjectArray(fp.steps).map((s) => {
           const temps = asRecord(s.temperatures_C);
           const temperaturesC: Record<string, string> = {};
@@ -1130,22 +1154,26 @@ export function toFurnaceProgramPayload(values: FurnaceProgramValues) {
       model: normalizeNullableString(values.furnaceInfo.model),
       initial_temperatures_C: initialTemperaturesC,
     }),
-    precursors: values.precursors
+    placements: values.placements
       .filter(
-        (p) =>
-          hasAnyValue({ material: p.material, positionCm: p.positionCm, massMg: p.massMg, note: p.note }) ||
-          hasSourcePayload(p.sourcePayload),
+        (placement) =>
+          hasAnyValue({
+            precursorIndex: placement.precursorIndex,
+            zoneKey: placement.zoneKey,
+            positionCm: placement.positionCm,
+            note: placement.note,
+          }) || hasSourcePayload(placement.sourcePayload),
       )
-      .map((p) =>
+      .map((placement) =>
         mergePayloadFields(
-          p.sourcePayload,
+          placement.sourcePayload,
           removeNullEntries({
-            material: normalizeNullableString(p.material),
-            position_cm: normalizeNumberLike(p.positionCm),
-            mass_mg: normalizeNumberLike(p.massMg),
-            note: normalizeNullableString(p.note),
+            precursor_index: normalizeIntegerLike(placement.precursorIndex),
+            zone_key: normalizeNullableString(placement.zoneKey),
+            position_cm: normalizeNumberLike(placement.positionCm),
+            note: normalizeNullableString(placement.note),
           }),
-          ["material", "position_cm", "mass_mg", "note"],
+          ["precursor_index", "zone_key", "position_cm", "note", "material", "mass_mg"],
         ),
       ),
     steps: values.steps
@@ -1188,6 +1216,7 @@ export function mergeFurnaceProgramPayload(
 ) {
   return mergePayloadFields(existingPayload, toFurnaceProgramPayload(values), [
     "furnace_info",
+    "placements",
     "precursors",
     "steps",
   ]);

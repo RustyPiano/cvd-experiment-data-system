@@ -70,7 +70,7 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
       model: "",
       initialTemperaturesC: { zone_1: "25", zone_2: "25" },
     },
-    precursors: [],
+    placements: [],
     steps: [],
   },
   gasProgram: {

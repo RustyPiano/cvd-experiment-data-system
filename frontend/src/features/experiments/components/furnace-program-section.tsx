@@ -1,14 +1,15 @@
-import { Alert, Button, Card, Empty, Input, Switch, Typography } from "antd";
+import { Alert, Button, Card, Empty, Input, Select, Switch, Typography } from "antd";
 import { useCallback, useState } from "react";
 
 import type { RecipeRead } from "../../../shared/types/api";
 import { BUILTIN_FURNACE_TEMPLATES, type QuickTemplate } from "../data/builtin-templates";
 import {
-  createEmptyFurnacePrecursor,
+  createEmptyFurnacePlacement,
   createEmptyFurnaceStep,
-  type FurnacePrecursorValues,
+  type FurnacePlacementValues,
   type FurnaceProgramValues,
   type FurnaceStepValues,
+  type PrecursorItemValues,
 } from "../editor-types";
 import { QuickTemplateMenu } from "./quick-template-menu";
 
@@ -51,7 +52,44 @@ function getZoneKeys(zonesCount: number): string[] {
   return Array.from({ length: zonesCount }, (_, i) => `zone_${i + 1}`);
 }
 
-function toFurnaceProgramValues(payload: Record<string, unknown>): FurnaceProgramValues {
+function findPrecursorIndexBySpecies(precursorItems: PrecursorItemValues[], species: unknown) {
+  const speciesString = asString(species).trim();
+  if (!speciesString) {
+    return "";
+  }
+
+  const index = precursorItems.findIndex((item) => item.species.trim() === speciesString);
+  return index >= 0 ? String(index) : "";
+}
+
+function toPlacements(
+  payload: Record<string, unknown>,
+  precursorItems: PrecursorItemValues[],
+): FurnacePlacementValues[] {
+  const placements = asObjectArray(payload.placements);
+  if (placements.length > 0) {
+    return placements.map((placement) => ({
+      sourcePayload: placement,
+      precursorIndex: asString(placement.precursor_index),
+      zoneKey: asString(placement.zone_key),
+      positionCm: asString(placement.position_cm),
+      note: asString(placement.note),
+    }));
+  }
+
+  return asObjectArray(payload.precursors).map((legacy) => ({
+    sourcePayload: legacy,
+    precursorIndex: findPrecursorIndexBySpecies(precursorItems, legacy.material),
+    zoneKey: "",
+    positionCm: asString(legacy.position_cm),
+    note: asString(legacy.note),
+  }));
+}
+
+function toFurnaceProgramValues(
+  payload: Record<string, unknown>,
+  precursorItems: PrecursorItemValues[],
+): FurnaceProgramValues {
   const info = asRecord(payload.furnace_info);
   const initialTempsRaw = asRecord(info.initial_temperatures_C);
   const initialTemperaturesC: Record<string, string> = {};
@@ -73,13 +111,7 @@ function toFurnaceProgramValues(payload: Record<string, unknown>): FurnaceProgra
       model: asString(info.model),
       initialTemperaturesC,
     },
-    precursors: asObjectArray(payload.precursors).map((p) => ({
-      sourcePayload: p,
-      material: asString(p.material),
-      positionCm: asString(p.position_cm),
-      massMg: asString(p.mass_mg),
-      note: asString(p.note),
-    })),
+    placements: toPlacements(payload, precursorItems),
     steps: asObjectArray(payload.steps).map((s) => {
       const temps = asRecord(s.temperatures_C);
       const temperaturesC: Record<string, string> = {};
@@ -102,6 +134,7 @@ export function FurnaceProgramSection({
   disabled,
   materialSystem,
   onChange,
+  precursorItems,
   recipeTemplates = [],
   templates = BUILTIN_FURNACE_TEMPLATES,
   value,
@@ -109,6 +142,7 @@ export function FurnaceProgramSection({
   disabled: boolean;
   materialSystem?: string;
   onChange: (nextValue: FurnaceProgramValues) => void;
+  precursorItems: PrecursorItemValues[];
   recipeTemplates?: RecipeRead[];
   templates?: QuickTemplate[];
   value: FurnaceProgramValues;
@@ -118,6 +152,11 @@ export function FurnaceProgramSection({
   const parsedZonesCount = parseInt(value.furnaceInfo.zonesCount, 10);
   const zonesCount = Number.isFinite(parsedZonesCount) && parsedZonesCount > 0 ? parsedZonesCount : 2;
   const zoneKeys = getZoneKeys(zonesCount);
+  const precursorOptions = precursorItems.map((item, index) => ({
+    label: item.species.trim() || `前驱体 ${index + 1}`,
+    value: String(index),
+  }));
+  const zoneOptions = zoneKeys.map((zoneKey) => ({ label: zoneKey, value: zoneKey }));
 
   const emitManualChange = useCallback((nextValue: FurnaceProgramValues) => {
     setAppliedTemplateLabel(null);
@@ -126,7 +165,7 @@ export function FurnaceProgramSection({
 
   const applyTemplate = (template: QuickTemplate) => {
     setAppliedTemplateLabel(template.label);
-    onChange(toFurnaceProgramValues(asRecord(template.payload)));
+    onChange(toFurnaceProgramValues(asRecord(template.payload), precursorItems));
   };
 
   const handleZonesCountChange = useCallback(
@@ -160,7 +199,7 @@ export function FurnaceProgramSection({
           zonesCount: newZonesCountStr,
           initialTemperaturesC: newInitialTemperaturesC,
         },
-        precursors: value.precursors,
+        placements: value.placements,
         steps: newSteps,
       });
     },
@@ -190,22 +229,24 @@ export function FurnaceProgramSection({
     [value, emitManualChange],
   );
 
-  const addPrecursor = useCallback(() => {
-    emitManualChange({ ...value, precursors: [...value.precursors, createEmptyFurnacePrecursor()] });
+  const addPlacement = useCallback(() => {
+    emitManualChange({ ...value, placements: [...value.placements, createEmptyFurnacePlacement()] });
   }, [value, emitManualChange]);
 
-  const removePrecursor = useCallback(
+  const removePlacement = useCallback(
     (index: number) => {
-      emitManualChange({ ...value, precursors: value.precursors.filter((_, i) => i !== index) });
+      emitManualChange({ ...value, placements: value.placements.filter((_, i) => i !== index) });
     },
     [value, emitManualChange],
   );
 
-  const updatePrecursor = useCallback(
-    (index: number, patch: Partial<FurnacePrecursorValues>) => {
+  const updatePlacement = useCallback(
+    (index: number, patch: Partial<FurnacePlacementValues>) => {
       emitManualChange({
         ...value,
-        precursors: value.precursors.map((p, i) => (i === index ? { ...p, ...patch } : p)),
+        placements: value.placements.map((placement, i) =>
+          i === index ? { ...placement, ...patch } : placement,
+        ),
       });
     },
     [value, emitManualChange],
@@ -311,26 +352,38 @@ export function FurnaceProgramSection({
 
       <Card
         size="small"
-        title="前驱体"
+        title="前驱体放置"
         extra={
-          <Button disabled={disabled} onClick={addPrecursor} size="small">
-            添加前驱体
+          <Button disabled={disabled} onClick={addPlacement} size="small">
+            添加放置
           </Button>
         }
       >
-        {value.precursors.length === 0 ? (
-          <Empty description="尚未添加前驱体" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        {value.placements.length === 0 ? (
+          <Empty description="尚未添加前驱体放置" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
-          value.precursors.map((precursor, index) => (
-            <div className="editor-form-grid" key={`precursor-${index}`}>
+          value.placements.map((placement, index) => (
+            <div className="editor-form-grid" key={`placement-${index}`}>
               <div className="editor-field">
-                <Typography.Text strong>{`材料 ${index + 1}`}</Typography.Text>
-                <Input
-                  aria-label={`材料 ${index + 1}`}
+                <Typography.Text strong>{`前驱体 ${index + 1}`}</Typography.Text>
+                <Select
+                  aria-label={`前驱体 ${index + 1}`}
                   disabled={disabled}
-                  onChange={(e) => updatePrecursor(index, { material: e.target.value })}
-                  placeholder="材料名称"
-                  value={precursor.material}
+                  onChange={(nextValue) => updatePlacement(index, { precursorIndex: nextValue })}
+                  options={precursorOptions}
+                  placeholder="选择已有前驱体"
+                  value={placement.precursorIndex || undefined}
+                />
+              </div>
+              <div className="editor-field">
+                <Typography.Text strong>{`温区 ${index + 1}`}</Typography.Text>
+                <Select
+                  aria-label={`温区 ${index + 1}`}
+                  disabled={disabled}
+                  onChange={(nextValue) => updatePlacement(index, { zoneKey: nextValue })}
+                  options={zoneOptions}
+                  placeholder="选择温区"
+                  value={placement.zoneKey || undefined}
                 />
               </div>
               <div className="editor-field">
@@ -338,35 +391,25 @@ export function FurnaceProgramSection({
                 <Input
                   aria-label={`位置 ${index + 1}`}
                   disabled={disabled}
-                  onChange={(e) => updatePrecursor(index, { positionCm: e.target.value })}
+                  onChange={(e) => updatePlacement(index, { positionCm: e.target.value })}
                   placeholder="position_cm"
-                  value={precursor.positionCm}
-                />
-              </div>
-              <div className="editor-field">
-                <Typography.Text strong>{`质量 ${index + 1}`}</Typography.Text>
-                <Input
-                  aria-label={`质量 ${index + 1}`}
-                  disabled={disabled}
-                  onChange={(e) => updatePrecursor(index, { massMg: e.target.value })}
-                  placeholder="mass_mg"
-                  value={precursor.massMg}
+                  value={placement.positionCm}
                 />
               </div>
               <div className="editor-field editor-field-wide">
                 <Typography.Text strong>{`备注 ${index + 1}`}</Typography.Text>
                 <Input
-                  aria-label={`前驱体备注 ${index + 1}`}
+                  aria-label={`放置备注 ${index + 1}`}
                   disabled={disabled}
-                  onChange={(e) => updatePrecursor(index, { note: e.target.value })}
-                  value={precursor.note}
+                  onChange={(e) => updatePlacement(index, { note: e.target.value })}
+                  value={placement.note}
                 />
               </div>
               <div className="editor-inline-actions">
                 <Button
                   danger
                   disabled={disabled}
-                  onClick={() => removePrecursor(index)}
+                  onClick={() => removePlacement(index)}
                   size="small"
                   type="text"
                 >
