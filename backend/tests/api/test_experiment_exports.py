@@ -431,8 +431,13 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [
-                    {"material": "", "position_cm": None, "mass_mg": None, "note": "center"}
+                "placements": [
+                    {
+                        "precursor_index": 0,
+                        "zone_key": "zone_1",
+                        "position_cm": -15,
+                        "note": "center",
+                    }
                 ],
                 "steps": [
                     {
@@ -562,6 +567,16 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     assert body["substrate_rows"][0]["treatment_params_gas"] == "O2"
     assert body["furnace_step_rows"][0]["step_index"] == 1
     assert body["furnace_step_rows"][0]["temperature_C"] == 750.0
+    assert body["furnace_precursor_rows"][0] == {
+        "experiment_id": experiment_id,
+        "run_code": "CVD-2026-0001",
+        "placement_index": 0,
+        "precursor_index": 0,
+        "species": "MoO3",
+        "zone_key": "zone_1",
+        "position_cm": -15.0,
+        "note": "center",
+    }
     assert body["gas_program_rows"][0] == {
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",
@@ -579,6 +594,67 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     }
     assert body["file_rows"][0]["file_id"] == file_response.json()["id"]
     assert body["file_rows"][0]["sample_id"] == sample_id
+
+
+def test_export_analysis_falls_back_to_legacy_furnace_precursors(active_user) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Legacy furnace placement")
+
+    precursors_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={
+            "payload_json": {
+                "items": [
+                    {"species": "MoO3", "method": "powder"},
+                    {"species": "S", "method": "powder"},
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert precursors_response.status_code == 200
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "furnace_info": {"zones_count": 2, "initial_temperatures_C": {"zone_1": 25}},
+                "precursors": [
+                    {"material": "S", "position_cm": -25, "mass_mg": 200, "note": "legacy"}
+                ],
+                "steps": [
+                    {
+                        "step_index": 1,
+                        "step_name": "升温",
+                        "duration_min": 30,
+                        "is_hold": False,
+                        "temperatures_C": {"zone_1": 650, "zone_2": 780},
+                        "note": "",
+                    }
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert furnace_response.status_code == 200
+
+    export_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/analysis",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert export_response.status_code == 200
+    assert export_response.json()["furnace_precursor_rows"] == [
+        {
+            "experiment_id": experiment_id,
+            "run_code": "CVD-2026-0001",
+            "placement_index": 0,
+            "precursor_index": 1,
+            "species": "S",
+            "zone_key": None,
+            "position_cm": -25.0,
+            "note": "legacy",
+        }
+    ]
 
 
 def test_export_analysis_keeps_program_level_gas_and_flat_metadata(active_user) -> None:

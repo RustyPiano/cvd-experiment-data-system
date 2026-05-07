@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { RecipeRead } from "../../../shared/types/api";
 import { BUILTIN_FURNACE_TEMPLATES } from "../data/builtin-templates";
-import type { FurnaceProgramValues } from "../editor-types";
+import type { FurnaceProgramValues, PrecursorItemValues } from "../editor-types";
 import { FurnaceProgramSection } from "./furnace-program-section";
 
 afterEach(() => {
@@ -18,11 +18,11 @@ function createValue(): FurnaceProgramValues {
       model: "OTF-1200X",
       initialTemperaturesC: { zone_1: "25", zone_2: "25" },
     },
-    precursors: [
+    placements: [
       {
-        material: "MoO3",
+        precursorIndex: "0",
+        zoneKey: "zone_1",
         positionCm: "-15",
-        massMg: "15",
         note: "upstream",
       },
     ],
@@ -38,12 +38,42 @@ function createValue(): FurnaceProgramValues {
   };
 }
 
+const precursorItems: PrecursorItemValues[] = [
+  {
+    species: "MoO3",
+    brand: "Sigma",
+    concentration: "",
+    concentrationUnit: "",
+    method: "powder",
+    meltingTemperatureC: "",
+    spinSpeedRpm: "",
+    preSpinSpeedRpm: "",
+    preparationTimeMin: "",
+    massMg: "15",
+    batchNo: "",
+  },
+  {
+    species: "S",
+    brand: "",
+    concentration: "",
+    concentrationUnit: "",
+    method: "powder",
+    meltingTemperatureC: "",
+    spinSpeedRpm: "",
+    preSpinSpeedRpm: "",
+    preparationTimeMin: "",
+    massMg: "200",
+    batchNo: "",
+  },
+];
+
 describe("FurnaceProgramSection", () => {
   it("renders furnace info, precursors, and steps sections", () => {
     render(
       <FurnaceProgramSection
         disabled={false}
         onChange={vi.fn()}
+        precursorItems={precursorItems}
         templates={BUILTIN_FURNACE_TEMPLATES}
         value={createValue()}
       />,
@@ -51,7 +81,11 @@ describe("FurnaceProgramSection", () => {
 
     expect(screen.getByText("炉子信息")).toBeInTheDocument();
     expect(screen.getByLabelText("温区数量")).toHaveValue("2");
-    expect(screen.getByLabelText("材料 1")).toHaveValue("MoO3");
+    expect(screen.getByText("前驱体放置")).toBeInTheDocument();
+    expect(screen.getByText("MoO3")).toBeInTheDocument();
+    expect(screen.queryByLabelText("材料 1")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("质量 1")).not.toBeInTheDocument();
+    expect(screen.getByText("zone_1")).toBeInTheDocument();
     expect(screen.getByText("步骤 1")).toBeInTheDocument();
     expect(screen.getByLabelText("温度 1-2")).toHaveValue("780");
   });
@@ -65,6 +99,7 @@ describe("FurnaceProgramSection", () => {
         disabled={false}
         materialSystem="MoS2"
         onChange={onChange}
+        precursorItems={precursorItems}
         templates={BUILTIN_FURNACE_TEMPLATES}
         value={createValue()}
       />,
@@ -96,6 +131,7 @@ describe("FurnaceProgramSection", () => {
         disabled={false}
         materialSystem="MoS2"
         onChange={onChange}
+        precursorItems={precursorItems}
         templates={BUILTIN_FURNACE_TEMPLATES}
         value={appliedValue}
       />,
@@ -115,6 +151,7 @@ describe("FurnaceProgramSection", () => {
       <FurnaceProgramSection
         disabled={false}
         onChange={onChange}
+        precursorItems={precursorItems}
         templates={BUILTIN_FURNACE_TEMPLATES}
         value={createValue()}
       />,
@@ -128,7 +165,7 @@ describe("FurnaceProgramSection", () => {
         model: "OTF-1200X",
         initialTemperaturesC: { zone_1: "25", zone_2: "25", zone_3: "25" },
       },
-      precursors: createValue().precursors,
+      placements: createValue().placements,
       steps: [
         {
           stepName: "升温",
@@ -158,7 +195,14 @@ describe("FurnaceProgramSection", () => {
               model: "Recipe tube",
               initial_temperatures_C: { zone_1: 30 },
             },
-            precursors: [],
+            placements: [
+              {
+                precursor_index: 1,
+                zone_key: "zone_1",
+                position_cm: -25,
+                note: "recipe placement",
+              },
+            ],
             steps: [
               {
                 step_index: 1,
@@ -203,6 +247,7 @@ describe("FurnaceProgramSection", () => {
         disabled={false}
         materialSystem="MoS2"
         onChange={onChange}
+        precursorItems={precursorItems}
         recipeTemplates={recipeTemplates}
         templates={BUILTIN_FURNACE_TEMPLATES}
         value={createValue()}
@@ -222,7 +267,15 @@ describe("FurnaceProgramSection", () => {
         model: "Recipe tube",
         initialTemperaturesC: { zone_1: "30" },
       },
-      precursors: [],
+      placements: [
+        {
+          sourcePayload: expect.objectContaining({ precursor_index: 1 }),
+          precursorIndex: "1",
+          zoneKey: "zone_1",
+          positionCm: "-25",
+          note: "recipe placement",
+        },
+      ],
       steps: [
         {
           sourcePayload: expect.objectContaining({ step_name: "Recipe hold" }),

@@ -229,10 +229,13 @@ function renderSubstratesParams(modules: ExperimentModulePayloadRead[] | undefin
 
 function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined) {
   const payload = getModulePayload(modules, "furnace_program");
+  const precursorItems = safeArray(getModulePayload(modules, "precursors").items).map((item) =>
+    safeRecord(item),
+  );
   const furnaceInfo = safeRecord(payload.furnace_info);
-  const precursors = safeArray(payload.precursors).map((item) => safeRecord(item));
+  const placements = furnacePlacements(payload, precursorItems);
   const steps = safeArray(payload.steps).map((item) => safeRecord(item));
-  if (steps.length === 0 && precursors.length === 0 && !furnaceInfo.model) {
+  if (steps.length === 0 && placements.length === 0 && !furnaceInfo.model) {
     return <Typography.Text type="secondary">无炉温程序记录</Typography.Text>;
   }
   const zoneKeys = steps.length > 0
@@ -245,19 +248,19 @@ function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined)
         <Typography.Text type="secondary">{safeString(furnaceInfo.model) || "—"}</Typography.Text>
         <Typography.Text type="secondary">温区数：{safeString(furnaceInfo.zones_count) || "—"}</Typography.Text>
       </Space>
-      {precursors.length > 0 ? (
+      {placements.length > 0 ? (
         <Table
           columns={[
-            { title: "材料", dataIndex: "material", render: (v: unknown) => safeString(v) || "—" },
+            { title: "前驱体", dataIndex: "species", render: (v: unknown) => safeString(v) || "—" },
+            { title: "温区", dataIndex: "zone_key", render: (v: unknown) => safeString(v) || "—" },
             { title: "位置 (cm)", dataIndex: "position_cm", render: (v: unknown) => safeString(v) || "—" },
-            { title: "质量 (mg)", dataIndex: "mass_mg", render: (v: unknown) => safeString(v) || "—" },
             { title: "备注", dataIndex: "note", render: (v: unknown) => safeString(v) || "—" },
           ]}
-          dataSource={precursors}
+          dataSource={placements}
           pagination={false}
-          rowKey={(_, index) => `precursor-${index}`}
+          rowKey={(_, index) => `placement-${index}`}
           size="small"
-          title={() => <Typography.Text strong>前驱体</Typography.Text>}
+          title={() => <Typography.Text strong>前驱体放置</Typography.Text>}
         />
       ) : null}
       {steps.length > 0 ? (
@@ -289,6 +292,52 @@ function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined)
       ) : null}
     </div>
   );
+}
+
+function findPrecursorIndexBySpecies(
+  precursorItems: Record<string, unknown>[],
+  species: unknown,
+): number | null {
+  const speciesString = safeString(species).trim();
+  if (!speciesString) {
+    return null;
+  }
+
+  const index = precursorItems.findIndex((item) => safeString(item.species).trim() === speciesString);
+  return index >= 0 ? index : null;
+}
+
+function furnacePlacements(
+  payload: Record<string, unknown>,
+  precursorItems: Record<string, unknown>[],
+) {
+  const placements = safeArray(payload.placements).map((item) => safeRecord(item));
+  if (placements.length > 0) {
+    return placements.map((placement) => {
+      const precursorIndex = Number(placement.precursor_index);
+      const precursor =
+        Number.isInteger(precursorIndex) && precursorIndex >= 0 && precursorIndex < precursorItems.length
+          ? precursorItems[precursorIndex]
+          : {};
+      return {
+        ...placement,
+        species: safeString(precursor.species),
+      };
+    });
+  }
+
+  return safeArray(payload.precursors).map((item) => {
+    const legacy = safeRecord(item);
+    const precursorIndex = findPrecursorIndexBySpecies(precursorItems, legacy.material);
+    const precursor = precursorIndex === null ? {} : precursorItems[precursorIndex];
+    return {
+      precursor_index: precursorIndex,
+      species: safeString(precursor.species) || safeString(legacy.material),
+      zone_key: null,
+      position_cm: legacy.position_cm,
+      note: legacy.note,
+    };
+  });
 }
 
 function renderGasParams(modules: ExperimentModulePayloadRead[] | undefined) {

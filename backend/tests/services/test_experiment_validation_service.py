@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from app.models.experiment import ExperimentRun, QualityLabel
 from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
+from app.schemas.module_payload import validate_module_payload
 from app.services.experiment_validation_service import ExperimentValidationService
 
 
@@ -102,3 +103,45 @@ def test_schema_validation_reports_string_type_in_chinese(
         and issue.message == "必须是文本"
         for issue in result.errors
     )
+
+
+def test_furnace_program_schema_accepts_canonical_placements_and_legacy_precursors() -> None:
+    canonical = validate_module_payload(
+        ExperimentModuleKey.FURNACE_PROGRAM.value,
+        {
+            "furnace_info": {"zones_count": 2},
+            "placements": [
+                {
+                    "precursor_index": 0,
+                    "zone_key": "zone_1",
+                    "position_cm": -15,
+                    "note": "upstream",
+                }
+            ],
+            "steps": [],
+        },
+    )
+
+    assert canonical["placements"] == [
+        {
+            "precursor_index": 0,
+            "zone_key": "zone_1",
+            "position_cm": -15.0,
+            "note": "upstream",
+        }
+    ]
+
+    legacy = validate_module_payload(
+        ExperimentModuleKey.FURNACE_PROGRAM.value,
+        {
+            "furnace_info": {"zones_count": 2},
+            "precursors": [
+                {"material": "MoO3", "position_cm": -15, "mass_mg": 15, "note": "legacy"}
+            ],
+            "steps": [],
+        },
+    )
+
+    assert legacy["precursors"] == [
+        {"material": "MoO3", "position_cm": -15.0, "mass_mg": 15.0, "note": "legacy"}
+    ]

@@ -390,28 +390,33 @@ result_summary
 
 ```json
 {
-  "zones": [
+  "furnace_info": {
+    "zones_count": 2,
+    "model": "OTF-1200X",
+    "initial_temperatures_C": {"zone_1": 25, "zone_2": 25}
+  },
+  "placements": [
     {
-      "zone_index": 1,
-      "precursor_placed": true,
-      "temperature_program": [
-        {"time_min": 0, "temperature_C": 25},
-        {"time_min": 30, "temperature_C": 750}
-      ],
-      "note": ""
-    },
+      "precursor_index": 0,
+      "zone_key": "zone_1",
+      "position_cm": -15,
+      "note": "上游温区"
+    }
+  ],
+  "steps": [
     {
-      "zone_index": 2,
-      "precursor_placed": true,
-      "temperature_program": [
-        {"time_min": 0, "temperature_C": 25},
-        {"time_min": 30, "temperature_C": 200}
-      ],
+      "step_index": 1,
+      "step_name": "升温",
+      "duration_min": 30,
+      "is_hold": false,
+      "temperatures_C": {"zone_1": 750, "zone_2": 200},
       "note": ""
     }
   ]
 }
 ```
+
+`placements[].precursor_index` 引用 `precursors.items[index]`。前驱体种类、质量、批号等主信息只在 `precursors` 模块维护；旧 `furnace_program.precursors[]` 仅用于历史 payload 读取兼容。
 
 ### 9.8 gas_program
 

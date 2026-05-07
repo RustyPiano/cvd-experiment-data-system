@@ -431,20 +431,57 @@ class ExperimentExportService:
         payloads: dict[str, dict[str, Any]],
         context: dict[str, Any],
     ) -> list[ExperimentAnalysisFurnacePrecursorRow]:
-        precursors = self._list_payload_items(payloads.get("furnace_program", {}).get("precursors"))
+        experiment_precursors = self._list_payload_items(
+            payloads.get("precursors", {}).get("items")
+        )
+        furnace_program = payloads.get("furnace_program", {})
+        placements = self._furnace_placements(furnace_program, experiment_precursors)
         rows: list[ExperimentAnalysisFurnacePrecursorRow] = []
-        for precursor_index, precursor in enumerate(precursors):
+        for placement_index, placement in enumerate(placements):
+            precursor_index = placement.get("precursor_index")
+            precursor = (
+                experiment_precursors[precursor_index]
+                if isinstance(precursor_index, int)
+                and 0 <= precursor_index < len(experiment_precursors)
+                else {}
+            )
             rows.append(
                 ExperimentAnalysisFurnacePrecursorRow(
                     **context,
+                    placement_index=placement_index,
                     precursor_index=precursor_index,
-                    material=precursor.get("material"),
-                    position_cm=precursor.get("position_cm"),
-                    mass_mg=precursor.get("mass_mg"),
-                    note=precursor.get("note"),
+                    species=precursor.get("species"),
+                    zone_key=placement.get("zone_key"),
+                    position_cm=placement.get("position_cm"),
+                    note=placement.get("note"),
                 )
             )
         return rows
+
+    def _furnace_placements(
+        self,
+        furnace_program: dict[str, Any],
+        experiment_precursors: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        placements = self._list_payload_items(furnace_program.get("placements"))
+        if placements:
+            return placements
+
+        legacy_precursors = self._list_payload_items(furnace_program.get("precursors"))
+        species_to_index = {
+            str(precursor.get("species")): index
+            for index, precursor in enumerate(experiment_precursors)
+            if precursor.get("species") is not None and str(precursor.get("species")).strip()
+        }
+        return [
+            {
+                "precursor_index": species_to_index.get(str(legacy.get("material"))),
+                "zone_key": None,
+                "position_cm": legacy.get("position_cm"),
+                "note": legacy.get("note"),
+            }
+            for legacy in legacy_precursors
+        ]
 
     def _build_gas_program_rows(
         self,

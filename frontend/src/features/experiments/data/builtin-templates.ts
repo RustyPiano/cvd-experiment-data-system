@@ -18,10 +18,6 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      precursors: [
-        { material: "MoO3", position_cm: -15, mass_mg: 15, note: "上游温区" },
-        { material: "S", position_cm: -25, mass_mg: 200, note: "硫粉上游" },
-      ],
       steps: [
         { step_index: 1, step_name: "升温", duration_min: 35, is_hold: false, temperatures_C: { zone_1: 650, zone_2: 780 }, note: "" },
         { step_index: 2, step_name: "恒温沉积", duration_min: 15, is_hold: true, temperatures_C: { zone_1: 650, zone_2: 780 }, note: "" },
@@ -40,10 +36,6 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      precursors: [
-        { material: "WO3", position_cm: -15, mass_mg: 20, note: "上游温区" },
-        { material: "S", position_cm: -25, mass_mg: 200, note: "硫粉上游" },
-      ],
       steps: [
         { step_index: 1, step_name: "升温", duration_min: 40, is_hold: false, temperatures_C: { zone_1: 750, zone_2: 850 }, note: "" },
         { step_index: 2, step_name: "恒温沉积", duration_min: 15, is_hold: true, temperatures_C: { zone_1: 750, zone_2: 850 }, note: "" },
@@ -62,9 +54,6 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      precursors: [
-        { material: "硼氮前驱体", position_cm: -10, mass_mg: 50, note: "上游温区" },
-      ],
       steps: [
         { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: 95, zone_2: 1030 }, note: "" },
         { step_index: 2, step_name: "恒温沉积", duration_min: 25, is_hold: true, temperatures_C: { zone_1: 95, zone_2: 1030 }, note: "" },
@@ -82,7 +71,6 @@ export const BUILTIN_FURNACE_TEMPLATES: QuickTemplate[] = [
         model: "",
         initial_temperatures_C: { zone_1: 25, zone_2: 25 },
       },
-      precursors: [],
       steps: [
         { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: null, zone_2: null }, note: "" },
         { step_index: 2, step_name: "恒温", duration_min: 30, is_hold: true, temperatures_C: { zone_1: null, zone_2: null }, note: "" },

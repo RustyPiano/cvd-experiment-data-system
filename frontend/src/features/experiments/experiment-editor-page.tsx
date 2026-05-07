@@ -429,6 +429,7 @@ function ExperimentEditorWorkspace({
                   }));
                   editor.scheduleAutosave();
                 }}
+                precursorItems={editor.values.precursors.items}
                 recipeTemplates={recipeTemplates}
                 value={editor.values.furnaceProgram}
               />
