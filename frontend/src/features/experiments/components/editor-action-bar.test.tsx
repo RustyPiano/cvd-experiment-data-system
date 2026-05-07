@@ -31,7 +31,7 @@ describe("EditorActionBar", () => {
   });
 
   it("shows total completion progress next to save status", () => {
-    const { getByText } = render(
+    const { getByText, queryByText } = render(
       <EditorActionBar
         completionSummary={{
           blockingCount: 1,
@@ -50,5 +50,6 @@ describe("EditorActionBar", () => {
     );
 
     expect(getByText("总完成度 72% · 已完成 7/10 · 阻塞 1 · 提示 3")).toBeTruthy();
+    expect(queryByText("草稿会区块级自动保存；提交前会先执行后端校验。")).toBeNull();
   });
 });

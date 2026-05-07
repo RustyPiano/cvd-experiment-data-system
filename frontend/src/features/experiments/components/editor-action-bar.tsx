@@ -44,11 +44,11 @@ export function EditorActionBar({
               {completionText}
             </Typography.Text>
           </Space>
-          <Typography.Paragraph style={{ marginBottom: 0, marginTop: 8 }} type="secondary">
-            {isDraft
-              ? "草稿会区块级自动保存；提交前会先执行后端校验。"
-              : "当前实验已离开 draft 状态，编辑器保持只读。"}
-          </Typography.Paragraph>
+          {!isDraft ? (
+            <Typography.Paragraph style={{ marginBottom: 0, marginTop: 8 }} type="secondary">
+              当前实验已离开 draft 状态，编辑器保持只读。
+            </Typography.Paragraph>
+          ) : null}
         </div>
         <Space wrap>
           <Button onClick={onBack}>返回详情</Button>
