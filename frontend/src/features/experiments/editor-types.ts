@@ -715,14 +715,6 @@ export function createEmptyFurnacePlacement(): FurnacePlacementValues {
   };
 }
 
-export function createDefaultFurnaceInfo(): FurnaceInfoValues {
-  return {
-    zonesCount: "2",
-    model: "",
-    initialTemperaturesC: { zone_1: "25", zone_2: "25" },
-  };
-}
-
 export function createEmptyGasSegment(): GasSegmentValues {
   return {
     stage: "",
@@ -1471,7 +1463,7 @@ export function mergeProcessObservationPayload(
   ]);
 }
 
-export function toCharacterizationPayload(values: CharacterizationValues) {
+function toCharacterizationPayload(values: CharacterizationValues) {
   const methods = values.methods
     .filter(
       (item) =>

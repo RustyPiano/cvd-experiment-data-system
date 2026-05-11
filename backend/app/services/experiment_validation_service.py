@@ -32,13 +32,7 @@ ISSUE_MESSAGE_ZH = {
     "Substrate role must be top or bottom": "基底角色必须是 top 或 bottom",
     "Substrate type is required": "基底类型必填",
     "At least one furnace zone is required": "至少需要填写一个温区程序",
-    "Furnace step must be an object": "步骤记录格式无效",
-    "Duration must be a positive number": "持续时间必须是正数",
-    "Each step must specify temperatures for at least one zone": (
-        "每个步骤必须指定至少一个温区的温度"
-    ),
     "Zones count must be a positive integer": "温区数量必须是正整数",
-    "Temperature for {zone_key} must be a number": "温区温度必须是数字",
     "Furnace zone must be an object": "温区记录格式无效",
     "Furnace zone key is required": "温区标识必填",
     "Furnace zone key must match declared zones": "温区标识必须在声明温区范围内",
@@ -495,6 +489,7 @@ class ExperimentValidationService:
                         (
                             "Gas segment flow_sccm is required"
                             " and must be numeric when no components"
+                            " are specified"
                         ),
                     )
                 )
@@ -870,22 +865,6 @@ class ExperimentValidationService:
             len(actual_zone_keys) == len(zones)
             and len(actual_zone_keys) == len(declared_zone_keys)
             and set(actual_zone_keys) == set(declared_zone_keys)
-        )
-
-    def _all_furnace_steps_have_duration(self, steps: list[dict]) -> bool:
-        return bool(steps) and all(
-            self._is_number(step.get("duration_min")) and float(step.get("duration_min", 0)) > 0
-            for step in steps
-            if isinstance(step, dict)
-        )
-
-    def _all_furnace_steps_have_temperatures(self, steps: list[dict]) -> bool:
-        return bool(steps) and all(
-            isinstance(step.get("temperatures_C"), dict)
-            and len(step["temperatures_C"]) > 0
-            and all(self._is_number(v) for v in step["temperatures_C"].values())
-            for step in steps
-            if isinstance(step, dict)
         )
 
     def _all_furnace_zones_have_temperature_programs(self, zones: list[dict]) -> bool:

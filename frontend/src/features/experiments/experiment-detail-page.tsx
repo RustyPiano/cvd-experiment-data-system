@@ -262,6 +262,7 @@ function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined)
       ) : null}
       {zones.map((zone, zoneIndex) => (
         <Table
+          key={safeString(zone.zone_key) || zoneIndex}
           columns={[
             { title: "节点", dataIndex: "node_index", render: (v: unknown) => safeString(v) || "—" },
             { title: "时间 (min)", dataIndex: "time_min", render: (v: unknown) => safeString(v) || "—" },

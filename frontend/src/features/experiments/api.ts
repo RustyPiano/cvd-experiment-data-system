@@ -2,7 +2,6 @@ import { apiDownload, apiRequest } from "../../shared/api/client";
 import type {
   AuditEventListResponse,
   ControlledVocabularyListResponse,
-  ExperimentAnalysisExportRead,
   ExperimentCreateRequest,
   ExperimentExportRead,
   ExperimentInvalidateRequest,
@@ -278,15 +277,6 @@ export function exportExperimentJson(token: string, experimentId: string) {
   return apiRequest<ExperimentExportRead>(`/api/v1/experiments/${experimentId}/export/json`, {
     token,
   });
-}
-
-export function exportExperimentAnalysis(token: string, experimentId: string) {
-  return apiRequest<ExperimentAnalysisExportRead>(
-    `/api/v1/experiments/${experimentId}/export/analysis`,
-    {
-      token,
-    },
-  );
 }
 
 export function listExperimentSamples(token: string, experimentId: string) {
