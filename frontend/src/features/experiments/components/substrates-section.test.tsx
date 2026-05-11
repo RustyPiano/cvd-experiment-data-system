@@ -48,6 +48,9 @@ describe("SubstratesSection", () => {
 
     expect(screen.getByText("上基底")).toBeInTheDocument();
     expect(screen.getByText("下基底")).toBeInTheDocument();
+    expect(screen.getAllByText("基底类型")).toHaveLength(2);
+    expect(screen.queryByText("基底类型 上基底")).not.toBeInTheDocument();
+    expect(screen.queryByText("基底类型 下基底")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "添加基底" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("基底角色 上基底")).not.toBeInTheDocument();
 

@@ -133,125 +133,129 @@ export function SubstratesSection({
             </div>
             <div className="editor-form-grid">
               <div className="editor-field">
-                <Typography.Text strong>{`基底类型 ${roleConfig.title}`}</Typography.Text>
-              <VocabularyCombobox
-                ariaLabel={`基底类型 ${roleConfig.title}`}
-                disabled={disabled}
-                onChange={(nextValue) => {
-                  updateRoleItem(roleConfig.role, { type: nextValue });
-                }}
-                options={substrateTypeOptions}
-                placeholder="选择或输入基底类型"
-                value={item.type}
-              />
+                <Typography.Text strong>基底类型</Typography.Text>
+                <VocabularyCombobox
+                  ariaLabel={`基底类型 ${roleConfig.title}`}
+                  disabled={disabled}
+                  onChange={(nextValue) => {
+                    updateRoleItem(roleConfig.role, { type: nextValue });
+                  }}
+                  options={substrateTypeOptions}
+                  placeholder="选择或输入基底类型"
+                  value={item.type}
+                />
+              </div>
+              <div className="editor-field">
+                <Typography.Text strong>品牌</Typography.Text>
+                <VocabularyCombobox
+                  ariaLabel={`品牌 ${roleConfig.title}`}
+                  disabled={disabled}
+                  onChange={(nextValue) => {
+                    updateRoleItem(roleConfig.role, { brand: nextValue });
+                  }}
+                  options={substrateBrandOptions}
+                  placeholder="选择或输入品牌"
+                  value={item.brand}
+                />
+              </div>
+              <div className="editor-field">
+                <Typography.Text strong>尺寸</Typography.Text>
+                <VocabularyCombobox
+                  ariaLabel={`尺寸 ${roleConfig.title}`}
+                  disabled={disabled}
+                  onChange={(nextValue) => {
+                    updateRoleItem(roleConfig.role, { sizeMm: nextValue });
+                  }}
+                  options={substrateSizeOptions}
+                  placeholder="选择或输入尺寸"
+                  value={item.sizeMm}
+                />
+              </div>
+              <div className="editor-field">
+                <Typography.Text strong>处理方式</Typography.Text>
+                <VocabularyCombobox
+                  ariaLabel={`处理方式 ${roleConfig.title}`}
+                  disabled={disabled}
+                  onChange={(nextValue) => {
+                    updateRoleItem(roleConfig.role, { treatmentMethod: nextValue });
+                  }}
+                  options={substrateTreatmentMethodOptions}
+                  placeholder="选择或输入处理方式"
+                  value={item.treatmentMethod}
+                />
+              </div>
+              <div className="editor-field">
+                <Typography.Text strong>相对温区位置</Typography.Text>
+                <Select
+                  aria-label={`相对温区位置 ${roleConfig.title}`}
+                  disabled={disabled}
+                  onChange={(nextValue) => {
+                    updateRoleItem(roleConfig.role, { positionMm: nextValue });
+                  }}
+                  options={withLegacyPositionOption(item.positionMm)}
+                  placeholder="选择相对温区位置"
+                  value={item.positionMm}
+                />
+              </div>
+              {showTreatmentParams ? (
+                <>
+                  <div className="editor-field">
+                    <Typography.Text strong>处理参数温度</Typography.Text>
+                    <Input
+                      aria-label={`处理参数温度 ${roleConfig.title}`}
+                      disabled={disabled}
+                      onChange={(event) => {
+                        updateRoleItem(roleConfig.role, {
+                          treatmentTemperatureC: event.target.value,
+                        });
+                      }}
+                      placeholder="°C"
+                      value={item.treatmentTemperatureC}
+                    />
+                  </div>
+                  <div className="editor-field">
+                    <Typography.Text strong>处理参数时长</Typography.Text>
+                    <Input
+                      aria-label={`处理参数时长 ${roleConfig.title}`}
+                      disabled={disabled}
+                      onChange={(event) => {
+                        updateRoleItem(roleConfig.role, {
+                          treatmentDurationMin: event.target.value,
+                        });
+                      }}
+                      placeholder="min"
+                      value={item.treatmentDurationMin}
+                    />
+                  </div>
+                  <div className="editor-field">
+                    <Typography.Text strong>处理参数功率</Typography.Text>
+                    <Input
+                      aria-label={`处理参数功率 ${roleConfig.title}`}
+                      disabled={disabled}
+                      onChange={(event) => {
+                        updateRoleItem(roleConfig.role, { treatmentPowerW: event.target.value });
+                      }}
+                      placeholder="W"
+                      value={item.treatmentPowerW}
+                    />
+                  </div>
+                  <div className="editor-field">
+                    <Typography.Text strong>处理参数气体</Typography.Text>
+                    <VocabularyCombobox
+                      ariaLabel={`处理参数气体 ${roleConfig.title}`}
+                      disabled={disabled}
+                      onChange={(nextValue) => {
+                        updateRoleItem(roleConfig.role, { treatmentGas: nextValue });
+                      }}
+                      options={gasOptions}
+                      placeholder="选择或输入气体"
+                      value={item.treatmentGas}
+                    />
+                  </div>
+                </>
+              ) : null}
             </div>
-            <div className="editor-field">
-              <Typography.Text strong>{`品牌 ${roleConfig.title}`}</Typography.Text>
-              <VocabularyCombobox
-                ariaLabel={`品牌 ${roleConfig.title}`}
-                disabled={disabled}
-                onChange={(nextValue) => {
-                  updateRoleItem(roleConfig.role, { brand: nextValue });
-                }}
-                options={substrateBrandOptions}
-                placeholder="选择或输入品牌"
-                value={item.brand}
-              />
-            </div>
-            <div className="editor-field">
-              <Typography.Text strong>{`尺寸 ${roleConfig.title}`}</Typography.Text>
-              <VocabularyCombobox
-                ariaLabel={`尺寸 ${roleConfig.title}`}
-                disabled={disabled}
-                onChange={(nextValue) => {
-                  updateRoleItem(roleConfig.role, { sizeMm: nextValue });
-                }}
-                options={substrateSizeOptions}
-                placeholder="选择或输入尺寸"
-                value={item.sizeMm}
-              />
-            </div>
-            <div className="editor-field">
-              <Typography.Text strong>{`处理方式 ${roleConfig.title}`}</Typography.Text>
-              <VocabularyCombobox
-                ariaLabel={`处理方式 ${roleConfig.title}`}
-                disabled={disabled}
-                onChange={(nextValue) => {
-                  updateRoleItem(roleConfig.role, { treatmentMethod: nextValue });
-                }}
-                options={substrateTreatmentMethodOptions}
-                placeholder="选择或输入处理方式"
-                value={item.treatmentMethod}
-              />
-            </div>
-            <div className="editor-field">
-              <Typography.Text strong>{`相对温区位置 ${roleConfig.title}`}</Typography.Text>
-              <Select
-                aria-label={`相对温区位置 ${roleConfig.title}`}
-                disabled={disabled}
-                onChange={(nextValue) => {
-                  updateRoleItem(roleConfig.role, { positionMm: nextValue });
-                }}
-                options={withLegacyPositionOption(item.positionMm)}
-                placeholder="选择相对温区位置"
-                value={item.positionMm}
-              />
-            </div>
-            {showTreatmentParams ? (
-              <>
-                <div className="editor-field">
-                  <Typography.Text strong>{`处理参数温度 ${roleConfig.title}`}</Typography.Text>
-                  <Input
-                    aria-label={`处理参数温度 ${roleConfig.title}`}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      updateRoleItem(roleConfig.role, { treatmentTemperatureC: event.target.value });
-                    }}
-                    placeholder="°C"
-                    value={item.treatmentTemperatureC}
-                  />
-                </div>
-                <div className="editor-field">
-                  <Typography.Text strong>{`处理参数时长 ${roleConfig.title}`}</Typography.Text>
-                  <Input
-                    aria-label={`处理参数时长 ${roleConfig.title}`}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      updateRoleItem(roleConfig.role, { treatmentDurationMin: event.target.value });
-                    }}
-                    placeholder="min"
-                    value={item.treatmentDurationMin}
-                  />
-                </div>
-                <div className="editor-field">
-                  <Typography.Text strong>{`处理参数功率 ${roleConfig.title}`}</Typography.Text>
-                  <Input
-                    aria-label={`处理参数功率 ${roleConfig.title}`}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      updateRoleItem(roleConfig.role, { treatmentPowerW: event.target.value });
-                    }}
-                    placeholder="W"
-                    value={item.treatmentPowerW}
-                  />
-                </div>
-                <div className="editor-field">
-                  <Typography.Text strong>{`处理参数气体 ${roleConfig.title}`}</Typography.Text>
-                  <VocabularyCombobox
-                    ariaLabel={`处理参数气体 ${roleConfig.title}`}
-                    disabled={disabled}
-                    onChange={(nextValue) => {
-                      updateRoleItem(roleConfig.role, { treatmentGas: nextValue });
-                    }}
-                    options={gasOptions}
-                    placeholder="选择或输入气体"
-                    value={item.treatmentGas}
-                  />
-                </div>
-              </>
-            ) : null}
           </div>
-        </div>
         );
       })}
     </div>
