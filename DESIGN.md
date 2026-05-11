@@ -756,7 +756,18 @@ S-2026-0001-A
 
 Do not use a single free-text input for temperature traces.
 
-Use an editable table plus optional chart preview:
+Use a quick-fill editor as the default path. The quick-fill editor captures a shared timeline and per-zone target temperatures:
+
+```text
+起始温度 ℃ | 升温时长 min | 保温时长 min | 降温时长 min | 结束温度 ℃
+25          | 30            | 15            | 50            | 25
+
+温区 | 目标温度 ℃
+1    | 750
+2    | 200
+```
+
+The UI must generate the canonical structured temperature nodes from these quick-fill values. Keep advanced node editing available in a collapsed section for non-standard programs:
 
 ```text
 节点 | 时间 min | 温度 ℃ | 说明 | 操作
@@ -767,9 +778,11 @@ Use an editable table plus optional chart preview:
 
 Rules:
 
+- Persist structured `zones[].temperature_program[]` payloads; do not add API-only quick-fill fields.
 - Time must be non-negative and increasing.
 - Temperature unit is always ℃ in UI.
 - Show derived values: max temperature, ramp rate, hold time, total time.
+- Manual advanced node edits should stay possible and should warn that changing quick-fill values will regenerate nodes.
 - If chart is shown, keep it simple and monochrome/primary line.
 
 ### Gas program editor

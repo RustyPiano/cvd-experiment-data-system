@@ -4,14 +4,17 @@ import { useCallback, useState } from "react";
 import type { RecipeRead } from "../../../shared/types/api";
 import { BUILTIN_FURNACE_TEMPLATES, type QuickTemplate } from "../data/builtin-templates";
 import {
+  buildFurnaceZonesFromQuickProgram,
   createEmptyFurnacePlacement,
   createEmptyFurnaceTemperatureNode,
-  createEmptyFurnaceZone,
+  createQuickProgramFromZones,
   type FurnacePlacementValues,
   type FurnaceProgramValues,
+  type FurnaceQuickProgramValues,
   type FurnaceTemperatureNodeValues,
   type FurnaceZoneValues,
   type PrecursorItemValues,
+  syncFurnaceProgramZonesCount,
 } from "../editor-types";
 import { QuickTemplateMenu } from "./quick-template-menu";
 
@@ -103,14 +106,16 @@ function toFurnaceProgramValues(
     }
   }
 
+  const zones = toZones(payload, info, validZonesCount);
   return {
     furnaceInfo: {
       zonesCount: asString(info.zones_count) || "2",
       model: asString(info.model),
       initialTemperaturesC,
     },
+    quickProgram: createQuickProgramFromZones(zones, getZoneKeys(validZonesCount)),
     placements: toPlacements(payload, precursorItems),
-    zones: toZones(payload, info, validZonesCount),
+    zones,
   };
 }
 
@@ -180,10 +185,12 @@ export function FurnaceProgramSection({
   value: FurnaceProgramValues;
 }) {
   const [appliedTemplateLabel, setAppliedTemplateLabel] = useState<string | null>(null);
+  const [showAdvancedNodes, setShowAdvancedNodes] = useState(false);
 
   const parsedZonesCount = parseInt(value.furnaceInfo.zonesCount, 10);
   const zonesCount = Number.isFinite(parsedZonesCount) && parsedZonesCount > 0 ? parsedZonesCount : 2;
   const zoneKeys = getZoneKeys(zonesCount);
+  const quickProgram = value.quickProgram ?? createQuickProgramFromZones(value.zones, zoneKeys);
   const precursorOptions = precursorItems.map((item, index) => ({
     label: item.species.trim() || `前驱体 ${index + 1}`,
     value: String(index),
@@ -202,94 +209,112 @@ export function FurnaceProgramSection({
 
   const handleZonesCountChange = useCallback(
     (newZonesCountStr: string) => {
-      const newCount = parseInt(newZonesCountStr, 10);
-      if (!Number.isFinite(newCount) || newCount < 1) {
-        emitManualChange({
-          ...value,
-          furnaceInfo: { ...value.furnaceInfo, zonesCount: newZonesCountStr },
-        });
-        return;
-      }
-
-      const newZoneKeys = getZoneKeys(newCount);
-      const newInitialTemperaturesC: Record<string, string> = {};
-      for (const key of newZoneKeys) {
-        newInitialTemperaturesC[key] = value.furnaceInfo.initialTemperaturesC[key] ?? "25";
-      }
-
-      const newZoneKeySet = new Set(newZoneKeys);
-      const newZones = newZoneKeys.map((zoneKey) => {
-        const existingZone = value.zones.find((zone) => zone.zoneKey === zoneKey);
-        return existingZone ?? createEmptyFurnaceZone(zoneKey);
-      });
-      const newPlacements = value.placements.map((placement) =>
-        placement.zoneKey && !newZoneKeySet.has(placement.zoneKey)
-          ? { ...placement, zoneKey: "" }
-          : placement,
-      );
-
-      emitManualChange({
-        furnaceInfo: {
-          ...value.furnaceInfo,
-          zonesCount: newZonesCountStr,
-          initialTemperaturesC: newInitialTemperaturesC,
-        },
-        placements: newPlacements,
-        zones: newZones,
-      });
+      emitManualChange(syncFurnaceProgramZonesCount({ ...value, quickProgram }, newZonesCountStr));
     },
-    [value, emitManualChange],
+    [value, quickProgram, emitManualChange],
   );
 
   const updateFurnaceInfo = useCallback(
     (patch: Partial<typeof value.furnaceInfo>) => {
       emitManualChange({
         ...value,
+        quickProgram,
         furnaceInfo: { ...value.furnaceInfo, ...patch },
       });
     },
-    [value, emitManualChange],
+    [value, quickProgram, emitManualChange],
+  );
+
+  const updateQuickProgram = useCallback(
+    (patch: Partial<FurnaceQuickProgramValues>) => {
+      const nextQuickProgram = {
+        ...quickProgram,
+        ...patch,
+        targetTemperaturesC:
+          patch.targetTemperaturesC ?? quickProgram.targetTemperaturesC,
+        isCustom: false,
+      };
+      const nextZones = buildFurnaceZonesFromQuickProgram(zoneKeys, nextQuickProgram, value.zones);
+
+      emitManualChange({
+        ...value,
+        furnaceInfo: {
+          ...value.furnaceInfo,
+          initialTemperaturesC: Object.fromEntries(
+            zoneKeys.map((zoneKey) => [zoneKey, nextQuickProgram.startTemperatureC]),
+          ),
+        },
+        quickProgram: nextQuickProgram,
+        zones: nextZones,
+      });
+    },
+    [value, quickProgram, zoneKeys, emitManualChange],
+  );
+
+  const updateQuickTargetTemperature = useCallback(
+    (zoneKey: string, temperatureC: string) => {
+      updateQuickProgram({
+        targetTemperaturesC: {
+          ...quickProgram.targetTemperaturesC,
+          [zoneKey]: temperatureC,
+        },
+      });
+    },
+    [quickProgram.targetTemperaturesC, updateQuickProgram],
   );
 
   const addPlacement = useCallback(() => {
-    emitManualChange({ ...value, placements: [...value.placements, createEmptyFurnacePlacement()] });
-  }, [value, emitManualChange]);
+    emitManualChange({
+      ...value,
+      quickProgram,
+      placements: [...value.placements, createEmptyFurnacePlacement()],
+    });
+  }, [value, quickProgram, emitManualChange]);
 
   const removePlacement = useCallback(
     (index: number) => {
-      emitManualChange({ ...value, placements: value.placements.filter((_, i) => i !== index) });
+      emitManualChange({
+        ...value,
+        quickProgram,
+        placements: value.placements.filter((_, i) => i !== index),
+      });
     },
-    [value, emitManualChange],
+    [value, quickProgram, emitManualChange],
   );
 
   const updatePlacement = useCallback(
     (index: number, patch: Partial<FurnacePlacementValues>) => {
       emitManualChange({
         ...value,
+        quickProgram,
         placements: value.placements.map((placement, i) =>
           i === index ? { ...placement, ...patch } : placement,
         ),
       });
     },
-    [value, emitManualChange],
+    [value, quickProgram, emitManualChange],
   );
 
   const updateZone = useCallback(
     (zoneKey: string, patch: Partial<FurnaceZoneValues>) => {
       emitManualChange({
         ...value,
+        quickProgram,
         zones: value.zones.map((zone) =>
           zone.zoneKey === zoneKey ? { ...zone, ...patch } : zone,
         ),
       });
     },
-    [value, emitManualChange],
+    [value, quickProgram, emitManualChange],
   );
+
+  const markQuickProgramCustom = useCallback(() => ({ ...quickProgram, isCustom: true }), [quickProgram]);
 
   const addTemperatureNode = useCallback(
     (zoneKey: string) => {
       emitManualChange({
         ...value,
+        quickProgram: markQuickProgramCustom(),
         zones: value.zones.map((zone) =>
           zone.zoneKey === zoneKey
             ? {
@@ -303,13 +328,14 @@ export function FurnaceProgramSection({
         ),
       });
     },
-    [value, emitManualChange],
+    [value, markQuickProgramCustom, emitManualChange],
   );
 
   const removeTemperatureNode = useCallback(
     (zoneKey: string, nodeIndex: number) => {
       emitManualChange({
         ...value,
+        quickProgram: markQuickProgramCustom(),
         zones: value.zones.map((zone) =>
           zone.zoneKey === zoneKey
             ? {
@@ -320,13 +346,14 @@ export function FurnaceProgramSection({
         ),
       });
     },
-    [value, emitManualChange],
+    [value, markQuickProgramCustom, emitManualChange],
   );
 
   const updateTemperatureNode = useCallback(
     (zoneKey: string, nodeIndex: number, patch: Partial<FurnaceTemperatureNodeValues>) => {
       emitManualChange({
         ...value,
+        quickProgram: markQuickProgramCustom(),
         zones: value.zones.map((zone) =>
           zone.zoneKey === zoneKey
             ? {
@@ -339,7 +366,7 @@ export function FurnaceProgramSection({
         ),
       });
     },
-    [value, emitManualChange],
+    [value, markQuickProgramCustom, emitManualChange],
   );
 
   return (
@@ -356,8 +383,8 @@ export function FurnaceProgramSection({
       </div>
       {appliedTemplateLabel ? (
         <Alert
-          message={`已应用模板：${appliedTemplateLabel}，请确认或修改。`}
           showIcon
+          title={`已应用模板：${appliedTemplateLabel}，请确认或修改。`}
           type="success"
         />
       ) : null}
@@ -385,6 +412,81 @@ export function FurnaceProgramSection({
             />
           </div>
         </div>
+      </Card>
+
+      <Card size="small" title="炉温快填">
+        <div className="editor-form-grid">
+          <div className="editor-field">
+            <Typography.Text strong>起始温度</Typography.Text>
+            <Input
+              aria-label="起始温度"
+              disabled={disabled}
+              onChange={(e) => updateQuickProgram({ startTemperatureC: e.target.value })}
+              placeholder="°C"
+              value={quickProgram.startTemperatureC}
+            />
+          </div>
+          <div className="editor-field">
+            <Typography.Text strong>升温时长</Typography.Text>
+            <Input
+              aria-label="升温时长"
+              disabled={disabled}
+              onChange={(e) => updateQuickProgram({ rampDurationMin: e.target.value })}
+              placeholder="min"
+              value={quickProgram.rampDurationMin}
+            />
+          </div>
+          <div className="editor-field">
+            <Typography.Text strong>保温时长</Typography.Text>
+            <Input
+              aria-label="保温时长"
+              disabled={disabled}
+              onChange={(e) => updateQuickProgram({ holdDurationMin: e.target.value })}
+              placeholder="min"
+              value={quickProgram.holdDurationMin}
+            />
+          </div>
+          <div className="editor-field">
+            <Typography.Text strong>降温时长</Typography.Text>
+            <Input
+              aria-label="降温时长"
+              disabled={disabled}
+              onChange={(e) => updateQuickProgram({ coolDurationMin: e.target.value })}
+              placeholder="min"
+              value={quickProgram.coolDurationMin}
+            />
+          </div>
+          <div className="editor-field">
+            <Typography.Text strong>结束温度</Typography.Text>
+            <Input
+              aria-label="结束温度"
+              disabled={disabled}
+              onChange={(e) => updateQuickProgram({ endTemperatureC: e.target.value })}
+              placeholder="°C"
+              value={quickProgram.endTemperatureC}
+            />
+          </div>
+          {zoneKeys.map((zoneKey, zoneIndex) => (
+            <div className="editor-field" key={`quick-${zoneKey}`}>
+              <Typography.Text strong>{`温区 ${zoneIndex + 1} 目标温度`}</Typography.Text>
+              <Input
+                aria-label={`温区 ${zoneIndex + 1} 目标温度`}
+                disabled={disabled}
+                onChange={(e) => updateQuickTargetTemperature(zoneKey, e.target.value)}
+                placeholder="°C"
+                value={quickProgram.targetTemperaturesC[zoneKey] ?? ""}
+              />
+            </div>
+          ))}
+        </div>
+        {quickProgram.isCustom ? (
+          <Alert
+            showIcon
+            style={{ marginTop: 16 }}
+            title="当前节点已手动调整；再次修改快填字段会按快填参数重建节点。"
+            type="info"
+          />
+        ) : null}
       </Card>
 
       <Card
@@ -458,11 +560,21 @@ export function FurnaceProgramSection({
         )}
       </Card>
 
-      <div className="content-stack">
-        {value.zones.length === 0 ? (
-          <Empty description="尚未添加温区程序" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        ) : (
-          value.zones.map((zone, zoneIndex) => (
+      <Card
+        size="small"
+        title="高级节点编辑"
+        extra={
+          <Button disabled={disabled} onClick={() => setShowAdvancedNodes((visible) => !visible)} size="small">
+            高级节点编辑
+          </Button>
+        }
+      >
+        {showAdvancedNodes ? (
+          <div className="content-stack">
+            {value.zones.length === 0 ? (
+              <Empty description="尚未添加温区程序" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : null}
+            {value.zones.map((zone, zoneIndex) => (
             <Card
               key={zone.zoneKey || `zone-${zoneIndex}`}
               size="small"
@@ -549,9 +661,14 @@ export function FurnaceProgramSection({
                 />
               </div>
             </Card>
-          ))
+            ))}
+          </div>
+        ) : (
+          <Typography.Text type="secondary">
+            如需记录非标准曲线，可展开后逐节点调整。
+          </Typography.Text>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

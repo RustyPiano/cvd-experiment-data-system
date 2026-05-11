@@ -6,7 +6,10 @@ import type {
   ExperimentRead,
 } from "../../shared/types/api";
 import {
+  buildFurnaceZonesFromQuickProgram,
   createInitialEditorValues,
+  createQuickProgramFromZones,
+  syncFurnaceProgramZonesCount,
   toFurnaceProgramPayload,
   toSubstratesPayload,
 } from "./editor-types";
@@ -49,6 +52,184 @@ function modulePayload(
 }
 
 describe("furnace placement editor payloads", () => {
+  it("derives shared quick furnace settings from canonical zone programs", () => {
+    const values = createInitialEditorValues(experiment, [
+      modulePayload("furnace_program", {
+        furnace_info: {
+          zones_count: 2,
+          model: "OTF-1200X",
+          initial_temperatures_C: { zone_1: 25, zone_2: 25 },
+        },
+        zones: [
+          {
+            zone_key: "zone_1",
+            temperature_program: [
+              { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+              { node_index: 2, time_min: 35, temperature_C: 650, note: "升温结束" },
+              { node_index: 3, time_min: 50, temperature_C: 650, note: "恒温结束" },
+              { node_index: 4, time_min: 100, temperature_C: 25, note: "降温结束" },
+            ],
+          },
+          {
+            zone_key: "zone_2",
+            temperature_program: [
+              { node_index: 1, time_min: 0, temperature_C: 25, note: "起始" },
+              { node_index: 2, time_min: 35, temperature_C: 780, note: "升温结束" },
+              { node_index: 3, time_min: 50, temperature_C: 780, note: "恒温结束" },
+              { node_index: 4, time_min: 100, temperature_C: 25, note: "降温结束" },
+            ],
+          },
+        ],
+      }),
+    ]);
+
+    expect(values.furnaceProgram.quickProgram).toEqual({
+      startTemperatureC: "25",
+      rampDurationMin: "35",
+      holdDurationMin: "15",
+      coolDurationMin: "50",
+      endTemperatureC: "25",
+      targetTemperaturesC: { zone_1: "650", zone_2: "780" },
+      isCustom: false,
+    });
+  });
+
+  it("builds canonical furnace zones from shared quick furnace settings", () => {
+    const zones = buildFurnaceZonesFromQuickProgram(
+      ["zone_1", "zone_2"],
+      {
+        startTemperatureC: "25",
+        rampDurationMin: "35",
+        holdDurationMin: "15",
+        coolDurationMin: "50",
+        endTemperatureC: "25",
+        targetTemperaturesC: { zone_1: "760", zone_2: "780" },
+        isCustom: false,
+      },
+      [
+        { zoneKey: "zone_1", note: "keep note", temperatureProgram: [] },
+        { zoneKey: "zone_2", note: "", temperatureProgram: [] },
+      ],
+    );
+
+    expect(zones).toEqual([
+      {
+        zoneKey: "zone_1",
+        note: "keep note",
+        temperatureProgram: [
+          { timeMin: "0", temperatureC: "25", note: "起始" },
+          { timeMin: "35", temperatureC: "760", note: "升温结束" },
+          { timeMin: "50", temperatureC: "760", note: "恒温结束" },
+          { timeMin: "100", temperatureC: "25", note: "降温结束" },
+        ],
+      },
+      {
+        zoneKey: "zone_2",
+        note: "",
+        temperatureProgram: [
+          { timeMin: "0", temperatureC: "25", note: "起始" },
+          { timeMin: "35", temperatureC: "780", note: "升温结束" },
+          { timeMin: "50", temperatureC: "780", note: "恒温结束" },
+          { timeMin: "100", temperatureC: "25", note: "降温结束" },
+        ],
+      },
+    ]);
+  });
+
+  it("skips empty optional hold and cool durations when building quick furnace zones", () => {
+    const zones = buildFurnaceZonesFromQuickProgram(["zone_1"], {
+      startTemperatureC: "25",
+      rampDurationMin: "30",
+      holdDurationMin: "",
+      coolDurationMin: "",
+      endTemperatureC: "25",
+      targetTemperaturesC: { zone_1: "700" },
+      isCustom: false,
+    });
+
+    expect(zones[0].temperatureProgram).toEqual([
+      { timeMin: "0", temperatureC: "25", note: "起始" },
+      { timeMin: "30", temperatureC: "700", note: "升温结束" },
+    ]);
+  });
+
+  it("keeps explicit non-positive durations in generated nodes so validation can reject them", () => {
+    const zones = buildFurnaceZonesFromQuickProgram(["zone_1"], {
+      startTemperatureC: "25",
+      rampDurationMin: "-5",
+      holdDurationMin: "0",
+      coolDurationMin: "",
+      endTemperatureC: "25",
+      targetTemperaturesC: { zone_1: "700" },
+      isCustom: false,
+    });
+
+    expect(zones[0].temperatureProgram).toEqual([
+      { timeMin: "0", temperatureC: "25", note: "起始" },
+      { timeMin: "-5", temperatureC: "700", note: "升温结束" },
+      { timeMin: "-5", temperatureC: "700", note: "恒温结束" },
+    ]);
+  });
+
+  it("syncs furnace zones and placements when zones count changes", () => {
+    const value = {
+      furnaceInfo: {
+        zonesCount: "2",
+        model: "",
+        initialTemperaturesC: { zone_1: "25", zone_2: "25" },
+      },
+      quickProgram: createQuickProgramFromZones(
+        [
+          {
+            zoneKey: "zone_1",
+            note: "",
+            temperatureProgram: [
+              { timeMin: "0", temperatureC: "25", note: "起始" },
+              { timeMin: "30", temperatureC: "650", note: "升温结束" },
+            ],
+          },
+          {
+            zoneKey: "zone_2",
+            note: "",
+            temperatureProgram: [
+              { timeMin: "0", temperatureC: "25", note: "起始" },
+              { timeMin: "30", temperatureC: "780", note: "升温结束" },
+            ],
+          },
+        ],
+        ["zone_1", "zone_2"],
+      ),
+      placements: [
+        { precursorIndex: "0", zoneKey: "zone_2", positionCm: "-15", note: "" },
+      ],
+      zones: [
+        {
+          zoneKey: "zone_1",
+          note: "",
+          temperatureProgram: [
+            { timeMin: "0", temperatureC: "25", note: "起始" },
+            { timeMin: "30", temperatureC: "650", note: "升温结束" },
+          ],
+        },
+        {
+          zoneKey: "zone_2",
+          note: "",
+          temperatureProgram: [
+            { timeMin: "0", temperatureC: "25", note: "起始" },
+            { timeMin: "30", temperatureC: "780", note: "升温结束" },
+          ],
+        },
+      ],
+    };
+
+    const next = syncFurnaceProgramZonesCount(value, "1");
+
+    expect(next.furnaceInfo.initialTemperaturesC).toEqual({ zone_1: "25" });
+    expect(next.quickProgram?.targetTemperaturesC).toEqual({ zone_1: "650" });
+    expect(next.placements[0].zoneKey).toBe("");
+    expect(next.zones).toHaveLength(1);
+  });
+
   it("serializes canonical furnace zones without legacy steps", () => {
     const payload = toFurnaceProgramPayload({
       furnaceInfo: {

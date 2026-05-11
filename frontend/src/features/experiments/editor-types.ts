@@ -112,6 +112,16 @@ export type FurnaceInfoValues = {
   initialTemperaturesC: Record<string, string>;
 };
 
+export type FurnaceQuickProgramValues = {
+  startTemperatureC: string;
+  rampDurationMin: string;
+  holdDurationMin: string;
+  coolDurationMin: string;
+  endTemperatureC: string;
+  targetTemperaturesC: Record<string, string>;
+  isCustom: boolean;
+};
+
 export type FurnacePlacementValues = PayloadBackedValue & {
   precursorIndex: string;
   zoneKey: string;
@@ -133,6 +143,7 @@ export type FurnaceZoneValues = PayloadBackedValue & {
 
 export type FurnaceProgramValues = {
   furnaceInfo: FurnaceInfoValues;
+  quickProgram?: FurnaceQuickProgramValues;
   placements: FurnacePlacementValues[];
   zones: FurnaceZoneValues[];
 };
@@ -659,6 +670,212 @@ function getValidFurnaceZoneKeys(zonesCountValue: string) {
   return Number.isFinite(zonesCount) && zonesCount > 0 ? getFurnaceZoneKeys(zonesCount) : [];
 }
 
+function formatMinuteValue(value: number) {
+  return String(Math.round(value * 1000) / 1000);
+}
+
+function parseMinuteValue(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const numericValue = Number(trimmed);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function durationBetween(startValue: string, endValue: string) {
+  const start = parseMinuteValue(startValue);
+  const end = parseMinuteValue(endValue);
+  if (start === null || end === null) {
+    return "";
+  }
+
+  return formatMinuteValue(end - start);
+}
+
+function defaultFurnaceQuickProgram(zoneKeys: string[]): FurnaceQuickProgramValues {
+  return {
+    startTemperatureC: "25",
+    rampDurationMin: "30",
+    holdDurationMin: "15",
+    coolDurationMin: "50",
+    endTemperatureC: "25",
+    targetTemperaturesC: Object.fromEntries(zoneKeys.map((zoneKey) => [zoneKey, ""])),
+    isCustom: false,
+  };
+}
+
+function getFurnaceTargetTemperature(zone: FurnaceZoneValues) {
+  return zone.temperatureProgram[1]?.temperatureC ?? "";
+}
+
+export function createQuickProgramFromZones(
+  zones: FurnaceZoneValues[],
+  zoneKeys: string[],
+): FurnaceQuickProgramValues {
+  const defaults = defaultFurnaceQuickProgram(zoneKeys);
+  if (zones.length === 0) {
+    return defaults;
+  }
+
+  const zonesByKey = new Map(zones.map((zone) => [zone.zoneKey, zone]));
+  const firstZone = zonesByKey.get(zoneKeys[0]) ?? zones[0];
+  const firstProgram = firstZone.temperatureProgram;
+  const startNode = firstProgram[0];
+  const rampNode = firstProgram[1];
+  const holdNode = firstProgram[2];
+  const coolNode = firstProgram[3];
+  const endNode = firstProgram[firstProgram.length - 1];
+
+  const targetTemperaturesC: Record<string, string> = {};
+  for (const zoneKey of zoneKeys) {
+    const zone = zonesByKey.get(zoneKey);
+    targetTemperaturesC[zoneKey] = zone ? getFurnaceTargetTemperature(zone) : "";
+  }
+
+  const expectedTimes = firstProgram.map((node) => node.timeMin);
+  const isCustom = zoneKeys.some((zoneKey) => {
+    const zone = zonesByKey.get(zoneKey);
+    if (!zone || zone.temperatureProgram.length !== firstProgram.length) {
+      return true;
+    }
+
+    return zone.temperatureProgram.some((node, index) => node.timeMin !== expectedTimes[index]);
+  });
+
+  return {
+    startTemperatureC: startNode?.temperatureC || defaults.startTemperatureC,
+    rampDurationMin: rampNode ? durationBetween(startNode?.timeMin ?? "0", rampNode.timeMin) : "",
+    holdDurationMin: holdNode && rampNode ? durationBetween(rampNode.timeMin, holdNode.timeMin) : "",
+    coolDurationMin: coolNode && holdNode ? durationBetween(holdNode.timeMin, coolNode.timeMin) : "",
+    endTemperatureC: endNode?.temperatureC || defaults.endTemperatureC,
+    targetTemperaturesC,
+    isCustom,
+  };
+}
+
+function appendQuickProgramNode(
+  nodes: FurnaceTemperatureNodeValues[],
+  currentTime: number | null,
+  durationValue: string,
+  temperatureC: string,
+  note: string,
+  required: boolean,
+) {
+  const trimmedDuration = durationValue.trim();
+  const duration = parseMinuteValue(trimmedDuration);
+  if (!trimmedDuration) {
+    if (required) {
+      nodes.push({ timeMin: "", temperatureC, note });
+    }
+    return required ? null : currentTime;
+  }
+
+  if (duration === null) {
+    nodes.push({ timeMin: trimmedDuration, temperatureC, note });
+    return null;
+  }
+
+  const nextTime = currentTime === null ? duration : currentTime + duration;
+  nodes.push({ timeMin: formatMinuteValue(nextTime), temperatureC, note });
+  return nextTime;
+}
+
+export function buildFurnaceZonesFromQuickProgram(
+  zoneKeys: string[],
+  quickProgram: FurnaceQuickProgramValues,
+  existingZones: FurnaceZoneValues[] = [],
+): FurnaceZoneValues[] {
+  const zonesByKey = new Map(existingZones.map((zone) => [zone.zoneKey, zone]));
+
+  return zoneKeys.map((zoneKey) => {
+    const existingZone = zonesByKey.get(zoneKey);
+    const targetTemperature = quickProgram.targetTemperaturesC[zoneKey] ?? "";
+    const nodes: FurnaceTemperatureNodeValues[] = [
+      { timeMin: "0", temperatureC: quickProgram.startTemperatureC, note: "起始" },
+    ];
+    let currentTime: number | null = 0;
+
+    currentTime = appendQuickProgramNode(
+      nodes,
+      currentTime,
+      quickProgram.rampDurationMin,
+      targetTemperature,
+      "升温结束",
+      true,
+    );
+    currentTime = appendQuickProgramNode(
+      nodes,
+      currentTime,
+      quickProgram.holdDurationMin,
+      targetTemperature,
+      "恒温结束",
+      false,
+    );
+    appendQuickProgramNode(
+      nodes,
+      currentTime,
+      quickProgram.coolDurationMin,
+      quickProgram.endTemperatureC,
+      "降温结束",
+      false,
+    );
+
+    return {
+      sourcePayload: existingZone?.sourcePayload,
+      zoneKey,
+      note: existingZone?.note ?? "",
+      temperatureProgram: nodes,
+    };
+  });
+}
+
+export function syncFurnaceProgramZonesCount(
+  value: FurnaceProgramValues,
+  newZonesCountStr: string,
+): FurnaceProgramValues {
+  const newCount = parseInt(newZonesCountStr, 10);
+  if (!Number.isFinite(newCount) || newCount < 1) {
+    return {
+      ...value,
+      furnaceInfo: { ...value.furnaceInfo, zonesCount: newZonesCountStr },
+    };
+  }
+
+  const newZoneKeys = getFurnaceZoneKeys(newCount);
+  const currentZoneKeys = getValidFurnaceZoneKeys(value.furnaceInfo.zonesCount);
+  const currentQuickProgram =
+    value.quickProgram ?? createQuickProgramFromZones(value.zones, currentZoneKeys);
+  const targetTemperaturesC: Record<string, string> = {};
+  for (const zoneKey of newZoneKeys) {
+    targetTemperaturesC[zoneKey] = currentQuickProgram.targetTemperaturesC[zoneKey] ?? "";
+  }
+
+  const nextQuickProgram: FurnaceQuickProgramValues = {
+    ...currentQuickProgram,
+    targetTemperaturesC,
+  };
+  const newZoneKeySet = new Set(newZoneKeys);
+
+  return {
+    furnaceInfo: {
+      ...value.furnaceInfo,
+      zonesCount: newZonesCountStr,
+      initialTemperaturesC: Object.fromEntries(
+        newZoneKeys.map((zoneKey) => [zoneKey, nextQuickProgram.startTemperatureC]),
+      ),
+    },
+    quickProgram: nextQuickProgram,
+    placements: value.placements.map((placement) =>
+      placement.zoneKey && !newZoneKeySet.has(placement.zoneKey)
+        ? { ...placement, zoneKey: "" }
+        : placement,
+    ),
+    zones: buildFurnaceZonesFromQuickProgram(newZoneKeys, nextQuickProgram, value.zones),
+  };
+}
+
 export function createEmptyPrecursorItem(): PrecursorItemValues {
   return {
     species: "",
@@ -984,14 +1201,17 @@ export function createInitialEditorValues(
       for (const [key, value] of Object.entries(initialTempsRaw)) {
         initialTemperaturesC[key] = asString(value);
       }
+      const zones = toFurnaceZones(fp, info);
+      const zoneKeys = getDeclaredZoneKeysFromPayload(fp, info);
       return {
         furnaceInfo: {
           zonesCount: asString(info.zones_count) || "2",
           model: asString(info.model),
           initialTemperaturesC,
         },
+        quickProgram: createQuickProgramFromZones(zones, zoneKeys),
         placements: toFurnacePlacements(fp, precursorItems),
-        zones: toFurnaceZones(fp, info),
+        zones,
       };
     })(),
     gasProgram: {

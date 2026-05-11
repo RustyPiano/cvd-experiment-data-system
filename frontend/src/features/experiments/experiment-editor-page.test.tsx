@@ -1067,6 +1067,7 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
+    fireEvent.click(await screen.findByRole("button", { name: "高级节点编辑" }));
     const durationInput = await screen.findByLabelText("温区 1 节点 2 时间");
     vi.useFakeTimers();
     fireEvent.change(durationInput, { target: { value: "abc" } });
@@ -1391,6 +1392,7 @@ describe("ExperimentEditorPage", () => {
       ).toBe(true);
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "高级节点编辑" }));
     const furnaceTemperatureInput = screen.getByLabelText("温区 1 节点 2 温度");
     vi.useFakeTimers();
     fireEvent.change(furnaceTemperatureInput, { target: { value: "760" } });
