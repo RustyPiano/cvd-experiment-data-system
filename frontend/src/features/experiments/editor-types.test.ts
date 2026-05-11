@@ -5,7 +5,11 @@ import type {
   ExperimentModulePayloadRead,
   ExperimentRead,
 } from "../../shared/types/api";
-import { createInitialEditorValues, toFurnaceProgramPayload } from "./editor-types";
+import {
+  createInitialEditorValues,
+  toFurnaceProgramPayload,
+  toSubstratesPayload,
+} from "./editor-types";
 
 const experiment: ExperimentRead = {
   id: "exp-1",
@@ -197,5 +201,58 @@ describe("furnace placement editor payloads", () => {
       position_cm: -25,
       note: "migrated",
     });
+  });
+});
+
+describe("substrate editor payloads", () => {
+  it("omits hidden legacy roles and role-only source-backed substrate rows", () => {
+    const payload = toSubstratesPayload({
+      items: [
+        {
+          sourcePayload: { role: "top", surface_finish: "polished" },
+          role: "top",
+          type: "",
+          brand: "",
+          sizeMm: "",
+          treatmentMethod: "",
+          positionMm: "",
+          treatmentTemperatureC: "",
+          treatmentDurationMin: "",
+          treatmentPowerW: "",
+          treatmentGas: "",
+        },
+        {
+          role: "control",
+          type: "Legacy hidden substrate",
+          brand: "",
+          sizeMm: "",
+          treatmentMethod: "",
+          positionMm: "",
+          treatmentTemperatureC: "",
+          treatmentDurationMin: "",
+          treatmentPowerW: "",
+          treatmentGas: "",
+        },
+        {
+          role: "bottom",
+          type: "蓝宝石双抛C<0001>",
+          brand: "",
+          sizeMm: "",
+          treatmentMethod: "",
+          positionMm: "",
+          treatmentTemperatureC: "",
+          treatmentDurationMin: "",
+          treatmentPowerW: "",
+          treatmentGas: "",
+        },
+      ],
+    });
+
+    expect(payload.items).toEqual([
+      {
+        role: "bottom",
+        type: "蓝宝石双抛C<0001>",
+      },
+    ]);
   });
 });

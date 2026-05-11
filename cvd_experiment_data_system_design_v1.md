@@ -537,7 +537,7 @@ V1 表单拆分为以下模块：
         "duration_min": 5,
         "power_W": 100
       },
-      "position_mm_relative_to_zone": 1
+      "position_mm": 1
     },
     {
       "role": "bottom",
@@ -545,7 +545,7 @@ V1 表单拆分为以下模块：
       "brand": "合肥科晶",
       "size_mm": "5x10",
       "treatment_method": "等离子清洗",
-      "position_mm_relative_to_zone": -1
+      "position_mm": -1
     }
   ]
 }
@@ -559,9 +559,9 @@ V1 表单拆分为以下模块：
 | `substrate_type` | 基底类型 | 必填，受控词表 |
 | `brand` | 品牌 | 建议填写 |
 | `size_mm` | 尺寸 | 统一 mm |
-| `treatment_method` | 处理方式 | 等离子清洗/超声/退火/无/其他 |
+| `treatment_method` | 处理方式 | 无/等离子清洗/紫外清洗/退火 |
 | `treatment_params` | 温度/时长/功率等 | 根据处理方式显示 |
-| `position_mm_relative_to_zone` | 相对温区位置 | 数值，单位 mm |
+| `position_mm` | 相对温区位置 | -2/-1/0/1/2；无则为空 |
 
 ### 7.7 温区程序模块
 
@@ -1132,12 +1132,13 @@ https://your-lab-app/samples/S-2026-0001-A
 | 词表 key | 示例 |
 |---|---|
 | `material_system` | MoS2、WS2、hBN、Graphene |
-| `substrate_type` | 硅片单抛N<100>、蓝宝石、SiO2/Si |
-| `substrate_brand` | 华赫硅材料、合肥科晶 |
+| `substrate_type` | 硅片单抛N<100>、蓝宝石单抛<0001>/<11-20>、蓝宝石双抛C<0001> |
+| `substrate_brand` | 华赫硅材料、合肥科晶、苏州研材微纳科技 |
+| `substrate_size` | 5x5、5x8、5x10、10x10 |
 | `precursor_chemical` | MoO3、WO3、S、Se |
 | `preparation_method` | 熔融、旋涂、称量、研磨 |
 | `gas` | Ar、H2、CO2、O2、CO |
-| `treatment_method` | 等离子清洗、超声清洗、退火、无 |
+| `treatment_method` | 无、等离子清洗、紫外清洗、退火 |
 | `characterization_method` | OM、Raman、PL、AFM、SEM |
 
 ### 16.3 Recipe 管理

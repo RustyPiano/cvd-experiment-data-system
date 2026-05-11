@@ -107,7 +107,7 @@ function buildSampleUpdatePayload(
     } else {
       const parsedPosition = Number(trimmedPosition);
       if (!Number.isFinite(parsedPosition)) {
-        throw new Error("位置 (mm) 必须是有限数字");
+        throw new Error("相对温区位置必须是有限数字");
       }
       payload.position_mm = parsedPosition;
     }
@@ -521,9 +521,9 @@ export function SampleDetailPage() {
                       value={formState.sizeMm}
                     />
                   </Form.Item>
-                  <Form.Item label="位置 (mm)">
+                  <Form.Item label="相对温区位置">
                     <InputNumber
-                      aria-label="位置 (mm)"
+                      aria-label="相对温区位置"
                       disabled={formDisabled}
                       onChange={(value) => {
                         updateFormState("position_mm", (current) => ({

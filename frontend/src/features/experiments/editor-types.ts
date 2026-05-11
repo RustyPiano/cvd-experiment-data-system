@@ -460,37 +460,39 @@ export function validateSectionValues(
   }
 
   if (sectionKey === "substrates") {
-    values.substrates.items.forEach((item, index) => {
-      const rowNumber = index + 1;
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.positionMm`,
-        item.positionMm,
-        `位置 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.treatmentTemperatureC`,
-        item.treatmentTemperatureC,
-        `处理参数温度 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.treatmentDurationMin`,
-        item.treatmentDurationMin,
-        `处理参数时长 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.treatmentPowerW`,
-        item.treatmentPowerW,
-        `处理参数功率 ${rowNumber}`,
-      );
-    });
+    values.substrates.items
+      .filter((item) => item.role === "top" || item.role === "bottom")
+      .forEach((item, index) => {
+        const rowNumber = index + 1;
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.positionMm`,
+          item.positionMm,
+          `位置 ${rowNumber}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.treatmentTemperatureC`,
+          item.treatmentTemperatureC,
+          `处理参数温度 ${rowNumber}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.treatmentDurationMin`,
+          item.treatmentDurationMin,
+          `处理参数时长 ${rowNumber}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.treatmentPowerW`,
+          item.treatmentPowerW,
+          `处理参数功率 ${rowNumber}`,
+        );
+      });
   }
 
   if (sectionKey === "furnace_program") {
@@ -623,6 +625,29 @@ function normalizeNullableBoolean(value: NullableBooleanValue) {
 
 function hasAnyValue(record: Record<string, string>) {
   return Object.values(record).some((value) => value.trim().length > 0);
+}
+
+function hasSubstrateEditableValue(item: SubstrateItemValues) {
+  return hasAnyValue({
+    type: item.type,
+    brand: item.brand,
+    sizeMm: item.sizeMm,
+    treatmentMethod: item.treatmentMethod,
+    positionMm: item.positionMm,
+    treatmentTemperatureC: item.treatmentTemperatureC,
+    treatmentDurationMin: item.treatmentDurationMin,
+    treatmentPowerW: item.treatmentPowerW,
+    treatmentGas: item.treatmentGas,
+  });
+}
+
+export function shouldSanitizeSubstratesBeforeSubmit(values: SubstratesValues) {
+  return values.items.some((item) => {
+    const isFixedRole = item.role === "top" || item.role === "bottom";
+    return (
+      !isFixedRole || (hasSourcePayload(item.sourcePayload) && !hasSubstrateEditableValue(item))
+    );
+  });
 }
 
 function getFurnaceZoneKeys(zonesCount: number) {
@@ -1190,18 +1215,7 @@ export function toSubstratesPayload(values: SubstratesValues) {
   return {
     items: values.items
       .filter((item) =>
-        hasAnyValue({
-          role: item.role,
-          type: item.type,
-          brand: item.brand,
-          sizeMm: item.sizeMm,
-          treatmentMethod: item.treatmentMethod,
-          positionMm: item.positionMm,
-          treatmentTemperatureC: item.treatmentTemperatureC,
-          treatmentDurationMin: item.treatmentDurationMin,
-          treatmentPowerW: item.treatmentPowerW,
-          treatmentGas: item.treatmentGas,
-        }) || hasSourcePayload(item.sourcePayload),
+        (item.role === "top" || item.role === "bottom") && hasSubstrateEditableValue(item),
       )
       .map((item) => {
         const existingTreatmentParams = asRecord(asRecord(item.sourcePayload).treatment_params);

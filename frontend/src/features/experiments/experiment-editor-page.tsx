@@ -142,6 +142,16 @@ function ExperimentEditorWorkspace({
     currentUserId,
     vocabKey: "substrate_type",
   });
+  const substrateBrandOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "substrate_brand",
+  });
+  const substrateSizeOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: "substrate_size",
+  });
   const substrateTreatmentMethodOptions = useActiveVocabularyOptions({
     accessToken,
     currentUserId,
@@ -407,6 +417,8 @@ function ExperimentEditorWorkspace({
                   }));
                   editor.scheduleAutosave();
                 }}
+                substrateBrandOptions={substrateBrandOptions}
+                substrateSizeOptions={substrateSizeOptions}
                 substrateTreatmentMethodOptions={substrateTreatmentMethodOptions}
                 substrateTypeOptions={substrateTypeOptions}
                 value={editor.values.substrates}

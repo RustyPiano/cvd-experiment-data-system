@@ -217,6 +217,19 @@ describe("RecipeAdminPage", () => {
         ),
       ).toBe(true);
     });
+
+    await waitFor(() => {
+      for (const vocabKey of ["substrate_brand", "substrate_size"]) {
+        expect(
+          server.requests.some(
+            (request) =>
+              request.method === "GET" &&
+              request.pathname === "/api/v1/vocabularies" &&
+              request.search.includes(`vocab_key=${vocabKey}`),
+          ),
+        ).toBe(true);
+      }
+    });
   });
 
   it("creates a recipe with default payload", async () => {

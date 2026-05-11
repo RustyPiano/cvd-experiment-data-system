@@ -164,10 +164,11 @@ function createEditorFetchMock() {
         items: [
           {
             role: "top",
-            type: "SiO2/Si",
-            brand: "Brand A",
+            type: "硅片单抛N<100>",
+            brand: "华赫硅材料",
+            size_mm: "5x10",
             position_mm: 1,
-            treatment_method: "anneal",
+            treatment_method: "annealing",
             treatment_params: {
               temperature_C: 300,
               duration_min: 20,
@@ -262,9 +263,13 @@ function createEditorFetchMock() {
     createVocabularyItem("material_system", "WS2", "二硫化钨", 2),
     createVocabularyItem("precursor_method", "spin_coating", "旋涂", 1),
     createVocabularyItem("precursor_method", "melting", "熔融", 2),
-    createVocabularyItem("substrate_type", "SiO2/Si", "氧化硅硅片", 1),
-    createVocabularyItem("substrate_type", "sapphire", "蓝宝石", 2),
-    createVocabularyItem("substrate_treatment_method", "anneal", "退火", 1),
+    createVocabularyItem("substrate_type", "硅片单抛N<100>", "硅片单抛N<100>", 1),
+    createVocabularyItem("substrate_type", "蓝宝石双抛C<0001>", "蓝宝石双抛C<0001>", 2),
+    createVocabularyItem("substrate_brand", "华赫硅材料", "华赫硅材料", 1),
+    createVocabularyItem("substrate_brand", "合肥科晶", "合肥科晶", 2),
+    createVocabularyItem("substrate_size", "5x5", "5x5", 1),
+    createVocabularyItem("substrate_size", "5x10", "5x10", 2),
+    createVocabularyItem("substrate_treatment_method", "annealing", "退火", 1),
     createVocabularyItem("substrate_treatment_method", "plasma_cleaning", "等离子清洗", 2),
     createVocabularyItem("gas_label", "Ar", "氩气", 1),
     createVocabularyItem("gas_label", "CO2", "二氧化碳", 2),
@@ -466,7 +471,12 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByLabelText("前驱体种类 1")).toHaveValue("MoO3");
     expect(screen.getByLabelText("前驱体品牌 1")).toHaveValue("Alfa");
     expect(screen.getByLabelText("前驱体批次 1")).toHaveValue("MO-2026-01");
-    expect(screen.getByLabelText("处理参数温度 1")).toHaveValue("300");
+    expect(screen.getByText("上基底")).toBeInTheDocument();
+    expect(screen.getByText("下基底")).toBeInTheDocument();
+    expect(screen.getByLabelText("基底类型 上基底")).toHaveValue("硅片单抛N<100>");
+    expect(screen.getByLabelText("品牌 上基底")).toHaveValue("华赫硅材料");
+    expect(screen.getByLabelText("尺寸 上基底")).toHaveValue("5x10");
+    expect(screen.getByLabelText("处理参数温度 上基底")).toHaveValue("300");
     expect(screen.getByLabelText("程序段备注 1")).toHaveValue("keep carrier stable");
     expect(screen.getByLabelText("组分流量 1-1")).toHaveValue("4");
     expect(screen.getByLabelText("颜色变化")).toHaveValue("center area darkened");
@@ -1099,6 +1109,8 @@ describe("ExperimentEditorPage", () => {
         "material_system",
         "precursor_method",
         "substrate_type",
+        "substrate_brand",
+        "substrate_size",
         "substrate_treatment_method",
         "gas_label",
         "characterization_method",
@@ -1123,11 +1135,75 @@ describe("ExperimentEditorPage", () => {
 
     await expectOption("材料体系", "二硫化钼", "二");
     await expectOption("制备方法 1", "旋涂", "旋");
-    await expectOption("基底类型 1", "氧化硅硅片", "氧");
-    await expectOption("处理方式 1", "退火", "退");
+    await expectOption("基底类型 上基底", "蓝宝石双抛C<0001>", "蓝");
+    await expectOption("品牌 上基底", "合肥科晶", "合");
+    await expectOption("尺寸 上基底", "5x5", "5");
+    await expectOption("处理方式 上基底", "退火", "退");
     await expectOption("预清洗气体", "氩气", "氩");
     await expectOption("气体 1", "氩气", "氩");
     await expectOption("表征方法 1", "拉曼", "拉");
+  });
+
+  it("autosaves a lower substrate with an automatic bottom role", async () => {
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    await screen.findByRole("heading", { name: "基础信息" });
+
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText("基底类型 下基底"), {
+      target: { value: "蓝宝石双抛C<0001>" },
+    });
+    fireEvent.change(screen.getByLabelText("品牌 下基底"), {
+      target: { value: "合肥科晶" },
+    });
+    fireEvent.change(screen.getByLabelText("尺寸 下基底"), {
+      target: { value: "5x5" },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+      await Promise.resolve();
+    });
+
+    vi.useRealTimers();
+    await waitFor(() => {
+      expect(
+        server.requests.some((request) => {
+          if (
+            request.method !== "PUT" ||
+            request.pathname !== "/api/v1/experiments/exp-1/modules/substrates"
+          ) {
+            return false;
+          }
+
+          const items = (
+            request.body as {
+              payload_json?: {
+                items?: Array<{ brand?: string; role?: string; size_mm?: string; type?: string }>;
+              };
+            }
+          ).payload_json?.items;
+          const lowerSubstrate = items?.find((item) => item.role === "bottom");
+
+          return (
+            lowerSubstrate?.type === "蓝宝石双抛C<0001>" &&
+            lowerSubstrate.brand === "合肥科晶" &&
+            lowerSubstrate.size_mm === "5x5"
+          );
+        }),
+      ).toBe(true);
+    });
   });
 
   it("keeps legacy vocabulary values free-editable after options load", async () => {
@@ -1282,9 +1358,9 @@ describe("ExperimentEditorPage", () => {
       }),
     ).toBe(true);
 
-    const substrateBrandInput = screen.getByLabelText("品牌 1");
+    const substrateBrandInput = screen.getByLabelText("品牌 上基底");
     vi.useFakeTimers();
-    fireEvent.change(substrateBrandInput, { target: { value: "Brand B" } });
+    fireEvent.change(substrateBrandInput, { target: { value: "合肥科晶" } });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);
@@ -1310,7 +1386,7 @@ describe("ExperimentEditorPage", () => {
             }
           ).payload_json?.items;
 
-          return Array.isArray(items) && items[0]?.brand === "Brand B" && items[0]?.surface_finish === "polished";
+          return Array.isArray(items) && items[0]?.brand === "合肥科晶" && items[0]?.surface_finish === "polished";
         }),
       ).toBe(true);
     });
@@ -2176,6 +2252,70 @@ describe("ExperimentEditorPage", () => {
 
     expect(await screen.findByText("已提交")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "提交实验" })).not.toBeInTheDocument();
+  });
+
+  it("sanitizes hidden legacy substrate rows before submit", async () => {
+    const server = createEditorFetchMock();
+    server.modules.set(
+      "substrates",
+      createModulePayload(server.experiment.id, "substrates", {
+        items: [
+          {
+            role: "control",
+            type: "Legacy hidden substrate",
+          },
+          {
+            role: "top",
+            type: "硅片单抛N<100>",
+            brand: "华赫硅材料",
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    const submitButton = (await screen.findAllByRole("button", { name: "提交实验" }))[0];
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" &&
+            request.pathname === "/api/v1/experiments/exp-1/submit",
+        ),
+      ).toBe(true);
+    });
+
+    const substrateSave = server.requests.find(
+      (request) =>
+        request.method === "PUT" &&
+        request.pathname === "/api/v1/experiments/exp-1/modules/substrates",
+    );
+    const items = (
+      substrateSave?.body as {
+        payload_json?: {
+          items?: Array<{ role?: string; type?: string }>;
+        };
+      }
+    )?.payload_json?.items;
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        role: "top",
+        type: "硅片单抛N<100>",
+      }),
+    ]);
   });
 
   it("submits immediately after a failed autosave is fixed", async () => {

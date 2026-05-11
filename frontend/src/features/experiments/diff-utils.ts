@@ -81,6 +81,7 @@ const fieldLabels: Record<string, string> = {
   seal_intact: "密封完好",
   segments: "程序段",
   size_mm: "尺寸 (mm)",
+  position_mm: "相对温区位置",
   species: "种类",
   spin_speed_rpm: "旋涂转速 (rpm)",
   stage: "阶段",

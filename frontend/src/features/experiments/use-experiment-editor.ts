@@ -30,6 +30,7 @@ import {
   mergeResultSummaryPayload,
   mergeSubstratesPayload,
   serializeSectionValues,
+  shouldSanitizeSubstratesBeforeSubmit,
   toBasicInfoPayload,
   toEnvironmentPayload,
   toExperimentPatch,
@@ -896,7 +897,14 @@ export function useExperimentEditor({
     setValidationResult(null);
 
     try {
-      const saveFailed = await enqueueSave(() => persistDirtySections(valuesRef.current));
+      const forceSaveSections: EditorSectionKey[] = shouldSanitizeSubstratesBeforeSubmit(
+        valuesRef.current.substrates,
+      )
+        ? ["substrates"]
+        : [];
+      const saveFailed = await enqueueSave(() =>
+        persistDirtySections(valuesRef.current, forceSaveSections),
+      );
 
       if (
         saveFailed ||

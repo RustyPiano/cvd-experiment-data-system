@@ -278,7 +278,7 @@ invalid
   - `storage_location`
   - `metadata_json`
 - 前端会先校验：
-  - `position_mm` 必须可解析为数字
+  - `position_mm` 作为相对温区位置，必须为空或可解析为数字
   - `metadata_json` 必须是 JSON 对象
 
 ### `/admin/vocabularies`

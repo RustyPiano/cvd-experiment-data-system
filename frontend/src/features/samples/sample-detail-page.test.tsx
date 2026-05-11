@@ -171,7 +171,7 @@ describe("SampleDetailPage", () => {
     fireEvent.change(screen.getByLabelText("基底类型"), {
       target: { value: "Sapphire" },
     });
-    fireEvent.change(screen.getByLabelText("位置 (mm)"), {
+    fireEvent.change(screen.getByLabelText("相对温区位置"), {
       target: { value: "18.5" },
     });
     fireEvent.change(screen.getByLabelText("元数据 JSON"), {
@@ -314,7 +314,7 @@ describe("SampleDetailPage", () => {
     expect(await screen.findByText("S-2026-0001-TOP")).toBeInTheDocument();
     expect(await screen.findByText("raman.txt")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("位置 (mm)"), {
+    fireEvent.change(screen.getByLabelText("相对温区位置"), {
       target: { value: "1e309" },
     });
 

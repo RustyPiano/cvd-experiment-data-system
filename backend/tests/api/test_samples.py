@@ -135,6 +135,48 @@ def test_substrates_module_syncs_top_and_bottom_samples(active_user) -> None:
     assert roles["bottom"]["brand"] == "Brand B"
 
 
+def test_substrates_module_syncs_empty_relative_position_as_null(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Relative position none flow",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "硅片单抛N<100>",
+                        "brand": "华赫硅材料",
+                        "size_mm": "5x10",
+                        "treatment_method": "none",
+                        "position_mm": None,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert response.status_code == 200
+
+    list_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}&role=top",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["position_mm"] is None
+
+
 def test_substrates_module_removes_deleted_bottom_sample(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",

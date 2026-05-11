@@ -54,10 +54,34 @@ function updateList(
   return { ...value, [listKey]: updater(asObjectArray(value[listKey])) };
 }
 
-const ROLE_OPTIONS = [
-  { label: "顶部 (top)", value: "top" },
-  { label: "底部 (bottom)", value: "bottom" },
+const SUBSTRATE_ROLE_CONFIGS = [
+  { role: "top", title: "上基底" },
+  { role: "bottom", title: "下基底" },
 ];
+const SUBSTRATE_ROLE_SET = new Set(SUBSTRATE_ROLE_CONFIGS.map((item) => item.role));
+const RELATIVE_POSITION_OPTIONS = [
+  { label: "无", value: "" },
+  { label: "-2", value: "-2" },
+  { label: "-1", value: "-1" },
+  { label: "0", value: "0" },
+  { label: "1", value: "1" },
+  { label: "2", value: "2" },
+];
+
+function relativePositionOptions(currentValue: unknown) {
+  const value = asString(currentValue);
+  if (!value || RELATIVE_POSITION_OPTIONS.some((option) => option.value === value)) {
+    return RELATIVE_POSITION_OPTIONS;
+  }
+
+  return [{ label: value, value }, ...RELATIVE_POSITION_OPTIONS];
+}
+
+function toNullablePosition(value: string): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function PrecursorsEditor({
   value,
@@ -190,100 +214,112 @@ function SubstratesEditor({
 }) {
   const items = asObjectArray(value.items);
 
-  const updateItem = (index: number, updated: Record<string, unknown>) => {
-    onChange(updateList(value, "items", (arr) => arr.map((it, i) => (i === index ? updated : it))));
-  };
-
-  const removeItem = (index: number) => {
-    onChange(updateList(value, "items", (arr) => arr.filter((_, i) => i !== index)));
-  };
-
-  const addItem = () => {
-    onChange(
-      updateList(value, "items", (arr) => [
-        ...arr,
-        {
-          role: "",
-          type: "",
-          brand: "",
-          size_mm: "",
-          treatment_method: "",
-          position_mm: null,
-        },
-      ]),
+  const hasSubstrateValue = (item: Record<string, unknown>) =>
+    ["type", "brand", "size_mm", "treatment_method", "position_mm"].some((key) =>
+      key === "position_mm" ? item[key] !== null && item[key] !== undefined : Boolean(asString(item[key]).trim()),
     );
+
+  const updateRoleItem = (role: string, patch: Record<string, unknown>) => {
+    const existing = items.find((item) => item.role === role);
+    const nextItem = {
+      role,
+      type: "",
+      brand: "",
+      size_mm: "",
+      treatment_method: "",
+      position_mm: null,
+      ...existing,
+      ...patch,
+    };
+    const nextItems = SUBSTRATE_ROLE_CONFIGS.map((roleConfig) =>
+      roleConfig.role === role ? nextItem : items.find((item) => item.role === roleConfig.role),
+    ).filter((item): item is Record<string, unknown> => Boolean(item && hasSubstrateValue(item)));
+
+    onChange({ ...value, items: nextItems });
+  };
+
+  const clearRoleItem = (role: string) => {
+    onChange({
+      ...value,
+      items: items.filter(
+        (item) => item.role !== role && SUBSTRATE_ROLE_SET.has(asString(item.role)),
+      ),
+    });
   };
 
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
-      {items.map((item, index) => (
+      {SUBSTRATE_ROLE_CONFIGS.map((roleConfig) => {
+        const item = items.find((substrate) => substrate.role === roleConfig.role) ?? {};
+
+        return (
         <Card
-          key={index}
+          key={roleConfig.role}
           size="small"
-          title={`基底 ${index + 1}`}
+          title={roleConfig.title}
           extra={
             <Button
               danger
               icon={<DeleteOutlined />}
-              onClick={() => removeItem(index)}
+              disabled={!items.some((substrate) => substrate.role === roleConfig.role)}
+              onClick={() => clearRoleItem(roleConfig.role)}
               size="small"
+              aria-label={`清空${roleConfig.title}`}
             />
           }
         >
-          <Form.Item label="角色" style={{ marginBottom: 8 }}>
-            <Select
-              allowClear
-              onChange={(v) => updateItem(index, { ...item, role: v ?? "" })}
-              options={ROLE_OPTIONS}
-              placeholder="选择角色"
-              style={{ width: "100%" }}
-              value={asString(item.role) || undefined}
-            />
-          </Form.Item>
           <Form.Item label="类型" style={{ marginBottom: 8 }}>
             <VocabularyCombobox
-              ariaLabel={`基底 ${index + 1} 类型`}
+              ariaLabel={`${roleConfig.title} 类型`}
               disabled={false}
-              onChange={(v) => updateItem(index, { ...item, type: v })}
+              onChange={(v) => updateRoleItem(roleConfig.role, { type: v })}
               options={vocabularyOptions.substrate_type ?? []}
               placeholder="选择或输入基底类型"
               value={asString(item.type)}
             />
           </Form.Item>
           <Form.Item label="品牌" style={{ marginBottom: 8 }}>
-            <Input
+            <VocabularyCombobox
+              ariaLabel={`${roleConfig.title} 品牌`}
+              disabled={false}
+              onChange={(v) => updateRoleItem(roleConfig.role, { brand: v })}
+              options={vocabularyOptions.substrate_brand ?? []}
+              placeholder="选择或输入品牌"
               value={asString(item.brand)}
-              onChange={(e) => updateItem(index, { ...item, brand: e.target.value })}
             />
           </Form.Item>
-          <Form.Item label="尺寸 (mm)" style={{ marginBottom: 8 }}>
-            <Input
+          <Form.Item label="尺寸" style={{ marginBottom: 8 }}>
+            <VocabularyCombobox
+              ariaLabel={`${roleConfig.title} 尺寸`}
+              disabled={false}
+              onChange={(v) => updateRoleItem(roleConfig.role, { size_mm: v })}
+              options={vocabularyOptions.substrate_size ?? []}
+              placeholder="选择或输入尺寸"
               value={asString(item.size_mm)}
-              onChange={(e) => updateItem(index, { ...item, size_mm: e.target.value })}
             />
           </Form.Item>
           <Form.Item label="处理方法" style={{ marginBottom: 8 }}>
             <VocabularyCombobox
-              ariaLabel={`基底 ${index + 1} 处理方法`}
+              ariaLabel={`${roleConfig.title} 处理方法`}
               disabled={false}
-              onChange={(v) => updateItem(index, { ...item, treatment_method: v })}
+              onChange={(v) => updateRoleItem(roleConfig.role, { treatment_method: v })}
               options={vocabularyOptions.substrate_treatment_method ?? []}
               placeholder="选择或输入处理方法"
               value={asString(item.treatment_method)}
             />
           </Form.Item>
-          <Form.Item label="位置 (mm)" style={{ marginBottom: 8 }}>
-            <InputNumber
-              value={asNumber(item.position_mm)}
-              onChange={(v) => updateItem(index, { ...item, position_mm: v })}
+          <Form.Item label="相对温区位置" style={{ marginBottom: 8 }}>
+            <Select
+              aria-label={`${roleConfig.title} 相对温区位置`}
+              onChange={(v) => updateRoleItem(roleConfig.role, { position_mm: toNullablePosition(v) })}
+              options={relativePositionOptions(item.position_mm)}
               style={{ width: "100%" }}
+              value={asString(item.position_mm)}
             />
           </Form.Item>
         </Card>
-      ))}
-      <Button icon={<PlusOutlined />} onClick={addItem} type="dashed">
-        添加基底
-      </Button>
+        );
+      })}
     </Space>
   );
 }

@@ -217,7 +217,7 @@ function renderSubstratesParams(modules: ExperimentModulePayloadRead[] | undefin
           title: "处理参数",
           render: (_: unknown, record: Record<string, unknown>) => formatSubstrateTreatmentParams(record),
         },
-        { title: "位置 (mm)", dataIndex: "position_mm", render: (v: unknown) => safeString(v) || "—" },
+        { title: "相对温区位置", dataIndex: "position_mm", render: (v: unknown) => safeString(v) || "—" },
       ]}
       dataSource={items}
       pagination={false}

@@ -80,7 +80,7 @@
 - 实验级结构化 JSON 导出
 - 单实验 Excel 导出
 - 单实验 analysis-ready 归一化导出
-- 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_treatment_method / gas_label / characterization_method / quality_label`
+- 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_brand / substrate_size / substrate_treatment_method / gas_label / characterization_method / quality_label`
 - 字段词典（`ExperimentFieldDefinition`）：定义每个实验模块字段的元数据（类型、单位、必填、可继承、关联词表），含种子数据 78 条，覆盖 9 个模块
 - Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe（Recipe 管理页使用结构化表单编辑器替代原始 JSON）
 - Alembic 迁移 `20260423_0001` 到 `20260506_0014`

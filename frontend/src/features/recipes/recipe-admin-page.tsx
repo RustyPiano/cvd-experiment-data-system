@@ -303,6 +303,18 @@ export function RecipeAdminPage() {
     enabled: session.isAuthenticated && isAdmin,
   });
 
+  const substrateBrandVocabQuery = useQuery({
+    queryKey: ["vocabularies", "substrate_brand", currentUser?.id ?? "anonymous"],
+    queryFn: () => listActiveVocabularies(session.accessToken!, "substrate_brand"),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
+  const substrateSizeVocabQuery = useQuery({
+    queryKey: ["vocabularies", "substrate_size", currentUser?.id ?? "anonymous"],
+    queryFn: () => listActiveVocabularies(session.accessToken!, "substrate_size"),
+    enabled: session.isAuthenticated && isAdmin,
+  });
+
   const substrateTreatmentVocabQuery = useQuery({
     queryKey: ["vocabularies", "substrate_treatment_method", currentUser?.id ?? "anonymous"],
     queryFn: () => listActiveVocabularies(session.accessToken!, "substrate_treatment_method"),
@@ -332,6 +344,8 @@ export function RecipeAdminPage() {
       material_system: toOptions(materialSystemVocabQuery),
       precursor_method: toOptions(precursorMethodVocabQuery),
       substrate_type: toOptions(substrateTypeVocabQuery),
+      substrate_brand: toOptions(substrateBrandVocabQuery),
+      substrate_size: toOptions(substrateSizeVocabQuery),
       substrate_treatment_method: toOptions(substrateTreatmentVocabQuery),
       gas_label: toOptions(gasLabelVocabQuery),
       characterization_method: toOptions(characterizationMethodVocabQuery),
@@ -341,6 +355,8 @@ export function RecipeAdminPage() {
       materialSystemVocabQuery.data,
       precursorMethodVocabQuery.data,
       substrateTypeVocabQuery.data,
+      substrateBrandVocabQuery.data,
+      substrateSizeVocabQuery.data,
       substrateTreatmentVocabQuery.data,
       gasLabelVocabQuery.data,
       characterizationMethodVocabQuery.data,

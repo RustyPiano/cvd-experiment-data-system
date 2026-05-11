@@ -16,6 +16,156 @@ def _alembic_config() -> Config:
     return config
 
 
+def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_values() -> None:
+    command.upgrade(_alembic_config(), "head")
+
+    expected_active_values = {
+        "substrate_type": [
+            "硅片单抛N<100>",
+            "蓝宝石单抛<0001>/<11-20>",
+            "蓝宝石单抛<10-10>/<0001>",
+            "蓝宝石单抛<11-20>/<0001>",
+            "蓝宝石双抛C<0001>",
+            "蓝宝石双抛A<11-20>",
+            "蓝宝石双抛M<10-10>",
+        ],
+        "substrate_brand": [
+            "华赫硅材料",
+            "合肥科晶",
+            "苏州研材微纳科技",
+        ],
+        "substrate_size": ["5x5", "5x8", "5x10", "10x10"],
+        "substrate_treatment_method": [
+            "none",
+            "plasma_cleaning",
+            "uv_cleaning",
+            "annealing",
+        ],
+    }
+    expected_legacy_inactive = {
+        ("substrate_type", "SiO2/Si"),
+        ("substrate_type", "sapphire"),
+        ("substrate_type", "quartz"),
+        ("substrate_type", "other"),
+        ("substrate_treatment_method", "solvent_cleaning"),
+        ("substrate_treatment_method", "other"),
+    }
+
+    with db_session_module.engine.connect() as connection:
+        for vocab_key, values in expected_active_values.items():
+            rows = connection.execute(
+                sa.text(
+                    """
+                    SELECT value
+                    FROM controlled_vocabularies
+                    WHERE vocab_key = :vocab_key AND is_active = 1
+                    ORDER BY sort_order
+                    """
+                ),
+                {"vocab_key": vocab_key},
+            ).scalars()
+
+            assert list(rows) == values
+
+        inactive_rows = connection.execute(
+            sa.text(
+                """
+                SELECT vocab_key, value
+                FROM controlled_vocabularies
+                WHERE is_active = 0
+                """
+            )
+        ).all()
+
+        field_rows = list(
+            connection.execute(
+                sa.text(
+                    """
+                    SELECT field_key, label_zh, field_type, unit, vocab_key
+                    FROM experiment_field_definitions
+                    WHERE module_key = 'substrates'
+                      AND field_key IN ('brand', 'size_mm', 'position_mm')
+                    """
+                )
+            ).mappings()
+        )
+
+    assert expected_legacy_inactive.issubset(set(inactive_rows))
+    field_definitions = {row["field_key"]: dict(row) for row in field_rows}
+    assert field_definitions["brand"]["field_type"] == "select"
+    assert field_definitions["brand"]["vocab_key"] == "substrate_brand"
+    assert field_definitions["size_mm"]["field_type"] == "select"
+    assert field_definitions["size_mm"]["vocab_key"] == "substrate_size"
+    assert field_definitions["position_mm"]["label_zh"] == "相对温区位置"
+    assert field_definitions["position_mm"]["unit"] is None
+
+
+def test_substrate_vocabulary_update_preserves_custom_active_entries() -> None:
+    command.downgrade(_alembic_config(), "20260423_0008")
+
+    custom_entries = [
+        ("substrate_type", "sapphire", "用户维护蓝宝石"),
+        ("substrate_brand", "custom_substrate_brand", "自定义品牌"),
+        ("substrate_size", "custom_substrate_size", "自定义尺寸"),
+        ("substrate_treatment_method", "solvent_cleaning", "用户维护溶剂清洗"),
+    ]
+    with db_session_module.engine.begin() as connection:
+        for index, (vocab_key, value, label_zh) in enumerate(custom_entries, start=1):
+            connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO controlled_vocabularies (
+                        id,
+                        vocab_key,
+                        value,
+                        label_zh,
+                        label_en,
+                        sort_order,
+                        is_active,
+                        metadata_json
+                    )
+                    VALUES (
+                        :id,
+                        :vocab_key,
+                        :value,
+                        :label_zh,
+                        :label_en,
+                        :sort_order,
+                        :is_active,
+                        :metadata_json
+                    )
+                    """
+                ),
+                {
+                    "id": f"22222222-2222-2222-2222-22222222222{index}",
+                    "vocab_key": vocab_key,
+                    "value": value,
+                    "label_zh": label_zh,
+                    "label_en": value,
+                    "sort_order": 100 + index,
+                    "is_active": True,
+                    "metadata_json": "{}",
+                },
+            )
+
+    command.upgrade(_alembic_config(), "head")
+
+    with db_session_module.engine.connect() as connection:
+        rows = connection.execute(
+            sa.text(
+                """
+                SELECT vocab_key, value
+                FROM controlled_vocabularies
+                WHERE is_active = 1
+                """
+            )
+        ).all()
+
+    active_entries = set(rows)
+    for vocab_key, value, _label_zh in custom_entries:
+        assert (vocab_key, value) in active_entries
+
+
 def test_mvp_0_2_vocabulary_seed_downgrade_preserves_preexisting_entries() -> None:
     command.downgrade(_alembic_config(), "20260423_0008")
 
