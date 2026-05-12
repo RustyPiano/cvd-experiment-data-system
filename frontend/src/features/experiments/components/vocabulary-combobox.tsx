@@ -21,6 +21,7 @@ export function VocabularyCombobox({
   value: string;
 }) {
   const resolvedOptions = withLegacyVocabularyOption(options, value);
+  const displayValue = resolvedOptions.find((option) => option.value === value)?.label ?? value;
 
   return (
     <AutoComplete
@@ -33,14 +34,15 @@ export function VocabularyCombobox({
         );
       }}
       onChange={(nextValue) => {
-        onChange(nextValue);
+        const matchingOption = resolvedOptions.find((option) => option.label === nextValue);
+        onChange(matchingOption?.value ?? nextValue);
       }}
       onSelect={(nextValue) => {
         onChange(String(nextValue));
       }}
       options={resolvedOptions}
       placeholder={placeholder}
-      value={value}
+      value={displayValue}
     >
       <Input aria-label={ariaLabel} placeholder={placeholder} />
     </AutoComplete>

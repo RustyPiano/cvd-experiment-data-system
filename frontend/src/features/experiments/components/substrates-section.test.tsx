@@ -19,6 +19,7 @@ const substrateSizeOptions: VocabularySelectOption[] = [
 const substrateTreatmentMethodOptions: VocabularySelectOption[] = [
   { label: "无", value: "none" },
   { label: "退火", value: "annealing" },
+  { label: "等离子清洗", value: "plasma_cleaning" },
 ];
 
 function renderSection(value: SubstratesValues, onChange = vi.fn()) {
@@ -83,6 +84,28 @@ describe("SubstratesSection", () => {
         }),
       ],
     });
+  });
+
+  it("shows the vocabulary label for stored substrate treatment values", () => {
+    renderSection({
+      items: [
+        {
+          role: "top",
+          type: "",
+          brand: "",
+          sizeMm: "",
+          batchNo: "",
+          treatmentMethod: "plasma_cleaning",
+          positionMm: "",
+          treatmentTemperatureC: "",
+          treatmentDurationMin: "",
+          treatmentPowerW: "",
+          treatmentGas: "",
+        },
+      ],
+    });
+
+    expect(screen.getByLabelText("处理方式 上基底")).toHaveValue("等离子清洗");
   });
 
   it("clears only the selected substrate role", () => {
