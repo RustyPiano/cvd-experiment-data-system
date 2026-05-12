@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { App as AntdApp } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryRouter, Route, RouterProvider, Routes } from "react-router-dom";
 
@@ -38,6 +38,12 @@ type ModulePayload = {
   note: string | null;
   created_at: string;
   updated_at: string;
+};
+
+const testTheme = {
+  token: {
+    motion: false,
+  },
 };
 
 function createVocabularyItem(
@@ -214,10 +220,17 @@ function createEditorFetchMock() {
     [
       "furnace_program",
       createModulePayload(experiment.id, "furnace_program", {
-        furnace_info: { zones_count: 1, initial_temperatures_C: { zone_1: 25 } },
-        precursors: [],
-        steps: [
-          { step_index: 1, step_name: "升温", duration_min: 30, is_hold: false, temperatures_C: { zone_1: 750 }, note: "" },
+        furnace_info: { zones_count: 1, model: "" },
+        placements: [],
+        zones: [
+          {
+            zone_key: "zone_1",
+            temperature_program: [
+              { node_index: 1, time_min: 0, temperature_C: 25, note: "" },
+              { node_index: 2, time_min: 30, temperature_C: 750, note: "升温结束" },
+            ],
+            note: "",
+          },
         ],
       }),
     ],
@@ -413,9 +426,11 @@ function renderEditorWithDataRouter({
           }),
         }}
       >
-        <AntdApp>
-          <RouterProvider router={router} />
-        </AntdApp>
+        <ConfigProvider theme={testTheme}>
+          <AntdApp>
+            <RouterProvider router={router} />
+          </AntdApp>
+        </ConfigProvider>
       </AuthProvider>
     </QueryClientProvider>,
   );
@@ -1053,7 +1068,7 @@ describe("ExperimentEditorPage", () => {
     ).toBe(false);
   });
 
-  it("blocks autosave when furnace node time is not a valid number", async () => {
+  it("blocks autosave when furnace segment duration is not a valid number", async () => {
     const server = createEditorFetchMock();
     vi.stubGlobal("fetch", server.fetchMock);
 
@@ -1067,8 +1082,7 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "高级节点编辑" }));
-    const durationInput = await screen.findByLabelText("温区 1 节点 2 时间");
+    const durationInput = await screen.findByLabelText("温区 1 区间1 时长");
     vi.useFakeTimers();
     fireEvent.change(durationInput, { target: { value: "abc" } });
 
@@ -1078,7 +1092,7 @@ describe("ExperimentEditorPage", () => {
     });
 
     vi.useRealTimers();
-    expect(await screen.findByText("时间 温区1-2 必须是数字")).toBeInTheDocument();
+    expect(await screen.findByText("时长 温区1-区间1 必须是数字")).toBeInTheDocument();
     expect(
       server.requests.some(
         (request) =>
@@ -1392,10 +1406,8 @@ describe("ExperimentEditorPage", () => {
       ).toBe(true);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "高级节点编辑" }));
-    const furnaceTemperatureInput = screen.getByLabelText("温区 1 节点 2 温度");
     vi.useFakeTimers();
-    fireEvent.change(furnaceTemperatureInput, { target: { value: "760" } });
+    fireEvent.change(screen.getByLabelText("温区 1 区间1 目标温度"), { target: { value: "760" } });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);

@@ -102,6 +102,18 @@ def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_val
                 )
             ).mappings()
         )
+        furnace_field_rows = list(
+            connection.execute(
+                sa.text(
+                    """
+                    SELECT field_key
+                    FROM experiment_field_definitions
+                    WHERE module_key = 'furnace_program'
+                    ORDER BY sort_order
+                    """
+                )
+            ).scalars()
+        )
 
     assert expected_legacy_inactive.issubset(set(inactive_rows))
     field_definitions = {row["field_key"]: dict(row) for row in field_rows}
@@ -119,6 +131,7 @@ def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_val
     assert added_field_definitions[("basic_info", "layer_count")]["vocab_key"] == "layer_count"
     assert added_field_definitions[("substrates", "batch_no")]["label_zh"] == "基底批次"
     assert added_field_definitions[("substrates", "batch_no")]["field_type"] == "text"
+    assert furnace_field_rows == ["furnace_info", "placements", "zones"]
 
 
 def test_substrate_vocabulary_update_preserves_custom_active_entries() -> None:

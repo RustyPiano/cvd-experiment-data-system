@@ -69,7 +69,6 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
     furnaceInfo: {
       zonesCount: "2",
       model: "",
-      initialTemperaturesC: { zone_1: "25", zone_2: "25" },
     },
     placements: [],
     zones: [],

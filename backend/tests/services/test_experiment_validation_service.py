@@ -109,7 +109,7 @@ def test_schema_validation_reports_string_type_in_chinese(
     )
 
 
-def test_furnace_program_schema_accepts_canonical_placements_and_legacy_precursors() -> None:
+def test_furnace_program_schema_accepts_canonical_placements() -> None:
     canonical = validate_module_payload(
         ExperimentModuleKey.FURNACE_PROGRAM.value,
         {
@@ -145,23 +145,70 @@ def test_furnace_program_schema_accepts_canonical_placements_and_legacy_precurso
     ]
     assert canonical["zones"][0]["temperature_program"][1]["temperature_C"] == 750.0
 
-    legacy = validate_module_payload(
-        ExperimentModuleKey.FURNACE_PROGRAM.value,
+
+def test_furnace_program_schema_rejects_legacy_steps_and_precursors() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        validate_module_payload(
+            ExperimentModuleKey.FURNACE_PROGRAM.value,
+            {
+                "furnace_info": {"zones_count": 2},
+                "steps": [],
+            },
+        )
+
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        validate_module_payload(
+            ExperimentModuleKey.FURNACE_PROGRAM.value,
+            {
+                "furnace_info": {"zones_count": 2},
+                "precursors": [],
+            },
+        )
+
+
+def test_furnace_program_schema_rejects_explicit_null_canonical_containers() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    for payload in [
+        {"furnace_info": None, "placements": [], "zones": []},
+        {"furnace_info": {"zones_count": 1}, "placements": None, "zones": []},
+        {"furnace_info": {"zones_count": 1}, "placements": [], "zones": None},
         {
-            "furnace_info": {"zones_count": 2},
-            "precursors": [
-                {"material": "MoO3", "position_cm": -15, "mass_mg": 15, "note": "legacy"}
-            ],
-            "steps": [],
+            "furnace_info": {"zones_count": 1},
+            "placements": [],
+            "zones": [{"zone_key": "zone_1", "temperature_program": None}],
         },
-    )
-
-    assert legacy["precursors"] == [
-        {"material": "MoO3", "position_cm": -15.0, "mass_mg": 15.0, "note": "legacy"}
-    ]
+    ]:
+        with pytest.raises(ValidationError):
+            validate_module_payload(ExperimentModuleKey.FURNACE_PROGRAM.value, payload)
 
 
-def test_furnace_program_normalizes_legacy_steps_to_zone_temperature_programs() -> None:
+def test_furnace_program_schema_rejects_zone_index() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        validate_module_payload(
+            ExperimentModuleKey.FURNACE_PROGRAM.value,
+            {
+                "furnace_info": {"zones_count": 1},
+                "placements": [],
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "zone_index": 1,
+                        "temperature_program": [],
+                    }
+                ],
+            },
+        )
+
+
+def test_furnace_program_normalizes_canonical_zones() -> None:
     normalized = normalize_module_payload(
         ExperimentModuleKey.FURNACE_PROGRAM.value,
         {
@@ -169,48 +216,31 @@ def test_furnace_program_normalizes_legacy_steps_to_zone_temperature_programs() 
                 "zones_count": 2,
                 "initial_temperatures_C": {"zone_1": 25, "zone_2": 25},
             },
-            "steps": [
+            "zones": [
                 {
-                    "step_index": 1,
-                    "step_name": "升温",
-                    "duration_min": 30,
-                    "is_hold": False,
-                    "temperatures_C": {"zone_1": 650, "zone_2": 780},
-                    "note": "legacy ramp",
+                    "zone_key": "zone_1",
+                    "temperature_program": [
+                        {"node_index": 1, "time_min": 0, "temperature_C": 25},
+                        {"node_index": 2, "time_min": 30, "temperature_C": 650, "note": "ramp"},
+                    ],
                 },
                 {
-                    "step_index": 2,
-                    "step_name": "保温",
-                    "duration_min": 15,
-                    "is_hold": True,
-                    "temperatures_C": {"zone_1": 650, "zone_2": 780},
-                    "note": "legacy hold",
+                    "zone_key": "zone_2",
+                    "temperature_program": [
+                        {"node_index": 1, "time_min": 0, "temperature_C": 25},
+                        {"node_index": 2, "time_min": 30, "temperature_C": 780, "note": "ramp"},
+                    ],
                 },
             ],
         },
     )
 
-    assert normalized["zones"] == [
-        {
-            "zone_key": "zone_1",
-            "temperature_program": [
-                {"node_index": 1, "time_min": 0.0, "temperature_C": 25, "note": ""},
-                {"node_index": 2, "time_min": 30.0, "temperature_C": 650, "note": "legacy ramp"},
-                {"node_index": 3, "time_min": 45.0, "temperature_C": 650, "note": "legacy hold"},
-            ],
-            "note": "",
-        },
-        {
-            "zone_key": "zone_2",
-            "temperature_program": [
-                {"node_index": 1, "time_min": 0.0, "temperature_C": 25, "note": ""},
-                {"node_index": 2, "time_min": 30.0, "temperature_C": 780, "note": "legacy ramp"},
-                {"node_index": 3, "time_min": 45.0, "temperature_C": 780, "note": "legacy hold"},
-            ],
-            "note": "",
-        },
-    ]
-    assert "steps" not in normalized
+    assert len(normalized["zones"]) == 2
+    assert normalized["zones"][0]["zone_key"] == "zone_1"
+    assert normalized["zones"][0]["temperature_program"][1]["temperature_C"] == 650
+    assert normalized["zones"][0]["note"] == ""
+    assert normalized["zones"][1]["zone_key"] == "zone_2"
+    assert normalized["zones"][1]["temperature_program"][1]["temperature_C"] == 780
 
 
 def test_furnace_program_normalize_preserves_missing_zone_key_for_validation() -> None:
@@ -230,3 +260,51 @@ def test_furnace_program_normalize_preserves_missing_zone_key_for_validation() -
     )
 
     assert "zone_key" not in normalized["zones"][0]
+
+
+def test_furnace_program_wrong_type_zones_passes_through_to_pydantic() -> None:
+    """Wrong-type containers must NOT be silently coerced to [] — they must reach
+    Pydantic so the API can return 422 instead of accepting invalid data."""
+    import pytest
+    from pydantic import ValidationError
+
+    # zones with a string value should raise, not normalize to []
+    with pytest.raises(ValidationError):
+        validate_module_payload(
+            ExperimentModuleKey.FURNACE_PROGRAM.value,
+            {
+                "furnace_info": {"zones_count": 1},
+                "placements": [],
+                "zones": "bad",
+            },
+        )
+
+    # temperature_program with a string value should raise, not normalize to []
+    with pytest.raises(ValidationError):
+        validate_module_payload(
+            ExperimentModuleKey.FURNACE_PROGRAM.value,
+            {
+                "furnace_info": {"zones_count": 1},
+                "placements": [],
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": "bad",
+                    }
+                ],
+            },
+        )
+
+
+def test_furnace_program_missing_optional_containers_get_defaults() -> None:
+    """Missing optional fields (zones, placements) are defaulted to [] by the
+    normalize layer — ensuring downstream validate receives well-formed containers."""
+    normalized = normalize_module_payload(
+        ExperimentModuleKey.FURNACE_PROGRAM.value,
+        {
+            "furnace_info": {"zones_count": 1},
+            # placements and zones omitted — normalize should supply []
+        },
+    )
+    assert normalized["placements"] == []
+    assert normalized["zones"] == []

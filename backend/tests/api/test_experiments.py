@@ -37,14 +37,14 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 750},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -570,14 +570,14 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": -5,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 750},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": -5, "temperature_C": 750, "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -734,14 +734,14 @@ def test_validate_score_uses_fixed_checklist_for_repeated_rows(active_user) -> N
             json={
                 "payload_json": {
                     "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                    "precursors": [],
-                    "steps": [
+                    "placements": [],
+                    "zones": [
                         {
-                            "step_index": 1,
-                            "step_name": "升温",
-                            "duration_min": 30,
-                            "is_hold": False,
-                            "temperatures_C": {"zone_1": 750},
+                            "zone_key": "zone_1",
+                            "temperature_program": [
+                                {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                                {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
+                            ],
                             "note": "",
                         },
                     ],
@@ -816,14 +816,14 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 750},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -985,14 +985,13 @@ def test_submit_reports_database_critical_missing_fields(active_user) -> None:
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "",
-                        "duration_min": None,
-                        "is_hold": False,
-                        "temperatures_C": {},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -1167,14 +1166,14 @@ def test_upsert_module_rejects_non_numeric_scientific_values(active_user) -> Non
             "furnace_program",
             {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": "hot"},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": "hot", "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -1306,16 +1305,14 @@ def test_submit_rejects_invalid_furnace_and_gas_program(active_user) -> None:
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [
-                    {"material": "MoO3", "position_cm": None, "mass_mg": None, "note": ""}
-                ],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": -5,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 750},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": -5, "temperature_C": 750, "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -1586,7 +1583,55 @@ def test_upsert_rejects_malformed_furnace_zone_payload_without_500(active_user) 
 
     assert furnace_response.status_code == 422
     detail = furnace_response.json()["detail"]
-    assert any("steps.0" in ".".join(str(part) for part in error["loc"]) for error in detail)
+    assert any("steps" in ".".join(str(part) for part in error["loc"]) for error in detail)
+
+
+def test_upsert_rejects_valid_legacy_furnace_steps_and_precursors(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Legacy furnace payload",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    furnace_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "furnace_info": {
+                    "zones_count": 1,
+                    "initial_temperatures_C": {"zone_1": 25},
+                },
+                "steps": [
+                    {
+                        "step_name": "ramp",
+                        "duration_min": 30,
+                        "temperatures_C": {"zone_1": 750},
+                        "note": "legacy ramp",
+                    }
+                ],
+                "precursors": [
+                    {
+                        "material": "MoO3",
+                        "position_cm": -15,
+                        "note": "legacy precursor",
+                    }
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+
+    assert furnace_response.status_code == 422
+    detail = furnace_response.json()["detail"]
+    error_paths = [".".join(str(part) for part in error["loc"]) for error in detail]
+    assert any("steps" in path for path in error_paths)
+    assert any("precursors" in path for path in error_paths)
 
 
 def test_upsert_rejects_malformed_precursor_payload_without_500(active_user) -> None:
@@ -1637,14 +1682,14 @@ def test_submit_allows_missing_gas_program(active_user) -> None:
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 750},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -2496,14 +2541,14 @@ def test_clone_normalizes_legacy_payloads_before_copy(active_user, db_session) -
                 module_key=ExperimentModuleKey.FURNACE_PROGRAM.value,
                 payload_json={
                     "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                    "precursors": [],
-                    "steps": [
+                    "placements": [],
+                    "zones": [
                         {
-                            "step_index": 1,
-                            "step_name": "升温",
-                            "duration_min": 30,
-                            "is_hold": False,
-                            "temperatures_C": {"zone_1": 850},
+                            "zone_key": "zone_1",
+                            "temperature_program": [
+                                {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                                {"node_index": 2, "time_min": 30, "temperature_C": 850, "note": ""},
+                            ],
                             "note": "",
                         },
                     ],

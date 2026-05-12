@@ -51,14 +51,14 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [],
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 750},
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
+                        ],
                         "note": "",
                     },
                 ],
@@ -629,8 +629,8 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     assert body["file_rows"][0]["sample_id"] == sample_id
 
 
-def test_export_analysis_falls_back_to_legacy_furnace_precursors(active_user) -> None:
-    experiment_id = create_experiment(active_user.email, objective="Legacy furnace placement")
+def test_export_analysis_uses_canonical_placements(active_user) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Canonical furnace placement")
 
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
@@ -651,18 +651,31 @@ def test_export_analysis_falls_back_to_legacy_furnace_precursors(active_user) ->
         json={
             "payload_json": {
                 "furnace_info": {"zones_count": 2, "initial_temperatures_C": {"zone_1": 25}},
-                "precursors": [
-                    {"material": "S", "position_cm": -25, "mass_mg": 200, "note": "legacy"}
-                ],
-                "steps": [
+                "placements": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 650, "zone_2": 780},
-                        "note": "",
+                        "precursor_index": 1,
+                        "zone_key": "zone_1",
+                        "position_cm": -25,
+                        "note": "sulfur",
                     }
+                ],
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 650, "note": ""},
+                        ],
+                        "note": "",
+                    },
+                    {
+                        "zone_key": "zone_2",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 780, "note": ""},
+                        ],
+                        "note": "",
+                    },
                 ],
             }
         },
@@ -683,18 +696,18 @@ def test_export_analysis_falls_back_to_legacy_furnace_precursors(active_user) ->
             "placement_index": 0,
             "precursor_index": 1,
             "species": "S",
-            "zone_key": None,
+            "zone_key": "zone_1",
             "position_cm": -25.0,
-            "note": "legacy",
+            "note": "sulfur",
         }
     ]
 
 
-def test_export_analysis_preserves_raw_legacy_furnace_step_rows(
+def test_export_analysis_derives_step_rows_from_canonical_zones(
     active_user,
     db_session,
 ) -> None:
-    experiment_id = create_experiment(active_user.email, objective="Legacy furnace step rows")
+    experiment_id = create_experiment(active_user.email, objective="Canonical furnace step rows")
 
     db_session.add(
         ExperimentModulePayload(
@@ -705,15 +718,24 @@ def test_export_analysis_preserves_raw_legacy_furnace_step_rows(
                     "zones_count": 2,
                     "initial_temperatures_C": {"zone_1": 25, "zone_2": 25},
                 },
-                "steps": [
+                "placements": [],
+                "zones": [
                     {
-                        "step_index": 1,
-                        "step_name": "升温",
-                        "duration_min": 30,
-                        "is_hold": False,
-                        "temperatures_C": {"zone_1": 650, "zone_2": 780},
-                        "note": "legacy ramp",
-                    }
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 650, "note": "ramp"},
+                        ],
+                        "note": "",
+                    },
+                    {
+                        "zone_key": "zone_2",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 780, "note": "ramp"},
+                        ],
+                        "note": "",
+                    },
                 ],
             },
         )
@@ -727,28 +749,52 @@ def test_export_analysis_preserves_raw_legacy_furnace_step_rows(
 
     assert export_response.status_code == 200
     body = export_response.json()
+    # Canonical zones (2 zones × 2 nodes each) should produce exactly 4 step rows,
+    # derived exclusively from temperature_program — not from any legacy steps path.
     assert body["furnace_step_rows"] == [
         {
             "experiment_id": experiment_id,
             "run_code": "CVD-2026-0001",
             "step_index": 1,
-            "step_name": "升温",
+            "step_name": None,
+            "duration_min": 0.0,
+            "is_hold": None,
+            "zone_key": "zone_1",
+            "temperature_C": 25.0,
+            "note": "",
+        },
+        {
+            "experiment_id": experiment_id,
+            "run_code": "CVD-2026-0001",
+            "step_index": 2,
+            "step_name": None,
             "duration_min": 30.0,
-            "is_hold": False,
+            "is_hold": None,
             "zone_key": "zone_1",
             "temperature_C": 650.0,
-            "note": "legacy ramp",
+            "note": "ramp",
         },
         {
             "experiment_id": experiment_id,
             "run_code": "CVD-2026-0001",
             "step_index": 1,
-            "step_name": "升温",
+            "step_name": None,
+            "duration_min": 0.0,
+            "is_hold": None,
+            "zone_key": "zone_2",
+            "temperature_C": 25.0,
+            "note": "",
+        },
+        {
+            "experiment_id": experiment_id,
+            "run_code": "CVD-2026-0001",
+            "step_index": 2,
+            "step_name": None,
             "duration_min": 30.0,
-            "is_hold": False,
+            "is_hold": None,
             "zone_key": "zone_2",
             "temperature_C": 780.0,
-            "note": "legacy ramp",
+            "note": "ramp",
         },
     ]
     assert body["furnace_temperature_rows"][1]["time_min"] == 30.0

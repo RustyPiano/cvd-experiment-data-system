@@ -440,6 +440,27 @@ describe("Experiment detail-like pages", () => {
                   updated_at: "2026-04-24T00:00:00Z",
                 },
                 {
+                  id: "mod-furnace",
+                  experiment_run_id: "exp-2",
+                  module_key: "furnace_program",
+                  schema_version: "1",
+                  payload_json: {
+                    furnace_info: { zones_count: 1, model: "Tube A" },
+                    placements: [
+                      {
+                        precursor_index: null,
+                        zone_key: "zone_1",
+                        position_cm: -10,
+                        note: "draft placement without precursor",
+                      },
+                    ],
+                    zones: [],
+                  },
+                  note: null,
+                  created_at: "2026-04-24T00:00:00Z",
+                  updated_at: "2026-04-24T00:00:00Z",
+                },
+                {
                   id: "mod-gas",
                   experiment_run_id: "exp-2",
                   module_key: "gas_program",
@@ -465,7 +486,7 @@ components: [
                   updated_at: "2026-04-24T00:00:00Z",
                 },
               ],
-              total: 5,
+              total: 6,
             }),
             {
               headers: { "Content-Type": "application/json" },
@@ -509,6 +530,11 @@ components: [
     expect(screen.getByText("Ar 76 sccm (95%)；H2 4 sccm (5%)")).toBeInTheDocument();
     expect(screen.getByText("795 °C / 3000 rpm / 15 min")).toBeInTheDocument();
     expect(screen.getByText("120 °C / 10 min / 80 W / Ar")).toBeInTheDocument();
+    const furnaceCard = screen.getByText("炉温").closest(".ant-card");
+    expect(furnaceCard).not.toBeNull();
+    const furnace = within(furnaceCard as HTMLElement);
+    expect(furnace.getByText("draft placement without precursor")).toBeInTheDocument();
+    expect(furnace.queryByText("MoO3")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CVD-2026-0001" })).toHaveAttribute(
       "href",
       "/experiments/exp-1",

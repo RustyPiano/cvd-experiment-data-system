@@ -284,19 +284,6 @@ function renderFurnaceParams(modules: ExperimentModulePayloadRead[] | undefined)
   );
 }
 
-function findPrecursorIndexBySpecies(
-  precursorItems: Record<string, unknown>[],
-  species: unknown,
-): number | null {
-  const speciesString = safeString(species).trim();
-  if (!speciesString) {
-    return null;
-  }
-
-  const index = precursorItems.findIndex((item) => safeString(item.species).trim() === speciesString);
-  return index >= 0 ? index : null;
-}
-
 function furnacePlacements(
   payload: Record<string, unknown>,
   precursorItems: Record<string, unknown>[],
@@ -304,9 +291,13 @@ function furnacePlacements(
   const placements = safeArray(payload.placements).map((item) => safeRecord(item));
   if (placements.length > 0) {
     return placements.map((placement) => {
-      const precursorIndex = Number(placement.precursor_index);
+      const precursorIndex =
+        typeof placement.precursor_index === "number" ? placement.precursor_index : null;
       const precursor =
-        Number.isInteger(precursorIndex) && precursorIndex >= 0 && precursorIndex < precursorItems.length
+        precursorIndex !== null &&
+        Number.isInteger(precursorIndex) &&
+        precursorIndex >= 0 &&
+        precursorIndex < precursorItems.length
           ? precursorItems[precursorIndex]
           : {};
       return {
@@ -315,19 +306,7 @@ function furnacePlacements(
       };
     });
   }
-
-  return safeArray(payload.precursors).map((item) => {
-    const legacy = safeRecord(item);
-    const precursorIndex = findPrecursorIndexBySpecies(precursorItems, legacy.material);
-    const precursor = precursorIndex === null ? {} : precursorItems[precursorIndex];
-    return {
-      precursor_index: precursorIndex,
-      species: safeString(precursor.species) || safeString(legacy.material),
-      zone_key: null,
-      position_cm: legacy.position_cm,
-      note: legacy.note,
-    };
-  });
+  return [];
 }
 
 function renderGasParams(modules: ExperimentModulePayloadRead[] | undefined) {

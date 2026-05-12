@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
-import { App as AntdApp } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
 import { MemoryRouter, type MemoryRouterProps } from "react-router-dom";
 
 import {
@@ -25,6 +25,12 @@ const defaultUser: SessionUser = {
   role: "member",
   is_active: true,
   last_login_at: null,
+};
+
+const testTheme = {
+  token: {
+    motion: false,
+  },
 };
 
 export function renderWithApp(
@@ -59,11 +65,11 @@ export function renderWithApp(
   const result = render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AntdApp>
-          <MemoryRouter initialEntries={options.initialEntries}>
-            {ui}
-          </MemoryRouter>
-        </AntdApp>
+        <ConfigProvider theme={testTheme}>
+          <AntdApp>
+            <MemoryRouter initialEntries={options.initialEntries}>{ui}</MemoryRouter>
+          </AntdApp>
+        </ConfigProvider>
       </AuthProvider>
     </QueryClientProvider>,
   );

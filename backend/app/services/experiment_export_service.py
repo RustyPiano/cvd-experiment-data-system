@@ -401,42 +401,7 @@ class ExperimentExportService:
         context: dict[str, Any],
         raw_payloads: dict[str, dict[str, Any]] | None = None,
     ) -> list[ExperimentAnalysisFurnaceStepRow]:
-        legacy_payloads = raw_payloads or payloads
-        furnace_program = legacy_payloads.get("furnace_program", {})
-        steps = self._list_payload_items(furnace_program.get("steps"))
         rows: list[ExperimentAnalysisFurnaceStepRow] = []
-        for step_index, step in enumerate(steps):
-            temperatures = step.get("temperatures_C", {})
-            if temperatures:
-                for zone_key, temp in temperatures.items():
-                    rows.append(
-                        ExperimentAnalysisFurnaceStepRow(
-                            **context,
-                            step_index=step.get("step_index", step_index),
-                            step_name=step.get("step_name"),
-                            duration_min=step.get("duration_min"),
-                            is_hold=step.get("is_hold"),
-                            zone_key=zone_key,
-                            temperature_C=temp,
-                            note=step.get("note"),
-                        )
-                    )
-            else:
-                rows.append(
-                    ExperimentAnalysisFurnaceStepRow(
-                        **context,
-                        step_index=step.get("step_index", step_index),
-                        step_name=step.get("step_name"),
-                        duration_min=step.get("duration_min"),
-                        is_hold=step.get("is_hold"),
-                        zone_key=None,
-                        temperature_C=None,
-                        note=step.get("note"),
-                    )
-                )
-        if rows:
-            return rows
-
         for row in self._build_furnace_temperature_rows(payloads, context):
             rows.append(
                 ExperimentAnalysisFurnaceStepRow(
@@ -512,25 +477,7 @@ class ExperimentExportService:
         furnace_program: dict[str, Any],
         experiment_precursors: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        placements = self._list_payload_items(furnace_program.get("placements"))
-        if placements:
-            return placements
-
-        legacy_precursors = self._list_payload_items(furnace_program.get("precursors"))
-        species_to_index = {
-            str(precursor.get("species")): index
-            for index, precursor in enumerate(experiment_precursors)
-            if precursor.get("species") is not None and str(precursor.get("species")).strip()
-        }
-        return [
-            {
-                "precursor_index": species_to_index.get(str(legacy.get("material"))),
-                "zone_key": None,
-                "position_cm": legacy.get("position_cm"),
-                "note": legacy.get("note"),
-            }
-            for legacy in legacy_precursors
-        ]
+        return self._list_payload_items(furnace_program.get("placements"))
 
     def _build_gas_program_rows(
         self,

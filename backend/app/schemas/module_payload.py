@@ -2,7 +2,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    field_validator,
+)
 
 from app.models.module_payload import ExperimentModuleKey
 
@@ -79,55 +87,62 @@ class SubstratesPayload(ModulePayloadBase):
     items: list[SubstrateItemPayload] | None = None
 
 
-class FurnaceInfoPayload(ModulePayloadBase):
+class FurnaceInfoPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     zones_count: StrictInt | None = None
     model: str | None = None
     initial_temperatures_C: dict[str, StrictFloat | None] | None = None
 
 
-class FurnacePrecursorPayload(ModulePayloadBase):
-    material: str | None = None
-    position_cm: StrictFloat | None = None
-    mass_mg: StrictFloat | None = None
-    note: str | None = None
+class FurnacePlacementPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-
-class FurnacePlacementPayload(ModulePayloadBase):
     precursor_index: StrictInt | None = None
     zone_key: str | None = None
     position_cm: StrictFloat | None = None
     note: str | None = None
 
 
-class FurnaceStepPayload(ModulePayloadBase):
-    step_index: StrictInt | None = None
-    step_name: str | None = None
-    duration_min: StrictFloat | None = None
-    is_hold: StrictBool | None = None
-    temperatures_C: dict[str, StrictFloat | None] | None = None
-    note: str | None = None
+class FurnaceTemperatureNodePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-
-class FurnaceTemperatureNodePayload(ModulePayloadBase):
     node_index: StrictInt | None = None
     time_min: StrictFloat | None = None
     temperature_C: StrictFloat | None = None
     note: str | None = None
 
 
-class FurnaceZonePayload(ModulePayloadBase):
+class FurnaceZonePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     zone_key: str | None = None
-    zone_index: StrictInt | None = None
     temperature_program: list[FurnaceTemperatureNodePayload] | None = None
     note: str | None = None
 
+    @field_validator("temperature_program", mode="before")
+    @classmethod
+    def reject_null_temperature_program(cls, value: object) -> object:
+        if value is None:
+            msg = "temperature_program cannot be null"
+            raise ValueError(msg)
+        return value
 
-class FurnaceProgramPayload(ModulePayloadBase):
+
+class FurnaceProgramPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     furnace_info: FurnaceInfoPayload | None = None
     placements: list[FurnacePlacementPayload] | None = None
-    precursors: list[FurnacePrecursorPayload] | None = None
     zones: list[FurnaceZonePayload] | None = None
-    steps: list[FurnaceStepPayload] | None = None
+
+    @field_validator("furnace_info", "placements", "zones", mode="before")
+    @classmethod
+    def reject_null_canonical_container(cls, value: object) -> object:
+        if value is None:
+            msg = "canonical furnace containers cannot be null"
+            raise ValueError(msg)
+        return value
 
 
 class GasComponentPayload(ModulePayloadBase):
