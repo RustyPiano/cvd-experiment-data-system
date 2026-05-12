@@ -104,6 +104,7 @@ class ExperimentAnalysisExperimentRow(BaseModel):
     derived_from_run_code: str | None
     experiment_type: str
     material_system: str | None
+    layer_count: str | None
     experiment_date: date
     objective: str | None
     status: str
@@ -141,6 +142,7 @@ class ExperimentAnalysisSubstrateRow(BaseModel):
     type: str | None
     brand: str | None
     size_mm: str | None
+    batch_no: str | None
     treatment_method: str | None
     position_mm: float | None
     treatment_params_temperature_C: float | None

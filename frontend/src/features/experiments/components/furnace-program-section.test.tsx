@@ -93,14 +93,19 @@ describe("FurnaceProgramSection", () => {
     );
 
     expect(screen.getByText("炉温快填")).toBeInTheDocument();
-    expect(screen.getByLabelText("起始温度")).toHaveValue("25");
-    expect(screen.getByLabelText("升温时长")).toHaveValue("35");
-    expect(screen.getByLabelText("温区 1 目标温度")).toHaveValue("650");
+    expect(screen.getByText("温区 1 快填")).toBeInTheDocument();
+    expect(screen.getByText("温区 2 快填")).toBeInTheDocument();
+    expect(screen.getByLabelText("温区 1 起始温度")).toHaveValue("25");
+    expect(screen.getByLabelText("温区 1 升温时长")).toHaveValue("35");
+    expect(screen.getByLabelText("温区 1 升温目标温度")).toHaveValue("650");
+    expect(screen.getByLabelText("温区 2 起始温度")).toHaveValue("25");
+    expect(screen.getByLabelText("温区 2 升温时长")).toHaveValue("35");
+    expect(screen.getByLabelText("温区 2 升温目标温度")).toHaveValue("780");
     expect(screen.queryByLabelText("温区 1 节点 2 温度")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "高级节点编辑" })).toBeInTheDocument();
   });
 
-  it("updates a zone target temperature through quick fill and regenerates canonical nodes", () => {
+  it("updates one zone interval through quick fill and regenerates canonical nodes", () => {
     const onChange = vi.fn();
 
     render(
@@ -113,12 +118,22 @@ describe("FurnaceProgramSection", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("温区 1 目标温度"), { target: { value: "760" } });
+    fireEvent.change(screen.getByLabelText("温区 1 升温目标温度"), { target: { value: "760" } });
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         quickProgram: expect.objectContaining({
-          targetTemperaturesC: { zone_1: "760", zone_2: "780" },
+          zones: expect.objectContaining({
+            zone_1: expect.objectContaining({
+              segments: expect.arrayContaining([
+                expect.objectContaining({
+                  segmentKey: "ramp",
+                  durationMin: "35",
+                  targetTemperatureC: "760",
+                }),
+              ]),
+            }),
+          }),
           isCustom: false,
         }),
         zones: expect.arrayContaining([
@@ -127,7 +142,7 @@ describe("FurnaceProgramSection", () => {
             temperatureProgram: [
               { timeMin: "0", temperatureC: "25", note: "起始" },
               { timeMin: "35", temperatureC: "760", note: "升温结束" },
-              { timeMin: "50", temperatureC: "760", note: "恒温结束" },
+              { timeMin: "50", temperatureC: "650", note: "恒温结束" },
               { timeMin: "100", temperatureC: "25", note: "降温结束" },
             ],
           }),
@@ -276,7 +291,13 @@ describe("FurnaceProgramSection", () => {
         },
         placements: createValue().placements,
         quickProgram: expect.objectContaining({
-          targetTemperaturesC: { zone_1: "650" },
+          zones: {
+            zone_1: expect.objectContaining({
+              segments: expect.arrayContaining([
+                expect.objectContaining({ segmentKey: "ramp", targetTemperatureC: "650" }),
+              ]),
+            }),
+          },
         }),
         zones: [
           expect.objectContaining({
@@ -416,9 +437,19 @@ describe("FurnaceProgramSection", () => {
           initialTemperaturesC: { zone_1: "30" },
         },
         quickProgram: expect.objectContaining({
-          startTemperatureC: "30",
-          rampDurationMin: "20",
-          targetTemperaturesC: { zone_1: "700" },
+          zones: {
+            zone_1: {
+              startTemperatureC: "30",
+              segments: [
+                {
+                  segmentKey: "ramp",
+                  label: "升温",
+                  durationMin: "20",
+                  targetTemperatureC: "700",
+                },
+              ],
+            },
+          },
           isCustom: false,
         }),
         placements: [

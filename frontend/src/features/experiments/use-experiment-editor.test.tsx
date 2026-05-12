@@ -42,6 +42,7 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
     experimentType: "",
     materialSystem: "",
     experimentDate: "",
+    layerCount: "",
     objective: "",
   },
   environment: {

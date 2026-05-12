@@ -46,6 +46,7 @@ export type BasicInfoValues = {
   experimentType: string;
   materialSystem: string;
   experimentDate: string;
+  layerCount: string;
   objective: string;
 };
 
@@ -94,6 +95,7 @@ export type SubstrateItemValues = PayloadBackedValue & {
   type: string;
   brand: string;
   sizeMm: string;
+  batchNo: string;
   treatmentMethod: string;
   positionMm: string;
   treatmentTemperatureC: string;
@@ -113,13 +115,20 @@ export type FurnaceInfoValues = {
 };
 
 export type FurnaceQuickProgramValues = {
-  startTemperatureC: string;
-  rampDurationMin: string;
-  holdDurationMin: string;
-  coolDurationMin: string;
-  endTemperatureC: string;
-  targetTemperaturesC: Record<string, string>;
+  zones: Record<string, FurnaceQuickZoneValues>;
   isCustom: boolean;
+};
+
+export type FurnaceQuickZoneValues = {
+  startTemperatureC: string;
+  segments: FurnaceQuickSegmentValues[];
+};
+
+export type FurnaceQuickSegmentValues = {
+  segmentKey: string;
+  label: string;
+  durationMin: string;
+  targetTemperatureC: string;
 };
 
 export type FurnacePlacementValues = PayloadBackedValue & {
@@ -643,6 +652,7 @@ function hasSubstrateEditableValue(item: SubstrateItemValues) {
     type: item.type,
     brand: item.brand,
     sizeMm: item.sizeMm,
+    batchNo: item.batchNo,
     treatmentMethod: item.treatmentMethod,
     positionMm: item.positionMm,
     treatmentTemperatureC: item.treatmentTemperatureC,
@@ -694,20 +704,76 @@ function durationBetween(startValue: string, endValue: string) {
   return formatMinuteValue(end - start);
 }
 
-function defaultFurnaceQuickProgram(zoneKeys: string[]): FurnaceQuickProgramValues {
+const defaultFurnaceQuickSegmentConfigs = [
+  { segmentKey: "ramp", label: "升温", durationMin: "30", targetTemperatureC: "" },
+  { segmentKey: "hold", label: "保温", durationMin: "15", targetTemperatureC: "" },
+  { segmentKey: "cool", label: "降温", durationMin: "50", targetTemperatureC: "25" },
+];
+
+function cloneDefaultFurnaceQuickSegments(): FurnaceQuickSegmentValues[] {
+  return defaultFurnaceQuickSegmentConfigs.map((segment) => ({ ...segment }));
+}
+
+function defaultFurnaceQuickZone(): FurnaceQuickZoneValues {
   return {
     startTemperatureC: "25",
-    rampDurationMin: "30",
-    holdDurationMin: "15",
-    coolDurationMin: "50",
-    endTemperatureC: "25",
-    targetTemperaturesC: Object.fromEntries(zoneKeys.map((zoneKey) => [zoneKey, ""])),
+    segments: cloneDefaultFurnaceQuickSegments(),
+  };
+}
+
+function defaultFurnaceQuickProgram(zoneKeys: string[]): FurnaceQuickProgramValues {
+  return {
+    zones: Object.fromEntries(zoneKeys.map((zoneKey) => [zoneKey, defaultFurnaceQuickZone()])),
     isCustom: false,
   };
 }
 
-function getFurnaceTargetTemperature(zone: FurnaceZoneValues) {
-  return zone.temperatureProgram[1]?.temperatureC ?? "";
+function furnaceQuickSegmentLabel(index: number) {
+  return defaultFurnaceQuickSegmentConfigs[index]?.label ?? `区间 ${index + 1}`;
+}
+
+function furnaceQuickSegmentKey(index: number) {
+  return defaultFurnaceQuickSegmentConfigs[index]?.segmentKey ?? `segment_${index + 1}`;
+}
+
+function furnaceQuickSegmentEndNote(segment: FurnaceQuickSegmentValues, index: number) {
+  if (segment.segmentKey === "ramp") {
+    return "升温结束";
+  }
+  if (segment.segmentKey === "hold") {
+    return "恒温结束";
+  }
+  if (segment.segmentKey === "cool") {
+    return "降温结束";
+  }
+  return `${segment.label || furnaceQuickSegmentLabel(index)}结束`;
+}
+
+function quickZoneFromFurnaceZone(zone: FurnaceZoneValues): FurnaceQuickZoneValues {
+  const startNode = zone.temperatureProgram[0];
+  if (!startNode) {
+    return defaultFurnaceQuickZone();
+  }
+
+  if (zone.temperatureProgram.length < 2) {
+    return {
+      startTemperatureC: startNode.temperatureC || "25",
+      segments: cloneDefaultFurnaceQuickSegments(),
+    };
+  }
+
+  return {
+    startTemperatureC: startNode.temperatureC || "25",
+    segments: zone.temperatureProgram.slice(1).map((node, index) => {
+      const previousNode = zone.temperatureProgram[index];
+      return {
+        segmentKey: furnaceQuickSegmentKey(index),
+        label: furnaceQuickSegmentLabel(index),
+        durationMin: durationBetween(previousNode?.timeMin ?? "0", node.timeMin),
+        targetTemperatureC: node.temperatureC,
+      };
+    }),
+  };
 }
 
 export function createQuickProgramFromZones(
@@ -720,37 +786,25 @@ export function createQuickProgramFromZones(
   }
 
   const zonesByKey = new Map(zones.map((zone) => [zone.zoneKey, zone]));
-  const firstZone = zonesByKey.get(zoneKeys[0]) ?? zones[0];
-  const firstProgram = firstZone.temperatureProgram;
-  const startNode = firstProgram[0];
-  const rampNode = firstProgram[1];
-  const holdNode = firstProgram[2];
-  const coolNode = firstProgram[3];
-  const endNode = firstProgram[firstProgram.length - 1];
-
-  const targetTemperaturesC: Record<string, string> = {};
+  const quickZones: Record<string, FurnaceQuickZoneValues> = {};
   for (const zoneKey of zoneKeys) {
     const zone = zonesByKey.get(zoneKey);
-    targetTemperaturesC[zoneKey] = zone ? getFurnaceTargetTemperature(zone) : "";
+    quickZones[zoneKey] = zone ? quickZoneFromFurnaceZone(zone) : defaultFurnaceQuickZone();
   }
 
-  const expectedTimes = firstProgram.map((node) => node.timeMin);
   const isCustom = zoneKeys.some((zoneKey) => {
     const zone = zonesByKey.get(zoneKey);
-    if (!zone || zone.temperatureProgram.length !== firstProgram.length) {
+    if (!zone || zone.temperatureProgram.length < 2) {
       return true;
     }
-
-    return zone.temperatureProgram.some((node, index) => node.timeMin !== expectedTimes[index]);
+    return false;
   });
 
   return {
-    startTemperatureC: startNode?.temperatureC || defaults.startTemperatureC,
-    rampDurationMin: rampNode ? durationBetween(startNode?.timeMin ?? "0", rampNode.timeMin) : "",
-    holdDurationMin: holdNode && rampNode ? durationBetween(rampNode.timeMin, holdNode.timeMin) : "",
-    coolDurationMin: coolNode && holdNode ? durationBetween(holdNode.timeMin, coolNode.timeMin) : "",
-    endTemperatureC: endNode?.temperatureC || defaults.endTemperatureC,
-    targetTemperaturesC,
+    zones: {
+      ...defaults.zones,
+      ...quickZones,
+    },
     isCustom,
   };
 }
@@ -761,15 +815,12 @@ function appendQuickProgramNode(
   durationValue: string,
   temperatureC: string,
   note: string,
-  required: boolean,
 ) {
   const trimmedDuration = durationValue.trim();
   const duration = parseMinuteValue(trimmedDuration);
   if (!trimmedDuration) {
-    if (required) {
-      nodes.push({ timeMin: "", temperatureC, note });
-    }
-    return required ? null : currentTime;
+    nodes.push({ timeMin: "", temperatureC, note });
+    return null;
   }
 
   if (duration === null) {
@@ -791,36 +842,21 @@ export function buildFurnaceZonesFromQuickProgram(
 
   return zoneKeys.map((zoneKey) => {
     const existingZone = zonesByKey.get(zoneKey);
-    const targetTemperature = quickProgram.targetTemperaturesC[zoneKey] ?? "";
+    const quickZone = quickProgram.zones[zoneKey] ?? defaultFurnaceQuickZone();
     const nodes: FurnaceTemperatureNodeValues[] = [
-      { timeMin: "0", temperatureC: quickProgram.startTemperatureC, note: "起始" },
+      { timeMin: "0", temperatureC: quickZone.startTemperatureC, note: "起始" },
     ];
     let currentTime: number | null = 0;
 
-    currentTime = appendQuickProgramNode(
-      nodes,
-      currentTime,
-      quickProgram.rampDurationMin,
-      targetTemperature,
-      "升温结束",
-      true,
-    );
-    currentTime = appendQuickProgramNode(
-      nodes,
-      currentTime,
-      quickProgram.holdDurationMin,
-      targetTemperature,
-      "恒温结束",
-      false,
-    );
-    appendQuickProgramNode(
-      nodes,
-      currentTime,
-      quickProgram.coolDurationMin,
-      quickProgram.endTemperatureC,
-      "降温结束",
-      false,
-    );
+    quickZone.segments.forEach((segment, index) => {
+      currentTime = appendQuickProgramNode(
+        nodes,
+        currentTime,
+        segment.durationMin,
+        segment.targetTemperatureC,
+        furnaceQuickSegmentEndNote(segment, index),
+      );
+    });
 
     return {
       sourcePayload: existingZone?.sourcePayload,
@@ -847,14 +883,14 @@ export function syncFurnaceProgramZonesCount(
   const currentZoneKeys = getValidFurnaceZoneKeys(value.furnaceInfo.zonesCount);
   const currentQuickProgram =
     value.quickProgram ?? createQuickProgramFromZones(value.zones, currentZoneKeys);
-  const targetTemperaturesC: Record<string, string> = {};
+  const quickZones: Record<string, FurnaceQuickZoneValues> = {};
   for (const zoneKey of newZoneKeys) {
-    targetTemperaturesC[zoneKey] = currentQuickProgram.targetTemperaturesC[zoneKey] ?? "";
+    quickZones[zoneKey] = currentQuickProgram.zones[zoneKey] ?? defaultFurnaceQuickZone();
   }
 
   const nextQuickProgram: FurnaceQuickProgramValues = {
     ...currentQuickProgram,
-    targetTemperaturesC,
+    zones: quickZones,
   };
   const newZoneKeySet = new Set(newZoneKeys);
 
@@ -863,7 +899,10 @@ export function syncFurnaceProgramZonesCount(
       ...value.furnaceInfo,
       zonesCount: newZonesCountStr,
       initialTemperaturesC: Object.fromEntries(
-        newZoneKeys.map((zoneKey) => [zoneKey, nextQuickProgram.startTemperatureC]),
+        newZoneKeys.map((zoneKey) => [
+          zoneKey,
+          nextQuickProgram.zones[zoneKey]?.startTemperatureC ?? "25",
+        ]),
       ),
     },
     quickProgram: nextQuickProgram,
@@ -898,6 +937,7 @@ export function createEmptySubstrateItem(): SubstrateItemValues {
     type: "",
     brand: "",
     sizeMm: "",
+    batchNo: "",
     treatmentMethod: "",
     positionMm: "",
     treatmentTemperatureC: "",
@@ -1143,6 +1183,7 @@ export function createInitialEditorValues(
         asString(basicInfo.experiment_type) || asString(experiment.experiment_type),
       materialSystem: asString(experiment.material_system),
       experimentDate: asString(experiment.experiment_date),
+      layerCount: asString(basicInfo.layer_count),
       objective: asString(experiment.objective),
     },
     environment: {
@@ -1185,6 +1226,7 @@ export function createInitialEditorValues(
         type: asString(item.type),
         brand: asString(item.brand),
         sizeMm: asString(item.size_mm),
+        batchNo: asString(item.batch_no),
         treatmentMethod: asString(item.treatment_method),
         positionMm: asString(item.position_mm),
         treatmentTemperatureC: asString(asRecord(item.treatment_params).temperature_C),
@@ -1202,10 +1244,13 @@ export function createInitialEditorValues(
         initialTemperaturesC[key] = asString(value);
       }
       const zones = toFurnaceZones(fp, info);
-      const zoneKeys = getDeclaredZoneKeysFromPayload(fp, info);
+      const zonesCount = asString(info.zones_count) || "2";
+      const declaredZoneKeys = getDeclaredZoneKeysFromPayload(fp, info);
+      const zoneKeys =
+        declaredZoneKeys.length > 0 ? declaredZoneKeys : getValidFurnaceZoneKeys(zonesCount);
       return {
         furnaceInfo: {
-          zonesCount: asString(info.zones_count) || "2",
+          zonesCount,
           model: asString(info.model),
           initialTemperaturesC,
         },
@@ -1299,6 +1344,7 @@ export function toBasicInfoPayload(values: BasicInfoValues, operatorId: string) 
     experiment_type: values.experimentType.trim(),
     material_system: normalizeNullableString(values.materialSystem),
     experiment_date: values.experimentDate.trim(),
+    layer_count: normalizeNullableString(values.layerCount),
     objective: normalizeNullableString(values.objective),
   };
 }
@@ -1311,7 +1357,14 @@ export function mergeBasicInfoPayload(
   return mergePayloadFields(
     existingPayload,
     toBasicInfoPayload(values, operatorId),
-    ["operator_id", "experiment_type", "material_system", "experiment_date", "objective"],
+    [
+      "operator_id",
+      "experiment_type",
+      "material_system",
+      "experiment_date",
+      "layer_count",
+      "objective",
+    ],
   );
 }
 
@@ -1445,6 +1498,7 @@ export function toSubstratesPayload(values: SubstratesValues) {
             type: normalizeNullableString(item.type),
             brand: normalizeNullableString(item.brand),
             size_mm: normalizeNullableString(item.sizeMm),
+            batch_no: normalizeNullableString(item.batchNo),
             treatment_method: normalizeNullableString(item.treatmentMethod),
             position_mm: normalizeNumberLike(item.positionMm),
             treatment_params:
@@ -1462,6 +1516,7 @@ export function toSubstratesPayload(values: SubstratesValues) {
             "type",
             "brand",
             "size_mm",
+            "batch_no",
             "treatment_method",
             "position_mm",
             "treatment_params",

@@ -135,6 +135,7 @@ function renderBasicInfoParams(modules: ExperimentModulePayloadRead[] | undefine
   return (
     <div className="content-stack">
       <Typography.Text>材料体系：{safeString(payload.material_system) || "—"}</Typography.Text>
+      <Typography.Text>层数：{safeString(payload.layer_count) || "—"}</Typography.Text>
       <Typography.Text>实验日期：{safeString(payload.experiment_date) || "—"}</Typography.Text>
       <Typography.Text>实验目标：{safeString(payload.objective) || "—"}</Typography.Text>
     </div>
@@ -212,6 +213,7 @@ function renderSubstratesParams(modules: ExperimentModulePayloadRead[] | undefin
         { title: "类型", dataIndex: "type", render: (v: unknown) => safeString(v) || "—" },
         { title: "品牌", dataIndex: "brand", render: (v: unknown) => safeString(v) || "—" },
         { title: "尺寸 (mm)", dataIndex: "size_mm", render: (v: unknown) => safeString(v) || "—" },
+        { title: "基底批次", dataIndex: "batch_no", render: (v: unknown) => safeString(v) || "—" },
         { title: "处理方法", dataIndex: "treatment_method", render: (v: unknown) => safeString(v) || "—" },
         {
           title: "处理参数",

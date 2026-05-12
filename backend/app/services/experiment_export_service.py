@@ -111,6 +111,7 @@ class ExperimentExportService:
             "experiment_id": export_payload.experiment.id,
             "run_code": export_payload.experiment.run_code,
         }
+        basic_info_payload = payloads.get("basic_info", {})
 
         return ExperimentAnalysisExportRead(
             export_version="cvd_analysis_v1",
@@ -123,6 +124,7 @@ class ExperimentExportService:
                 derived_from_run_code=export_payload.experiment.derived_from_run_code,
                 experiment_type=export_payload.experiment.experiment_type,
                 material_system=export_payload.experiment.material_system,
+                layer_count=basic_info_payload.get("layer_count"),
                 experiment_date=export_payload.experiment.experiment_date,
                 objective=export_payload.experiment.objective,
                 status=export_payload.experiment.status,
@@ -174,6 +176,8 @@ class ExperimentExportService:
     ) -> None:
         worksheet.append(["Field", "Value"])
         experiment = export_payload.experiment.model_dump(mode="json")
+        payloads = self._module_map(export_payload)
+        basic_info_payload = payloads.get("basic_info", {})
         ordered_fields = [
             "run_code",
             "id",
@@ -182,6 +186,7 @@ class ExperimentExportService:
             "derived_from_run_id",
             "experiment_type",
             "material_system",
+            "layer_count",
             "experiment_date",
             "objective",
             "status",
@@ -194,7 +199,7 @@ class ExperimentExportService:
             "locked_at",
         ]
         for key in ordered_fields:
-            value = experiment.get(key)
+            value = basic_info_payload.get(key) if key == "layer_count" else experiment.get(key)
             worksheet.append([key, self._serialize_cell(value)])
 
     def _write_environment_sheet(
@@ -379,6 +384,7 @@ class ExperimentExportService:
                     type=item.get("type"),
                     brand=item.get("brand"),
                     size_mm=item.get("size_mm"),
+                    batch_no=item.get("batch_no"),
                     treatment_method=item.get("treatment_method"),
                     position_mm=item.get("position_mm"),
                     treatment_params_temperature_C=treatment_params.get("temperature_C"),

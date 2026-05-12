@@ -38,6 +38,7 @@ function hasSubstrateFieldValue(item: SubstrateItemValues) {
     item.type,
     item.brand,
     item.sizeMm,
+    item.batchNo,
     item.treatmentMethod,
     item.positionMm,
     item.treatmentTemperatureC,
@@ -169,6 +170,18 @@ export function SubstratesSection({
                   options={substrateSizeOptions}
                   placeholder="选择或输入尺寸"
                   value={item.sizeMm}
+                />
+              </div>
+              <div className="editor-field">
+                <Typography.Text strong>基底批次</Typography.Text>
+                <Input
+                  aria-label={`基底批次 ${roleConfig.title}`}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    updateRoleItem(roleConfig.role, { batchNo: event.target.value });
+                  }}
+                  placeholder="填写基底批次"
+                  value={item.batchNo}
                 />
               </div>
               <div className="editor-field">

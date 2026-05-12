@@ -792,6 +792,8 @@ class ExperimentService:
             )
             if module_key == ExperimentModuleKey.PRECURSORS:
                 payload_json = self._sanitize_recipe_precursors(payload_json)
+            if module_key == ExperimentModuleKey.SUBSTRATES:
+                payload_json = self._sanitize_recipe_substrates(payload_json)
             payloads[module_key.value] = payload_json
         return payloads
 
@@ -807,6 +809,16 @@ class ExperimentService:
                 item["batch_no"] = ""
             if "mass_mg" in item:
                 item["mass_mg"] = None
+        return sanitized
+
+    def _sanitize_recipe_substrates(self, payload_json: dict[str, Any]) -> dict[str, Any]:
+        sanitized = deepcopy(payload_json)
+        items = sanitized.get("items")
+        if not isinstance(items, list):
+            return sanitized
+        for item in items:
+            if isinstance(item, dict) and "batch_no" in item:
+                item["batch_no"] = ""
         return sanitized
 
     def _serialize_experiment(self, experiment: ExperimentRun) -> dict:

@@ -1,4 +1,4 @@
-import { Input, Typography } from "antd";
+import { Input, Select, Typography } from "antd";
 
 import {
   type BasicInfoValues,
@@ -7,6 +7,13 @@ import {
 import { VocabularyCombobox } from "./vocabulary-combobox";
 
 const { TextArea } = Input;
+
+const layerCountOptions = [
+  { label: "1", value: "1" },
+  { label: "2", value: "2" },
+  { label: "3", value: "3" },
+  { label: "多层", value: "多层" },
+];
 
 export function ExperimentMainFields({
   disabled,
@@ -70,6 +77,23 @@ export function ExperimentMainFields({
           }}
           type="date"
           value={value.experimentDate}
+        />
+      </div>
+      <div className="editor-field">
+        <Typography.Text strong>层数</Typography.Text>
+        <Select
+          allowClear
+          aria-label="层数"
+          disabled={disabled}
+          onChange={(nextValue) => {
+            onChange({
+              ...value,
+              layerCount: nextValue ?? "",
+            });
+          }}
+          options={layerCountOptions}
+          placeholder="选择层数"
+          value={value.layerCount || undefined}
         />
       </div>
       <div className="editor-field editor-field-wide">

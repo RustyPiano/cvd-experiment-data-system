@@ -68,6 +68,7 @@ def allowed_recipe_payload() -> dict:
                     "type": "sapphire",
                     "brand": "MTI",
                     "size_mm": "10x10",
+                    "batch_no": "SUB-LOT-42",
                     "position_mm": 2.0,
                 }
             ]
@@ -437,6 +438,8 @@ def test_save_submitted_experiment_as_recipe_extracts_allowed_modules_and_saniti
     assert precursor["species"] == "MoO3"
     assert precursor["batch_no"] == ""
     assert precursor["mass_mg"] is None
+    substrate = body["default_payload_json"]["substrates"]["items"][0]
+    assert substrate["batch_no"] == ""
     assert "environment" not in body["default_payload_json"]
     assert "precheck" not in body["default_payload_json"]
     assert "process_observation" not in body["default_payload_json"]

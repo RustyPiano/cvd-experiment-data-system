@@ -152,6 +152,7 @@ class SampleService:
                 {
                     "source_module": "substrates",
                     "source_role": role_value,
+                    "batch_no": item.get("batch_no"),
                     "treatment_params": item.get("treatment_params"),
                 }
             )

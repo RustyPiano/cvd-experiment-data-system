@@ -10,6 +10,7 @@ import {
   createInitialEditorValues,
   createQuickProgramFromZones,
   syncFurnaceProgramZonesCount,
+  toBasicInfoPayload,
   toFurnaceProgramPayload,
   toSubstratesPayload,
 } from "./editor-types";
@@ -51,6 +52,26 @@ function modulePayload(
   };
 }
 
+describe("basic info editor payloads", () => {
+  it("serializes layer count into the basic info module payload", () => {
+    expect(
+      toBasicInfoPayload(
+        {
+          experimentType: "cvd_2zone",
+          materialSystem: "MoS2",
+          experimentDate: "2026-05-12",
+          objective: "baseline",
+          layerCount: "多层",
+        },
+        "user-1",
+      ),
+    ).toMatchObject({
+      operator_id: "user-1",
+      layer_count: "多层",
+    });
+  });
+});
+
 describe("furnace placement editor payloads", () => {
   it("derives shared quick furnace settings from canonical zone programs", () => {
     const values = createInitialEditorValues(experiment, [
@@ -84,26 +105,50 @@ describe("furnace placement editor payloads", () => {
     ]);
 
     expect(values.furnaceProgram.quickProgram).toEqual({
-      startTemperatureC: "25",
-      rampDurationMin: "35",
-      holdDurationMin: "15",
-      coolDurationMin: "50",
-      endTemperatureC: "25",
-      targetTemperaturesC: { zone_1: "650", zone_2: "780" },
+      zones: {
+        zone_1: {
+          startTemperatureC: "25",
+          segments: [
+            { segmentKey: "ramp", label: "升温", durationMin: "35", targetTemperatureC: "650" },
+            { segmentKey: "hold", label: "保温", durationMin: "15", targetTemperatureC: "650" },
+            { segmentKey: "cool", label: "降温", durationMin: "50", targetTemperatureC: "25" },
+          ],
+        },
+        zone_2: {
+          startTemperatureC: "25",
+          segments: [
+            { segmentKey: "ramp", label: "升温", durationMin: "35", targetTemperatureC: "780" },
+            { segmentKey: "hold", label: "保温", durationMin: "15", targetTemperatureC: "780" },
+            { segmentKey: "cool", label: "降温", durationMin: "50", targetTemperatureC: "25" },
+          ],
+        },
+      },
       isCustom: false,
     });
   });
 
-  it("builds canonical furnace zones from shared quick furnace settings", () => {
+  it("builds canonical furnace zones from per-zone quick furnace settings", () => {
     const zones = buildFurnaceZonesFromQuickProgram(
       ["zone_1", "zone_2"],
       {
-        startTemperatureC: "25",
-        rampDurationMin: "35",
-        holdDurationMin: "15",
-        coolDurationMin: "50",
-        endTemperatureC: "25",
-        targetTemperaturesC: { zone_1: "760", zone_2: "780" },
+        zones: {
+          zone_1: {
+            startTemperatureC: "25",
+            segments: [
+              { segmentKey: "ramp", label: "升温", durationMin: "35", targetTemperatureC: "760" },
+              { segmentKey: "hold", label: "保温", durationMin: "15", targetTemperatureC: "760" },
+              { segmentKey: "cool", label: "降温", durationMin: "50", targetTemperatureC: "25" },
+            ],
+          },
+          zone_2: {
+            startTemperatureC: "30",
+            segments: [
+              { segmentKey: "ramp", label: "升温", durationMin: "40", targetTemperatureC: "780" },
+              { segmentKey: "hold", label: "保温", durationMin: "20", targetTemperatureC: "780" },
+              { segmentKey: "cool", label: "降温", durationMin: "60", targetTemperatureC: "30" },
+            ],
+          },
+        },
         isCustom: false,
       },
       [
@@ -127,40 +172,86 @@ describe("furnace placement editor payloads", () => {
         zoneKey: "zone_2",
         note: "",
         temperatureProgram: [
-          { timeMin: "0", temperatureC: "25", note: "起始" },
-          { timeMin: "35", temperatureC: "780", note: "升温结束" },
-          { timeMin: "50", temperatureC: "780", note: "恒温结束" },
-          { timeMin: "100", temperatureC: "25", note: "降温结束" },
+          { timeMin: "0", temperatureC: "30", note: "起始" },
+          { timeMin: "40", temperatureC: "780", note: "升温结束" },
+          { timeMin: "60", temperatureC: "780", note: "恒温结束" },
+          { timeMin: "120", temperatureC: "30", note: "降温结束" },
         ],
       },
     ]);
   });
 
-  it("skips empty optional hold and cool durations when building quick furnace zones", () => {
+  it("keeps blank quick furnace intervals so validation can reject incomplete entries", () => {
     const zones = buildFurnaceZonesFromQuickProgram(["zone_1"], {
-      startTemperatureC: "25",
-      rampDurationMin: "30",
-      holdDurationMin: "",
-      coolDurationMin: "",
-      endTemperatureC: "25",
-      targetTemperaturesC: { zone_1: "700" },
+      zones: {
+        zone_1: {
+          startTemperatureC: "25",
+          segments: [
+            { segmentKey: "ramp", label: "升温", durationMin: "30", targetTemperatureC: "700" },
+            { segmentKey: "hold", label: "保温", durationMin: "", targetTemperatureC: "700" },
+            { segmentKey: "cool", label: "降温", durationMin: "", targetTemperatureC: "" },
+          ],
+        },
+      },
       isCustom: false,
     });
 
     expect(zones[0].temperatureProgram).toEqual([
       { timeMin: "0", temperatureC: "25", note: "起始" },
       { timeMin: "30", temperatureC: "700", note: "升温结束" },
+      { timeMin: "", temperatureC: "700", note: "恒温结束" },
+      { timeMin: "", temperatureC: "", note: "降温结束" },
     ]);
+  });
+
+  it("keeps default quick fill segments for zones that only have a start node", () => {
+    const quickProgram = createQuickProgramFromZones(
+      [
+        {
+          zoneKey: "zone_1",
+          note: "",
+          temperatureProgram: [{ timeMin: "0", temperatureC: "30", note: "起始" }],
+        },
+      ],
+      ["zone_1", "zone_2"],
+    );
+
+    expect(quickProgram.zones.zone_1).toEqual({
+      startTemperatureC: "30",
+      segments: [
+        { segmentKey: "ramp", label: "升温", durationMin: "30", targetTemperatureC: "" },
+        { segmentKey: "hold", label: "保温", durationMin: "15", targetTemperatureC: "" },
+        { segmentKey: "cool", label: "降温", durationMin: "50", targetTemperatureC: "25" },
+      ],
+    });
+    expect(quickProgram.zones.zone_2.segments).toHaveLength(3);
+    expect(quickProgram.isCustom).toBe(true);
+  });
+
+  it("initializes blank furnace quick fill with default per-zone segments", () => {
+    const values = createInitialEditorValues(experiment, []);
+
+    expect(values.furnaceProgram.furnaceInfo.zonesCount).toBe("2");
+    expect(values.furnaceProgram.quickProgram?.zones.zone_1.segments).toEqual([
+      { segmentKey: "ramp", label: "升温", durationMin: "30", targetTemperatureC: "" },
+      { segmentKey: "hold", label: "保温", durationMin: "15", targetTemperatureC: "" },
+      { segmentKey: "cool", label: "降温", durationMin: "50", targetTemperatureC: "25" },
+    ]);
+    expect(values.furnaceProgram.quickProgram?.zones.zone_2.segments).toHaveLength(3);
   });
 
   it("keeps explicit non-positive durations in generated nodes so validation can reject them", () => {
     const zones = buildFurnaceZonesFromQuickProgram(["zone_1"], {
-      startTemperatureC: "25",
-      rampDurationMin: "-5",
-      holdDurationMin: "0",
-      coolDurationMin: "",
-      endTemperatureC: "25",
-      targetTemperaturesC: { zone_1: "700" },
+      zones: {
+        zone_1: {
+          startTemperatureC: "25",
+          segments: [
+            { segmentKey: "ramp", label: "升温", durationMin: "-5", targetTemperatureC: "700" },
+            { segmentKey: "hold", label: "保温", durationMin: "0", targetTemperatureC: "700" },
+            { segmentKey: "cool", label: "降温", durationMin: "", targetTemperatureC: "25" },
+          ],
+        },
+      },
       isCustom: false,
     });
 
@@ -168,6 +259,7 @@ describe("furnace placement editor payloads", () => {
       { timeMin: "0", temperatureC: "25", note: "起始" },
       { timeMin: "-5", temperatureC: "700", note: "升温结束" },
       { timeMin: "-5", temperatureC: "700", note: "恒温结束" },
+      { timeMin: "", temperatureC: "25", note: "降温结束" },
     ]);
   });
 
@@ -225,7 +317,12 @@ describe("furnace placement editor payloads", () => {
     const next = syncFurnaceProgramZonesCount(value, "1");
 
     expect(next.furnaceInfo.initialTemperaturesC).toEqual({ zone_1: "25" });
-    expect(next.quickProgram?.targetTemperaturesC).toEqual({ zone_1: "650" });
+    expect(next.quickProgram?.zones).toEqual({
+      zone_1: {
+        startTemperatureC: "25",
+        segments: [{ segmentKey: "ramp", label: "升温", durationMin: "30", targetTemperatureC: "650" }],
+      },
+    });
     expect(next.placements[0].zoneKey).toBe("");
     expect(next.zones).toHaveLength(1);
   });
@@ -386,6 +483,31 @@ describe("furnace placement editor payloads", () => {
 });
 
 describe("substrate editor payloads", () => {
+  it("serializes substrate batch numbers", () => {
+    const payload = toSubstratesPayload({
+      items: [
+        {
+          role: "top",
+          type: "硅片单抛N<100>",
+          brand: "华赫硅材料",
+          sizeMm: "5x10",
+          batchNo: "SUB-2026-05-A",
+          treatmentMethod: "",
+          positionMm: "",
+          treatmentTemperatureC: "",
+          treatmentDurationMin: "",
+          treatmentPowerW: "",
+          treatmentGas: "",
+        },
+      ],
+    });
+
+    expect(payload.items[0]).toMatchObject({
+      role: "top",
+      batch_no: "SUB-2026-05-A",
+    });
+  });
+
   it("omits hidden legacy roles and role-only source-backed substrate rows", () => {
     const payload = toSubstratesPayload({
       items: [
@@ -395,6 +517,7 @@ describe("substrate editor payloads", () => {
           type: "",
           brand: "",
           sizeMm: "",
+          batchNo: "",
           treatmentMethod: "",
           positionMm: "",
           treatmentTemperatureC: "",
@@ -407,6 +530,7 @@ describe("substrate editor payloads", () => {
           type: "Legacy hidden substrate",
           brand: "",
           sizeMm: "",
+          batchNo: "",
           treatmentMethod: "",
           positionMm: "",
           treatmentTemperatureC: "",
@@ -419,6 +543,7 @@ describe("substrate editor payloads", () => {
           type: "蓝宝石双抛C<0001>",
           brand: "",
           sizeMm: "",
+          batchNo: "",
           treatmentMethod: "",
           positionMm: "",
           treatmentTemperatureC: "",

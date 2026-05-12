@@ -41,6 +41,7 @@ def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_val
             "uv_cleaning",
             "annealing",
         ],
+        "layer_count": ["1", "2", "3", "多层"],
     }
     expected_legacy_inactive = {
         ("substrate_type", "SiO2/Si"),
@@ -89,6 +90,18 @@ def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_val
                 )
             ).mappings()
         )
+        added_field_rows = list(
+            connection.execute(
+                sa.text(
+                    """
+                    SELECT module_key, field_key, label_zh, field_type, vocab_key
+                    FROM experiment_field_definitions
+                    WHERE (module_key = 'basic_info' AND field_key = 'layer_count')
+                       OR (module_key = 'substrates' AND field_key = 'batch_no')
+                    """
+                )
+            ).mappings()
+        )
 
     assert expected_legacy_inactive.issubset(set(inactive_rows))
     field_definitions = {row["field_key"]: dict(row) for row in field_rows}
@@ -98,6 +111,14 @@ def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_val
     assert field_definitions["size_mm"]["vocab_key"] == "substrate_size"
     assert field_definitions["position_mm"]["label_zh"] == "相对温区位置"
     assert field_definitions["position_mm"]["unit"] is None
+    added_field_definitions = {
+        (row["module_key"], row["field_key"]): dict(row) for row in added_field_rows
+    }
+    assert added_field_definitions[("basic_info", "layer_count")]["label_zh"] == "层数"
+    assert added_field_definitions[("basic_info", "layer_count")]["field_type"] == "select"
+    assert added_field_definitions[("basic_info", "layer_count")]["vocab_key"] == "layer_count"
+    assert added_field_definitions[("substrates", "batch_no")]["label_zh"] == "基底批次"
+    assert added_field_definitions[("substrates", "batch_no")]["field_type"] == "text"
 
 
 def test_substrate_vocabulary_update_preserves_custom_active_entries() -> None:

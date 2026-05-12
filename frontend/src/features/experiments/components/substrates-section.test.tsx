@@ -68,6 +68,23 @@ describe("SubstratesSection", () => {
     });
   });
 
+  it("records substrate batch number for each fixed substrate", () => {
+    const onChange = renderSection({ items: [] });
+
+    fireEvent.change(screen.getByLabelText("基底批次 上基底"), {
+      target: { value: "SUB-2026-05-A" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith({
+      items: [
+        expect.objectContaining({
+          role: "top",
+          batchNo: "SUB-2026-05-A",
+        }),
+      ],
+    });
+  });
+
   it("clears only the selected substrate role", () => {
     const onChange = renderSection({
       items: [
@@ -76,6 +93,7 @@ describe("SubstratesSection", () => {
           type: "硅片单抛N<100>",
           brand: "华赫硅材料",
           sizeMm: "5x10",
+          batchNo: "",
           treatmentMethod: "none",
           positionMm: "1",
           treatmentTemperatureC: "",
@@ -88,6 +106,7 @@ describe("SubstratesSection", () => {
           type: "蓝宝石双抛C<0001>",
           brand: "合肥科晶",
           sizeMm: "5x5",
+          batchNo: "",
           treatmentMethod: "annealing",
           positionMm: "-1",
           treatmentTemperatureC: "",
@@ -118,6 +137,7 @@ describe("SubstratesSection", () => {
           type: "Legacy hidden substrate",
           brand: "Legacy brand",
           sizeMm: "legacy",
+          batchNo: "",
           treatmentMethod: "",
           positionMm: "",
           treatmentTemperatureC: "",

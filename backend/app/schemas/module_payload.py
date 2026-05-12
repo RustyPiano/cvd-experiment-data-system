@@ -11,6 +11,16 @@ class ModulePayloadBase(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class BasicInfoPayload(ModulePayloadBase):
+    operator_id: str | None = None
+    experiment_type: str | None = None
+    material_system: str | None = None
+    experiment_date: str | None = None
+    layer_count: str | None = None
+    objective: str | None = None
+    recipe_id: str | None = None
+
+
 class EnvironmentPayload(ModulePayloadBase):
     indoor_temperature_C: StrictFloat | None = None
     indoor_humidity_percent: StrictFloat | None = None
@@ -59,6 +69,7 @@ class SubstrateItemPayload(ModulePayloadBase):
     type: str | None = None
     brand: str | None = None
     size_mm: str | None = None
+    batch_no: str | None = None
     treatment_method: str | None = None
     position_mm: StrictFloat | None = None
     treatment_params: SubstrateTreatmentParamsPayload | None = None
@@ -167,6 +178,7 @@ class ResultSummaryPayload(ModulePayloadBase):
 
 
 MODULE_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
+    ExperimentModuleKey.BASIC_INFO.value: BasicInfoPayload,
     ExperimentModuleKey.ENVIRONMENT.value: EnvironmentPayload,
     ExperimentModuleKey.PRECHECK.value: PrecheckPayload,
     ExperimentModuleKey.PRECURSORS.value: PrecursorsPayload,
@@ -183,7 +195,30 @@ def validate_module_payload(module_key: str, payload_json: dict[str, Any]) -> di
     model = MODULE_PAYLOAD_MODELS.get(module_key)
     if model is None:
         return payload_json
-    return model.model_validate(payload_json).model_dump(mode="json", exclude_none=False)
+    validated = model.model_validate(payload_json)
+    if module_key == ExperimentModuleKey.BASIC_INFO.value:
+        return validated.model_dump(mode="json", exclude_unset=True)
+
+    dumped = validated.model_dump(mode="json", exclude_none=False)
+    if module_key == ExperimentModuleKey.SUBSTRATES.value:
+        _drop_unset_substrate_batch_numbers(payload_json, dumped)
+    return dumped
+
+
+def _drop_unset_substrate_batch_numbers(
+    source_payload: dict[str, Any],
+    normalized_payload: dict[str, Any],
+) -> None:
+    source_items = source_payload.get("items")
+    normalized_items = normalized_payload.get("items")
+    if not isinstance(source_items, list) or not isinstance(normalized_items, list):
+        return
+
+    for source_item, normalized_item in zip(source_items, normalized_items, strict=False):
+        if not isinstance(source_item, dict) or not isinstance(normalized_item, dict):
+            continue
+        if "batch_no" not in source_item:
+            normalized_item.pop("batch_no", None)
 
 
 class ExperimentModulePayloadUpsert(BaseModel):

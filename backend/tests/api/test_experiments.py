@@ -2342,6 +2342,7 @@ def test_upsert_module_persists_stage3_fields_and_syncs_quality_label(active_use
                         "role": "top",
                         "type": "SiO2/Si",
                         "brand": "Brand A",
+                        "batch_no": "SUB-2026-05-A",
                         "treatment_method": "plasma_cleaning",
                         "treatment_params": {
                             "temperature_C": 120,
@@ -2414,12 +2415,19 @@ def test_upsert_module_persists_stage3_fields_and_syncs_quality_label(active_use
     assert precursors_response.status_code == 200
     assert precursors_response.json()["payload_json"]["items"][0]["batch_no"] == "MO-01"
     assert substrates_response.status_code == 200
+    assert substrates_response.json()["payload_json"]["items"][0]["batch_no"] == "SUB-2026-05-A"
     assert substrates_response.json()["payload_json"]["items"][0]["treatment_params"] == {
         "temperature_C": 120,
         "duration_min": 10,
         "power_W": 30,
         "gas": "Ar",
     }
+    samples_response = client.get(
+        f"/api/v1/samples?experiment_id={experiment_id}&role=top",
+        headers=auth_headers(active_user.email),
+    )
+    assert samples_response.status_code == 200
+    assert samples_response.json()["items"][0]["metadata_json"]["batch_no"] == "SUB-2026-05-A"
     assert gas_response.status_code == 200
     assert gas_response.json()["payload_json"]["segments"][0]["note"] == "stable flow"
     assert characterization_response.status_code == 200

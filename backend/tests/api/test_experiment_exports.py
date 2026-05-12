@@ -375,6 +375,21 @@ def test_export_experiment_aggregates_modules_samples_files_and_audit(active_use
 def test_export_analysis_returns_normalized_rows(active_user) -> None:
     experiment_id = create_experiment(active_user.email, objective="Analysis export")
 
+    basic_info_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/basic_info",
+        json={
+            "payload_json": {
+                "experiment_type": "cvd_2zone",
+                "material_system": "MoS2",
+                "experiment_date": "2026-04-23",
+                "layer_count": "多层",
+                "objective": "Analysis export",
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert basic_info_response.status_code == 200
+
     precursors_response = client.put(
         f"/api/v1/experiments/{experiment_id}/modules/precursors",
         json={
@@ -410,6 +425,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
                         "type": "SiO2/Si",
                         "brand": "MTI",
                         "size_mm": "10x10",
+                        "batch_no": "SUB-2026-05-A",
                         "treatment_method": "plasma",
                         "position_mm": 12.5,
                         "treatment_params": {
@@ -529,6 +545,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     assert body["experiment"]["experiment_id"] == experiment_id
     assert body["experiment"]["run_code"] == "CVD-2026-0001"
     assert body["experiment"]["material_system"] == "MoS2"
+    assert body["experiment"]["layer_count"] == "多层"
 
     expected_sections = {
         "experiment",
@@ -570,6 +587,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
         "batch_no": "MO-0424",
     }
     assert body["substrate_rows"][0]["substrate_index"] == 0
+    assert body["substrate_rows"][0]["batch_no"] == "SUB-2026-05-A"
     assert body["substrate_rows"][0]["treatment_params_gas"] == "O2"
     assert body["furnace_temperature_rows"][1] == {
         "experiment_id": experiment_id,
@@ -828,6 +846,38 @@ def test_export_analysis_rejects_legacy_invalid_numeric_payload(active_user, db_
 def test_export_experiment_excel_returns_openable_workbook(active_user) -> None:
     experiment_id = create_experiment(active_user.email, objective="Excel export flow")
     populate_required_modules(experiment_id, active_user.email)
+    basic_info_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/basic_info",
+        json={
+            "payload_json": {
+                "experiment_type": "cvd_2zone",
+                "material_system": "MoS2",
+                "experiment_date": "2026-04-23",
+                "layer_count": "2",
+                "objective": "Excel export flow",
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert basic_info_response.status_code == 200
+    substrates_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "role": "top",
+                        "type": "SiO2/Si",
+                        "brand": "MTI",
+                        "size_mm": "10x10",
+                        "batch_no": "SUB-EXCEL-01",
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert substrates_response.status_code == 200
 
     file_response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
@@ -861,6 +911,13 @@ def test_export_experiment_excel_returns_openable_workbook(active_user) -> None:
     ]
     assert workbook["Basic Info"]["A1"].value == "Field"
     assert workbook["Basic Info"]["B2"].value == "CVD-2026-0001"
+    basic_info_rows = {
+        row[0]: row[1] for row in workbook["Basic Info"].iter_rows(min_row=2, values_only=True)
+    }
+    assert basic_info_rows["layer_count"] == "2"
+    substrate_headers = [cell.value for cell in workbook["Substrates"][1]]
+    substrate_row = [cell.value for cell in workbook["Substrates"][2]]
+    assert dict(zip(substrate_headers, substrate_row, strict=True))["batch_no"] == "SUB-EXCEL-01"
     assert workbook["Files"]["A2"].value == "image.png"
     assert workbook["Files"]["B2"].value == "OM"
     assert workbook["Files"]["C2"].value == "processed"

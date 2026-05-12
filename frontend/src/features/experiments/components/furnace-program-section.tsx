@@ -11,6 +11,7 @@ import {
   type FurnacePlacementValues,
   type FurnaceProgramValues,
   type FurnaceQuickProgramValues,
+  type FurnaceQuickZoneValues,
   type FurnaceTemperatureNodeValues,
   type FurnaceZoneValues,
   type PrecursorItemValues,
@@ -225,13 +226,10 @@ export function FurnaceProgramSection({
     [value, quickProgram, emitManualChange],
   );
 
-  const updateQuickProgram = useCallback(
-    (patch: Partial<FurnaceQuickProgramValues>) => {
+  const emitQuickProgramChange = useCallback(
+    (nextQuickProgramInput: FurnaceQuickProgramValues) => {
       const nextQuickProgram = {
-        ...quickProgram,
-        ...patch,
-        targetTemperaturesC:
-          patch.targetTemperaturesC ?? quickProgram.targetTemperaturesC,
+        ...nextQuickProgramInput,
         isCustom: false,
       };
       const nextZones = buildFurnaceZonesFromQuickProgram(zoneKeys, nextQuickProgram, value.zones);
@@ -241,26 +239,57 @@ export function FurnaceProgramSection({
         furnaceInfo: {
           ...value.furnaceInfo,
           initialTemperaturesC: Object.fromEntries(
-            zoneKeys.map((zoneKey) => [zoneKey, nextQuickProgram.startTemperatureC]),
+            zoneKeys.map((zoneKey) => [
+              zoneKey,
+              nextQuickProgram.zones[zoneKey]?.startTemperatureC ?? "25",
+            ]),
           ),
         },
         quickProgram: nextQuickProgram,
         zones: nextZones,
       });
     },
-    [value, quickProgram, zoneKeys, emitManualChange],
+    [value, zoneKeys, emitManualChange],
   );
 
-  const updateQuickTargetTemperature = useCallback(
-    (zoneKey: string, temperatureC: string) => {
-      updateQuickProgram({
-        targetTemperaturesC: {
-          ...quickProgram.targetTemperaturesC,
-          [zoneKey]: temperatureC,
+  const updateQuickZone = useCallback(
+    (zoneKey: string, patch: Partial<FurnaceQuickZoneValues>) => {
+      const currentZone = quickProgram.zones[zoneKey] ?? {
+        startTemperatureC: "25",
+        segments: [],
+      };
+      emitQuickProgramChange({
+        ...quickProgram,
+        zones: {
+          ...quickProgram.zones,
+          [zoneKey]: {
+            ...currentZone,
+            ...patch,
+            segments: patch.segments ?? currentZone.segments,
+          },
         },
       });
     },
-    [quickProgram.targetTemperaturesC, updateQuickProgram],
+    [quickProgram, emitQuickProgramChange],
+  );
+
+  const updateQuickSegment = useCallback(
+    (
+      zoneKey: string,
+      segmentIndex: number,
+      patch: Partial<FurnaceQuickZoneValues["segments"][number]>,
+    ) => {
+      const currentZone = quickProgram.zones[zoneKey];
+      if (!currentZone) {
+        return;
+      }
+      updateQuickZone(zoneKey, {
+        segments: currentZone.segments.map((segment, index) =>
+          index === segmentIndex ? { ...segment, ...patch } : segment,
+        ),
+      });
+    },
+    [quickProgram.zones, updateQuickZone],
   );
 
   const addPlacement = useCallback(() => {
@@ -415,69 +444,68 @@ export function FurnaceProgramSection({
       </Card>
 
       <Card size="small" title="炉温快填">
-        <div className="editor-form-grid">
-          <div className="editor-field">
-            <Typography.Text strong>起始温度</Typography.Text>
-            <Input
-              aria-label="起始温度"
-              disabled={disabled}
-              onChange={(e) => updateQuickProgram({ startTemperatureC: e.target.value })}
-              placeholder="°C"
-              value={quickProgram.startTemperatureC}
-            />
-          </div>
-          <div className="editor-field">
-            <Typography.Text strong>升温时长</Typography.Text>
-            <Input
-              aria-label="升温时长"
-              disabled={disabled}
-              onChange={(e) => updateQuickProgram({ rampDurationMin: e.target.value })}
-              placeholder="min"
-              value={quickProgram.rampDurationMin}
-            />
-          </div>
-          <div className="editor-field">
-            <Typography.Text strong>保温时长</Typography.Text>
-            <Input
-              aria-label="保温时长"
-              disabled={disabled}
-              onChange={(e) => updateQuickProgram({ holdDurationMin: e.target.value })}
-              placeholder="min"
-              value={quickProgram.holdDurationMin}
-            />
-          </div>
-          <div className="editor-field">
-            <Typography.Text strong>降温时长</Typography.Text>
-            <Input
-              aria-label="降温时长"
-              disabled={disabled}
-              onChange={(e) => updateQuickProgram({ coolDurationMin: e.target.value })}
-              placeholder="min"
-              value={quickProgram.coolDurationMin}
-            />
-          </div>
-          <div className="editor-field">
-            <Typography.Text strong>结束温度</Typography.Text>
-            <Input
-              aria-label="结束温度"
-              disabled={disabled}
-              onChange={(e) => updateQuickProgram({ endTemperatureC: e.target.value })}
-              placeholder="°C"
-              value={quickProgram.endTemperatureC}
-            />
-          </div>
-          {zoneKeys.map((zoneKey, zoneIndex) => (
-            <div className="editor-field" key={`quick-${zoneKey}`}>
-              <Typography.Text strong>{`温区 ${zoneIndex + 1} 目标温度`}</Typography.Text>
-              <Input
-                aria-label={`温区 ${zoneIndex + 1} 目标温度`}
-                disabled={disabled}
-                onChange={(e) => updateQuickTargetTemperature(zoneKey, e.target.value)}
-                placeholder="°C"
-                value={quickProgram.targetTemperaturesC[zoneKey] ?? ""}
-              />
-            </div>
-          ))}
+        <div className="content-stack">
+          {zoneKeys.map((zoneKey, zoneIndex) => {
+            const title = `温区 ${zoneIndex + 1}`;
+            const quickZone = quickProgram.zones[zoneKey] ?? {
+              startTemperatureC: "25",
+              segments: [],
+            };
+
+            return (
+              <div className="editor-array-card" key={`quick-${zoneKey}`}>
+                <div className="editor-array-card-header">
+                  <Typography.Text strong>{`${title} 快填`}</Typography.Text>
+                </div>
+                <div className="editor-form-grid">
+                  <div className="editor-field">
+                    <Typography.Text strong>起始温度</Typography.Text>
+                    <Input
+                      aria-label={`${title} 起始温度`}
+                      disabled={disabled}
+                      onChange={(e) =>
+                        updateQuickZone(zoneKey, { startTemperatureC: e.target.value })
+                      }
+                      placeholder="°C"
+                      value={quickZone.startTemperatureC}
+                    />
+                  </div>
+                  {quickZone.segments.map((segment, segmentIndex) => (
+                    <div className="editor-form-grid editor-field-wide" key={segment.segmentKey}>
+                      <div className="editor-field">
+                        <Typography.Text strong>{`${segment.label}时长`}</Typography.Text>
+                        <Input
+                          aria-label={`${title} ${segment.label}时长`}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            updateQuickSegment(zoneKey, segmentIndex, {
+                              durationMin: e.target.value,
+                            })
+                          }
+                          placeholder="min"
+                          value={segment.durationMin}
+                        />
+                      </div>
+                      <div className="editor-field">
+                        <Typography.Text strong>{`${segment.label}目标温度`}</Typography.Text>
+                        <Input
+                          aria-label={`${title} ${segment.label}目标温度`}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            updateQuickSegment(zoneKey, segmentIndex, {
+                              targetTemperatureC: e.target.value,
+                            })
+                          }
+                          placeholder="°C"
+                          value={segment.targetTemperatureC}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
         {quickProgram.isCustom ? (
           <Alert
