@@ -636,6 +636,19 @@ export function useExperimentEditor({
     }, 900);
   }, [enqueueSave, experiment.status, getDirtySections, persistDirtySections]);
 
+  const saveDraft = useCallback(async () => {
+    if (experiment.status !== "draft") {
+      return;
+    }
+
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
+    await enqueueSave(() => persistDirtySections(valuesRef.current));
+  }, [enqueueSave, experiment.status, persistDirtySections]);
+
   const clearInheritedSection = useCallback((sectionKey: InheritedSectionKey) => {
     setInheritedFrom((current) => {
       if (!current[sectionKey]) {
@@ -736,7 +749,7 @@ export function useExperimentEditor({
     const summaryStates = Object.values(sectionStates);
     const errorCount = summaryStates.filter((state) => state.status === "error").length;
     if (errorCount > 0) {
-      return `${errorCount} 个区块保存失败`;
+      return "保存失败";
     }
 
     if (summaryStates.some((state) => state.status === "saving")) {
@@ -744,7 +757,7 @@ export function useExperimentEditor({
     }
 
     if (summaryStates.some((state) => state.status === "saved")) {
-      return "草稿已自动保存";
+      return "✓ 已保存";
     }
 
     return "编辑后自动保存";
@@ -984,6 +997,7 @@ export function useExperimentEditor({
     inheritanceError,
     completionSummary,
     saveSummary,
+    saveDraft,
     scheduleAutosave,
     sectionStates,
     moduleCompletionMap,
@@ -994,6 +1008,7 @@ export function useExperimentEditor({
     updateValues,
     validationResult,
     currentModulePayloads: diffModulePayloads,
+    hasSavingSections,
     values,
   };
 }

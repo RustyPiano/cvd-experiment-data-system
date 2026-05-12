@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, App, Button } from "antd";
 import {
@@ -195,23 +195,11 @@ function ExperimentEditorWorkspace({
     return createModulePayloadMap(sourceModulesQuery.data.items);
   }, [sourceModulesQuery.data]);
 
-  const scrollToSection = (moduleKey: string) => {
+  const scrollToSection = useCallback((moduleKey: string) => {
     setCurrentSection(moduleKey as EditorSectionKey);
     const section = document.getElementById(`section-${moduleKey}`);
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const currentSectionIndex = sectionAnchorList.findIndex((s) => s.key === currentSection);
-  const goPrev = () => {
-    if (currentSectionIndex > 0) {
-      scrollToSection(sectionAnchorList[currentSectionIndex - 1].key);
-    }
-  };
-  const goNext = () => {
-    if (currentSectionIndex < sectionAnchorList.length - 1) {
-      scrollToSection(sectionAnchorList[currentSectionIndex + 1].key);
-    }
-  };
+  }, []);
 
   const stepperItems: StepperItem[] = useMemo(() => {
     return sectionAnchorList.map((s) => {
@@ -257,6 +245,16 @@ function ExperimentEditorWorkspace({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const firstError = editor.validationResult?.errors[0];
+    if (!firstError) {
+      return;
+    }
+
+    const section = document.getElementById(`section-${firstError.module_key}`);
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [editor.validationResult]);
+
   const navigateToDetail = () => {
     if (editor.shouldWarnOnLeave && !dataRouterContext) {
       modal.confirm({
@@ -283,7 +281,11 @@ function ExperimentEditorWorkspace({
       {dataRouterContext ? (
         <RouteLeaveGuard message={editor.leaveWarning} when={editor.shouldWarnOnLeave} />
       ) : null}
-      <PageHeader subtitle="各模块修改后自动保存，提交后不可再编辑。" title={`编辑 ${editor.experiment.run_code}`} />
+      <PageHeader
+        actions={<Button onClick={navigateToDetail}>返回详情</Button>}
+        subtitle="各模块修改后自动保存，提交后不可再编辑。"
+        title={`编辑 ${editor.experiment.run_code}`}
+      />
       <ExperimentSourceBanner
         experiment={editor.experiment}
         onViewDiff={editor.experiment.derived_from_run_id ? () => setDiffOpen(true) : undefined}
@@ -532,10 +534,9 @@ function ExperimentEditorWorkspace({
       <EditorActionBar
         completionSummary={editor.completionSummary}
         experiment={editor.experiment}
+        saveDraftLoading={editor.hasSavingSections}
         isDraft={editor.isDraft}
-        onBack={navigateToDetail}
-        onNext={goNext}
-        onPrev={goPrev}
+        onSaveDraft={editor.saveDraft}
         onSubmit={editor.submitDraft}
         saveSummary={editor.saveSummary}
         submitState={editor.submitState}

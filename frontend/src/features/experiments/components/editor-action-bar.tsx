@@ -13,24 +13,24 @@ export function EditorActionBar({
   completionSummary,
   experiment,
   isDraft,
-  onBack,
-  onPrev,
-  onNext,
+  onSaveDraft,
   onSubmit,
+  saveDraftLoading,
   saveSummary,
   submitState,
 }: {
   completionSummary: CompletionSummary;
   experiment: ExperimentRead;
   isDraft: boolean;
-  onBack: () => void;
-  onPrev?: () => void;
-  onNext?: () => void;
+  onSaveDraft: () => void;
   onSubmit: () => void;
+  saveDraftLoading: boolean;
   saveSummary: string;
   submitState: SubmitState;
 }) {
   const completionText = `总完成度 ${completionSummary.percent}% · 已完成 ${completionSummary.completedCount}/${completionSummary.totalCount} · 阻塞 ${completionSummary.blockingCount} · 提示 ${completionSummary.warningCount}`;
+  const isSubmitDeemphasized =
+    completionSummary.blockingCount > 0 || submitState.status === "error";
 
   return (
     <Card className="editor-action-bar">
@@ -51,25 +51,22 @@ export function EditorActionBar({
           ) : null}
         </div>
         <Space wrap>
-          <Button onClick={onBack}>返回详情</Button>
           {isDraft ? (
             <>
-              {onPrev ? (
-                <Button onClick={onPrev} size="small">
-                  上一步
-                </Button>
-              ) : null}
-              {onNext ? (
-                <Button onClick={onNext} size="small">
-                  下一步
-                </Button>
-              ) : null}
+              <Button
+                loading={saveDraftLoading}
+                onClick={() => {
+                  void onSaveDraft();
+                }}
+              >
+                保存草稿
+              </Button>
               <Button
                 loading={submitState.status === "submitting"}
                 onClick={() => {
                   void onSubmit();
                 }}
-                type="primary"
+                type={isSubmitDeemphasized ? "default" : "primary"}
               >
                 提交实验
               </Button>

@@ -1,14 +1,7 @@
 import type { ReactNode } from "react";
-import { Alert, Card, Tag, Typography } from "antd";
+import { Alert, Card, Typography } from "antd";
 
 import type { SectionSaveState } from "../editor-types";
-
-const saveStateMeta = {
-  idle: { color: "default", label: "待保存" },
-  saving: { color: "processing", label: "保存中" },
-  saved: { color: "success", label: "已保存" },
-  error: { color: "error", label: "保存失败" },
-} as const;
 
 export function EditorSectionCard({
   children,
@@ -21,8 +14,6 @@ export function EditorSectionCard({
   subtitle: string;
   title: string;
 }) {
-  const meta = saveStateMeta[state.status];
-
   return (
     <Card>
       <div className="editor-section-header">
@@ -34,7 +25,6 @@ export function EditorSectionCard({
             {subtitle}
           </Typography.Paragraph>
         </div>
-        <Tag color={meta.color}>{meta.label}</Tag>
       </div>
       {state.status === "error" && state.message ? (
         <Alert

@@ -2268,6 +2268,38 @@ describe("ExperimentEditorPage", () => {
     expect(screen.queryByRole("button", { name: "提交实验" })).not.toBeInTheDocument();
   });
 
+  it("saves current draft changes when clicking save draft", async () => {
+    const server = createEditorFetchMock();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    fireEvent.change(await screen.findByLabelText("前驱体种类 1"), {
+      target: { value: "WO3" },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "保存草稿" }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "PUT" &&
+            request.pathname === "/api/v1/experiments/exp-1/modules/precursors",
+        ),
+      ).toBe(true);
+    });
+
+    expect(await screen.findByText("✓ 已保存")).toBeInTheDocument();
+  });
+
   it("sanitizes hidden legacy substrate rows before submit", async () => {
     const server = createEditorFetchMock();
     server.modules.set(
@@ -2456,9 +2488,10 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByText("提示项 1")).toBeInTheDocument();
     expect(screen.getByText("At least one precursor is required")).toBeInTheDocument();
     expect(screen.getByText("Quality label is unknown")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "跳转到前驱体" }));
-    expect(scrollIntoViewMock).toHaveBeenCalled();
+    expect(screen.getAllByRole("button", { name: /前驱体：阻塞 1 项/ }).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalled();
+    });
     expect(
       server.requests.some(
         (request) =>
