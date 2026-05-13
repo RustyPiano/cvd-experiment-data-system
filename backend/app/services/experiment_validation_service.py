@@ -229,7 +229,7 @@ class ExperimentValidationService:
                         "Precursor batch_no is missing",
                     )
                 )
-            if item.get("mass_mg") is None:
+            if self._precursor_requires_mass(item) and item.get("mass_mg") is None:
                 warnings.append(
                     self._issue(
                         "precursors",
@@ -741,7 +741,8 @@ class ExperimentValidationService:
             self._all_items(
                 precursor_items,
                 lambda item: (
-                    item.get("mass_mg") is not None and self._is_number(item.get("mass_mg"))
+                    not self._precursor_requires_mass(item)
+                    or (item.get("mass_mg") is not None and self._is_number(item.get("mass_mg")))
                 ),
             ),
             bool(substrate_items),
@@ -785,6 +786,10 @@ class ExperimentValidationService:
             field_path=field_path,
             message=translated_message or message,
         )
+
+    def _precursor_requires_mass(self, item: dict) -> bool:
+        method = str(item.get("method") or "").strip().lower()
+        return method not in {"solution", "spin_coating"}
 
     def _schema_validation_issues(
         self,

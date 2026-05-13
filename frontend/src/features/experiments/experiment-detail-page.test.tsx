@@ -407,7 +407,15 @@ describe("Experiment detail-like pages", () => {
                         brand: "Sigma",
                         melting_temperature_C: 795,
                         spin_speed_rpm: 3000,
+                        spin_time_s: 30,
+                        pre_spin_speed_rpm: 500,
+                        pre_spin_time_s: 5,
                         preparation_time_min: 15,
+                      },
+                      {
+                        species: "NaCl",
+                        spin_time_s: 45,
+                        pre_spin_time_s: 8,
                       },
                     ],
                   },
@@ -528,7 +536,8 @@ components: [
     );
     expect(screen.getByText("预清洗气体：Ar")).toBeInTheDocument();
     expect(screen.getByText("Ar 76 sccm (95%)；H2 4 sccm (5%)")).toBeInTheDocument();
-    expect(screen.getByText("795 °C / 3000 rpm / 15 min")).toBeInTheDocument();
+    expect(screen.getByText("795 °C / 旋涂 3000 rpm / 30 s / 预旋 500 rpm / 5 s / 15 min")).toBeInTheDocument();
+    expect(screen.getByText("旋涂 45 s / 预旋 8 s")).toBeInTheDocument();
     expect(screen.getByText("120 °C / 10 min / 80 W / Ar")).toBeInTheDocument();
     const furnaceCard = screen.getByText("炉温").closest(".ant-card");
     expect(furnaceCard).not.toBeNull();

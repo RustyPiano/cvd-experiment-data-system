@@ -27,6 +27,7 @@ ACTIVE_VALUES: list[tuple[str, str, int]] = [
     ("Ar+O2", "氩氧混合", 5),
     ("H2+CO2", "氢气二氧化碳混合", 6),
     ("CO+Ar", "一氧化碳氩气混合", 7),
+    ("air", "空气", 8),
 ]
 LEGACY_ACTIVE_VALUES = ["H2", "CO", "Ar+CO", "other"]
 MIGRATION_METADATA = {"seed": "gas_label_washing_options_20260507_0015"}

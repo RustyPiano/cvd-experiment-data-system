@@ -80,7 +80,9 @@ export type PrecursorItemValues = PayloadBackedValue & {
   method: string;
   meltingTemperatureC: string;
   spinSpeedRpm: string;
+  spinTimeS: string;
   preSpinSpeedRpm: string;
+  preSpinTimeS: string;
   preparationTimeMin: string;
   massMg: string;
   batchNo: string;
@@ -88,6 +90,13 @@ export type PrecursorItemValues = PayloadBackedValue & {
 
 export type PrecursorsValues = {
   items: PrecursorItemValues[];
+};
+
+export type PrecursorMethodFlags = {
+  showConcentrationFields: boolean;
+  showSpinFields: boolean;
+  hideMassAndPrepTime: boolean;
+  showMeltingFields: boolean;
 };
 
 export type SubstrateItemValues = PayloadBackedValue & {
@@ -325,6 +334,43 @@ function normalizeNullableString(value: string) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+export function resolvePrecursorMethodFlags(method: string): PrecursorMethodFlags {
+  const normalizedMethod = method.trim().toLowerCase();
+  const isSolutionOrSpin = normalizedMethod === "solution" || normalizedMethod === "spin_coating";
+  const isMelting = normalizedMethod === "melting";
+  return {
+    showConcentrationFields: isSolutionOrSpin,
+    showSpinFields: isSolutionOrSpin,
+    hideMassAndPrepTime: isSolutionOrSpin,
+    showMeltingFields: isMelting,
+  };
+}
+
+export function createPrecursorMethodPatch(method: string): Partial<PrecursorItemValues> {
+  const flags = resolvePrecursorMethodFlags(method);
+  const patch: Partial<PrecursorItemValues> = { method };
+
+  if (flags.hideMassAndPrepTime) {
+    patch.massMg = "";
+    patch.preparationTimeMin = "";
+  }
+  if (!flags.showConcentrationFields) {
+    patch.concentration = "";
+    patch.concentrationUnit = "";
+  }
+  if (!flags.showSpinFields) {
+    patch.spinSpeedRpm = "";
+    patch.spinTimeS = "";
+    patch.preSpinSpeedRpm = "";
+    patch.preSpinTimeS = "";
+  }
+  if (!flags.showMeltingFields) {
+    patch.meltingTemperatureC = "";
+  }
+
+  return patch;
+}
+
 export function withLegacyVocabularyOption(
   options: VocabularySelectOption[],
   currentValue: string,
@@ -443,48 +489,71 @@ export function validateSectionValues(
   if (sectionKey === "precursors") {
     values.precursors.items.forEach((item, index) => {
       const rowNumber = index + 1;
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.concentration`,
-        item.concentration,
-        `浓度 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.meltingTemperatureC`,
-        item.meltingTemperatureC,
-        `熔融温度 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.spinSpeedRpm`,
-        item.spinSpeedRpm,
-        `旋涂转速 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.preSpinSpeedRpm`,
-        item.preSpinSpeedRpm,
-        `预旋涂转速 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.preparationTimeMin`,
-        item.preparationTimeMin,
-        `制备时长 ${rowNumber}`,
-      );
-      appendNumberValidationError(
-        errors,
-        sectionKey,
-        `items.${index}.massMg`,
-        item.massMg,
-        `前驱体质量 ${rowNumber}`,
-      );
+      const flags = resolvePrecursorMethodFlags(item.method);
+      if (flags.showConcentrationFields) {
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.concentration`,
+          item.concentration,
+          `浓度 ${rowNumber}`,
+        );
+      }
+      if (flags.showMeltingFields) {
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.meltingTemperatureC`,
+          item.meltingTemperatureC,
+          `熔融温度 ${rowNumber}`,
+        );
+      }
+      if (flags.showSpinFields) {
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.spinSpeedRpm`,
+          item.spinSpeedRpm,
+          `旋涂转速 ${rowNumber}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.spinTimeS`,
+          item.spinTimeS,
+          `旋涂时长 ${rowNumber}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.preSpinSpeedRpm`,
+          item.preSpinSpeedRpm,
+          `预旋涂转速 ${rowNumber}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.preSpinTimeS`,
+          item.preSpinTimeS,
+          `预旋涂时长 ${rowNumber}`,
+        );
+      }
+      if (!flags.hideMassAndPrepTime) {
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.preparationTimeMin`,
+          item.preparationTimeMin,
+          `制备时长 ${rowNumber}`,
+        );
+        appendNumberValidationError(
+          errors,
+          sectionKey,
+          `items.${index}.massMg`,
+          item.massMg,
+          `前驱体质量 ${rowNumber}`,
+        );
+      }
     });
   }
 
@@ -901,7 +970,9 @@ export function createEmptyPrecursorItem(): PrecursorItemValues {
     method: "",
     meltingTemperatureC: "",
     spinSpeedRpm: "",
+    spinTimeS: "",
     preSpinSpeedRpm: "",
+    preSpinTimeS: "",
     preparationTimeMin: "",
     massMg: "",
     batchNo: "",
@@ -1047,7 +1118,9 @@ export function createInitialEditorValues(
               method: asString(item.method),
               meltingTemperatureC: asString(item.melting_temperature_C),
               spinSpeedRpm: asString(item.spin_speed_rpm),
+              spinTimeS: asString(item.spin_time_s),
               preSpinSpeedRpm: asString(item.pre_spin_speed_rpm),
+              preSpinTimeS: asString(item.pre_spin_time_s),
               preparationTimeMin: asString(item.preparation_time_min),
               massMg: asString(item.mass_mg),
               batchNo: asString(item.batch_no),
@@ -1229,6 +1302,7 @@ export function mergeEnvironmentPayload(
 export function toPrecursorsPayload(values: PrecursorsValues) {
   return {
     items: values.items
+      .map((item) => ({ ...item, ...createPrecursorMethodPatch(item.method) }))
       .filter(
         (item) =>
           hasAnyValue({
@@ -1239,7 +1313,9 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
             method: item.method,
             meltingTemperatureC: item.meltingTemperatureC,
             spinSpeedRpm: item.spinSpeedRpm,
+            spinTimeS: item.spinTimeS,
             preSpinSpeedRpm: item.preSpinSpeedRpm,
+            preSpinTimeS: item.preSpinTimeS,
             preparationTimeMin: item.preparationTimeMin,
             massMg: item.massMg,
             batchNo: item.batchNo,
@@ -1256,7 +1332,9 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
             method: normalizeNullableString(item.method),
             melting_temperature_C: normalizeNumberLike(item.meltingTemperatureC),
             spin_speed_rpm: normalizeNumberLike(item.spinSpeedRpm),
+            spin_time_s: normalizeNumberLike(item.spinTimeS),
             pre_spin_speed_rpm: normalizeNumberLike(item.preSpinSpeedRpm),
+            pre_spin_time_s: normalizeNumberLike(item.preSpinTimeS),
             preparation_time_min: normalizeNumberLike(item.preparationTimeMin),
             mass_mg: normalizeNumberLike(item.massMg),
             batch_no: normalizeNullableString(item.batchNo),
@@ -1271,7 +1349,9 @@ export function toPrecursorsPayload(values: PrecursorsValues) {
             "method",
             "melting_temperature_C",
             "spin_speed_rpm",
+            "spin_time_s",
             "pre_spin_speed_rpm",
+            "pre_spin_time_s",
             "preparation_time_min",
             "mass_mg",
             "batch_no",

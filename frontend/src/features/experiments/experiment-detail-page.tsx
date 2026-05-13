@@ -67,10 +67,22 @@ function joinReadableParts(parts: string[]): string {
 }
 
 function formatPrecursorPreparation(record: Record<string, unknown>) {
+  const preSpinSpeed = safeString(record.pre_spin_speed_rpm);
+  const preSpinTime = safeString(record.pre_spin_time_s);
+  const spinSpeed = safeString(record.spin_speed_rpm);
+  const spinTime = safeString(record.spin_time_s);
+  const spinText = joinReadableParts([
+    spinSpeed ? `${spinSpeed} rpm` : "",
+    spinTime ? `${spinTime} s` : "",
+  ]);
+  const preSpinText = joinReadableParts([
+    preSpinSpeed ? `${preSpinSpeed} rpm` : "",
+    preSpinTime ? `${preSpinTime} s` : "",
+  ]);
   return joinReadableParts([
     formatWithUnit(record.melting_temperature_C, "°C"),
-    formatWithUnit(record.spin_speed_rpm, "rpm"),
-    safeString(record.pre_spin_speed_rpm) ? `预旋 ${safeString(record.pre_spin_speed_rpm)} rpm` : "",
+    spinText !== "—" ? `旋涂 ${spinText}` : "",
+    preSpinText !== "—" ? `预旋 ${preSpinText}` : "",
     formatWithUnit(record.preparation_time_min, "min"),
   ]);
 }

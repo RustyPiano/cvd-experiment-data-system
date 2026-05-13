@@ -109,6 +109,119 @@ def test_schema_validation_reports_string_type_in_chinese(
     )
 
 
+def test_solution_precursor_without_mass_does_not_warn(
+    active_user,
+    db_session,
+) -> None:
+    experiment = ExperimentRun(
+        run_code="CVD-2026-0004",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 4, 23),
+        objective="Solution precursor validation",
+        quality_label=QualityLabel.UNKNOWN,
+    )
+    db_session.add(experiment)
+    db_session.flush()
+    db_session.add(
+        ExperimentModulePayload(
+            experiment_run_id=experiment.id,
+            module_key=ExperimentModuleKey.PRECURSORS.value,
+            payload_json={
+                "items": [
+                    {
+                        "species": "MoO3",
+                        "method": "solution",
+                        "batch_no": "MO-2026-01",
+                        "concentration": 0.5,
+                        "spin_speed_rpm": 3000,
+                        "spin_time_s": 30,
+                    }
+                ]
+            },
+        )
+    )
+    db_session.commit()
+    db_session.refresh(experiment)
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    assert not any(
+        issue.module_key == ExperimentModuleKey.PRECURSORS.value
+        and issue.field_path == "items[0].mass_mg"
+        for issue in result.warnings
+    )
+
+
+def test_solution_precursor_completion_score_does_not_require_mass(
+    active_user,
+    db_session,
+) -> None:
+    experiment_without_mass = ExperimentRun(
+        run_code="CVD-2026-0005",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 4, 23),
+        objective="Solution precursor completion",
+        quality_label=QualityLabel.UNKNOWN,
+    )
+    experiment_with_mass = ExperimentRun(
+        run_code="CVD-2026-0006",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 4, 23),
+        objective="Solution precursor completion control",
+        quality_label=QualityLabel.UNKNOWN,
+    )
+    db_session.add_all([experiment_without_mass, experiment_with_mass])
+    db_session.flush()
+    precursor_payload = {
+        "items": [
+            {
+                "species": "MoO3",
+                "method": "solution",
+                "batch_no": "MO-2026-01",
+                "concentration": 0.5,
+                "spin_speed_rpm": 3000,
+                "spin_time_s": 30,
+            }
+        ]
+    }
+    db_session.add_all(
+        [
+            ExperimentModulePayload(
+                experiment_run_id=experiment_without_mass.id,
+                module_key=ExperimentModuleKey.PRECURSORS.value,
+                payload_json=precursor_payload,
+            ),
+            ExperimentModulePayload(
+                experiment_run_id=experiment_with_mass.id,
+                module_key=ExperimentModuleKey.PRECURSORS.value,
+                payload_json={
+                    "items": [
+                        {
+                            **precursor_payload["items"][0],
+                            "mass_mg": 12.5,
+                        }
+                    ]
+                },
+            ),
+        ]
+    )
+    db_session.commit()
+    db_session.refresh(experiment_without_mass)
+    db_session.refresh(experiment_with_mass)
+
+    service = ExperimentValidationService(db_session)
+    result_without_mass = service.validate_experiment(experiment_without_mass)
+    result_with_mass = service.validate_experiment(experiment_with_mass)
+
+    assert result_without_mass.completion_score == result_with_mass.completion_score
+
+
 def test_furnace_program_schema_accepts_canonical_placements() -> None:
     canonical = validate_module_payload(
         ExperimentModuleKey.FURNACE_PROGRAM.value,

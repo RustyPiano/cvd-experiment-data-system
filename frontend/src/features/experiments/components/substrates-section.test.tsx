@@ -20,13 +20,18 @@ const substrateTreatmentMethodOptions: VocabularySelectOption[] = [
   { label: "无", value: "none" },
   { label: "退火", value: "annealing" },
   { label: "等离子清洗", value: "plasma_cleaning" },
+  { label: "紫外清洗", value: "uv_cleaning" },
+];
+const gasOptions: VocabularySelectOption[] = [
+  { label: "空气", value: "air" },
+  { label: "氩气", value: "Ar" },
 ];
 
 function renderSection(value: SubstratesValues, onChange = vi.fn()) {
   render(
     <SubstratesSection
       disabled={false}
-      gasOptions={[]}
+      gasOptions={gasOptions}
       onChange={onChange}
       substrateBrandOptions={substrateBrandOptions}
       substrateSizeOptions={substrateSizeOptions}
@@ -150,6 +155,50 @@ describe("SubstratesSection", () => {
         }),
       ],
     });
+  });
+
+  it("auto-fills gas as air and clears power when uv_cleaning is selected", () => {
+    const onChange = renderSection({ items: [] });
+
+    fireEvent.change(screen.getByLabelText("处理方式 上基底"), {
+      target: { value: "紫外清洗" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith({
+      items: [
+        expect.objectContaining({
+          role: "top",
+          treatmentMethod: "uv_cleaning",
+          treatmentGas: "air",
+          treatmentPowerW: "",
+        }),
+      ],
+    });
+  });
+
+  it("disables power and gas inputs when treatmentMethod is uv_cleaning", () => {
+    renderSection({
+      items: [
+        {
+          role: "top",
+          type: "",
+          brand: "",
+          sizeMm: "",
+          batchNo: "",
+          treatmentMethod: "uv_cleaning",
+          positionMm: "",
+          treatmentTemperatureC: "",
+          treatmentDurationMin: "",
+          treatmentPowerW: "",
+          treatmentGas: "air",
+        },
+      ],
+    });
+
+    expect(screen.getByLabelText("处理参数功率 上基底")).toBeDisabled();
+    expect(screen.getByLabelText("处理参数气体 上基底")).toBeDisabled();
+    expect(screen.getByLabelText("处理参数温度 上基底")).not.toBeDisabled();
+    expect(screen.getByLabelText("处理参数时长 上基底")).not.toBeDisabled();
   });
 
   it("drops hidden non-top-bottom items when editing a fixed substrate", () => {

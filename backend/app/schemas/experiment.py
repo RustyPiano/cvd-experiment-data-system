@@ -128,7 +128,9 @@ class ExperimentAnalysisPrecursorRow(BaseModel):
     method: str | None
     melting_temperature_C: float | None
     spin_speed_rpm: float | None
+    spin_time_s: float | None
     pre_spin_speed_rpm: float | None
+    pre_spin_time_s: float | None
     preparation_time_min: float | None
     mass_mg: float | None
     batch_no: str | None

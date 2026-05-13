@@ -113,6 +113,7 @@ export function SubstratesSection({
           createEmptySubstrateItemForRole(roleConfig.role);
         const showTreatmentParams =
           item.treatmentMethod.trim().length > 0 && item.treatmentMethod !== "none";
+        const isUvCleaning = item.treatmentMethod === "uv_cleaning";
 
         return (
           <div className="editor-array-card" key={roleConfig.role}>
@@ -190,7 +191,12 @@ export function SubstratesSection({
                   ariaLabel={`处理方式 ${roleConfig.title}`}
                   disabled={disabled}
                   onChange={(nextValue) => {
-                    updateRoleItem(roleConfig.role, { treatmentMethod: nextValue });
+                    const patch: Partial<SubstrateItemValues> = { treatmentMethod: nextValue };
+                    if (nextValue === "uv_cleaning") {
+                      patch.treatmentGas = "air";
+                      patch.treatmentPowerW = "";
+                    }
+                    updateRoleItem(roleConfig.role, patch);
                   }}
                   options={substrateTreatmentMethodOptions}
                   placeholder="选择或输入处理方式"
@@ -244,11 +250,11 @@ export function SubstratesSection({
                     <Typography.Text strong>处理参数功率</Typography.Text>
                     <Input
                       aria-label={`处理参数功率 ${roleConfig.title}`}
-                      disabled={disabled}
+                      disabled={disabled || isUvCleaning}
                       onChange={(event) => {
                         updateRoleItem(roleConfig.role, { treatmentPowerW: event.target.value });
                       }}
-                      placeholder="W"
+                      placeholder={isUvCleaning ? "不可调" : "W"}
                       value={item.treatmentPowerW}
                     />
                   </div>
@@ -256,12 +262,12 @@ export function SubstratesSection({
                     <Typography.Text strong>处理参数气体</Typography.Text>
                     <VocabularyCombobox
                       ariaLabel={`处理参数气体 ${roleConfig.title}`}
-                      disabled={disabled}
+                      disabled={disabled || isUvCleaning}
                       onChange={(nextValue) => {
                         updateRoleItem(roleConfig.role, { treatmentGas: nextValue });
                       }}
                       options={gasOptions}
-                      placeholder="选择或输入气体"
+                      placeholder={isUvCleaning ? "恒为空气" : "选择或输入气体"}
                       value={item.treatmentGas}
                     />
                   </div>

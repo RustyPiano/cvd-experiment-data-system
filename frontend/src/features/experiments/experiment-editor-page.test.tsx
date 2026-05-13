@@ -1048,9 +1048,9 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    const massInput = await screen.findByLabelText("前驱体质量 1");
+    const concentrationInput = await screen.findByLabelText("浓度 1");
     vi.useFakeTimers();
-    fireEvent.change(massInput, { target: { value: "abc" } });
+    fireEvent.change(concentrationInput, { target: { value: "abc" } });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);
@@ -1058,7 +1058,7 @@ describe("ExperimentEditorPage", () => {
     });
 
     vi.useRealTimers();
-    expect(await screen.findByText("前驱体质量 1 必须是数字")).toBeInTheDocument();
+    expect(await screen.findByText("浓度 1 必须是数字")).toBeInTheDocument();
     expect(
       server.requests.some(
         (request) =>
@@ -1366,7 +1366,10 @@ describe("ExperimentEditorPage", () => {
         return (
           item !== undefined &&
           item.species === "WO3" &&
-          item.mass_mg === 15 &&
+          item.spin_speed_rpm === 2800 &&
+          !("mass_mg" in item) &&
+          !("preparation_time_min" in item) &&
+          !("melting_temperature_C" in item) &&
           !("role" in item) &&
           !("type" in item)
         );

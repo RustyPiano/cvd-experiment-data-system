@@ -114,6 +114,27 @@ def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_val
                 )
             ).scalars()
         )
+        precursor_spin_rows = list(
+            connection.execute(
+                sa.text(
+                    """
+                    SELECT field_key, sort_order
+                    FROM experiment_field_definitions
+                    WHERE module_key = 'precursors'
+                      AND field_key IN (
+                        'spin_speed_rpm',
+                        'spin_time_s',
+                        'pre_spin_speed_rpm',
+                        'pre_spin_time_s',
+                        'preparation_time_min',
+                        'mass_mg',
+                        'batch_no'
+                      )
+                    ORDER BY sort_order
+                    """
+                )
+            ).mappings()
+        )
 
     assert expected_legacy_inactive.issubset(set(inactive_rows))
     field_definitions = {row["field_key"]: dict(row) for row in field_rows}
@@ -132,6 +153,16 @@ def test_substrate_vocabulary_update_sets_active_options_and_disables_legacy_val
     assert added_field_definitions[("substrates", "batch_no")]["label_zh"] == "基底批次"
     assert added_field_definitions[("substrates", "batch_no")]["field_type"] == "text"
     assert furnace_field_rows == ["furnace_info", "placements", "zones"]
+    assert [row["field_key"] for row in precursor_spin_rows] == [
+        "spin_speed_rpm",
+        "spin_time_s",
+        "pre_spin_speed_rpm",
+        "pre_spin_time_s",
+        "preparation_time_min",
+        "mass_mg",
+        "batch_no",
+    ]
+    assert len({row["sort_order"] for row in precursor_spin_rows}) == len(precursor_spin_rows)
 
 
 def test_substrate_vocabulary_update_preserves_custom_active_entries() -> None:

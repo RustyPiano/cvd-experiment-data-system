@@ -7,12 +7,14 @@ import type {
 } from "../../shared/types/api";
 import {
   createInitialEditorValues,
+  createEmptyPrecursorItem,
   payloadToFurnaceProgramValues,
   segmentsToTemperatureNodes,
   syncFurnaceProgramZonesCount,
   temperatureNodesToSegments,
   toBasicInfoPayload,
   toFurnaceProgramPayload,
+  toPrecursorsPayload,
   toSubstratesPayload,
   validateSectionValues,
 } from "./editor-types";
@@ -529,5 +531,62 @@ describe("substrate editor payloads", () => {
         type: "蓝宝石双抛C<0001>",
       },
     ]);
+  });
+});
+
+describe("precursor editor payloads", () => {
+  it("does not validate stale fields hidden by the selected precursor method", () => {
+    const values = createInitialEditorValues(experiment, []);
+    values.precursors.items = [
+      {
+        ...createEmptyPrecursorItem(),
+        method: "solution",
+        concentration: "0.5",
+        spinSpeedRpm: "3000",
+        spinTimeS: "30",
+        preSpinSpeedRpm: "500",
+        preSpinTimeS: "5",
+        massMg: "abc",
+        preparationTimeMin: "abc",
+        meltingTemperatureC: "abc",
+      },
+    ];
+
+    const errors = validateSectionValues("precursors", values);
+
+    expect(errors).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ fieldPath: "items.0.massMg" }),
+        expect.objectContaining({ fieldPath: "items.0.preparationTimeMin" }),
+        expect.objectContaining({ fieldPath: "items.0.meltingTemperatureC" }),
+      ]),
+    );
+  });
+
+  it("normalizes method-inapplicable precursor fields out of payloads", () => {
+    const payload = toPrecursorsPayload({
+      items: [
+        {
+          ...createEmptyPrecursorItem(),
+          species: "MoO3",
+          method: "melting",
+          concentration: "abc",
+          concentrationUnit: "mol/L",
+          spinSpeedRpm: "abc",
+          spinTimeS: "abc",
+          preSpinSpeedRpm: "abc",
+          preSpinTimeS: "abc",
+          meltingTemperatureC: "795",
+          massMg: "12.5",
+        },
+      ],
+    });
+
+    expect(payload.items[0]).toEqual({
+      species: "MoO3",
+      method: "melting",
+      melting_temperature_C: 795,
+      mass_mg: 12.5,
+    });
   });
 });

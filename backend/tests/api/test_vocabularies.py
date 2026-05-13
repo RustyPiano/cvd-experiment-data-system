@@ -64,7 +64,7 @@ def test_mvp_0_2_required_vocabulary_keys_are_seeded(active_user) -> None:
             "uv_cleaning",
             "annealing",
         },
-        "gas_label": {"Ar", "CO2", "O2", "Ar+H2", "Ar+O2", "H2+CO2", "CO+Ar"},
+        "gas_label": {"Ar", "CO2", "O2", "Ar+H2", "Ar+O2", "H2+CO2", "CO+Ar", "air"},
         "characterization_method": {"OM", "Raman", "PL", "AFM", "SEM", "Other"},
         "quality_label": {"success", "partial", "failed", "unknown"},
     }

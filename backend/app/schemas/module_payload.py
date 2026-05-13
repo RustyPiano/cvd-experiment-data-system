@@ -55,7 +55,9 @@ class PrecursorItemPayload(ModulePayloadBase):
     method: str | None = None
     melting_temperature_C: StrictFloat | None = None
     spin_speed_rpm: StrictFloat | None = None
+    spin_time_s: StrictFloat | None = None
     pre_spin_speed_rpm: StrictFloat | None = None
+    pre_spin_time_s: StrictFloat | None = None
     preparation_time_min: StrictFloat | None = None
     mass_mg: StrictFloat | None = None
     batch_no: str | None = None

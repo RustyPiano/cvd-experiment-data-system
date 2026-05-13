@@ -2,6 +2,8 @@ import { Button, Empty, Input, Space, Typography } from "antd";
 
 import {
   createEmptyPrecursorItem,
+  createPrecursorMethodPatch,
+  resolvePrecursorMethodFlags,
   type PrecursorsValues,
   type VocabularySelectOption,
 } from "../editor-types";
@@ -27,20 +29,12 @@ export function PrecursorsSection({
     });
   };
 
-  const resolveMethodFlags = (method: string) => {
-    const normalizedMethod = method.trim().toLowerCase();
-    return {
-      showSolutionFields:
-        normalizedMethod.includes("solution") || normalizedMethod.includes("spin"),
-      showSpinFields: normalizedMethod.includes("spin"),
-      showMeltingFields: normalizedMethod.includes("melt"),
-    };
-  };
-
   return (
     <div className="content-stack">
       {value.items.length === 0 ? <Empty description="尚未添加前驱体" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : null}
-      {value.items.map((item, index) => (
+      {value.items.map((item, index) => {
+        const flags = resolvePrecursorMethodFlags(item.method);
+        return (
         <div className="editor-array-card" key={`precursor-${index + 1}`}>
           <div className="editor-array-card-header">
             <Typography.Text strong>{`前驱体 ${index + 1}`}</Typography.Text>
@@ -90,25 +84,41 @@ export function PrecursorsSection({
                 ariaLabel={`制备方法 ${index + 1}`}
                 disabled={disabled}
                 onChange={(nextValue) => {
-                  updateItem(index, { method: nextValue });
+                  updateItem(index, createPrecursorMethodPatch(nextValue));
                 }}
                 options={precursorMethodOptions}
                 placeholder="选择或输入制备方法"
                 value={item.method}
               />
             </div>
-            <div className="editor-field">
-              <Typography.Text strong>{`前驱体质量 ${index + 1}`}</Typography.Text>
-              <Input
-                aria-label={`前驱体质量 ${index + 1}`}
-                disabled={disabled}
-                onChange={(event) => {
-                  updateItem(index, { massMg: event.target.value });
-                }}
-                placeholder="mg"
-                value={item.massMg}
-              />
-            </div>
+            {!flags.hideMassAndPrepTime ? (
+              <>
+                <div className="editor-field">
+                  <Typography.Text strong>{`前驱体质量 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`前驱体质量 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { massMg: event.target.value });
+                    }}
+                    placeholder="mg"
+                    value={item.massMg}
+                  />
+                </div>
+                <div className="editor-field">
+                  <Typography.Text strong>{`制备时长 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`制备时长 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { preparationTimeMin: event.target.value });
+                    }}
+                    placeholder="min"
+                    value={item.preparationTimeMin}
+                  />
+                </div>
+              </>
+            ) : null}
             <div className="editor-field">
               <Typography.Text strong>{`前驱体批次 ${index + 1}`}</Typography.Text>
               <Input
@@ -121,7 +131,7 @@ export function PrecursorsSection({
                 value={item.batchNo}
               />
             </div>
-            {resolveMethodFlags(item.method).showSolutionFields ? (
+            {flags.showConcentrationFields ? (
               <>
                 <div className="editor-field">
                   <Typography.Text strong>{`浓度 ${index + 1}`}</Typography.Text>
@@ -147,21 +157,9 @@ export function PrecursorsSection({
                     value={item.concentrationUnit}
                   />
                 </div>
-                <div className="editor-field">
-                  <Typography.Text strong>{`制备时长 ${index + 1}`}</Typography.Text>
-                  <Input
-                    aria-label={`制备时长 ${index + 1}`}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      updateItem(index, { preparationTimeMin: event.target.value });
-                    }}
-                    placeholder="min"
-                    value={item.preparationTimeMin}
-                  />
-                </div>
               </>
             ) : null}
-            {resolveMethodFlags(item.method).showSpinFields ? (
+            {flags.showSpinFields ? (
               <>
                 <div className="editor-field">
                   <Typography.Text strong>{`预旋涂转速 ${index + 1}`}</Typography.Text>
@@ -176,6 +174,18 @@ export function PrecursorsSection({
                   />
                 </div>
                 <div className="editor-field">
+                  <Typography.Text strong>{`预旋涂时长 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`预旋涂时长 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { preSpinTimeS: event.target.value });
+                    }}
+                    placeholder="s"
+                    value={item.preSpinTimeS}
+                  />
+                </div>
+                <div className="editor-field">
                   <Typography.Text strong>{`旋涂转速 ${index + 1}`}</Typography.Text>
                   <Input
                     aria-label={`旋涂转速 ${index + 1}`}
@@ -187,9 +197,21 @@ export function PrecursorsSection({
                     value={item.spinSpeedRpm}
                   />
                 </div>
+                <div className="editor-field">
+                  <Typography.Text strong>{`旋涂时长 ${index + 1}`}</Typography.Text>
+                  <Input
+                    aria-label={`旋涂时长 ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => {
+                      updateItem(index, { spinTimeS: event.target.value });
+                    }}
+                    placeholder="s"
+                    value={item.spinTimeS}
+                  />
+                </div>
               </>
             ) : null}
-            {resolveMethodFlags(item.method).showMeltingFields ? (
+            {flags.showMeltingFields ? (
               <div className="editor-field">
                 <Typography.Text strong>{`熔融温度 ${index + 1}`}</Typography.Text>
                 <Input
@@ -205,7 +227,8 @@ export function PrecursorsSection({
             ) : null}
           </div>
         </div>
-      ))}
+        );
+      })}
       <Space>
         <Button
           disabled={disabled}
