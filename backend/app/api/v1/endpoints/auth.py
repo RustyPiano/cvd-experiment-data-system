@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserRead
 from app.services.auth_service import AuthService
 
@@ -18,6 +18,11 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
     return AuthService(db).login(payload.email, payload.password)
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(payload: RegisterRequest, db: DbSession) -> TokenResponse:
+    return AuthService(db).register(payload)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

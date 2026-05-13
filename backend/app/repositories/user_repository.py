@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.user import User
@@ -13,6 +13,10 @@ class UserRepository:
 
     def get_by_email(self, email: str) -> User | None:
         statement = select(User).where(User.email == email)
+        return self.db.scalar(statement)
+
+    def get_by_email_case_insensitive(self, email: str) -> User | None:
+        statement = select(User).where(func.lower(User.email) == email.strip().lower())
         return self.db.scalar(statement)
 
     def get_by_id(self, user_id: UUID) -> User | None:

@@ -17,6 +17,13 @@ export const router = createBrowserRouter([
     },
   },
   {
+    path: "/register",
+    lazy: async () => {
+      const { RegisterPage } = await import("../features/auth/register-page");
+      return { Component: RegisterPage };
+    },
+  },
+  {
     element: (
       <ProtectedRoute>
         <AppShell />

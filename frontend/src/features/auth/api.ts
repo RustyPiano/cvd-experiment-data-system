@@ -1,8 +1,15 @@
 import { apiRequest } from "../../shared/api/client";
-import type { LoginRequest, TokenResponse, UserRead } from "../../shared/types/api";
+import type { LoginRequest, RegisterRequest, TokenResponse, UserRead } from "../../shared/types/api";
 
 export function login(payload: LoginRequest) {
   return apiRequest<TokenResponse>("/api/v1/auth/login", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function register(payload: RegisterRequest) {
+  return apiRequest<TokenResponse>("/api/v1/auth/register", {
     method: "POST",
     body: payload,
   });

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import { renderWithApp } from "../../test/render";
 
 describe("LoginPage", () => {
   afterEach(() => {
+    cleanup();
     window.localStorage.clear();
     vi.unstubAllGlobals();
   });
@@ -50,5 +51,16 @@ describe("LoginPage", () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(window.localStorage.getItem("cvd.auth.session")).toContain("token-123");
     });
+  });
+
+  it("shows a link to invite-code registration", () => {
+    renderWithApp(<LoginPage />, {
+      initialEntries: ["/login"],
+    });
+
+    expect(screen.getByRole("link", { name: "使用邀请码注册" })).toHaveAttribute(
+      "href",
+      "/register",
+    );
   });
 });

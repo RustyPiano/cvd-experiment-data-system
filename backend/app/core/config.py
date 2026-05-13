@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(alias="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    registration_invite_code: str | None = Field(default=None, alias="REGISTRATION_INVITE_CODE")
 
     @property
     def cors_allow_origins_list(self) -> list[str]:

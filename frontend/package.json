@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test": "vitest run",
+    "test": "node scripts/run-tests.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

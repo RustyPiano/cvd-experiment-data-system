@@ -14,6 +14,14 @@ export type LoginRequest = {
   password: string;
 };
 
+export type RegisterRequest = {
+  email: string;
+  name: string;
+  password: string;
+  password_confirmation: string;
+  invite_code: string;
+};
+
 export type TokenResponse = {
   access_token: string;
   token_type: string;
@@ -355,5 +363,4 @@ export type ExperimentExportRead = {
     audit_events: number;
   };
 };
-
 

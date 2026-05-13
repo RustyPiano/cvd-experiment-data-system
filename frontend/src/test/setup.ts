@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { beforeEach, vi } from "vitest";
+import { vi } from "vitest";
 
 type StorageLike = {
   getItem: (key: string) => string | null;
@@ -40,43 +40,40 @@ function createMemoryStorage(): StorageLike {
 }
 
 const localStorageMock = createMemoryStorage();
+const fallbackGetComputedStyle = globalThis.getComputedStyle.bind(globalThis);
 
-beforeEach(() => {
-  const fallbackGetComputedStyle = globalThis.getComputedStyle.bind(globalThis);
+Object.defineProperty(window, "localStorage", {
+  configurable: true,
+  value: localStorageMock,
+});
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  value: localStorageMock,
+});
+Object.defineProperty(window, "ResizeObserver", {
+  configurable: true,
+  value: ResizeObserverMock,
+});
+Object.defineProperty(globalThis, "ResizeObserver", {
+  configurable: true,
+  value: ResizeObserverMock,
+});
 
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: localStorageMock,
-  });
-  Object.defineProperty(globalThis, "localStorage", {
-    configurable: true,
-    value: localStorageMock,
-  });
-  Object.defineProperty(window, "ResizeObserver", {
-    configurable: true,
-    value: ResizeObserverMock,
-  });
-  Object.defineProperty(globalThis, "ResizeObserver", {
-    configurable: true,
-    value: ResizeObserverMock,
-  });
+Object.defineProperty(window, "matchMedia", {
+  configurable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
 
-  Object.defineProperty(window, "matchMedia", {
-    configurable: true,
-    value: vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  });
-
-  Object.defineProperty(window, "getComputedStyle", {
-    configurable: true,
-    value: vi.fn().mockImplementation((element: Element) => fallbackGetComputedStyle(element)),
-  });
+Object.defineProperty(window, "getComputedStyle", {
+  configurable: true,
+  value: vi.fn().mockImplementation((element: Element) => fallbackGetComputedStyle(element)),
 });

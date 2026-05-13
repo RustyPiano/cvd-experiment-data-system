@@ -48,9 +48,12 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    // UI-heavy Ant Design tests share jsdom/browser mocks and time out under file-level parallelism.
-    fileParallelism: false,
     pool: "threads",
+    // File parallelism is orchestrated by scripts/run-tests.mjs:
+    //   - 27 isolated files run in parallel (--fileParallelism=true)
+    //   - 4 jsdom/mock-sharing files run serially (--no-file-parallelism)
+    // Direct `vitest run` (without the wrapper) defaults to parallel and may flake
+    // on the 4 blacklisted files in scripts/run-tests.mjs.
     setupFiles: "./src/test/setup.ts",
     testTimeout: 20_000,
   },

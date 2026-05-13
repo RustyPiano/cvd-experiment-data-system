@@ -25,6 +25,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    email = args.email.strip().lower()
+    name = args.name.strip()
     password = getpass.getpass("Password: ")
     confirmation = getpass.getpass("Confirm password: ")
 
@@ -38,14 +40,14 @@ def main(argv: list[str] | None = None) -> int:
     db: Session = SessionLocal()
     try:
         users = UserRepository(db)
-        if users.get_by_email(args.email) is not None:
+        if users.get_by_email_case_insensitive(email) is not None:
             print("User with this email already exists.", file=sys.stderr)
             return 1
 
         role = UserRole(args.role)
         user = User(
-            email=args.email,
-            name=args.name,
+            email=email,
+            name=name,
             password_hash=get_password_hash(password),
             role=role,
             is_active=True,
@@ -55,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         db.close()
 
-    print(f"Created {role.value} user {args.email}")
+    print(f"Created {role.value} user {email}")
     return 0
 
 

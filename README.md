@@ -140,6 +140,7 @@ cp .env.production.example .env
 # 编辑 .env，用 openssl 生成强密钥：
 #   JWT_SECRET_KEY:  openssl rand -hex 32
 #   POSTGRES_PASSWORD: openssl rand -base64 24
+# 同时设置 REGISTRATION_INVITE_CODE，用于内部成员自助注册。
 
 # 2. 一键部署
 ./deploy.sh
@@ -198,6 +199,10 @@ uv run python -m app.commands.create_user --email viewer@example.com --name View
 ```
 
 以上命令会交互式要求输入并确认密码；密码不会写入 shell history。
+
+成员也可以在登录页使用内部邀请码自助注册。邀请码由后端环境变量
+`REGISTRATION_INVITE_CODE` 控制，未配置时注册接口会拒绝请求；管理员账号仍建议用
+`create_admin` 命令初始化。
 
 重置密码：
 
@@ -275,6 +280,7 @@ docker compose up --build
 - 认证
 - `GET /health`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/register`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 
