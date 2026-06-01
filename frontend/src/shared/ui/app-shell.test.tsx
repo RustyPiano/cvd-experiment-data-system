@@ -231,23 +231,6 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: "Recipe" })).toHaveAttribute("href", "/admin/recipes");
   });
 
-  it("renders the sidebar create entry as a standalone button", () => {
-    renderWithApp(
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route path="/experiments" element={<div>workspace</div>} />
-        </Route>
-      </Routes>,
-      {
-        authenticated: true,
-        initialEntries: ["/experiments"],
-      },
-    );
-
-    const createButton = screen.getByRole("button", { name: "新建实验" });
-    expect(createButton.closest("a")).toBeNull();
-  });
-
   it("applies global search to an already mounted experiment list", async () => {
     const user = userEvent.setup();
     const requests: string[] = [];

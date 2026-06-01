@@ -23,6 +23,7 @@ import { HttpError } from "../../shared/api/http-error";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { PageHeader } from "../../shared/ui/page-header";
+import { StatusTag } from "../../shared/ui/status-tag";
 import type { FileAssetRead } from "../../shared/types/api";
 import { triggerBlobDownload } from "../../shared/lib/download";
 import { useAuth } from "../auth/use-auth";
@@ -449,7 +450,8 @@ export function ExperimentFilesPage() {
             上传文件
           </Typography.Title>
           <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
-            当前实验状态：{experimentQuery.data.status}。{canManageFiles ? "可直接上传和删除。" : "当前仅允许浏览和下载。"}
+            当前实验状态 <StatusTag status={experimentQuery.data.status} />{" "}
+            {canManageFiles ? "可直接上传和删除。" : "当前仅允许浏览和下载。"}
           </Typography.Paragraph>
           {canManageFiles ? (
             <div

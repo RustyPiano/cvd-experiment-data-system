@@ -1,3 +1,4 @@
+import { ExperimentOutlined } from "@ant-design/icons";
 import { Alert, Card, Space, Typography } from "antd";
 import { Link, useLocation } from "react-router-dom";
 
@@ -11,12 +12,25 @@ export function LoginPage() {
     <div className="auth-page">
       <Card className="auth-panel" variant="borderless">
         <Space orientation="vertical" size={24} style={{ width: "100%" }}>
+          <div className="brand-lockup">
+            <span aria-hidden className="brand-mark">
+              <ExperimentOutlined />
+            </span>
+            <span className="brand-text">
+              <Typography.Text strong style={{ fontSize: 16, lineHeight: 1.2 }}>
+                CVD Lab
+              </Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                实验数据采集系统
+              </Typography.Text>
+            </span>
+          </div>
           <div>
-            <Typography.Title level={2} style={{ marginBottom: 8 }}>
-              CVD 实验数据采集系统
+            <Typography.Title level={2} style={{ marginBottom: 8, marginTop: 0 }}>
+              登录
             </Typography.Title>
-            <Typography.Paragraph type="secondary">
-              CVD 实验数据采集系统 · 使用账号登录，或通过内部邀请码注册。
+            <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+              使用账号登录，或通过内部邀请码注册。
             </Typography.Paragraph>
           </div>
           {loginReason === "session-expired" ? (

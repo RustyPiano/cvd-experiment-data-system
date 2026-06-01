@@ -6,7 +6,7 @@ import dayjs from "dayjs";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { HttpError } from "../../shared/api/http-error";
-import { StatusTag } from "../../shared/ui/status-tag";
+import { QualityTag, StatusTag } from "../../shared/ui/status-tag";
 import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { LoadingState } from "../../shared/ui/loading-state";
@@ -612,9 +612,7 @@ export function ExperimentDetailPage() {
                   <Space align="center" size={12} wrap>
                     <Typography.Text code>{experiment.run_code}</Typography.Text>
                     <StatusTag status={experiment.status} />
-                    {experiment.quality_label ? (
-                      <Typography.Text type="secondary">质量标签：{experiment.quality_label}</Typography.Text>
-                    ) : null}
+                    <QualityTag label={experiment.quality_label} />
                   </Space>
                   <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
                     仅草稿状态可编辑，已提交/已锁定实验仅保留可执行操作。

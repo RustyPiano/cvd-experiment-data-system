@@ -1,5 +1,13 @@
 import { useMemo } from "react";
-import { Alert, Card, Col, Row, Space, Statistic, Table, Tag, Typography } from "antd";
+import {
+  ClockCircleOutlined,
+  DatabaseOutlined,
+  EditOutlined,
+  LockOutlined,
+  RiseOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
+import { Alert, Card, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -126,38 +134,64 @@ export function AdminDashboardPage() {
         title="数据看板"
       />
 
-      <Row gutter={[16, 16]}>
-        <Col lg={4} md={8} sm={12} xs={24}>
-          <Card>
-            <Statistic title="总记录" value={overview?.totals.total ?? 0} />
-          </Card>
-        </Col>
-        <Col lg={4} md={8} sm={12} xs={24}>
-          <Card>
-            <Statistic title="草稿" value={overview?.totals.draft ?? 0} />
-          </Card>
-        </Col>
-        <Col lg={4} md={8} sm={12} xs={24}>
-          <Card>
-            <Statistic title="待审" value={overview?.totals.submitted ?? 0} />
-          </Card>
-        </Col>
-        <Col lg={4} md={8} sm={12} xs={24}>
-          <Card>
-            <Statistic title="已锁定" value={overview?.totals.locked ?? 0} />
-          </Card>
-        </Col>
-        <Col lg={4} md={8} sm={12} xs={24}>
-          <Card>
-            <Statistic title="已作废" value={overview?.totals.invalid ?? 0} />
-          </Card>
-        </Col>
-        <Col lg={4} md={8} sm={12} xs={24}>
-          <Card>
-            <Statistic title="本周新增" value={overview?.totals.this_week_new ?? 0} />
-          </Card>
-        </Col>
-      </Row>
+      <section className="overview-kpis">
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--slate">
+            <DatabaseOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">总记录</span>
+            <span className="stat-tile-value">{overview?.totals.total ?? 0}</span>
+          </span>
+        </div>
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--blue">
+            <EditOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">草稿</span>
+            <span className="stat-tile-value">{overview?.totals.draft ?? 0}</span>
+          </span>
+        </div>
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--amber">
+            <ClockCircleOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">待审</span>
+            <span className="stat-tile-value">{overview?.totals.submitted ?? 0}</span>
+          </span>
+        </div>
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--green">
+            <LockOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">已锁定</span>
+            <span className="stat-tile-value">{overview?.totals.locked ?? 0}</span>
+          </span>
+        </div>
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--red">
+            <StopOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">已作废</span>
+            <span className="stat-tile-value">{overview?.totals.invalid ?? 0}</span>
+          </span>
+        </div>
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--blue">
+            <RiseOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">本周新增</span>
+            <span className="stat-tile-value">
+              {overview?.totals.this_week_new ?? 0}
+            </span>
+          </span>
+        </div>
+      </section>
 
       <Card title="最近 12 周记录趋势">
         {overview?.trend.length ? (

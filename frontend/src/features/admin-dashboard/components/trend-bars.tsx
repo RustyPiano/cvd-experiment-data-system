@@ -16,6 +16,9 @@ export function TrendBars({ data }: TrendBarsProps) {
           const height = `${Math.max((point.count / maxCount) * 100, point.count > 0 ? 8 : 2)}%`;
           return (
             <div className="admin-dashboard-trend-item" key={point.period}>
+              <span className="admin-dashboard-trend-value">
+                {point.count > 0 ? point.count : ""}
+              </span>
               <div className="admin-dashboard-trend-track">
                 <div
                   className="admin-dashboard-trend-bar"

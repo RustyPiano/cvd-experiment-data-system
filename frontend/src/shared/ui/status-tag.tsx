@@ -37,7 +37,7 @@ const qualityMeta: Record<QualityLabel, { bg: string; text: string; label: strin
 };
 
 export function QualityTag({ label }: { label: QualityLabel }) {
-  const meta = qualityMeta[label];
+  const meta = qualityMeta[label] ?? qualityMeta.unknown;
 
   return (
     <Tag

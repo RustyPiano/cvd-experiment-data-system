@@ -1,18 +1,20 @@
 import { useMemo, useRef, useState } from "react";
-import { PlusOutlined } from "@ant-design/icons";
+import {
+  ClockCircleOutlined,
+  DatabaseOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Button,
   Card,
   Checkbox,
-  Col,
   Empty,
   Input,
   Modal,
-  Row,
-  Space,
-  Statistic,
   Tag,
   Typography,
 } from "antd";
@@ -453,78 +455,82 @@ export function ExperimentListPage() {
         title="实验记录"
       />
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={8}>
-          <Card
-            aria-label="我的草稿"
-            hoverable
-            loading={myDraftsQuery.isLoading}
-            onClick={applyMyDraftsFilter}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                applyMyDraftsFilter();
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <Statistic
-              title="我的草稿"
-              value={myDraftsQuery.isError ? "-" : (myDraftsQuery.data?.total ?? 0)}
-            />
-            {myDraftsQuery.isError ? (
-              <Typography.Text type="danger">加载失败</Typography.Text>
-            ) : null}
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card loading={pendingActionQuery.isLoading}>
-            <Statistic
-              title="待操作"
-              value={pendingActionQuery.isError ? "-" : (pendingActionQuery.data?.total ?? 0)}
-            />
-            {pendingActionQuery.isError ? (
-              <Typography.Text type="danger">加载失败</Typography.Text>
-            ) : null}
-          </Card>
-        </Col>
-        <Col xs={24} md={8}>
-          <Card data-testid="recent-experiments-card" loading={recentEditedQuery.isLoading} title="最近编辑">
-            {recentEditedQuery.isError ? (
-              <Typography.Text type="danger">加载失败</Typography.Text>
-            ) : recentEditedQuery.data?.items.length ? (
-              <div role="list">
-                {recentEditedQuery.data.items.map((experiment) => (
-                  <div
-                    key={experiment.id}
-                    role="listitem"
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: "8px 0",
-                    }}
-                  >
-                    <Space size={8} wrap>
-                      <Typography.Text strong>{experiment.run_code}</Typography.Text>
-                      <StatusTag status={experiment.status} />
-                    </Space>
-                    <div style={{ marginTop: 4 }}>
-                      <Space size={8} wrap>
-                        <Typography.Text>{experiment.material_system || "未填写"}</Typography.Text>
-                        <Typography.Text type="secondary">
-                          {dayjs(experiment.updated_at).format("YYYY-MM-DD HH:mm")}
-                        </Typography.Text>
-                      </Space>
-                    </div>
-                  </div>
-                ))}
+      <section className="overview-kpis">
+        <button
+          aria-label="我的草稿"
+          className="stat-tile"
+          onClick={applyMyDraftsFilter}
+          type="button"
+        >
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--blue">
+            <EditOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">我的草稿</span>
+            <span className="stat-tile-value">
+              {myDraftsQuery.isError ? "-" : (myDraftsQuery.data?.total ?? 0)}
+            </span>
+          </span>
+          <span className="stat-tile-hint">查看 →</span>
+        </button>
+
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--amber">
+            <ClockCircleOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">待操作</span>
+            <span className="stat-tile-value">
+              {pendingActionQuery.isError
+                ? "-"
+                : (pendingActionQuery.data?.total ?? 0)}
+            </span>
+          </span>
+        </div>
+
+        <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--slate">
+            <DatabaseOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">全部记录</span>
+            <span className="stat-tile-value">
+              {experimentQuery.isError ? "-" : (experimentQuery.data?.total ?? 0)}
+            </span>
+          </span>
+        </div>
+      </section>
+
+      <Card
+        data-testid="recent-experiments-card"
+        loading={recentEditedQuery.isLoading}
+        title="最近编辑"
+      >
+        {recentEditedQuery.isError ? (
+          <Typography.Text type="danger">加载失败</Typography.Text>
+        ) : recentEditedQuery.data?.items.length ? (
+          <div className="recent-grid" role="list">
+            {recentEditedQuery.data.items.map((experiment) => (
+              <div className="recent-item" key={experiment.id} role="listitem">
+                <div className="recent-item-top">
+                  <Typography.Text strong>{experiment.run_code}</Typography.Text>
+                  <StatusTag status={experiment.status} />
+                </div>
+                <div className="recent-item-meta">
+                  <Typography.Text>
+                    {experiment.material_system || "未填写"}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {dayjs(experiment.updated_at).format("YYYY-MM-DD HH:mm")}
+                  </Typography.Text>
+                </div>
               </div>
-            ) : (
-              <Empty description="暂无最近编辑" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
-          </Card>
-        </Col>
-      </Row>
+            ))}
+          </div>
+        ) : (
+          <Empty description="暂无最近编辑" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        )}
+      </Card>
 
       {experimentQuery.isError ? (
         <Alert
@@ -537,47 +543,50 @@ export function ExperimentListPage() {
 
       <Card>
         <div className="content-stack">
-          <Space align="start" size={12} wrap>
+          <div className="filter-bar">
             <Input
-                allowClear
-                aria-label="实验搜索"
-                onChange={(event) => {
-                  setFilters((current) => ({
-                    ...current,
-                    page: 1,
-                    q: event.target.value,
-                  }));
-                }}
-                placeholder="搜索实验编号、材料体系或目标"
-                style={{ width: 280 }}
-                value={filters.q}
-              />
-              <Input
-                allowClear
-                aria-label="材料体系筛选"
-                onChange={(event) => {
-                  setFilters((current) => ({
-                    ...current,
-                    page: 1,
-                    materialSystem: event.target.value,
-                  }));
-                }}
-                placeholder="材料体系筛选"
-                style={{ width: 180 }}
-                value={filters.materialSystem}
-              />
-              <Checkbox
-                checked={filters.mine}
-                onChange={(event) => {
-                  setFilters((current) => ({
-                    ...current,
-                    page: 1,
-                    mine: event.target.checked,
-                  }));
-                }}
+              allowClear
+              aria-label="实验搜索"
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  page: 1,
+                  q: event.target.value,
+                }));
+              }}
+              placeholder="搜索实验编号、材料体系或目标"
+              prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
+              style={{ width: 280 }}
+              value={filters.q}
+            />
+            <Input
+              allowClear
+              aria-label="材料体系筛选"
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  page: 1,
+                  materialSystem: event.target.value,
+                }));
+              }}
+              placeholder="材料体系筛选"
+              style={{ width: 180 }}
+              value={filters.materialSystem}
+            />
+            <Checkbox
+              checked={filters.mine}
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  page: 1,
+                  mine: event.target.checked,
+                }));
+              }}
             >
               我的实验
             </Checkbox>
+            <div className="filter-status">
+              <span className="filter-status-label">状态</span>
               <Checkbox.Group
                 onChange={(checkedValues) => {
                   setFilters((current) => ({
@@ -586,21 +595,24 @@ export function ExperimentListPage() {
                     status: checkedValues as ExperimentStatus[],
                   }));
                 }}
-              options={[
-                { label: "草稿", value: "draft" },
-                { label: "已提交", value: "submitted" },
-                { label: "已锁定", value: "locked" },
-                { label: "已作废", value: "invalid" },
-              ]}
+                options={[
+                  { label: "草稿", value: "draft" },
+                  { label: "已提交", value: "submitted" },
+                  { label: "已锁定", value: "locked" },
+                  { label: "已作废", value: "invalid" },
+                ]}
                 value={filters.status}
               />
-              {filters.ownerId ? (
-                <Tag closable onClose={clearOwnerFilter}>
-                  {ownerNameFilter ? `仅看：${ownerNameFilter}` : "仅看该成员"}
-                </Tag>
-              ) : null}
-              <Button onClick={resetFilters}>重置</Button>
-          </Space>
+            </div>
+            {filters.ownerId ? (
+              <Tag closable onClose={clearOwnerFilter}>
+                {ownerNameFilter ? `仅看：${ownerNameFilter}` : "仅看该成员"}
+              </Tag>
+            ) : null}
+            <Button className="filter-bar-spacer" onClick={resetFilters}>
+              重置
+            </Button>
+          </div>
 
           <Typography.Text type="secondary">
             当前共 {experimentQuery.data?.total ?? 0} 条记录，支持列表内直接导出 JSON / Excel。
