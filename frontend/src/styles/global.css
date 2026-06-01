@@ -456,3 +456,54 @@ a {
 .detail-tabs .ant-tabs-nav {
   margin-bottom: 16px;
 }
+
+.admin-dashboard-trend {
+  width: 100%;
+}
+
+.admin-dashboard-trend-bars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  gap: 12px;
+  align-items: end;
+  min-height: 180px;
+}
+
+.admin-dashboard-trend-item {
+  display: grid;
+  grid-template-rows: 144px auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-dashboard-trend-track {
+  display: flex;
+  align-items: end;
+  min-height: 144px;
+  border-radius: 8px;
+  background: #eff6ff;
+  overflow: hidden;
+}
+
+.admin-dashboard-trend-bar {
+  width: 100%;
+  min-height: 2px;
+  background: #1d4ed8;
+  border-radius: 8px 8px 0 0;
+}
+
+.admin-dashboard-trend-label {
+  display: block;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-dashboard-member-row {
+  cursor: pointer;
+}
+
+.admin-dashboard-member-row:hover > td {
+  background: #f8fafc;
+}

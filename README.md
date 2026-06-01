@@ -17,6 +17,7 @@
 - `/admin/vocabularies`
 - `/admin/fields`
 - `/admin/recipes`
+- `/admin/dashboard`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的 Beta 编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - draft 自动保存、实验日期修正、区块级保存状态、固定操作区、带完整度评分的提交前验证汇总和 `submit` 提交闭环
@@ -32,6 +33,7 @@
 - 受控词表后台已接通列表筛选、创建、编辑与启停用
 - 字段词典后台已接通 `/admin/fields`，支持模块筛选、CRUD、受控词表关联与启停用
 - Recipe 后台已接通列表、创建、编辑与停用、重新激活
+- 管理员数据看板 `/admin/dashboard` 已接通：顶部总记录/草稿/待审/已锁定/已作废/本周新增统计卡、最近 12 周录入趋势图、按成员的记录情况表（记录数、状态分布、最近活动、停滞草稿告警），点击成员行可下钻到该成员的全部实验；侧栏入口与 `/admin/*` 路由均受 `AdminRoute` 角色守卫，非管理员会被重定向
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端尚未完成的部分：
@@ -83,6 +85,7 @@
 - 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_brand / substrate_size / substrate_treatment_method / gas_label / characterization_method / quality_label`
 - 字段词典（`ExperimentFieldDefinition`）：定义每个实验模块字段的元数据（类型、单位、必填、可继承、关联词表），含种子数据 78 条，覆盖 9 个模块
 - Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe（Recipe 管理页使用结构化表单编辑器替代原始 JSON）
+- 管理员数据看板聚合接口 `GET /api/v1/admin/dashboard/overview`：单次按 `owner_id` 分组聚合各状态计数、最近活动与停滞草稿数，并按周聚合录入趋势（PostgreSQL 与 SQLite 双方言、统一按 UTC 对齐周边界）；仅 `admin` 可访问。实验列表 `GET /api/v1/experiments` 新增 `owner_id` 过滤参数，支持看板下钻
 - Alembic 迁移 `20260423_0001` 到 `20260506_0014`
 - 前端联调 handoff 文档，见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
 
@@ -340,6 +343,10 @@ docker compose up --build
 - `POST /api/v1/recipes`
 - `PATCH /api/v1/recipes/{id}`
 
+- 管理看板
+- `GET /api/v1/admin/dashboard/overview`（支持 `trend_weeks`、`stale_days` 查询参数，仅 `admin`）
+- `GET /api/v1/experiments?owner_id={user_id}`（按成员下钻；`admin` 可见任意成员全部状态记录）
+
 ## 当前行为边界
 
 - `viewer` 只能查看 `submitted/locked` 实验，不能创建和克隆。
@@ -347,6 +354,7 @@ docker compose up --build
 - 当前密码哈希方案固定为 `Argon2id`；旧 `bcrypt` 哈希不再兼容。
 - 后端已开放本地前端开发所需 CORS，并暴露 `Content-Disposition` 供文件下载和导出读取文件名。
 - `member` 可以创建自己的草稿，查看自己的实验，以及查看其他人的 `submitted/locked` 实验。
+- 管理员看板 `GET /api/v1/admin/dashboard/overview` 的 `总记录` 含全部状态（含 `invalid`），等于卡片上 `草稿+待审+已锁定+已作废` 之和；成员表会列出所有在职 `admin/member` 账号（含 0 记录者），并额外纳入仍持有记录但已停用或被降级为 `viewer` 的账号（标注「已停用」），以保证按成员的记录数之和与总记录卡对账一致。周趋势统一按 UTC 周一为起点分桶，不受数据库会话时区影响。
 - `invalid` 实验默认从列表隐藏；显式传 `status=invalid` 才返回。
 - owner/admin 当前可以将自己的 `draft/submitted` 实验直接作废；`locked` 实验仅允许 clone。
 - `submitted` 实验现在支持显式退回 `draft`，并写入审计日志。

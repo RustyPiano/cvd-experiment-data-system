@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppShell } from "../shared/ui/app-shell";
 import { AppErrorFallback } from "../shared/ui/app-error-boundary";
-import { ProtectedRoute } from "./routes/route-guards";
+import { AdminRoute, ProtectedRoute } from "./routes/route-guards";
 
 export const router = createBrowserRouter([
   {
@@ -84,12 +84,33 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: "/admin/dashboard",
+        lazy: async () => {
+          const { AdminDashboardPage } = await import(
+            "../features/admin-dashboard/admin-dashboard-page"
+          );
+          return {
+            Component: () => (
+              <AdminRoute>
+                <AdminDashboardPage />
+              </AdminRoute>
+            ),
+          };
+        },
+      },
+      {
         path: "/admin/fields",
         lazy: async () => {
           const { FieldDefinitionAdminPage } = await import(
             "../features/field-definitions/field-definition-admin-page"
           );
-          return { Component: FieldDefinitionAdminPage };
+          return {
+            Component: () => (
+              <AdminRoute>
+                <FieldDefinitionAdminPage />
+              </AdminRoute>
+            ),
+          };
         },
       },
       {
@@ -98,14 +119,26 @@ export const router = createBrowserRouter([
           const { VocabularyAdminPage } = await import(
             "../features/vocabularies/vocabulary-admin-page"
           );
-          return { Component: VocabularyAdminPage };
+          return {
+            Component: () => (
+              <AdminRoute>
+                <VocabularyAdminPage />
+              </AdminRoute>
+            ),
+          };
         },
       },
       {
         path: "/admin/recipes",
         lazy: async () => {
           const { RecipeAdminPage } = await import("../features/recipes/recipe-admin-page");
-          return { Component: RecipeAdminPage };
+          return {
+            Component: () => (
+              <AdminRoute>
+                <RecipeAdminPage />
+              </AdminRoute>
+            ),
+          };
         },
       },
       {

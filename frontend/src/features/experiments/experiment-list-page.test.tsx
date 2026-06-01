@@ -864,6 +864,84 @@ describe("ExperimentListPage", () => {
     });
   });
 
+  it("hydrates owner filter from the URL and passes owner_id to the API", async () => {
+    const requests: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(typeof input === "string" ? input : input.toString(), "http://localhost");
+        requests.push(`${url.pathname}${url.search}`);
+
+        const isOwnerFiltered =
+          url.searchParams.get("owner_id") === "member-1" &&
+          url.searchParams.get("page_size") === "10";
+        const items = isOwnerFiltered
+          ? [
+              createExperimentFixture({
+                id: "owner-exp",
+                owner_id: "member-1",
+                run_code: "CVD-OWNER-1",
+              }),
+            ]
+          : [];
+
+        return new Response(
+          JSON.stringify(
+            createExperimentListResponse(items, {
+              pageSize: Number(url.searchParams.get("page_size") ?? "10"),
+              total: items.length,
+            }),
+          ),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments?owner=member-1"],
+    });
+
+    expect(await screen.findByText("CVD-OWNER-1")).toBeInTheDocument();
+    expect(screen.getByText("仅看该成员")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        requests.some(
+          (request) =>
+            request === "/api/v1/experiments?owner_id=member-1&page=1&page_size=10",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("labels the owner filter with the member name when provided in the URL", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify(createExperimentListResponse()), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      ),
+    );
+
+    renderWithApp(<ExperimentListPage />, {
+      authenticated: true,
+      initialEntries: ["/experiments?owner=member-1&ownerName=Active+User"],
+    });
+
+    expect(await screen.findByText("仅看：Active User")).toBeInTheDocument();
+  });
+
   it("clears URL-owned mine and status filters when search params change", async () => {
     const user = userEvent.setup();
     const requests: string[] = [];

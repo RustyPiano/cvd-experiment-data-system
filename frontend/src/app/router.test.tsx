@@ -13,6 +13,15 @@ function hasCatchAllRoute(
   });
 }
 
+function hasRoutePath(routes: typeof router.routes, path: string): boolean {
+  return routes.some((route) => {
+    if (route.path === path) {
+      return true;
+    }
+    return route.children ? hasRoutePath(route.children, path) : false;
+  });
+}
+
 function routesWithChildrenHaveErrorElement(routes: typeof router.routes): boolean {
   return routes.every((route) => {
     const childrenAreCovered = route.children ? routesWithChildrenHaveErrorElement(route.children) : true;
@@ -30,5 +39,9 @@ describe("router", () => {
 
   it("defines route-level error elements for route render failures", () => {
     expect(routesWithChildrenHaveErrorElement(router.routes)).toBe(true);
+  });
+
+  it("defines the admin dashboard route", () => {
+    expect(hasRoutePath(router.routes, "/admin/dashboard")).toBe(true);
   });
 });

@@ -29,6 +29,42 @@ export type TokenResponse = {
   user: UserRead;
 };
 
+export type DashboardTotals = {
+  total: number;
+  draft: number;
+  submitted: number;
+  locked: number;
+  invalid: number;
+  this_week_new: number;
+};
+
+export type DashboardMemberStat = {
+  user_id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  is_active: boolean;
+  total: number;
+  draft: number;
+  submitted: number;
+  locked: number;
+  invalid: number;
+  stale_draft_count: number;
+  last_activity_at: string | null;
+};
+
+export type DashboardTrendPoint = {
+  period: string;
+  week_start: string;
+  count: number;
+};
+
+export type DashboardOverview = {
+  totals: DashboardTotals;
+  members: DashboardMemberStat[];
+  trend: DashboardTrendPoint[];
+};
+
 export type ExperimentStatus = "draft" | "submitted" | "locked" | "invalid";
 export type QualityLabel = "success" | "partial" | "failed" | "unknown";
 
@@ -363,4 +399,3 @@ export type ExperimentExportRead = {
     audit_events: number;
   };
 };
-

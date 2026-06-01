@@ -37,6 +37,7 @@ export type ListExperimentsFilters = {
   mine?: boolean;
   status?: string[];
   materialSystem?: string | null;
+  owner?: string | null;
   q?: string | null;
   page?: number;
   pageSize?: number;
@@ -74,6 +75,7 @@ export function listExperiments(token: string, filters: ListExperimentsFilters =
       mine: filters.mine ? "true" : null,
       status: filters.status?.length ? filters.status.join(",") : null,
       material_system: filters.materialSystem ?? null,
+      owner_id: filters.owner ?? null,
       q: filters.q ?? null,
       page: filters.page ?? null,
       page_size: filters.pageSize ?? null,

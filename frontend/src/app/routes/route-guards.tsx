@@ -17,3 +17,22 @@ export function ProtectedRoute({
 
   return <>{children}</>;
 }
+
+export function AdminRoute({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const location = useLocation();
+  const { session } = useAuth();
+
+  if (!session.isAuthenticated) {
+    return <Navigate replace state={{ from: location.pathname }} to="/login" />;
+  }
+
+  if (session.currentUser?.role !== "admin") {
+    return <Navigate replace to="/experiments" />;
+  }
+
+  return <>{children}</>;
+}

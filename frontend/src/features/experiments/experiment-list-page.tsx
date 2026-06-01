@@ -13,6 +13,7 @@ import {
   Row,
   Space,
   Statistic,
+  Tag,
   Typography,
 } from "antd";
 import dayjs from "dayjs";
@@ -40,6 +41,7 @@ import { useAuth } from "../auth/use-auth";
 type ExperimentListFilters = {
   materialSystem: string;
   mine: boolean;
+  ownerId: string | null;
   page: number;
   pageSize: number;
   q: string;
@@ -58,6 +60,7 @@ type TransitionAction = "lock" | "clone" | "invalidate";
 const defaultFilters: ExperimentListFilters = {
   materialSystem: "",
   mine: false,
+  ownerId: null,
   page: 1,
   pageSize: 10,
   q: "",
@@ -95,15 +98,18 @@ function parseUrlStatusFilters(searchParams: URLSearchParams) {
 function parseUrlFilters(searchParams: URLSearchParams) {
   const q = searchParams.get("q") || "";
   const mine = searchParams.get("mine") === "true";
+  const ownerId = searchParams.get("owner") || null;
   const status = parseUrlStatusFilters(searchParams);
 
   return {
     key: JSON.stringify({
       mine,
+      ownerId,
       q,
       status,
     }),
     mine,
+    ownerId,
     q,
     status,
   };
@@ -127,6 +133,7 @@ export function ExperimentListPage() {
   const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const searchParamString = searchParams.toString();
+  const ownerNameFilter = searchParams.get("ownerName");
   const urlFilters = useMemo(
     () => parseUrlFilters(new URLSearchParams(searchParamString)),
     [searchParamString],
@@ -136,6 +143,7 @@ export function ExperimentListPage() {
     filters: {
       ...defaultFilters,
       mine: urlFilters.mine,
+      ownerId: urlFilters.ownerId,
       q: urlFilters.q,
       status: urlFilters.status,
     },
@@ -149,6 +157,7 @@ export function ExperimentListPage() {
             ...filterState.filters,
             page: 1,
             mine: urlFilters.mine,
+            ownerId: urlFilters.ownerId,
             q: urlFilters.q,
             status: urlFilters.status,
           },
@@ -165,6 +174,7 @@ export function ExperimentListPage() {
               ...current.filters,
               page: 1,
               mine: urlFilters.mine,
+              ownerId: urlFilters.ownerId,
               q: urlFilters.q,
               status: urlFilters.status,
             };
@@ -202,6 +212,7 @@ export function ExperimentListPage() {
         mine: normalizedFilters.mine,
         status: normalizedFilters.status,
         materialSystem: normalizedFilters.materialSystem || null,
+        owner: normalizedFilters.ownerId,
         page: normalizedFilters.page,
         pageSize: normalizedFilters.pageSize,
         q: normalizedFilters.q || null,
@@ -252,6 +263,14 @@ export function ExperimentListPage() {
     setFilters(() => defaultFilters);
     navigate("/experiments");
     setListActionError(null);
+  };
+
+  const clearOwnerFilter = () => {
+    const nextParams = new URLSearchParams(searchParamString);
+    nextParams.delete("owner");
+    nextParams.delete("ownerName");
+    const serialized = nextParams.toString();
+    navigate(serialized ? `/experiments?${serialized}` : "/experiments");
   };
 
   const applyMyDraftsFilter = () => {
@@ -575,6 +594,11 @@ export function ExperimentListPage() {
               ]}
                 value={filters.status}
               />
+              {filters.ownerId ? (
+                <Tag closable onClose={clearOwnerFilter}>
+                  {ownerNameFilter ? `仅看：${ownerNameFilter}` : "仅看该成员"}
+                </Tag>
+              ) : null}
               <Button onClick={resetFilters}>重置</Button>
           </Space>
 

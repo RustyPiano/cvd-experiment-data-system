@@ -13,6 +13,7 @@
 - `/experiments/:id/files`
 - `/samples/:id`
 - `/admin/vocabularies`
+- `/admin/dashboard`（管理员数据看板，只读聚合）
 - `/experiments/:id` 生命周期动作卡片
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的首版编辑器
 - `basic_info`
@@ -189,6 +190,7 @@ invalid
 - `status=draft|submitted|locked|invalid`
 - `q=...`
 - `material_system=...`
+- `owner_id=...`
 - `page=1`
 - `page_size=10`
 - `sort_by=run_code|material_system|experiment_date|status|updated_at`
@@ -197,6 +199,7 @@ invalid
 注意：
 
 - 不传 `status` 时，`invalid` 默认不会返回。
+- `owner_id` 按成员过滤，供管理员看板下钻使用；`admin` 传入时可见该成员全部状态记录，普通角色仍受既有可见性规则约束。
 
 ### `/experiments/new`
 
@@ -304,6 +307,27 @@ invalid
 - 前端会先校验：
   - `sort_order` 必须是整数
   - `metadata_json` 必须是 JSON 对象
+
+### `/admin/dashboard`
+
+- `GET /api/v1/admin/dashboard/overview`
+- 下钻：`GET /api/v1/experiments?owner_id={user_id}`
+
+查询参数：
+
+- `trend_weeks`：趋势窗口周数，默认 `12`，范围 `1..52`
+- `stale_days`：停滞草稿阈值（草稿在该天数内未更新即计为停滞），默认 `14`，范围 `1..365`
+
+当前看板实际行为：
+
+- 只对 `admin` 开放，路由级 `AdminRoute` 守卫 + 后端 `get_current_admin_user` 双重拦截；`member/viewer` 直达会被重定向，接口返回 `403`。
+- 响应结构为 `{ totals, members, trend }`：
+  - `totals`：`total / draft / submitted / locked / invalid / this_week_new`，其中 `total = draft + submitted + locked + invalid`（含 `invalid`）。
+  - `members[]`：`user_id / name / email / role / is_active / total / draft / submitted / locked / invalid / stale_draft_count / last_activity_at`，按 `total` 降序。列出所有在职 `admin/member`（含 0 记录者），并纳入仍持有记录但已停用/降级为 `viewer` 的账号（`is_active=false`），保证成员记录数之和与 `totals.total` 对账一致。
+  - `trend[]`：`period`（如 `2026-W22`）、`week_start`（该周周一日期）、`count`，统一按 UTC 周一为起点分桶。
+- 成员行点击跳转 `/experiments?owner={user_id}&ownerName={name}`；`ownerName` 仅用于列表页过滤标签展示，不参与后端查询。
+
+> 部署提示：周趋势在 PostgreSQL 侧已显式 `AT TIME ZONE 'UTC'` 归一化，分桶不依赖数据库会话时区；如需改为本地周起点，应同时调整后端聚合与服务层的周边界生成逻辑。
 
 ## 5. 模块键
 
@@ -471,7 +495,7 @@ GET /api/v1/experiments/{id}/export/excel
 - 没有 refresh token
 - 没有服务端分页
 - 没有实验物理删除
-- 没有用户管理后台
+- 没有用户管理后台（管理员看板只读统计成员记录情况，不提供用户增删改）
 - 没有 recipe/template UI
 
 这几项前端不要预埋依赖。

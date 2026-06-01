@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.endpoints.admin_dashboard import router as admin_dashboard_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.experiments import router as experiments_router
 from app.api.v1.endpoints.field_definitions import router as field_definitions_router
@@ -16,5 +17,6 @@ api_v1_router.include_router(experiments_router)
 api_v1_router.include_router(files_router)
 api_v1_router.include_router(samples_router)
 api_v1_router.include_router(recipes_router)
+api_v1_router.include_router(admin_dashboard_router)
 api_v1_router.include_router(vocabularies_router)
 api_v1_router.include_router(field_definitions_router)

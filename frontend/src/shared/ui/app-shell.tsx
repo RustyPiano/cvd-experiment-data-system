@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BookOutlined,
+  DashboardOutlined,
   ExperimentOutlined,
   FormOutlined,
   LogoutOutlined,
@@ -18,6 +19,10 @@ import { useAuth } from "../../features/auth/use-auth";
 import { API_UNAUTHORIZED_EVENT } from "../api/client";
 
 function resolveSelectedKey(pathname: string) {
+  if (pathname.startsWith("/admin/dashboard")) {
+    return "/admin/dashboard";
+  }
+
   if (pathname.startsWith("/admin/fields")) {
     return "/admin/fields";
   }
@@ -58,6 +63,16 @@ export function AppShell() {
       ...(isAdmin
         ? [
             {
+              key: "/admin/dashboard",
+              icon: <DashboardOutlined />,
+              label: <Link to="/admin/dashboard">数据看板</Link>,
+            },
+            {
+              key: "/admin-divider",
+              type: "divider" as const,
+              label: "管理配置",
+            },
+            {
               key: "/admin/fields",
               icon: <FormOutlined />,
               label: <Link to="/admin/fields">字段词典</Link>,
@@ -66,11 +81,6 @@ export function AppShell() {
               key: "/admin/vocabularies",
               icon: <TagOutlined />,
               label: <Link to="/admin/vocabularies">受控词表</Link>,
-            },
-            {
-              key: "/admin-divider",
-              type: "divider" as const,
-              label: "管理配置",
             },
             {
               key: "/admin/recipes",

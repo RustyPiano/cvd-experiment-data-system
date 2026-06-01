@@ -45,6 +45,7 @@ def list_experiments(
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     material_system: Annotated[str | None, Query()] = None,
     query_text: Annotated[str | None, Query(alias="q")] = None,
+    owner_id: Annotated[UUID | None, Query()] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     sort_by: Annotated[
@@ -59,6 +60,7 @@ def list_experiments(
         status_filter=status_filter,
         material_system=material_system,
         query_text=query_text,
+        owner_id=owner_id,
         page=page,
         page_size=page_size,
         sort_by=sort_by,

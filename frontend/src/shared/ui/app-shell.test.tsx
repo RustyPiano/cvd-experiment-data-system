@@ -198,6 +198,7 @@ describe("AppShell", () => {
 
     expect(screen.queryByRole("link", { name: "受控词表" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Recipe" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "数据看板" })).not.toBeInTheDocument();
   });
 
   it("shows admin configuration entries for admin users", async () => {
@@ -223,6 +224,10 @@ describe("AppShell", () => {
     );
 
     expect(screen.queryAllByRole("link", { name: "受控词表" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "数据看板" })).toHaveAttribute(
+      "href",
+      "/admin/dashboard",
+    );
     expect(screen.getByRole("link", { name: "Recipe" })).toHaveAttribute("href", "/admin/recipes");
   });
 
