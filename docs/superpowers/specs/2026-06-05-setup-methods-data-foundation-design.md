@@ -153,7 +153,7 @@ Recipe 是参数模板，不是方法上下文。把 setup/methods 放进 Recipe
 | `experiment_run_id` | UUID unique | 所属实验 |
 | `source_template_key` | text nullable | 来源种子模板 key；手工 setup 可空 |
 | `source_template_version` | integer nullable | 来源种子模板版本；手工 setup 可空 |
-| `setup_key_snapshot` | text | 分析分组 key；模板来源使用模板 key，手工 setup 使用 `manual:<snapshot_hash_prefix>` |
+| `setup_key_snapshot` | text nullable | 分析分组 key；模板来源保存时使用模板 key，手工 setup 在确认/提交/锁定时使用 `manual:<snapshot_hash_prefix>` |
 | `setup_name_snapshot` | text | setup 名称快照 |
 | `setup_version_snapshot` | integer | 分析分组版本；模板来源使用模板版本，手工 setup 固定为 `1` |
 | `institution_snapshot` | text nullable | 机构来源快照 |
@@ -180,7 +180,8 @@ Recipe 是参数模板，不是方法上下文。把 setup/methods 放进 Recipe
 - 提交和锁定前必须有示意图、methods 文字、样品放置说明、反应流程说明和用户确认。
 - `is_same_as_template=false` 且 `source_template_key` 非空时，`deviation_note` 必填。
 - `reference_paper_url_snapshot` 与 `unpublished_reason_snapshot` 至少填写一个。
-- `setup_key_snapshot` 不允许为空。手工 setup 在确认或提交校验时生成 `manual:<snapshot_hash 前 16 位>`。
+- 草稿阶段允许 `setup_key_snapshot` 为空。确认、提交和锁定前不允许为空。
+- 手工 setup 在确认、提交或锁定校验时生成 `manual:<snapshot_hash 前 16 位>`。
 - `setup_version_snapshot` 不允许为空。手工 setup 使用 `1`。
 
 ### 6.2 `snapshot_hash` 规则
@@ -209,7 +210,7 @@ Recipe 是参数模板，不是方法上下文。把 setup/methods 放进 Recipe
 - setup diagram 文件的 `sha256`
 - `is_same_as_template`
 - `deviation_note`
-- `metadata_json` 中影响科学语义的字段
+- `metadata_json.semantic_context`
 
 不纳入哈希的字段：
 
@@ -229,7 +230,11 @@ Recipe 是参数模板，不是方法上下文。把 setup/methods 放进 Recipe
 
 - 不把 `setup_key_snapshot` 纳入哈希，是为了允许手工 setup 使用 `manual:<snapshot_hash 前 16 位>` 作为稳定分组 key。
 - diagram 使用文件内容 `sha256`，不使用文件 ID，避免同一文件重新上传后 hash 不必要变化。
+- `metadata_json.semantic_context` 全量参与 hash。
+- `metadata_json` 其他 key 不参与 hash，只能放 UI 状态、导入来源、显示偏好等非语义元数据。
 - 每次保存影响哈希字段时，后端必须重算 `snapshot_hash`。
+- 如果 `source_template_key` 为空，后端每次重算 `snapshot_hash` 后必须同步更新 `setup_key_snapshot=manual:<snapshot_hash 前 16 位>`。
+- 如果 `source_template_key` 非空，`setup_key_snapshot` 始终使用模板 key，不随 hash 变化。
 
 ### 6.3 `experimental_setups`（V1.5）
 
@@ -322,6 +327,16 @@ V1.5 从 Recipe 创建实验时：
 - `file_category` 可继续使用 `raw`，不把 setup diagram 伪装成 `method=Other`。
 - `experiment_setup_snapshots.diagram_file_asset_id` 指向该文件。
 - setup diagram 文件删除前，如果被 snapshot 引用，应阻止删除或要求先解除引用。
+
+`PUT /experiments/{id}/setup-methods` 保存 `diagram_file_asset_id` 时必须校验：
+
+- 文件存在且未软删除。
+- 文件的 `experiment_run_id` 等于当前实验 ID。
+- 文件的 `asset_role` 是 `setup_diagram`。
+- 文件的 `sample_id` 为空。
+- 当前用户有权限访问该实验。
+
+不满足以上任一条件时，后端返回 422，不允许把其他实验文件、表征文件或样品文件挂成 setup diagram。
 
 #### V1.5
 
@@ -435,10 +450,10 @@ V1 不实现完整 `experimental_setups` 管理后台。若需要模板选择，
 
 ```text
 GET    /api/v1/setup-method-templates
-GET    /api/v1/setup-method-templates/{template_key}
+GET    /api/v1/setup-method-templates/{template_key}?version={template_version}
 ```
 
-这些模板可以来自代码内置数据或迁移种子数据。它们只用于复制为实验 snapshot，不提供用户编辑、审批、废弃或版本管理。
+这些模板可以来自代码内置数据或迁移种子数据。它们只用于复制为实验 snapshot，不提供用户编辑、审批、废弃或版本管理。种子模板仍必须有显式 `template_key` 和 `template_version`；`GET /setup-method-templates/{template_key}` 未传 version 时返回该 key 的当前版本，并在响应中包含 resolved `template_version`。
 
 V1.5 才引入持久化 setup 模板管理 API：
 
@@ -464,6 +479,17 @@ PUT    /api/v1/experiments/{id}/setup-methods
 POST   /api/v1/experiments/{id}/setup-methods/from-template
 POST   /api/v1/experiments/{id}/setup-methods/confirm
 ```
+
+`POST /setup-methods/from-template` 请求体：
+
+```json
+{
+  "template_key": "group_fast_cvd",
+  "template_version": 1
+}
+```
+
+`template_version` 必填。前端如果想使用当前版本，必须先调用模板列表或详情接口取得 resolved version，再把具体版本提交给 `from-template`。这样 snapshot 的 `source_template_version` 和 `setup_version_snapshot` 没有歧义。
 
 行为：
 
@@ -527,10 +553,9 @@ Warnings：
 
 | 条件 | 警告 |
 |---|---|
-| setup 模板状态不是 approved | `Setup template is not approved` |
 | 推荐字段缺失 | `Recommended setup context is incomplete` |
 
-V1 不检查外部字段映射，因为字段映射管理不在 V1 范围内。外部用户字段差异只能记录在 setup snapshot 的 `metadata_json` 或管理员说明中。V1.5/V2 引入字段映射实体后，再增加对应 warning。
+V1 不检查外部字段映射或模板审批状态，因为字段映射管理和 approved 模板状态不在 V1 范围内。外部用户字段差异只能记录在 setup snapshot 的 `metadata_json` 或管理员说明中。V1.5/V2 引入字段映射实体和 approved setup template 后，再增加对应 warning，例如 `Setup template is not approved`。
 
 完成度计算应把 setup/methods 纳入核心检查项。缺 setup/methods 的实验不应达到 100 分。
 
@@ -600,9 +625,11 @@ Analysis export 不应只新增一张 setup row。为了避免下游忘记 join�
 
 这些字段在 submitted / locked 实验中不得为空。手工 setup 使用 `manual:<snapshot_hash 前 16 位>` 和版本 `1`。
 
-至少应出现在：
+必须出现在所有 analysis row：
 
 - experiment row
+- precursor rows
+- substrate rows
 - furnace step rows
 - furnace temperature rows
 - furnace precursor rows
@@ -610,7 +637,11 @@ Analysis export 不应只新增一张 setup row。为了避免下游忘记 join�
 - gas segment rows
 - gas component rows
 - characterization rows
+- sample rows
+- file rows
 - feature rows
+
+不为任何 analysis row 设置例外。即使某一行看似只是文件或样品，仍应带上 setup context，防止下游直接分析该表时丢失可比性边界。
 
 这样主动学习和 Agent 默认不会把不同 setup 的数值混在一起。
 
