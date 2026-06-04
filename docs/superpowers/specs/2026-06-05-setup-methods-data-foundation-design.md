@@ -494,6 +494,38 @@ POST   /api/v1/experiments/{id}/setup-methods/confirm
 
 `template_version` 必填。前端如果想使用当前版本，必须先调用模板列表或详情接口取得 resolved version，再把具体版本提交给 `from-template`。这样 snapshot 的 `source_template_version` 和 `setup_version_snapshot` 没有歧义。
 
+`PUT`、`from-template` 和 `confirm` 的响应统一使用：
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "experiment_run_id": "uuid",
+    "setup_key_snapshot": "group_fast_cvd",
+    "setup_name_snapshot": "组内快速 CVD",
+    "setup_version_snapshot": 1,
+    "diagram_file_asset_id": "uuid-or-null",
+    "snapshot_hash": "sha256...",
+    "confirmed_by_id": "uuid-or-null",
+    "confirmed_at": "2026-06-05T10:00:00Z"
+  },
+  "warnings": [
+    {
+      "module_key": "setup_methods",
+      "field_path": "diagram_file_asset_id",
+      "message": "Setup diagram could not be materialized from template"
+    }
+  ]
+}
+```
+
+Schema 约定：
+
+- `data` 是 `SetupMethodsRead`。
+- `warnings` 是 `ExperimentValidationIssue[]`，默认为空数组。
+- warning 必须使用现有字段：`module_key`、`field_path`、`message`。
+- packaged diagram 物化失败时，返回一条 warning：`module_key="setup_methods"`、`field_path="diagram_file_asset_id"`、`message="Setup diagram could not be materialized from template"`。
+
 行为：
 
 - 只有 draft 实验允许编辑 snapshot。
