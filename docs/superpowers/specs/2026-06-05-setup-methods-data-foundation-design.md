@@ -320,6 +320,7 @@ V1.5 从 Recipe 创建实验时：
 #### V1
 
 - setup diagram 作为实验级文件上传，必须关联 `experiment_run_id`。
+- V1 种子模板可以包含 packaged diagram 文件。`from-template` 复制模板时，如果模板带图，后端必须把 packaged diagram 物化为当前实验的一条 `file_assets` 记录，并将 snapshot 指向新文件。
 - `file_assets` 新增 `asset_role` 字段，默认值为 `characterization_file`。
 - 上传 API 新增 `asset_role` 表单字段。
 - `asset_role=characterization_file` 时，`method` 必填，行为保持现状。
@@ -337,6 +338,8 @@ V1.5 从 Recipe 创建实验时：
 - 当前用户有权限访问该实验。
 
 不满足以上任一条件时，后端返回 422，不允许把其他实验文件、表征文件或样品文件挂成 setup diagram。
+
+种子模板 diagram 物化失败时，`from-template` 仍可保存文字 snapshot，但必须让 `diagram_file_asset_id` 为空，并返回 warning；提交/锁定前仍由 validation 阻断，要求用户重新上传或选择当前实验的 setup diagram。
 
 #### V1.5
 
@@ -378,7 +381,7 @@ Setup / Methods 放在基础信息之后，因为材料体系、实验类型和�
 1. 用户创建实验。
 2. V1 根据实验类型、材料体系显示种子 setup 模板；V1.5 可结合 Recipe 或外部项目推荐 setup 模板。
 3. 用户选择 setup 模板。
-4. 系统自动带出示意图、methods 文字、论文链接、样品放置和反应流程。
+4. 系统自动带出 methods 文字、论文链接、样品放置和反应流程；如果种子模板包含 packaged diagram，后端会尝试复制成当前实验的 setup diagram 文件。
 5. 用户确认本次是否与模板一致。
 6. 如果一致，一键确认。
 7. 如果不一致，填写偏差说明并修改本次 snapshot。
@@ -498,6 +501,7 @@ POST   /api/v1/experiments/{id}/setup-methods/confirm
 - locked 实验如需修改，按现有规则 clone 后重新提交。
 - snapshot 每次变更记录 audit event。
 - `from-template` 在 V1 读取种子模板；V1.5 后可读取 `experimental_setups`。
+- V1 `from-template` 如果种子模板带 packaged diagram，必须尝试复制为当前实验的 `asset_role=setup_diagram` 文件；复制失败时 snapshot 文字仍可保存，但 `diagram_file_asset_id` 为空并返回 warning。
 
 ### 8.3 Clone 与 Recipe 语义
 
@@ -506,10 +510,12 @@ POST   /api/v1/experiments/{id}/setup-methods/confirm
 从已有实验 clone 时：
 
 1. 复制 source 的 setup snapshot 内容到新 draft。
-2. 保留 methods、diagram、样品放置、反应流程、reference、unpublished reason、`is_same_as_template` 和 `deviation_note`。
-3. 清空 `confirmed_by_id` 和 `confirmed_at`。
-4. 重新计算 `snapshot_hash`。
-5. 新实验提交/锁定前必须由当前用户重新确认 setup。
+2. 保留 methods、样品放置、反应流程、reference、unpublished reason、`is_same_as_template` 和 `deviation_note`。
+3. 如果 source snapshot 有 `diagram_file_asset_id`，后端必须复制该文件为 target 实验的新 `file_assets` 行，并把 target snapshot 的 `diagram_file_asset_id` 指向新文件。
+4. 如果 diagram 文件复制失败，target snapshot 的 `diagram_file_asset_id` 必须清空，并在返回或后续 validation 中提示用户重新上传 setup diagram。
+5. 清空 `confirmed_by_id` 和 `confirmed_at`。
+6. 重新计算 `snapshot_hash`。
+7. 新实验提交/锁定前必须由当前用户重新确认 setup。
 
 这样可以复用上下文，但不会把原实验者的确认直接转移到新实验。
 
@@ -581,6 +587,7 @@ JSON export 增加 `setup_methods`：
     "diagram_file_asset_id": "uuid",
     "is_same_as_template": true,
     "deviation_note": null,
+    "semantic_context": {},
     "confirmed_by_id": "uuid",
     "confirmed_at": "2026-06-05T10:00:00Z",
     "snapshot_hash": "sha256..."
@@ -589,6 +596,8 @@ JSON export 增加 `setup_methods`：
 ```
 
 导出必须读取 snapshot，不回读模板当前值。
+
+`semantic_context` 是 `metadata_json.semantic_context` 的导出值。它参与 `snapshot_hash`，因此 JSON 和 Excel 导出必须保留该字段。
 
 ### 10.2 Excel export
 
@@ -609,6 +618,7 @@ Excel 增加 `Setup & Methods` sheet。
 - `diagram_file_asset_id`
 - `is_same_as_template`
 - `deviation_note`
+- `semantic_context`
 - `confirmed_by_id`
 - `confirmed_at`
 - `snapshot_hash`
@@ -625,7 +635,7 @@ Analysis export 不应只新增一张 setup row。为了避免下游忘记 join�
 
 这些字段在 submitted / locked 实验中不得为空。手工 setup 使用 `manual:<snapshot_hash 前 16 位>` 和版本 `1`。
 
-必须出现在所有 analysis row：
+V1 必须出现在当前所有 analysis row：
 
 - experiment row
 - precursor rows
@@ -639,9 +649,10 @@ Analysis export 不应只新增一张 setup row。为了避免下游忘记 join�
 - characterization rows
 - sample rows
 - file rows
-- feature rows
 
-不为任何 analysis row 设置例外。即使某一行看似只是文件或样品，仍应带上 setup context，防止下游直接分析该表时丢失可比性边界。
+V1 不要求新增 `feature_rows`。后续如果增加 feature rows 或其他 analysis row，也必须带上同一组 setup context 字段。
+
+不为当前或未来任何 analysis row 设置例外。即使某一行看似只是文件或样品，仍应带上 setup context，防止下游直接分析该表时丢失可比性边界。
 
 这样主动学习和 Agent 默认不会把不同 setup 的数值混在一起。
 
