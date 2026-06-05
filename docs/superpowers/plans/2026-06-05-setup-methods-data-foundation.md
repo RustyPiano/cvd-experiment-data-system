@@ -43,6 +43,7 @@ Backend files:
 - Create `backend/app/schemas/setup_methods.py` for API request/response models.
 - Create `backend/app/repositories/setup_methods_repository.py`.
 - Create `backend/app/services/setup_methods_hash_service.py`.
+- Create `backend/app/services/setup_methods_content_validation.py`.
 - Create `backend/app/services/setup_methods_service.py`.
 - Create `backend/app/services/setup_method_template_service.py` for V1 seed templates.
 - Create `backend/app/api/v1/endpoints/setup_method_templates.py` for read-only seed template routes.
@@ -885,6 +886,7 @@ git commit -m "feat(files): support setup diagram assets"
 
 **Files:**
 - Create: `backend/app/services/setup_methods_service.py`
+- Create: `backend/app/services/setup_methods_content_validation.py`
 - Create: `backend/app/api/v1/endpoints/setup_method_templates.py`
 - Modify: `backend/app/api/v1/endpoints/experiments.py`
 - Modify: `backend/app/api/v1/router.py`
@@ -1083,8 +1085,53 @@ def test_create_setup_methods_from_template_writes_template_snapshot(active_user
     assert body["data"]["source_template_version"] == 1
     assert body["data"]["setup_key_snapshot"] == "group_fast_cvd"
     assert body["data"]["setup_version_snapshot"] == 1
+    assert body["data"]["snapshot_hash"]
     assert body["data"]["confirmed_at"] is None
     assert body["data"]["semantic_context"] == {"temperature_reference": "furnace program setpoint"}
+
+
+def test_template_core_field_change_auto_marks_deviation_and_blocks_confirm(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+    template_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-template",
+        json={"template_key": "group_fast_cvd", "template_version": 1},
+        headers=auth_headers(active_user.email),
+    )
+    assert template_response.status_code == 200
+    original = template_response.json()["data"]
+
+    update_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": original["setup_name_snapshot"],
+            "institution_snapshot": original["institution_snapshot"],
+            "apparatus_description_snapshot": original["apparatus_description_snapshot"],
+            "methods_text_snapshot": "Changed methods text",
+            "sample_placement_description_snapshot": original["sample_placement_description_snapshot"],
+            "reaction_flow_description_snapshot": original["reaction_flow_description_snapshot"],
+            "reference_paper_url_snapshot": original["reference_paper_url_snapshot"],
+            "unpublished_reason_snapshot": original["unpublished_reason_snapshot"],
+            "diagram_file_asset_id": original["diagram_file_asset_id"],
+            "is_same_as_template": True,
+            "deviation_note": "",
+            "semantic_context": original["semantic_context"],
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["data"]["is_same_as_template"] is False
+
+    confirm_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/confirm",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert confirm_response.status_code == 422
+    assert {
+        "module_key": "setup_methods",
+        "field_path": "deviation_note",
+        "message": "Deviation note is required when setup differs from template",
+    } in confirm_response.json()["errors"]
 
 
 def test_from_template_warning_response_uses_validation_issue_shape(active_user, monkeypatch) -> None:
@@ -1288,12 +1335,16 @@ The service must:
 - validate `diagram_file_asset_id` belongs to the same experiment, is not deleted, has `asset_role="setup_diagram"`, and has `sample_id is None`
 - store `semantic_context` under `metadata_json["semantic_context"]`
 - implement `_to_read(snapshot)` by explicitly mapping `semantic_context=(snapshot.metadata_json or {}).get("semantic_context", {})`; direct `SetupMethodsRead.model_validate(snapshot)` is not sufficient because `semantic_context` is not an ORM column
-- recalculate `snapshot_hash` on each upsert
+- recalculate `snapshot_hash` on each upsert, each `from-template` copy, and immediately before confirm
 - set manual `setup_key_snapshot` when `source_template_key is None`
+- for template-derived snapshots, preserve `setup_key_snapshot=source_template_key` and `setup_version_snapshot=source_template_version` after hash recalculation
+- when `source_template_key` is present and the incoming payload changes any template core field while sending `is_same_as_template=True`, compare against the resolved seed template and force `is_same_as_template=False`
+- template core fields for deviation detection are `setup_name_snapshot`, `institution_snapshot`, `apparatus_description_snapshot`, `methods_text_snapshot`, `sample_placement_description_snapshot`, `reaction_flow_description_snapshot`, `reference_paper_url_snapshot`, `unpublished_reason_snapshot`, and `metadata_json.semantic_context`
 - clear `confirmed_by_id` and `confirmed_at` on changes
-- implement shared `_validate_setup_content(snapshot)` for content completeness only: setup key, setup name, setup diagram, methods text, sample placement, reaction flow, reference paper URL or unpublished reason, and template deviation note when required
-- implement `_confirm_current_snapshot` so it runs `_validate_setup_content(snapshot)` before setting `confirmed_by_id` or `confirmed_at`; it must not require `confirmed_at` before confirmation exists
-- submit/lock validation must run `_validate_setup_content(snapshot)` and then add the extra confirmation gate: `confirmed_by_id` and `confirmed_at` are required
+- create `backend/app/services/setup_methods_content_validation.py` with a pure shared function `validate_setup_content(snapshot, issue_factory, errors)` for content completeness only: setup key, setup name, setup diagram, methods text, sample placement, reaction flow, reference paper URL or unpublished reason, and template deviation note when required
+- use `validate_setup_content(...)` from both `SetupMethodsService._confirm_current_snapshot` and `ExperimentValidationService._validate_setup_methods`; do not duplicate the required-field list in both services
+- implement `_confirm_current_snapshot` so it recomputes hash, runs `validate_setup_content(...)`, then sets `confirmed_by_id` and `confirmed_at`; it must not require `confirmed_at` before confirmation exists
+- submit/lock validation must run `validate_setup_content(...)` and then add the extra confirmation gate: `confirmed_by_id` and `confirmed_at` are required
 - if confirm content checks fail, raise `ExperimentValidationFailed` or return HTTP 422 with `ExperimentValidationResponse` shape and leave the snapshot unconfirmed
 - write audit events with entity type `experiment_setup_snapshot`
 - prevent deleting a referenced setup diagram by adding a `FileAssetService.delete_file` check that returns HTTP 409 with `Setup diagram is referenced by setup methods`
@@ -1404,7 +1455,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add backend/app/services/setup_methods_service.py backend/app/api/v1/endpoints/experiments.py backend/app/api/v1/endpoints/setup_method_templates.py backend/app/api/v1/router.py backend/app/services/experiment_service.py backend/app/services/file_asset_service.py backend/tests/api/test_setup_methods.py backend/tests/api/test_setup_method_templates.py
+git add backend/app/services/setup_methods_service.py backend/app/services/setup_methods_content_validation.py backend/app/api/v1/endpoints/experiments.py backend/app/api/v1/endpoints/setup_method_templates.py backend/app/api/v1/router.py backend/app/services/experiment_service.py backend/app/services/file_asset_service.py backend/tests/api/test_setup_methods.py backend/tests/api/test_setup_method_templates.py
 git commit -m "feat(backend): add setup methods API"
 ```
 
@@ -1566,33 +1617,10 @@ setup_snapshot = self.setup_methods.get_by_experiment(experiment.id)
 self._validate_setup_methods(experiment, setup_snapshot, errors, warnings)
 ```
 
-Add `_validate_setup_content` and `_validate_setup_methods`:
+Import the shared content helper and add `_validate_setup_methods`:
 
 ```python
-def _validate_setup_content(
-    self,
-    snapshot: ExperimentSetupSnapshot | None,
-    errors: list[ExperimentValidationIssue],
-) -> None:
-    if snapshot is None:
-        errors.append(self._issue("setup_methods", "root", "Setup / Methods is required"))
-        return
-    if self._is_blank(snapshot.setup_key_snapshot):
-        errors.append(self._issue("setup_methods", "setup_key_snapshot", "Setup key is required"))
-    if self._is_blank(snapshot.setup_name_snapshot):
-        errors.append(self._issue("setup_methods", "setup_name_snapshot", "Setup name is required"))
-    if snapshot.diagram_file_asset_id is None:
-        errors.append(self._issue("setup_methods", "diagram_file_asset_id", "Setup diagram is required"))
-    if self._is_blank(snapshot.methods_text_snapshot):
-        errors.append(self._issue("setup_methods", "methods_text_snapshot", "Methods text is required"))
-    if self._is_blank(snapshot.sample_placement_description_snapshot):
-        errors.append(self._issue("setup_methods", "sample_placement_description_snapshot", "Sample placement description is required"))
-    if self._is_blank(snapshot.reaction_flow_description_snapshot):
-        errors.append(self._issue("setup_methods", "reaction_flow_description_snapshot", "Reaction flow description is required"))
-    if self._is_blank(snapshot.reference_paper_url_snapshot) and self._is_blank(snapshot.unpublished_reason_snapshot):
-        errors.append(self._issue("setup_methods", "reference_paper_url_snapshot", "Reference paper URL or unpublished reason is required"))
-    if snapshot.source_template_key and not snapshot.is_same_as_template and self._is_blank(snapshot.deviation_note):
-        errors.append(self._issue("setup_methods", "deviation_note", "Deviation note is required when setup differs from template"))
+from app.services.setup_methods_content_validation import validate_setup_content
 
 
 def _validate_setup_methods(
@@ -1603,7 +1631,7 @@ def _validate_setup_methods(
     warnings: list[ExperimentValidationIssue],
 ) -> None:
     before_count = len(errors)
-    self._validate_setup_content(snapshot, errors)
+    validate_setup_content(snapshot, self._issue, errors)
     if snapshot is None or len(errors) > before_count:
         return
     if snapshot.confirmed_at is None or snapshot.confirmed_by_id is None:
