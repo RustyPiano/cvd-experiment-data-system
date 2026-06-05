@@ -145,6 +145,7 @@ function createSetupMethodsRead(overrides: Partial<SetupMethodsRead> = {}): Setu
     experiment_run_id: experiment.id,
     source_template_key: null,
     source_template_version: null,
+    source_setup_library_id: null,
     setup_key_snapshot: "manual:abcdef1234567890",
     setup_name_snapshot: "Manual setup",
     setup_version_snapshot: 1,

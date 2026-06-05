@@ -219,6 +219,23 @@ export function createSetupMethodsFromTemplate(
   );
 }
 
+export function createSetupMethodsFromLibrary(
+  token: string,
+  experimentId: string,
+  setupLibraryId: string,
+) {
+  return apiRequest<SetupMethodsMutationResponse>(
+    `/api/v1/experiments/${experimentId}/setup-methods/from-library`,
+    {
+      method: "POST",
+      body: {
+        setup_library_id: setupLibraryId,
+      },
+      token,
+    },
+  );
+}
+
 export function listSetupMethodTemplates(token: string) {
   return apiRequest<SetupMethodTemplateListResponse>("/api/v1/setup-method-templates", {
     token,

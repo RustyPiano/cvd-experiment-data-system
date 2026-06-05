@@ -198,6 +198,7 @@ export type SetupMethodsRead = {
   experiment_run_id: string;
   source_template_key: string | null;
   source_template_version: number | null;
+  source_setup_library_id: string | null;
   setup_key_snapshot: string | null;
   setup_name_snapshot: string;
   setup_version_snapshot: number;
@@ -469,3 +470,49 @@ export type ExperimentExportRead = {
     audit_events: number;
   };
 };
+
+export type SetupVisibility = "private" | "group";
+
+export type SetupLibraryRead = {
+  id: string;
+  owner_id: string;
+  owner_name: string | null;
+  visibility: SetupVisibility;
+  is_active: boolean;
+  name: string;
+  institution: string | null;
+  apparatus_description: string;
+  methods_text: string;
+  sample_placement_description: string;
+  reaction_flow_description: string;
+  reference_paper_url: string | null;
+  unpublished_reason: string | null;
+  has_diagram: boolean;
+  diagram_original_name: string | null;
+  diagram_download_url: string | null;
+  content_hash: string;
+  can_edit: boolean;
+  semantic_context: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SetupLibraryListResponse = {
+  items: SetupLibraryRead[];
+  total: number;
+};
+
+export type SetupLibraryCreateRequest = {
+  name: string;
+  institution?: string | null;
+  visibility?: SetupVisibility;
+  apparatus_description?: string;
+  methods_text?: string;
+  sample_placement_description?: string;
+  reaction_flow_description?: string;
+  reference_paper_url?: string | null;
+  unpublished_reason?: string | null;
+  semantic_context?: Record<string, unknown>;
+};
+
+export type SetupLibraryUpdateRequest = Partial<SetupLibraryCreateRequest>;
