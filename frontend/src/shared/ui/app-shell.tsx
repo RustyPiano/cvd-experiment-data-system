@@ -8,6 +8,7 @@ import {
   FormOutlined,
   LogoutOutlined,
   SearchOutlined,
+  SettingOutlined,
   TagOutlined,
 } from "@ant-design/icons";
 import { Avatar, Button, Input, Layout, Menu, Typography } from "antd";
@@ -36,6 +37,10 @@ function resolveSelectedKey(pathname: string) {
 
   if (pathname.startsWith("/experiments")) {
     return "/experiments";
+  }
+
+  if (pathname.startsWith("/setup-library")) {
+    return "/setup-library";
   }
 
   return "";
@@ -67,6 +72,11 @@ export function AppShell() {
         key: "/experiments",
         icon: <ExperimentOutlined />,
         label: <Link to="/experiments">实验记录</Link>,
+      },
+      {
+        key: "/setup-library",
+        icon: <SettingOutlined />,
+        label: <Link to="/setup-library">Setup 库</Link>,
       },
       ...(isAdmin
         ? [

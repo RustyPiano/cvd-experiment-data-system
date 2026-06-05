@@ -84,6 +84,13 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: "/setup-library",
+        lazy: async () => {
+          const { SetupLibraryPage } = await import("../features/setup-library/setup-library-page");
+          return { Component: SetupLibraryPage };
+        },
+      },
+      {
         path: "/admin/dashboard",
         lazy: async () => {
           const { AdminDashboardPage } = await import(
