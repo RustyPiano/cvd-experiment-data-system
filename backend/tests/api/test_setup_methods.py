@@ -77,6 +77,30 @@ def test_upsert_setup_methods_creates_snapshot(active_user) -> None:
     assert get_response.json()["semantic_context"] == {"temperature_reference": "setpoint"}
 
 
+def test_manual_setup_ignores_template_identity_flag(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+    diagram_id = upload_setup_diagram(experiment_id, active_user.email)
+
+    response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": "Manual setup",
+            "apparatus_description_snapshot": "Tube furnace",
+            "methods_text_snapshot": "Methods text",
+            "sample_placement_description_snapshot": "Substrate downstream",
+            "reaction_flow_description_snapshot": "Purge ramp hold cool",
+            "unpublished_reason_snapshot": "Internal",
+            "diagram_file_asset_id": diagram_id,
+            "is_same_as_template": True,
+        },
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["source_template_key"] is None
+    assert response.json()["data"]["is_same_as_template"] is False
+
+
 def test_upsert_setup_methods_allows_incomplete_draft_autosave(active_user) -> None:
     experiment_id = create_experiment(active_user.email)
 
@@ -127,6 +151,46 @@ def test_confirm_setup_methods_sets_confirmation(active_user) -> None:
     assert response.status_code == 200
     assert response.json()["data"]["confirmed_by_id"] is not None
     assert response.json()["warnings"] == []
+
+
+def test_experiment_audit_endpoint_includes_setup_method_events(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+    diagram_id = upload_setup_diagram(experiment_id, active_user.email)
+    upsert_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": "Manual setup",
+            "apparatus_description_snapshot": "Tube furnace",
+            "methods_text_snapshot": "Methods text",
+            "sample_placement_description_snapshot": "Substrate downstream",
+            "reaction_flow_description_snapshot": "Purge ramp hold cool",
+            "unpublished_reason_snapshot": "Internal",
+            "diagram_file_asset_id": diagram_id,
+            "is_same_as_template": False,
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert upsert_response.status_code == 200
+    confirm_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/confirm",
+        headers=auth_headers(active_user.email),
+    )
+    assert confirm_response.status_code == 200
+    setup_id = confirm_response.json()["data"]["id"]
+
+    response = client.get(
+        f"/api/v1/experiments/{experiment_id}/audit-events",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    setup_events = [
+        item
+        for item in response.json()["items"]
+        if item["entity_type"] == "experiment_setup_snapshot"
+    ]
+    assert [item["action"] for item in setup_events] == ["upsert", "confirm"]
+    assert {item["entity_id"] for item in setup_events} == {setup_id}
 
 
 def test_confirm_setup_methods_rejects_incomplete_snapshot(active_user) -> None:

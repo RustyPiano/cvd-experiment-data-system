@@ -261,7 +261,7 @@ class SetupMethodsService:
         payload: SetupMethodsUpsert,
     ) -> bool:
         if snapshot.source_template_key is None:
-            return payload.is_same_as_template
+            return False
         if not payload.is_same_as_template:
             return False
         template = self.templates.get_template(

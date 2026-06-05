@@ -128,8 +128,15 @@ def test_clone_experiment_creates_new_draft_and_audit_record(active_user, admin_
         headers=auth_headers(active_user.email),
     )
     assert audit_response.status_code == 200
-    actions = [item["action"] for item in audit_response.json()["items"]]
-    assert actions == ["create", "clone"]
+    items = audit_response.json()["items"]
+    experiment_actions = [
+        item["action"] for item in items if item["entity_type"] == "experiment_run"
+    ]
+    setup_actions = [
+        item["action"] for item in items if item["entity_type"] == "experiment_setup_snapshot"
+    ]
+    assert experiment_actions == ["create", "clone"]
+    assert setup_actions == ["clone"]
 
 
 def test_clone_experiment_copies_module_payloads(active_user, admin_user) -> None:

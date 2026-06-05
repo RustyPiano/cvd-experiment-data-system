@@ -497,7 +497,12 @@ class ExperimentService:
 
     def list_audit_events(self, experiment_id: UUID, current_user: User) -> AuditEventListResponse:
         experiment = self._get_visible_experiment(experiment_id, current_user)
-        return self.audit.list_events(entity_type="experiment_run", entity_id=experiment.id)
+        refs = [("experiment_run", experiment.id)]
+        setup_snapshot = self.setup_methods_service.setup_methods.get_by_experiment(experiment.id)
+        if setup_snapshot is not None:
+            refs.append(("experiment_setup_snapshot", setup_snapshot.id))
+        items = self.audit.list_events_for_entities(refs)
+        return AuditEventListResponse(items=items, total=len(items))
 
     def export_experiment(
         self,
