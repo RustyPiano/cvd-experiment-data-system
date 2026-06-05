@@ -2719,6 +2719,39 @@ def test_clone_allows_own_submitted_experiment_and_returns_derived_run_code(acti
     assert clone_response.json()["derived_from_run_code"] == source_run_code
 
 
+def test_clone_copies_setup_snapshot_but_requires_reconfirmation(active_user) -> None:
+    source_id = create_experiment_for_test(active_user.email)
+    populate_required_modules(source_id, active_user.email)
+    source_setup_response = client.get(
+        f"/api/v1/experiments/{source_id}/setup-methods",
+        headers=auth_headers(active_user.email),
+    )
+    assert source_setup_response.status_code == 200
+    source_diagram_id = source_setup_response.json()["diagram_file_asset_id"]
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{source_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    assert submit_response.status_code == 200
+
+    clone_response = client.post(
+        f"/api/v1/experiments/{source_id}/clone",
+        headers=auth_headers(active_user.email),
+    )
+    assert clone_response.status_code == 201
+    clone_id = clone_response.json()["id"]
+
+    setup_response = client.get(
+        f"/api/v1/experiments/{clone_id}/setup-methods",
+        headers=auth_headers(active_user.email),
+    )
+    assert setup_response.status_code == 200
+    body = setup_response.json()
+    assert body["confirmed_at"] is None
+    assert body["diagram_file_asset_id"] != source_diagram_id
+
+
 def test_clone_rejects_other_users_submitted_experiment(active_user, admin_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",
@@ -2818,6 +2851,69 @@ def test_clone_rejects_draft_and_invalid_sources(active_user) -> None:
     assert invalidate_response.status_code == 200
     assert draft_clone_response.status_code == 409
     assert invalid_clone_response.status_code == 409
+
+
+def test_create_experiment_from_recipe_does_not_create_setup_snapshot(
+    active_user,
+    db_session,
+) -> None:
+    from app.models.recipe import Recipe
+
+    recipe = Recipe(
+        name="Recipe without setup binding",
+        material_system="MoS2",
+        default_payload_json={
+            "precursors": {"items": [{"species": "MoO3", "method": "powder"}]},
+            "furnace_program": {
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "placements": [],
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
+                        ],
+                        "note": "",
+                    }
+                ],
+            },
+            "gas_program": {
+                "pre_washing_gas": "Ar",
+                "segments": [
+                    {
+                        "stage": "growth",
+                        "start_min": 0,
+                        "end_min": 45,
+                        "gas": "Ar",
+                        "flow_sccm": 80,
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
+                    }
+                ],
+            },
+        },
+        description="Recipe V1 must not carry setup methods",
+        created_by=active_user.id,
+        is_active=True,
+    )
+    db_session.add(recipe)
+    db_session.commit()
+    db_session.refresh(recipe)
+
+    response = client.post(
+        "/api/v1/experiments/from-recipe",
+        json={"recipe_id": str(recipe.id), "experiment_date": "2026-06-05"},
+        headers=auth_headers(active_user.email),
+    )
+    assert response.status_code == 201
+    experiment_id = response.json()["id"]
+
+    setup_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert setup_response.status_code == 404
 
 
 def test_lock_revalidates_submitted_experiment_missing_setup_methods(

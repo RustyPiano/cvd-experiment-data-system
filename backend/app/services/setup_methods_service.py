@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -27,6 +28,7 @@ from app.schemas.setup_methods import (
 )
 from app.services.audit_service import AuditService
 from app.services.experiment_validation_service import ExperimentValidationFailed
+from app.services.file_storage_service import FileStorageService
 from app.services.setup_method_template_service import SetupMethodTemplateService
 from app.services.setup_methods_content_validation import validate_setup_content
 from app.services.setup_methods_hash_service import SetupMethodsHashService
@@ -51,6 +53,7 @@ class SetupMethodsService:
         self.setup_methods = SetupMethodsRepository(db)
         self.audit = AuditService(db)
         self.hashes = SetupMethodsHashService()
+        self.storage = FileStorageService()
         self.templates = SetupMethodTemplateService()
 
     def get_setup_methods(self, experiment_id: UUID, current_user: User) -> SetupMethodsRead:
@@ -159,6 +162,58 @@ class SetupMethodsService:
         )
         self.db.commit()
         return SetupMethodsMutationResponse(data=self._to_read(saved), warnings=[])
+
+    def clone_snapshot(
+        self,
+        *,
+        source_experiment: ExperimentRun,
+        target_experiment: ExperimentRun,
+        current_user: User,
+    ) -> ExperimentSetupSnapshot | None:
+        source_snapshot = self.setup_methods.get_by_experiment(source_experiment.id)
+        if source_snapshot is None:
+            return None
+
+        diagram_file = self._copy_setup_diagram_file(
+            source_snapshot=source_snapshot,
+            target_experiment=target_experiment,
+            current_user=current_user,
+        )
+        cloned = ExperimentSetupSnapshot(
+            experiment_run_id=target_experiment.id,
+            source_template_key=source_snapshot.source_template_key,
+            source_template_version=source_snapshot.source_template_version,
+            setup_key_snapshot=source_snapshot.setup_key_snapshot,
+            setup_name_snapshot=source_snapshot.setup_name_snapshot,
+            setup_version_snapshot=source_snapshot.setup_version_snapshot,
+            institution_snapshot=source_snapshot.institution_snapshot,
+            apparatus_description_snapshot=source_snapshot.apparatus_description_snapshot,
+            methods_text_snapshot=source_snapshot.methods_text_snapshot,
+            sample_placement_description_snapshot=(
+                source_snapshot.sample_placement_description_snapshot
+            ),
+            reaction_flow_description_snapshot=source_snapshot.reaction_flow_description_snapshot,
+            reference_paper_url_snapshot=source_snapshot.reference_paper_url_snapshot,
+            unpublished_reason_snapshot=source_snapshot.unpublished_reason_snapshot,
+            diagram_file_asset_id=diagram_file.id if diagram_file is not None else None,
+            is_same_as_template=source_snapshot.is_same_as_template,
+            deviation_note=source_snapshot.deviation_note,
+            confirmed_by_id=None,
+            confirmed_at=None,
+            snapshot_hash=source_snapshot.snapshot_hash,
+            metadata_json=deepcopy(source_snapshot.metadata_json or {}),
+        )
+        self._recalculate_snapshot_hash(cloned, diagram_file=diagram_file)
+        saved = self.setup_methods.save(cloned)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_setup_snapshot",
+            entity_id=saved.id,
+            action="clone",
+            before_json=self._serialize_snapshot(source_snapshot),
+            after_json=self._serialize_snapshot(saved),
+        )
+        return saved
 
     def _upsert_snapshot_from_payload(
         self,
@@ -272,6 +327,58 @@ class SetupMethodsService:
             "Setup diagram could not be materialized from template",
         )
 
+    def _copy_setup_diagram_file(
+        self,
+        *,
+        source_snapshot: ExperimentSetupSnapshot,
+        target_experiment: ExperimentRun,
+        current_user: User,
+    ) -> FileAsset | None:
+        if source_snapshot.diagram_file_asset_id is None:
+            return None
+        source_file = self.files.get_by_id(source_snapshot.diagram_file_asset_id)
+        if source_file is None or source_file.deleted_at is not None:
+            return None
+
+        target_file_id = uuid4()
+        try:
+            relative_path, sha256 = self.storage.copy_between_experiments(
+                source_storage_path=source_file.storage_path,
+                target_experiment_run_code=target_experiment.run_code,
+                target_file_id=target_file_id,
+                original_name=source_file.original_name,
+            )
+        except (OSError, ValueError):
+            return None
+
+        copied = FileAsset(
+            id=target_file_id,
+            experiment_run_id=target_experiment.id,
+            sample_id=None,
+            uploaded_by_id=current_user.id,
+            original_name=source_file.original_name,
+            storage_path=relative_path,
+            content_type=source_file.content_type,
+            size_bytes=source_file.size_bytes,
+            sha256=sha256,
+            method="setup_diagram",
+            file_category=source_file.file_category,
+            asset_role="setup_diagram",
+            note=source_file.note,
+            file_kind="setup_diagram",
+            metadata_json=deepcopy(source_file.metadata_json or {}),
+        )
+        saved = self.files.create(copied)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="file_asset",
+            entity_id=saved.id,
+            action="create",
+            before_json=None,
+            after_json=self._serialize_file_asset(saved),
+        )
+        return saved
+
     def _recalculate_snapshot_hash(
         self,
         snapshot: ExperimentSetupSnapshot,
@@ -347,6 +454,24 @@ class SetupMethodsService:
         if snapshot is None:
             return None
         return self._to_read(snapshot).model_dump(mode="json")
+
+    def _serialize_file_asset(self, file_asset: FileAsset) -> dict[str, Any]:
+        return {
+            "id": str(file_asset.id),
+            "experiment_run_id": str(file_asset.experiment_run_id),
+            "sample_id": str(file_asset.sample_id) if file_asset.sample_id else None,
+            "uploaded_by_id": str(file_asset.uploaded_by_id),
+            "original_name": file_asset.original_name,
+            "storage_path": file_asset.storage_path,
+            "content_type": file_asset.content_type,
+            "size_bytes": file_asset.size_bytes,
+            "sha256": file_asset.sha256,
+            "method": file_asset.method,
+            "file_category": file_asset.file_category,
+            "asset_role": file_asset.asset_role,
+            "note": file_asset.note,
+            "metadata_json": file_asset.metadata_json,
+        }
 
     def _get_visible_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRun:
         experiment = self.experiments.get_by_id(experiment_id)

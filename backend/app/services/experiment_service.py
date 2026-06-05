@@ -418,6 +418,11 @@ class ExperimentService:
             target_experiment=created,
             current_user=current_user,
         )
+        self.setup_methods_service.clone_snapshot(
+            source_experiment=source,
+            target_experiment=created,
+            current_user=current_user,
+        )
         self.audit.record_event(
             actor=current_user,
             entity_type="experiment_run",
