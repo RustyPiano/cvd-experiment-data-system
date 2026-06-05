@@ -648,7 +648,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert body["ok"] is False
     assert body["blocking_count"] == len(body["errors"])
     assert body["warning_count"] == len(body["warnings"])
-    assert body["completion_score"] == 38
+    assert body["completion_score"] == 36
     assert_issue_exists(
         body["errors"],
         module_key="basic_info",
@@ -860,7 +860,7 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
     assert body["ok"] is True
     assert body["errors"] == []
     assert body["warnings"] == []
-    assert body["completion_score"] == 62
+    assert body["completion_score"] == 64
 
 
 def test_confirmed_setup_methods_increase_completion_score(active_user) -> None:

@@ -30,6 +30,11 @@ class ExperimentSetupSnapshot(Base):
     )
     source_template_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     source_template_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_setup_library_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
     setup_key_snapshot: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     setup_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
     setup_version_snapshot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

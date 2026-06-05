@@ -16,7 +16,7 @@ from app.schemas.experiment_validation import (
     ExperimentValidationResponse,
 )
 from app.schemas.module_payload import validate_module_payload
-from app.services.setup_methods_content_validation import validate_setup_content
+from app.services.setup_methods_content_validation import setup_has_source, validate_setup_content
 
 ISSUE_MESSAGE_ZH = {
     "Quality label is unknown": "质量标签仍为未知",
@@ -743,6 +743,15 @@ class ExperimentValidationService:
             and setup_snapshot.diagram_file_asset_id is not None
             and self._is_valid_setup_diagram_file(experiment, setup_snapshot.diagram_file_asset_id)
         )
+        setup_reference_is_present = setup_snapshot is not None and (
+            not self._is_blank(setup_snapshot.reference_paper_url_snapshot)
+            or not self._is_blank(setup_snapshot.unpublished_reason_snapshot)
+        )
+        setup_deviation_is_explained = setup_snapshot is not None and (
+            not setup_has_source(setup_snapshot)
+            or setup_snapshot.is_same_as_template
+            or not self._is_blank(setup_snapshot.deviation_note)
+        )
 
         checks = [
             not self._is_blank(experiment.experiment_type),
@@ -793,11 +802,11 @@ class ExperimentValidationService:
             self._is_number(indoor_humidity) and 0 <= float(indoor_humidity) <= 100,
             setup_snapshot is not None,
             setup_snapshot is not None and not self._is_blank(setup_snapshot.setup_key_snapshot),
+            setup_snapshot is not None and not self._is_blank(setup_snapshot.setup_name_snapshot),
             setup_diagram_is_valid,
             setup_snapshot is not None and not self._is_blank(setup_snapshot.methods_text_snapshot),
-            setup_snapshot is not None
-            and setup_snapshot.confirmed_at is not None
-            and setup_snapshot.confirmed_by_id is not None,
+            setup_reference_is_present,
+            setup_deviation_is_explained,
         ]
 
         return round(sum(1 for check in checks if check) / len(checks) * 100)
@@ -821,10 +830,6 @@ class ExperimentValidationService:
                     "diagram_file_asset_id",
                     "Setup diagram must be an active setup diagram file",
                 )
-            )
-        if snapshot.confirmed_at is None or snapshot.confirmed_by_id is None:
-            errors.append(
-                self._issue("setup_methods", "confirmed_at", "Setup confirmation is required")
             )
 
     def _is_valid_setup_diagram_file(

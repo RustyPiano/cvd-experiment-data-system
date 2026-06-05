@@ -6,11 +6,23 @@ from app.schemas.experiment_validation import ExperimentValidationIssue
 IssueFactory = Callable[[str, str, str], ExperimentValidationIssue]
 
 
+def setup_has_source(snapshot: ExperimentSetupSnapshot) -> bool:
+    """Whether the snapshot was derived from a reusable source (library or template)."""
+    return snapshot.source_setup_library_id is not None or snapshot.source_template_key is not None
+
+
 def validate_setup_content(
     snapshot: ExperimentSetupSnapshot | None,
     issue_factory: IssueFactory,
     errors: list[ExperimentValidationIssue],
 ) -> None:
+    """Validate the minimum setup/methods a submitted experiment must carry.
+
+    Per the group requirement, an experiment must at least carry an apparatus
+    diagram, a methods description, and a reference (or an unpublished reason).
+    Apparatus / sample-placement / reaction-flow prose are optional enrichments
+    captured on the setup library entry, not blocking fields.
+    """
     if snapshot is None:
         errors.append(issue_factory("setup_methods", "root", "Setup methods are required"))
         return
@@ -33,22 +45,6 @@ def validate_setup_content(
         errors.append(
             issue_factory("setup_methods", "methods_text_snapshot", "Methods text is required")
         )
-    if _is_blank(snapshot.sample_placement_description_snapshot):
-        errors.append(
-            issue_factory(
-                "setup_methods",
-                "sample_placement_description_snapshot",
-                "Sample placement description is required",
-            )
-        )
-    if _is_blank(snapshot.reaction_flow_description_snapshot):
-        errors.append(
-            issue_factory(
-                "setup_methods",
-                "reaction_flow_description_snapshot",
-                "Reaction flow description is required",
-            )
-        )
     if _is_blank(snapshot.reference_paper_url_snapshot) and _is_blank(
         snapshot.unpublished_reason_snapshot
     ):
@@ -60,7 +56,7 @@ def validate_setup_content(
             )
         )
     if (
-        snapshot.source_template_key is not None
+        setup_has_source(snapshot)
         and not snapshot.is_same_as_template
         and _is_blank(snapshot.deviation_note)
     ):
@@ -68,7 +64,7 @@ def validate_setup_content(
             issue_factory(
                 "setup_methods",
                 "deviation_note",
-                "Deviation note is required when setup differs from template",
+                "Deviation note is required when setup differs from the referenced setup",
             )
         )
 

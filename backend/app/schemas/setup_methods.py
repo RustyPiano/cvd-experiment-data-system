@@ -47,6 +47,10 @@ class SetupMethodsFromTemplateRequest(BaseModel):
     template_version: int = Field(ge=1)
 
 
+class SetupMethodsFromLibraryRequest(BaseModel):
+    setup_library_id: UUID
+
+
 class SetupMethodsRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -54,6 +58,7 @@ class SetupMethodsRead(BaseModel):
     experiment_run_id: UUID
     source_template_key: str | None
     source_template_version: int | None
+    source_setup_library_id: UUID | None = None
     setup_key_snapshot: str | None
     setup_name_snapshot: str
     setup_version_snapshot: int

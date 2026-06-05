@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
+from app.models.setup_library import SetupLibraryEntry
 from app.models.setup_methods import ExperimentSetupSnapshot
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
@@ -20,6 +21,7 @@ from app.schemas.experiment_validation import (
     ExperimentValidationResponse,
 )
 from app.schemas.setup_methods import (
+    SetupMethodsFromLibraryRequest,
     SetupMethodsFromTemplateRequest,
     SetupMethodsMutationResponse,
     SetupMethodsRead,
@@ -29,6 +31,7 @@ from app.schemas.setup_methods import (
 from app.services.audit_service import AuditService
 from app.services.experiment_validation_service import ExperimentValidationFailed
 from app.services.file_storage_service import FileStorageService
+from app.services.setup_library_service import SetupLibraryService
 from app.services.setup_method_template_service import SetupMethodTemplateService
 from app.services.setup_methods_content_validation import validate_setup_content
 from app.services.setup_methods_hash_service import SetupMethodsHashService
@@ -55,6 +58,7 @@ class SetupMethodsService:
         self.hashes = SetupMethodsHashService()
         self.storage = FileStorageService()
         self.templates = SetupMethodTemplateService()
+        self.setup_library = SetupLibraryService(db)
 
     def get_setup_methods(self, experiment_id: UUID, current_user: User) -> SetupMethodsRead:
         experiment = self._get_visible_experiment(experiment_id, current_user)
@@ -131,6 +135,70 @@ class SetupMethodsService:
         self.db.commit()
         return SetupMethodsMutationResponse(data=self._to_read(saved), warnings=warnings)
 
+    def create_from_library(
+        self,
+        experiment_id: UUID,
+        payload: SetupMethodsFromLibraryRequest,
+        current_user: User,
+    ) -> SetupMethodsMutationResponse:
+        experiment = self._get_owned_draft_experiment(experiment_id, current_user)
+        entry = self.setup_library.get_visible_entry(payload.setup_library_id, current_user)
+
+        warnings: list[ExperimentValidationIssue] = []
+        diagram_file = self._copy_library_diagram(entry, experiment, current_user)
+        if diagram_file is None:
+            warnings.append(
+                self._issue(
+                    "setup_methods",
+                    "diagram_file_asset_id",
+                    "Referenced setup has no diagram; upload one to the setup before submitting",
+                )
+            )
+
+        existing = self.setup_methods.get_by_experiment(experiment.id)
+        previous_diagram_id = existing.diagram_file_asset_id if existing is not None else None
+        before = self._serialize_snapshot(existing)
+        snapshot = existing or ExperimentSetupSnapshot(experiment_run_id=experiment.id)
+        snapshot.source_template_key = None
+        snapshot.source_template_version = None
+        snapshot.source_setup_library_id = entry.id
+        snapshot.setup_name_snapshot = entry.name
+        snapshot.institution_snapshot = entry.institution
+        snapshot.apparatus_description_snapshot = entry.apparatus_description
+        snapshot.methods_text_snapshot = entry.methods_text
+        snapshot.sample_placement_description_snapshot = entry.sample_placement_description
+        snapshot.reaction_flow_description_snapshot = entry.reaction_flow_description
+        snapshot.reference_paper_url_snapshot = entry.reference_paper_url
+        snapshot.unpublished_reason_snapshot = entry.unpublished_reason
+        snapshot.diagram_file_asset_id = diagram_file.id if diagram_file is not None else None
+        snapshot.is_same_as_template = True
+        snapshot.deviation_note = None
+        snapshot.confirmed_by_id = None
+        snapshot.confirmed_at = None
+        snapshot.setup_version_snapshot = 1
+        snapshot.metadata_json = {"semantic_context": entry.semantic_context or {}}
+        self._recalculate_snapshot_hash(snapshot, diagram_file=diagram_file)
+        new_diagram_id = diagram_file.id if diagram_file is not None else None
+        stale_blob_path = None
+        if previous_diagram_id is not None and previous_diagram_id != new_diagram_id:
+            stale_blob_path = self._soft_delete_diagram_file(previous_diagram_id, current_user)
+        saved = self.setup_methods.save(snapshot)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_setup_snapshot",
+            entity_id=saved.id,
+            action="create_from_library",
+            before_json=before,
+            after_json=self._serialize_snapshot(saved),
+        )
+        self.db.commit()
+        if stale_blob_path is not None:
+            try:
+                self.storage.delete(stale_blob_path)
+            except (OSError, ValueError):
+                pass
+        return SetupMethodsMutationResponse(data=self._to_read(saved), warnings=warnings)
+
     def confirm_setup_methods(
         self,
         experiment_id: UUID,
@@ -198,6 +266,7 @@ class SetupMethodsService:
             experiment_run_id=target_experiment.id,
             source_template_key=source_snapshot.source_template_key,
             source_template_version=source_snapshot.source_template_version,
+            source_setup_library_id=source_snapshot.source_setup_library_id,
             setup_key_snapshot=source_snapshot.setup_key_snapshot,
             setup_name_snapshot=source_snapshot.setup_name_snapshot,
             setup_version_snapshot=source_snapshot.setup_version_snapshot,
@@ -277,11 +346,88 @@ class SetupMethodsService:
         )
         return saved
 
+    def _copy_library_diagram(
+        self,
+        entry: SetupLibraryEntry,
+        target_experiment: ExperimentRun,
+        current_user: User,
+    ) -> FileAsset | None:
+        if entry.diagram_storage_path is None:
+            return None
+
+        target_file_id = uuid4()
+        try:
+            relative_path, sha256 = self.storage.copy_between_experiments(
+                source_storage_path=entry.diagram_storage_path,
+                target_experiment_run_code=target_experiment.run_code,
+                target_file_id=target_file_id,
+                original_name=entry.diagram_original_name or "setup-diagram",
+            )
+        except (OSError, ValueError) as exc:
+            # The library declares a diagram but its blob is missing/unreadable.
+            # Surface this instead of masking it as a "setup has no diagram" warning.
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Failed to copy setup diagram from the referenced setup",
+            ) from exc
+
+        copied = FileAsset(
+            id=target_file_id,
+            experiment_run_id=target_experiment.id,
+            sample_id=None,
+            uploaded_by_id=current_user.id,
+            original_name=entry.diagram_original_name or "setup-diagram",
+            storage_path=relative_path,
+            content_type=entry.diagram_content_type,
+            size_bytes=entry.diagram_size_bytes or 0,
+            sha256=sha256,
+            method="setup_diagram",
+            file_category="raw",
+            asset_role="setup_diagram",
+            note=None,
+            file_kind="setup_diagram",
+            metadata_json={"source_setup_library_id": str(entry.id)},
+        )
+        saved = self.files.create(copied)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="file_asset",
+            entity_id=saved.id,
+            action="create",
+            before_json=None,
+            after_json=self._serialize_file_asset(saved),
+        )
+        return saved
+
+    def _soft_delete_diagram_file(self, file_asset_id: UUID, current_user: User) -> str | None:
+        """Soft-delete a setup diagram FileAsset that the snapshot no longer references.
+
+        Returns the blob path to remove after commit, or None if nothing to delete.
+        """
+        file_asset = self.files.get_by_id(file_asset_id)
+        if file_asset is None or file_asset.deleted_at is not None:
+            return None
+        before = self._serialize_file_asset(file_asset)
+        file_asset.deleted_at = datetime.now(UTC)
+        file_asset.deleted_by_id = current_user.id
+        saved = self.files.save(file_asset)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="file_asset",
+            entity_id=saved.id,
+            action="delete",
+            before_json=before,
+            after_json=self._serialize_file_asset(saved),
+        )
+        return saved.storage_path
+
     def _resolve_template_match(
         self,
         snapshot: ExperimentSetupSnapshot,
         payload: SetupMethodsUpsert,
     ) -> bool:
+        if snapshot.source_setup_library_id is not None:
+            return payload.is_same_as_template
         if snapshot.source_template_key is None:
             return False
         if not payload.is_same_as_template:
@@ -461,6 +607,7 @@ class SetupMethodsService:
                 "experiment_run_id": snapshot.experiment_run_id,
                 "source_template_key": snapshot.source_template_key,
                 "source_template_version": snapshot.source_template_version,
+                "source_setup_library_id": snapshot.source_setup_library_id,
                 "setup_key_snapshot": snapshot.setup_key_snapshot,
                 "setup_name_snapshot": snapshot.setup_name_snapshot,
                 "setup_version_snapshot": snapshot.setup_version_snapshot,

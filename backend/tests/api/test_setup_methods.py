@@ -312,6 +312,197 @@ def test_confirm_setup_methods_rejects_incomplete_snapshot(active_user) -> None:
     assert get_response.json()["confirmed_at"] is None
 
 
+def test_confirm_setup_methods_allows_missing_apparatus_description(active_user) -> None:
+    # Apparatus prose is an optional enrichment; the diagram is the required field.
+    experiment_id = create_experiment(active_user.email)
+    diagram_id = upload_setup_diagram(experiment_id, active_user.email)
+    upsert_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": "Manual setup",
+            "apparatus_description_snapshot": "",
+            "methods_text_snapshot": "Methods text",
+            "sample_placement_description_snapshot": "",
+            "reaction_flow_description_snapshot": "",
+            "unpublished_reason_snapshot": "Internal",
+            "diagram_file_asset_id": diagram_id,
+            "is_same_as_template": False,
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert upsert_response.status_code == 200
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/confirm",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["confirmed_by_id"] is not None
+
+
+def test_create_setup_methods_from_library_freezes_content_and_diagram(active_user) -> None:
+    headers = auth_headers(active_user.email)
+    entry = client.post(
+        "/api/v1/setup-library",
+        json={
+            "name": "Two-zone fast CVD",
+            "apparatus_description": "Two-zone tube furnace",
+            "methods_text": "Purge, ramp, hold, cool",
+            "reference_paper_url": "https://example.com/paper",
+        },
+        headers=headers,
+    ).json()
+    client.post(
+        f"/api/v1/setup-library/{entry['id']}/diagram",
+        files={"file": ("apparatus.png", b"PNGDATA", "image/png")},
+        headers=headers,
+    )
+
+    experiment_id = create_experiment(active_user.email)
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-library",
+        json={"setup_library_id": entry["id"]},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert response.json()["warnings"] == []
+    assert data["source_setup_library_id"] == entry["id"]
+    assert data["setup_name_snapshot"] == "Two-zone fast CVD"
+    assert data["methods_text_snapshot"] == "Purge, ramp, hold, cool"
+    assert data["is_same_as_template"] is True
+    assert data["diagram_file_asset_id"] is not None
+
+    # The frozen diagram is a per-experiment setup_diagram file that submit accepts.
+    files = client.get(
+        f"/api/v1/files?experiment_id={experiment_id}&asset_role=setup_diagram",
+        headers=headers,
+    ).json()
+    assert any(item["id"] == data["diagram_file_asset_id"] for item in files["items"])
+
+
+def test_create_setup_methods_from_library_without_diagram_warns(active_user) -> None:
+    headers = auth_headers(active_user.email)
+    entry = client.post(
+        "/api/v1/setup-library",
+        json={"name": "No diagram setup", "methods_text": "m", "unpublished_reason": "wip"},
+        headers=headers,
+    ).json()
+
+    experiment_id = create_experiment(active_user.email)
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-library",
+        json={"setup_library_id": entry["id"]},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["diagram_file_asset_id"] is None
+    assert any(
+        issue["field_path"] == "diagram_file_asset_id" for issue in response.json()["warnings"]
+    )
+
+
+def test_from_library_twice_replaces_diagram_without_orphans(active_user) -> None:
+    headers = auth_headers(active_user.email)
+
+    def make_entry_with_diagram(name: str) -> str:
+        entry = client.post(
+            "/api/v1/setup-library",
+            json={"name": name, "methods_text": "m", "unpublished_reason": "wip"},
+            headers=headers,
+        ).json()
+        client.post(
+            f"/api/v1/setup-library/{entry['id']}/diagram",
+            files={"file": (f"{name}.png", name.encode(), "image/png")},
+            headers=headers,
+        )
+        return entry["id"]
+
+    entry1 = make_entry_with_diagram("first")
+    entry2 = make_entry_with_diagram("second")
+    experiment_id = create_experiment(active_user.email)
+
+    first = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-library",
+        json={"setup_library_id": entry1},
+        headers=headers,
+    ).json()["data"]
+    second = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-library",
+        json={"setup_library_id": entry2},
+        headers=headers,
+    ).json()["data"]
+
+    assert first["diagram_file_asset_id"] != second["diagram_file_asset_id"]
+
+    # The first copy is soft-deleted: exactly one active setup_diagram file remains.
+    files = client.get(
+        f"/api/v1/files?experiment_id={experiment_id}&asset_role=setup_diagram",
+        headers=headers,
+    ).json()
+    active_ids = [item["id"] for item in files["items"]]
+    assert active_ids == [second["diagram_file_asset_id"]]
+
+
+def test_clone_snapshot_preserves_library_provenance(active_user, db_session) -> None:
+    import uuid
+    from datetime import date
+
+    from app.models.experiment import ExperimentRun
+    from app.models.setup_methods import ExperimentSetupSnapshot
+    from app.services.setup_methods_service import SetupMethodsService
+
+    def make_experiment(run_code: str) -> ExperimentRun:
+        experiment = ExperimentRun(
+            run_code=run_code,
+            owner_id=active_user.id,
+            experiment_type="cvd_2zone",
+            material_system="MoS2",
+            experiment_date=date(2026, 6, 5),
+            objective="clone provenance",
+        )
+        db_session.add(experiment)
+        db_session.commit()
+        db_session.refresh(experiment)
+        return experiment
+
+    source = make_experiment("CVD-2026-CLONE-SRC")
+    target = make_experiment("CVD-2026-CLONE-DST")
+    library_id = uuid.uuid4()
+    db_session.add(
+        ExperimentSetupSnapshot(
+            experiment_run_id=source.id,
+            source_setup_library_id=library_id,
+            setup_key_snapshot="manual:abcdef1234567890",
+            setup_name_snapshot="Referenced setup",
+            setup_version_snapshot=1,
+            apparatus_description_snapshot="",
+            methods_text_snapshot="Methods",
+            sample_placement_description_snapshot="",
+            reaction_flow_description_snapshot="",
+            unpublished_reason_snapshot="Internal",
+            diagram_file_asset_id=None,
+            is_same_as_template=True,
+            snapshot_hash="a" * 64,
+            metadata_json={"semantic_context": {}},
+        )
+    )
+    db_session.commit()
+
+    cloned = SetupMethodsService(db_session).clone_snapshot(
+        source_experiment=source,
+        target_experiment=target,
+        current_user=active_user,
+    )
+    db_session.commit()
+
+    assert cloned is not None
+    assert cloned.source_setup_library_id == library_id
+
+
 def test_create_setup_methods_from_template_writes_template_snapshot(active_user) -> None:
     experiment_id = create_experiment(active_user.email)
 
@@ -375,7 +566,7 @@ def test_template_core_field_change_auto_marks_deviation_and_blocks_confirm(acti
     assert {
         "module_key": "setup_methods",
         "field_path": "deviation_note",
-        "message": "Deviation note is required when setup differs from template",
+        "message": "Deviation note is required when setup differs from the referenced setup",
     } in confirm_response.json()["errors"]
 
 

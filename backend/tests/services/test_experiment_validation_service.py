@@ -71,7 +71,7 @@ def test_completion_score_does_not_award_points_for_not_null_owner_id(
 
     result = ExperimentValidationService(db_session).validate_experiment(experiment)
 
-    assert result.completion_score == 12
+    assert result.completion_score == 11
 
 
 def test_schema_validation_reports_string_type_in_chinese(
@@ -329,6 +329,75 @@ def test_setup_methods_missing_group_key_blocks_validation(active_user, db_sessi
     )
 
 
+def test_setup_methods_missing_apparatus_description_does_not_block_validation(
+    active_user,
+    db_session,
+) -> None:
+    # Apparatus prose is optional; only diagram + methods + reference are required.
+    from datetime import UTC, datetime
+
+    from app.models.file_asset import FileAsset
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    experiment = ExperimentRun(
+        run_code="CVD-2026-SETUP-NO-APPARATUS",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="setup apparatus validation",
+        quality_label=QualityLabel.SUCCESS,
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+
+    diagram_file = FileAsset(
+        experiment_run_id=experiment.id,
+        sample_id=None,
+        uploaded_by_id=active_user.id,
+        original_name="setup.png",
+        storage_path=f"tests/{experiment.id}/setup-apparatus.png",
+        content_type="image/png",
+        size_bytes=7,
+        sha256="e" * 64,
+        method="setup_diagram",
+        file_category="raw",
+        asset_role="setup_diagram",
+        metadata_json={},
+    )
+    db_session.add(diagram_file)
+    db_session.commit()
+    db_session.refresh(diagram_file)
+
+    snapshot = ExperimentSetupSnapshot(
+        experiment_run_id=experiment.id,
+        setup_key_snapshot="manual:abcdef1234567890",
+        setup_name_snapshot="Manual setup",
+        setup_version_snapshot=1,
+        apparatus_description_snapshot="",
+        methods_text_snapshot="Methods",
+        sample_placement_description_snapshot="Placement",
+        reaction_flow_description_snapshot="Flow",
+        unpublished_reason_snapshot="Internal",
+        diagram_file_asset_id=diagram_file.id,
+        is_same_as_template=False,
+        confirmed_by_id=active_user.id,
+        confirmed_at=datetime.now(UTC),
+        snapshot_hash="a" * 64,
+        metadata_json={"semantic_context": {}},
+    )
+    db_session.add(snapshot)
+    db_session.commit()
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    assert not any(
+        issue.module_key == "setup_methods" and issue.field_path == "apparatus_description_snapshot"
+        for issue in result.errors
+    )
+
+
 def test_setup_methods_invalid_diagram_file_blocks_validation(active_user, db_session) -> None:
     from datetime import UTC, datetime
 
@@ -396,7 +465,9 @@ def test_setup_methods_invalid_diagram_file_blocks_validation(active_user, db_se
     )
 
 
-def test_completion_score_requires_setup_confirmation_actor(active_user, db_session) -> None:
+def test_completion_score_ignores_setup_confirmation(active_user, db_session) -> None:
+    # The manual confirmation step was removed; an unconfirmed but complete setup
+    # is scored the same as a confirmed one.
     from datetime import UTC, datetime
 
     from app.models.file_asset import FileAsset
@@ -456,7 +527,86 @@ def test_completion_score_requires_setup_confirmation_actor(active_user, db_sess
 
     result = ExperimentValidationService(db_session).validate_experiment(experiment)
 
-    assert result.completion_score == 27
+    assert result.completion_score == 36
+
+
+def test_completion_score_tracks_setup_methods_content_fields(active_user, db_session) -> None:
+    from datetime import UTC, datetime
+
+    from app.models.file_asset import FileAsset
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    def create_experiment_with_setup(run_code: str, setup_overrides: dict) -> ExperimentRun:
+        experiment = ExperimentRun(
+            run_code=run_code,
+            owner_id=active_user.id,
+            experiment_type="cvd_2zone",
+            material_system="MoS2",
+            experiment_date=date(2026, 6, 5),
+            objective=run_code,
+            quality_label=QualityLabel.SUCCESS,
+        )
+        db_session.add(experiment)
+        db_session.commit()
+        db_session.refresh(experiment)
+
+        diagram_file = FileAsset(
+            experiment_run_id=experiment.id,
+            sample_id=None,
+            uploaded_by_id=active_user.id,
+            original_name="setup.png",
+            storage_path=f"tests/{experiment.id}/setup-completion.png",
+            content_type="image/png",
+            size_bytes=7,
+            sha256="f" * 64,
+            method="setup_diagram",
+            file_category="raw",
+            asset_role="setup_diagram",
+            metadata_json={},
+        )
+        db_session.add(diagram_file)
+        db_session.commit()
+        db_session.refresh(diagram_file)
+
+        setup_values = {
+            "experiment_run_id": experiment.id,
+            "setup_key_snapshot": "manual:abcdef1234567890",
+            "setup_name_snapshot": "Manual setup",
+            "setup_version_snapshot": 1,
+            "apparatus_description_snapshot": "Tube furnace",
+            "methods_text_snapshot": "Methods",
+            "sample_placement_description_snapshot": "Placement",
+            "reaction_flow_description_snapshot": "Flow",
+            "unpublished_reason_snapshot": "Internal",
+            "diagram_file_asset_id": diagram_file.id,
+            "is_same_as_template": False,
+            "confirmed_by_id": active_user.id,
+            "confirmed_at": datetime.now(UTC),
+            "snapshot_hash": "a" * 64,
+            "metadata_json": {"semantic_context": {}},
+        }
+        setup_values.update(setup_overrides)
+        db_session.add(ExperimentSetupSnapshot(**setup_values))
+        db_session.commit()
+        return experiment
+
+    complete_experiment = create_experiment_with_setup("CVD-2026-SETUP-SCORE-FULL", {})
+    incomplete_experiment = create_experiment_with_setup(
+        "CVD-2026-SETUP-SCORE-PARTIAL",
+        {
+            "sample_placement_description_snapshot": "",
+            "reaction_flow_description_snapshot": "",
+            "unpublished_reason_snapshot": "",
+            "source_template_key": "group_fast_cvd",
+            "is_same_as_template": False,
+            "deviation_note": "",
+        },
+    )
+
+    complete = ExperimentValidationService(db_session).validate_experiment(complete_experiment)
+    incomplete = ExperimentValidationService(db_session).validate_experiment(incomplete_experiment)
+
+    assert incomplete.completion_score < complete.completion_score
 
 
 def test_furnace_program_schema_rejects_legacy_steps_and_precursors() -> None:
