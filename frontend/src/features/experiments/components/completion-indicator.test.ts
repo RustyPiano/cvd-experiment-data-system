@@ -44,42 +44,63 @@ describe("computeModuleCompletion", () => {
     ).toEqual({ state: "complete", percent: 100 });
   });
 
-  it("requires setup methods fields, diagram, and confirmation", () => {
+  it("requires setup methods fields, diagram, reference/unpublished, and template compliance", () => {
+    // 1. Partial: missing setup_key, reference/unpublished (completed: payload, setup_name, diagram, methods_text, deviation because no source => 5/7 = 71%)
     expect(
       computeModuleCompletion("setup_methods", {
         setup_name_snapshot: "Manual setup",
-        apparatus_description_snapshot: "Tube furnace",
         methods_text_snapshot: "Methods",
-        sample_placement_description_snapshot: "Downstream",
-        reaction_flow_description_snapshot: "Purge ramp hold",
         diagram_file_asset_id: "file-1",
-        confirmed_at: null,
+      }),
+    ).toEqual({ state: "partial", percent: 71 });
+
+    // 2. Complete: has setup_key, setup_name, diagram, methods, reference (no source => deviation check passes)
+    expect(
+      computeModuleCompletion("setup_methods", {
+        setup_key_snapshot: "setup-1",
+        setup_name_snapshot: "Manual setup",
+        diagram_file_asset_id: "file-1",
+        methods_text_snapshot: "Methods",
+        reference_paper_url_snapshot: "https://example.com/paper",
+      }),
+    ).toEqual({ state: "complete", percent: 100 });
+
+    // 3. Complete: has setup_key, setup_name, diagram, methods, unpublished reason instead of reference (no source => deviation check passes)
+    expect(
+      computeModuleCompletion("setup_methods", {
+        setup_key_snapshot: "setup-1",
+        setup_name_snapshot: "Manual setup",
+        diagram_file_asset_id: "file-1",
+        methods_text_snapshot: "Methods",
+        unpublished_reason_snapshot: "In-house custom build",
+      }),
+    ).toEqual({ state: "complete", percent: 100 });
+
+    // 4. Partial: has source but is_same_as_template is false and deviation_note is empty (completed: 6/7 = 86%)
+    expect(
+      computeModuleCompletion("setup_methods", {
+        setup_key_snapshot: "setup-1",
+        setup_name_snapshot: "Manual setup",
+        diagram_file_asset_id: "file-1",
+        methods_text_snapshot: "Methods",
+        reference_paper_url_snapshot: "https://example.com/paper",
+        source_setup_library_id: "source-1",
+        is_same_as_template: false,
+        deviation_note: "",
       }),
     ).toEqual({ state: "partial", percent: 86 });
 
+    // 5. Complete: has source, is_same_as_template is false, but has deviation_note (completed: 7/7 = 100%)
     expect(
       computeModuleCompletion("setup_methods", {
+        setup_key_snapshot: "setup-1",
         setup_name_snapshot: "Manual setup",
-        apparatus_description_snapshot: "Tube furnace",
-        methods_text_snapshot: "Methods",
-        sample_placement_description_snapshot: "Downstream",
-        reaction_flow_description_snapshot: "Purge ramp hold",
         diagram_file_asset_id: "file-1",
-        confirmed_at: "2026-06-05T00:00:00Z",
-        confirmed_by_id: null,
-      }),
-    ).toEqual({ state: "partial", percent: 86 });
-
-    expect(
-      computeModuleCompletion("setup_methods", {
-        setup_name_snapshot: "Manual setup",
-        apparatus_description_snapshot: "Tube furnace",
         methods_text_snapshot: "Methods",
-        sample_placement_description_snapshot: "Downstream",
-        reaction_flow_description_snapshot: "Purge ramp hold",
-        diagram_file_asset_id: "file-1",
-        confirmed_at: "2026-06-05T00:00:00Z",
-        confirmed_by_id: "user-1",
+        reference_paper_url_snapshot: "https://example.com/paper",
+        source_setup_library_id: "source-1",
+        is_same_as_template: false,
+        deviation_note: "Slight modification to gas lines",
       }),
     ).toEqual({ state: "complete", percent: 100 });
   });

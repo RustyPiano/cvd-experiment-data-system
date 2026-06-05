@@ -164,19 +164,27 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
   }
 
   if (moduleKey === "setup_methods") {
-    const confirmedAt = getValue(payload, ["confirmed_at", "confirmedAt"]);
-    const confirmedById = getValue(payload, ["confirmed_by_id", "confirmedById"]);
+    const setupNameSnapshot = getValue(payload, ["setup_name_snapshot", "setupNameSnapshot"]);
+    const setupKeySnapshot = getValue(payload, ["setup_key_snapshot", "setupKeySnapshot"]);
+    const methodsTextSnapshot = getValue(payload, ["methods_text_snapshot", "methodsTextSnapshot"]);
+    const diagramFileAssetId = getValue(payload, ["diagram_file_asset_id", "diagramFileAssetId"]);
+    const referencePaperUrlSnapshot = getValue(payload, ["reference_paper_url_snapshot", "referencePaperUrlSnapshot"]);
+    const unpublishedReasonSnapshot = getValue(payload, ["unpublished_reason_snapshot", "unpublishedReasonSnapshot"]);
+    const isSameAsTemplate = getValue(payload, ["is_same_as_template", "isSameAsTemplate"]);
+    const deviationNote = getValue(payload, ["deviation_note", "deviationNote"]);
+    const sourceSetupLibraryId = getValue(payload, ["source_setup_library_id", "sourceSetupLibraryId"]);
+    const sourceTemplateKey = getValue(payload, ["source_template_key", "sourceTemplateKey"]);
+
+    const hasSource = isFilled(sourceSetupLibraryId) || isFilled(sourceTemplateKey);
+
     const requiredFields = [
-      getValue(payload, ["setup_name_snapshot", "setupNameSnapshot"]),
-      getValue(payload, ["apparatus_description_snapshot", "apparatusDescriptionSnapshot"]),
-      getValue(payload, ["methods_text_snapshot", "methodsTextSnapshot"]),
-      getValue(payload, [
-        "sample_placement_description_snapshot",
-        "samplePlacementDescriptionSnapshot",
-      ]),
-      getValue(payload, ["reaction_flow_description_snapshot", "reactionFlowDescriptionSnapshot"]),
-      getValue(payload, ["diagram_file_asset_id", "diagramFileAssetId"]),
-      isFilled(confirmedAt) && isFilled(confirmedById) ? "confirmed" : "",
+      isFilled(payload) ? "present" : "", // setup snapshot exists
+      isFilled(setupKeySnapshot) ? "setup_key" : "",
+      isFilled(setupNameSnapshot) ? "setup_name" : "",
+      isFilled(diagramFileAssetId) ? "diagram" : "",
+      isFilled(methodsTextSnapshot) ? "methods_text" : "",
+      isFilled(referencePaperUrlSnapshot) || isFilled(unpublishedReasonSnapshot) ? "reference" : "",
+      (!hasSource || isSameAsTemplate === true || isFilled(deviationNote)) ? "deviation" : "",
     ];
     const completed = requiredFields.filter(isFilled).length;
     return Math.round((completed / requiredFields.length) * 100);

@@ -8,6 +8,8 @@ import { SetupMethodsSection } from "./setup-methods-section";
 const baseValue = {
   sourceTemplateKey: null,
   sourceTemplateVersion: null,
+  sourceSetupLibraryId: null,
+  setupKeySnapshot: null,
   setupNameSnapshot: "",
   institutionSnapshot: "",
   apparatusDescriptionSnapshot: "",

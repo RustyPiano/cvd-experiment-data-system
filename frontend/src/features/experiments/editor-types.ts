@@ -61,6 +61,8 @@ export type BasicInfoValues = {
 export type SetupMethodsValues = {
   sourceTemplateKey: string | null;
   sourceTemplateVersion: number | null;
+  sourceSetupLibraryId: string | null;
+  setupKeySnapshot: string | null;
   setupNameSnapshot: string;
   institutionSnapshot: string;
   apparatusDescriptionSnapshot: string;
@@ -510,18 +512,6 @@ export function validateSectionValues(
   values: ExperimentEditorValues,
 ): EditorValidationError[] {
   const errors: EditorValidationError[] = [];
-
-  if (sectionKey === "setup_methods") {
-    try {
-      parseSemanticContext(values.setupMethods.semanticContextText);
-    } catch {
-      errors.push({
-        sectionKey,
-        fieldPath: "semanticContextText",
-        message: "语义上下文 JSON 格式不正确",
-      });
-    }
-  }
 
   if (sectionKey === "environment") {
     appendNumberValidationError(
@@ -1125,6 +1115,8 @@ export function createSetupMethodsValues(
   return {
     sourceTemplateKey: snapshot?.source_template_key ?? null,
     sourceTemplateVersion: snapshot?.source_template_version ?? null,
+    sourceSetupLibraryId: snapshot?.source_setup_library_id ?? null,
+    setupKeySnapshot: snapshot?.setup_key_snapshot ?? null,
     setupNameSnapshot: snapshot?.setup_name_snapshot ?? "",
     institutionSnapshot: snapshot?.institution_snapshot ?? "",
     apparatusDescriptionSnapshot: snapshot?.apparatus_description_snapshot ?? "",
@@ -1330,19 +1322,23 @@ export function toSetupMethodsPayload(
     is_same_as_template: values.isSameAsTemplate,
     deviation_note: normalizeNullableString(values.deviationNote),
     semantic_context: parseSemanticContext(values.semanticContextText),
+    source_setup_library_id: values.sourceSetupLibraryId,
+    setup_key_snapshot: values.setupKeySnapshot,
   };
 }
 
 export function toSetupMethodsCompletionPayload(values: SetupMethodsValues) {
   return {
+    source_setup_library_id: values.sourceSetupLibraryId,
+    source_template_key: values.sourceTemplateKey,
+    setup_key_snapshot: values.setupKeySnapshot,
     setup_name_snapshot: values.setupNameSnapshot,
-    apparatus_description_snapshot: values.apparatusDescriptionSnapshot,
-    methods_text_snapshot: values.methodsTextSnapshot,
-    sample_placement_description_snapshot: values.samplePlacementDescriptionSnapshot,
-    reaction_flow_description_snapshot: values.reactionFlowDescriptionSnapshot,
     diagram_file_asset_id: values.diagramFileAssetId,
-    confirmed_at: values.confirmedAt,
-    confirmed_by_id: values.confirmedById,
+    methods_text_snapshot: values.methodsTextSnapshot,
+    reference_paper_url_snapshot: values.referencePaperUrlSnapshot,
+    unpublished_reason_snapshot: values.unpublishedReasonSnapshot,
+    is_same_as_template: values.isSameAsTemplate,
+    deviation_note: values.deviationNote,
   };
 }
 

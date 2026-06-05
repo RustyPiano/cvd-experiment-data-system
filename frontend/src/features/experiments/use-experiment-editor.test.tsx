@@ -56,6 +56,8 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
   setupMethods: {
     sourceTemplateKey: null,
     sourceTemplateVersion: null,
+    sourceSetupLibraryId: null,
+    setupKeySnapshot: null,
     setupNameSnapshot: "",
     institutionSnapshot: "",
     apparatusDescriptionSnapshot: "",
@@ -196,7 +198,7 @@ describe("useExperimentEditor completion", () => {
     });
     expect(result.current.completionSummary).toMatchObject({
       completedCount: 1,
-      percent: 9,
+      percent: 12,
     });
   });
 

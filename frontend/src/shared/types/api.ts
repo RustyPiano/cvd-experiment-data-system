@@ -233,6 +233,8 @@ export type SetupMethodsUpsertRequest = {
   is_same_as_template: boolean;
   deviation_note?: string | null;
   semantic_context?: Record<string, unknown>;
+  source_setup_library_id?: string | null;
+  setup_key_snapshot?: string | null;
 };
 
 export type SetupMethodsMutationResponse = {
