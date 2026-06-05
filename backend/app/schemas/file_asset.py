@@ -21,6 +21,7 @@ class FileAssetRead(BaseModel):
     sha256: str
     method: str
     file_category: str
+    asset_role: str
     note: str | None
     metadata_json: dict[str, Any]
     created_at: datetime

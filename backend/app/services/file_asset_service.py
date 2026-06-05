@@ -38,6 +38,7 @@ def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
         "sha256": file_asset.sha256,
         "method": file_asset.method,
         "file_category": file_asset.file_category,
+        "asset_role": file_asset.asset_role,
         "note": file_asset.note,
         "metadata_json": file_asset.metadata_json,
         "created_at": file_asset.created_at.isoformat() if file_asset.created_at else None,
@@ -71,6 +72,7 @@ class FileAssetService:
         sample_id: UUID | None = None,
         method: str | None = None,
         file_category: str | None = None,
+        asset_role: str | None = None,
     ) -> FileAssetListResponse:
         items = self.files.list_visible(
             current_user=current_user,
@@ -78,6 +80,7 @@ class FileAssetService:
             sample_id=sample_id,
             method=method,
             file_category=file_category,
+            asset_role=asset_role,
         )
         return FileAssetListResponse(
             items=[to_file_asset_read_model(item) for item in items],
@@ -97,9 +100,11 @@ class FileAssetService:
         sample_id: UUID | None = None,
         method: str | None = None,
         file_category: str | None = None,
+        asset_role: str | None = None,
         note: str | None = None,
     ) -> FileAssetRead:
         experiment = self._get_owned_draft_experiment(experiment_id, current_user)
+        resolved_asset_role = self._normalize_asset_role(asset_role)
         if sample_id is not None:
             sample = self.samples.get_by_id(sample_id)
             if sample is None or sample.experiment_run_id != experiment.id:
@@ -107,14 +112,22 @@ class FileAssetService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Sample must belong to the same experiment",
                 )
-
-        content = self._read_upload_content(upload)
-        resolved_method = self._normalize_method(method)
-        if resolved_method is None:
+        if resolved_asset_role == "setup_diagram" and sample_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="File method is required",
+                detail="Setup diagram cannot be linked to a sample",
             )
+
+        content = self._read_upload_content(upload)
+        if resolved_asset_role == "setup_diagram":
+            resolved_method = "setup_diagram"
+        else:
+            resolved_method = self._normalize_method(method)
+            if resolved_method is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="File method is required",
+                )
         resolved_category = self._normalize_file_category(file_category)
         file_id = uuid4()
         relative_path, sha256 = self.storage.persist(
@@ -142,6 +155,7 @@ class FileAssetService:
             sha256=sha256,
             method=resolved_method,
             file_category=resolved_category,
+            asset_role=resolved_asset_role,
             note=self._normalize_note(note),
             file_kind=resolved_method,
             metadata_json=metadata_json,
@@ -304,6 +318,15 @@ class FileAssetService:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid file method",
+            )
+        return normalized
+
+    def _normalize_asset_role(self, value: str | None) -> str:
+        normalized = (value or "characterization_file").strip()
+        if normalized not in {"characterization_file", "setup_diagram"}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid asset role",
             )
         return normalized
 

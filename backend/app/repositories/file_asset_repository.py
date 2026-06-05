@@ -40,6 +40,7 @@ class FileAssetRepository:
         sample_id: UUID | None = None,
         method: str | None = None,
         file_category: str | None = None,
+        asset_role: str | None = None,
     ) -> list[FileAsset]:
         statement = (
             select(FileAsset)
@@ -69,6 +70,8 @@ class FileAssetRepository:
             statement = statement.where(FileAsset.method == method)
         if file_category:
             statement = statement.where(FileAsset.file_category == file_category)
+        if asset_role:
+            statement = statement.where(FileAsset.asset_role == asset_role)
 
         statement = statement.order_by(FileAsset.created_at.desc(), FileAsset.original_name.asc())
         return list(self.db.scalars(statement).all())

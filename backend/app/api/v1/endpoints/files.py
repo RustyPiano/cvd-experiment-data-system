@@ -24,6 +24,7 @@ def list_files(
     sample_id: Annotated[UUID | None, Query()] = None,
     method: Annotated[str | None, Query()] = None,
     file_category: Annotated[str | None, Query()] = None,
+    asset_role: Annotated[str | None, Query()] = None,
     legacy_file_kind: Annotated[
         str | None,
         Query(alias="file_kind", include_in_schema=False),
@@ -35,6 +36,7 @@ def list_files(
         sample_id=sample_id,
         method=method or legacy_file_kind,
         file_category=file_category,
+        asset_role=asset_role,
     )
 
 
@@ -51,6 +53,7 @@ def upload_file(
     sample_id: Annotated[UUID | None, Form()] = None,
     method: Annotated[str | None, Form()] = None,
     file_category: Annotated[str | None, Form()] = None,
+    asset_role: Annotated[str | None, Form()] = None,
     note: Annotated[str | None, Form()] = None,
     legacy_file_kind: Annotated[
         str | None,
@@ -64,6 +67,7 @@ def upload_file(
         sample_id=sample_id,
         method=method or legacy_file_kind,
         file_category=file_category,
+        asset_role=asset_role,
         note=note,
     )
 

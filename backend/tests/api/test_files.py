@@ -120,6 +120,38 @@ def test_upload_file_requires_method(active_user) -> None:
     assert response.json()["detail"] == "File method is required"
 
 
+def test_upload_setup_diagram_allows_missing_method(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"asset_role": "setup_diagram", "file_category": "raw"},
+        files={"file": ("setup.png", b"diagram", "image/png")},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["asset_role"] == "setup_diagram"
+    assert body["method"] == "setup_diagram"
+    assert body["sample_id"] is None
+
+
+def test_setup_diagram_rejects_sample_link(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+    sample_id = create_sample(experiment_id, active_user.email)
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"asset_role": "setup_diagram", "sample_id": sample_id, "file_category": "raw"},
+        files={"file": ("setup.png", b"diagram", "image/png")},
+    )
+
+    assert response.status_code == 422
+    assert "sample" in response.json()["detail"].lower()
+
+
 def test_upload_file_rejects_unknown_method(active_user) -> None:
     experiment_id = create_experiment(active_user.email)
 
