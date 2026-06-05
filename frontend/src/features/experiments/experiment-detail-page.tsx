@@ -11,11 +11,13 @@ import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { triggerBlobDownload } from "../../shared/lib/download";
+import { AuthenticatedImage } from "../../shared/ui/authenticated-image";
 import {
   downloadExperimentExcel,
   downloadExperimentFile,
   exportExperimentJson,
   getExperiment,
+  getSetupMethods,
   listExperimentAuditEvents,
   listExperimentFiles,
   listExperimentModules,
@@ -25,7 +27,12 @@ import { ExperimentSourceBanner } from "./components/experiment-source-banner";
 import { ExperimentStateActions } from "./experiment-state-actions";
 import { ExperimentSummary } from "./components/experiment-summary";
 import { useAuth } from "../auth/use-auth";
-import type { ExperimentModuleKey, ExperimentModulePayloadRead } from "../../shared/types/api";
+import type {
+  ExperimentModuleKey,
+  ExperimentModulePayloadRead,
+  FileAssetRead,
+  SetupMethodsRead,
+} from "../../shared/types/api";
 
 function formatFileCategory(value: string) {
   if (value === "raw") return "原始文件";
@@ -408,6 +415,142 @@ function renderResultSummaryParams(modules: ExperimentModulePayloadRead[] | unde
   );
 }
 
+function renderSetupMethods(
+  setupMethods: SetupMethodsRead | null | undefined,
+  files: FileAssetRead[],
+  token: string,
+  onDownloadFile: (fileId: string, filename: string) => Promise<void>,
+) {
+  if (!setupMethods) {
+    return <Typography.Text type="secondary">无 Setup / Methods 记录</Typography.Text>;
+  }
+
+  const diagramFile = files.find((f) => f.id === setupMethods.diagram_file_asset_id);
+
+  return (
+    <div className="content-stack">
+      <div style={{ marginBottom: 16 }}>
+        <Typography.Text strong style={{ fontSize: 16 }}>
+          {setupMethods.setup_name_snapshot}
+          {setupMethods.institution_snapshot ? ` @ ${setupMethods.institution_snapshot}` : ""}
+        </Typography.Text>
+        {setupMethods.source_setup_library_id && (
+          <div style={{ marginTop: 4 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              来源库 ID: {setupMethods.source_setup_library_id}
+            </Typography.Text>
+          </div>
+        )}
+      </div>
+
+      {diagramFile && (
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text strong>装置示意图：</Typography.Text>
+          <div style={{ marginTop: 8 }}>
+            <AuthenticatedImage
+              url={`/api/v1/files/${diagramFile.id}/download`}
+              token={token}
+              alt={diagramFile.original_name}
+              style={{
+                maxWidth: "100%",
+                maxHeight: 300,
+                objectFit: "contain",
+                borderRadius: 4,
+                border: "1px solid #d9d9d9",
+                display: "block",
+              }}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Button
+                icon={<DownloadOutlined />}
+                size="small"
+                onClick={() => {
+                  void onDownloadFile(diagramFile.id, diagramFile.original_name);
+                }}
+              >
+                下载装置示意图 ({diagramFile.original_name})
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {setupMethods.apparatus_description_snapshot && (
+        <div style={{ marginBottom: 12 }}>
+          <Typography.Text strong>装置说明：</Typography.Text>
+          <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>
+            {setupMethods.apparatus_description_snapshot}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginBottom: 12 }}>
+        <Typography.Text strong>实验方法 (Methods)：</Typography.Text>
+        <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>
+          {setupMethods.methods_text_snapshot || "—"}
+        </div>
+      </div>
+
+      {setupMethods.sample_placement_description_snapshot && (
+        <div style={{ marginBottom: 12 }}>
+          <Typography.Text strong>样品放置：</Typography.Text>
+          <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>
+            {setupMethods.sample_placement_description_snapshot}
+          </div>
+        </div>
+      )}
+
+      {setupMethods.reaction_flow_description_snapshot && (
+        <div style={{ marginBottom: 12 }}>
+          <Typography.Text strong>反应流程：</Typography.Text>
+          <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>
+            {setupMethods.reaction_flow_description_snapshot}
+          </div>
+        </div>
+      )}
+
+      {(setupMethods.reference_paper_url_snapshot ||
+        setupMethods.unpublished_reason_snapshot) && (
+        <div style={{ marginBottom: 12 }}>
+          <Typography.Text strong>文献引用 / 未发表说明：</Typography.Text>
+          <div style={{ marginTop: 4 }}>
+            {setupMethods.reference_paper_url_snapshot ? (
+              <span>
+                论文链接：{" "}
+                <a
+                  href={setupMethods.reference_paper_url_snapshot}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {setupMethods.reference_paper_url_snapshot}
+                </a>
+              </span>
+            ) : (
+              <span>未发表说明：{setupMethods.unpublished_reason_snapshot}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed #f0f0f0" }}>
+        <Typography.Text>
+          与 Setup 一致：{setupMethods.is_same_as_template ? "是" : "否"}
+        </Typography.Text>
+        {!setupMethods.is_same_as_template && setupMethods.deviation_note && (
+          <div style={{ marginTop: 8 }}>
+            <Typography.Text strong type="warning">
+              本次偏差说明 (Deviation Note)：
+            </Typography.Text>
+            <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>
+              {setupMethods.deviation_note}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ExperimentDetailPage() {
   const { experimentId = "" } = useParams();
   const navigate = useNavigate();
@@ -426,6 +569,21 @@ export function ExperimentDetailPage() {
   const modulesQuery = useQuery({
     queryKey: ["experiments", "modules", currentUser?.id ?? "anonymous", experimentId],
     queryFn: () => listExperimentModules(session.accessToken!, experimentId),
+    enabled: session.isAuthenticated && Boolean(experimentId),
+  });
+
+  const setupMethodsQuery = useQuery({
+    queryKey: ["experiments", "setup-methods", currentUser?.id ?? "anonymous", experimentId],
+    queryFn: async () => {
+      try {
+        return await getSetupMethods(session.accessToken!, experimentId);
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
     enabled: session.isAuthenticated && Boolean(experimentId),
   });
 
@@ -686,6 +844,24 @@ export function ExperimentDetailPage() {
               ) : (
                 <>
                   <Card title="基础信息">{renderBasicInfoParams(modulesQuery.data?.items)}</Card>
+                  <Card title="Setup / Methods">
+                    {setupMethodsQuery.isLoading ? (
+                      <LoadingState />
+                    ) : setupMethodsQuery.isError ? (
+                      <Alert
+                        title={resolveErrorMessage(setupMethodsQuery.error, "Setup / Methods 加载失败")}
+                        showIcon
+                        type="error"
+                      />
+                    ) : (
+                      renderSetupMethods(
+                        setupMethodsQuery.data,
+                        fileItems,
+                        session.accessToken!,
+                        handleFileDownload,
+                      )
+                    )}
+                  </Card>
                   <Card title="环境">{renderEnvironmentParams(modulesQuery.data?.items)}</Card>
                   <Card title="预检查">{renderPrecheckParams(modulesQuery.data?.items)}</Card>
                   <Card title="前驱体">{renderPrecursorsParams(modulesQuery.data?.items)}</Card>
