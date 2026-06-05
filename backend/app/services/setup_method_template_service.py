@@ -1,6 +1,5 @@
 from app.schemas.setup_methods import SetupMethodTemplateListResponse, SetupMethodTemplateRead
 
-
 SEED_TEMPLATES = [
     SetupMethodTemplateRead(
         template_key="group_fast_cvd",

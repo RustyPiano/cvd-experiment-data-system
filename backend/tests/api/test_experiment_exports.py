@@ -724,8 +724,7 @@ def test_export_analysis_uses_canonical_placements(active_user) -> None:
 
     assert export_response.status_code == 200
     assert [
-        without_setup_context(row)
-        for row in export_response.json()["furnace_precursor_rows"]
+        without_setup_context(row) for row in export_response.json()["furnace_precursor_rows"]
     ] == [
         {
             "experiment_id": experiment_id,

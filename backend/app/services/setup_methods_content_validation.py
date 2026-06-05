@@ -16,9 +16,7 @@ def validate_setup_content(
         return
 
     if _is_blank(snapshot.setup_key_snapshot):
-        errors.append(
-            issue_factory("setup_methods", "setup_key_snapshot", "Setup key is required")
-        )
+        errors.append(issue_factory("setup_methods", "setup_key_snapshot", "Setup key is required"))
     if _is_blank(snapshot.setup_name_snapshot):
         errors.append(
             issue_factory("setup_methods", "setup_name_snapshot", "Setup name is required")

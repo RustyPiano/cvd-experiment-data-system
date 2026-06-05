@@ -221,6 +221,28 @@ function createLifecycleFetchMock(initialExperiment: ExperimentFixture) {
       });
     }
 
+    if (url.pathname === "/api/v1/experiments/exp-2/setup-methods" && method === "GET") {
+      return jsonResponse({ detail: "Not found" }, { status: 404 });
+    }
+
+    if (url.pathname === "/api/v1/setup-method-templates" && method === "GET") {
+      return jsonResponse({
+        items: [],
+        total: 0,
+      });
+    }
+
+    if (
+      url.pathname === "/api/v1/files" &&
+      method === "GET" &&
+      url.searchParams.get("asset_role") === "setup_diagram"
+    ) {
+      return jsonResponse({
+        items: [],
+        total: 0,
+      });
+    }
+
     return new Response("Not found", { status: 404 });
   });
 

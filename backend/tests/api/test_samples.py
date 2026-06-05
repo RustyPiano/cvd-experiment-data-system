@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.main import app
 from app.models.audit import AuditEvent
 from app.models.sample import Sample
+from tests.helpers.setup_methods import create_confirmed_setup_methods
 
 client = TestClient(app)
 
@@ -894,6 +895,11 @@ def test_clone_locked_experiment_copies_samples_with_new_codes(active_user, admi
     experiment_id = create_response.json()["id"]
     populate_required_modules(experiment_id, admin_user.email)
     populate_substrates_module(experiment_id, admin_user.email)
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(admin_user.email),
+    )
 
     sample_response = client.post(
         f"/api/v1/experiments/{experiment_id}/samples",

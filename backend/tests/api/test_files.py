@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.main import app
 from app.services.file_storage_service import FileStorageService
+from tests.helpers.setup_methods import create_confirmed_setup_methods
 
 client = TestClient(app)
 
@@ -301,6 +302,11 @@ def test_upload_file_rejects_locked_experiment(active_user) -> None:
                 ]
             }
         },
+        headers=auth_headers(active_user.email),
+    )
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
         headers=auth_headers(active_user.email),
     )
 

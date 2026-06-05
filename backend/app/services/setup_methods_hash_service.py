@@ -4,7 +4,6 @@ import hashlib
 import json
 from typing import Any
 
-
 HASH_FIELDS = (
     "setup_name_snapshot",
     "setup_version_snapshot",

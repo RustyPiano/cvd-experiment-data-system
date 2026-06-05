@@ -889,9 +889,10 @@ def test_confirmed_setup_methods_increase_completion_score(active_user) -> None:
 
     assert without_setup_response.status_code == 200
     assert with_setup_response.status_code == 200
-    assert with_setup_response.json()["completion_score"] > without_setup_response.json()[
-        "completion_score"
-    ]
+    assert (
+        with_setup_response.json()["completion_score"]
+        > without_setup_response.json()["completion_score"]
+    )
 
 
 def test_submit_returns_same_validation_structure_on_failure(active_user, db_session) -> None:
