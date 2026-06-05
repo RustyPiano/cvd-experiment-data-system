@@ -299,8 +299,7 @@ describe("SetupLibraryPage", () => {
 
     await user.click(screen.getByRole("button", { name: "编辑" }));
 
-    await user.clear(screen.getByLabelText("名称"));
-    await user.type(screen.getByLabelText("名称"), "Setup One Updated");
+    fireEvent.change(screen.getByLabelText("名称"), { target: { value: "Setup One Updated" } });
 
     await user.click(screen.getByRole("button", { name: "确 定" }));
 

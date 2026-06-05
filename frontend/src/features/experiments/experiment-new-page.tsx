@@ -12,6 +12,8 @@ import {
   cloneExperiment,
   createExperiment,
   createExperimentFromRecipe,
+  getSetupMethods,
+  createSetupMethodsFromLibrary,
   listExperimentModules,
   listExperiments,
 } from "./api";
@@ -169,6 +171,7 @@ export function ExperimentNewPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       let inheritFrom: string | null = null;
+      let lastSetupLibraryId: string | null = null;
       const recentResponse = await listExperiments(session.accessToken!, {
         mine: true,
         status: ["draft", "submitted", "locked"],
@@ -190,6 +193,15 @@ export function ExperimentNewPage() {
           sourceExperiment,
         });
         inheritFrom = sourceExperiment.id;
+
+        try {
+          const setupResponse = await getSetupMethods(session.accessToken!, sourceExperiment.id);
+          if (setupResponse && setupResponse.source_setup_library_id) {
+            lastSetupLibraryId = setupResponse.source_setup_library_id;
+          }
+        } catch {
+          // Swallow errors (404/500) cleanly
+        }
       }
 
       try {
@@ -199,6 +211,15 @@ export function ExperimentNewPage() {
           experiment_date: dayjs().format("YYYY-MM-DD"),
           objective: null,
         });
+
+        if (lastSetupLibraryId) {
+          try {
+            await createSetupMethodsFromLibrary(session.accessToken!, experiment.id, lastSetupLibraryId);
+          } catch {
+            // Swallow errors in case the library entry is deactivated or deleted
+          }
+        }
+
         return { experiment, inheritFrom };
       } catch (error) {
         removeInheritancePayload(inheritFrom);

@@ -171,6 +171,47 @@ describe("ExperimentNewPage", () => {
         );
       }
 
+      if (url.pathname === "/api/v1/experiments/exp-source/setup-methods" && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            id: "setup-source",
+            experiment_run_id: "exp-source",
+            source_setup_library_id: "lib-1",
+            setup_name_snapshot: "Test Setup",
+            setup_version_snapshot: 1,
+            apparatus_description_snapshot: "test",
+            methods_text_snapshot: "test",
+            sample_placement_description_snapshot: "test",
+            reaction_flow_description_snapshot: "test",
+            snapshot_hash: "hash",
+            created_at: "2026-04-27T00:00:00Z",
+            updated_at: "2026-04-27T00:00:00Z",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      if (url.pathname === "/api/v1/experiments/exp-new/setup-methods/from-library" && method === "POST") {
+        return new Response(
+          JSON.stringify({
+            data: {
+              id: "setup-new",
+              experiment_run_id: "exp-new",
+              source_setup_library_id: "lib-1",
+              setup_name_snapshot: "Test Setup",
+            },
+            warnings: [],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
       if (url.pathname === "/api/v1/experiments" && method === "POST") {
         return new Response(
           JSON.stringify(
@@ -209,7 +250,9 @@ describe("ExperimentNewPage", () => {
     expect(requests.map((request) => `${request.method} ${request.pathname}`)).toEqual([
       "GET /api/v1/experiments",
       "GET /api/v1/experiments/exp-source/modules",
+      "GET /api/v1/experiments/exp-source/setup-methods",
       "POST /api/v1/experiments",
+      "POST /api/v1/experiments/exp-new/setup-methods/from-library",
     ]);
     expect(Object.fromEntries(new URLSearchParams(requests[0].search))).toEqual({
       mine: "true",

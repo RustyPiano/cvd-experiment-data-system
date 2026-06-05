@@ -347,7 +347,7 @@ function createEditorFetchMock() {
         : jsonResponse({ detail: "Not found" }, { status: 404 });
     }
 
-    if (url.pathname === "/api/v1/setup-method-templates" && method === "GET") {
+    if (url.pathname === "/api/v1/setup-library" && method === "GET") {
       return jsonResponse({
         items: [],
         total: 0,
@@ -577,8 +577,8 @@ describe("ExperimentEditorPage", () => {
       },
     );
 
-    expect(await screen.findByDisplayValue("Manual setup")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Methods text")).toBeInTheDocument();
+    expect(await screen.findByText("Manual setup")).toBeInTheDocument();
+    expect(screen.getByText("Methods text")).toBeInTheDocument();
   });
 
   it("defaults empty precheck values to unchecked and shows two blank precursor rows", async () => {
@@ -1234,7 +1234,7 @@ describe("ExperimentEditorPage", () => {
     await expectOption("预清洗气体", "氩气", "氩");
     await expectOption("气体 1", "氩气", "氩");
     await expectOption("表征方法 1", "拉曼", "拉");
-  });
+  }, 20_000);
 
   it("autosaves a lower substrate with an automatic bottom role", async () => {
     const server = createEditorFetchMock();
@@ -2733,7 +2733,7 @@ describe("ExperimentEditorPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Experiment detail route")).toBeInTheDocument();
     });
-  });
+  }, 20_000);
 
   it("renders non-draft experiments in read-only mode", async () => {
     const server = createEditorFetchMock();

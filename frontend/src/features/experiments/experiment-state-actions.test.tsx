@@ -225,7 +225,7 @@ function createLifecycleFetchMock(initialExperiment: ExperimentFixture) {
       return jsonResponse({ detail: "Not found" }, { status: 404 });
     }
 
-    if (url.pathname === "/api/v1/setup-method-templates" && method === "GET") {
+    if (url.pathname === "/api/v1/setup-library" && method === "GET") {
       return jsonResponse({
         items: [],
         total: 0,

@@ -7,12 +7,49 @@ const serialTestFiles = [
   "src/features/recipes/recipe-admin-page.test.tsx",
 ];
 
+const forkPoolTestFiles = ["src/features/experiments/experiment-editor-page.test.tsx"];
+const parallelExcludedFiles = [...serialTestFiles, ...forkPoolTestFiles];
+
 const parallelArgs = [
   "--fileParallelism=true",
-  ...serialTestFiles.flatMap((file) => ["--exclude", file]),
+  ...parallelExcludedFiles.flatMap((file) => ["--exclude", file]),
 ];
 
 const serialArgs = ["--no-file-parallelism", ...serialTestFiles];
+const forkPoolArgs = [
+  "--no-file-parallelism",
+  "--pool=forks",
+  "--reporter=verbose",
+  ...forkPoolTestFiles,
+];
+
+function hasOption(args, optionName) {
+  return args.some((arg) => arg === optionName || arg.startsWith(`${optionName}=`));
+}
+
+function includesAnyFile(args, files) {
+  return files.some((file) =>
+    args.some((arg) => {
+      const normalizedArg = arg.replaceAll("\\", "/");
+      return normalizedArg === file || normalizedArg.endsWith(`/${file}`);
+    }),
+  );
+}
+
+function withForkPoolForLongFiles(args) {
+  if (!includesAnyFile(args, forkPoolTestFiles)) {
+    return args;
+  }
+
+  const nextArgs = [...args];
+  if (!hasOption(nextArgs, "--pool")) {
+    nextArgs.unshift("--pool=forks");
+  }
+  if (!hasOption(nextArgs, "--reporter")) {
+    nextArgs.unshift("--reporter=verbose");
+  }
+  return nextArgs;
+}
 
 function runVitest(args) {
   const result = spawnSync("bun", ["x", "vitest", "run", ...args], {
@@ -34,7 +71,7 @@ if (mode === "--serial-suite") {
 }
 
 if (args.length > 0) {
-  process.exit(runVitest(args));
+  process.exit(runVitest(withForkPoolForLongFiles(args)));
 }
 
 const parallelStatus = runVitest(parallelArgs);
@@ -42,4 +79,9 @@ if (parallelStatus !== 0) {
   process.exit(parallelStatus);
 }
 
-process.exit(runVitest(serialArgs));
+const serialStatus = runVitest(serialArgs);
+if (serialStatus !== 0) {
+  process.exit(serialStatus);
+}
+
+process.exit(runVitest(forkPoolArgs));
