@@ -75,8 +75,6 @@ export type SetupMethodsValues = {
   isSameAsTemplate: boolean;
   deviationNote: string;
   semanticContextText: string;
-  confirmedAt: string | null;
-  confirmedById: string | null;
 };
 
 export type PrecheckValues = {
@@ -1129,8 +1127,6 @@ export function createSetupMethodsValues(
     isSameAsTemplate: snapshot?.is_same_as_template ?? false,
     deviationNote: snapshot?.deviation_note ?? "",
     semanticContextText: JSON.stringify(snapshot?.semantic_context ?? {}, null, 2),
-    confirmedAt: snapshot?.confirmed_at ?? null,
-    confirmedById: snapshot?.confirmed_by_id ?? null,
   };
 }
 

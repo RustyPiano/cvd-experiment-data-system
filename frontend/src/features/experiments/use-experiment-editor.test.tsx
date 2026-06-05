@@ -68,8 +68,6 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
     isSameAsTemplate: false,
     deviationNote: "",
     semanticContextText: "{}",
-    confirmedAt: null,
-    confirmedById: null,
   },
   environment: {
     indoorTemperatureC: "",
@@ -396,6 +394,50 @@ describe("useExperimentEditor completion", () => {
       "Edited while applying library",
     );
     expect(result.current.shouldWarnOnLeave).toBe(true);
+  });
+
+  it("invalidates the experiment files cache after applying a setup library", async () => {
+    vi.mocked(createSetupMethodsFromLibrary).mockResolvedValue({
+      data: createSetupMethodsRead({
+        source_setup_library_id: "library-id-123",
+        setup_name_snapshot: "Library setup",
+        diagram_file_asset_id: "file-copied-from-library",
+      }),
+      warnings: [],
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(
+      () =>
+        useExperimentEditor({
+          accessToken: "token",
+          currentUserId: "user-1",
+          experimentId: experiment.id,
+          initialExperiment: experiment,
+          initialModulePayloads: {},
+          initialValues: valuesWithEnabledCharacterizationOnly,
+        }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      await result.current.applySetupLibrary("library-id-123");
+    });
+
+    // The copied diagram lives in a fresh FileAsset, so the stale files cache must refetch.
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["experiments", "files", "user-1", experiment.id],
+    });
   });
 
   it("uses backend validation counts for non-editor module summary issues", async () => {

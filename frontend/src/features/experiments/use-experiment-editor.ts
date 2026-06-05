@@ -757,6 +757,11 @@ export function useExperimentEditor({
           setupLibraryId,
         );
         replaceSetupMethodsSnapshot(response.data, requestSectionSnapshot);
+        // The library diagram is copied into a fresh per-experiment FileAsset, so the
+        // cached file list is now stale — refetch it before the snapshot preview reads it.
+        void queryClient.invalidateQueries({
+          queryKey: ["experiments", "files", currentUserId, experimentId],
+        });
         setSectionState("setup_methods", {
           status: "saved",
           message: formatSaveMessageWithWarnings("已成功关联 Setup", response.warnings),
@@ -770,8 +775,10 @@ export function useExperimentEditor({
     },
     [
       accessToken,
+      currentUserId,
       experiment.status,
       experimentId,
+      queryClient,
       replaceSetupMethodsSnapshot,
       setSectionState,
     ],

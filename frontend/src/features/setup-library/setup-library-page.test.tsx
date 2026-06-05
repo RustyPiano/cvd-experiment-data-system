@@ -187,7 +187,7 @@ function createSetupLibraryServer() {
   return { fetchMock, requests };
 }
 
-function renderSetupLibrary() {
+function renderSetupLibrary(role: "member" | "viewer" | "admin" = "member") {
   return renderWithApp(
     <Routes>
       <Route path="/setup-library" element={<SetupLibraryPage />} />
@@ -199,7 +199,7 @@ function renderSetupLibrary() {
         id: "member-1",
         email: "member@example.com",
         name: "Test User",
-        role: "member",
+        role,
         is_active: true,
         last_login_at: null,
       },
@@ -223,6 +223,16 @@ describe("SetupLibraryPage", () => {
     expect(screen.getByText("Setup Two")).toBeInTheDocument();
     expect(screen.getByText("私有")).toBeInTheDocument();
     expect(screen.getByText("群组")).toBeInTheDocument();
+  });
+
+  it("hides 新建 Setup for viewers (backend forbids them creating)", async () => {
+    const server = createSetupLibraryServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderSetupLibrary("viewer");
+
+    expect(await screen.findByText("Setup One")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /新建 Setup/ })).not.toBeInTheDocument();
   });
 
   it("opens the detail drawer when clicking 查看详情", async () => {

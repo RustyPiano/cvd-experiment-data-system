@@ -46,6 +46,7 @@ export function SetupLibraryPage() {
   const queryClient = useQueryClient();
   const { session } = useAuth();
   const token = session.accessToken || "";
+  const isViewer = session.currentUser?.role === "viewer";
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -259,13 +260,15 @@ export function SetupLibraryPage() {
         title="Setup 库"
         subtitle="记录和管理实验室的 CVD 装置与实验 Setup，用于在实验中快速引用。"
         actions={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleOpenCreate}
-          >
-            新建 Setup
-          </Button>
+          isViewer ? undefined : (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleOpenCreate}
+            >
+              新建 Setup
+            </Button>
+          )
         }
       />
 

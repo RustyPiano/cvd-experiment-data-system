@@ -69,8 +69,6 @@ const baseValue = {
   isSameAsTemplate: false,
   deviationNote: "",
   semanticContextText: "{}",
-  confirmedAt: null,
-  confirmedById: null,
 };
 
 afterEach(() => {

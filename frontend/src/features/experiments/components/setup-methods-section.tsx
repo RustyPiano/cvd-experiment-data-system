@@ -57,8 +57,6 @@ export function SetupMethodsSection({
     onChange({
       ...value,
       ...patch,
-      confirmedAt: null,
-      confirmedById: null,
     });
   };
 
