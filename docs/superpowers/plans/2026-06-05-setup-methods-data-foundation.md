@@ -961,7 +961,15 @@ def test_upsert_setup_methods_creates_snapshot(active_user) -> None:
     assert body["warnings"] == []
     assert body["data"]["setup_name_snapshot"] == "Manual setup"
     assert body["data"]["setup_key_snapshot"].startswith("manual:")
+    assert body["data"]["semantic_context"] == {"temperature_reference": "setpoint"}
     assert body["data"]["confirmed_at"] is None
+
+    get_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        headers=auth_headers(active_user.email),
+    )
+    assert get_response.status_code == 200
+    assert get_response.json()["semantic_context"] == {"temperature_reference": "setpoint"}
 
 
 def test_confirm_setup_methods_sets_confirmation(active_user) -> None:
@@ -990,6 +998,78 @@ def test_confirm_setup_methods_sets_confirmation(active_user) -> None:
     assert response.status_code == 200
     assert response.json()["data"]["confirmed_by_id"] is not None
     assert response.json()["warnings"] == []
+
+
+def test_create_setup_methods_from_template_writes_template_snapshot(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-template",
+        json={"template_key": "group_fast_cvd", "template_version": 1},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["warnings"] == []
+    assert body["data"]["source_template_key"] == "group_fast_cvd"
+    assert body["data"]["source_template_version"] == 1
+    assert body["data"]["setup_key_snapshot"] == "group_fast_cvd"
+    assert body["data"]["setup_version_snapshot"] == 1
+    assert body["data"]["confirmed_at"] is None
+    assert body["data"]["semantic_context"] == {"temperature_reference": "furnace program setpoint"}
+
+
+def test_from_template_warning_response_uses_validation_issue_shape(active_user, monkeypatch) -> None:
+    from app.schemas.experiment_validation import ExperimentValidationIssue
+    from app.schemas.setup_methods import SetupMethodTemplateRead
+    from app.services.setup_method_template_service import SetupMethodTemplateService
+    from app.services.setup_methods_service import SetupMethodsService
+
+    def fake_get_template(self, template_key, template_version=None):
+        return SetupMethodTemplateRead(
+            template_key="group_fast_cvd",
+            template_version=1,
+            name="组内快速 CVD",
+            institution="group",
+            apparatus_description="Two-zone tube furnace CVD setup used by the group.",
+            methods_text="Template methods",
+            sample_placement_description="Template placement",
+            reaction_flow_description="Template flow",
+            unpublished_reason="Internal group setup template",
+            semantic_context={"temperature_reference": "furnace program setpoint"},
+            has_packaged_diagram=True,
+        )
+
+    def fake_materialize_diagram(self, experiment, template, current_user):
+        return None, ExperimentValidationIssue(
+            module_key="setup_methods",
+            field_path="diagram_file_asset_id",
+            message="Setup diagram could not be materialized from template",
+        )
+
+    monkeypatch.setattr(SetupMethodTemplateService, "get_template", fake_get_template)
+    monkeypatch.setattr(
+        SetupMethodsService,
+        "_materialize_template_diagram",
+        fake_materialize_diagram,
+    )
+    experiment_id = create_experiment(active_user.email)
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-template",
+        json={"template_key": "group_fast_cvd", "template_version": 1},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["warnings"] == [
+        {
+            "module_key": "setup_methods",
+            "field_path": "diagram_file_asset_id",
+            "message": "Setup diagram could not be materialized from template",
+        }
+    ]
 
 
 def test_setup_diagram_must_belong_to_same_experiment(active_user) -> None:
@@ -1090,7 +1170,7 @@ def test_get_setup_method_template_resolves_current_version(active_user) -> None
 Run:
 
 ```bash
-cd backend && uv run pytest tests/api/test_setup_methods.py -q
+cd backend && uv run pytest tests/api/test_setup_methods.py tests/api/test_setup_method_templates.py -q
 ```
 
 Expected: FAIL because routes and service do not exist.
@@ -1140,6 +1220,7 @@ The service must:
 - require draft experiment for mutation
 - validate `diagram_file_asset_id` belongs to the same experiment, is not deleted, has `asset_role="setup_diagram"`, and has `sample_id is None`
 - store `semantic_context` under `metadata_json["semantic_context"]`
+- implement `_to_read(snapshot)` by explicitly mapping `semantic_context=(snapshot.metadata_json or {}).get("semantic_context", {})`; direct `SetupMethodsRead.model_validate(snapshot)` is not sufficient because `semantic_context` is not an ORM column
 - recalculate `snapshot_hash` on each upsert
 - set manual `setup_key_snapshot` when `source_template_key is None`
 - clear `confirmed_by_id` and `confirmed_at` on changes
@@ -1276,6 +1357,52 @@ def test_setup_methods_missing_blocks_validation(active_user, db_session) -> Non
         and "required" in issue.message
         for issue in result.errors
     )
+
+
+def test_setup_methods_missing_group_key_blocks_validation(active_user, db_session) -> None:
+    from datetime import UTC, datetime
+
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    experiment = ExperimentRun(
+        run_code="CVD-2026-SETUP-NOKEY",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="setup key validation",
+        quality_label=QualityLabel.SUCCESS,
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+    snapshot = ExperimentSetupSnapshot(
+        experiment_run_id=experiment.id,
+        setup_key_snapshot=None,
+        setup_name_snapshot="Manual setup",
+        setup_version_snapshot=1,
+        apparatus_description_snapshot="Tube furnace",
+        methods_text_snapshot="Methods",
+        sample_placement_description_snapshot="Placement",
+        reaction_flow_description_snapshot="Flow",
+        unpublished_reason_snapshot="Internal",
+        is_same_as_template=False,
+        confirmed_by_id=active_user.id,
+        confirmed_at=datetime.now(UTC),
+        snapshot_hash="a" * 64,
+        metadata_json={"semantic_context": {}},
+    )
+    db_session.add(snapshot)
+    db_session.commit()
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    assert any(
+        issue.module_key == "setup_methods"
+        and issue.field_path == "setup_key_snapshot"
+        and "required" in issue.message
+        for issue in result.errors
+    )
 ```
 
 Append to `backend/tests/api/test_experiments.py`:
@@ -1320,7 +1447,7 @@ def test_lock_revalidates_submitted_experiment_missing_setup_methods(active_user
 Run:
 
 ```bash
-cd backend && uv run pytest tests/services/test_experiment_validation_service.py::test_setup_methods_missing_blocks_validation tests/api/test_experiments.py::test_lock_revalidates_submitted_experiment_missing_setup_methods -q
+cd backend && uv run pytest tests/services/test_experiment_validation_service.py::test_setup_methods_missing_blocks_validation tests/services/test_experiment_validation_service.py::test_setup_methods_missing_group_key_blocks_validation tests/api/test_experiments.py::test_lock_revalidates_submitted_experiment_missing_setup_methods -q
 ```
 
 Expected: FAIL because setup methods validation is not implemented and lock does not validate.
@@ -1341,6 +1468,8 @@ def _validate_setup_methods(self, experiment: ExperimentRun, errors: list[Experi
     if snapshot is None:
         errors.append(self._issue("setup_methods", "root", "Setup / Methods is required"))
         return
+    if self._is_blank(snapshot.setup_key_snapshot):
+        errors.append(self._issue("setup_methods", "setup_key_snapshot", "Setup key is required"))
     if self._is_blank(snapshot.setup_name_snapshot):
         errors.append(self._issue("setup_methods", "setup_name_snapshot", "Setup name is required"))
     if snapshot.diagram_file_asset_id is None:
@@ -1434,6 +1563,12 @@ def test_clone_copies_setup_snapshot_but_requires_reconfirmation(active_user) ->
     )
     assert upsert_response.status_code == 200
     assert client.post(f"/api/v1/experiments/{source_id}/setup-methods/confirm", headers=auth_headers(active_user.email)).status_code == 200
+    populate_required_modules(source_id, active_user.email)
+    submit_response = client.post(
+        f"/api/v1/experiments/{source_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    assert submit_response.status_code == 200
 
     clone_response = client.post(
         f"/api/v1/experiments/{source_id}/clone",
@@ -1656,6 +1791,10 @@ def test_json_export_includes_setup_methods_snapshot(active_user) -> None:
     assert setup["setup_name_snapshot"] == "Manual setup"
     assert setup["semantic_context"]["temperature_reference"] == "setpoint"
     assert setup["snapshot_hash"]
+    assert any(
+        event["entity_type"] == "experiment_setup_snapshot"
+        for event in response.json()["audit_events"]
+    )
 
 
 def test_analysis_export_includes_setup_context_on_all_rows(active_user) -> None:
@@ -1693,6 +1832,7 @@ def test_analysis_export_includes_setup_context_on_all_rows(active_user) -> None
         for row in rows:
             for field in context_fields:
                 assert field in row
+                assert row[field] not in (None, "")
 
 
 def test_excel_export_includes_setup_methods_sheet(active_user) -> None:
@@ -1756,6 +1896,7 @@ setup_snapshot_hash: str | None
 - [ ] **Step 4: Extend export service**
 
 In `ExperimentExportService.build_json_export`, fetch snapshot and populate `setup_methods`.
+When collecting audit events, include `entity_type="experiment_setup_snapshot"` rows for the snapshot ID so exports preserve methods/deviation change history.
 
 In `build_analysis_export`, build:
 
@@ -1959,6 +2100,11 @@ export type SetupMethodTemplateRead = {
   semantic_context: Record<string, unknown>;
   has_packaged_diagram: boolean;
 };
+
+export type SetupMethodTemplateListResponse = {
+  items: SetupMethodTemplateRead[];
+  total: number;
+};
 ```
 
 - [ ] **Step 2: Add API functions**
@@ -1992,7 +2138,32 @@ export function createSetupMethodsFromTemplate(token: string, experimentId: stri
     token,
   });
 }
+
+export function listSetupMethodTemplates(token: string) {
+  return apiRequest<SetupMethodTemplateListResponse>("/api/v1/setup-method-templates", { token });
+}
+
+export function getSetupMethodTemplate(token: string, templateKey: string, templateVersion?: number) {
+  return apiRequest<SetupMethodTemplateRead>(
+    `/api/v1/setup-method-templates/${templateKey}${buildQueryString({ version: templateVersion ?? null })}`,
+    { token },
+  );
+}
 ```
+
+Extend `ListExperimentFilesFilters`:
+
+```ts
+type ListExperimentFilesFilters = {
+  experimentId: string;
+  fileCategory?: string | null;
+  method?: string | null;
+  sampleId?: string | null;
+  assetRole?: "characterization_file" | "setup_diagram" | null;
+};
+```
+
+Add `asset_role: filters.assetRole ?? null` to the `listExperimentFiles` query string.
 
 - [ ] **Step 3: Update file upload type**
 
@@ -2011,6 +2182,13 @@ type UploadExperimentFileInput = {
 ```
 
 Set `asset_role` in `FormData` when provided.
+Only set `method` when `payload.method` is non-empty:
+
+```ts
+if (payload.method) {
+  formData.set("method", payload.method);
+}
+```
 
 - [ ] **Step 4: Run typecheck**
 
@@ -2049,7 +2227,7 @@ Create `frontend/src/features/experiments/components/setup-methods-section.test.
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { renderWithProviders } from "../../../test/render";
+import { renderWithApp } from "../../../test/render";
 import { SetupMethodsSection } from "./setup-methods-section";
 
 test("renders setup methods required fields and confirm action", async () => {
@@ -2057,7 +2235,7 @@ test("renders setup methods required fields and confirm action", async () => {
   const onChange = vi.fn();
   const onConfirm = vi.fn();
 
-  renderWithProviders(
+  renderWithApp(
     <SetupMethodsSection
       disabled={false}
       files={[]}
@@ -2065,6 +2243,8 @@ test("renders setup methods required fields and confirm action", async () => {
       onConfirm={onConfirm}
       templateOptions={[]}
       value={{
+        sourceTemplateKey: null,
+        sourceTemplateVersion: null,
         setupNameSnapshot: "",
         institutionSnapshot: "",
         apparatusDescriptionSnapshot: "",
@@ -2098,6 +2278,95 @@ cd frontend && bun run test -- setup-methods-section
 
 Expected: FAIL because component does not exist.
 
+- [ ] **Step 2a: Write failing editor load test**
+
+Add or update `frontend/src/features/experiments/experiment-editor-page.test.tsx`:
+
+```tsx
+test("loads existing setup methods snapshot into the editor", async () => {
+  const server = createEditorFetchMock();
+  server.setupMethods = {
+    id: "setup-1",
+    experiment_run_id: "exp-1",
+    source_template_key: null,
+    source_template_version: null,
+    setup_key_snapshot: "manual:abcdef1234567890",
+    setup_name_snapshot: "Manual setup",
+    setup_version_snapshot: 1,
+    institution_snapshot: "group",
+    apparatus_description_snapshot: "Tube furnace",
+    methods_text_snapshot: "Methods text",
+    sample_placement_description_snapshot: "Substrate downstream",
+    reaction_flow_description_snapshot: "Purge ramp hold cool",
+    reference_paper_url_snapshot: null,
+    unpublished_reason_snapshot: "Internal",
+    diagram_file_asset_id: "file-setup",
+    is_same_as_template: false,
+    deviation_note: null,
+    confirmed_by_id: null,
+    confirmed_at: null,
+    snapshot_hash: "a".repeat(64),
+    semantic_context: { temperature_reference: "setpoint" },
+    created_at: "2026-06-05T00:00:00Z",
+    updated_at: "2026-06-05T00:00:00Z",
+  };
+  vi.stubGlobal("fetch", server.fetchMock);
+
+  renderWithApp(
+    <Routes>
+      <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+    </Routes>,
+    {
+    authenticated: true,
+    initialEntries: ["/experiments/exp-1/edit"],
+    },
+  );
+
+  expect(await screen.findByDisplayValue("Manual setup")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Methods text")).toBeInTheDocument();
+});
+```
+
+Modify `createEditorFetchMock` in the same test file so it stores setup state on the returned server object and handles these GETs:
+
+```tsx
+const serverState = {
+  setupMethods: null as Record<string, unknown> | null,
+};
+
+if (url.pathname === "/api/v1/experiments/exp-1/setup-methods" && method === "GET") {
+  return serverState.setupMethods
+    ? jsonResponse(serverState.setupMethods)
+    : jsonResponse({ detail: "Not found" }, { status: 404 });
+}
+
+if (url.pathname === "/api/v1/setup-method-templates" && method === "GET") {
+  return jsonResponse({ items: [], total: 0 });
+}
+
+if (url.pathname === "/api/v1/files" && method === "GET" && url.searchParams.get("asset_role") === "setup_diagram") {
+  return jsonResponse({ items: [], total: 0 });
+}
+```
+
+Return accessors from `createEditorFetchMock` so the test can assign the full snapshot object to `server.setupMethods` before rendering and the fetch mock reads the same value:
+
+```tsx
+return {
+  experiment,
+  modules,
+  requests,
+  sourceModules,
+  fetchMock,
+  get setupMethods() {
+    return serverState.setupMethods;
+  },
+  set setupMethods(value: Record<string, unknown> | null) {
+    serverState.setupMethods = value;
+  },
+};
+```
+
 - [ ] **Step 3: Add editor types**
 
 Modify `editorSectionKeys` to insert `"setup_methods"` after `"basic_info"`.
@@ -2106,6 +2375,8 @@ Add:
 
 ```ts
 export type SetupMethodsValues = {
+  sourceTemplateKey: string | null;
+  sourceTemplateVersion: number | null;
   setupNameSnapshot: string;
   institutionSnapshot: string;
   apparatusDescriptionSnapshot: string;
@@ -2124,6 +2395,30 @@ export type SetupMethodsValues = {
 
 Add `setupMethods: SetupMethodsValues` to `ExperimentEditorValues`.
 
+Add conversion helpers in `editor-types.ts`:
+
+```ts
+export function createSetupMethodsValues(snapshot: SetupMethodsRead | null): SetupMethodsValues {
+  return {
+    sourceTemplateKey: snapshot?.source_template_key ?? null,
+    sourceTemplateVersion: snapshot?.source_template_version ?? null,
+    setupNameSnapshot: snapshot?.setup_name_snapshot ?? "",
+    institutionSnapshot: snapshot?.institution_snapshot ?? "",
+    apparatusDescriptionSnapshot: snapshot?.apparatus_description_snapshot ?? "",
+    methodsTextSnapshot: snapshot?.methods_text_snapshot ?? "",
+    samplePlacementDescriptionSnapshot: snapshot?.sample_placement_description_snapshot ?? "",
+    reactionFlowDescriptionSnapshot: snapshot?.reaction_flow_description_snapshot ?? "",
+    referencePaperUrlSnapshot: snapshot?.reference_paper_url_snapshot ?? "",
+    unpublishedReasonSnapshot: snapshot?.unpublished_reason_snapshot ?? "",
+    diagramFileAssetId: snapshot?.diagram_file_asset_id ?? "",
+    isSameAsTemplate: snapshot?.is_same_as_template ?? false,
+    deviationNote: snapshot?.deviation_note ?? "",
+    semanticContextText: JSON.stringify(snapshot?.semantic_context ?? {}, null, 2),
+    confirmedAt: snapshot?.confirmed_at ?? null,
+  };
+}
+```
+
 - [ ] **Step 4: Implement non-module autosave branch**
 
 In `useExperimentEditor`, when `sectionKey === "setup_methods"`:
@@ -2132,6 +2427,7 @@ In `useExperimentEditor`, when `sectionKey === "setup_methods"`:
 - do not call `upsertExperimentModule`
 - update local setup methods state from `response.data`
 - surface `response.warnings` in section save message
+- expose `confirmSetupMethods` and `createSetupMethodsFromTemplate` handlers so the page can confirm or seed the section without routing through module APIs
 
 - [ ] **Step 5: Build `SetupMethodsSection`**
 
@@ -2155,7 +2451,11 @@ In `experiment-editor-page.tsx`:
 
 - add `setup_methods` to `sectionAnchorList`
 - render `SetupMethodsSection` after `ExperimentMainFields`
-- query setup diagram files with `listExperimentFiles({ assetRole: "setup_diagram" })` after Task 11 extends filters
+- add a `setupMethodsQuery` using `getSetupMethods`; catch `HttpError` with `status === 404` and return `null` so new drafts render an empty setup section
+- add a `setupTemplatesQuery` using `listSetupMethodTemplates`
+- add a `setupDiagramFilesQuery` using `listExperimentFiles({ experimentId, assetRole: "setup_diagram" })`; the `assetRole` filter is added in Task 9
+- build `initialValues` only after experiment, modules, and setup methods queries have resolved, and call `createSetupMethodsValues(setupMethodsQuery.data ?? null)`
+- pass `setupTemplatesQuery.data?.items ?? []` and `setupDiagramFilesQuery.data?.items ?? []` into `SetupMethodsSection`
 - pass confirm handler from editor hook
 
 - [ ] **Step 7: Run frontend editor tests**
