@@ -14,6 +14,11 @@ export function EditorSectionCard({
   subtitle: string;
   title: string;
 }) {
+  const shouldShowSavedWarning =
+    state.status === "saved" &&
+    Boolean(state.message) &&
+    !["已自动保存", "Setup 已确认", "已套用模板"].includes(state.message ?? "");
+
   return (
     <Card>
       <div className="editor-section-header">
@@ -32,6 +37,14 @@ export function EditorSectionCard({
           showIcon
           style={{ marginBottom: 16 }}
           type="error"
+        />
+      ) : null}
+      {shouldShowSavedWarning ? (
+        <Alert
+          title={state.message}
+          showIcon
+          style={{ marginBottom: 16 }}
+          type="warning"
         />
       ) : null}
       {children}

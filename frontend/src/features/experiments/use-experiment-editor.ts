@@ -125,6 +125,21 @@ function removeInheritancePayload(sourceExperimentId: string) {
   window.sessionStorage.removeItem(inheritanceStorageKey(sourceExperimentId));
 }
 
+function formatSaveMessageWithWarnings(
+  successMessage: string,
+  warnings: Array<{ message: string }>,
+) {
+  if (warnings.length === 0) {
+    return successMessage;
+  }
+
+  const warningMessages = warnings.map((warning) => warning.message.trim()).filter(Boolean);
+  if (!warningMessages.length) {
+    return `${successMessage}，${warnings.length} 条提示`;
+  }
+  return `${successMessage}：${warningMessages.join("；")}`;
+}
+
 function createInheritedModulePayload(
   experimentId: string,
   moduleKey: InheritedSectionKey,
@@ -425,20 +440,28 @@ export function useExperimentEditor({
   );
 
   const replaceSetupMethodsSnapshot = useCallback(
-    (savedSetupMethods: SetupMethodsRead) => {
+    (savedSetupMethods: SetupMethodsRead, requestSectionSnapshot?: string) => {
       const setupMethods = createSetupMethodsValues(savedSetupMethods);
+      const currentSectionSnapshot = serializeSectionValues(
+        "setup_methods",
+        valuesRef.current,
+      );
+      const shouldReplaceValues =
+        requestSectionSnapshot === undefined || currentSectionSnapshot === requestSectionSnapshot;
       const nextValues = {
         ...valuesRef.current,
         setupMethods,
       };
-      valuesRef.current = nextValues;
-      setValues(nextValues);
       snapshotsRef.current.setup_methods = serializeSectionValues(
         "setup_methods",
         nextValues,
       );
       patchSetupMethodsCache(savedSetupMethods);
-      setHasDirtyChanges(getDirtySections(nextValues).length > 0);
+      if (shouldReplaceValues) {
+        valuesRef.current = nextValues;
+        setValues(nextValues);
+      }
+      setHasDirtyChanges(getDirtySections(valuesRef.current).length > 0);
       return setupMethods;
     },
     [getDirtySections, patchSetupMethodsCache],
@@ -489,17 +512,18 @@ export function useExperimentEditor({
       for (const sectionKey of savableSections) {
         let savedModule: ExperimentModulePayloadRead | null = null;
         let savedSetupValues: ExperimentEditorValues["setupMethods"] | null = null;
-        let setupWarningCount = 0;
+        let setupWarnings: Array<{ message: string }> = [];
 
         try {
           if (sectionKey === "setup_methods") {
+            const requestSectionSnapshot = serializeSectionValues(sectionKey, draftValues);
             const response = await upsertSetupMethods(
               accessToken,
               experimentId,
               toSetupMethodsPayload(draftValues.setupMethods),
             );
-            savedSetupValues = replaceSetupMethodsSnapshot(response.data);
-            setupWarningCount = response.warnings.length;
+            savedSetupValues = replaceSetupMethodsSnapshot(response.data, requestSectionSnapshot);
+            setupWarnings = response.warnings;
           } else if (sectionKey === "basic_info") {
             const patchedExperiment = await updateExperiment(
               accessToken,
@@ -612,16 +636,9 @@ export function useExperimentEditor({
           }
 
           if (savedSetupValues) {
-            snapshotsRef.current[sectionKey] = serializeSectionValues(
-              sectionKey,
-              valuesRef.current,
-            );
             setSectionState(sectionKey, {
               status: "saved",
-              message:
-                setupWarningCount > 0
-                  ? `已自动保存，${setupWarningCount} 条提示`
-                  : "已自动保存",
+              message: formatSaveMessageWithWarnings("已自动保存", setupWarnings),
             });
             continue;
           }
@@ -742,14 +759,15 @@ export function useExperimentEditor({
         return;
       }
 
+      const requestSectionSnapshot = serializeSectionValues(
+        "setup_methods",
+        valuesRef.current,
+      );
       const response = await confirmSetupMethodsRequest(accessToken, experimentId);
-      replaceSetupMethodsSnapshot(response.data);
+      replaceSetupMethodsSnapshot(response.data, requestSectionSnapshot);
       setSectionState("setup_methods", {
         status: "saved",
-        message:
-          response.warnings.length > 0
-            ? `Setup 已确认，${response.warnings.length} 条提示`
-            : "Setup 已确认",
+        message: formatSaveMessageWithWarnings("Setup 已确认", response.warnings),
       });
     } catch (error) {
       setSectionState("setup_methods", {
@@ -784,19 +802,20 @@ export function useExperimentEditor({
       });
 
       try {
+        const requestSectionSnapshot = serializeSectionValues(
+          "setup_methods",
+          valuesRef.current,
+        );
         const response = await createSetupMethodsFromTemplateRequest(
           accessToken,
           experimentId,
           templateKey,
           templateVersion,
         );
-        replaceSetupMethodsSnapshot(response.data);
+        replaceSetupMethodsSnapshot(response.data, requestSectionSnapshot);
         setSectionState("setup_methods", {
           status: "saved",
-          message:
-            response.warnings.length > 0
-              ? `已套用模板，${response.warnings.length} 条提示`
-              : "已套用模板",
+          message: formatSaveMessageWithWarnings("已套用模板", response.warnings),
         });
       } catch (error) {
         setSectionState("setup_methods", {
@@ -1038,10 +1057,12 @@ export function useExperimentEditor({
   );
   const shouldWarnOnLeave =
     experiment.status === "draft" &&
-    (hasSavingSections || (hasSaveErrors && hasDirtyChanges));
+    (hasSavingSections || hasDirtyChanges);
   const leaveWarning = hasSavingSections
     ? "仍有区块正在保存，确认离开当前编辑页吗？"
-    : "仍有保存失败且未持久化的修改，确认离开当前编辑页吗？";
+    : hasSaveErrors && hasDirtyChanges
+      ? "仍有保存失败且未持久化的修改，确认离开当前编辑页吗？"
+      : "仍有未保存修改，确认离开当前编辑页吗？";
 
   useEffect(() => {
     return () => {

@@ -74,6 +74,7 @@ export type SetupMethodsValues = {
   deviationNote: string;
   semanticContextText: string;
   confirmedAt: string | null;
+  confirmedById: string | null;
 };
 
 export type PrecheckValues = {
@@ -1137,6 +1138,7 @@ export function createSetupMethodsValues(
     deviationNote: snapshot?.deviation_note ?? "",
     semanticContextText: JSON.stringify(snapshot?.semantic_context ?? {}, null, 2),
     confirmedAt: snapshot?.confirmed_at ?? null,
+    confirmedById: snapshot?.confirmed_by_id ?? null,
   };
 }
 
@@ -1340,6 +1342,7 @@ export function toSetupMethodsCompletionPayload(values: SetupMethodsValues) {
     reaction_flow_description_snapshot: values.reactionFlowDescriptionSnapshot,
     diagram_file_asset_id: values.diagramFileAssetId,
     confirmed_at: values.confirmedAt,
+    confirmed_by_id: values.confirmedById,
   };
 }
 

@@ -738,6 +738,11 @@ class ExperimentValidationService:
             if isinstance(environment_payload, dict)
             else None
         )
+        setup_diagram_is_valid = (
+            setup_snapshot is not None
+            and setup_snapshot.diagram_file_asset_id is not None
+            and self._is_valid_setup_diagram_file(experiment, setup_snapshot.diagram_file_asset_id)
+        )
 
         checks = [
             not self._is_blank(experiment.experiment_type),
@@ -788,9 +793,11 @@ class ExperimentValidationService:
             self._is_number(indoor_humidity) and 0 <= float(indoor_humidity) <= 100,
             setup_snapshot is not None,
             setup_snapshot is not None and not self._is_blank(setup_snapshot.setup_key_snapshot),
-            setup_snapshot is not None and setup_snapshot.diagram_file_asset_id is not None,
+            setup_diagram_is_valid,
             setup_snapshot is not None and not self._is_blank(setup_snapshot.methods_text_snapshot),
-            setup_snapshot is not None and setup_snapshot.confirmed_at is not None,
+            setup_snapshot is not None
+            and setup_snapshot.confirmed_at is not None
+            and setup_snapshot.confirmed_by_id is not None,
         ]
 
         return round(sum(1 for check in checks if check) / len(checks) * 100)
@@ -802,15 +809,39 @@ class ExperimentValidationService:
         errors: list[ExperimentValidationIssue],
         warnings: list[ExperimentValidationIssue],
     ) -> None:
-        del experiment, warnings
+        del warnings
         before_count = len(errors)
         validate_setup_content(snapshot, self._issue, errors)
         if snapshot is None or len(errors) > before_count:
             return
+        if not self._is_valid_setup_diagram_file(experiment, snapshot.diagram_file_asset_id):
+            errors.append(
+                self._issue(
+                    "setup_methods",
+                    "diagram_file_asset_id",
+                    "Setup diagram must be an active setup diagram file",
+                )
+            )
         if snapshot.confirmed_at is None or snapshot.confirmed_by_id is None:
             errors.append(
                 self._issue("setup_methods", "confirmed_at", "Setup confirmation is required")
             )
+
+    def _is_valid_setup_diagram_file(
+        self,
+        experiment: ExperimentRun,
+        diagram_file_asset_id: UUID | None,
+    ) -> bool:
+        if diagram_file_asset_id is None:
+            return False
+        file_asset = self.files.get_by_id(diagram_file_asset_id)
+        return (
+            file_asset is not None
+            and file_asset.deleted_at is None
+            and file_asset.experiment_run_id == experiment.id
+            and file_asset.asset_role == "setup_diagram"
+            and file_asset.sample_id is None
+        )
 
     def _issue(self, module_key: str, field_path: str, message: str) -> ExperimentValidationIssue:
         translated_message = ISSUE_MESSAGE_ZH.get(message)

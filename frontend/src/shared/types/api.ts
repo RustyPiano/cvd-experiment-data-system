@@ -455,6 +455,7 @@ export type ExperimentExportRead = {
   modules: ExperimentModulePayloadRead[];
   samples: SampleRead[];
   files: FileAssetRead[];
+  setup_methods: SetupMethodsRead | null;
   features: Array<Record<string, unknown>>;
   provenance: {
     derived_from_run_id: string | null;

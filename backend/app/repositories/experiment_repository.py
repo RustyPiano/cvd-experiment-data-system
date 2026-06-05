@@ -157,6 +157,7 @@ class ExperimentRepository:
                 or_(
                     ExperimentSetupSnapshot.id.is_(None),
                     ExperimentSetupSnapshot.confirmed_at.is_(None),
+                    ExperimentSetupSnapshot.confirmed_by_id.is_(None),
                 )
             )
         )
@@ -193,6 +194,7 @@ class ExperimentRepository:
                     or_(
                         ExperimentSetupSnapshot.id.is_(None),
                         ExperimentSetupSnapshot.confirmed_at.is_(None),
+                        ExperimentSetupSnapshot.confirmed_by_id.is_(None),
                     )
                 )
                 .label("missing_setup_methods"),

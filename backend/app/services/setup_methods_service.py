@@ -142,6 +142,21 @@ class SetupMethodsService:
             self._recalculate_snapshot_hash(snapshot)
         errors: list[ExperimentValidationIssue] = []
         validate_setup_content(snapshot, self._issue, errors)
+        if (
+            snapshot is not None
+            and snapshot.diagram_file_asset_id is not None
+            and not self._is_valid_setup_diagram_file(
+                experiment,
+                snapshot.diagram_file_asset_id,
+            )
+        ):
+            errors.append(
+                self._issue(
+                    "setup_methods",
+                    "diagram_file_asset_id",
+                    "Setup diagram must be an active setup diagram file",
+                )
+            )
         if errors:
             raise ExperimentValidationFailed(
                 ExperimentValidationResponse(ok=False, errors=errors, warnings=[])
@@ -224,6 +239,9 @@ class SetupMethodsService:
         diagram_file = self._validate_setup_diagram_file(experiment, payload.diagram_file_asset_id)
         existing = self.setup_methods.get_by_experiment(experiment.id)
         before = self._serialize_snapshot(existing)
+        previous_snapshot_hash = existing.snapshot_hash if existing is not None else None
+        previous_confirmed_by_id = existing.confirmed_by_id if existing is not None else None
+        previous_confirmed_at = existing.confirmed_at if existing is not None else None
         snapshot = existing or ExperimentSetupSnapshot(experiment_run_id=experiment.id)
         snapshot.setup_name_snapshot = payload.setup_name_snapshot
         snapshot.institution_snapshot = payload.institution_snapshot
@@ -238,12 +256,16 @@ class SetupMethodsService:
         snapshot.diagram_file_asset_id = diagram_file.id if diagram_file is not None else None
         snapshot.is_same_as_template = self._resolve_template_match(snapshot, payload)
         snapshot.deviation_note = self._normalized_optional_text(payload.deviation_note)
-        snapshot.confirmed_by_id = None
-        snapshot.confirmed_at = None
         snapshot.metadata_json = {"semantic_context": payload.semantic_context}
         if snapshot.source_template_key is None:
             snapshot.setup_version_snapshot = 1
         self._recalculate_snapshot_hash(snapshot, diagram_file=diagram_file)
+        if previous_snapshot_hash is not None and snapshot.snapshot_hash == previous_snapshot_hash:
+            snapshot.confirmed_by_id = previous_confirmed_by_id
+            snapshot.confirmed_at = previous_confirmed_at
+        else:
+            snapshot.confirmed_by_id = None
+            snapshot.confirmed_at = None
         saved = self.setup_methods.save(snapshot)
         self.audit.record_event(
             actor=current_user,
@@ -311,6 +333,22 @@ class SetupMethodsService:
                 detail="Setup diagram must belong to the same experiment",
             )
         return file_asset
+
+    def _is_valid_setup_diagram_file(
+        self,
+        experiment: ExperimentRun,
+        diagram_file_asset_id: UUID | None,
+    ) -> bool:
+        if diagram_file_asset_id is None:
+            return False
+        file_asset = self.files.get_by_id(diagram_file_asset_id)
+        return (
+            file_asset is not None
+            and file_asset.deleted_at is None
+            and file_asset.experiment_run_id == experiment.id
+            and file_asset.asset_role == "setup_diagram"
+            and file_asset.sample_id is None
+        )
 
     def _materialize_template_diagram(
         self,

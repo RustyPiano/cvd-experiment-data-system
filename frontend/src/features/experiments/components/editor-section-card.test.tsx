@@ -38,4 +38,18 @@ describe("EditorSectionCard", () => {
     expect(getByText("自动保存失败")).toBeTruthy();
     expect(queryByText("保存失败")).toBeNull();
   });
+
+  it("keeps saved warning details visible", () => {
+    const { getByText } = render(
+      <EditorSectionCard
+        state={{ status: "saved", message: "已自动保存：模板 Setup 图未能自动附加，请手动上传" }}
+        subtitle="记录 Setup / Methods。"
+        title="Setup / Methods"
+      >
+        <div>表单内容</div>
+      </EditorSectionCard>,
+    );
+
+    expect(getByText("已自动保存：模板 Setup 图未能自动附加，请手动上传")).toBeTruthy();
+  });
 });

@@ -58,12 +58,14 @@ export function SetupMethodsSection({
     label: file.original_name,
     value: file.id,
   }));
+  const isConfirmed = Boolean(value.confirmedAt && value.confirmedById);
 
   const updateField = (patch: Partial<SetupMethodsValues>) => {
     onChange({
       ...value,
       ...patch,
       confirmedAt: null,
+      confirmedById: null,
     });
   };
 
@@ -249,7 +251,7 @@ export function SetupMethodsSection({
           <Button disabled={disabled} onClick={onConfirm} type="primary">
             确认 Setup
           </Button>
-          {value.confirmedAt ? (
+          {isConfirmed ? (
             <Typography.Text type="success">已确认</Typography.Text>
           ) : (
             <Typography.Text type="secondary">未确认</Typography.Text>

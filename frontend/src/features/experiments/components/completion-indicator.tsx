@@ -164,6 +164,8 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
   }
 
   if (moduleKey === "setup_methods") {
+    const confirmedAt = getValue(payload, ["confirmed_at", "confirmedAt"]);
+    const confirmedById = getValue(payload, ["confirmed_by_id", "confirmedById"]);
     const requiredFields = [
       getValue(payload, ["setup_name_snapshot", "setupNameSnapshot"]),
       getValue(payload, ["apparatus_description_snapshot", "apparatusDescriptionSnapshot"]),
@@ -174,7 +176,7 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       ]),
       getValue(payload, ["reaction_flow_description_snapshot", "reactionFlowDescriptionSnapshot"]),
       getValue(payload, ["diagram_file_asset_id", "diagramFileAssetId"]),
-      getValue(payload, ["confirmed_at", "confirmedAt"]),
+      isFilled(confirmedAt) && isFilled(confirmedById) ? "confirmed" : "",
     ];
     const completed = requiredFields.filter(isFilled).length;
     return Math.round((completed / requiredFields.length) * 100);

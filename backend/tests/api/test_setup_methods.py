@@ -153,6 +153,86 @@ def test_confirm_setup_methods_sets_confirmation(active_user) -> None:
     assert response.json()["warnings"] == []
 
 
+def test_confirm_setup_methods_rejects_stale_diagram_asset(active_user, db_session) -> None:
+    from uuid import UUID
+
+    from app.models.file_asset import FileAsset
+
+    experiment_id = create_experiment(active_user.email)
+    diagram_id = upload_setup_diagram(experiment_id, active_user.email)
+    upsert_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": "Manual setup",
+            "apparatus_description_snapshot": "Tube furnace",
+            "methods_text_snapshot": "Methods text",
+            "sample_placement_description_snapshot": "Substrate downstream",
+            "reaction_flow_description_snapshot": "Purge ramp hold cool",
+            "unpublished_reason_snapshot": "Internal",
+            "diagram_file_asset_id": diagram_id,
+            "is_same_as_template": False,
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert upsert_response.status_code == 200
+    diagram = db_session.get(FileAsset, UUID(diagram_id))
+    assert diagram is not None
+    diagram.asset_role = "characterization_file"
+    db_session.add(diagram)
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/confirm",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 422
+    assert any(
+        issue["module_key"] == "setup_methods" and issue["field_path"] == "diagram_file_asset_id"
+        for issue in response.json()["errors"]
+    )
+
+
+def test_idempotent_upsert_preserves_confirmation(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+    diagram_id = upload_setup_diagram(experiment_id, active_user.email)
+    payload = {
+        "setup_name_snapshot": "Manual setup",
+        "apparatus_description_snapshot": "Tube furnace",
+        "methods_text_snapshot": "Methods text",
+        "sample_placement_description_snapshot": "Substrate downstream",
+        "reaction_flow_description_snapshot": "Purge ramp hold cool",
+        "unpublished_reason_snapshot": "Internal",
+        "diagram_file_asset_id": diagram_id,
+        "is_same_as_template": False,
+        "semantic_context": {"temperature_reference": "setpoint"},
+    }
+    headers = auth_headers(active_user.email)
+
+    upsert_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json=payload,
+        headers=headers,
+    )
+    assert upsert_response.status_code == 200
+    confirm_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/confirm",
+        headers=headers,
+    )
+    assert confirm_response.status_code == 200
+    confirmed_snapshot = confirm_response.json()["data"]
+
+    response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["confirmed_by_id"] == confirmed_snapshot["confirmed_by_id"]
+    assert response.json()["data"]["confirmed_at"] == confirmed_snapshot["confirmed_at"]
+
+
 def test_experiment_audit_endpoint_includes_setup_method_events(active_user) -> None:
     experiment_id = create_experiment(active_user.email)
     diagram_id = upload_setup_diagram(experiment_id, active_user.email)

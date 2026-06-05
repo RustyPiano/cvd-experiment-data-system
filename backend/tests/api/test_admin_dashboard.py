@@ -203,6 +203,32 @@ def test_admin_dashboard_counts_experiments_missing_setup_methods(
             metadata_json={"semantic_context": {}},
         )
     )
+    missing_confirmer = add_experiment(
+        db_session,
+        owner=active_user,
+        run_code="CVD-2026-MISSING-CONFIRMER",
+        status=ExperimentStatus.DRAFT,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(
+        ExperimentSetupSnapshot(
+            experiment_run_id=missing_confirmer.id,
+            setup_key_snapshot="manual:abcdef1234567891",
+            setup_name_snapshot="Missing confirmer setup",
+            setup_version_snapshot=1,
+            apparatus_description_snapshot="Tube furnace",
+            methods_text_snapshot="Methods",
+            sample_placement_description_snapshot="Placement",
+            reaction_flow_description_snapshot="Flow",
+            unpublished_reason_snapshot="Internal",
+            is_same_as_template=False,
+            confirmed_by_id=None,
+            confirmed_at=now,
+            snapshot_hash="b" * 64,
+            metadata_json={"semantic_context": {}},
+        )
+    )
     db_session.commit()
 
     response = client.get(
@@ -212,9 +238,9 @@ def test_admin_dashboard_counts_experiments_missing_setup_methods(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["totals"]["missing_setup_methods"] == 2
+    assert body["totals"]["missing_setup_methods"] == 3
     member = next(item for item in body["members"] if item["email"] == active_user.email)
-    assert member["missing_setup_methods"] == 2
+    assert member["missing_setup_methods"] == 3
 
 
 def test_admin_can_filter_experiment_list_by_owner_id(

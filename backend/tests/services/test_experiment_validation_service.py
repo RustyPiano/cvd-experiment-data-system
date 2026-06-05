@@ -329,6 +329,136 @@ def test_setup_methods_missing_group_key_blocks_validation(active_user, db_sessi
     )
 
 
+def test_setup_methods_invalid_diagram_file_blocks_validation(active_user, db_session) -> None:
+    from datetime import UTC, datetime
+
+    from app.models.file_asset import FileAsset
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    experiment = ExperimentRun(
+        run_code="CVD-2026-SETUP-BAD-DIAGRAM",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="setup diagram validation",
+        quality_label=QualityLabel.SUCCESS,
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+
+    characterization_file = FileAsset(
+        experiment_run_id=experiment.id,
+        sample_id=None,
+        uploaded_by_id=active_user.id,
+        original_name="setup.png",
+        storage_path=f"tests/{experiment.id}/setup.png",
+        content_type="image/png",
+        size_bytes=7,
+        sha256="b" * 64,
+        method="setup_diagram",
+        file_category="raw",
+        asset_role="characterization_file",
+        metadata_json={},
+    )
+    db_session.add(characterization_file)
+    db_session.commit()
+    db_session.refresh(characterization_file)
+
+    snapshot = ExperimentSetupSnapshot(
+        experiment_run_id=experiment.id,
+        setup_key_snapshot="manual:abcdef1234567890",
+        setup_name_snapshot="Manual setup",
+        setup_version_snapshot=1,
+        apparatus_description_snapshot="Tube furnace",
+        methods_text_snapshot="Methods",
+        sample_placement_description_snapshot="Placement",
+        reaction_flow_description_snapshot="Flow",
+        unpublished_reason_snapshot="Internal",
+        diagram_file_asset_id=characterization_file.id,
+        is_same_as_template=False,
+        confirmed_by_id=active_user.id,
+        confirmed_at=datetime.now(UTC),
+        snapshot_hash="a" * 64,
+        metadata_json={"semantic_context": {}},
+    )
+    db_session.add(snapshot)
+    db_session.commit()
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    assert any(
+        issue.module_key == "setup_methods"
+        and issue.field_path == "diagram_file_asset_id"
+        and "setup diagram" in issue.message.lower()
+        for issue in result.errors
+    )
+
+
+def test_completion_score_requires_setup_confirmation_actor(active_user, db_session) -> None:
+    from datetime import UTC, datetime
+
+    from app.models.file_asset import FileAsset
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    experiment = ExperimentRun(
+        run_code="CVD-2026-SETUP-PARTIAL-CONFIRM",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="setup confirmation score",
+        quality_label=QualityLabel.SUCCESS,
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+
+    diagram_file = FileAsset(
+        experiment_run_id=experiment.id,
+        sample_id=None,
+        uploaded_by_id=active_user.id,
+        original_name="setup.png",
+        storage_path=f"tests/{experiment.id}/valid-setup.png",
+        content_type="image/png",
+        size_bytes=7,
+        sha256="c" * 64,
+        method="setup_diagram",
+        file_category="raw",
+        asset_role="setup_diagram",
+        metadata_json={},
+    )
+    db_session.add(diagram_file)
+    db_session.commit()
+    db_session.refresh(diagram_file)
+
+    db_session.add(
+        ExperimentSetupSnapshot(
+            experiment_run_id=experiment.id,
+            setup_key_snapshot="manual:abcdef1234567890",
+            setup_name_snapshot="Manual setup",
+            setup_version_snapshot=1,
+            apparatus_description_snapshot="Tube furnace",
+            methods_text_snapshot="Methods",
+            sample_placement_description_snapshot="Placement",
+            reaction_flow_description_snapshot="Flow",
+            unpublished_reason_snapshot="Internal",
+            diagram_file_asset_id=diagram_file.id,
+            is_same_as_template=False,
+            confirmed_by_id=None,
+            confirmed_at=datetime.now(UTC),
+            snapshot_hash="a" * 64,
+            metadata_json={"semantic_context": {}},
+        )
+    )
+    db_session.commit()
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    assert result.completion_score == 27
+
+
 def test_furnace_program_schema_rejects_legacy_steps_and_precursors() -> None:
     import pytest
     from pydantic import ValidationError
