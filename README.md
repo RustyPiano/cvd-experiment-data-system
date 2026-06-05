@@ -20,6 +20,7 @@
 - `/admin/dashboard`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的 Beta 编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
+- 编辑器新增 Setup / Methods 区块；实验提交或锁定前必须完成 setup snapshot、methods、setup diagram 并确认
 - draft 自动保存、实验日期修正、区块级保存状态、固定操作区、带完整度评分的提交前验证汇总和 `submit` 提交闭环
 - 新建空白实验支持继承最近实验的环境和预检查默认值；新建页支持从 Recipe 创建实验
 - 编辑器支持温区/气体快捷模板、模块完成度指示和 clone 来源 Diff 视图
@@ -28,12 +29,12 @@
 - 详情页已接通概览/参数/样品/文件/审计 Tabs、文件概览、审计轨迹、JSON/Excel 导出入口
 - 详情页支持将实验保存为 Recipe
 - 详情页已接通样品概览，并支持跳转样品详情
-- 文件页已接通文件列表、筛选、上传、下载、软删除
+- 文件页已接通文件列表、筛选、上传、下载、软删除，并支持 `asset_role=setup_diagram` 的 setup 示意图上传
 - 样品详情页已接通样品读取、draft 编辑、关联文件查看与下载
 - 受控词表后台已接通列表筛选、创建、编辑与启停用
 - 字段词典后台已接通 `/admin/fields`，支持模块筛选、CRUD、受控词表关联与启停用
 - Recipe 后台已接通列表、创建、编辑与停用、重新激活
-- 管理员数据看板 `/admin/dashboard` 已接通：顶部总记录/草稿/待审/已锁定/已作废/本周新增统计卡、最近 12 周录入趋势图、按成员的记录情况表（记录数、状态分布、最近活动、停滞草稿告警），点击成员行可下钻到该成员的全部实验；侧栏入口与 `/admin/*` 路由均受 `AdminRoute` 角色守卫，非管理员会被重定向
+- 管理员数据看板 `/admin/dashboard` 已接通：顶部总记录/草稿/待审/已锁定/已作废/本周新增/缺 Setup 统计卡、最近 12 周录入趋势图、按成员的记录情况表（记录数、状态分布、缺 Setup、最近活动、停滞草稿告警），点击成员行可下钻到该成员的全部实验；侧栏入口与 `/admin/*` 路由均受 `AdminRoute` 角色守卫，非管理员会被重定向
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端尚未完成的部分：
@@ -55,6 +56,8 @@
 - 实验详情页现在会并行显示样品概览，并支持直接进入样品详情页。
 - 文件页现在支持按方法和文件类别筛选，并接通带鉴权的文件下载、draft 上传和软删除。
 - 文件上传表单会读取 `characterization_method` 词表与当前实验样品列表，支持可选 `sample_id` 关联。
+- Setup / Methods 现在作为实验级快照保存；提交和锁定会阻止缺失、未确认或缺 setup diagram 的实验进入下一状态。
+- JSON、Excel 和 analysis export 现在携带 setup snapshot 上下文，管理员看板可识别缺失或未确认 setup 的实验。
 - 样品详情页现在会读取样品本体、所属实验和关联文件；owner/admin 在 `draft` 下可直接编辑样品字段并保存。
 - 受控词表后台现在已接通 `/admin/vocabularies`，支持 admin 列表筛选、创建、编辑和启停用；非 admin 会隐藏侧栏入口并在直达路由时收到权限提示。
 - 字段词典后台已接通 `/admin/fields`，支持按模块筛选、CRUD、词表关联和启停用；非 admin 同样受限。
@@ -79,13 +82,14 @@
 - 模块化 payload 保存、读取与复制
 - 样品主表、样品编号和样品 CRUD
 - 文件资产上传、下载、软删除与实验/样品关联
+- Setup / Methods 快照、只读种子模板、setup diagram 文件角色、确认审计与 clone 后重新确认
 - 实验级结构化 JSON 导出
 - 单实验 Excel 导出
 - 单实验 analysis-ready 归一化导出
 - 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_brand / substrate_size / substrate_treatment_method / gas_label / characterization_method / quality_label`
 - 字段词典（`ExperimentFieldDefinition`）：定义每个实验模块字段的元数据（类型、单位、必填、可继承、关联词表），含种子数据 78 条，覆盖 9 个模块
 - Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe（Recipe 管理页使用结构化表单编辑器替代原始 JSON）
-- 管理员数据看板聚合接口 `GET /api/v1/admin/dashboard/overview`：单次按 `owner_id` 分组聚合各状态计数、最近活动与停滞草稿数，并按周聚合录入趋势（PostgreSQL 与 SQLite 双方言、统一按 UTC 对齐周边界）；仅 `admin` 可访问。实验列表 `GET /api/v1/experiments` 新增 `owner_id` 过滤参数，支持看板下钻
+- 管理员数据看板聚合接口 `GET /api/v1/admin/dashboard/overview`：单次按 `owner_id` 分组聚合各状态计数、缺失或未确认 Setup / Methods 数、最近活动与停滞草稿数，并按周聚合录入趋势（PostgreSQL 与 SQLite 双方言、统一按 UTC 对齐周边界）；仅 `admin` 可访问。实验列表 `GET /api/v1/experiments` 新增 `owner_id` 过滤参数，支持看板下钻
 - Alembic 迁移 `20260423_0001` 到 `20260506_0014`
 - 前端联调 handoff 文档，见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
 

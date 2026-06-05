@@ -80,6 +80,7 @@ storage/
 17. 管理后台：受控词表的最小 CRUD。
 18. Recipe 管理：创建、编辑、停用、从 Recipe 创建实验、从实验保存为 Recipe。
 19. 实验填写易用性优化：空白实验智能继承、温区/气体快捷模板、完成度指示、列表 Dashboard 与快捷操作、clone 来源 Diff 视图。
+20. Setup / Methods V1：实验级 setup snapshot、setup diagram 文件角色、methods 文本、提交/锁定门禁、导出上下文和管理员缺失可见性。
 
 ### 3.2 第一版不实现
 
@@ -243,6 +244,8 @@ V1 默认每个实验至少生成：
 7. 文件删除应标记 `deleted_at`，不要立即删除磁盘文件。
 8. 样品删除也应保留数据库行；基底同步移除 `TOP/BOTTOM` 样品时标记 `deleted_at/deleted_by_id`，默认查询隐藏，后续重新出现同一角色时恢复原行，避免 `sample_code` 唯一约束冲突。
 9. 所有状态变化写入 `audit_events`。
+10. `experiment_setup_snapshots` 每个实验最多一条；提交和锁定前必须完成并确认，clone 后复制快照但清除确认状态。
+11. `file_assets.asset_role` 区分普通表征文件与 `setup_diagram`；setup diagram 为实验级资产，不绑定样品。
 
 ### 8.1 必须索引
 
@@ -278,6 +281,12 @@ gas_program
 characterization
 result_summary
 ```
+
+Setup / Methods 不保存到 `experiment_module_payloads`。V1 使用独立
+`experiment_setup_snapshots` 表保存本次实验的装置、methods、样品放置、反应流程、
+setup diagram、模板偏差、确认人与快照 hash。草稿允许不完整；`submit` 和 `lock`
+必须阻止缺失、未确认或缺 setup diagram 的实验。JSON、Excel 和 analysis export 必须
+携带 setup key/version/hash 等上下文，管理员看板必须能看到缺失或未确认 setup 的记录。
 
 ### 9.2 basic_info
 
