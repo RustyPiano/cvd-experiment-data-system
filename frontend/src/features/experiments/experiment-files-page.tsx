@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   Progress,
+  Segmented,
   Select,
   Table,
   Tag,
@@ -69,6 +70,13 @@ const fileCategoryOptions = [
 const filterCategoryOptions = [
   { label: "全部", value: "" },
   ...fileCategoryOptions,
+];
+
+type FileAssetRole = "characterization_file" | "setup_diagram";
+
+const assetRoleOptions: Array<{ label: string; value: FileAssetRole }> = [
+  { label: "表征文件", value: "characterization_file" },
+  { label: "Setup 图", value: "setup_diagram" },
 ];
 
 function formatFileCategory(value: string) {
@@ -136,6 +144,7 @@ export function ExperimentFilesPage() {
   const [uploadSampleId, setUploadSampleId] = useState("");
   const [uploadNote, setUploadNote] = useState("");
   const [fileCategory, setFileCategory] = useState("raw");
+  const [assetRole, setAssetRole] = useState<FileAssetRole>("characterization_file");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [antFileList, setAntFileList] = useState<UploadFile[]>([]);
   const [downloadFileId, setDownloadFileId] = useState<string | null>(null);
@@ -225,6 +234,7 @@ export function ExperimentFilesPage() {
     () => [{ label: "全部", value: "" }, ...mergeMethodOptions(methodOptions, existingFileMethods)],
     [existingFileMethods, methodOptions],
   );
+  const isSetupDiagramUpload = assetRole === "setup_diagram";
 
   const invalidateFileQueries = async () => {
     await Promise.all([
@@ -252,7 +262,7 @@ export function ExperimentFilesPage() {
         throw new Error("请选择要上传的文件");
       }
 
-      if (!uploadMethod.trim()) {
+      if (!isSetupDiagramUpload && !uploadMethod.trim()) {
         throw new Error("请先填写文件方法");
       }
 
@@ -274,9 +284,10 @@ export function ExperimentFilesPage() {
           await uploadExperimentFile(session.accessToken!, experimentId, {
             file,
             fileCategory,
-            method: uploadMethod.trim(),
+            method: isSetupDiagramUpload ? undefined : uploadMethod.trim(),
+            assetRole,
             note: uploadNote.trim() || undefined,
-            sampleId: uploadSampleId || null,
+            sampleId: isSetupDiagramUpload ? null : uploadSampleId || null,
             signal: abortController.signal,
           });
         } catch (error) {
@@ -360,6 +371,7 @@ export function ExperimentFilesPage() {
     setUploadSampleId("");
     setUploadNote("");
     setFileCategory("raw");
+    setAssetRole("characterization_file");
   }, []);
 
   const validateUploadForm = () => {
@@ -368,7 +380,7 @@ export function ExperimentFilesPage() {
       return false;
     }
 
-    if (!uploadMethod.trim()) {
+    if (!isSetupDiagramUpload && !uploadMethod.trim()) {
       setMutationMessage("请先填写文件方法");
       return false;
     }
@@ -461,23 +473,39 @@ export function ExperimentFilesPage() {
                 gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               }}
             >
-              <Form.Item htmlFor="upload-file-method" label="文件方法" style={{ gridColumn: undefined }}>
-                <Select
-                  aria-label="文件方法"
-                  filterOption
-                  id="upload-file-method"
+              <Form.Item label="文件用途">
+                <Segmented<FileAssetRole>
+                  aria-label="文件用途"
                   onChange={(value) => {
-                    setUploadMethod(value);
+                    setAssetRole(value);
+                    if (value === "setup_diagram") {
+                      setUploadMethod("");
+                      setUploadSampleId("");
+                    }
                   }}
-                  optionFilterProp="label"
-                  options={methodOptions}
-                  placeholder="例如 Raman / OM / SEM"
-                  showSearch
-                  style={{ width: "100%" }}
-                  value={uploadMethod || undefined}
-                  virtual={false}
+                  options={assetRoleOptions}
+                  value={assetRole}
                 />
               </Form.Item>
+              {isSetupDiagramUpload ? null : (
+                <Form.Item htmlFor="upload-file-method" label="文件方法" style={{ gridColumn: undefined }}>
+                  <Select
+                    aria-label="文件方法"
+                    filterOption
+                    id="upload-file-method"
+                    onChange={(value) => {
+                      setUploadMethod(value);
+                    }}
+                    optionFilterProp="label"
+                    options={methodOptions}
+                    placeholder="例如 Raman / OM / SEM"
+                    showSearch
+                    style={{ width: "100%" }}
+                    value={uploadMethod || undefined}
+                    virtual={false}
+                  />
+                </Form.Item>
+              )}
               <Form.Item htmlFor="upload-file-category" label="文件类别">
                 <Select
                   aria-label="文件类别"
@@ -491,19 +519,21 @@ export function ExperimentFilesPage() {
                   virtual={false}
                 />
               </Form.Item>
-              <Form.Item htmlFor="upload-sample-id" label="关联样品">
-                <Select
-                  aria-label="关联样品"
-                  id="upload-sample-id"
-                  onChange={(value) => {
-                    setUploadSampleId(value);
-                  }}
-                  options={sampleOptions}
-                  style={{ width: "100%" }}
-                  value={uploadSampleId || undefined}
-                  virtual={false}
-                />
-              </Form.Item>
+              {isSetupDiagramUpload ? null : (
+                <Form.Item htmlFor="upload-sample-id" label="关联样品">
+                  <Select
+                    aria-label="关联样品"
+                    id="upload-sample-id"
+                    onChange={(value) => {
+                      setUploadSampleId(value);
+                    }}
+                    options={sampleOptions}
+                    style={{ width: "100%" }}
+                    value={uploadSampleId || undefined}
+                    virtual={false}
+                  />
+                </Form.Item>
+              )}
               <Form.Item htmlFor="upload-file-note" label="文件备注" style={{ gridColumn: "1 / -1" }}>
                 <Input
                   id="upload-file-note"

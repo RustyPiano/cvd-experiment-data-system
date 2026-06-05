@@ -20,6 +20,7 @@ type FileFixture = {
   size_bytes: number;
   sha256: string;
   method: string;
+  asset_role: "characterization_file" | "setup_diagram";
   file_category: string;
   note: string | null;
   metadata_json: Record<string, unknown>;
@@ -126,6 +127,7 @@ function createFileServer(options?: {
       size_bytes: 8,
       sha256: "hash-1",
       method: "Raman",
+      asset_role: "characterization_file",
       file_category: "raw",
       note: "baseline",
       metadata_json: {},
@@ -147,6 +149,7 @@ function createFileServer(options?: {
       size_bytes: 10,
       sha256: "hash-2",
       method: "OM",
+      asset_role: "characterization_file",
       file_category: "processed",
       note: "surface image",
       metadata_json: {},
@@ -168,6 +171,7 @@ function createFileServer(options?: {
       size_bytes: 12,
       sha256: "hash-legacy",
       method: "Legacy-XPS",
+      asset_role: "characterization_file",
       file_category: "raw",
       note: "legacy method",
       metadata_json: {},
@@ -267,7 +271,9 @@ function createFileServer(options?: {
         content_type: file.type,
         size_bytes: file.size,
         sha256: "hash-3",
-        method: String(formData.get("method")),
+        method: String(formData.get("method") ?? "setup_diagram"),
+        asset_role: (formData.get("asset_role") as "characterization_file" | "setup_diagram")
+          ?? "characterization_file",
         file_category: String(formData.get("file_category")),
         note: (formData.get("note") as string) || null,
         metadata_json: {},
@@ -442,6 +448,51 @@ describe("ExperimentFilesPage", () => {
     );
     const formData = uploadRequest?.body as FormData;
     expect(formData.get("method")).toBe("SEM");
+  }, 10_000);
+
+  it("uploads setup diagrams without requiring a method", async () => {
+    const user = userEvent.setup();
+    const server = createFileServer();
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/files" element={<ExperimentFilesPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/files"],
+      },
+    );
+
+    expect(await screen.findByText("raman.txt")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Setup 图"));
+    fireEvent.change(screen.getByLabelText("选择文件"), {
+      target: {
+        files: [new File(["diagram"], "setup.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "上传文件" }));
+
+    await waitFor(() => {
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" &&
+            request.pathname === "/api/v1/experiments/exp-1/files",
+        ),
+      ).toBe(true);
+    });
+
+    const uploadRequest = server.requests.find(
+      (request) =>
+        request.method === "POST" && request.pathname === "/api/v1/experiments/exp-1/files",
+    );
+    const formData = uploadRequest?.body as FormData;
+    expect(formData.get("asset_role")).toBe("setup_diagram");
+    expect(formData.get("method")).toBeNull();
+    expect(formData.get("sample_id")).toBeNull();
   }, 10_000);
 
   it("keeps selected files and avoids success feedback when a batch upload is canceled", async () => {
