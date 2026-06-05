@@ -55,6 +55,12 @@ class FileAsset(Base):
     sha256: Mapped[str] = mapped_column(String(64), index=True)
     method: Mapped[str] = mapped_column(String(64), index=True)
     file_category: Mapped[str] = mapped_column(String(32), index=True, default="raw")
+    asset_role: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="characterization_file",
+        index=True,
+    )
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     file_kind: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     metadata_json: Mapped[dict] = mapped_column(json_payload_type, nullable=False, default=dict)
