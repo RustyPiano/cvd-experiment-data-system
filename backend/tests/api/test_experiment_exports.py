@@ -24,6 +24,19 @@ def auth_headers(email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {login(email)}"}
 
 
+SETUP_CONTEXT_FIELDS = {
+    "setup_key_snapshot",
+    "setup_name_snapshot",
+    "setup_version_snapshot",
+    "institution_snapshot",
+    "setup_snapshot_hash",
+}
+
+
+def without_setup_context(row: dict) -> dict:
+    return {key: value for key, value in row.items() if key not in SETUP_CONTEXT_FIELDS}
+
+
 def create_experiment(email: str, *, objective: str = "Export flow") -> str:
     response = client.post(
         "/api/v1/experiments",
@@ -129,6 +142,22 @@ def sync_top_substrate_sample(experiment_id: str, email: str) -> str:
     samples = samples_response.json()["items"]
     assert len(samples) == 1
     return samples[0]["id"]
+
+
+def create_complete_submitted_experiment_with_setup(email: str) -> str:
+    experiment_id = create_experiment(email, objective="Export with setup methods")
+    populate_required_modules(experiment_id, email)
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(email),
+    )
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(email),
+    )
+    assert submit_response.status_code == 200
+    return experiment_id
 
 
 def sync_top_and_bottom_substrates(experiment_id: str, email: str) -> dict[str, str]:
@@ -573,7 +602,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
             "run_code": "CVD-2026-0001",
         }.items() <= body[section][0].items()
 
-    assert body["precursor_rows"][0] == {
+    assert without_setup_context(body["precursor_rows"][0]) == {
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",
         "precursor_index": 0,
@@ -594,7 +623,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     assert body["substrate_rows"][0]["substrate_index"] == 0
     assert body["substrate_rows"][0]["batch_no"] == "SUB-2026-05-A"
     assert body["substrate_rows"][0]["treatment_params_gas"] == "O2"
-    assert body["furnace_temperature_rows"][1] == {
+    assert without_setup_context(body["furnace_temperature_rows"][1]) == {
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",
         "zone_key": "zone_1",
@@ -605,7 +634,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
     }
     assert body["furnace_step_rows"][1]["step_index"] == 2
     assert body["furnace_step_rows"][1]["temperature_C"] == 750.0
-    assert body["furnace_precursor_rows"][0] == {
+    assert without_setup_context(body["furnace_precursor_rows"][0]) == {
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",
         "placement_index": 0,
@@ -615,7 +644,7 @@ def test_export_analysis_returns_normalized_rows(active_user) -> None:
         "position_cm": -15.0,
         "note": "center",
     }
-    assert body["gas_program_rows"][0] == {
+    assert without_setup_context(body["gas_program_rows"][0]) == {
         "experiment_id": experiment_id,
         "run_code": "CVD-2026-0001",
         "gas_program_index": 0,
@@ -694,7 +723,10 @@ def test_export_analysis_uses_canonical_placements(active_user) -> None:
     )
 
     assert export_response.status_code == 200
-    assert export_response.json()["furnace_precursor_rows"] == [
+    assert [
+        without_setup_context(row)
+        for row in export_response.json()["furnace_precursor_rows"]
+    ] == [
         {
             "experiment_id": experiment_id,
             "run_code": "CVD-2026-0001",
@@ -756,7 +788,7 @@ def test_export_analysis_derives_step_rows_from_canonical_zones(
     body = export_response.json()
     # Canonical zones (2 zones × 2 nodes each) should produce exactly 4 step rows,
     # derived exclusively from temperature_program — not from any legacy steps path.
-    assert body["furnace_step_rows"] == [
+    assert [without_setup_context(row) for row in body["furnace_step_rows"]] == [
         {
             "experiment_id": experiment_id,
             "run_code": "CVD-2026-0001",
@@ -846,7 +878,7 @@ def test_export_analysis_keeps_program_level_gas_and_flat_metadata(active_user) 
 
     assert export_response.status_code == 200
     body = export_response.json()
-    assert body["gas_program_rows"] == [
+    assert [without_setup_context(row) for row in body["gas_program_rows"]] == [
         {
             "experiment_id": experiment_id,
             "run_code": "CVD-2026-0001",
@@ -951,6 +983,7 @@ def test_export_experiment_excel_returns_openable_workbook(active_user) -> None:
     workbook = load_workbook(filename=BytesIO(export_response.content))
     assert workbook.sheetnames == [
         "Basic Info",
+        "Setup & Methods",
         "Environment & Precheck",
         "Precursors",
         "Substrates",
@@ -1021,3 +1054,77 @@ def test_viewer_can_export_locked_experiment_but_not_other_users_draft(
     )
 
     assert hidden_response.status_code == 404
+
+
+def test_json_export_includes_setup_methods_snapshot(active_user) -> None:
+    experiment_id = create_complete_submitted_experiment_with_setup(active_user.email)
+
+    response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/json",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    setup = response.json()["setup_methods"]
+    assert setup["setup_name_snapshot"] == "Test setup"
+    assert setup["semantic_context"]["temperature_reference"] == "setpoint"
+    assert setup["snapshot_hash"]
+    assert any(
+        event["entity_type"] == "experiment_setup_snapshot"
+        for event in response.json()["audit_events"]
+    )
+
+
+def test_analysis_export_includes_setup_context_on_all_rows(active_user) -> None:
+    experiment_id = create_complete_submitted_experiment_with_setup(active_user.email)
+
+    response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/analysis",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    context_fields = [
+        "setup_key_snapshot",
+        "setup_name_snapshot",
+        "setup_version_snapshot",
+        "institution_snapshot",
+        "setup_snapshot_hash",
+    ]
+    row_groups = [
+        [body["experiment"]],
+        body["precursor_rows"],
+        body["substrate_rows"],
+        body["furnace_step_rows"],
+        body["furnace_temperature_rows"],
+        body["furnace_precursor_rows"],
+        body["gas_program_rows"],
+        body["gas_segment_rows"],
+        body["gas_component_rows"],
+        body["characterization_rows"],
+        body["sample_rows"],
+        body["file_rows"],
+    ]
+    for rows in row_groups:
+        for row in rows:
+            for field in context_fields:
+                assert field in row
+                assert row[field] not in (None, "")
+
+
+def test_excel_export_includes_setup_methods_sheet(active_user) -> None:
+    experiment_id = create_complete_submitted_experiment_with_setup(active_user.email)
+
+    response = client.get(
+        f"/api/v1/experiments/{experiment_id}/export/excel",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 200
+    workbook = load_workbook(BytesIO(response.content))
+    assert "Setup & Methods" in workbook.sheetnames
+    sheet = workbook["Setup & Methods"]
+    first_column = [cell.value for cell in sheet["A"]]
+    assert "setup_name_snapshot" in first_column
+    assert "semantic_context" in first_column

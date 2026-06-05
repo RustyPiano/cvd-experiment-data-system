@@ -18,6 +18,7 @@ from app.models.module_payload import normalize_module_payload
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
 from app.repositories.sample_repository import SampleRepository
+from app.repositories.setup_methods_repository import SetupMethodsRepository
 from app.schemas.experiment import (
     ExperimentAnalysisCharacterizationRow,
     ExperimentAnalysisExperimentRow,
@@ -41,6 +42,7 @@ from app.schemas.module_payload import ExperimentModulePayloadRead, validate_mod
 from app.schemas.sample import SampleRead
 from app.services.audit_service import AuditService
 from app.services.file_asset_service import to_file_asset_read_model
+from app.services.setup_methods_service import SetupMethodsService
 
 
 class ExperimentExportService:
@@ -50,6 +52,8 @@ class ExperimentExportService:
         self.files = FileAssetRepository(db)
         self.module_payloads = ModulePayloadRepository(db)
         self.samples = SampleRepository(db)
+        self.setup_methods = SetupMethodsRepository(db)
+        self.setup_methods_service = SetupMethodsService(db)
 
     def build_json_export(self, experiment: ExperimentRun) -> ExperimentExportRead:
         modules = [
@@ -72,10 +76,18 @@ class ExperimentExportService:
         files = [
             to_file_asset_read_model(item) for item in self.files.list_by_experiment(experiment.id)
         ]
+        setup_snapshot = self.setup_methods.get_by_experiment(experiment.id)
+        setup_methods = (
+            self.setup_methods_service._to_read(setup_snapshot)
+            if setup_snapshot is not None
+            else None
+        )
         audit_files = self.files.list_by_experiment(experiment.id, include_deleted=True)
         audit_refs = [("experiment_run", experiment.id)]
         audit_refs.extend(("sample", sample.id) for sample in samples)
         audit_refs.extend(("file_asset", file_asset.id) for file_asset in audit_files)
+        if setup_snapshot is not None:
+            audit_refs.append(("experiment_setup_snapshot", setup_snapshot.id))
         audit_events = self.audit.list_events_for_entities(audit_refs)
 
         return ExperimentExportRead(
@@ -85,6 +97,7 @@ class ExperimentExportService:
             modules=modules,
             samples=samples,
             files=files,
+            setup_methods=setup_methods,
             features=[],
             provenance=ExperimentExportProvenance(
                 derived_from_run_id=experiment.derived_from_run_id,
@@ -107,9 +120,11 @@ class ExperimentExportService:
         raw_payloads = self._raw_module_map(experiment)
         export_payload = self.build_json_export(experiment)
         payloads = self._validated_module_map(export_payload)
+        setup_context = self._setup_context(export_payload.setup_methods)
         context = {
             "experiment_id": export_payload.experiment.id,
             "run_code": export_payload.experiment.run_code,
+            **setup_context,
         }
         basic_info_payload = payloads.get("basic_info", {})
 
@@ -154,6 +169,7 @@ class ExperimentExportService:
         workbook.remove(workbook.active)
 
         self._write_basic_info_sheet(workbook.create_sheet("Basic Info"), export_payload)
+        self._write_setup_methods_sheet(workbook.create_sheet("Setup & Methods"), export_payload)
         self._write_environment_sheet(
             workbook.create_sheet("Environment & Precheck"), export_payload
         )
@@ -200,6 +216,22 @@ class ExperimentExportService:
         ]
         for key in ordered_fields:
             value = basic_info_payload.get(key) if key == "layer_count" else experiment.get(key)
+            worksheet.append([key, self._serialize_cell(value)])
+
+    def _write_setup_methods_sheet(
+        self,
+        worksheet: Worksheet,
+        export_payload: ExperimentExportRead,
+    ) -> None:
+        worksheet.append(["Field", "Value"])
+        if export_payload.setup_methods is None:
+            worksheet.append(["empty", None])
+            return
+
+        payload = export_payload.setup_methods.model_dump(mode="json")
+        for key, value in payload.items():
+            if key == "semantic_context":
+                value = self._json_text(value)
             worksheet.append([key, self._serialize_cell(value)])
 
     def _write_environment_sheet(
@@ -646,6 +678,23 @@ class ExperimentExportService:
 
     def _module_map(self, export_payload: ExperimentExportRead) -> dict[str, dict[str, Any]]:
         return {module.module_key: module.payload_json for module in export_payload.modules}
+
+    def _setup_context(self, setup_methods) -> dict[str, Any]:
+        if setup_methods is None:
+            return {
+                "setup_key_snapshot": None,
+                "setup_name_snapshot": None,
+                "setup_version_snapshot": None,
+                "institution_snapshot": None,
+                "setup_snapshot_hash": None,
+            }
+        return {
+            "setup_key_snapshot": setup_methods.setup_key_snapshot,
+            "setup_name_snapshot": setup_methods.setup_name_snapshot,
+            "setup_version_snapshot": setup_methods.setup_version_snapshot,
+            "institution_snapshot": setup_methods.institution_snapshot,
+            "setup_snapshot_hash": setup_methods.snapshot_hash,
+        }
 
     def _raw_module_map(self, experiment: ExperimentRun) -> dict[str, dict[str, Any]]:
         return {

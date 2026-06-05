@@ -8,6 +8,7 @@ from app.schemas.audit import AuditEventRead
 from app.schemas.file_asset import FileAssetRead
 from app.schemas.module_payload import ExperimentModulePayloadRead
 from app.schemas.sample import SampleRead
+from app.schemas.setup_methods import SetupMethodsRead
 
 
 class ExperimentCreate(BaseModel):
@@ -89,13 +90,22 @@ class ExperimentExportRead(BaseModel):
     modules: list[ExperimentModulePayloadRead]
     samples: list[SampleRead]
     files: list[FileAssetRead]
+    setup_methods: SetupMethodsRead | None = None
     features: list[dict[str, Any]]
     provenance: ExperimentExportProvenance
     audit_events: list[AuditEventRead]
     counts: ExperimentExportCounts
 
 
-class ExperimentAnalysisExperimentRow(BaseModel):
+class ExperimentAnalysisSetupContext(BaseModel):
+    setup_key_snapshot: str | None
+    setup_name_snapshot: str | None
+    setup_version_snapshot: int | None
+    institution_snapshot: str | None
+    setup_snapshot_hash: str | None
+
+
+class ExperimentAnalysisExperimentRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     owner_id: UUID
@@ -117,7 +127,7 @@ class ExperimentAnalysisExperimentRow(BaseModel):
     locked_at: datetime | None
 
 
-class ExperimentAnalysisPrecursorRow(BaseModel):
+class ExperimentAnalysisPrecursorRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     precursor_index: int
@@ -136,7 +146,7 @@ class ExperimentAnalysisPrecursorRow(BaseModel):
     batch_no: str | None
 
 
-class ExperimentAnalysisSubstrateRow(BaseModel):
+class ExperimentAnalysisSubstrateRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     substrate_index: int
@@ -153,7 +163,7 @@ class ExperimentAnalysisSubstrateRow(BaseModel):
     treatment_params_gas: str | None
 
 
-class ExperimentAnalysisFurnaceStepRow(BaseModel):
+class ExperimentAnalysisFurnaceStepRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     step_index: int
@@ -165,7 +175,7 @@ class ExperimentAnalysisFurnaceStepRow(BaseModel):
     note: str | None
 
 
-class ExperimentAnalysisFurnaceTemperatureRow(BaseModel):
+class ExperimentAnalysisFurnaceTemperatureRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     zone_key: str | None
@@ -175,7 +185,7 @@ class ExperimentAnalysisFurnaceTemperatureRow(BaseModel):
     note: str | None
 
 
-class ExperimentAnalysisFurnacePrecursorRow(BaseModel):
+class ExperimentAnalysisFurnacePrecursorRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     placement_index: int
@@ -186,7 +196,7 @@ class ExperimentAnalysisFurnacePrecursorRow(BaseModel):
     note: str | None
 
 
-class ExperimentAnalysisGasSegmentRow(BaseModel):
+class ExperimentAnalysisGasSegmentRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     gas_segment_index: int
@@ -200,14 +210,14 @@ class ExperimentAnalysisGasSegmentRow(BaseModel):
     component_count: int
 
 
-class ExperimentAnalysisGasProgramRow(BaseModel):
+class ExperimentAnalysisGasProgramRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     gas_program_index: int
     pre_washing_gas: str | None
 
 
-class ExperimentAnalysisGasComponentRow(BaseModel):
+class ExperimentAnalysisGasComponentRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     gas_segment_index: int
@@ -221,7 +231,7 @@ class ExperimentAnalysisGasComponentRow(BaseModel):
     ratio_percent: float | None
 
 
-class ExperimentAnalysisCharacterizationRow(BaseModel):
+class ExperimentAnalysisCharacterizationRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     characterization_index: int
@@ -232,7 +242,7 @@ class ExperimentAnalysisCharacterizationRow(BaseModel):
     note: str | None
 
 
-class ExperimentAnalysisSampleRow(BaseModel):
+class ExperimentAnalysisSampleRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     sample_id: UUID
@@ -253,7 +263,7 @@ class ExperimentAnalysisSampleRow(BaseModel):
     is_deleted: bool
 
 
-class ExperimentAnalysisFileRow(BaseModel):
+class ExperimentAnalysisFileRow(ExperimentAnalysisSetupContext):
     experiment_id: UUID
     run_code: str
     file_id: UUID
