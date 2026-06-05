@@ -40,6 +40,10 @@ class SetupMethodsUpsert(BaseModel):
     is_same_as_template: bool = False
     deviation_note: str | None = None
     semantic_context: dict[str, Any] = Field(default_factory=dict)
+    # Carries the referenced library entry so a deviation-only autosave keeps provenance.
+    # setup_key_snapshot is intentionally omitted: it is always server-derived from the
+    # snapshot hash, so any client-supplied value would be ignored anyway.
+    source_setup_library_id: UUID | None = None
 
 
 class SetupMethodsFromTemplateRequest(BaseModel):

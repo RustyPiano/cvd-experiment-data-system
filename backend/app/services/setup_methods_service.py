@@ -323,6 +323,7 @@ class SetupMethodsService:
         snapshot.reference_paper_url_snapshot = payload.reference_paper_url_snapshot
         snapshot.unpublished_reason_snapshot = payload.unpublished_reason_snapshot
         snapshot.diagram_file_asset_id = diagram_file.id if diagram_file is not None else None
+        snapshot.source_setup_library_id = payload.source_setup_library_id
         snapshot.is_same_as_template = self._resolve_template_match(snapshot, payload)
         snapshot.deviation_note = self._normalized_optional_text(payload.deviation_note)
         snapshot.metadata_json = {"semantic_context": payload.semantic_context}

@@ -447,6 +447,68 @@ def test_from_library_twice_replaces_diagram_without_orphans(active_user) -> Non
     assert active_ids == [second["diagram_file_asset_id"]]
 
 
+def test_upsert_after_from_library_preserves_provenance_on_deviation(active_user) -> None:
+    """Recording a deviation goes through the full-payload PUT upsert; the library
+    provenance and the user-set is_same_as_template flag must survive the round-trip."""
+    headers = auth_headers(active_user.email)
+    entry = client.post(
+        "/api/v1/setup-library",
+        json={
+            "name": "Two-zone fast CVD",
+            "apparatus_description": "Two-zone tube furnace",
+            "methods_text": "Purge, ramp, hold, cool",
+            "reference_paper_url": "https://example.com/paper",
+        },
+        headers=headers,
+    ).json()
+    client.post(
+        f"/api/v1/setup-library/{entry['id']}/diagram",
+        files={"file": ("apparatus.png", b"PNGDATA", "image/png")},
+        headers=headers,
+    )
+
+    experiment_id = create_experiment(active_user.email)
+    frozen = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/from-library",
+        json={"setup_library_id": entry["id"]},
+        headers=headers,
+    ).json()["data"]
+
+    # Mirror the frontend's toSetupMethodsPayload: resend the frozen content while
+    # toggling the deviation (is_same_as_template -> False) and adding a note.
+    response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": frozen["setup_name_snapshot"],
+            "institution_snapshot": frozen["institution_snapshot"],
+            "apparatus_description_snapshot": frozen["apparatus_description_snapshot"],
+            "methods_text_snapshot": frozen["methods_text_snapshot"],
+            "sample_placement_description_snapshot": frozen[
+                "sample_placement_description_snapshot"
+            ],
+            "reaction_flow_description_snapshot": frozen["reaction_flow_description_snapshot"],
+            "reference_paper_url_snapshot": frozen["reference_paper_url_snapshot"],
+            "unpublished_reason_snapshot": frozen["unpublished_reason_snapshot"],
+            "diagram_file_asset_id": frozen["diagram_file_asset_id"],
+            "is_same_as_template": False,
+            "deviation_note": "Raised hold temperature by 20C this run",
+            "semantic_context": {},
+            "source_setup_library_id": entry["id"],
+            "setup_key_snapshot": frozen["setup_key_snapshot"],
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["source_setup_library_id"] == entry["id"]
+    assert data["is_same_as_template"] is False
+    assert data["deviation_note"] == "Raised hold temperature by 20C this run"
+    # Content stays intact — the read-only preview must not be blanked by the upsert.
+    assert data["methods_text_snapshot"] == "Purge, ramp, hold, cool"
+    assert data["diagram_file_asset_id"] == frozen["diagram_file_asset_id"]
+
+
 def test_clone_snapshot_preserves_library_provenance(active_user, db_session) -> None:
     import uuid
     from datetime import date
