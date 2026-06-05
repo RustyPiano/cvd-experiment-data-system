@@ -1004,6 +1004,45 @@ def test_confirm_setup_methods_sets_confirmation(active_user) -> None:
     assert response.json()["warnings"] == []
 
 
+def test_confirm_setup_methods_rejects_incomplete_snapshot(active_user) -> None:
+    experiment_id = create_experiment(active_user.email)
+    upsert_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": "Manual setup",
+            "apparatus_description_snapshot": "Tube furnace",
+            "methods_text_snapshot": "Methods text",
+            "sample_placement_description_snapshot": "Substrate downstream",
+            "reaction_flow_description_snapshot": "Purge ramp hold cool",
+            "unpublished_reason_snapshot": "Internal",
+            "diagram_file_asset_id": None,
+            "is_same_as_template": False,
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert upsert_response.status_code == 200
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/confirm",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"] == [
+        {
+            "module_key": "setup_methods",
+            "field_path": "diagram_file_asset_id",
+            "message": "Setup diagram is required",
+        }
+    ]
+    get_response = client.get(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        headers=auth_headers(active_user.email),
+    )
+    assert get_response.status_code == 200
+    assert get_response.json()["confirmed_at"] is None
+
+
 def test_create_setup_methods_from_template_writes_template_snapshot(active_user) -> None:
     experiment_id = create_experiment(active_user.email)
 
@@ -1228,6 +1267,7 @@ The service must:
 - recalculate `snapshot_hash` on each upsert
 - set manual `setup_key_snapshot` when `source_template_key is None`
 - clear `confirmed_by_id` and `confirmed_at` on changes
+- implement `_confirm_current_snapshot` so it runs the same setup completeness checks used by submit/lock before setting `confirmed_by_id` or `confirmed_at`; if checks fail, raise `ExperimentValidationFailed` or return HTTP 422 with `ExperimentValidationResponse` shape and leave the snapshot unconfirmed
 - write audit events with entity type `experiment_setup_snapshot`
 - prevent deleting a referenced setup diagram by adding a `FileAssetService.delete_file` check that returns HTTP 409 with `Setup diagram is referenced by setup methods`
 
@@ -1267,8 +1307,14 @@ def confirm_setup_methods(
     experiment_id: UUID,
     db: DbSession,
     current_user: CurrentUser,
-) -> SetupMethodsMutationResponse:
-    return SetupMethodsService(db).confirm_setup_methods(experiment_id, current_user)
+):
+    try:
+        return SetupMethodsService(db).confirm_setup_methods(experiment_id, current_user)
+    except ExperimentValidationFailed as exc:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=exc.result.model_dump(mode="json"),
+        )
 ```
 
 Create `backend/app/api/v1/endpoints/setup_method_templates.py`:
@@ -1525,7 +1571,48 @@ Modify lock endpoint to catch `ExperimentValidationFailed` like submit.
 
 - [ ] **Step 5: Update completion score**
 
-In `_calculate_completion_score`, include setup methods as a core component. For missing setup, the score must not reach 100. Use a simple deterministic component worth the same as one existing module check.
+In `validate_experiment`, fetch the snapshot once and pass it to both setup validation and completion scoring:
+
+```python
+setup_snapshot = self.setup_methods.get_by_experiment(experiment.id)
+self._validate_setup_methods(experiment, setup_snapshot, errors, warnings)
+```
+
+Change `_validate_setup_methods` to accept the already-fetched snapshot:
+
+```python
+def _validate_setup_methods(
+    self,
+    experiment: ExperimentRun,
+    snapshot: ExperimentSetupSnapshot | None,
+    errors: list[ExperimentValidationIssue],
+    warnings: list[ExperimentValidationIssue],
+) -> None:
+```
+
+Modify `_calculate_completion_score` to receive `setup_snapshot`:
+
+```python
+def _calculate_completion_score(
+    self,
+    *,
+    experiment: ExperimentRun,
+    module_payloads: dict[str, dict],
+    setup_snapshot: ExperimentSetupSnapshot | None,
+) -> int:
+```
+
+Add setup methods checks to the `checks` list:
+
+```python
+setup_snapshot is not None,
+setup_snapshot is not None and not self._is_blank(setup_snapshot.setup_key_snapshot),
+setup_snapshot is not None and setup_snapshot.diagram_file_asset_id is not None,
+setup_snapshot is not None and not self._is_blank(setup_snapshot.methods_text_snapshot),
+setup_snapshot is not None and setup_snapshot.confirmed_at is not None,
+```
+
+Update existing completion score assertions that hard-code exact values. In `backend/tests/api/test_experiments.py`, update `test_validate_experiment_returns_errors_and_completion_score` so its `completion_score` expected value reflects missing setup methods, update `test_validate_can_return_ok_with_incomplete_score` to call `create_confirmed_setup_methods` before validation, and add one assertion that a complete confirmed setup contributes to a higher deterministic score than the same payload without setup. Keep the assertions deterministic; do not replace them with only `0 <= score <= 100`.
 
 - [ ] **Step 6: Add shared setup methods test helper and update success-submit tests**
 
@@ -2051,6 +2138,8 @@ Append to `backend/tests/api/test_admin_dashboard.py`:
 
 ```python
 def test_admin_dashboard_counts_experiments_missing_setup_methods(db_session, admin_user, active_user) -> None:
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
     now = datetime.now(UTC)
     add_experiment(
         db_session,
@@ -2060,6 +2149,33 @@ def test_admin_dashboard_counts_experiments_missing_setup_methods(db_session, ad
         created_at=now,
         updated_at=now,
     )
+    unconfirmed = add_experiment(
+        db_session,
+        owner=active_user,
+        run_code="CVD-2026-UNCONFIRMED-SETUP",
+        status=ExperimentStatus.DRAFT,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(
+        ExperimentSetupSnapshot(
+            experiment_run_id=unconfirmed.id,
+            setup_key_snapshot="manual:abcdef1234567890",
+            setup_name_snapshot="Unconfirmed setup",
+            setup_version_snapshot=1,
+            apparatus_description_snapshot="Tube furnace",
+            methods_text_snapshot="Methods",
+            sample_placement_description_snapshot="Placement",
+            reaction_flow_description_snapshot="Flow",
+            unpublished_reason_snapshot="Internal",
+            is_same_as_template=False,
+            confirmed_by_id=None,
+            confirmed_at=None,
+            snapshot_hash="a" * 64,
+            metadata_json={"semantic_context": {}},
+        )
+    )
+    db_session.commit()
 
     response = client.get(
         "/api/v1/admin/dashboard/overview",
@@ -2068,9 +2184,9 @@ def test_admin_dashboard_counts_experiments_missing_setup_methods(db_session, ad
 
     assert response.status_code == 200
     body = response.json()
-    assert body["totals"]["missing_setup_methods"] == 1
+    assert body["totals"]["missing_setup_methods"] == 2
     member = next(item for item in body["members"] if item["email"] == active_user.email)
-    assert member["missing_setup_methods"] == 1
+    assert member["missing_setup_methods"] == 2
 ```
 
 - [ ] **Step 2: Run backend dashboard test to verify it fails**
@@ -2567,6 +2683,7 @@ In `useExperimentEditor`, when `sectionKey === "setup_methods"`:
 - update local setup methods state from `response.data`
 - surface `response.warnings` in section save message
 - expose `confirmSetupMethods` and `createSetupMethodsFromTemplate` handlers so the page can confirm or seed the section without routing through module APIs
+- when `confirmSetupMethods` resolves, replace `values.setupMethods` from `response.data`, reset `snapshotsRef.current.setup_methods`, set the setup section save state to saved, and update the `["experiments", "setup-methods", currentUserId, experimentId]` query cache so the UI immediately shows `confirmedAt`
 - when `createSetupMethodsFromTemplate` resolves, replace `values.setupMethods` from `response.data`, reset that section snapshot, and show returned warnings in the setup section save state
 
 - [ ] **Step 5: Build `SetupMethodsSection`**
