@@ -1,64 +1,52 @@
-import { Button, Checkbox, Input, Select, Space, Typography } from "antd";
+import { Button, Card, Checkbox, Descriptions, Drawer, Input, Select, Space, Typography } from "antd";
 import type { CheckboxChangeEvent } from "antd/es/checkbox";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import type {
-  FileAssetRead,
-  SetupMethodTemplateRead,
-} from "../../../shared/types/api";
+import { useAuth } from "../../auth/use-auth";
+import { AuthenticatedImage } from "../../../shared/ui/authenticated-image";
+import type { FileAssetRead, SetupLibraryRead } from "../../../shared/types/api";
+import { downloadExperimentFile } from "../api";
+import { triggerBlobDownload } from "../../../shared/lib/download";
 import type { SetupMethodsValues } from "../editor-types";
 
 const { TextArea } = Input;
 
-type TemplateOption = {
-  label: string;
-  value: string;
-  templateKey: string;
-  templateVersion: number;
-};
-
-function templateOptionValue(template: SetupMethodTemplateRead) {
-  return `${template.template_key}:${template.template_version}`;
-}
-
 export function SetupMethodsSection({
   disabled,
   files,
-  onApplyTemplate,
+  onApplyLibrary,
   onChange,
-  onConfirm,
-  templateOptions,
+  libraryOptions,
   value,
 }: {
   disabled: boolean;
   files: FileAssetRead[];
-  onApplyTemplate: (templateKey: string, templateVersion: number) => void;
+  onApplyLibrary: (libraryId: string) => void;
   onChange: (nextValue: SetupMethodsValues) => void;
-  onConfirm: () => void;
-  templateOptions: SetupMethodTemplateRead[];
+  libraryOptions: SetupLibraryRead[];
   value: SetupMethodsValues;
 }) {
-  const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>(
-    value.sourceTemplateKey && value.sourceTemplateVersion
-      ? `${value.sourceTemplateKey}:${value.sourceTemplateVersion}`
-      : undefined,
+  const { session } = useAuth();
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | undefined>(
+    value.sourceSetupLibraryId || undefined
   );
-  const options = useMemo<TemplateOption[]>(
-    () =>
-      templateOptions.map((template) => ({
-        label: `${template.name} v${template.template_version}`,
-        value: templateOptionValue(template),
-        templateKey: template.template_key,
-        templateVersion: template.template_version,
-      })),
-    [templateOptions],
-  );
-  const selectedOption = options.find((option) => option.value === selectedTemplate);
-  const fileOptions = files.map((file) => ({
-    label: file.original_name,
-    value: file.id,
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [downloadingDiagram, setDownloadingDiagram] = useState(false);
+
+  useEffect(() => {
+    setSelectedLibraryId(value.sourceSetupLibraryId || undefined);
+  }, [value.sourceSetupLibraryId]);
+
+  const options = libraryOptions.map((entry) => ({
+    label: `${entry.name} (${entry.institution || "未知机构"})`,
+    value: entry.id,
   }));
-  const isConfirmed = Boolean(value.confirmedAt && value.confirmedById);
+
+  const selectedLibrary = libraryOptions.find((entry) => entry.id === selectedLibraryId);
+
+  const diagramFile = value.diagramFileAssetId
+    ? files.find((f) => f.id === value.diagramFileAssetId)
+    : undefined;
 
   const updateField = (patch: Partial<SetupMethodsValues>) => {
     onChange({
@@ -76,188 +64,251 @@ export function SetupMethodsSection({
     });
   };
 
+  const handleDownloadDiagram = async (file: FileAssetRead) => {
+    if (!session?.accessToken) return;
+    setDownloadingDiagram(true);
+    try {
+      const payload = await downloadExperimentFile(session.accessToken, file.id);
+      triggerBlobDownload(payload.blob, payload.filename || file.original_name);
+    } catch (error) {
+      console.error("Failed to download diagram", error);
+    } finally {
+      setDownloadingDiagram(false);
+    }
+  };
+
   return (
     <div className="editor-form-grid">
       <div className="editor-field editor-field-wide">
-        <Typography.Text strong>Setup 模板</Typography.Text>
-        <Space.Compact block>
+        <Typography.Text strong>选择 Setup 库记录</Typography.Text>
+        <Space.Compact block style={{ marginTop: "8px" }}>
           <Select
             allowClear
-            aria-label="Setup 模板"
+            aria-label="选择 Setup"
             disabled={disabled || options.length === 0}
             onChange={(nextValue) => {
-              setSelectedTemplate(nextValue);
+              setSelectedLibraryId(nextValue);
             }}
             options={options}
-            placeholder="选择模板"
-            value={selectedTemplate}
+            placeholder="选择 Setup"
+            value={selectedLibraryId}
+            style={{ width: "calc(100% - 200px)", minWidth: 200 }}
           />
           <Button
-            disabled={disabled || !selectedOption}
+            disabled={disabled || !selectedLibraryId}
             onClick={() => {
-              if (selectedOption) {
-                onApplyTemplate(selectedOption.templateKey, selectedOption.templateVersion);
+              if (selectedLibraryId) {
+                onApplyLibrary(selectedLibraryId);
               }
             }}
+            type="primary"
           >
-            套用模板
+            套用 Setup
+          </Button>
+          <Button
+            disabled={!selectedLibraryId}
+            onClick={() => {
+              setDrawerOpen(true);
+            }}
+          >
+            预览
           </Button>
         </Space.Compact>
-      </div>
-      <div className="editor-field">
-        <Typography.Text strong>Setup 名称</Typography.Text>
-        <Input
-          aria-label="Setup 名称"
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ setupNameSnapshot: event.target.value });
-          }}
-          value={value.setupNameSnapshot}
-        />
-      </div>
-      <div className="editor-field">
-        <Typography.Text strong>机构</Typography.Text>
-        <Input
-          aria-label="机构"
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ institutionSnapshot: event.target.value });
-          }}
-          value={value.institutionSnapshot}
-        />
-      </div>
-      <div className="editor-field editor-field-wide">
-        <Typography.Text strong>装置说明</Typography.Text>
-        <TextArea
-          aria-label="装置说明"
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ apparatusDescriptionSnapshot: event.target.value });
-          }}
-          value={value.apparatusDescriptionSnapshot}
-        />
-      </div>
-      <div className="editor-field editor-field-wide">
-        <Typography.Text strong>Methods</Typography.Text>
-        <TextArea
-          aria-label="Methods"
-          autoSize={{ minRows: 4, maxRows: 12 }}
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ methodsTextSnapshot: event.target.value });
-          }}
-          value={value.methodsTextSnapshot}
-        />
-      </div>
-      <div className="editor-field editor-field-wide">
-        <Typography.Text strong>样品放置</Typography.Text>
-        <TextArea
-          aria-label="样品放置"
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ samplePlacementDescriptionSnapshot: event.target.value });
-          }}
-          value={value.samplePlacementDescriptionSnapshot}
-        />
-      </div>
-      <div className="editor-field editor-field-wide">
-        <Typography.Text strong>反应流程</Typography.Text>
-        <TextArea
-          aria-label="反应流程"
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ reactionFlowDescriptionSnapshot: event.target.value });
-          }}
-          value={value.reactionFlowDescriptionSnapshot}
-        />
-      </div>
-      <div className="editor-field">
-        <Typography.Text strong>论文链接</Typography.Text>
-        <Input
-          aria-label="论文链接"
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ referencePaperUrlSnapshot: event.target.value });
-          }}
-          value={value.referencePaperUrlSnapshot}
-        />
-      </div>
-      <div className="editor-field">
-        <Typography.Text strong>Setup 图</Typography.Text>
-        <Select
-          allowClear
-          aria-label="Setup 图"
-          disabled={disabled}
-          onChange={(nextValue) => {
-            updateField({ diagramFileAssetId: nextValue ?? "" });
-          }}
-          options={fileOptions}
-          placeholder="选择 setup diagram 文件"
-          value={value.diagramFileAssetId || undefined}
-        />
-      </div>
-      <div className="editor-field editor-field-wide">
-        <Typography.Text strong>未发表说明</Typography.Text>
-        <TextArea
-          aria-label="未发表说明"
-          autoSize={{ minRows: 2, maxRows: 6 }}
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ unpublishedReasonSnapshot: event.target.value });
-          }}
-          value={value.unpublishedReasonSnapshot}
-        />
-      </div>
-      <div className="editor-field">
-        <Checkbox
-          checked={value.isSameAsTemplate}
-          disabled={disabled || !value.sourceTemplateKey}
-          onChange={handleSameAsTemplateChange}
-        >
-          与模板一致
-        </Checkbox>
-      </div>
-      {value.sourceTemplateKey && !value.isSameAsTemplate ? (
-        <div className="editor-field editor-field-wide">
-          <Typography.Text strong>偏差说明</Typography.Text>
-          <TextArea
-            aria-label="偏差说明"
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            disabled={disabled}
-            onChange={(event) => {
-              updateField({ deviationNote: event.target.value });
-            }}
-            value={value.deviationNote}
-          />
+        <div style={{ marginTop: "8px" }}>
+          <Typography.Link href="/setup-library" target="_blank">
+            + 新建/管理我的 Setup
+          </Typography.Link>
         </div>
-      ) : null}
-      <div className="editor-field editor-field-wide">
-        <Typography.Text strong>语义上下文 JSON</Typography.Text>
-        <TextArea
-          aria-label="语义上下文 JSON"
-          autoSize={{ minRows: 3, maxRows: 8 }}
-          disabled={disabled}
-          onChange={(event) => {
-            updateField({ semanticContextText: event.target.value });
-          }}
-          value={value.semanticContextText}
-        />
       </div>
-      <div className="editor-field editor-field-wide">
-        <Space size={12} wrap>
-          <Button disabled={disabled} onClick={onConfirm} type="primary">
-            确认 Setup
-          </Button>
-          {isConfirmed ? (
-            <Typography.Text type="success">已确认</Typography.Text>
-          ) : (
-            <Typography.Text type="secondary">未确认</Typography.Text>
+
+      {/* 只读快照预览区 */}
+      {value.setupNameSnapshot && (
+        <div className="editor-field editor-field-wide">
+          <Card
+            title={
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                <span>{value.setupNameSnapshot}</span>
+                {value.institutionSnapshot && (
+                  <Typography.Text type="secondary" style={{ fontSize: "14px", fontWeight: "normal" }}>
+                    {value.institutionSnapshot}
+                  </Typography.Text>
+                )}
+              </div>
+            }
+            type="inner"
+          >
+            <Descriptions column={1} bordered size="middle">
+              <Descriptions.Item label="实验方法/步骤">
+                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>
+                  {value.methodsTextSnapshot}
+                </pre>
+              </Descriptions.Item>
+
+              {value.apparatusDescriptionSnapshot && (
+                <Descriptions.Item label="装置说明">
+                  <div style={{ whiteSpace: "pre-wrap" }}>
+                    {value.apparatusDescriptionSnapshot}
+                  </div>
+                </Descriptions.Item>
+              )}
+
+              {value.samplePlacementDescriptionSnapshot && (
+                <Descriptions.Item label="样品放置说明">
+                  <div style={{ whiteSpace: "pre-wrap" }}>
+                    {value.samplePlacementDescriptionSnapshot}
+                  </div>
+                </Descriptions.Item>
+              )}
+
+              {value.reactionFlowDescriptionSnapshot && (
+                <Descriptions.Item label="反应气流说明">
+                  <div style={{ whiteSpace: "pre-wrap" }}>
+                    {value.reactionFlowDescriptionSnapshot}
+                  </div>
+                </Descriptions.Item>
+              )}
+
+              <Descriptions.Item label="文献/参考">
+                {value.referencePaperUrlSnapshot ? (
+                  <a
+                    href={value.referencePaperUrlSnapshot}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {value.referencePaperUrlSnapshot}
+                  </a>
+                ) : value.unpublishedReasonSnapshot ? (
+                  <span>未发表: {value.unpublishedReasonSnapshot}</span>
+                ) : (
+                  "-"
+                )}
+              </Descriptions.Item>
+
+              {diagramFile && (
+                <Descriptions.Item label="示意图">
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <AuthenticatedImage
+                      url={diagramFile.download_url}
+                      token={session?.accessToken || ""}
+                      alt={diagramFile.original_name}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: 300,
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                    <div>
+                      <Button
+                        type="link"
+                        style={{ padding: 0 }}
+                        loading={downloadingDiagram}
+                        onClick={() => handleDownloadDiagram(diagramFile)}
+                      >
+                        下载示意图 ({diagramFile.original_name})
+                      </Button>
+                    </div>
+                  </div>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+          </Card>
+        </div>
+      )}
+
+      {/* 偏差说明录入 */}
+      {value.sourceSetupLibraryId && (
+        <div className="editor-field editor-field-wide">
+          <Checkbox
+            checked={value.isSameAsTemplate}
+            disabled={disabled}
+            onChange={handleSameAsTemplateChange}
+          >
+            与该 Setup 一致
+          </Checkbox>
+
+          {!value.isSameAsTemplate && (
+            <div style={{ marginTop: "16px" }}>
+              <Typography.Text strong style={{ display: "block", marginBottom: "8px" }}>
+                本次偏差说明 (Deviation Note)
+              </Typography.Text>
+              <TextArea
+                aria-label="偏差说明"
+                autoSize={{ minRows: 2, maxRows: 6 }}
+                disabled={disabled}
+                onChange={(event) => {
+                  updateField({ deviationNote: event.target.value });
+                }}
+                value={value.deviationNote}
+                placeholder="请输入本次实验与所选 Setup 模板的偏差说明"
+              />
+            </div>
           )}
-        </Space>
-      </div>
+        </div>
+      )}
+
+      {/* 预览 Drawer */}
+      <Drawer
+        title={`Setup 预览: ${selectedLibrary?.name || ""}`}
+        placement="right"
+        width={640}
+        onClose={() => setDrawerOpen(false)}
+        open={drawerOpen}
+      >
+        {selectedLibrary && (
+          <Descriptions column={1} bordered size="middle">
+            <Descriptions.Item label="名称">{selectedLibrary.name}</Descriptions.Item>
+            <Descriptions.Item label="机构">
+              {selectedLibrary.institution || "-"}
+            </Descriptions.Item>
+            <Descriptions.Item label="实验方法/步骤">
+              <div style={{ whiteSpace: "pre-wrap" }}>{selectedLibrary.methods_text}</div>
+            </Descriptions.Item>
+            <Descriptions.Item label="设备描述">
+              <div style={{ whiteSpace: "pre-wrap" }}>
+                {selectedLibrary.apparatus_description || "-"}
+              </div>
+            </Descriptions.Item>
+            <Descriptions.Item label="样品放置描述">
+              <div style={{ whiteSpace: "pre-wrap" }}>
+                {selectedLibrary.sample_placement_description || "-"}
+              </div>
+            </Descriptions.Item>
+            <Descriptions.Item label="反应气流描述">
+              <div style={{ whiteSpace: "pre-wrap" }}>
+                {selectedLibrary.reaction_flow_description || "-"}
+              </div>
+            </Descriptions.Item>
+            <Descriptions.Item label="文献/参考">
+              {selectedLibrary.reference_paper_url ? (
+                <a
+                  href={selectedLibrary.reference_paper_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {selectedLibrary.reference_paper_url}
+                </a>
+              ) : selectedLibrary.unpublished_reason ? (
+                <span>未发表: {selectedLibrary.unpublished_reason}</span>
+              ) : (
+                "-"
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="示意图">
+              {selectedLibrary.has_diagram && selectedLibrary.diagram_download_url ? (
+                <AuthenticatedImage
+                  url={selectedLibrary.diagram_download_url}
+                  token={session?.accessToken || ""}
+                  alt={selectedLibrary.name}
+                  style={{ maxWidth: "100%", marginTop: 8 }}
+                />
+              ) : (
+                "-"
+              )}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Drawer>
     </div>
   );
 }
