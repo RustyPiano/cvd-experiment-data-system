@@ -13,10 +13,17 @@ import { HttpError } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { RouteLeaveGuard } from "../../shared/ui/route-leave-guard";
-import type { ControlledVocabularyRead } from "../../shared/types/api";
+import type { ControlledVocabularyRead, FileAssetRead, SetupMethodTemplateRead } from "../../shared/types/api";
 import { useAuth } from "../auth/use-auth";
 import { listActiveRecipes } from "../recipes/api";
-import { getExperiment, listActiveVocabularies, listExperimentModules } from "./api";
+import {
+  getExperiment,
+  getSetupMethods,
+  listActiveVocabularies,
+  listExperimentFiles,
+  listExperimentModules,
+  listSetupMethodTemplates,
+} from "./api";
 import { CharacterizationSection } from "./components/characterization-section";
 import { EditorActionBar } from "./components/editor-action-bar";
 import { EditorSectionCard } from "./components/editor-section-card";
@@ -31,6 +38,7 @@ import { PrecursorsSection } from "./components/precursors-section";
 import { PrecheckSection } from "./components/precheck-section";
 import { ProcessObservationSection } from "./components/process-observation-section";
 import { ResultSummarySection } from "./components/result-summary-section";
+import { SetupMethodsSection } from "./components/setup-methods-section";
 import { SubstratesSection } from "./components/substrates-section";
 import { ValidationSummary } from "./components/validation-summary";
 import {
@@ -44,6 +52,7 @@ import { useExperimentEditor } from "./use-experiment-editor";
 
 const sectionAnchorList: { key: EditorSectionKey; label: string }[] = [
   { key: "basic_info", label: "基础信息" },
+  { key: "setup_methods", label: "Setup / Methods" },
   { key: "environment", label: "环境条件" },
   { key: "precheck", label: "预检查" },
   { key: "precursors", label: "前驱体" },
@@ -103,6 +112,8 @@ function ExperimentEditorWorkspace({
   initialModulePayloads,
   initialValues,
   onInheritanceConsumed,
+  setupDiagramFiles,
+  setupTemplates,
 }: {
   accessToken: string;
   currentUserId: string;
@@ -112,6 +123,8 @@ function ExperimentEditorWorkspace({
   initialModulePayloads: ModulePayloadMap;
   initialValues: ReturnType<typeof createInitialEditorValues>;
   onInheritanceConsumed?: () => void;
+  setupDiagramFiles: FileAssetRead[];
+  setupTemplates: SetupMethodTemplateRead[];
 }) {
   const navigate = useNavigate();
   const { modal } = App.useApp();
@@ -341,6 +354,29 @@ function ExperimentEditorWorkspace({
               />
             </EditorSectionCard>
           </div>
+          <div className="editor-anchor-target" id="section-setup_methods">
+            <EditorSectionCard
+              state={editor.sectionStates.setup_methods}
+              subtitle="记录实验装置、方法文本、setup diagram 与确认状态。"
+              title="Setup / Methods"
+            >
+              <SetupMethodsSection
+                disabled={editorDisabled}
+                files={setupDiagramFiles}
+                onApplyTemplate={editor.createSetupMethodsFromTemplate}
+                onChange={(nextValue) => {
+                  editor.updateValues((current) => ({
+                    ...current,
+                    setupMethods: nextValue,
+                  }));
+                  editor.scheduleAutosave();
+                }}
+                onConfirm={editor.confirmSetupMethods}
+                templateOptions={setupTemplates}
+                value={editor.values.setupMethods}
+              />
+            </EditorSectionCard>
+          </div>
           <div className="editor-anchor-target" id="section-environment">
             <EditorSectionCard
               state={editor.sectionStates.environment}
@@ -564,14 +600,46 @@ export function ExperimentEditorPage() {
     queryFn: () => listExperimentModules(session.accessToken!, experimentId),
     enabled: session.isAuthenticated && Boolean(experimentId),
   });
+  const setupMethodsQuery = useQuery({
+    queryKey: ["experiments", "setup-methods", currentUserId, experimentId],
+    queryFn: async () => {
+      try {
+        return await getSetupMethods(session.accessToken!, experimentId);
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled: session.isAuthenticated && Boolean(experimentId),
+  });
+  const setupTemplatesQuery = useQuery({
+    queryKey: ["setup-method-templates", currentUserId],
+    queryFn: () => listSetupMethodTemplates(session.accessToken!),
+    enabled: session.isAuthenticated,
+  });
+  const setupDiagramFilesQuery = useQuery({
+    queryKey: ["experiments", "files", currentUserId, experimentId, "setup_diagram"],
+    queryFn: () =>
+      listExperimentFiles(session.accessToken!, {
+        experimentId,
+        assetRole: "setup_diagram",
+      }),
+    enabled: session.isAuthenticated && Boolean(experimentId),
+  });
 
   const initialValues = useMemo(() => {
-    if (!experimentQuery.data || !modulesQuery.data) {
+    if (!experimentQuery.data || !modulesQuery.data || setupMethodsQuery.data === undefined) {
       return null;
     }
 
-    return createInitialEditorValues(experimentQuery.data, modulesQuery.data.items);
-  }, [experimentQuery.data, modulesQuery.data]);
+    return createInitialEditorValues(
+      experimentQuery.data,
+      modulesQuery.data.items,
+      setupMethodsQuery.data,
+    );
+  }, [experimentQuery.data, modulesQuery.data, setupMethodsQuery.data]);
   const initialModulePayloads = useMemo(() => {
     if (!modulesQuery.data) {
       return null;
@@ -580,12 +648,29 @@ export function ExperimentEditorPage() {
     return createModulePayloadMap(modulesQuery.data.items);
   }, [modulesQuery.data]);
 
-  if (experimentQuery.isLoading || modulesQuery.isLoading) {
+  if (
+    experimentQuery.isLoading ||
+    modulesQuery.isLoading ||
+    setupMethodsQuery.isLoading ||
+    setupTemplatesQuery.isLoading ||
+    setupDiagramFilesQuery.isLoading
+  ) {
     return <LoadingState />;
   }
 
-  if (experimentQuery.error || modulesQuery.error) {
-    const error = experimentQuery.error ?? modulesQuery.error;
+  if (
+    experimentQuery.error ||
+    modulesQuery.error ||
+    setupMethodsQuery.error ||
+    setupTemplatesQuery.error ||
+    setupDiagramFilesQuery.error
+  ) {
+    const error =
+      experimentQuery.error ??
+      modulesQuery.error ??
+      setupMethodsQuery.error ??
+      setupTemplatesQuery.error ??
+      setupDiagramFilesQuery.error;
 
     return (
       <div className="content-stack">
@@ -632,6 +717,8 @@ export function ExperimentEditorPage() {
       initialExperiment={experimentQuery.data}
       initialModulePayloads={initialModulePayloads}
       initialValues={initialValues}
+      setupDiagramFiles={setupDiagramFilesQuery.data?.items ?? []}
+      setupTemplates={setupTemplatesQuery.data?.items ?? []}
       onInheritanceConsumed={() => {
         const nextSearchParams = new URLSearchParams(searchParams);
         nextSearchParams.delete("inheritFrom");

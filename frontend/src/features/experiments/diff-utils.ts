@@ -1,4 +1,4 @@
-import { editorSectionKeys, type EditorSectionKey } from "./editor-types";
+import { moduleEditorSectionKeys, type ModuleEditorSectionKey } from "./editor-types";
 
 export type DiffStatus = "added" | "modified" | "removed" | "same";
 
@@ -12,18 +12,18 @@ export type DiffRow = {
 };
 
 export type ModuleDiff = {
-  moduleKey: EditorSectionKey;
+  moduleKey: ModuleEditorSectionKey;
   moduleLabel: string;
   status: DiffStatus;
   rows: DiffRow[];
 };
 
 export type ModulePayloadDiffInput = {
-  sourceModules: Partial<Record<EditorSectionKey | string, Record<string, unknown>>>;
-  currentModules: Partial<Record<EditorSectionKey | string, Record<string, unknown>>>;
+  sourceModules: Partial<Record<ModuleEditorSectionKey | string, Record<string, unknown>>>;
+  currentModules: Partial<Record<ModuleEditorSectionKey | string, Record<string, unknown>>>;
 };
 
-const moduleLabels: Record<EditorSectionKey, string> = {
+const moduleLabels: Record<ModuleEditorSectionKey, string> = {
   basic_info: "基础信息",
   environment: "环境条件",
   precheck: "预检查",
@@ -163,7 +163,7 @@ export function getFieldLabel(path: string) {
   return parts.map((part, index) => normalizePathPart(part, parts[index + 1])).join(" / ");
 }
 
-export function getModuleLabel(moduleKey: EditorSectionKey) {
+export function getModuleLabel(moduleKey: ModuleEditorSectionKey) {
   return moduleLabels[moduleKey];
 }
 
@@ -261,7 +261,7 @@ export function buildExperimentModuleDiffs({
   sourceModules,
   currentModules,
 }: ModulePayloadDiffInput): ModuleDiff[] {
-  return editorSectionKeys
+  return moduleEditorSectionKeys
     .filter((moduleKey) => sourceModules[moduleKey] || currentModules[moduleKey])
     .map((moduleKey) => {
       const rows = compareValues(sourceModules[moduleKey], currentModules[moduleKey]);

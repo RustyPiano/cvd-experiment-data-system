@@ -7,17 +7,22 @@ import type {
   ExperimentModulePayloadRead,
   ExperimentRead,
   ExperimentValidationResponse,
+  SetupMethodsRead,
 } from "../../shared/types/api";
 import {
+  confirmSetupMethods as confirmSetupMethodsRequest,
+  createSetupMethodsFromTemplate as createSetupMethodsFromTemplateRequest,
   listExperimentModules,
   submitExperiment,
   updateExperiment,
   upsertExperimentModule,
+  upsertSetupMethods,
   validateExperiment,
 } from "./api";
 import {
   createInitialEditorValues,
   createInitialSectionStates,
+  createSetupMethodsValues,
   editorSectionKeys,
   mergeBasicInfoPayload,
   mergeCharacterizationPayload,
@@ -41,7 +46,10 @@ import {
   toProcessObservationPayload,
   toResultSummaryPayload,
   toSubstratesPayload,
+  toSetupMethodsCompletionPayload,
+  toSetupMethodsPayload,
   type ModulePayloadMap,
+  type ModuleEditorSectionKey,
   toResultSummaryPatch,
   validateSectionValues,
   type EditorSectionKey,
@@ -263,6 +271,7 @@ export function useExperimentEditor({
       },
       {
         basic_info: "",
+        setup_methods: "",
         environment: "",
         precheck: "",
         precursors: "",
@@ -405,6 +414,36 @@ export function useExperimentEditor({
     [currentUserId, experimentId, queryClient],
   );
 
+  const patchSetupMethodsCache = useCallback(
+    (savedSetupMethods: SetupMethodsRead) => {
+      queryClient.setQueryData(
+        ["experiments", "setup-methods", currentUserId, experimentId],
+        savedSetupMethods,
+      );
+    },
+    [currentUserId, experimentId, queryClient],
+  );
+
+  const replaceSetupMethodsSnapshot = useCallback(
+    (savedSetupMethods: SetupMethodsRead) => {
+      const setupMethods = createSetupMethodsValues(savedSetupMethods);
+      const nextValues = {
+        ...valuesRef.current,
+        setupMethods,
+      };
+      valuesRef.current = nextValues;
+      setValues(nextValues);
+      snapshotsRef.current.setup_methods = serializeSectionValues(
+        "setup_methods",
+        nextValues,
+      );
+      patchSetupMethodsCache(savedSetupMethods);
+      setHasDirtyChanges(getDirtySections(nextValues).length > 0);
+      return setupMethods;
+    },
+    [getDirtySections, patchSetupMethodsCache],
+  );
+
   const persistDirtySections = useCallback(
     async (
       draftValues: ExperimentEditorValues,
@@ -449,9 +488,19 @@ export function useExperimentEditor({
 
       for (const sectionKey of savableSections) {
         let savedModule: ExperimentModulePayloadRead | null = null;
+        let savedSetupValues: ExperimentEditorValues["setupMethods"] | null = null;
+        let setupWarningCount = 0;
 
         try {
-          if (sectionKey === "basic_info") {
+          if (sectionKey === "setup_methods") {
+            const response = await upsertSetupMethods(
+              accessToken,
+              experimentId,
+              toSetupMethodsPayload(draftValues.setupMethods),
+            );
+            savedSetupValues = replaceSetupMethodsSnapshot(response.data);
+            setupWarningCount = response.warnings.length;
+          } else if (sectionKey === "basic_info") {
             const patchedExperiment = await updateExperiment(
               accessToken,
               experimentId,
@@ -562,6 +611,21 @@ export function useExperimentEditor({
             );
           }
 
+          if (savedSetupValues) {
+            snapshotsRef.current[sectionKey] = serializeSectionValues(
+              sectionKey,
+              valuesRef.current,
+            );
+            setSectionState(sectionKey, {
+              status: "saved",
+              message:
+                setupWarningCount > 0
+                  ? `已自动保存，${setupWarningCount} 条提示`
+                  : "已自动保存",
+            });
+            continue;
+          }
+
           if (savedModule) {
             modulePayloadsRef.current = {
               ...modulePayloadsRef.current,
@@ -611,6 +675,7 @@ export function useExperimentEditor({
       getDirtySections,
       patchModulesCache,
       queryClient,
+      replaceSetupMethodsSnapshot,
       markInheritedSectionSaved,
       setSectionState,
     ],
@@ -648,6 +713,106 @@ export function useExperimentEditor({
 
     await enqueueSave(() => persistDirtySections(valuesRef.current));
   }, [enqueueSave, experiment.status, persistDirtySections]);
+
+  const confirmSetupMethods = useCallback(async () => {
+    if (experiment.status !== "draft") {
+      return;
+    }
+
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
+    setSectionState("setup_methods", {
+      status: "saving",
+      message: "确认中",
+    });
+
+    try {
+      const saveFailed = await enqueueSave(() => persistDirtySections(valuesRef.current));
+      if (
+        saveFailed ||
+        sectionStatesRef.current.setup_methods.status === "error"
+      ) {
+        setSectionState("setup_methods", {
+          status: "error",
+          message: "请先修正 Setup / Methods 保存错误后再确认。",
+        });
+        return;
+      }
+
+      const response = await confirmSetupMethodsRequest(accessToken, experimentId);
+      replaceSetupMethodsSnapshot(response.data);
+      setSectionState("setup_methods", {
+        status: "saved",
+        message:
+          response.warnings.length > 0
+            ? `Setup 已确认，${response.warnings.length} 条提示`
+            : "Setup 已确认",
+      });
+    } catch (error) {
+      setSectionState("setup_methods", {
+        status: "error",
+        message: resolveErrorMessage(error, "确认 Setup 失败"),
+      });
+    }
+  }, [
+    accessToken,
+    enqueueSave,
+    experiment.status,
+    experimentId,
+    persistDirtySections,
+    replaceSetupMethodsSnapshot,
+    setSectionState,
+  ]);
+
+  const createSetupMethodsFromTemplate = useCallback(
+    async (templateKey: string, templateVersion: number) => {
+      if (experiment.status !== "draft") {
+        return;
+      }
+
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+
+      setSectionState("setup_methods", {
+        status: "saving",
+        message: "套用模板中",
+      });
+
+      try {
+        const response = await createSetupMethodsFromTemplateRequest(
+          accessToken,
+          experimentId,
+          templateKey,
+          templateVersion,
+        );
+        replaceSetupMethodsSnapshot(response.data);
+        setSectionState("setup_methods", {
+          status: "saved",
+          message:
+            response.warnings.length > 0
+              ? `已套用模板，${response.warnings.length} 条提示`
+              : "已套用模板",
+        });
+      } catch (error) {
+        setSectionState("setup_methods", {
+          status: "error",
+          message: resolveErrorMessage(error, "套用 Setup 模板失败"),
+        });
+      }
+    },
+    [
+      accessToken,
+      experiment.status,
+      experimentId,
+      replaceSetupMethodsSnapshot,
+      setSectionState,
+    ],
+  );
 
   const clearInheritedSection = useCallback((sectionKey: InheritedSectionKey) => {
     setInheritedFrom((current) => {
@@ -763,7 +928,7 @@ export function useExperimentEditor({
     return "编辑后自动保存";
   }, [sectionStates]);
 
-  const currentModulePayloads = useMemo<Record<EditorSectionKey, Record<string, unknown>>>(
+  const currentModulePayloads = useMemo<Record<ModuleEditorSectionKey, Record<string, unknown>>>(
     () => ({
       basic_info: toBasicInfoPayload(values.basicInfo, currentUserId),
       environment: toEnvironmentPayload(values.environment),
@@ -779,12 +944,20 @@ export function useExperimentEditor({
     [currentUserId, values],
   );
 
-  const diffModulePayloads = useMemo<Record<EditorSectionKey, Record<string, unknown>>>(
+  const diffModulePayloads = useMemo<Record<ModuleEditorSectionKey, Record<string, unknown>>>(
     () => ({
       ...currentModulePayloads,
       characterization: mergeCharacterizationPayload(undefined, values.characterization),
     }),
     [currentModulePayloads, values.characterization],
+  );
+
+  const completionPayloads = useMemo<Record<EditorSectionKey, Record<string, unknown>>>(
+    () => ({
+      ...currentModulePayloads,
+      setup_methods: toSetupMethodsCompletionPayload(values.setupMethods),
+    }),
+    [currentModulePayloads, values.setupMethods],
   );
 
   const completionValidationIssues = useMemo<CompletionValidationIssue[]>(() => {
@@ -804,13 +977,14 @@ export function useExperimentEditor({
         (result, sectionKey) => {
           result[sectionKey] = computeModuleCompletion(
             sectionKey,
-            currentModulePayloads[sectionKey],
+            completionPayloads[sectionKey],
             completionValidationIssues,
           );
           return result;
         },
         {
           basic_info: { state: "empty", percent: 0 },
+          setup_methods: { state: "empty", percent: 0 },
           environment: { state: "empty", percent: 0 },
           precheck: { state: "empty", percent: 0 },
           precursors: { state: "empty", percent: 0 },
@@ -822,7 +996,7 @@ export function useExperimentEditor({
           result_summary: { state: "empty", percent: 0 },
         },
       ),
-    [completionValidationIssues, currentModulePayloads],
+    [completionPayloads, completionValidationIssues],
   );
 
   const completionSummary = useMemo<CompletionSummary>(() => {
@@ -999,6 +1173,8 @@ export function useExperimentEditor({
     saveSummary,
     saveDraft,
     scheduleAutosave,
+    confirmSetupMethods,
+    createSetupMethodsFromTemplate,
     sectionStates,
     moduleCompletionMap,
     submitDraft,

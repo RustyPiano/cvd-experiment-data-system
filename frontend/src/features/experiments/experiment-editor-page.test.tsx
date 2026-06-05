@@ -295,6 +295,9 @@ function createEditorFetchMock() {
     createVocabularyItem("characterization_method", "SEM", "扫描电镜", 2),
   ];
 
+  const serverState = {
+    setupMethods: null as Record<string, unknown> | null,
+  };
   const requests: Array<{
     method: string;
     pathname: string;
@@ -335,6 +338,30 @@ function createEditorFetchMock() {
       return jsonResponse({
         items: [...modules.values()],
         total: modules.size,
+      });
+    }
+
+    if (url.pathname === "/api/v1/experiments/exp-1/setup-methods" && method === "GET") {
+      return serverState.setupMethods
+        ? jsonResponse(serverState.setupMethods)
+        : jsonResponse({ detail: "Not found" }, { status: 404 });
+    }
+
+    if (url.pathname === "/api/v1/setup-method-templates" && method === "GET") {
+      return jsonResponse({
+        items: [],
+        total: 0,
+      });
+    }
+
+    if (
+      url.pathname === "/api/v1/files" &&
+      method === "GET" &&
+      url.searchParams.get("asset_role") === "setup_diagram"
+    ) {
+      return jsonResponse({
+        items: [],
+        total: 0,
       });
     }
 
@@ -388,6 +415,12 @@ function createEditorFetchMock() {
     requests,
     sourceModules,
     fetchMock,
+    get setupMethods() {
+      return serverState.setupMethods;
+    },
+    set setupMethods(value: Record<string, unknown> | null) {
+      serverState.setupMethods = value;
+    },
   };
 }
 
@@ -462,6 +495,7 @@ describe("ExperimentEditorPage", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "基础信息" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Setup / Methods" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "环境条件" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "预检查" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "前驱体" })).toBeInTheDocument();
@@ -502,6 +536,49 @@ describe("ExperimentEditorPage", () => {
     expect(screen.getByRole("radiogroup", { name: "质量评级" })).toBeInTheDocument();
     expect(screen.getByLabelText("下一步建议")).toHaveValue("Repeat growth");
     expect(screen.getByRole("button", { name: "提交实验" })).toBeInTheDocument();
+  });
+
+  it("loads existing setup methods snapshot into the editor", async () => {
+    const server = createEditorFetchMock();
+    server.setupMethods = {
+      id: "setup-1",
+      experiment_run_id: "exp-1",
+      source_template_key: null,
+      source_template_version: null,
+      setup_key_snapshot: "manual:abcdef1234567890",
+      setup_name_snapshot: "Manual setup",
+      setup_version_snapshot: 1,
+      institution_snapshot: "group",
+      apparatus_description_snapshot: "Tube furnace",
+      methods_text_snapshot: "Methods text",
+      sample_placement_description_snapshot: "Substrate downstream",
+      reaction_flow_description_snapshot: "Purge ramp hold cool",
+      reference_paper_url_snapshot: null,
+      unpublished_reason_snapshot: "Internal",
+      diagram_file_asset_id: "file-setup",
+      is_same_as_template: false,
+      deviation_note: null,
+      confirmed_by_id: null,
+      confirmed_at: null,
+      snapshot_hash: "a".repeat(64),
+      semantic_context: { temperature_reference: "setpoint" },
+      created_at: "2026-06-05T00:00:00Z",
+      updated_at: "2026-06-05T00:00:00Z",
+    };
+    vi.stubGlobal("fetch", server.fetchMock);
+
+    renderWithApp(
+      <Routes>
+        <Route path="/experiments/:experimentId/edit" element={<ExperimentEditorPage />} />
+      </Routes>,
+      {
+        authenticated: true,
+        initialEntries: ["/experiments/exp-1/edit"],
+      },
+    );
+
+    expect(await screen.findByDisplayValue("Manual setup")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Methods text")).toBeInTheDocument();
   });
 
   it("defaults empty precheck values to unchecked and shows two blank precursor rows", async () => {

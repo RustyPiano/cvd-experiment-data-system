@@ -44,6 +44,32 @@ describe("computeModuleCompletion", () => {
     ).toEqual({ state: "complete", percent: 100 });
   });
 
+  it("requires setup methods fields, diagram, and confirmation", () => {
+    expect(
+      computeModuleCompletion("setup_methods", {
+        setup_name_snapshot: "Manual setup",
+        apparatus_description_snapshot: "Tube furnace",
+        methods_text_snapshot: "Methods",
+        sample_placement_description_snapshot: "Downstream",
+        reaction_flow_description_snapshot: "Purge ramp hold",
+        diagram_file_asset_id: "file-1",
+        confirmed_at: null,
+      }),
+    ).toEqual({ state: "partial", percent: 86 });
+
+    expect(
+      computeModuleCompletion("setup_methods", {
+        setup_name_snapshot: "Manual setup",
+        apparatus_description_snapshot: "Tube furnace",
+        methods_text_snapshot: "Methods",
+        sample_placement_description_snapshot: "Downstream",
+        reaction_flow_description_snapshot: "Purge ramp hold",
+        diagram_file_asset_id: "file-1",
+        confirmed_at: "2026-06-05T00:00:00Z",
+      }),
+    ).toEqual({ state: "complete", percent: 100 });
+  });
+
   it("keeps collection modules partial when any included row is incomplete", () => {
     expect(
       computeModuleCompletion("precursors", {

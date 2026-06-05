@@ -3,10 +3,13 @@ import type {
   QualityLabel,
   ExperimentRead,
   ExperimentUpdateRequest,
+  SetupMethodsRead,
+  SetupMethodsUpsertRequest,
 } from "../../shared/types/api";
 
 export const editorSectionKeys = [
   "basic_info",
+  "setup_methods",
   "environment",
   "precheck",
   "precursors",
@@ -19,6 +22,11 @@ export const editorSectionKeys = [
 ] as const;
 
 export type EditorSectionKey = (typeof editorSectionKeys)[number];
+export type ModuleEditorSectionKey = Exclude<EditorSectionKey, "setup_methods">;
+
+export const moduleEditorSectionKeys = editorSectionKeys.filter(
+  (sectionKey): sectionKey is ModuleEditorSectionKey => sectionKey !== "setup_methods",
+);
 
 export type SaveStateStatus = "idle" | "saving" | "saved" | "error";
 
@@ -48,6 +56,24 @@ export type BasicInfoValues = {
   experimentDate: string;
   layerCount: string;
   objective: string;
+};
+
+export type SetupMethodsValues = {
+  sourceTemplateKey: string | null;
+  sourceTemplateVersion: number | null;
+  setupNameSnapshot: string;
+  institutionSnapshot: string;
+  apparatusDescriptionSnapshot: string;
+  methodsTextSnapshot: string;
+  samplePlacementDescriptionSnapshot: string;
+  reactionFlowDescriptionSnapshot: string;
+  referencePaperUrlSnapshot: string;
+  unpublishedReasonSnapshot: string;
+  diagramFileAssetId: string;
+  isSameAsTemplate: boolean;
+  deviationNote: string;
+  semanticContextText: string;
+  confirmedAt: string | null;
 };
 
 export type PrecheckValues = {
@@ -201,6 +227,7 @@ export type ResultSummaryValues = {
 
 export type ExperimentEditorValues = {
   basicInfo: BasicInfoValues;
+  setupMethods: SetupMethodsValues;
   environment: EnvironmentValues;
   precheck: PrecheckValues;
   precursors: PrecursorsValues;
@@ -212,7 +239,7 @@ export type ExperimentEditorValues = {
   resultSummary: ResultSummaryValues;
 };
 
-export type ModulePayloadMap = Partial<Record<EditorSectionKey, Record<string, unknown>>>;
+export type ModulePayloadMap = Partial<Record<ModuleEditorSectionKey, Record<string, unknown>>>;
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -332,6 +359,20 @@ function mergePayloadFields(
 function normalizeNullableString(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function parseSemanticContext(text: string): Record<string, unknown> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return {};
+  }
+
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+
+  return parsed as Record<string, unknown>;
 }
 
 export function resolvePrecursorMethodFlags(method: string): PrecursorMethodFlags {
@@ -468,6 +509,18 @@ export function validateSectionValues(
   values: ExperimentEditorValues,
 ): EditorValidationError[] {
   const errors: EditorValidationError[] = [];
+
+  if (sectionKey === "setup_methods") {
+    try {
+      parseSemanticContext(values.setupMethods.semanticContextText);
+    } catch {
+      errors.push({
+        sectionKey,
+        fieldPath: "semanticContextText",
+        message: "语义上下文 JSON 格式不正确",
+      });
+    }
+  }
 
   if (sectionKey === "environment") {
     appendNumberValidationError(
@@ -1041,6 +1094,7 @@ export function createEmptyCharacterizationMethod(): CharacterizationMethodValue
 export function createInitialSectionStates(): Record<EditorSectionKey, SectionSaveState> {
   return {
     basic_info: { status: "idle", message: null },
+    setup_methods: { status: "idle", message: null },
     environment: { status: "idle", message: null },
     precheck: { status: "idle", message: null },
     precursors: { status: "idle", message: null },
@@ -1055,20 +1109,41 @@ export function createInitialSectionStates(): Record<EditorSectionKey, SectionSa
 
 export function createModulePayloadMap(items: ExperimentModulePayloadRead[]): ModulePayloadMap {
   return items.reduce<ModulePayloadMap>((result, item) => {
-    if (!editorSectionKeys.includes(item.module_key as EditorSectionKey)) {
+    if (!moduleEditorSectionKeys.includes(item.module_key as ModuleEditorSectionKey)) {
       return result;
     }
 
-    result[item.module_key as EditorSectionKey] = asRecord(item.payload_json);
+    result[item.module_key as ModuleEditorSectionKey] = asRecord(item.payload_json);
     return result;
   }, {});
 }
 
-
+export function createSetupMethodsValues(
+  snapshot: SetupMethodsRead | null,
+): SetupMethodsValues {
+  return {
+    sourceTemplateKey: snapshot?.source_template_key ?? null,
+    sourceTemplateVersion: snapshot?.source_template_version ?? null,
+    setupNameSnapshot: snapshot?.setup_name_snapshot ?? "",
+    institutionSnapshot: snapshot?.institution_snapshot ?? "",
+    apparatusDescriptionSnapshot: snapshot?.apparatus_description_snapshot ?? "",
+    methodsTextSnapshot: snapshot?.methods_text_snapshot ?? "",
+    samplePlacementDescriptionSnapshot: snapshot?.sample_placement_description_snapshot ?? "",
+    reactionFlowDescriptionSnapshot: snapshot?.reaction_flow_description_snapshot ?? "",
+    referencePaperUrlSnapshot: snapshot?.reference_paper_url_snapshot ?? "",
+    unpublishedReasonSnapshot: snapshot?.unpublished_reason_snapshot ?? "",
+    diagramFileAssetId: snapshot?.diagram_file_asset_id ?? "",
+    isSameAsTemplate: snapshot?.is_same_as_template ?? false,
+    deviationNote: snapshot?.deviation_note ?? "",
+    semanticContextText: JSON.stringify(snapshot?.semantic_context ?? {}, null, 2),
+    confirmedAt: snapshot?.confirmed_at ?? null,
+  };
+}
 
 export function createInitialEditorValues(
   experiment: ExperimentRead,
   items: ExperimentModulePayloadRead[],
+  setupMethods: SetupMethodsRead | null = null,
 ): ExperimentEditorValues {
   const payloads = createModulePayloadMap(items);
   const basicInfo = asRecord(payloads.basic_info);
@@ -1092,6 +1167,7 @@ export function createInitialEditorValues(
       layerCount: asString(basicInfo.layer_count),
       objective: asString(experiment.objective),
     },
+    setupMethods: createSetupMethodsValues(setupMethods),
     environment: {
       indoorTemperatureC: asString(environment.indoor_temperature_C),
       indoorHumidityPercent: asString(environment.indoor_humidity_percent),
@@ -1193,6 +1269,8 @@ export function serializeSectionValues(
   switch (sectionKey) {
     case "basic_info":
       return JSON.stringify(values.basicInfo);
+    case "setup_methods":
+      return JSON.stringify(values.setupMethods);
     case "environment":
       return JSON.stringify(values.environment);
     case "precheck":
@@ -1231,6 +1309,37 @@ export function toBasicInfoPayload(values: BasicInfoValues, operatorId: string) 
     experiment_date: values.experimentDate.trim(),
     layer_count: normalizeNullableString(values.layerCount),
     objective: normalizeNullableString(values.objective),
+  };
+}
+
+export function toSetupMethodsPayload(
+  values: SetupMethodsValues,
+): SetupMethodsUpsertRequest {
+  return {
+    setup_name_snapshot: values.setupNameSnapshot.trim(),
+    institution_snapshot: normalizeNullableString(values.institutionSnapshot),
+    apparatus_description_snapshot: values.apparatusDescriptionSnapshot.trim(),
+    methods_text_snapshot: values.methodsTextSnapshot.trim(),
+    sample_placement_description_snapshot: values.samplePlacementDescriptionSnapshot.trim(),
+    reaction_flow_description_snapshot: values.reactionFlowDescriptionSnapshot.trim(),
+    reference_paper_url_snapshot: normalizeNullableString(values.referencePaperUrlSnapshot),
+    unpublished_reason_snapshot: normalizeNullableString(values.unpublishedReasonSnapshot),
+    diagram_file_asset_id: normalizeNullableString(values.diagramFileAssetId),
+    is_same_as_template: values.isSameAsTemplate,
+    deviation_note: normalizeNullableString(values.deviationNote),
+    semantic_context: parseSemanticContext(values.semanticContextText),
+  };
+}
+
+export function toSetupMethodsCompletionPayload(values: SetupMethodsValues) {
+  return {
+    setup_name_snapshot: values.setupNameSnapshot,
+    apparatus_description_snapshot: values.apparatusDescriptionSnapshot,
+    methods_text_snapshot: values.methodsTextSnapshot,
+    sample_placement_description_snapshot: values.samplePlacementDescriptionSnapshot,
+    reaction_flow_description_snapshot: values.reactionFlowDescriptionSnapshot,
+    diagram_file_asset_id: values.diagramFileAssetId,
+    confirmed_at: values.confirmedAt,
   };
 }
 

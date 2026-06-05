@@ -1,7 +1,7 @@
 import { Alert, Empty, Modal, Space, Switch, Typography } from "antd";
 import { useMemo, useState } from "react";
 
-import type { EditorSectionKey } from "../editor-types";
+import type { ModuleEditorSectionKey } from "../editor-types";
 import { buildExperimentModuleDiffs } from "../diff-utils";
 import { DiffSection } from "./diff-section";
 
@@ -14,12 +14,12 @@ export function ExperimentDiffModal({
   sourceModules,
   sourceRunCode,
 }: {
-  currentModules: Record<EditorSectionKey, Record<string, unknown>>;
+  currentModules: Record<ModuleEditorSectionKey, Record<string, unknown>>;
   errorMessage?: string | null;
   loading?: boolean;
   onClose: () => void;
   open: boolean;
-  sourceModules: Partial<Record<EditorSectionKey, Record<string, unknown>>>;
+  sourceModules: Partial<Record<ModuleEditorSectionKey, Record<string, unknown>>>;
   sourceRunCode?: string | null;
 }) {
   const [collapseSame, setCollapseSame] = useState(true);

@@ -163,6 +163,23 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
     );
   }
 
+  if (moduleKey === "setup_methods") {
+    const requiredFields = [
+      getValue(payload, ["setup_name_snapshot", "setupNameSnapshot"]),
+      getValue(payload, ["apparatus_description_snapshot", "apparatusDescriptionSnapshot"]),
+      getValue(payload, ["methods_text_snapshot", "methodsTextSnapshot"]),
+      getValue(payload, [
+        "sample_placement_description_snapshot",
+        "samplePlacementDescriptionSnapshot",
+      ]),
+      getValue(payload, ["reaction_flow_description_snapshot", "reactionFlowDescriptionSnapshot"]),
+      getValue(payload, ["diagram_file_asset_id", "diagramFileAssetId"]),
+      getValue(payload, ["confirmed_at", "confirmedAt"]),
+    ];
+    const completed = requiredFields.filter(isFilled).length;
+    return Math.round((completed / requiredFields.length) * 100);
+  }
+
   if (moduleKey === "environment") {
     return scoreBooleanSteps(
       [

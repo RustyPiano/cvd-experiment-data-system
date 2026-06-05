@@ -9,10 +9,13 @@ import { validateExperiment } from "./api";
 import { useExperimentEditor } from "./use-experiment-editor";
 
 vi.mock("./api", () => ({
+  confirmSetupMethods: vi.fn(),
+  createSetupMethodsFromTemplate: vi.fn(),
   listExperimentModules: vi.fn(),
   submitExperiment: vi.fn(),
   updateExperiment: vi.fn(),
   upsertExperimentModule: vi.fn(),
+  upsertSetupMethods: vi.fn(),
   validateExperiment: vi.fn(),
 }));
 
@@ -44,6 +47,23 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
     experimentDate: "",
     layerCount: "",
     objective: "",
+  },
+  setupMethods: {
+    sourceTemplateKey: null,
+    sourceTemplateVersion: null,
+    setupNameSnapshot: "",
+    institutionSnapshot: "",
+    apparatusDescriptionSnapshot: "",
+    methodsTextSnapshot: "",
+    samplePlacementDescriptionSnapshot: "",
+    reactionFlowDescriptionSnapshot: "",
+    referencePaperUrlSnapshot: "",
+    unpublishedReasonSnapshot: "",
+    diagramFileAssetId: "",
+    isSameAsTemplate: false,
+    deviationNote: "",
+    semanticContextText: "{}",
+    confirmedAt: null,
   },
   environment: {
     indoorTemperatureC: "",
@@ -139,7 +159,7 @@ describe("useExperimentEditor completion", () => {
     });
     expect(result.current.completionSummary).toMatchObject({
       completedCount: 1,
-      percent: 10,
+      percent: 9,
     });
   });
 
