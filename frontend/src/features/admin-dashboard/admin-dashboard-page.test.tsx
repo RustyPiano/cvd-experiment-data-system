@@ -19,6 +19,7 @@ function dashboardResponse() {
       locked: 1,
       invalid: 1,
       this_week_new: 3,
+      missing_setup_methods: 2,
     },
     members: [
       {
@@ -33,6 +34,7 @@ function dashboardResponse() {
         locked: 0,
         invalid: 0,
         stale_draft_count: 1,
+        missing_setup_methods: 1,
         last_activity_at: "2026-05-31T00:00:00Z",
       },
       {
@@ -47,6 +49,7 @@ function dashboardResponse() {
         locked: 1,
         invalid: 0,
         stale_draft_count: 0,
+        missing_setup_methods: 0,
         last_activity_at: "2026-05-30T00:00:00Z",
       },
     ],
@@ -109,8 +112,10 @@ describe("AdminDashboardPage", () => {
     expect(await screen.findByText("数据看板")).toBeInTheDocument();
     expect(screen.getByText("总记录")).toBeInTheDocument();
     expect(screen.getByText("本周新增")).toBeInTheDocument();
+    expect(screen.getAllByText("缺 Setup").length).toBeGreaterThan(0);
     expect(screen.getByText("Active User")).toBeInTheDocument();
     expect(screen.getByText("停滞 1")).toBeInTheDocument();
+    expect(screen.getByText("缺 1")).toBeInTheDocument();
     expect(screen.getByLabelText("记录趋势")).toBeInTheDocument();
 
     await waitFor(() => {

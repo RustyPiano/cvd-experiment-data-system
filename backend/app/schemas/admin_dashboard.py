@@ -11,6 +11,7 @@ class DashboardTotals(BaseModel):
     locked: int
     invalid: int
     this_week_new: int
+    missing_setup_methods: int
 
 
 class DashboardMemberStat(BaseModel):
@@ -25,6 +26,7 @@ class DashboardMemberStat(BaseModel):
     locked: int
     invalid: int
     stale_draft_count: int
+    missing_setup_methods: int
     last_activity_at: datetime | None
 
 

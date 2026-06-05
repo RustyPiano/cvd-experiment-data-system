@@ -6,6 +6,7 @@ from sqlalchemy import Integer, String, and_, cast, func, literal, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.setup_methods import ExperimentSetupSnapshot
 from app.models.user import User, UserRole
 
 SORTABLE_EXPERIMENT_COLUMNS = {
@@ -144,32 +145,64 @@ class ExperimentRepository:
         )
         return self.db.scalar(statement) or 0
 
-    def member_record_stats(self, stale_before: datetime):
-        statement = select(
-            ExperimentRun.owner_id.label("owner_id"),
-            func.count(ExperimentRun.id).label("total"),
-            func.count(ExperimentRun.id)
-            .filter(ExperimentRun.status == ExperimentStatus.DRAFT)
-            .label("draft"),
-            func.count(ExperimentRun.id)
-            .filter(ExperimentRun.status == ExperimentStatus.SUBMITTED)
-            .label("submitted"),
-            func.count(ExperimentRun.id)
-            .filter(ExperimentRun.status == ExperimentStatus.LOCKED)
-            .label("locked"),
-            func.count(ExperimentRun.id)
-            .filter(ExperimentRun.status == ExperimentStatus.INVALID)
-            .label("invalid"),
-            func.max(ExperimentRun.updated_at).label("last_activity_at"),
-            func.count(ExperimentRun.id)
-            .filter(
-                and_(
-                    ExperimentRun.status == ExperimentStatus.DRAFT,
-                    ExperimentRun.updated_at < stale_before,
+    def count_missing_setup_methods(self) -> int:
+        statement = (
+            select(func.count(ExperimentRun.id))
+            .select_from(ExperimentRun)
+            .outerjoin(
+                ExperimentSetupSnapshot,
+                ExperimentSetupSnapshot.experiment_run_id == ExperimentRun.id,
+            )
+            .where(
+                or_(
+                    ExperimentSetupSnapshot.id.is_(None),
+                    ExperimentSetupSnapshot.confirmed_at.is_(None),
                 )
             )
-            .label("stale_draft_count"),
-        ).group_by(ExperimentRun.owner_id)
+        )
+        return self.db.scalar(statement) or 0
+
+    def member_record_stats(self, stale_before: datetime):
+        statement = (
+            select(
+                ExperimentRun.owner_id.label("owner_id"),
+                func.count(ExperimentRun.id).label("total"),
+                func.count(ExperimentRun.id)
+                .filter(ExperimentRun.status == ExperimentStatus.DRAFT)
+                .label("draft"),
+                func.count(ExperimentRun.id)
+                .filter(ExperimentRun.status == ExperimentStatus.SUBMITTED)
+                .label("submitted"),
+                func.count(ExperimentRun.id)
+                .filter(ExperimentRun.status == ExperimentStatus.LOCKED)
+                .label("locked"),
+                func.count(ExperimentRun.id)
+                .filter(ExperimentRun.status == ExperimentStatus.INVALID)
+                .label("invalid"),
+                func.max(ExperimentRun.updated_at).label("last_activity_at"),
+                func.count(ExperimentRun.id)
+                .filter(
+                    and_(
+                        ExperimentRun.status == ExperimentStatus.DRAFT,
+                        ExperimentRun.updated_at < stale_before,
+                    )
+                )
+                .label("stale_draft_count"),
+                func.count(ExperimentRun.id)
+                .filter(
+                    or_(
+                        ExperimentSetupSnapshot.id.is_(None),
+                        ExperimentSetupSnapshot.confirmed_at.is_(None),
+                    )
+                )
+                .label("missing_setup_methods"),
+            )
+            .outerjoin(
+                ExperimentSetupSnapshot,
+                ExperimentSetupSnapshot.experiment_run_id == ExperimentRun.id,
+            )
+            .group_by(ExperimentRun.owner_id)
+        )
         return self.db.execute(statement).all()
 
     def created_count_by_week(self, *, since: datetime):

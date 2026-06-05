@@ -119,6 +119,7 @@ def test_admin_dashboard_overview_aggregates_records_and_reconciles_members(
         "locked": 1,
         "invalid": 1,
         "this_week_new": 3,
+        "missing_setup_methods": 4,
     }
 
     members_by_email = {member["email"]: member for member in body["members"]}
@@ -158,6 +159,62 @@ def test_admin_dashboard_requires_admin(active_user, viewer_user) -> None:
 
     assert member_response.status_code == 403
     assert viewer_response.status_code == 403
+
+
+def test_admin_dashboard_counts_experiments_missing_setup_methods(
+    db_session,
+    admin_user,
+    active_user,
+) -> None:
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    now = datetime.now(UTC)
+    add_experiment(
+        db_session,
+        owner=active_user,
+        run_code="CVD-2026-NOSETUP",
+        status=ExperimentStatus.DRAFT,
+        created_at=now,
+        updated_at=now,
+    )
+    unconfirmed = add_experiment(
+        db_session,
+        owner=active_user,
+        run_code="CVD-2026-UNCONFIRMED-SETUP",
+        status=ExperimentStatus.DRAFT,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(
+        ExperimentSetupSnapshot(
+            experiment_run_id=unconfirmed.id,
+            setup_key_snapshot="manual:abcdef1234567890",
+            setup_name_snapshot="Unconfirmed setup",
+            setup_version_snapshot=1,
+            apparatus_description_snapshot="Tube furnace",
+            methods_text_snapshot="Methods",
+            sample_placement_description_snapshot="Placement",
+            reaction_flow_description_snapshot="Flow",
+            unpublished_reason_snapshot="Internal",
+            is_same_as_template=False,
+            confirmed_by_id=None,
+            confirmed_at=None,
+            snapshot_hash="a" * 64,
+            metadata_json={"semantic_context": {}},
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        "/api/v1/admin/dashboard/overview",
+        headers=auth_headers(admin_user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["totals"]["missing_setup_methods"] == 2
+    member = next(item for item in body["members"] if item["email"] == active_user.email)
+    assert member["missing_setup_methods"] == 2
 
 
 def test_admin_can_filter_experiment_list_by_owner_id(

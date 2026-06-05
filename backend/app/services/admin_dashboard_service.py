@@ -33,6 +33,7 @@ class AdminDashboardService:
             locked=status_counts.get(ExperimentStatus.LOCKED, 0),
             invalid=status_counts.get(ExperimentStatus.INVALID, 0),
             this_week_new=self.experiments.count_created_since(current_week_start),
+            missing_setup_methods=self.experiments.count_missing_setup_methods(),
         )
 
         stats_by_owner = {
@@ -69,6 +70,7 @@ class AdminDashboardService:
                     locked=stat.locked if stat is not None else 0,
                     invalid=stat.invalid if stat is not None else 0,
                     stale_draft_count=stat.stale_draft_count if stat is not None else 0,
+                    missing_setup_methods=(stat.missing_setup_methods if stat is not None else 0),
                     last_activity_at=stat.last_activity_at if stat is not None else None,
                 )
             )

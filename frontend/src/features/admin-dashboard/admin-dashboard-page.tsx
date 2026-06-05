@@ -3,6 +3,7 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   EditOutlined,
+  ExclamationCircleOutlined,
   LockOutlined,
   RiseOutlined,
   StopOutlined,
@@ -107,6 +108,14 @@ export function AdminDashboardPage() {
           value > 0 ? <Tag color="warning">停滞 {value}</Tag> : <Typography.Text>0</Typography.Text>,
         sorter: (a, b) => a.stale_draft_count - b.stale_draft_count,
       },
+      {
+        title: "缺 Setup",
+        dataIndex: "missing_setup_methods",
+        key: "missing_setup_methods",
+        render: (value: number) =>
+          value > 0 ? <Tag color="error">缺 {value}</Tag> : <Typography.Text>0</Typography.Text>,
+        sorter: (a, b) => a.missing_setup_methods - b.missing_setup_methods,
+      },
     ],
     [],
   );
@@ -181,6 +190,17 @@ export function AdminDashboardPage() {
           </span>
         </div>
         <div className="stat-tile">
+          <span aria-hidden className="stat-tile-icon stat-tile-icon--amber">
+            <ExclamationCircleOutlined />
+          </span>
+          <span className="stat-tile-body">
+            <span className="stat-tile-label">缺 Setup</span>
+            <span className="stat-tile-value">
+              {overview?.totals.missing_setup_methods ?? 0}
+            </span>
+          </span>
+        </div>
+        <div className="stat-tile">
           <span aria-hidden className="stat-tile-icon stat-tile-icon--blue">
             <RiseOutlined />
           </span>
@@ -220,7 +240,7 @@ export function AdminDashboardPage() {
           pagination={false}
           rowClassName="admin-dashboard-member-row"
           rowKey="user_id"
-          scroll={{ x: 920 }}
+          scroll={{ x: 1040 }}
         />
       </Card>
     </div>

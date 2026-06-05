@@ -36,6 +36,7 @@ export type DashboardTotals = {
   locked: number;
   invalid: number;
   this_week_new: number;
+  missing_setup_methods: number;
 };
 
 export type DashboardMemberStat = {
@@ -50,6 +51,7 @@ export type DashboardMemberStat = {
   locked: number;
   invalid: number;
   stale_draft_count: number;
+  missing_setup_methods: number;
   last_activity_at: string | null;
 };
 
