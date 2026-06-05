@@ -178,6 +178,7 @@ export type FileAssetRead = {
   size_bytes: number;
   sha256: string;
   method: string;
+  asset_role: "characterization_file" | "setup_diagram";
   file_category: string;
   note: string | null;
   metadata_json: Record<string, unknown>;
@@ -189,6 +190,72 @@ export type FileAssetRead = {
 
 export type FileAssetListResponse = {
   items: FileAssetRead[];
+  total: number;
+};
+
+export type SetupMethodsRead = {
+  id: string;
+  experiment_run_id: string;
+  source_template_key: string | null;
+  source_template_version: number | null;
+  setup_key_snapshot: string | null;
+  setup_name_snapshot: string;
+  setup_version_snapshot: number;
+  institution_snapshot: string | null;
+  apparatus_description_snapshot: string;
+  methods_text_snapshot: string;
+  sample_placement_description_snapshot: string;
+  reaction_flow_description_snapshot: string;
+  reference_paper_url_snapshot: string | null;
+  unpublished_reason_snapshot: string | null;
+  diagram_file_asset_id: string | null;
+  is_same_as_template: boolean;
+  deviation_note: string | null;
+  confirmed_by_id: string | null;
+  confirmed_at: string | null;
+  snapshot_hash: string;
+  semantic_context: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SetupMethodsUpsertRequest = {
+  setup_name_snapshot: string;
+  institution_snapshot?: string | null;
+  apparatus_description_snapshot: string;
+  methods_text_snapshot: string;
+  sample_placement_description_snapshot: string;
+  reaction_flow_description_snapshot: string;
+  reference_paper_url_snapshot?: string | null;
+  unpublished_reason_snapshot?: string | null;
+  diagram_file_asset_id?: string | null;
+  is_same_as_template: boolean;
+  deviation_note?: string | null;
+  semantic_context?: Record<string, unknown>;
+};
+
+export type SetupMethodsMutationResponse = {
+  data: SetupMethodsRead;
+  warnings: ExperimentValidationIssue[];
+};
+
+export type SetupMethodTemplateRead = {
+  template_key: string;
+  template_version: number;
+  name: string;
+  institution: string | null;
+  apparatus_description: string;
+  methods_text: string;
+  sample_placement_description: string;
+  reaction_flow_description: string;
+  reference_paper_url: string | null;
+  unpublished_reason: string | null;
+  semantic_context: Record<string, unknown>;
+  has_packaged_diagram: boolean;
+};
+
+export type SetupMethodTemplateListResponse = {
+  items: SetupMethodTemplateRead[];
   total: number;
 };
 

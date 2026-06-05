@@ -17,6 +17,11 @@ import type {
   FileAssetRead,
   RecipeRead,
   SampleListResponse,
+  SetupMethodTemplateListResponse,
+  SetupMethodTemplateRead,
+  SetupMethodsMutationResponse,
+  SetupMethodsRead,
+  SetupMethodsUpsertRequest,
 } from "../../shared/types/api";
 
 type ListExperimentFilesFilters = {
@@ -24,6 +29,7 @@ type ListExperimentFilesFilters = {
   fileCategory?: string | null;
   method?: string | null;
   sampleId?: string | null;
+  assetRole?: "characterization_file" | "setup_diagram" | null;
 };
 
 export type ExperimentSortField =
@@ -48,7 +54,8 @@ export type ListExperimentsFilters = {
 type UploadExperimentFileInput = {
   file: File;
   fileCategory: string;
-  method: string;
+  method?: string;
+  assetRole?: "characterization_file" | "setup_diagram";
   note?: string;
   sampleId?: string | null;
   signal?: AbortSignal;
@@ -162,6 +169,77 @@ export function upsertExperimentModule(
   );
 }
 
+export function getSetupMethods(token: string, experimentId: string) {
+  return apiRequest<SetupMethodsRead>(`/api/v1/experiments/${experimentId}/setup-methods`, {
+    token,
+  });
+}
+
+export function upsertSetupMethods(
+  token: string,
+  experimentId: string,
+  payload: SetupMethodsUpsertRequest,
+) {
+  return apiRequest<SetupMethodsMutationResponse>(
+    `/api/v1/experiments/${experimentId}/setup-methods`,
+    {
+      method: "PUT",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function confirmSetupMethods(token: string, experimentId: string) {
+  return apiRequest<SetupMethodsMutationResponse>(
+    `/api/v1/experiments/${experimentId}/setup-methods/confirm`,
+    {
+      method: "POST",
+      token,
+    },
+  );
+}
+
+export function createSetupMethodsFromTemplate(
+  token: string,
+  experimentId: string,
+  templateKey: string,
+  templateVersion: number,
+) {
+  return apiRequest<SetupMethodsMutationResponse>(
+    `/api/v1/experiments/${experimentId}/setup-methods/from-template`,
+    {
+      method: "POST",
+      body: {
+        template_key: templateKey,
+        template_version: templateVersion,
+      },
+      token,
+    },
+  );
+}
+
+export function listSetupMethodTemplates(token: string) {
+  return apiRequest<SetupMethodTemplateListResponse>("/api/v1/setup-method-templates", {
+    token,
+  });
+}
+
+export function getSetupMethodTemplate(
+  token: string,
+  templateKey: string,
+  templateVersion?: number,
+) {
+  return apiRequest<SetupMethodTemplateRead>(
+    `/api/v1/setup-method-templates/${templateKey}${buildQueryString({
+      version: templateVersion ?? null,
+    })}`,
+    {
+      token,
+    },
+  );
+}
+
 export function submitExperiment(token: string, experimentId: string) {
   return apiRequest<ExperimentRead>(`/api/v1/experiments/${experimentId}/submit`, {
     method: "POST",
@@ -225,6 +303,7 @@ export function listExperimentFiles(token: string, filters: ListExperimentFilesF
       file_category: filters.fileCategory ?? null,
       method: filters.method ?? null,
       sample_id: filters.sampleId ?? null,
+      asset_role: filters.assetRole ?? null,
     })}`,
     {
       token,
@@ -239,8 +318,13 @@ export function uploadExperimentFile(
 ) {
   const formData = new FormData();
   formData.set("file", payload.file);
-  formData.set("method", payload.method);
   formData.set("file_category", payload.fileCategory);
+  if (payload.method) {
+    formData.set("method", payload.method);
+  }
+  if (payload.assetRole) {
+    formData.set("asset_role", payload.assetRole);
+  }
   if (payload.note) {
     formData.set("note", payload.note);
   }
