@@ -67,10 +67,14 @@ Backend tests:
 - Create `backend/tests/services/test_setup_methods_hash_service.py`.
 - Create `backend/tests/api/test_setup_methods.py`.
 - Create `backend/tests/api/test_setup_method_templates.py`.
+- Create `backend/tests/helpers/__init__.py`.
+- Create `backend/tests/helpers/setup_methods.py`.
 - Modify `backend/tests/api/test_files.py`.
 - Modify `backend/tests/services/test_experiment_validation_service.py`.
 - Modify `backend/tests/api/test_experiments.py`.
 - Modify `backend/tests/api/test_experiment_exports.py`.
+- Modify `backend/tests/api/test_experiment_audit.py`.
+- Modify `backend/tests/api/test_experiment_recipes.py`.
 - Modify `backend/tests/api/test_admin_dashboard.py`.
 
 Frontend files:
@@ -1327,8 +1331,13 @@ git commit -m "feat(backend): add setup methods API"
 **Files:**
 - Modify: `backend/app/services/experiment_validation_service.py`
 - Modify: `backend/app/services/experiment_service.py`
+- Create: `backend/tests/helpers/__init__.py`
+- Create: `backend/tests/helpers/setup_methods.py`
 - Test: `backend/tests/services/test_experiment_validation_service.py`
 - Test: `backend/tests/api/test_experiments.py`
+- Test: `backend/tests/api/test_experiment_audit.py`
+- Test: `backend/tests/api/test_experiment_recipes.py`
+- Test: `backend/tests/api/test_experiment_exports.py`
 
 - [ ] **Step 1: Write failing validation tests**
 
@@ -1454,6 +1463,20 @@ Expected: FAIL because setup methods validation is not implemented and lock does
 
 - [ ] **Step 3: Add setup validation**
 
+Modify imports and `ExperimentValidationService.__init__`:
+
+```python
+from app.repositories.setup_methods_repository import SetupMethodsRepository
+
+
+class ExperimentValidationService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.module_payloads = ModulePayloadRepository(db)
+        self.files = FileAssetRepository(db)
+        self.setup_methods = SetupMethodsRepository(db)
+```
+
 Modify `ExperimentValidationService.validate_experiment`:
 
 ```python
@@ -1504,20 +1527,93 @@ Modify lock endpoint to catch `ExperimentValidationFailed` like submit.
 
 In `_calculate_completion_score`, include setup methods as a core component. For missing setup, the score must not reach 100. Use a simple deterministic component worth the same as one existing module check.
 
-- [ ] **Step 6: Run validation tests**
+- [ ] **Step 6: Add shared setup methods test helper and update success-submit tests**
+
+Create `backend/tests/helpers/__init__.py` as an empty file.
+
+Create `backend/tests/helpers/setup_methods.py`:
+
+```python
+from fastapi.testclient import TestClient
+
+
+def create_confirmed_setup_methods(
+    client: TestClient,
+    *,
+    experiment_id: str,
+    headers: dict[str, str],
+) -> dict:
+    diagram_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        files={"file": ("setup.png", b"diagram", "image/png")},
+        data={"asset_role": "setup_diagram", "file_category": "raw"},
+        headers=headers,
+    )
+    assert diagram_response.status_code == 201
+    diagram_id = diagram_response.json()["id"]
+
+    upsert_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/setup-methods",
+        json={
+            "setup_name_snapshot": "Test setup",
+            "institution_snapshot": "group",
+            "apparatus_description_snapshot": "Tube furnace test setup",
+            "methods_text_snapshot": "Test methods text",
+            "sample_placement_description_snapshot": "Substrate downstream of precursor",
+            "reaction_flow_description_snapshot": "Purge, ramp, hold, cool",
+            "unpublished_reason_snapshot": "Internal test protocol",
+            "diagram_file_asset_id": diagram_id,
+            "is_same_as_template": False,
+            "semantic_context": {"temperature_reference": "setpoint"},
+        },
+        headers=headers,
+    )
+    assert upsert_response.status_code == 200
+
+    confirm_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/setup-methods/confirm",
+        headers=headers,
+    )
+    assert confirm_response.status_code == 200
+    return confirm_response.json()["data"]
+```
+
+Update tests that expect successful submit, lock, clone from submitted/locked source, save-as-recipe from submitted source, or viewer export of locked experiments:
+
+```python
+from tests.helpers.setup_methods import create_confirmed_setup_methods
+
+
+create_confirmed_setup_methods(
+    client,
+    experiment_id=experiment_id,
+    headers=auth_headers(active_user.email),
+)
+```
+
+Apply this helper in:
+
+- `backend/tests/api/test_experiments.py`: every branch asserting `submit_response.status_code == 200` or `lock_response.status_code == 200`; keep tests that intentionally assert missing setup errors without the helper.
+- `backend/tests/api/test_experiment_audit.py`: clone/audit tests that submit and lock a source experiment before cloning.
+- `backend/tests/api/test_experiment_recipes.py`: inside `create_experiment(status_ready=True)`, after `upsert_modules(experiment_id, email)` and before submit.
+- `backend/tests/api/test_experiment_exports.py`: locked export visibility tests, Excel export setup, and any helper that creates a submitted or locked experiment for export.
+
+For tests that assert a specific non-setup validation failure, add the helper when the setup context is not the subject of the test so the new setup gate does not add unrelated errors.
+
+- [ ] **Step 7: Run validation and affected backend API tests**
 
 Run:
 
 ```bash
-cd backend && uv run pytest tests/services/test_experiment_validation_service.py tests/api/test_experiments.py -q
+cd backend && uv run pytest tests/services/test_experiment_validation_service.py tests/api/test_experiments.py tests/api/test_experiment_audit.py tests/api/test_experiment_recipes.py tests/api/test_experiment_exports.py -q
 ```
 
-Expected: PASS after updating existing tests that submit experiments to create and confirm setup methods first.
+Expected: PASS after all success-submit, success-lock, clone, recipe, and export tests create and confirm setup methods first.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add backend/app/services/experiment_validation_service.py backend/app/services/experiment_service.py backend/app/api/v1/endpoints/experiments.py backend/tests/services/test_experiment_validation_service.py backend/tests/api/test_experiments.py
+git add backend/app/services/experiment_validation_service.py backend/app/services/experiment_service.py backend/app/api/v1/endpoints/experiments.py backend/tests/helpers/__init__.py backend/tests/helpers/setup_methods.py backend/tests/services/test_experiment_validation_service.py backend/tests/api/test_experiments.py backend/tests/api/test_experiment_audit.py backend/tests/api/test_experiment_recipes.py backend/tests/api/test_experiment_exports.py
 git commit -m "feat(experiments): require setup methods for submit and lock"
 ```
 
@@ -2234,14 +2330,31 @@ test("renders setup methods required fields and confirm action", async () => {
   const user = userEvent.setup();
   const onChange = vi.fn();
   const onConfirm = vi.fn();
+  const onApplyTemplate = vi.fn();
 
   renderWithApp(
     <SetupMethodsSection
       disabled={false}
       files={[]}
+      onApplyTemplate={onApplyTemplate}
       onChange={onChange}
       onConfirm={onConfirm}
-      templateOptions={[]}
+      templateOptions={[
+        {
+          template_key: "group_fast_cvd",
+          template_version: 1,
+          name: "组内快速 CVD",
+          institution: "group",
+          apparatus_description: "Tube furnace",
+          methods_text: "Template methods",
+          sample_placement_description: "Template placement",
+          reaction_flow_description: "Template flow",
+          reference_paper_url: null,
+          unpublished_reason: "Internal",
+          semantic_context: {},
+          has_packaged_diagram: false,
+        },
+      ]}
       value={{
         sourceTemplateKey: null,
         sourceTemplateVersion: null,
@@ -2264,6 +2377,10 @@ test("renders setup methods required fields and confirm action", async () => {
 
   await user.type(screen.getByLabelText("Setup 名称"), "组内快速 CVD");
   expect(onChange).toHaveBeenCalled();
+  await user.selectOptions(screen.getByLabelText("Setup 模板"), "group_fast_cvd:1");
+  await user.click(screen.getByRole("button", { name: "套用模板" }));
+  expect(onApplyTemplate).toHaveBeenCalledWith("group_fast_cvd", 1);
+  expect(screen.getByRole("button", { name: "套用模板" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "确认 Setup" })).toBeInTheDocument();
 });
 ```
@@ -2394,6 +2511,17 @@ export type SetupMethodsValues = {
 ```
 
 Add `setupMethods: SetupMethodsValues` to `ExperimentEditorValues`.
+Split editor sections that persist through module payloads from all editor sections:
+
+```ts
+export type ModuleEditorSectionKey = Exclude<EditorSectionKey, "setup_methods">;
+
+export const moduleEditorSectionKeys = editorSectionKeys.filter(
+  (sectionKey): sectionKey is ModuleEditorSectionKey => sectionKey !== "setup_methods",
+);
+
+export type ModulePayloadMap = Partial<Record<ModuleEditorSectionKey, Record<string, unknown>>>;
+```
 
 Add conversion helpers in `editor-types.ts`:
 
@@ -2419,6 +2547,17 @@ export function createSetupMethodsValues(snapshot: SetupMethodsRead | null): Set
 }
 ```
 
+Update these existing code paths so adding `"setup_methods"` is deliberate:
+
+- `frontend/src/features/experiments/editor-types.ts`: change `ModulePayloadMap` from `Partial<Record<EditorSectionKey, Record<string, unknown>>>` to `Partial<Record<ModuleEditorSectionKey, Record<string, unknown>>>`.
+- `frontend/src/features/experiments/editor-types.ts`: add a `"setup_methods"` branch to `serializeSectionValues(sectionKey, values)` that serializes `values.setupMethods`.
+- `frontend/src/features/experiments/editor-types.ts`: add a `"setup_methods"` branch to `validateSectionValues(sectionKey, values)` that returns a field error when `semanticContextText` is not valid JSON.
+- `frontend/src/features/experiments/editor-types.ts`: update `createModulePayloadMap(modulePayloads)` to use `moduleEditorSectionKeys`.
+- `frontend/src/features/experiments/use-experiment-editor.ts`: keep `snapshotsRef` typed as `Record<EditorSectionKey, string>` and `sectionStates` typed as `Record<EditorSectionKey, SectionSaveState>` because setup methods participates in dirty/save state.
+- `frontend/src/features/experiments/use-experiment-editor.ts`: change `currentModulePayloads` and `diffModulePayloads` to `Record<ModuleEditorSectionKey, Record<string, unknown>>`.
+- `frontend/src/features/experiments/use-experiment-editor.ts`: add a `setup_methods` branch in the autosave loop before the `/modules` branches, and only call `upsertExperimentModule` for `ModuleEditorSectionKey`.
+- `frontend/src/features/experiments/use-experiment-editor.ts`: add a `setup_methods` entry to `moduleCompletionMap`, computed from `values.setupMethods.confirmedAt`, required field presence, and validation issues where `module_key === "setup_methods"`.
+
 - [ ] **Step 4: Implement non-module autosave branch**
 
 In `useExperimentEditor`, when `sectionKey === "setup_methods"`:
@@ -2428,11 +2567,14 @@ In `useExperimentEditor`, when `sectionKey === "setup_methods"`:
 - update local setup methods state from `response.data`
 - surface `response.warnings` in section save message
 - expose `confirmSetupMethods` and `createSetupMethodsFromTemplate` handlers so the page can confirm or seed the section without routing through module APIs
+- when `createSetupMethodsFromTemplate` resolves, replace `values.setupMethods` from `response.data`, reset that section snapshot, and show returned warnings in the setup section save state
 
 - [ ] **Step 5: Build `SetupMethodsSection`**
 
 Component controls:
 
+- select: seed setup template from `templateOptions`, with option value `${template_key}:${template_version}`
+- button: `套用模板`, disabled until a template is selected, calls `onApplyTemplate(template_key, template_version)`
 - text input: Setup 名称
 - textarea: 装置说明
 - textarea: Methods
@@ -2456,6 +2598,7 @@ In `experiment-editor-page.tsx`:
 - add a `setupDiagramFilesQuery` using `listExperimentFiles({ experimentId, assetRole: "setup_diagram" })`; the `assetRole` filter is added in Task 9
 - build `initialValues` only after experiment, modules, and setup methods queries have resolved, and call `createSetupMethodsValues(setupMethodsQuery.data ?? null)`
 - pass `setupTemplatesQuery.data?.items ?? []` and `setupDiagramFilesQuery.data?.items ?? []` into `SetupMethodsSection`
+- pass the template apply handler from the editor hook into `SetupMethodsSection`
 - pass confirm handler from editor hook
 
 - [ ] **Step 7: Run frontend editor tests**
