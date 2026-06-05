@@ -6,6 +6,7 @@ from openpyxl import load_workbook
 
 from app.main import app
 from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
+from tests.helpers.setup_methods import create_confirmed_setup_methods
 
 client = TestClient(app)
 
@@ -988,6 +989,11 @@ def test_viewer_can_export_locked_experiment_but_not_other_users_draft(
 ) -> None:
     locked_experiment_id = create_experiment(admin_user.email, objective="Visible export")
     populate_required_modules(locked_experiment_id, admin_user.email)
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=locked_experiment_id,
+        headers=auth_headers(admin_user.email),
+    )
 
     submit_response = client.post(
         f"/api/v1/experiments/{locked_experiment_id}/submit",

@@ -7,13 +7,16 @@ from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, QualityLabel
 from app.models.module_payload import ExperimentModuleKey, normalize_module_payload
+from app.models.setup_methods import ExperimentSetupSnapshot
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
+from app.repositories.setup_methods_repository import SetupMethodsRepository
 from app.schemas.experiment_validation import (
     ExperimentValidationIssue,
     ExperimentValidationResponse,
 )
 from app.schemas.module_payload import validate_module_payload
+from app.services.setup_methods_content_validation import validate_setup_content
 
 ISSUE_MESSAGE_ZH = {
     "Quality label is unknown": "质量标签仍为未知",
@@ -93,12 +96,14 @@ class ExperimentValidationService:
         self.db = db
         self.module_payloads = ModulePayloadRepository(db)
         self.files = FileAssetRepository(db)
+        self.setup_methods = SetupMethodsRepository(db)
 
     def validate_experiment(self, experiment: ExperimentRun) -> ExperimentValidationResponse:
         errors: list[ExperimentValidationIssue] = []
         warnings: list[ExperimentValidationIssue] = []
         module_payloads = self._module_payload_map(experiment.id, errors)
         files = self.files.list_by_experiment(experiment.id)
+        setup_snapshot = self.setup_methods.get_by_experiment(experiment.id)
 
         self._validate_basic_info(experiment, errors)
         self._validate_precursors(
@@ -122,6 +127,7 @@ class ExperimentValidationService:
             module_payloads.get(ExperimentModuleKey.CHARACTERIZATION.value), errors
         )
         self._validate_files(experiment, files, errors, warnings)
+        self._validate_setup_methods(experiment, setup_snapshot, errors, warnings)
 
         if experiment.quality_label == QualityLabel.UNKNOWN:
             warnings.append(
@@ -139,6 +145,7 @@ class ExperimentValidationService:
             completion_score=self._calculate_completion_score(
                 experiment=experiment,
                 module_payloads=module_payloads,
+                setup_snapshot=setup_snapshot,
             ),
             blocking_count=len(errors),
             warning_count=len(warnings),
@@ -692,7 +699,11 @@ class ExperimentValidationService:
                         "File experiment_id does not match experiment",
                     )
                 )
-            if file_asset.sample_id is None:
+            if (
+                getattr(file_asset, "asset_role", "characterization_file")
+                == "characterization_file"
+                and file_asset.sample_id is None
+            ):
                 warnings.append(
                     self._issue(
                         "files",
@@ -706,6 +717,7 @@ class ExperimentValidationService:
         *,
         experiment: ExperimentRun,
         module_payloads: dict[str, dict],
+        setup_snapshot: ExperimentSetupSnapshot | None,
     ) -> int:
         precursor_payload = module_payloads.get(ExperimentModuleKey.PRECURSORS.value)
         precursor_items = self._payload_items(precursor_payload, "items")
@@ -774,9 +786,31 @@ class ExperimentValidationService:
             self._gas_segments_do_not_overlap(gas_segments),
             self._is_number(indoor_temperature) and 15 <= float(indoor_temperature) <= 35,
             self._is_number(indoor_humidity) and 0 <= float(indoor_humidity) <= 100,
+            setup_snapshot is not None,
+            setup_snapshot is not None and not self._is_blank(setup_snapshot.setup_key_snapshot),
+            setup_snapshot is not None and setup_snapshot.diagram_file_asset_id is not None,
+            setup_snapshot is not None and not self._is_blank(setup_snapshot.methods_text_snapshot),
+            setup_snapshot is not None and setup_snapshot.confirmed_at is not None,
         ]
 
         return round(sum(1 for check in checks if check) / len(checks) * 100)
+
+    def _validate_setup_methods(
+        self,
+        experiment: ExperimentRun,
+        snapshot: ExperimentSetupSnapshot | None,
+        errors: list[ExperimentValidationIssue],
+        warnings: list[ExperimentValidationIssue],
+    ) -> None:
+        del experiment, warnings
+        before_count = len(errors)
+        validate_setup_content(snapshot, self._issue, errors)
+        if snapshot is None or len(errors) > before_count:
+            return
+        if snapshot.confirmed_at is None or snapshot.confirmed_by_id is None:
+            errors.append(
+                self._issue("setup_methods", "confirmed_at", "Setup confirmation is required")
+            )
 
     def _issue(self, module_key: str, field_path: str, message: str) -> ExperimentValidationIssue:
         translated_message = ISSUE_MESSAGE_ZH.get(message)

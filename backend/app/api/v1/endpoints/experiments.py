@@ -196,7 +196,13 @@ def lock_experiment(
     db: DbSession,
     current_user: CurrentUser,
 ) -> ExperimentRead:
-    return ExperimentService(db).lock_experiment(experiment_id, current_user)
+    try:
+        return ExperimentService(db).lock_experiment(experiment_id, current_user)
+    except ExperimentValidationFailed as exc:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=exc.result.model_dump(mode="json"),
+        )
 
 
 @router.post("/{experiment_id}/invalidate", response_model=ExperimentRead)

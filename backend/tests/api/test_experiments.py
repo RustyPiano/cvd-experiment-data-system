@@ -7,6 +7,7 @@ from app.main import app
 from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
 from app.models.user import UserRole
+from tests.helpers.setup_methods import create_confirmed_setup_methods
 
 client = TestClient(app)
 
@@ -74,6 +75,11 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         headers=auth_headers(email),
     )
     assert gas_response.status_code == 200
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(email),
+    )
 
 
 def assert_issue_exists(
@@ -642,7 +648,7 @@ def test_validate_returns_structured_errors_and_warnings(active_user, db_session
     assert body["ok"] is False
     assert body["blocking_count"] == len(body["errors"])
     assert body["warning_count"] == len(body["warnings"])
-    assert body["completion_score"] == 48
+    assert body["completion_score"] == 38
     assert_issue_exists(
         body["errors"],
         module_key="basic_info",
@@ -838,6 +844,11 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
         headers=auth_headers(active_user.email),
     )
     assert summary_response.status_code == 200
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(active_user.email),
+    )
 
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/validate",
@@ -849,7 +860,38 @@ def test_validate_can_return_ok_with_incomplete_score(active_user) -> None:
     assert body["ok"] is True
     assert body["errors"] == []
     assert body["warnings"] == []
-    assert body["completion_score"] == 52
+    assert body["completion_score"] == 62
+
+
+def test_confirmed_setup_methods_increase_completion_score(active_user) -> None:
+    without_setup_id = create_experiment_for_test(
+        active_user.email,
+        objective="Completion without setup",
+    )
+    with_setup_id = create_experiment_for_test(
+        active_user.email,
+        objective="Completion with setup",
+    )
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=with_setup_id,
+        headers=auth_headers(active_user.email),
+    )
+
+    without_setup_response = client.post(
+        f"/api/v1/experiments/{without_setup_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+    with_setup_response = client.post(
+        f"/api/v1/experiments/{with_setup_id}/validate",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert without_setup_response.status_code == 200
+    assert with_setup_response.status_code == 200
+    assert with_setup_response.json()["completion_score"] > without_setup_response.json()[
+        "completion_score"
+    ]
 
 
 def test_submit_returns_same_validation_structure_on_failure(active_user, db_session) -> None:
@@ -1411,6 +1453,11 @@ def test_submit_rejects_non_increasing_furnace_zone_temperature_program(active_u
         headers=auth_headers(active_user.email),
     )
     assert furnace_response.status_code == 200
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(active_user.email),
+    )
 
     submit_response = client.post(
         f"/api/v1/experiments/{experiment_id}/submit",
@@ -1698,6 +1745,11 @@ def test_submit_allows_missing_gas_program(active_user) -> None:
         headers=auth_headers(active_user.email),
     )
     assert furnace_response.status_code == 200
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(active_user.email),
+    )
 
     submit_response = client.post(
         f"/api/v1/experiments/{experiment_id}/submit",
@@ -2572,6 +2624,11 @@ def test_clone_normalizes_legacy_payloads_before_copy(active_user, db_session) -
         ]
     )
     db_session.commit()
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=str(source_id),
+        headers=auth_headers(active_user.email),
+    )
 
     submit_response = client.post(
         f"/api/v1/experiments/{source_id}/submit",
@@ -2761,3 +2818,40 @@ def test_clone_rejects_draft_and_invalid_sources(active_user) -> None:
     assert invalidate_response.status_code == 200
     assert draft_clone_response.status_code == 409
     assert invalid_clone_response.status_code == 409
+
+
+def test_lock_revalidates_submitted_experiment_missing_setup_methods(
+    active_user,
+    db_session,
+) -> None:
+    from datetime import UTC, date, datetime
+
+    from app.models.experiment import ExperimentRun, ExperimentStatus, QualityLabel
+
+    experiment = ExperimentRun(
+        run_code="CVD-2026-LEGACY-SUBMITTED",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="legacy submitted row without setup methods",
+        status=ExperimentStatus.SUBMITTED,
+        quality_label=QualityLabel.SUCCESS,
+        submitted_at=datetime.now(UTC),
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+
+    lock_response = client.post(
+        f"/api/v1/experiments/{experiment.id}/lock",
+        headers=auth_headers(active_user.email),
+    )
+
+    assert lock_response.status_code == 422
+    assert_issue_exists(
+        lock_response.json()["errors"],
+        module_key="setup_methods",
+        field_path="root",
+        message_contains="required",
+    )

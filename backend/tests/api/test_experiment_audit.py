@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.helpers.setup_methods import create_confirmed_setup_methods
 
 client = TestClient(app)
 
@@ -68,6 +69,11 @@ def populate_required_modules(experiment_id: str, email: str) -> None:
         headers=auth_headers(email),
     )
     assert gas_response.status_code == 200
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(email),
+    )
 
 
 def test_clone_experiment_creates_new_draft_and_audit_record(active_user, admin_user) -> None:

@@ -71,7 +71,7 @@ def test_completion_score_does_not_award_points_for_not_null_owner_id(
 
     result = ExperimentValidationService(db_session).validate_experiment(experiment)
 
-    assert result.completion_score == 14
+    assert result.completion_score == 12
 
 
 def test_schema_validation_reports_string_type_in_chinese(
@@ -257,6 +257,76 @@ def test_furnace_program_schema_accepts_canonical_placements() -> None:
         }
     ]
     assert canonical["zones"][0]["temperature_program"][1]["temperature_C"] == 750.0
+
+
+def test_setup_methods_missing_blocks_validation(active_user, db_session) -> None:
+    experiment = ExperimentRun(
+        run_code="CVD-2026-SETUP-MISSING",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="setup validation",
+        quality_label=QualityLabel.SUCCESS,
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    assert any(
+        issue.module_key == "setup_methods"
+        and issue.field_path == "root"
+        and "required" in issue.message
+        for issue in result.errors
+    )
+
+
+def test_setup_methods_missing_group_key_blocks_validation(active_user, db_session) -> None:
+    from datetime import UTC, datetime
+
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    experiment = ExperimentRun(
+        run_code="CVD-2026-SETUP-NOKEY",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="setup key validation",
+        quality_label=QualityLabel.SUCCESS,
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+    snapshot = ExperimentSetupSnapshot(
+        experiment_run_id=experiment.id,
+        setup_key_snapshot=None,
+        setup_name_snapshot="Manual setup",
+        setup_version_snapshot=1,
+        apparatus_description_snapshot="Tube furnace",
+        methods_text_snapshot="Methods",
+        sample_placement_description_snapshot="Placement",
+        reaction_flow_description_snapshot="Flow",
+        unpublished_reason_snapshot="Internal",
+        is_same_as_template=False,
+        confirmed_by_id=active_user.id,
+        confirmed_at=datetime.now(UTC),
+        snapshot_hash="a" * 64,
+        metadata_json={"semantic_context": {}},
+    )
+    db_session.add(snapshot)
+    db_session.commit()
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    assert any(
+        issue.module_key == "setup_methods"
+        and issue.field_path == "setup_key_snapshot"
+        and "required" in issue.message
+        for issue in result.errors
+    )
 
 
 def test_furnace_program_schema_rejects_legacy_steps_and_precursors() -> None:

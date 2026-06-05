@@ -292,6 +292,9 @@ class ExperimentService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Only submitted experiments can be locked",
             )
+        validation_result = self.validation.validate_experiment(experiment)
+        if not validation_result.ok:
+            raise ExperimentValidationFailed(validation_result)
 
         before = self._serialize_experiment(experiment)
         experiment.status = ExperimentStatus.LOCKED

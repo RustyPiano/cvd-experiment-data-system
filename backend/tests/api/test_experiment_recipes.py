@@ -9,6 +9,7 @@ from app.models.experiment import ExperimentRun
 from app.models.module_payload import ExperimentModulePayload
 from app.models.recipe import Recipe
 from app.models.sample import Sample
+from tests.helpers.setup_methods import create_confirmed_setup_methods
 
 client = TestClient(app)
 
@@ -159,6 +160,11 @@ def create_experiment(email: str, *, status_ready: bool = False) -> str:
     experiment_id = response.json()["id"]
     if status_ready:
         upsert_modules(experiment_id, email)
+        create_confirmed_setup_methods(
+            client,
+            experiment_id=experiment_id,
+            headers=auth_headers(email),
+        )
         submit_response = client.post(
             f"/api/v1/experiments/{experiment_id}/submit",
             headers=auth_headers(email),
