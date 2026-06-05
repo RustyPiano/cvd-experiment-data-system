@@ -10,8 +10,7 @@ import type {
   SetupMethodsRead,
 } from "../../shared/types/api";
 import {
-  confirmSetupMethods as confirmSetupMethodsRequest,
-  createSetupMethodsFromTemplate as createSetupMethodsFromTemplateRequest,
+  createSetupMethodsFromLibrary,
   listExperimentModules,
   submitExperiment,
   updateExperiment,
@@ -731,62 +730,8 @@ export function useExperimentEditor({
     await enqueueSave(() => persistDirtySections(valuesRef.current));
   }, [enqueueSave, experiment.status, persistDirtySections]);
 
-  const confirmSetupMethods = useCallback(async () => {
-    if (experiment.status !== "draft") {
-      return;
-    }
-
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-      autosaveTimerRef.current = null;
-    }
-
-    setSectionState("setup_methods", {
-      status: "saving",
-      message: "确认中",
-    });
-
-    try {
-      const saveFailed = await enqueueSave(() => persistDirtySections(valuesRef.current));
-      if (
-        saveFailed ||
-        sectionStatesRef.current.setup_methods.status === "error"
-      ) {
-        setSectionState("setup_methods", {
-          status: "error",
-          message: "请先修正 Setup / Methods 保存错误后再确认。",
-        });
-        return;
-      }
-
-      const requestSectionSnapshot = serializeSectionValues(
-        "setup_methods",
-        valuesRef.current,
-      );
-      const response = await confirmSetupMethodsRequest(accessToken, experimentId);
-      replaceSetupMethodsSnapshot(response.data, requestSectionSnapshot);
-      setSectionState("setup_methods", {
-        status: "saved",
-        message: formatSaveMessageWithWarnings("Setup 已确认", response.warnings),
-      });
-    } catch (error) {
-      setSectionState("setup_methods", {
-        status: "error",
-        message: resolveErrorMessage(error, "确认 Setup 失败"),
-      });
-    }
-  }, [
-    accessToken,
-    enqueueSave,
-    experiment.status,
-    experimentId,
-    persistDirtySections,
-    replaceSetupMethodsSnapshot,
-    setSectionState,
-  ]);
-
-  const createSetupMethodsFromTemplate = useCallback(
-    async (templateKey: string, templateVersion: number) => {
+  const applySetupLibrary = useCallback(
+    async (setupLibraryId: string) => {
       if (experiment.status !== "draft") {
         return;
       }
@@ -798,7 +743,7 @@ export function useExperimentEditor({
 
       setSectionState("setup_methods", {
         status: "saving",
-        message: "套用模板中",
+        message: "正在套用 Setup...",
       });
 
       try {
@@ -806,21 +751,20 @@ export function useExperimentEditor({
           "setup_methods",
           valuesRef.current,
         );
-        const response = await createSetupMethodsFromTemplateRequest(
+        const response = await createSetupMethodsFromLibrary(
           accessToken,
           experimentId,
-          templateKey,
-          templateVersion,
+          setupLibraryId,
         );
         replaceSetupMethodsSnapshot(response.data, requestSectionSnapshot);
         setSectionState("setup_methods", {
           status: "saved",
-          message: formatSaveMessageWithWarnings("已套用模板", response.warnings),
+          message: formatSaveMessageWithWarnings("已成功关联 Setup", response.warnings),
         });
       } catch (error) {
         setSectionState("setup_methods", {
           status: "error",
-          message: resolveErrorMessage(error, "套用 Setup 模板失败"),
+          message: resolveErrorMessage(error, "关联 Setup 失败"),
         });
       }
     },
@@ -1194,8 +1138,7 @@ export function useExperimentEditor({
     saveSummary,
     saveDraft,
     scheduleAutosave,
-    confirmSetupMethods,
-    createSetupMethodsFromTemplate,
+    applySetupLibrary,
     sectionStates,
     moduleCompletionMap,
     submitDraft,

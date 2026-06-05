@@ -13,16 +13,16 @@ import { HttpError } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { RouteLeaveGuard } from "../../shared/ui/route-leave-guard";
-import type { ControlledVocabularyRead, FileAssetRead, SetupMethodTemplateRead } from "../../shared/types/api";
+import type { ControlledVocabularyRead, FileAssetRead, SetupLibraryRead } from "../../shared/types/api";
 import { useAuth } from "../auth/use-auth";
 import { listActiveRecipes } from "../recipes/api";
+import { listSetupLibrary } from "../setup-library/api";
 import {
   getExperiment,
   getSetupMethods,
   listActiveVocabularies,
   listExperimentFiles,
   listExperimentModules,
-  listSetupMethodTemplates,
 } from "./api";
 import { CharacterizationSection } from "./components/characterization-section";
 import { EditorActionBar } from "./components/editor-action-bar";
@@ -113,7 +113,7 @@ function ExperimentEditorWorkspace({
   initialValues,
   onInheritanceConsumed,
   setupDiagramFiles,
-  setupTemplates,
+  setupLibraryEntries,
 }: {
   accessToken: string;
   currentUserId: string;
@@ -124,7 +124,7 @@ function ExperimentEditorWorkspace({
   initialValues: ReturnType<typeof createInitialEditorValues>;
   onInheritanceConsumed?: () => void;
   setupDiagramFiles: FileAssetRead[];
-  setupTemplates: SetupMethodTemplateRead[];
+  setupLibraryEntries: SetupLibraryRead[];
 }) {
   const navigate = useNavigate();
   const { modal } = App.useApp();
@@ -363,7 +363,7 @@ function ExperimentEditorWorkspace({
               <SetupMethodsSection
                 disabled={editorDisabled}
                 files={setupDiagramFiles}
-                onApplyTemplate={editor.createSetupMethodsFromTemplate}
+                onApplyLibrary={editor.applySetupLibrary}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -371,8 +371,7 @@ function ExperimentEditorWorkspace({
                   }));
                   editor.scheduleAutosave();
                 }}
-                onConfirm={editor.confirmSetupMethods}
-                templateOptions={setupTemplates}
+                libraryOptions={setupLibraryEntries}
                 value={editor.values.setupMethods}
               />
             </EditorSectionCard>
@@ -614,9 +613,9 @@ export function ExperimentEditorPage() {
     },
     enabled: session.isAuthenticated && Boolean(experimentId),
   });
-  const setupTemplatesQuery = useQuery({
-    queryKey: ["setup-method-templates", currentUserId],
-    queryFn: () => listSetupMethodTemplates(session.accessToken!),
+  const setupLibraryQuery = useQuery({
+    queryKey: ["setup-library", currentUserId],
+    queryFn: () => listSetupLibrary(session.accessToken!),
     enabled: session.isAuthenticated,
   });
   const setupDiagramFilesQuery = useQuery({
@@ -652,7 +651,7 @@ export function ExperimentEditorPage() {
     experimentQuery.isLoading ||
     modulesQuery.isLoading ||
     setupMethodsQuery.isLoading ||
-    setupTemplatesQuery.isLoading ||
+    setupLibraryQuery.isLoading ||
     setupDiagramFilesQuery.isLoading
   ) {
     return <LoadingState />;
@@ -662,14 +661,14 @@ export function ExperimentEditorPage() {
     experimentQuery.error ||
     modulesQuery.error ||
     setupMethodsQuery.error ||
-    setupTemplatesQuery.error ||
+    setupLibraryQuery.error ||
     setupDiagramFilesQuery.error
   ) {
     const error =
       experimentQuery.error ??
       modulesQuery.error ??
       setupMethodsQuery.error ??
-      setupTemplatesQuery.error ??
+      setupLibraryQuery.error ??
       setupDiagramFilesQuery.error;
 
     return (
@@ -718,7 +717,7 @@ export function ExperimentEditorPage() {
       initialModulePayloads={initialModulePayloads}
       initialValues={initialValues}
       setupDiagramFiles={setupDiagramFilesQuery.data?.items ?? []}
-      setupTemplates={setupTemplatesQuery.data?.items ?? []}
+      setupLibraryEntries={setupLibraryQuery.data?.items ?? []}
       onInheritanceConsumed={() => {
         const nextSearchParams = new URLSearchParams(searchParams);
         nextSearchParams.delete("inheritFrom");

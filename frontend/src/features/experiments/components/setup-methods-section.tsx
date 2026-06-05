@@ -1,6 +1,6 @@
 import { Button, Card, Checkbox, Descriptions, Drawer, Input, Select, Space, Typography } from "antd";
 import type { CheckboxChangeEvent } from "antd/es/checkbox";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useAuth } from "../../auth/use-auth";
 import { AuthenticatedImage } from "../../../shared/ui/authenticated-image";
@@ -27,15 +27,20 @@ export function SetupMethodsSection({
   value: SetupMethodsValues;
 }) {
   const { session } = useAuth();
+  const [prevSourceSetupLibraryId, setPrevSourceSetupLibraryId] = useState<string | null>(
+    value.sourceSetupLibraryId
+  );
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | undefined>(
     value.sourceSetupLibraryId || undefined
   );
+
+  if (value.sourceSetupLibraryId !== prevSourceSetupLibraryId) {
+    setPrevSourceSetupLibraryId(value.sourceSetupLibraryId);
+    setSelectedLibraryId(value.sourceSetupLibraryId || undefined);
+  }
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [downloadingDiagram, setDownloadingDiagram] = useState(false);
-
-  useEffect(() => {
-    setSelectedLibraryId(value.sourceSetupLibraryId || undefined);
-  }, [value.sourceSetupLibraryId]);
 
   const options = libraryOptions.map((entry) => ({
     label: `${entry.name} (${entry.institution || "未知机构"})`,

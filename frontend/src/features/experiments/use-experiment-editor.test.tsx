@@ -6,16 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExperimentRead, SetupMethodsRead } from "../../shared/types/api";
 import type { ExperimentEditorValues } from "./editor-types";
 import {
-  confirmSetupMethods,
-  createSetupMethodsFromTemplate,
+  createSetupMethodsFromLibrary,
   upsertSetupMethods,
   validateExperiment,
 } from "./api";
 import { useExperimentEditor } from "./use-experiment-editor";
 
 vi.mock("./api", () => ({
-  confirmSetupMethods: vi.fn(),
-  createSetupMethodsFromTemplate: vi.fn(),
+  createSetupMethodsFromLibrary: vi.fn(),
   listExperimentModules: vi.fn(),
   submitExperiment: vi.fn(),
   updateExperiment: vi.fn(),
@@ -344,81 +342,14 @@ describe("useExperimentEditor completion", () => {
     expect(result.current.shouldWarnOnLeave).toBe(true);
   });
 
-  it("keeps in-flight setup confirmation from overwriting newer edits", async () => {
-    let resolveConfirm: (
-      value: Awaited<ReturnType<typeof confirmSetupMethods>>,
+  it("keeps in-flight setup library responses from overwriting newer edits", async () => {
+    let resolveLibrary: (
+      value: Awaited<ReturnType<typeof createSetupMethodsFromLibrary>>,
     ) => void = () => {};
-    vi.mocked(confirmSetupMethods).mockImplementation(
+    vi.mocked(createSetupMethodsFromLibrary).mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveConfirm = resolve;
-        }),
-    );
-    const initialValues: ExperimentEditorValues = {
-      ...valuesWithEnabledCharacterizationOnly,
-      setupMethods: {
-        ...valuesWithEnabledCharacterizationOnly.setupMethods,
-        setupNameSnapshot: "Ready setup",
-        confirmedAt: null,
-        confirmedById: null,
-      },
-    };
-    const { result } = renderHook(
-      () =>
-        useExperimentEditor({
-          accessToken: "token",
-          currentUserId: "user-1",
-          experimentId: experiment.id,
-          initialExperiment: experiment,
-          initialModulePayloads: {},
-          initialValues,
-        }),
-      { wrapper: createWrapper() },
-    );
-
-    await act(async () => {
-      void result.current.confirmSetupMethods();
-      await Promise.resolve();
-    });
-    expect(confirmSetupMethods).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      result.current.updateValues((current) => ({
-        ...current,
-        setupMethods: {
-          ...current.setupMethods,
-          setupNameSnapshot: "Edited while confirming",
-        },
-      }));
-    });
-
-    await act(async () => {
-      resolveConfirm({
-        data: createSetupMethodsRead({
-          setup_name_snapshot: "Ready setup",
-          confirmed_at: "2026-06-05T00:00:00Z",
-          confirmed_by_id: "user-1",
-        }),
-        warnings: [],
-      });
-      await Promise.resolve();
-    });
-
-    expect(result.current.values.setupMethods.setupNameSnapshot).toBe(
-      "Edited while confirming",
-    );
-    expect(result.current.values.setupMethods.confirmedAt).toBeNull();
-    expect(result.current.shouldWarnOnLeave).toBe(true);
-  });
-
-  it("keeps in-flight setup template responses from overwriting newer edits", async () => {
-    let resolveTemplate: (
-      value: Awaited<ReturnType<typeof createSetupMethodsFromTemplate>>,
-    ) => void = () => {};
-    vi.mocked(createSetupMethodsFromTemplate).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveTemplate = resolve;
+          resolveLibrary = resolve;
         }),
     );
     const { result } = renderHook(
@@ -435,27 +366,26 @@ describe("useExperimentEditor completion", () => {
     );
 
     await act(async () => {
-      void result.current.createSetupMethodsFromTemplate("group_fast_cvd", 1);
+      void result.current.applySetupLibrary("library-id-123");
       await Promise.resolve();
     });
-    expect(createSetupMethodsFromTemplate).toHaveBeenCalledTimes(1);
+    expect(createSetupMethodsFromLibrary).toHaveBeenCalledTimes(1);
 
     act(() => {
       result.current.updateValues((current) => ({
         ...current,
         setupMethods: {
           ...current.setupMethods,
-          setupNameSnapshot: "Edited while applying template",
+          setupNameSnapshot: "Edited while applying library",
         },
       }));
     });
 
     await act(async () => {
-      resolveTemplate({
+      resolveLibrary({
         data: createSetupMethodsRead({
-          source_template_key: "group_fast_cvd",
-          source_template_version: 1,
-          setup_name_snapshot: "Template setup",
+          source_setup_library_id: "library-id-123",
+          setup_name_snapshot: "Library setup",
         }),
         warnings: [],
       });
@@ -463,7 +393,7 @@ describe("useExperimentEditor completion", () => {
     });
 
     expect(result.current.values.setupMethods.setupNameSnapshot).toBe(
-      "Edited while applying template",
+      "Edited while applying library",
     );
     expect(result.current.shouldWarnOnLeave).toBe(true);
   });
