@@ -17,6 +17,13 @@ class SetupMethodsRepository:
             )
         )
 
+    def get_by_diagram_file_asset(self, file_asset_id: UUID) -> ExperimentSetupSnapshot | None:
+        return self.db.scalar(
+            select(ExperimentSetupSnapshot).where(
+                ExperimentSetupSnapshot.diagram_file_asset_id == file_asset_id
+            )
+        )
+
     def save(self, snapshot: ExperimentSetupSnapshot) -> ExperimentSetupSnapshot:
         self.db.add(snapshot)
         self.db.flush()

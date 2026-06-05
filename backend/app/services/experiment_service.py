@@ -46,6 +46,7 @@ from app.services.experiment_validation_service import (
     ExperimentValidationService,
 )
 from app.services.sample_service import SampleService
+from app.services.setup_methods_service import SetupMethodsService
 
 
 class ExperimentService:
@@ -65,6 +66,7 @@ class ExperimentService:
         self.audit = AuditService(db)
         self.exporter = ExperimentExportService(db)
         self.sample_service = SampleService(db)
+        self.setup_methods_service = SetupMethodsService(db)
         self.validation = ExperimentValidationService(db)
 
     def list_experiments(

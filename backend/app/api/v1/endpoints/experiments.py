@@ -29,8 +29,15 @@ from app.schemas.module_payload import (
     ExperimentModulePayloadUpsert,
 )
 from app.schemas.recipe import RecipeRead
+from app.schemas.setup_methods import (
+    SetupMethodsFromTemplateRequest,
+    SetupMethodsMutationResponse,
+    SetupMethodsRead,
+    SetupMethodsUpsert,
+)
 from app.services.experiment_service import ExperimentService
 from app.services.experiment_validation_service import ExperimentValidationFailed
+from app.services.setup_methods_service import SetupMethodsService
 
 router = APIRouter(prefix="/api/v1/experiments", tags=["experiments"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -236,6 +243,53 @@ def list_audit_events(
     current_user: CurrentUser,
 ) -> AuditEventListResponse:
     return ExperimentService(db).list_audit_events(experiment_id, current_user)
+
+
+@router.get("/{experiment_id}/setup-methods", response_model=SetupMethodsRead)
+def get_setup_methods(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> SetupMethodsRead:
+    return SetupMethodsService(db).get_setup_methods(experiment_id, current_user)
+
+
+@router.put("/{experiment_id}/setup-methods", response_model=SetupMethodsMutationResponse)
+def upsert_setup_methods(
+    experiment_id: UUID,
+    payload: SetupMethodsUpsert,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> SetupMethodsMutationResponse:
+    return SetupMethodsService(db).upsert_setup_methods(experiment_id, payload, current_user)
+
+
+@router.post(
+    "/{experiment_id}/setup-methods/from-template",
+    response_model=SetupMethodsMutationResponse,
+)
+def create_setup_methods_from_template(
+    experiment_id: UUID,
+    payload: SetupMethodsFromTemplateRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> SetupMethodsMutationResponse:
+    return SetupMethodsService(db).create_from_template(experiment_id, payload, current_user)
+
+
+@router.post("/{experiment_id}/setup-methods/confirm", response_model=SetupMethodsMutationResponse)
+def confirm_setup_methods(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    try:
+        return SetupMethodsService(db).confirm_setup_methods(experiment_id, current_user)
+    except ExperimentValidationFailed as exc:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=exc.result.model_dump(mode="json"),
+        )
 
 
 @router.get("/{experiment_id}/modules", response_model=ExperimentModulePayloadListResponse)
