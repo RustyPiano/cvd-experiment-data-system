@@ -117,6 +117,13 @@ export function SetupMethodsSection({
             预览
           </Button>
         </Space.Compact>
+        <Typography.Text
+          type="secondary"
+          style={{ display: "block", marginTop: "8px", fontSize: "13px" }}
+        >
+          套用后会把该 Setup 的内容与示意图<b>冻结复制</b>到本实验；之后在 Setup
+          库中修改原记录不会影响这条已套用的实验。
+        </Typography.Text>
         <div style={{ marginTop: "8px" }}>
           <Typography.Link href="/setup-library" target="_blank">
             + 新建/管理我的 Setup
@@ -243,7 +250,7 @@ export function SetupMethodsSection({
                   updateField({ deviationNote: event.target.value });
                 }}
                 value={value.deviationNote}
-                placeholder="请输入本次实验与所选 Setup 模板的偏差说明"
+                placeholder="请输入本次实验与所选 Setup 的偏差说明"
               />
             </div>
           )}

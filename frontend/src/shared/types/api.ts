@@ -242,25 +242,6 @@ export type SetupMethodsMutationResponse = {
   warnings: ExperimentValidationIssue[];
 };
 
-export type SetupMethodTemplateRead = {
-  template_key: string;
-  template_version: number;
-  name: string;
-  institution: string | null;
-  apparatus_description: string;
-  methods_text: string;
-  sample_placement_description: string;
-  reaction_flow_description: string;
-  reference_paper_url: string | null;
-  unpublished_reason: string | null;
-  semantic_context: Record<string, unknown>;
-  has_packaged_diagram: boolean;
-};
-
-export type SetupMethodTemplateListResponse = {
-  items: SetupMethodTemplateRead[];
-  total: number;
-};
 
 export type AuditEventRead = {
   id: string;

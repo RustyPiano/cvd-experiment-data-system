@@ -17,8 +17,6 @@ import type {
   FileAssetRead,
   RecipeRead,
   SampleListResponse,
-  SetupMethodTemplateListResponse,
-  SetupMethodTemplateRead,
   SetupMethodsMutationResponse,
   SetupMethodsRead,
   SetupMethodsUpsertRequest,
@@ -200,25 +198,6 @@ export function confirmSetupMethods(token: string, experimentId: string) {
   );
 }
 
-export function createSetupMethodsFromTemplate(
-  token: string,
-  experimentId: string,
-  templateKey: string,
-  templateVersion: number,
-) {
-  return apiRequest<SetupMethodsMutationResponse>(
-    `/api/v1/experiments/${experimentId}/setup-methods/from-template`,
-    {
-      method: "POST",
-      body: {
-        template_key: templateKey,
-        template_version: templateVersion,
-      },
-      token,
-    },
-  );
-}
-
 export function createSetupMethodsFromLibrary(
   token: string,
   experimentId: string,
@@ -231,27 +210,6 @@ export function createSetupMethodsFromLibrary(
       body: {
         setup_library_id: setupLibraryId,
       },
-      token,
-    },
-  );
-}
-
-export function listSetupMethodTemplates(token: string) {
-  return apiRequest<SetupMethodTemplateListResponse>("/api/v1/setup-method-templates", {
-    token,
-  });
-}
-
-export function getSetupMethodTemplate(
-  token: string,
-  templateKey: string,
-  templateVersion?: number,
-) {
-  return apiRequest<SetupMethodTemplateRead>(
-    `/api/v1/setup-method-templates/${templateKey}${buildQueryString({
-      version: templateVersion ?? null,
-    })}`,
-    {
       token,
     },
   );
