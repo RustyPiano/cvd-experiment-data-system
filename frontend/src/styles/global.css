@@ -828,3 +828,39 @@ button.stat-tile:hover .stat-tile-hint {
     margin-left: 0;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Precheck editor radio buttons color coding
+--------------------------------------------------------------------------- */
+.precheck-btn-success.ant-radio-button-wrapper-checked {
+  background-color: var(--cvd-success) !important;
+  border-color: var(--cvd-success) !important;
+  color: #ffffff !important;
+  box-shadow: -1px 0 0 0 var(--cvd-success) !important;
+}
+.precheck-btn-success.ant-radio-button-wrapper-checked:hover {
+  background-color: #15803d !important;
+  border-color: #15803d !important;
+}
+
+.precheck-btn-danger.ant-radio-button-wrapper-checked {
+  background-color: var(--cvd-danger) !important;
+  border-color: var(--cvd-danger) !important;
+  color: #ffffff !important;
+  box-shadow: -1px 0 0 0 var(--cvd-danger) !important;
+}
+.precheck-btn-danger.ant-radio-button-wrapper-checked:hover {
+  background-color: #b91c1c !important;
+  border-color: #b91c1c !important;
+}
+
+.precheck-btn-default.ant-radio-button-wrapper-checked {
+  background-color: #64748b !important;
+  border-color: #64748b !important;
+  color: #ffffff !important;
+  box-shadow: -1px 0 0 0 #64748b !important;
+}
+.precheck-btn-default.ant-radio-button-wrapper-checked:hover {
+  background-color: #475569 !important;
+  border-color: #475569 !important;
+}

@@ -3,11 +3,6 @@ import { Alert, Input, Radio, Typography } from "antd";
 import type { PrecheckValues } from "../editor-types";
 
 const { TextArea } = Input;
-const nullableBooleanOptions = [
-  { label: "未检查", value: "" },
-  { label: "是", value: "true" },
-  { label: "否", value: "false" },
-];
 export function PrecheckSection({
   disabled,
   inheritedFrom,
@@ -43,10 +38,12 @@ export function PrecheckSection({
               sealIntact: event.target.value,
             });
           }}
-          optionType="button"
-          options={nullableBooleanOptions}
           value={value.sealIntact}
-        />
+        >
+          <Radio.Button value="" className="precheck-btn-default">未检查</Radio.Button>
+          <Radio.Button value="true" className="precheck-btn-success">是</Radio.Button>
+          <Radio.Button value="false" className="precheck-btn-danger">否</Radio.Button>
+        </Radio.Group>
       </div>
       <div className="editor-field">
         <Typography.Text strong>通风橱已清洁</Typography.Text>
@@ -60,10 +57,12 @@ export function PrecheckSection({
               hoodClean: event.target.value,
             });
           }}
-          optionType="button"
-          options={nullableBooleanOptions}
           value={value.hoodClean}
-        />
+        >
+          <Radio.Button value="" className="precheck-btn-default">未检查</Radio.Button>
+          <Radio.Button value="true" className="precheck-btn-success">是</Radio.Button>
+          <Radio.Button value="false" className="precheck-btn-danger">否</Radio.Button>
+        </Radio.Group>
       </div>
       <div className="editor-field">
         <Typography.Text strong>法兰已堵住</Typography.Text>
@@ -77,10 +76,12 @@ export function PrecheckSection({
               flangeBlocked: event.target.value,
             });
           }}
-          optionType="button"
-          options={nullableBooleanOptions}
           value={value.flangeBlocked}
-        />
+        >
+          <Radio.Button value="" className="precheck-btn-default">未检查</Radio.Button>
+          <Radio.Button value="true" className="precheck-btn-danger">是</Radio.Button>
+          <Radio.Button value="false" className="precheck-btn-success">否</Radio.Button>
+        </Radio.Group>
       </div>
       <div className="editor-field">
         <Typography.Text strong>瓷舟污染</Typography.Text>
@@ -94,10 +95,12 @@ export function PrecheckSection({
               boatContaminationLevel: event.target.value,
             });
           }}
-          optionType="button"
-          options={nullableBooleanOptions}
           value={value.boatContaminationLevel}
-        />
+        >
+          <Radio.Button value="" className="precheck-btn-default">未检查</Radio.Button>
+          <Radio.Button value="true" className="precheck-btn-danger">是</Radio.Button>
+          <Radio.Button value="false" className="precheck-btn-success">否</Radio.Button>
+        </Radio.Group>
       </div>
       <div className="editor-field">
         <Typography.Text strong>石英管污染</Typography.Text>
@@ -111,10 +114,12 @@ export function PrecheckSection({
               tubeContaminationLevel: event.target.value,
             });
           }}
-          optionType="button"
-          options={nullableBooleanOptions}
           value={value.tubeContaminationLevel}
-        />
+        >
+          <Radio.Button value="" className="precheck-btn-default">未检查</Radio.Button>
+          <Radio.Button value="true" className="precheck-btn-danger">是</Radio.Button>
+          <Radio.Button value="false" className="precheck-btn-success">否</Radio.Button>
+        </Radio.Group>
       </div>
       <div className="editor-field">
         <Typography.Text strong>风险说明</Typography.Text>
