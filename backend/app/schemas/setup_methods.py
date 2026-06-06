@@ -7,26 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.experiment_validation import ExperimentValidationIssue
 
 
-class SetupMethodTemplateRead(BaseModel):
-    template_key: str
-    template_version: int
-    name: str
-    institution: str | None = None
-    apparatus_description: str
-    methods_text: str
-    sample_placement_description: str
-    reaction_flow_description: str
-    reference_paper_url: str | None = None
-    unpublished_reason: str | None = None
-    semantic_context: dict[str, Any] = Field(default_factory=dict)
-    has_packaged_diagram: bool = False
-
-
-class SetupMethodTemplateListResponse(BaseModel):
-    items: list[SetupMethodTemplateRead]
-    total: int
-
-
 class SetupMethodsUpsert(BaseModel):
     setup_name_snapshot: str = ""
     institution_snapshot: str | None = None
@@ -44,11 +24,6 @@ class SetupMethodsUpsert(BaseModel):
     # setup_key_snapshot is intentionally omitted: it is always server-derived from the
     # snapshot hash, so any client-supplied value would be ignored anyway.
     source_setup_library_id: UUID | None = None
-
-
-class SetupMethodsFromTemplateRequest(BaseModel):
-    template_key: str = Field(min_length=1)
-    template_version: int = Field(ge=1)
 
 
 class SetupMethodsFromLibraryRequest(BaseModel):

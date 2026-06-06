@@ -31,7 +31,6 @@ from app.schemas.module_payload import (
 from app.schemas.recipe import RecipeRead
 from app.schemas.setup_methods import (
     SetupMethodsFromLibraryRequest,
-    SetupMethodsFromTemplateRequest,
     SetupMethodsMutationResponse,
     SetupMethodsRead,
     SetupMethodsUpsert,
@@ -269,19 +268,6 @@ def upsert_setup_methods(
     current_user: CurrentUser,
 ) -> SetupMethodsMutationResponse:
     return SetupMethodsService(db).upsert_setup_methods(experiment_id, payload, current_user)
-
-
-@router.post(
-    "/{experiment_id}/setup-methods/from-template",
-    response_model=SetupMethodsMutationResponse,
-)
-def create_setup_methods_from_template(
-    experiment_id: UUID,
-    payload: SetupMethodsFromTemplateRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> SetupMethodsMutationResponse:
-    return SetupMethodsService(db).create_from_template(experiment_id, payload, current_user)
 
 
 @router.post(

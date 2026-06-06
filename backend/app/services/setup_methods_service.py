@@ -22,30 +22,16 @@ from app.schemas.experiment_validation import (
 )
 from app.schemas.setup_methods import (
     SetupMethodsFromLibraryRequest,
-    SetupMethodsFromTemplateRequest,
     SetupMethodsMutationResponse,
     SetupMethodsRead,
     SetupMethodsUpsert,
-    SetupMethodTemplateRead,
 )
 from app.services.audit_service import AuditService
 from app.services.experiment_validation_service import ExperimentValidationFailed
 from app.services.file_storage_service import FileStorageService
 from app.services.setup_library_service import SetupLibraryService
-from app.services.setup_method_template_service import SetupMethodTemplateService
 from app.services.setup_methods_content_validation import validate_setup_content
 from app.services.setup_methods_hash_service import SetupMethodsHashService
-
-TEMPLATE_CORE_FIELDS = (
-    "setup_name_snapshot",
-    "institution_snapshot",
-    "apparatus_description_snapshot",
-    "methods_text_snapshot",
-    "sample_placement_description_snapshot",
-    "reaction_flow_description_snapshot",
-    "reference_paper_url_snapshot",
-    "unpublished_reason_snapshot",
-)
 
 
 class SetupMethodsService:
@@ -57,7 +43,6 @@ class SetupMethodsService:
         self.audit = AuditService(db)
         self.hashes = SetupMethodsHashService()
         self.storage = FileStorageService()
-        self.templates = SetupMethodTemplateService()
         self.setup_library = SetupLibraryService(db)
 
     def get_setup_methods(self, experiment_id: UUID, current_user: User) -> SetupMethodsRead:
@@ -80,60 +65,6 @@ class SetupMethodsService:
         snapshot = self._upsert_snapshot_from_payload(experiment, payload, current_user)
         self.db.commit()
         return SetupMethodsMutationResponse(data=self._to_read(snapshot), warnings=[])
-
-    def create_from_template(
-        self,
-        experiment_id: UUID,
-        payload: SetupMethodsFromTemplateRequest,
-        current_user: User,
-    ) -> SetupMethodsMutationResponse:
-        experiment = self._get_owned_draft_experiment(experiment_id, current_user)
-        template = self.templates.get_template(payload.template_key, payload.template_version)
-        if template is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Setup method template not found",
-            )
-
-        diagram_file_asset_id, warning = self._materialize_template_diagram(
-            experiment,
-            template,
-            current_user,
-        )
-        warnings = [warning] if warning is not None else []
-        existing = self.setup_methods.get_by_experiment(experiment.id)
-        before = self._serialize_snapshot(existing)
-        snapshot = existing or ExperimentSetupSnapshot(experiment_run_id=experiment.id)
-        snapshot.source_template_key = template.template_key
-        snapshot.source_template_version = template.template_version
-        snapshot.setup_key_snapshot = template.template_key
-        snapshot.setup_name_snapshot = template.name
-        snapshot.setup_version_snapshot = template.template_version
-        snapshot.institution_snapshot = template.institution
-        snapshot.apparatus_description_snapshot = template.apparatus_description
-        snapshot.methods_text_snapshot = template.methods_text
-        snapshot.sample_placement_description_snapshot = template.sample_placement_description
-        snapshot.reaction_flow_description_snapshot = template.reaction_flow_description
-        snapshot.reference_paper_url_snapshot = template.reference_paper_url
-        snapshot.unpublished_reason_snapshot = template.unpublished_reason
-        snapshot.diagram_file_asset_id = diagram_file_asset_id
-        snapshot.is_same_as_template = True
-        snapshot.deviation_note = None
-        snapshot.confirmed_by_id = None
-        snapshot.confirmed_at = None
-        snapshot.metadata_json = {"semantic_context": template.semantic_context}
-        self._recalculate_snapshot_hash(snapshot)
-        saved = self.setup_methods.save(snapshot)
-        self.audit.record_event(
-            actor=current_user,
-            entity_type="experiment_setup_snapshot",
-            entity_id=saved.id,
-            action="create_from_template",
-            before_json=before,
-            after_json=self._serialize_snapshot(saved),
-        )
-        self.db.commit()
-        return SetupMethodsMutationResponse(data=self._to_read(saved), warnings=warnings)
 
     def create_from_library(
         self,
@@ -427,38 +358,11 @@ class SetupMethodsService:
         snapshot: ExperimentSetupSnapshot,
         payload: SetupMethodsUpsert,
     ) -> bool:
+        # A snapshot can only claim parity with the setup it references (a library entry);
+        # the user asserts it via the flag. Manual snapshots (no source) are always a deviation.
         if snapshot.source_setup_library_id is not None:
             return payload.is_same_as_template
-        if snapshot.source_template_key is None:
-            return False
-        if not payload.is_same_as_template:
-            return False
-        template = self.templates.get_template(
-            snapshot.source_template_key,
-            snapshot.source_template_version,
-        )
-        if template is None:
-            return False
-        return self._payload_matches_template(payload, template)
-
-    def _payload_matches_template(
-        self,
-        payload: SetupMethodsUpsert,
-        template: SetupMethodTemplateRead,
-    ) -> bool:
-        expected = {
-            "setup_name_snapshot": template.name,
-            "institution_snapshot": template.institution,
-            "apparatus_description_snapshot": template.apparatus_description,
-            "methods_text_snapshot": template.methods_text,
-            "sample_placement_description_snapshot": template.sample_placement_description,
-            "reaction_flow_description_snapshot": template.reaction_flow_description,
-            "reference_paper_url_snapshot": template.reference_paper_url,
-            "unpublished_reason_snapshot": template.unpublished_reason,
-        }
-        if any(getattr(payload, field) != expected[field] for field in TEMPLATE_CORE_FIELDS):
-            return False
-        return payload.semantic_context == template.semantic_context
+        return False
 
     def _validate_setup_diagram_file(
         self,
@@ -495,21 +399,6 @@ class SetupMethodsService:
             and file_asset.experiment_run_id == experiment.id
             and file_asset.asset_role == "setup_diagram"
             and file_asset.sample_id is None
-        )
-
-    def _materialize_template_diagram(
-        self,
-        experiment: ExperimentRun,
-        template: SetupMethodTemplateRead,
-        current_user: User,
-    ) -> tuple[UUID | None, ExperimentValidationIssue | None]:
-        del experiment, current_user
-        if not template.has_packaged_diagram:
-            return None, None
-        return None, self._issue(
-            "setup_methods",
-            "diagram_file_asset_id",
-            "Setup diagram could not be materialized from template",
         )
 
     def _copy_setup_diagram_file(
