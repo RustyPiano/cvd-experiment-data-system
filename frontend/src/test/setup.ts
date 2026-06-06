@@ -80,5 +80,5 @@ Object.defineProperty(window, "getComputedStyle", {
 });
 
 vi.mock("@ant-design/plots", () => ({
-  Line: (props: any) => React.createElement("div", { "data-testid": "mock-line-chart", ...props }),
+  Line: (props: Record<string, unknown>) => React.createElement("div", { "data-testid": "mock-line-chart", ...props }),
 }));

@@ -229,32 +229,34 @@ export function AppShell() {
               value={searchQuery}
             />
           ) : null}
-          <div className="app-user">
-            <Avatar
-              size={32}
-              style={{ backgroundColor: "#2563EB", fontSize: 13, fontWeight: 600 }}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginLeft: "auto" }}>
+            <div className="app-user">
+              <Avatar
+                size={32}
+                style={{ backgroundColor: "#2563EB", fontSize: 13, fontWeight: 600 }}
+              >
+                {userInitial}
+              </Avatar>
+              <span className="app-user-meta">
+                <Typography.Text style={{ fontWeight: 600, fontSize: 13 }}>
+                  {session.currentUser?.name ?? "未登录"}
+                </Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {roleLabel}
+                </Typography.Text>
+              </span>
+            </div>
+            <Button
+              aria-label="退出"
+              icon={<LogoutOutlined />}
+              onClick={() => {
+                void handleLogout();
+              }}
+              type="text"
             >
-              {userInitial}
-            </Avatar>
-            <span className="app-user-meta">
-              <Typography.Text style={{ fontWeight: 600, fontSize: 13 }}>
-                {session.currentUser?.name ?? "未登录"}
-              </Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {roleLabel}
-              </Typography.Text>
-            </span>
+              退出
+            </Button>
           </div>
-          <Button
-            aria-label="退出"
-            icon={<LogoutOutlined />}
-            onClick={() => {
-              void handleLogout();
-            }}
-            type="text"
-          >
-            退出
-          </Button>
         </Layout.Header>
         <Layout.Content className="app-content">
           <Outlet />

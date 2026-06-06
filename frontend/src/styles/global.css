@@ -113,9 +113,10 @@ a {
 .app-brand {
   display: flex;
   align-items: center;
-  padding: 18px 16px 14px;
-  margin-bottom: 4px;
+  height: 60px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--cvd-border-subtle);
+  box-sizing: border-box;
 }
 
 .app-sider {
@@ -129,12 +130,14 @@ a {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  height: 60px;
   gap: 16px;
   padding: 0 24px;
   border-bottom: 1px solid var(--cvd-border-subtle);
   background: rgba(255, 255, 255, 0.72);
   -webkit-backdrop-filter: saturate(180%) blur(10px);
   backdrop-filter: saturate(180%) blur(10px);
+  box-sizing: border-box;
 }
 
 @supports not (
@@ -207,6 +210,7 @@ a {
   bottom: 16px;
   z-index: 10;
   box-shadow: var(--cvd-shadow-lg);
+  transition: left 0.2s ease, width 0.2s ease;
 }
 
 .experiment-editor-page {
