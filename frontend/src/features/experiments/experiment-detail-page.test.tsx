@@ -523,14 +523,13 @@ components: [
     expect(await screen.findByText("样品环境：room")).toBeInTheDocument();
     const precheckCard = screen.getByText("预检查").closest(".ant-card");
     expect(precheckCard).not.toBeNull();
-    const precheck = within(precheckCard as HTMLElement);
-    expect(precheck.getByText("密封完好：是")).toBeInTheDocument();
-    expect(precheck.getByText("通风橱清洁：未检查")).toBeInTheDocument();
-    expect(precheck.getByText("法兰堵塞：否")).toBeInTheDocument();
-    expect(precheck.getByText("瓷舟污染：否")).toBeInTheDocument();
-    expect(precheck.getByText("石英管污染：是")).toBeInTheDocument();
-    expect(precheck.getByText("风险说明：复核密封圈")).toBeInTheDocument();
     const precheckText = precheckCard?.textContent ?? "";
+    expect(precheckText).toContain("密封完好：是");
+    expect(precheckText).toContain("通风橱清洁：未检查");
+    expect(precheckText).toContain("法兰堵塞：否");
+    expect(precheckText).toContain("瓷舟污染：否");
+    expect(precheckText).toContain("石英管污染：是");
+    expect(precheckText).toContain("风险说明：复核密封圈");
     expect(precheckText.indexOf("石英管污染：是")).toBeLessThan(
       precheckText.indexOf("风险说明：复核密封圈"),
     );

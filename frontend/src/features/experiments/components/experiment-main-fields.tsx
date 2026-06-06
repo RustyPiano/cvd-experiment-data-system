@@ -35,7 +35,7 @@ export function ExperimentMainFields({
       </div>
       <div className="editor-field">
         <Typography.Text strong>实验类型</Typography.Text>
-        <Input
+        <Input autoComplete="off"
           aria-label="实验类型"
           disabled={disabled}
           onChange={(event) => {
@@ -66,7 +66,7 @@ export function ExperimentMainFields({
       </div>
       <div className="editor-field">
         <Typography.Text strong>实验日期</Typography.Text>
-        <Input
+        <Input autoComplete="off"
           aria-label="实验日期"
           disabled={disabled}
           onChange={(event) => {

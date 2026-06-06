@@ -9,7 +9,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 
-import { HttpError } from "../../shared/api/http-error";
+import { HttpError, resolveErrorMessage } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { RouteLeaveGuard } from "../../shared/ui/route-leave-guard";
@@ -91,17 +91,7 @@ function useActiveVocabularyOptions({
   return useMemo(() => toVocabularyOptions(query.data?.items), [query.data?.items]);
 }
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function ExperimentEditorWorkspace({
   accessToken,
@@ -687,9 +677,7 @@ export function ExperimentEditorPage() {
           title="实验编辑器"
         />
         <Alert
-          title={
-            error instanceof HttpError ? error.detail || "实验编辑器加载失败" : "实验编辑器加载失败"
-          }
+          title={resolveErrorMessage(error, "实验编辑器加载失败")}
           showIcon
           type="error"
         />

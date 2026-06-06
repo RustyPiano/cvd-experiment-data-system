@@ -54,7 +54,7 @@ export function ExperimentDiffModal({
           onChange={setCollapseSame}
           unCheckedChildren="显示全部"
         />
-        {loading ? <Alert title="正在加载来源模块..." showIcon type="info" /> : null}
+        {loading ? <Alert showIcon title="正在加载来源模块…" type="info" /> : null}
         {errorMessage ? <Alert title={errorMessage} showIcon type="error" /> : null}
         {!loading && !errorMessage && visibleModuleDiffs.length === 0 ? (
           <Empty description="没有差异" image={Empty.PRESENTED_IMAGE_SIMPLE} />

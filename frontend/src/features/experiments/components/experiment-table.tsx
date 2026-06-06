@@ -145,7 +145,7 @@ export function ExperimentTable({
       sortOrder: resolveSortOrder("run_code"),
       sorter: true,
       render: (runCode: string, record) => (
-        <Link to={`/experiments/${record.id}`}>{runCode}</Link>
+        <Link className="tabular-nums" to={`/experiments/${record.id}`}>{runCode}</Link>
       ),
     },
     {
@@ -169,7 +169,9 @@ export function ExperimentTable({
       key: "experiment_date",
       sortOrder: resolveSortOrder("experiment_date"),
       sorter: true,
-      render: (value: string) => dayjs(value).format("YYYY-MM-DD"),
+      render: (value: string) => (
+        <span className="tabular-nums">{dayjs(value).format("YYYY-MM-DD")}</span>
+      ),
     },
     {
       title: "状态",
@@ -185,7 +187,9 @@ export function ExperimentTable({
       key: "updated_at",
       sortOrder: resolveSortOrder("updated_at"),
       sorter: true,
-      render: (value: string) => dayjs(value).format("YYYY-MM-DD HH:mm"),
+      render: (value: string) => (
+        <span className="tabular-nums">{dayjs(value).format("YYYY-MM-DD HH:mm")}</span>
+      ),
     },
     {
       title: "操作",

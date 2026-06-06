@@ -30,7 +30,7 @@ export function ProcessObservationSection({
       <div className="editor-form-grid">
         <div className="editor-field editor-field-wide">
           <Typography.Text strong>颜色变化</Typography.Text>
-          <Input
+          <Input autoComplete="off"
             aria-label="颜色变化"
             disabled={disabled}
             onChange={(event) => {
@@ -83,7 +83,7 @@ export function ProcessObservationSection({
               删除
             </Button>
           </div>
-          <Input
+          <Input autoComplete="off"
             aria-label={`异常事件 ${index + 1}`}
             disabled={disabled}
             onChange={(event) => {

@@ -80,7 +80,7 @@ export function CharacterizationSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`激发波长 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`激发波长 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
@@ -92,7 +92,7 @@ export function CharacterizationSection({
             </div>
             <div className="editor-field editor-field-wide">
               <Typography.Text strong>{`表征结果 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`表征结果 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {

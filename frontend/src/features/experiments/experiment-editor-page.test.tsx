@@ -699,7 +699,7 @@ describe("ExperimentEditorPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "查看差异" }));
 
-    const errorMessage = await screen.findByText("Source modules unavailable");
+    const errorMessage = await screen.findByText("服务器内部错误，请稍后重试");
     expect(errorMessage).toBeInTheDocument();
     const diffDialog = errorMessage.closest<HTMLElement>(".ant-modal");
     expect(diffDialog).not.toBeNull();
@@ -947,7 +947,7 @@ describe("ExperimentEditorPage", () => {
     });
 
     expect(await screen.findAllByText("以下参数继承自 CVD-2026-0009，请确认或修改。")).toHaveLength(2);
-    expect(await screen.findByText("Inherited precheck save failed")).toBeInTheDocument();
+    expect(await screen.findByText("服务器内部错误，请稍后重试")).toBeInTheDocument();
     expect(router.state.location.search).toBe("?inheritFrom=exp-source");
     expect(window.sessionStorage.getItem("experiment:inherit:exp-source")).toBe(
       storedInheritancePayload,
@@ -997,7 +997,7 @@ describe("ExperimentEditorPage", () => {
       initialEntry: "/experiments/exp-1/edit?inheritFrom=exp-source",
     });
 
-    expect(await screen.findByText("Inherited precheck save failed")).toBeInTheDocument();
+    expect(await screen.findByText("服务器内部错误，请稍后重试")).toBeInTheDocument();
     expect(router.state.location.search).toBe("?inheritFrom=exp-source");
     expect(window.sessionStorage.getItem("experiment:inherit:exp-source")).toBe(
       storedInheritancePayload,
@@ -1049,7 +1049,7 @@ describe("ExperimentEditorPage", () => {
       initialEntry: "/experiments/exp-1/edit?inheritFrom=exp-source",
     });
 
-    expect(await screen.findByText("Source modules unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("服务器内部错误，请稍后重试")).toBeInTheDocument();
     expect(router.state.location.search).toBe("?inheritFrom=exp-source");
   });
 

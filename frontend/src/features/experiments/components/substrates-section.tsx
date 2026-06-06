@@ -175,7 +175,7 @@ export function SubstratesSection({
               </div>
               <div className="editor-field">
                 <Typography.Text strong>基底批次</Typography.Text>
-                <Input
+                <Input autoComplete="off"
                   aria-label={`基底批次 ${roleConfig.title}`}
                   disabled={disabled}
                   onChange={(event) => {
@@ -220,7 +220,7 @@ export function SubstratesSection({
                 <>
                   <div className="editor-field">
                     <Typography.Text strong>处理参数温度</Typography.Text>
-                    <Input
+                    <Input autoComplete="off"
                       aria-label={`处理参数温度 ${roleConfig.title}`}
                       disabled={disabled}
                       onChange={(event) => {
@@ -234,7 +234,7 @@ export function SubstratesSection({
                   </div>
                   <div className="editor-field">
                     <Typography.Text strong>处理参数时长</Typography.Text>
-                    <Input
+                    <Input autoComplete="off"
                       aria-label={`处理参数时长 ${roleConfig.title}`}
                       disabled={disabled}
                       onChange={(event) => {
@@ -248,7 +248,7 @@ export function SubstratesSection({
                   </div>
                   <div className="editor-field">
                     <Typography.Text strong>处理参数功率</Typography.Text>
-                    <Input
+                    <Input autoComplete="off"
                       aria-label={`处理参数功率 ${roleConfig.title}`}
                       disabled={disabled || isUvCleaning}
                       onChange={(event) => {

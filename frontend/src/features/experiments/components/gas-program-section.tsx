@@ -197,7 +197,7 @@ export function GasProgramSection({
           <div className="editor-form-grid">
             <div className="editor-field">
               <Typography.Text strong>{`阶段 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`阶段 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
@@ -222,7 +222,7 @@ export function GasProgramSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`开始时间 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`开始时间 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
@@ -234,7 +234,7 @@ export function GasProgramSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`结束时间 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`结束时间 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
@@ -250,14 +250,14 @@ export function GasProgramSection({
                 const totalComponentFlow = getSegmentTotalFlow(segment);
                 const isAutoFlow = totalComponentFlow > 0;
                 return isAutoFlow ? (
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`流量 ${index + 1}`}
                     disabled
                     placeholder="由组分流量自动合计"
                     value={String(totalComponentFlow)}
                   />
                 ) : (
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`流量 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -307,7 +307,7 @@ export function GasProgramSection({
                     </div>
                     <div className="editor-field">
                       <Typography.Text strong>{`组分流量 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
-                      <Input
+                      <Input autoComplete="off"
                         aria-label={`组分流量 ${index + 1}-${componentIndex + 1}`}
                         disabled={disabled}
                         onChange={(event) => {
@@ -321,7 +321,7 @@ export function GasProgramSection({
                     </div>
                     <div className="editor-field">
                       <Typography.Text strong>{`占比 ${index + 1}-${componentIndex + 1}`}</Typography.Text>
-                      <Input
+                      <Input autoComplete="off"
                         aria-label={`占比 ${index + 1}-${componentIndex + 1}`}
                         disabled
                         placeholder="自动计算"

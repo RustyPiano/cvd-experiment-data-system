@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { HttpError } from "../../shared/api/http-error";
+import { HttpError, resolveErrorMessage } from "../../shared/api/http-error";
 import type {
   ExperimentModulePayloadListResponse,
   ExperimentModulePayloadRead,
@@ -219,17 +219,7 @@ function isValidationResponse(payload: unknown): payload is ExperimentValidation
   );
 }
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function groupValidationErrorsBySection(errors: EditorValidationError[]) {
   return errors.reduce<Map<EditorSectionKey, EditorValidationError[]>>((result, error) => {
@@ -743,7 +733,7 @@ export function useExperimentEditor({
 
       setSectionState("setup_methods", {
         status: "saving",
-        message: "正在套用 Setup...",
+        message: "正在套用 Setup…",
       });
 
       try {

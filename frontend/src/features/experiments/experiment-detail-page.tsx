@@ -5,7 +5,7 @@ import { Alert, Button, Card, List, Space, Table, Tabs, Tag, Typography } from "
 import dayjs from "dayjs";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { HttpError } from "../../shared/api/http-error";
+import { HttpError, resolveErrorMessage } from "../../shared/api/http-error";
 import { QualityTag, StatusTag } from "../../shared/ui/status-tag";
 import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
@@ -52,11 +52,7 @@ function safeString(value: unknown): string {
   return "";
 }
 
-function formatPrecheckState(value: unknown): string {
-  if (value === true) return "是";
-  if (value === false) return "否";
-  return "未检查";
-}
+
 
 function safeArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -173,15 +169,34 @@ function renderEnvironmentParams(modules: ExperimentModulePayloadRead[] | undefi
   );
 }
 
+function renderPrecheckItem(label: string, value: unknown, normalValue: boolean) {
+  let tagColor = "default";
+  let tagText = "未检查";
+
+  if (value === true) {
+    tagText = "是";
+    tagColor = normalValue === true ? "success" : "error";
+  } else if (value === false) {
+    tagText = "否";
+    tagColor = normalValue === false ? "success" : "error";
+  }
+
+  return (
+    <Typography.Text>
+      {label}：<Tag color={tagColor}>{tagText}</Tag>
+    </Typography.Text>
+  );
+}
+
 function renderPrecheckParams(modules: ExperimentModulePayloadRead[] | undefined) {
   const payload = getModulePayload(modules, "precheck");
   return (
-    <div className="content-stack">
-      <Typography.Text>密封完好：{formatPrecheckState(payload.seal_intact)}</Typography.Text>
-      <Typography.Text>通风橱清洁：{formatPrecheckState(payload.hood_clean)}</Typography.Text>
-      <Typography.Text>法兰堵塞：{formatPrecheckState(payload.flange_blocked)}</Typography.Text>
-      <Typography.Text>瓷舟污染：{formatPrecheckState(payload.boat_contamination_level)}</Typography.Text>
-      <Typography.Text>石英管污染：{formatPrecheckState(payload.tube_contamination_level)}</Typography.Text>
+    <div className="content-stack" style={{ gap: "12px" }}>
+      {renderPrecheckItem("密封完好", payload.seal_intact, true)}
+      {renderPrecheckItem("通风橱清洁", payload.hood_clean, true)}
+      {renderPrecheckItem("法兰堵塞", payload.flange_blocked, false)}
+      {renderPrecheckItem("瓷舟污染", payload.boat_contamination_level, false)}
+      {renderPrecheckItem("石英管污染", payload.tube_contamination_level, false)}
       <Typography.Text>风险说明：{safeString(payload.risk_note) || "—"}</Typography.Text>
     </div>
   );
@@ -608,17 +623,7 @@ export function ExperimentDetailPage() {
     enabled: session.isAuthenticated && Boolean(experimentId),
   });
 
-  const resolveErrorMessage = (error: unknown, fallback: string) => {
-    if (error instanceof HttpError) {
-      return error.detail || fallback;
-    }
 
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    return fallback;
-  };
 
   const handleExportJson = async () => {
     setDownloadState("json");
@@ -690,11 +695,7 @@ export function ExperimentDetailPage() {
           title="实验详情"
         />
         <Alert
-          title={
-            experimentQuery.error instanceof HttpError
-              ? experimentQuery.error.detail || "实验详情加载失败"
-              : "实验详情加载失败"
-          }
+          title={resolveErrorMessage(experimentQuery.error, "实验详情加载失败")}
           showIcon
           type="error"
         />

@@ -614,7 +614,7 @@ describe("ExperimentFilesPage", () => {
     await waitFor(() => {
       expect(uploadedFileNames()).toEqual(["a.png", "b.png", "c.png"]);
     });
-    expect(await screen.findByText("b.png: b.png upload failed")).toBeInTheDocument();
+    expect(await screen.findByText("b.png: 服务器内部错误，请稍后重试")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "上传文件" }));
 

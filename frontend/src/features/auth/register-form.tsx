@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import { createSessionSnapshot } from "./auth-store";
 import { register } from "./api";
 import { useAuth } from "./use-auth";
@@ -61,18 +61,15 @@ export function RegisterForm() {
     });
   });
 
-  const errorMessage =
-    registerMutation.error instanceof HttpError
-      ? registerMutation.error.detail
-      : registerMutation.error instanceof Error
-        ? registerMutation.error.message
-        : null;
+  const errorMessage = registerMutation.error
+    ? resolveErrorMessage(registerMutation.error, "注册失败")
+    : null;
 
   return (
     <Form layout="vertical" onFinish={onSubmit} requiredMark={false}>
       {errorMessage ? (
         <Form.Item>
-          <Alert message={errorMessage} showIcon type="error" />
+          <Alert showIcon title={errorMessage} type="error" />
         </Form.Item>
       ) : null}
 

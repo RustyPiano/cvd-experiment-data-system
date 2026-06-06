@@ -56,7 +56,7 @@ export function PrecursorsSection({
           <div className="editor-form-grid">
             <div className="editor-field">
               <Typography.Text strong>{`前驱体种类 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`前驱体种类 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
@@ -68,7 +68,7 @@ export function PrecursorsSection({
             </div>
             <div className="editor-field">
               <Typography.Text strong>{`前驱体品牌 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`前驱体品牌 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
@@ -95,7 +95,7 @@ export function PrecursorsSection({
               <>
                 <div className="editor-field">
                   <Typography.Text strong>{`前驱体质量 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`前驱体质量 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -107,7 +107,7 @@ export function PrecursorsSection({
                 </div>
                 <div className="editor-field">
                   <Typography.Text strong>{`制备时长 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`制备时长 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -121,7 +121,7 @@ export function PrecursorsSection({
             ) : null}
             <div className="editor-field">
               <Typography.Text strong>{`前驱体批次 ${index + 1}`}</Typography.Text>
-              <Input
+              <Input autoComplete="off"
                 aria-label={`前驱体批次 ${index + 1}`}
                 disabled={disabled}
                 onChange={(event) => {
@@ -135,7 +135,7 @@ export function PrecursorsSection({
               <>
                 <div className="editor-field">
                   <Typography.Text strong>{`浓度 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`浓度 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -147,7 +147,7 @@ export function PrecursorsSection({
                 </div>
                 <div className="editor-field">
                   <Typography.Text strong>{`浓度单位 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`浓度单位 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -163,7 +163,7 @@ export function PrecursorsSection({
               <>
                 <div className="editor-field">
                   <Typography.Text strong>{`预旋涂转速 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`预旋涂转速 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -175,7 +175,7 @@ export function PrecursorsSection({
                 </div>
                 <div className="editor-field">
                   <Typography.Text strong>{`预旋涂时长 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`预旋涂时长 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -187,7 +187,7 @@ export function PrecursorsSection({
                 </div>
                 <div className="editor-field">
                   <Typography.Text strong>{`旋涂转速 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`旋涂转速 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -199,7 +199,7 @@ export function PrecursorsSection({
                 </div>
                 <div className="editor-field">
                   <Typography.Text strong>{`旋涂时长 ${index + 1}`}</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`旋涂时长 ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
@@ -214,7 +214,7 @@ export function PrecursorsSection({
             {flags.showMeltingFields ? (
               <div className="editor-field">
                 <Typography.Text strong>{`熔融温度 ${index + 1}`}</Typography.Text>
-                <Input
+                <Input autoComplete="off"
                   aria-label={`熔融温度 ${index + 1}`}
                   disabled={disabled}
                   onChange={(event) => {

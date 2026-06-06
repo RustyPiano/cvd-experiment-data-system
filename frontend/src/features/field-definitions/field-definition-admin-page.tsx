@@ -16,7 +16,7 @@ import {
   Typography,
 } from "antd";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import type {
   FieldDefinitionCreateRequest,
   FieldDefinitionRead,
@@ -108,17 +108,7 @@ const defaultCreateFormState: FieldDefinitionFormState = {
   metadataJson: "{}",
 };
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function normalizeOptionalText(value: string) {
   const normalized = value.trim();
@@ -335,7 +325,7 @@ function FieldDefinitionForm({
   return (
     <Form layout="vertical" requiredMark>
       <Form.Item htmlFor="field-def-key" label="字段 key" required>
-        <Input
+        <Input autoComplete="off"
           id="field-def-key"
           onChange={(e) => onChange({ ...formState, fieldKey: e.target.value })}
           placeholder="例如 temperature"
@@ -357,7 +347,7 @@ function FieldDefinitionForm({
         />
       </Form.Item>
       <Form.Item htmlFor="field-def-label-zh" label="中文名" required>
-        <Input
+        <Input autoComplete="off"
           id="field-def-label-zh"
           onChange={(e) => onChange({ ...formState, labelZh: e.target.value })}
           placeholder="例如 温度"
@@ -365,7 +355,7 @@ function FieldDefinitionForm({
         />
       </Form.Item>
       <Form.Item htmlFor="field-def-label-en" label="英文名">
-        <Input
+        <Input autoComplete="off"
           id="field-def-label-en"
           onChange={(e) => onChange({ ...formState, labelEn: e.target.value })}
           placeholder="例如 Temperature"
@@ -382,7 +372,7 @@ function FieldDefinitionForm({
         />
       </Form.Item>
       <Form.Item htmlFor="field-def-unit" label="单位">
-        <Input
+        <Input autoComplete="off"
           id="field-def-unit"
           onChange={(e) => onChange({ ...formState, unit: e.target.value })}
           placeholder="例如 °C、sccm、mg"
@@ -452,7 +442,7 @@ function FieldDefinitionForm({
         validateStatus={metadataError ? "error" : undefined}
         help={metadataError}
       >
-        <Input.TextArea
+        <Input.TextArea autoComplete="off"
           autoSize={{ maxRows: 8, minRows: 4 }}
           id="field-def-metadata"
           onChange={(e) => onChange({ ...formState, metadataJson: e.target.value })}
@@ -621,7 +611,7 @@ export function FieldDefinitionAdminPage() {
           subtitle="字段词典管理仅对管理员开放。"
           title="字段词典"
         />
-        <Alert message="当前账号没有字段词典管理权限。" showIcon type="warning" />
+        <Alert showIcon title="当前账号没有字段词典管理权限。" type="warning" />
       </div>
     );
   }
@@ -652,7 +642,7 @@ export function FieldDefinitionAdminPage() {
         title="字段词典"
       />
 
-      {feedback ? <Alert message={feedback.message} showIcon type={feedback.type} /> : null}
+      {feedback ? <Alert showIcon title={feedback.message} type={feedback.type} /> : null}
 
       <Card>
         <Space align="end" size={16} wrap>
@@ -687,8 +677,8 @@ export function FieldDefinitionAdminPage() {
           <LoadingState />
         ) : fieldDefinitionsQuery.isError ? (
           <Alert
-            message={resolveErrorMessage(fieldDefinitionsQuery.error, "字段定义列表加载失败")}
             showIcon
+            title={resolveErrorMessage(fieldDefinitionsQuery.error, "字段定义列表加载失败")}
             type="error"
           />
         ) : rows.length === 0 ? (

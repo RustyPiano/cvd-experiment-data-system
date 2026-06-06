@@ -34,7 +34,7 @@ export function LoginPage() {
             </Typography.Paragraph>
           </div>
           {loginReason === "session-expired" ? (
-            <Alert message="登录已过期，请重新登录。" showIcon type="warning" />
+            <Alert showIcon title="登录已过期，请重新登录。" type="warning" />
           ) : null}
           <LoginForm />
           <Typography.Text type="secondary">

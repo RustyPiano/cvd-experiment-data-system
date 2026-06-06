@@ -656,7 +656,7 @@ describe("ExperimentNewPage", () => {
 
     await user.click(screen.getByRole("button", { name: "选择 Recipe" }));
 
-    expect(await screen.findByText("Recipe service unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("服务器内部错误，请稍后重试")).toBeInTheDocument();
   });
 
   it("does not fetch recipes for viewer users", async () => {

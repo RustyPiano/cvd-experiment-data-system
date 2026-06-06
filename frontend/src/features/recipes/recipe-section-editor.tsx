@@ -137,7 +137,7 @@ function PrecursorsEditor({
           }
         >
           <Form.Item label="物种" style={{ marginBottom: 8 }}>
-            <Input
+            <Input autoComplete="off"
               value={asString(item.species)}
               onChange={(e) => updateItem(index, { ...item, species: e.target.value })}
               placeholder="例如 MoO3"
@@ -154,7 +154,7 @@ function PrecursorsEditor({
             />
           </Form.Item>
           <Form.Item label="品牌" style={{ marginBottom: 8 }}>
-            <Input
+            <Input autoComplete="off"
               value={asString(item.brand)}
               onChange={(e) => updateItem(index, { ...item, brand: e.target.value })}
             />
@@ -167,7 +167,7 @@ function PrecursorsEditor({
             />
           </Form.Item>
           <Form.Item label="浓度单位" style={{ marginBottom: 8 }}>
-            <Input
+            <Input autoComplete="off"
               value={asString(item.concentration_unit)}
               onChange={(e) => updateItem(index, { ...item, concentration_unit: e.target.value })}
               placeholder="例如 mol/L"
@@ -436,14 +436,14 @@ function FurnaceProgramEditor({
             }
           >
             <Form.Item label="温区标识" style={{ marginBottom: 8 }}>
-              <Input
+              <Input autoComplete="off"
                 value={asString(zone.zone_key)}
                 onChange={(e) => updateZone(zoneIndex, { ...zone, zone_key: e.target.value })}
                 placeholder="例如 zone_1"
               />
             </Form.Item>
             <Form.Item label="温区备注" style={{ marginBottom: 8 }}>
-              <Input
+              <Input autoComplete="off"
                 value={asString(zone.note)}
                 onChange={(e) => updateZone(zoneIndex, { ...zone, note: e.target.value })}
               />
@@ -481,7 +481,7 @@ function FurnaceProgramEditor({
                     />
                   </Form.Item>
                   <Form.Item label="说明" style={{ marginBottom: 4 }}>
-                    <Input
+                    <Input autoComplete="off"
                       value={asString(node.note)}
                       onChange={(e) =>
                         updateNode(zoneIndex, nodeIndex, { ...node, note: e.target.value })
@@ -557,7 +557,7 @@ function GasProgramEditor({
           }
         >
           <Form.Item label="阶段" style={{ marginBottom: 8 }}>
-            <Input
+            <Input autoComplete="off"
               value={asString(seg.stage)}
               onChange={(e) => updateSegment(index, { ...seg, stage: e.target.value })}
             />
@@ -594,7 +594,7 @@ function GasProgramEditor({
             />
           </Form.Item>
           <Form.Item label="备注" style={{ marginBottom: 8 }}>
-            <Input
+            <Input autoComplete="off"
               value={asString(seg.note)}
               onChange={(e) => updateSegment(index, { ...seg, note: e.target.value })}
             />
@@ -663,7 +663,7 @@ function CharacterizationEditor({
             />
           </Form.Item>
           <Form.Item label="结果" style={{ marginBottom: 8 }}>
-            <Input
+            <Input autoComplete="off"
               value={asString(item.result)}
               onChange={(e) => updateMethod(index, { ...item, result: e.target.value })}
             />
@@ -682,7 +682,7 @@ function CharacterizationEditor({
             />
           </Form.Item>
           <Form.Item label="备注" style={{ marginBottom: 8 }}>
-            <Input
+            <Input autoComplete="off"
               value={asString(item.note)}
               onChange={(e) => updateMethod(index, { ...item, note: e.target.value })}
             />

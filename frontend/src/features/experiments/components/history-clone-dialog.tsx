@@ -4,7 +4,7 @@ import { Alert, App, Button, Checkbox, Input, Modal, Space, Table, Tag, Typograp
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 
-import { HttpError } from "../../../shared/api/http-error";
+import { resolveErrorMessage } from "../../../shared/api/http-error";
 import type { ExperimentRead, ExperimentStatus } from "../../../shared/types/api";
 import { EmptyState } from "../../../shared/ui/empty-state";
 import { StatusTag } from "../../../shared/ui/status-tag";
@@ -44,17 +44,7 @@ function normalizeHistoryStatus(
   return allowedStatuses.length > 0 ? allowedStatuses : (["locked"] as ExperimentStatus[]);
 }
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 export function HistoryCloneDialog({
   accessToken,
@@ -192,7 +182,7 @@ export function HistoryCloneDialog({
         </Typography.Paragraph>
 
         <Space align="start" size={12} wrap>
-          <Input
+          <Input autoComplete="off"
             allowClear
             aria-label="历史实验搜索"
             onChange={(event) => {
@@ -206,7 +196,7 @@ export function HistoryCloneDialog({
             style={{ width: 280 }}
             value={draftFilters.q}
           />
-          <Input
+          <Input autoComplete="off"
             allowClear
             aria-label="历史实验材料体系"
             onChange={(event) => {

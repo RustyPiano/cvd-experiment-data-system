@@ -196,7 +196,7 @@ export function AppShell() {
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               全局搜索
             </Typography.Text>
-            <Input
+            <Input autoComplete="off"
               allowClear
               aria-label="全局搜索"
               onChange={(e) => {
@@ -215,7 +215,7 @@ export function AppShell() {
       <Layout>
         <Layout.Header className="app-header">
           {collapsed ? (
-            <Input
+            <Input autoComplete="off"
               allowClear
               aria-label="全局搜索"
               onChange={(e) => {

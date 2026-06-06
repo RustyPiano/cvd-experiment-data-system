@@ -44,7 +44,7 @@ export function VocabularyCombobox({
       placeholder={placeholder}
       value={displayValue}
     >
-      <Input aria-label={ariaLabel} placeholder={placeholder} />
+      <Input autoComplete="off" aria-label={ariaLabel} placeholder={placeholder} />
     </AutoComplete>
   );
 }

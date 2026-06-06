@@ -16,7 +16,7 @@ import {
   Typography,
 } from "antd";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { PageHeader } from "../../shared/ui/page-header";
@@ -48,17 +48,7 @@ const defaultCreateFormState: VocabularyFormState = {
   metadataJson: "{}",
 };
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function normalizeOptionalText(value: string) {
   const normalized = value.trim();
@@ -241,7 +231,7 @@ function CreateVocabularyForm({
   return (
     <Form layout="vertical" requiredMark>
       <Form.Item htmlFor="vocabulary-create-key" label="词表 key" required>
-        <Input
+        <Input autoComplete="off"
           id="vocabulary-create-key"
           onChange={(e) => onChange({ ...formState, vocabKey: e.target.value })}
           placeholder="例如 characterization_method"
@@ -249,7 +239,7 @@ function CreateVocabularyForm({
         />
       </Form.Item>
       <Form.Item htmlFor="vocabulary-create-value" label="值" required>
-        <Input
+        <Input autoComplete="off"
           id="vocabulary-create-value"
           onChange={(e) => onChange({ ...formState, value: e.target.value })}
           placeholder="例如 raman"
@@ -257,7 +247,7 @@ function CreateVocabularyForm({
         />
       </Form.Item>
       <Form.Item htmlFor="vocabulary-create-label-zh" label="中文标签" required>
-        <Input
+        <Input autoComplete="off"
           id="vocabulary-create-label-zh"
           onChange={(e) => onChange({ ...formState, labelZh: e.target.value })}
           placeholder="例如 拉曼光谱"
@@ -265,7 +255,7 @@ function CreateVocabularyForm({
         />
       </Form.Item>
       <Form.Item htmlFor="vocabulary-create-label-en" label="英文标签">
-        <Input
+        <Input autoComplete="off"
           id="vocabulary-create-label-en"
           onChange={(e) => onChange({ ...formState, labelEn: e.target.value })}
           placeholder="例如 Raman Spectroscopy"
@@ -295,7 +285,7 @@ function CreateVocabularyForm({
         validateStatus={metadataError ? "error" : undefined}
         help={metadataError}
       >
-        <Input.TextArea
+        <Input.TextArea autoComplete="off"
           autoSize={{ maxRows: 8, minRows: 4 }}
           id="vocabulary-create-metadata"
           onChange={(e) => onChange({ ...formState, metadataJson: e.target.value })}
@@ -325,24 +315,24 @@ function EditVocabularyForm({
   return (
     <Form layout="vertical" requiredMark>
       <Form.Item htmlFor="vocabulary-edit-key" label="词表 key">
-        <Input id="vocabulary-edit-key" readOnly value={formState.vocabKey} />
+        <Input autoComplete="off" id="vocabulary-edit-key" readOnly value={formState.vocabKey} />
       </Form.Item>
       <Form.Item htmlFor="vocabulary-edit-value" label="值" required>
-        <Input
+        <Input autoComplete="off"
           id="vocabulary-edit-value"
           onChange={(e) => onChange({ ...formState, value: e.target.value })}
           value={formState.value}
         />
       </Form.Item>
       <Form.Item htmlFor="vocabulary-edit-label-zh" label="中文标签" required>
-        <Input
+        <Input autoComplete="off"
           id="vocabulary-edit-label-zh"
           onChange={(e) => onChange({ ...formState, labelZh: e.target.value })}
           value={formState.labelZh}
         />
       </Form.Item>
       <Form.Item htmlFor="vocabulary-edit-label-en" label="英文标签">
-        <Input
+        <Input autoComplete="off"
           id="vocabulary-edit-label-en"
           onChange={(e) => onChange({ ...formState, labelEn: e.target.value })}
           value={formState.labelEn}
@@ -371,7 +361,7 @@ function EditVocabularyForm({
         validateStatus={metadataError ? "error" : undefined}
         help={metadataError}
       >
-        <Input.TextArea
+        <Input.TextArea autoComplete="off"
           autoSize={{ maxRows: 8, minRows: 4 }}
           id="vocabulary-edit-metadata"
           onChange={(e) => onChange({ ...formState, metadataJson: e.target.value })}
@@ -513,7 +503,7 @@ export function VocabularyAdminPage() {
           subtitle="受控词表管理仅对管理员开放。"
           title="受控词表"
         />
-        <Alert message="当前账号没有词表管理权限。" showIcon type="warning" />
+        <Alert showIcon title="当前账号没有词表管理权限。" type="warning" />
       </div>
     );
   }
@@ -539,7 +529,7 @@ export function VocabularyAdminPage() {
         title="受控词表"
       />
 
-      {feedback ? <Alert message={feedback.message} showIcon type={feedback.type} /> : null}
+      {feedback ? <Alert showIcon title={feedback.message} type={feedback.type} /> : null}
 
       <Card>
         <Space align="end" size={16} wrap>
@@ -574,8 +564,8 @@ export function VocabularyAdminPage() {
           <LoadingState />
         ) : vocabulariesQuery.isError ? (
           <Alert
-            message={resolveErrorMessage(vocabulariesQuery.error, "词表列表加载失败")}
             showIcon
+            title={resolveErrorMessage(vocabulariesQuery.error, "词表列表加载失败")}
             type="error"
           />
         ) : rows.length === 0 ? (

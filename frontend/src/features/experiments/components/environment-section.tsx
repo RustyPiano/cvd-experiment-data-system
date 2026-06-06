@@ -27,7 +27,7 @@ export function EnvironmentSection({
       ) : null}
       <div className="editor-field">
         <Typography.Text strong>环境温度 (°C)</Typography.Text>
-        <Input
+        <Input autoComplete="off"
           aria-label="环境温度 (°C)"
           disabled={disabled}
           onChange={(event) => {
@@ -42,7 +42,7 @@ export function EnvironmentSection({
       </div>
       <div className="editor-field">
         <Typography.Text strong>室内湿度 (%)</Typography.Text>
-        <Input
+        <Input autoComplete="off"
           aria-label="室内湿度 (%)"
           disabled={disabled}
           onChange={(event) => {
@@ -57,7 +57,7 @@ export function EnvironmentSection({
       </div>
       <div className="editor-field">
         <Typography.Text strong>样品环境</Typography.Text>
-        <Input
+        <Input autoComplete="off"
           aria-label="样品环境"
           disabled={disabled}
           onChange={(event) => {

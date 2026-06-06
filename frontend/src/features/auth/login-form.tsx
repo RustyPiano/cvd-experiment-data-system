@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import { createSessionSnapshot } from "./auth-store";
 import { login } from "./api";
 import { useAuth } from "./use-auth";
@@ -53,18 +53,15 @@ export function LoginForm() {
     });
   });
 
-  const errorMessage =
-    loginMutation.error instanceof HttpError
-      ? loginMutation.error.detail
-      : loginMutation.error instanceof Error
-        ? loginMutation.error.message
-        : null;
+  const errorMessage = loginMutation.error
+    ? resolveErrorMessage(loginMutation.error, "登录失败")
+    : null;
 
   return (
     <Form layout="vertical" onFinish={onSubmit} requiredMark={false}>
       {errorMessage ? (
         <Form.Item>
-          <Alert message={errorMessage} showIcon type="error" />
+          <Alert showIcon title={errorMessage} type="error" />
         </Form.Item>
       ) : null}
 

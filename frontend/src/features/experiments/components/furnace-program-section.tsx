@@ -218,7 +218,7 @@ export function FurnaceProgramSection({
         <div className="editor-form-grid">
           <div className="editor-field">
             <Typography.Text strong>温区数量</Typography.Text>
-            <Input
+            <Input autoComplete="off"
               aria-label="温区数量"
               disabled={disabled}
               onChange={(e) => handleZonesCountChange(e.target.value)}
@@ -228,7 +228,7 @@ export function FurnaceProgramSection({
           </div>
           <div className="editor-field">
             <Typography.Text strong>炉子型号</Typography.Text>
-            <Input
+            <Input autoComplete="off"
               aria-label="炉子型号"
               disabled={disabled}
               onChange={(e) => updateFurnaceInfo({ model: e.target.value })}
@@ -260,7 +260,7 @@ export function FurnaceProgramSection({
               <div className="editor-form-grid">
                 <div className="editor-field">
                   <Typography.Text strong>起始温度</Typography.Text>
-                  <Input
+                  <Input autoComplete="off"
                     aria-label={`${title} 起始温度`}
                     disabled={disabled}
                     onChange={(e) => updateZone(zone.zoneKey, { startTemperatureC: e.target.value })}
@@ -281,7 +281,7 @@ export function FurnaceProgramSection({
                     <div className="editor-form-grid">
                       <div className="editor-field">
                         <Typography.Text strong>标签</Typography.Text>
-                        <Input
+                        <Input autoComplete="off"
                           aria-label={`${title} 区间${segIndex + 1} 标签`}
                           disabled={disabled}
                           onChange={(e) => updateSegment(zone.zoneKey, segIndex, { label: e.target.value })}
@@ -291,7 +291,7 @@ export function FurnaceProgramSection({
                       </div>
                       <div className="editor-field">
                         <Typography.Text strong>时长</Typography.Text>
-                        <Input
+                        <Input autoComplete="off"
                           aria-label={`${title} 区间${segIndex + 1} 时长`}
                           disabled={disabled}
                           onChange={(e) => updateSegment(zone.zoneKey, segIndex, { durationMin: e.target.value })}
@@ -301,7 +301,7 @@ export function FurnaceProgramSection({
                       </div>
                       <div className="editor-field">
                         <Typography.Text strong>目标温度</Typography.Text>
-                        <Input
+                        <Input autoComplete="off"
                           aria-label={`${title} 区间${segIndex + 1} 目标温度`}
                           disabled={disabled}
                           onChange={(e) => updateSegment(zone.zoneKey, segIndex, { targetTemperatureC: e.target.value })}
@@ -311,7 +311,7 @@ export function FurnaceProgramSection({
                       </div>
                       <div className="editor-field editor-field-wide">
                         <Typography.Text strong>节点备注</Typography.Text>
-                        <Input
+                        <Input autoComplete="off"
                           aria-label={`${title} 区间${segIndex + 1} 备注`}
                           disabled={disabled}
                           onChange={(e) => updateSegment(zone.zoneKey, segIndex, { note: e.target.value })}
@@ -336,7 +336,7 @@ export function FurnaceProgramSection({
 
               <div className="editor-field editor-field-wide">
                 <Typography.Text strong>温区备注</Typography.Text>
-                <Input
+                <Input autoComplete="off"
                   aria-label={`${title} 备注`}
                   disabled={disabled}
                   onChange={(e) => updateZone(zone.zoneKey, { note: e.target.value })}
@@ -386,7 +386,7 @@ export function FurnaceProgramSection({
               </div>
               <div className="editor-field">
                 <Typography.Text strong>{`位置 ${index + 1}`}</Typography.Text>
-                <Input
+                <Input autoComplete="off"
                   aria-label={`位置 ${index + 1}`}
                   disabled={disabled}
                   onChange={(e) => updatePlacement(index, { positionCm: e.target.value })}
@@ -396,7 +396,7 @@ export function FurnaceProgramSection({
               </div>
               <div className="editor-field editor-field-wide">
                 <Typography.Text strong>{`备注 ${index + 1}`}</Typography.Text>
-                <Input
+                <Input autoComplete="off"
                   aria-label={`放置备注 ${index + 1}`}
                   disabled={disabled}
                   onChange={(e) => updatePlacement(index, { note: e.target.value })}

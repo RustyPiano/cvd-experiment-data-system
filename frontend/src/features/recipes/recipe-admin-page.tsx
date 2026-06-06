@@ -14,7 +14,7 @@ import {
   Tag,
 } from "antd";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import type {
   ExperimentRead,
   RecipeCreateRequest,
@@ -49,18 +49,6 @@ const defaultCreateFormState: RecipeFormState = {
   description: "",
   defaultPayloadJson: {},
 };
-
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function normalizeOptionalText(value: string) {
   const normalized = value.trim();
@@ -206,7 +194,7 @@ function RecipeForm({
   return (
     <Form layout="vertical" requiredMark>
       <Form.Item htmlFor="recipe-name" label="名称" required>
-        <Input
+        <Input autoComplete="off"
           id="recipe-name"
           onChange={(e) => onChange({ ...formState, name: e.target.value })}
           placeholder="例如 MoS2 baseline"
@@ -224,7 +212,7 @@ function RecipeForm({
         />
       </Form.Item>
       <Form.Item htmlFor="recipe-description" label="描述">
-        <Input.TextArea
+        <Input.TextArea autoComplete="off"
           autoSize={{ maxRows: 4, minRows: 2 }}
           id="recipe-description"
           onChange={(e) => onChange({ ...formState, description: e.target.value })}
@@ -788,7 +776,7 @@ export function RecipeAdminPage() {
         width={800}
       >
         <Space direction="vertical" style={{ width: "100%" }}>
-          <Input.Search
+          <Input.Search autoComplete="off"
             allowClear
             enterButton
             onSearch={(value) => setImportSearch(value)}

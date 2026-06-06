@@ -12,7 +12,7 @@ import {
 import { useAuth } from "../auth/use-auth";
 import { getExperiment, listExperimentFiles } from "../experiments/api";
 import { getSample, updateSample } from "./api";
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import { triggerBlobDownload } from "../../shared/lib/download";
 import { PageHeader } from "../../shared/ui/page-header";
 import { EmptyState } from "../../shared/ui/empty-state";
@@ -34,17 +34,7 @@ type SampleFormState = {
   metadataJson: string;
 };
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function buildFormState(sample: SampleRead): SampleFormState {
   return {

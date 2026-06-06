@@ -4,7 +4,7 @@ import { Alert, App, Button, Card, Col, Divider, List, Modal, Row, Space, Spin, 
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import type { ExperimentRead, RecipeRead } from "../../shared/types/api";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { PageHeader } from "../../shared/ui/page-header";
@@ -87,17 +87,7 @@ function RecipeModuleSummaries({ payload }: { payload: Record<string, unknown> }
   );
 }
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function groupRecipesByMaterialSystem(recipes: RecipeRead[]) {
   return recipes.reduce<Array<{ materialSystem: string; recipes: RecipeRead[] }>>((groups, recipe) => {
@@ -415,7 +405,7 @@ export function ExperimentNewPage() {
       >
         {selectedRecipe ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            {recipeCreateError ? <Alert message={recipeCreateError} showIcon type="error" /> : null}
+            {recipeCreateError ? <Alert showIcon title={recipeCreateError} type="error" /> : null}
             <div>
               <Typography.Title level={4} style={{ margin: 0 }}>
                 {selectedRecipe.name}
@@ -433,7 +423,7 @@ export function ExperimentNewPage() {
             </div>
             <Divider style={{ margin: 0 }} />
             {Object.keys(selectedRecipe.default_payload_json).length === 0 ? (
-              <Alert message="此 Recipe 未配置默认参数，将创建空白实验。" showIcon type="info" />
+              <Alert showIcon title="此 Recipe 未配置默认参数，将创建空白实验。" type="info" />
             ) : (
               <RecipeModuleSummaries payload={selectedRecipe.default_payload_json} />
             )}
@@ -465,15 +455,15 @@ export function ExperimentNewPage() {
           </div>
         ) : recipesQuery.isError ? (
           <Alert
-            message={resolveErrorMessage(recipesQuery.error, "Recipe 列表加载失败")}
             showIcon
+            title={resolveErrorMessage(recipesQuery.error, "Recipe 列表加载失败")}
             type="error"
           />
         ) : groupedRecipes.length === 0 ? (
           <EmptyState description="当前没有可用的 Recipe。" />
         ) : (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            {recipeCreateError ? <Alert message={recipeCreateError} showIcon type="error" /> : null}
+            {recipeCreateError ? <Alert showIcon title={recipeCreateError} type="error" /> : null}
             {groupedRecipes.map((group) => (
               <section key={group.materialSystem}>
                 <Divider plain titlePlacement="left">

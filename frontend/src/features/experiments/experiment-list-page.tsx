@@ -21,7 +21,7 @@ import {
 import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import { triggerBlobDownload } from "../../shared/lib/download";
 import { useDebounce } from "../../shared/lib/use-debounce";
 import type { ExperimentRead, ExperimentStatus } from "../../shared/types/api";
@@ -117,17 +117,7 @@ function parseUrlFilters(searchParams: URLSearchParams) {
   };
 }
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 export function ExperimentListPage() {
   const navigate = useNavigate();
@@ -544,7 +534,7 @@ export function ExperimentListPage() {
       <Card>
         <div className="content-stack">
           <div className="filter-bar">
-            <Input
+            <Input autoComplete="off"
               allowClear
               aria-label="实验搜索"
               onChange={(event) => {
@@ -559,7 +549,7 @@ export function ExperimentListPage() {
               style={{ width: 280 }}
               value={filters.q}
             />
-            <Input
+            <Input autoComplete="off"
               allowClear
               aria-label="材料体系筛选"
               onChange={(event) => {
@@ -673,7 +663,7 @@ export function ExperimentListPage() {
         title={invalidateTarget ? `作废实验 ${invalidateTarget.run_code}` : "作废实验"}
       >
         <div className="content-stack">
-          <Input.TextArea
+          <Input.TextArea autoComplete="off"
             aria-label="作废原因"
             autoSize={{ minRows: 3, maxRows: 5 }}
             disabled={activeTransitionKey?.endsWith(":invalidate") ?? false}

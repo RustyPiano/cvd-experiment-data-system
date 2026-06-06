@@ -20,7 +20,7 @@ import dayjs from "dayjs";
 import { ArrowLeftOutlined, DownloadOutlined, InboxOutlined } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import { EmptyState } from "../../shared/ui/empty-state";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { PageHeader } from "../../shared/ui/page-header";
@@ -38,17 +38,7 @@ import {
   uploadExperimentFile,
 } from "./api";
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function formatBytes(sizeBytes: number) {
   if (sizeBytes < 1024) {
@@ -535,7 +525,7 @@ export function ExperimentFilesPage() {
                 </Form.Item>
               )}
               <Form.Item htmlFor="upload-file-note" label="文件备注" style={{ gridColumn: "1 / -1" }}>
-                <Input
+                <Input autoComplete="off"
                   id="upload-file-note"
                   onChange={(event) => {
                     setUploadNote(event.target.value);

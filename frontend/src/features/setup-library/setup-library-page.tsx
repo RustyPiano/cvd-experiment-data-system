@@ -26,6 +26,7 @@ import type { UploadFile } from "antd";
 import dayjs from "dayjs";
 
 import { useAuth } from "../auth/use-auth";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import { PageHeader } from "../../shared/ui/page-header";
 import { LoadingState } from "../../shared/ui/loading-state";
 import { EmptyState } from "../../shared/ui/empty-state";
@@ -214,6 +215,7 @@ export function SetupLibraryPage() {
         has ? (
           <Button
             type="link"
+            aria-label="查看示意图详情"
             icon={<FileImageOutlined />}
             onClick={() => handleViewDetails(record)}
           >
@@ -263,6 +265,7 @@ export function SetupLibraryPage() {
           isViewer ? undefined : (
             <Button
               type="primary"
+              aria-label="新建 Setup 记录"
               icon={<PlusOutlined />}
               onClick={handleOpenCreate}
             >
@@ -275,7 +278,7 @@ export function SetupLibraryPage() {
       {isError && (
         <Alert
           type="error"
-          message={error instanceof Error ? error.message : "加载失败"}
+          title={resolveErrorMessage(error, "加载失败")}
           showIcon
         />
       )}
@@ -299,7 +302,7 @@ export function SetupLibraryPage() {
       <Drawer
         title={`Setup 详情: ${viewingEntry?.name || ""}`}
         placement="right"
-        width={640}
+        size="large"
         onClose={() => setDrawerOpen(false)}
         open={drawerOpen}
       >
@@ -392,11 +395,11 @@ export function SetupLibraryPage() {
             label="名称"
             rules={[{ required: true, message: "请输入 Setup 名称" }]}
           >
-            <Input placeholder="请输入 Setup 名称" />
+            <Input autoComplete="off" placeholder="请输入 Setup 名称" />
           </Form.Item>
 
           <Form.Item name="institution" label="机构">
-            <Input placeholder="请输入机构名称（可选）" />
+            <Input autoComplete="off" placeholder="请输入机构名称（可选）" />
           </Form.Item>
 
           <Form.Item
@@ -415,28 +418,28 @@ export function SetupLibraryPage() {
             label="实验方法/步骤"
             rules={[{ required: true, message: "请输入实验方法/步骤" }]}
           >
-            <Input.TextArea
+            <Input.TextArea autoComplete="off"
               rows={4}
               placeholder="请输入实验方法或具体操作步骤"
             />
           </Form.Item>
 
           <Form.Item name="apparatus_description" label="设备描述">
-            <Input.TextArea
+            <Input.TextArea autoComplete="off"
               rows={3}
               placeholder="请输入设备配置或硬件环境描述（可选）"
             />
           </Form.Item>
 
           <Form.Item name="sample_placement_description" label="样品放置描述">
-            <Input.TextArea
+            <Input.TextArea autoComplete="off"
               rows={3}
               placeholder="请输入基底/源在炉腔内的具体放置位置描述（可选）"
             />
           </Form.Item>
 
           <Form.Item name="reaction_flow_description" label="反应气流描述">
-            <Input.TextArea
+            <Input.TextArea autoComplete="off"
               rows={3}
               placeholder="请输入各阶段气流载气及配比描述（可选）"
             />
@@ -461,7 +464,7 @@ export function SetupLibraryPage() {
                 { type: "url", message: "请输入有效的 URL" },
               ]}
             >
-              <Input placeholder="https://doi.org/..." />
+              <Input autoComplete="off" placeholder="https://doi.org/…" />
             </Form.Item>
           )}
 
@@ -470,7 +473,7 @@ export function SetupLibraryPage() {
               name="unpublished_reason"
               label="未发表说明"
             >
-              <Input.TextArea
+              <Input.TextArea autoComplete="off"
                 rows={2}
                 placeholder="例如: 课题组自行摸索的工艺"
               />

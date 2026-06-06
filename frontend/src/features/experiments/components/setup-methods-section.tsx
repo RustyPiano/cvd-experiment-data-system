@@ -261,7 +261,7 @@ export function SetupMethodsSection({
       <Drawer
         title={`Setup 预览: ${selectedLibrary?.name || ""}`}
         placement="right"
-        width={640}
+        size="large"
         onClose={() => setDrawerOpen(false)}
         open={drawerOpen}
       >

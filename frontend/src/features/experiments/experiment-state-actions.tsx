@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Alert, App, Button, Input, Modal, Space } from "antd";
 import { useNavigate } from "react-router-dom";
 
-import { HttpError } from "../../shared/api/http-error";
+import { resolveErrorMessage } from "../../shared/api/http-error";
 import type { ExperimentRead } from "../../shared/types/api";
 import type { SessionUser } from "../auth/auth-store";
 import {
@@ -18,17 +18,7 @@ const { TextArea } = Input;
 
 type ActionKind = "return-to-draft" | "lock" | "invalidate" | "clone" | "save-recipe" | null;
 
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof HttpError) {
-    return error.detail || fallback;
-  }
 
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function updateExperimentCache(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -329,7 +319,7 @@ export function ExperimentStateActions({
           title="保存为 Recipe"
         >
           <div className="content-stack">
-            <Input
+            <Input autoComplete="off"
               aria-label="Recipe 名称"
               disabled={activeAction === "save-recipe"}
               onChange={(event) => {
