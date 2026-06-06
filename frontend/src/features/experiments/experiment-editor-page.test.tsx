@@ -543,8 +543,6 @@ describe("ExperimentEditorPage", () => {
     server.setupMethods = {
       id: "setup-1",
       experiment_run_id: "exp-1",
-      source_template_key: null,
-      source_template_version: null,
       setup_key_snapshot: "manual:abcdef1234567890",
       setup_name_snapshot: "Manual setup",
       setup_version_snapshot: 1,
@@ -556,7 +554,7 @@ describe("ExperimentEditorPage", () => {
       reference_paper_url_snapshot: null,
       unpublished_reason_snapshot: "Internal",
       diagram_file_asset_id: "file-setup",
-      is_same_as_template: false,
+      is_same_as_source: false,
       deviation_note: null,
       confirmed_by_id: null,
       confirmed_at: null,

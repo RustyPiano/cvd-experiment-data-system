@@ -76,7 +76,7 @@ describe("computeModuleCompletion", () => {
       }),
     ).toEqual({ state: "complete", percent: 100 });
 
-    // 4. Partial: has source but is_same_as_template is false and deviation_note is empty (completed: 6/7 = 86%)
+    // 4. Partial: has source but is_same_as_source is false and deviation_note is empty (completed: 6/7 = 86%)
     expect(
       computeModuleCompletion("setup_methods", {
         setup_key_snapshot: "setup-1",
@@ -85,12 +85,12 @@ describe("computeModuleCompletion", () => {
         methods_text_snapshot: "Methods",
         reference_paper_url_snapshot: "https://example.com/paper",
         source_setup_library_id: "source-1",
-        is_same_as_template: false,
+        is_same_as_source: false,
         deviation_note: "",
       }),
     ).toEqual({ state: "partial", percent: 86 });
 
-    // 5. Complete: has source, is_same_as_template is false, but has deviation_note (completed: 7/7 = 100%)
+    // 5. Complete: has source, is_same_as_source is false, but has deviation_note (completed: 7/7 = 100%)
     expect(
       computeModuleCompletion("setup_methods", {
         setup_key_snapshot: "setup-1",
@@ -99,7 +99,7 @@ describe("computeModuleCompletion", () => {
         methods_text_snapshot: "Methods",
         reference_paper_url_snapshot: "https://example.com/paper",
         source_setup_library_id: "source-1",
-        is_same_as_template: false,
+        is_same_as_source: false,
         deviation_note: "Slight modification to gas lines",
       }),
     ).toEqual({ state: "complete", percent: 100 });

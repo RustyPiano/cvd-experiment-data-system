@@ -60,9 +60,9 @@ export function SetupMethodsSection({
     });
   };
 
-  const handleSameAsTemplateChange = (event: CheckboxChangeEvent) => {
+  const handleSameAsSourceChange = (event: CheckboxChangeEvent) => {
     updateField({
-      isSameAsTemplate: event.target.checked,
+      isSameAsSource: event.target.checked,
       deviationNote: event.target.checked ? "" : value.deviationNote,
     });
   };
@@ -230,14 +230,14 @@ export function SetupMethodsSection({
       {value.sourceSetupLibraryId && (
         <div className="editor-field editor-field-wide">
           <Checkbox
-            checked={value.isSameAsTemplate}
+            checked={value.isSameAsSource}
             disabled={disabled}
-            onChange={handleSameAsTemplateChange}
+            onChange={handleSameAsSourceChange}
           >
             与该 Setup 一致
           </Checkbox>
 
-          {!value.isSameAsTemplate && (
+          {!value.isSameAsSource && (
             <div style={{ marginTop: "16px" }}>
               <Typography.Text strong style={{ display: "block", marginBottom: "8px" }}>
                 本次偏差说明 (Deviation Note)

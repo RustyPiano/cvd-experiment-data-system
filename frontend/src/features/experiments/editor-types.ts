@@ -59,8 +59,6 @@ export type BasicInfoValues = {
 };
 
 export type SetupMethodsValues = {
-  sourceTemplateKey: string | null;
-  sourceTemplateVersion: number | null;
   sourceSetupLibraryId: string | null;
   setupKeySnapshot: string | null;
   setupNameSnapshot: string;
@@ -72,7 +70,7 @@ export type SetupMethodsValues = {
   referencePaperUrlSnapshot: string;
   unpublishedReasonSnapshot: string;
   diagramFileAssetId: string;
-  isSameAsTemplate: boolean;
+  isSameAsSource: boolean;
   deviationNote: string;
   semanticContextText: string;
 };
@@ -1111,8 +1109,6 @@ export function createSetupMethodsValues(
   snapshot: SetupMethodsRead | null,
 ): SetupMethodsValues {
   return {
-    sourceTemplateKey: snapshot?.source_template_key ?? null,
-    sourceTemplateVersion: snapshot?.source_template_version ?? null,
     sourceSetupLibraryId: snapshot?.source_setup_library_id ?? null,
     setupKeySnapshot: snapshot?.setup_key_snapshot ?? null,
     setupNameSnapshot: snapshot?.setup_name_snapshot ?? "",
@@ -1124,7 +1120,7 @@ export function createSetupMethodsValues(
     referencePaperUrlSnapshot: snapshot?.reference_paper_url_snapshot ?? "",
     unpublishedReasonSnapshot: snapshot?.unpublished_reason_snapshot ?? "",
     diagramFileAssetId: snapshot?.diagram_file_asset_id ?? "",
-    isSameAsTemplate: snapshot?.is_same_as_template ?? false,
+    isSameAsSource: snapshot?.is_same_as_source ?? false,
     deviationNote: snapshot?.deviation_note ?? "",
     semanticContextText: JSON.stringify(snapshot?.semantic_context ?? {}, null, 2),
   };
@@ -1315,7 +1311,7 @@ export function toSetupMethodsPayload(
     reference_paper_url_snapshot: normalizeNullableString(values.referencePaperUrlSnapshot),
     unpublished_reason_snapshot: normalizeNullableString(values.unpublishedReasonSnapshot),
     diagram_file_asset_id: normalizeNullableString(values.diagramFileAssetId),
-    is_same_as_template: values.isSameAsTemplate,
+    is_same_as_source: values.isSameAsSource,
     deviation_note: normalizeNullableString(values.deviationNote),
     semantic_context: parseSemanticContext(values.semanticContextText),
     source_setup_library_id: values.sourceSetupLibraryId,
@@ -1326,14 +1322,13 @@ export function toSetupMethodsPayload(
 export function toSetupMethodsCompletionPayload(values: SetupMethodsValues) {
   return {
     source_setup_library_id: values.sourceSetupLibraryId,
-    source_template_key: values.sourceTemplateKey,
     setup_key_snapshot: values.setupKeySnapshot,
     setup_name_snapshot: values.setupNameSnapshot,
     diagram_file_asset_id: values.diagramFileAssetId,
     methods_text_snapshot: values.methodsTextSnapshot,
     reference_paper_url_snapshot: values.referencePaperUrlSnapshot,
     unpublished_reason_snapshot: values.unpublishedReasonSnapshot,
-    is_same_as_template: values.isSameAsTemplate,
+    is_same_as_source: values.isSameAsSource,
     deviation_note: values.deviationNote,
   };
 }

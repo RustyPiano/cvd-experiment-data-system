@@ -534,9 +534,9 @@ function renderSetupMethods(
 
       <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed #f0f0f0" }}>
         <Typography.Text>
-          与 Setup 一致：{setupMethods.is_same_as_template ? "是" : "否"}
+          与 Setup 一致：{setupMethods.is_same_as_source ? "是" : "否"}
         </Typography.Text>
-        {!setupMethods.is_same_as_template && setupMethods.deviation_note && (
+        {!setupMethods.is_same_as_source && setupMethods.deviation_note && (
           <div style={{ marginTop: 8 }}>
             <Typography.Text strong type="warning">
               本次偏差说明 (Deviation Note)：

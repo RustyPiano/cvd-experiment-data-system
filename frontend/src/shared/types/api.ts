@@ -196,8 +196,6 @@ export type FileAssetListResponse = {
 export type SetupMethodsRead = {
   id: string;
   experiment_run_id: string;
-  source_template_key: string | null;
-  source_template_version: number | null;
   source_setup_library_id: string | null;
   setup_key_snapshot: string | null;
   setup_name_snapshot: string;
@@ -210,7 +208,7 @@ export type SetupMethodsRead = {
   reference_paper_url_snapshot: string | null;
   unpublished_reason_snapshot: string | null;
   diagram_file_asset_id: string | null;
-  is_same_as_template: boolean;
+  is_same_as_source: boolean;
   deviation_note: string | null;
   confirmed_by_id: string | null;
   confirmed_at: string | null;
@@ -230,7 +228,7 @@ export type SetupMethodsUpsertRequest = {
   reference_paper_url_snapshot?: string | null;
   unpublished_reason_snapshot?: string | null;
   diagram_file_asset_id?: string | null;
-  is_same_as_template: boolean;
+  is_same_as_source: boolean;
   deviation_note?: string | null;
   semantic_context?: Record<string, unknown>;
   source_setup_library_id?: string | null;
@@ -241,7 +239,6 @@ export type SetupMethodsMutationResponse = {
   data: SetupMethodsRead;
   warnings: ExperimentValidationIssue[];
 };
-
 
 export type AuditEventRead = {
   id: string;

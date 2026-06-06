@@ -53,8 +53,6 @@ const mockLibraryOptions: SetupLibraryRead[] = [
 ];
 
 const baseValue = {
-  sourceTemplateKey: null,
-  sourceTemplateVersion: null,
   sourceSetupLibraryId: null,
   setupKeySnapshot: null,
   setupNameSnapshot: "",
@@ -66,7 +64,7 @@ const baseValue = {
   referencePaperUrlSnapshot: "",
   unpublishedReasonSnapshot: "",
   diagramFileAssetId: "",
-  isSameAsTemplate: false,
+  isSameAsSource: false,
   deviationNote: "",
   semanticContextText: "{}",
 };
@@ -146,7 +144,7 @@ test("renders deviation checkbox and inputs when sourceSetupLibraryId is applied
       value={{
         ...baseValue,
         sourceSetupLibraryId: "lib-1",
-        isSameAsTemplate: false,
+        isSameAsSource: false,
         deviationNote: "偏差说明内容",
       }}
     />,

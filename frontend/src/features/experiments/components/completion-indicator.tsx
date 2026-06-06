@@ -170,12 +170,11 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
     const diagramFileAssetId = getValue(payload, ["diagram_file_asset_id", "diagramFileAssetId"]);
     const referencePaperUrlSnapshot = getValue(payload, ["reference_paper_url_snapshot", "referencePaperUrlSnapshot"]);
     const unpublishedReasonSnapshot = getValue(payload, ["unpublished_reason_snapshot", "unpublishedReasonSnapshot"]);
-    const isSameAsTemplate = getValue(payload, ["is_same_as_template", "isSameAsTemplate"]);
+    const isSameAsSource = getValue(payload, ["is_same_as_source", "isSameAsSource"]);
     const deviationNote = getValue(payload, ["deviation_note", "deviationNote"]);
     const sourceSetupLibraryId = getValue(payload, ["source_setup_library_id", "sourceSetupLibraryId"]);
-    const sourceTemplateKey = getValue(payload, ["source_template_key", "sourceTemplateKey"]);
 
-    const hasSource = isFilled(sourceSetupLibraryId) || isFilled(sourceTemplateKey);
+    const hasSource = isFilled(sourceSetupLibraryId);
 
     const requiredFields = [
       isFilled(payload) ? "present" : "", // setup snapshot exists
@@ -184,7 +183,7 @@ function baseCompletion(moduleKey: string, payload: Record<string, unknown>) {
       isFilled(diagramFileAssetId) ? "diagram" : "",
       isFilled(methodsTextSnapshot) ? "methods_text" : "",
       isFilled(referencePaperUrlSnapshot) || isFilled(unpublishedReasonSnapshot) ? "reference" : "",
-      (!hasSource || isSameAsTemplate === true || isFilled(deviationNote)) ? "deviation" : "",
+      (!hasSource || isSameAsSource === true || isFilled(deviationNote)) ? "deviation" : "",
     ];
     const completed = requiredFields.filter(isFilled).length;
     return Math.round((completed / requiredFields.length) * 100);

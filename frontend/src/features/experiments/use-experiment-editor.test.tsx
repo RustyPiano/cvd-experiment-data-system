@@ -52,8 +52,6 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
     objective: "",
   },
   setupMethods: {
-    sourceTemplateKey: null,
-    sourceTemplateVersion: null,
     sourceSetupLibraryId: null,
     setupKeySnapshot: null,
     setupNameSnapshot: "",
@@ -65,7 +63,7 @@ const valuesWithEnabledCharacterizationOnly: ExperimentEditorValues = {
     referencePaperUrlSnapshot: "",
     unpublishedReasonSnapshot: "",
     diagramFileAssetId: "",
-    isSameAsTemplate: false,
+    isSameAsSource: false,
     deviationNote: "",
     semanticContextText: "{}",
   },
@@ -141,8 +139,6 @@ function createSetupMethodsRead(overrides: Partial<SetupMethodsRead> = {}): Setu
   return {
     id: "setup-1",
     experiment_run_id: experiment.id,
-    source_template_key: null,
-    source_template_version: null,
     source_setup_library_id: null,
     setup_key_snapshot: "manual:abcdef1234567890",
     setup_name_snapshot: "Manual setup",
@@ -155,7 +151,7 @@ function createSetupMethodsRead(overrides: Partial<SetupMethodsRead> = {}): Setu
     reference_paper_url_snapshot: null,
     unpublished_reason_snapshot: null,
     diagram_file_asset_id: null,
-    is_same_as_template: false,
+    is_same_as_source: false,
     deviation_note: null,
     confirmed_by_id: null,
     confirmed_at: null,
@@ -228,11 +224,9 @@ describe("useExperimentEditor completion", () => {
 
   it("keeps setup autosave warning details in the section message", async () => {
     const savedSetupMethods = createSetupMethodsRead({
-      source_template_key: "group_fast_cvd",
-      source_template_version: 1,
       setup_key_snapshot: "group_fast_cvd:v1",
       setup_name_snapshot: "Manual setup",
-      is_same_as_template: true,
+      is_same_as_source: true,
     });
     vi.mocked(upsertSetupMethods).mockResolvedValue({
       data: savedSetupMethods,
