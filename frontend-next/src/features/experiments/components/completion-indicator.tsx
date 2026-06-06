@@ -94,8 +94,8 @@ function isPositiveNumberLike(value: unknown) {
   }
 
   if (typeof value === 'string') {
-    const numericValue = Number(value.trim())
-    return Number.isFinite(numericValue) && numericValue > 0
+    const parsed = Number(value.trim())
+    return Number.isFinite(parsed) && parsed > 0
   }
 
   return false
@@ -107,8 +107,8 @@ function isNonNegativeNumberLike(value: unknown) {
   }
 
   if (typeof value === 'string') {
-    const numericValue = Number(value.trim())
-    return Number.isFinite(numericValue) && numericValue >= 0
+    const parsed = Number(value.trim())
+    return Number.isFinite(parsed) && parsed >= 0
   }
 
   return false

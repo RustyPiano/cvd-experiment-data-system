@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate, useSearch, Link } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { triggerBlobDownload } from '@/shared/lib/download'
@@ -223,6 +224,7 @@ export function ExperimentListPage() {
     queryKey: ['experiments', 'list', currentUserId ?? 'anonymous', apiFilters],
     queryFn: () => listExperiments(session.accessToken!, apiFilters),
     enabled: session.isAuthenticated,
+    placeholderData: keepPreviousData,
   })
 
   const myDraftsQuery = useQuery({
@@ -245,10 +247,15 @@ export function ExperimentListPage() {
 
   // Navigation helpers --------------------------------------------------------
 
-  const updateSearch = (updates: Record<string, unknown>) => {
+  const updateSearch = (
+    updates: Record<string, unknown>,
+    options?: { replace?: boolean },
+  ) => {
     void navigate({
       to: '/experiments',
       search: (prev) => ({ ...prev, ...updates }),
+      resetScroll: false,
+      replace: options?.replace,
     })
   }
 
@@ -279,6 +286,7 @@ export function ExperimentListPage() {
     void navigate({
       to: '/experiments',
       search: {},
+      resetScroll: false,
     })
     setListActionError(null)
   }
@@ -806,7 +814,10 @@ export function ExperimentListPage() {
                 value={localQ}
                 onChange={(e) => {
                   setLocalQ(e.target.value)
-                  updateSearch({ q: e.target.value || undefined, page: 1 })
+                  updateSearch(
+                    { q: e.target.value || undefined, page: 1 },
+                    { replace: true },
+                  )
                 }}
                 className="w-64"
                 aria-label="实验搜索"
@@ -817,10 +828,13 @@ export function ExperimentListPage() {
                 value={localMaterialSystem}
                 onChange={(e) => {
                   setLocalMaterialSystem(e.target.value)
-                  updateSearch({
-                    materialSystem: e.target.value || undefined,
-                    page: 1,
-                  })
+                  updateSearch(
+                    {
+                      materialSystem: e.target.value || undefined,
+                      page: 1,
+                    },
+                    { replace: true },
+                  )
                 }}
                 className="w-44"
                 aria-label="材料体系筛选"
@@ -893,7 +907,12 @@ export function ExperimentListPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-md border border-border">
+              <div
+                className={cn(
+                  'rounded-md border border-border transition-opacity duration-200',
+                  experimentQuery.isPlaceholderData && 'opacity-50 pointer-events-none',
+                )}
+              >
                 <Table>
                   <TableHeader>
                     {table.getHeaderGroups().map((hg) => (
