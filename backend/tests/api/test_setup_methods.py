@@ -55,7 +55,7 @@ def test_upsert_setup_methods_creates_snapshot(active_user) -> None:
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
             "semantic_context": {"temperature_reference": "setpoint"},
         },
         headers=auth_headers(active_user.email),
@@ -91,14 +91,13 @@ def test_manual_setup_ignores_template_identity_flag(active_user) -> None:
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": True,
+            "is_same_as_source": True,
         },
         headers=auth_headers(active_user.email),
     )
 
     assert response.status_code == 200
-    assert response.json()["data"]["source_template_key"] is None
-    assert response.json()["data"]["is_same_as_template"] is False
+    assert response.json()["data"]["is_same_as_source"] is False
 
 
 def test_upsert_setup_methods_allows_incomplete_draft_autosave(active_user) -> None:
@@ -115,7 +114,7 @@ def test_upsert_setup_methods_allows_incomplete_draft_autosave(active_user) -> N
             "reference_paper_url_snapshot": None,
             "unpublished_reason_snapshot": None,
             "diagram_file_asset_id": None,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
             "semantic_context": {},
         },
         headers=auth_headers(active_user.email),
@@ -138,7 +137,7 @@ def test_confirm_setup_methods_sets_confirmation(active_user) -> None:
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
         },
         headers=auth_headers(active_user.email),
     )
@@ -170,7 +169,7 @@ def test_confirm_setup_methods_rejects_stale_diagram_asset(active_user, db_sessi
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
         },
         headers=auth_headers(active_user.email),
     )
@@ -204,7 +203,7 @@ def test_idempotent_upsert_preserves_confirmation(active_user) -> None:
         "reaction_flow_description_snapshot": "Purge ramp hold cool",
         "unpublished_reason_snapshot": "Internal",
         "diagram_file_asset_id": diagram_id,
-        "is_same_as_template": False,
+        "is_same_as_source": False,
         "semantic_context": {"temperature_reference": "setpoint"},
     }
     headers = auth_headers(active_user.email)
@@ -246,7 +245,7 @@ def test_experiment_audit_endpoint_includes_setup_method_events(active_user) -> 
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
         },
         headers=auth_headers(active_user.email),
     )
@@ -285,7 +284,7 @@ def test_confirm_setup_methods_rejects_incomplete_snapshot(active_user) -> None:
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": None,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
         },
         headers=auth_headers(active_user.email),
     )
@@ -326,7 +325,7 @@ def test_confirm_setup_methods_allows_missing_apparatus_description(active_user)
             "reaction_flow_description_snapshot": "",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
         },
         headers=auth_headers(active_user.email),
     )
@@ -372,7 +371,7 @@ def test_create_setup_methods_from_library_freezes_content_and_diagram(active_us
     assert data["source_setup_library_id"] == entry["id"]
     assert data["setup_name_snapshot"] == "Two-zone fast CVD"
     assert data["methods_text_snapshot"] == "Purge, ramp, hold, cool"
-    assert data["is_same_as_template"] is True
+    assert data["is_same_as_source"] is True
     assert data["diagram_file_asset_id"] is not None
 
     # The frozen diagram is a per-experiment setup_diagram file that submit accepts.
@@ -449,7 +448,7 @@ def test_from_library_twice_replaces_diagram_without_orphans(active_user) -> Non
 
 def test_upsert_after_from_library_preserves_provenance_on_deviation(active_user) -> None:
     """Recording a deviation goes through the full-payload PUT upsert; the library
-    provenance and the user-set is_same_as_template flag must survive the round-trip."""
+    provenance and the user-set is_same_as_source flag must survive the round-trip."""
     headers = auth_headers(active_user.email)
     entry = client.post(
         "/api/v1/setup-library",
@@ -475,7 +474,7 @@ def test_upsert_after_from_library_preserves_provenance_on_deviation(active_user
     ).json()["data"]
 
     # Mirror the frontend's toSetupMethodsPayload: resend the frozen content while
-    # toggling the deviation (is_same_as_template -> False) and adding a note.
+    # toggling the deviation (is_same_as_source -> False) and adding a note.
     response = client.put(
         f"/api/v1/experiments/{experiment_id}/setup-methods",
         json={
@@ -490,7 +489,7 @@ def test_upsert_after_from_library_preserves_provenance_on_deviation(active_user
             "reference_paper_url_snapshot": frozen["reference_paper_url_snapshot"],
             "unpublished_reason_snapshot": frozen["unpublished_reason_snapshot"],
             "diagram_file_asset_id": frozen["diagram_file_asset_id"],
-            "is_same_as_template": False,
+            "is_same_as_source": False,
             "deviation_note": "Raised hold temperature by 20C this run",
             "semantic_context": {},
             "source_setup_library_id": entry["id"],
@@ -502,7 +501,7 @@ def test_upsert_after_from_library_preserves_provenance_on_deviation(active_user
     assert response.status_code == 200, response.text
     data = response.json()["data"]
     assert data["source_setup_library_id"] == entry["id"]
-    assert data["is_same_as_template"] is False
+    assert data["is_same_as_source"] is False
     assert data["deviation_note"] == "Raised hold temperature by 20C this run"
     # Content stays intact — the read-only preview must not be blanked by the upsert.
     assert data["methods_text_snapshot"] == "Purge, ramp, hold, cool"
@@ -547,7 +546,7 @@ def test_clone_snapshot_preserves_library_provenance(active_user, db_session) ->
             reaction_flow_description_snapshot="",
             unpublished_reason_snapshot="Internal",
             diagram_file_asset_id=None,
-            is_same_as_template=True,
+            is_same_as_source=True,
             snapshot_hash="a" * 64,
             metadata_json={"semantic_context": {}},
         )
@@ -580,7 +579,7 @@ def test_setup_diagram_must_belong_to_same_experiment(active_user) -> None:
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
         },
         headers=auth_headers(active_user.email),
     )
@@ -601,7 +600,7 @@ def test_delete_referenced_setup_diagram_is_blocked(active_user) -> None:
             "reaction_flow_description_snapshot": "Purge ramp hold cool",
             "unpublished_reason_snapshot": "Internal",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
         },
         headers=auth_headers(active_user.email),
     )

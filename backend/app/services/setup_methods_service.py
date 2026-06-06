@@ -90,8 +90,6 @@ class SetupMethodsService:
         previous_diagram_id = existing.diagram_file_asset_id if existing is not None else None
         before = self._serialize_snapshot(existing)
         snapshot = existing or ExperimentSetupSnapshot(experiment_run_id=experiment.id)
-        snapshot.source_template_key = None
-        snapshot.source_template_version = None
         snapshot.source_setup_library_id = entry.id
         snapshot.setup_name_snapshot = entry.name
         snapshot.institution_snapshot = entry.institution
@@ -102,7 +100,7 @@ class SetupMethodsService:
         snapshot.reference_paper_url_snapshot = entry.reference_paper_url
         snapshot.unpublished_reason_snapshot = entry.unpublished_reason
         snapshot.diagram_file_asset_id = diagram_file.id if diagram_file is not None else None
-        snapshot.is_same_as_template = True
+        snapshot.is_same_as_source = True
         snapshot.deviation_note = None
         snapshot.confirmed_by_id = None
         snapshot.confirmed_at = None
@@ -195,8 +193,6 @@ class SetupMethodsService:
         )
         cloned = ExperimentSetupSnapshot(
             experiment_run_id=target_experiment.id,
-            source_template_key=source_snapshot.source_template_key,
-            source_template_version=source_snapshot.source_template_version,
             source_setup_library_id=source_snapshot.source_setup_library_id,
             setup_key_snapshot=source_snapshot.setup_key_snapshot,
             setup_name_snapshot=source_snapshot.setup_name_snapshot,
@@ -211,7 +207,7 @@ class SetupMethodsService:
             reference_paper_url_snapshot=source_snapshot.reference_paper_url_snapshot,
             unpublished_reason_snapshot=source_snapshot.unpublished_reason_snapshot,
             diagram_file_asset_id=diagram_file.id if diagram_file is not None else None,
-            is_same_as_template=source_snapshot.is_same_as_template,
+            is_same_as_source=source_snapshot.is_same_as_source,
             deviation_note=source_snapshot.deviation_note,
             confirmed_by_id=None,
             confirmed_at=None,
@@ -255,11 +251,10 @@ class SetupMethodsService:
         snapshot.unpublished_reason_snapshot = payload.unpublished_reason_snapshot
         snapshot.diagram_file_asset_id = diagram_file.id if diagram_file is not None else None
         snapshot.source_setup_library_id = payload.source_setup_library_id
-        snapshot.is_same_as_template = self._resolve_template_match(snapshot, payload)
+        snapshot.is_same_as_source = self._resolve_source_match(snapshot, payload)
         snapshot.deviation_note = self._normalized_optional_text(payload.deviation_note)
         snapshot.metadata_json = {"semantic_context": payload.semantic_context}
-        if snapshot.source_template_key is None:
-            snapshot.setup_version_snapshot = 1
+        snapshot.setup_version_snapshot = 1
         self._recalculate_snapshot_hash(snapshot, diagram_file=diagram_file)
         if previous_snapshot_hash is not None and snapshot.snapshot_hash == previous_snapshot_hash:
             snapshot.confirmed_by_id = previous_confirmed_by_id
@@ -353,7 +348,7 @@ class SetupMethodsService:
         )
         return saved.storage_path
 
-    def _resolve_template_match(
+    def _resolve_source_match(
         self,
         snapshot: ExperimentSetupSnapshot,
         payload: SetupMethodsUpsert,
@@ -361,7 +356,7 @@ class SetupMethodsService:
         # A snapshot can only claim parity with the setup it references (a library entry);
         # the user asserts it via the flag. Manual snapshots (no source) are always a deviation.
         if snapshot.source_setup_library_id is not None:
-            return payload.is_same_as_template
+            return payload.is_same_as_source
         return False
 
     def _validate_setup_diagram_file(
@@ -475,18 +470,14 @@ class SetupMethodsService:
                 "reference_paper_url_snapshot": snapshot.reference_paper_url_snapshot,
                 "unpublished_reason_snapshot": snapshot.unpublished_reason_snapshot,
                 "diagram_sha256": diagram_file.sha256 if diagram_file is not None else None,
-                "is_same_as_template": snapshot.is_same_as_template,
+                "is_same_as_source": snapshot.is_same_as_source,
                 "deviation_note": snapshot.deviation_note,
                 "metadata_json": snapshot.metadata_json,
             }
         )
         snapshot.snapshot_hash = snapshot_hash
-        if snapshot.source_template_key is None:
-            snapshot.setup_key_snapshot = self.hashes.manual_key(snapshot_hash)
-        else:
-            snapshot.setup_key_snapshot = snapshot.source_template_key
-            if snapshot.source_template_version is not None:
-                snapshot.setup_version_snapshot = snapshot.source_template_version
+        # Every snapshot is content-keyed off its own hash; there is no external source key.
+        snapshot.setup_key_snapshot = self.hashes.manual_key(snapshot_hash)
 
     def _to_read(self, snapshot: ExperimentSetupSnapshot) -> SetupMethodsRead:
         metadata = snapshot.metadata_json or {}
@@ -495,8 +486,6 @@ class SetupMethodsService:
             {
                 "id": snapshot.id,
                 "experiment_run_id": snapshot.experiment_run_id,
-                "source_template_key": snapshot.source_template_key,
-                "source_template_version": snapshot.source_template_version,
                 "source_setup_library_id": snapshot.source_setup_library_id,
                 "setup_key_snapshot": snapshot.setup_key_snapshot,
                 "setup_name_snapshot": snapshot.setup_name_snapshot,
@@ -511,7 +500,7 @@ class SetupMethodsService:
                 "reference_paper_url_snapshot": snapshot.reference_paper_url_snapshot,
                 "unpublished_reason_snapshot": snapshot.unpublished_reason_snapshot,
                 "diagram_file_asset_id": snapshot.diagram_file_asset_id,
-                "is_same_as_template": snapshot.is_same_as_template,
+                "is_same_as_source": snapshot.is_same_as_source,
                 "deviation_note": snapshot.deviation_note,
                 "confirmed_by_id": snapshot.confirmed_by_id,
                 "confirmed_at": snapshot.confirmed_at,

@@ -17,7 +17,7 @@ class SetupMethodsUpsert(BaseModel):
     reference_paper_url_snapshot: str | None = None
     unpublished_reason_snapshot: str | None = None
     diagram_file_asset_id: UUID | None = None
-    is_same_as_template: bool = False
+    is_same_as_source: bool = False
     deviation_note: str | None = None
     semantic_context: dict[str, Any] = Field(default_factory=dict)
     # Carries the referenced library entry so a deviation-only autosave keeps provenance.
@@ -35,8 +35,6 @@ class SetupMethodsRead(BaseModel):
 
     id: UUID
     experiment_run_id: UUID
-    source_template_key: str | None
-    source_template_version: int | None
     source_setup_library_id: UUID | None = None
     setup_key_snapshot: str | None
     setup_name_snapshot: str
@@ -49,7 +47,7 @@ class SetupMethodsRead(BaseModel):
     reference_paper_url_snapshot: str | None
     unpublished_reason_snapshot: str | None
     diagram_file_asset_id: UUID | None
-    is_same_as_template: bool
+    is_same_as_source: bool
     deviation_note: str | None
     confirmed_by_id: UUID | None
     confirmed_at: datetime | None

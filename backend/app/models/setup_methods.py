@@ -28,8 +28,6 @@ class ExperimentSetupSnapshot(Base):
         unique=True,
         index=True,
     )
-    source_template_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    source_template_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_setup_library_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         nullable=True,
@@ -51,7 +49,7 @@ class ExperimentSetupSnapshot(Base):
         nullable=True,
         index=True,
     )
-    is_same_as_template: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_same_as_source: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     deviation_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     confirmed_by_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),

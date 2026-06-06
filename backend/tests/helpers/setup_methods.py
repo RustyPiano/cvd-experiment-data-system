@@ -27,7 +27,7 @@ def create_confirmed_setup_methods(
             "reaction_flow_description_snapshot": "Purge, ramp, hold, cool",
             "unpublished_reason_snapshot": "Internal test protocol",
             "diagram_file_asset_id": diagram_id,
-            "is_same_as_template": False,
+            "is_same_as_source": False,
             "semantic_context": {"temperature_reference": "setpoint"},
         },
         headers=headers,

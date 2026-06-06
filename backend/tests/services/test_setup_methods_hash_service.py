@@ -13,7 +13,7 @@ def base_payload() -> dict:
         "reference_paper_url_snapshot": None,
         "unpublished_reason_snapshot": "Internal",
         "diagram_sha256": "d" * 64,
-        "is_same_as_template": False,
+        "is_same_as_source": False,
         "deviation_note": None,
         "metadata_json": {
             "semantic_context": {"pressure": "ambient"},

@@ -7,8 +7,8 @@ IssueFactory = Callable[[str, str, str], ExperimentValidationIssue]
 
 
 def setup_has_source(snapshot: ExperimentSetupSnapshot) -> bool:
-    """Whether the snapshot was derived from a reusable source (library or template)."""
-    return snapshot.source_setup_library_id is not None or snapshot.source_template_key is not None
+    """Whether the snapshot was derived from a reusable source (a setup library entry)."""
+    return snapshot.source_setup_library_id is not None
 
 
 def validate_setup_content(
@@ -57,7 +57,7 @@ def validate_setup_content(
         )
     if (
         setup_has_source(snapshot)
-        and not snapshot.is_same_as_template
+        and not snapshot.is_same_as_source
         and _is_blank(snapshot.deviation_note)
     ):
         errors.append(

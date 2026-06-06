@@ -15,7 +15,7 @@ HASH_FIELDS = (
     "reference_paper_url_snapshot",
     "unpublished_reason_snapshot",
     "diagram_sha256",
-    "is_same_as_template",
+    "is_same_as_source",
     "deviation_note",
     "semantic_context",
 )

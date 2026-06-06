@@ -749,7 +749,7 @@ class ExperimentValidationService:
         )
         setup_deviation_is_explained = setup_snapshot is not None and (
             not setup_has_source(setup_snapshot)
-            or setup_snapshot.is_same_as_template
+            or setup_snapshot.is_same_as_source
             or not self._is_blank(setup_snapshot.deviation_note)
         )
 
