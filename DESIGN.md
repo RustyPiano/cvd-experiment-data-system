@@ -3,8 +3,8 @@ version: alpha
 name: CVD Lab Data Capture UI
 description: Frontend design system for a small research-group CVD experiment data collection system for 2D materials synthesis, characterization, and AI-ready data curation.
 colors:
-  primary: "#1D4ED8"
-  primary-hover: "#1E40AF"
+  primary: "#2563EB"
+  primary-hover: "#1D4ED8"
   primary-active: "#1E3A8A"
   primary-subtle: "#DBEAFE"
   primary-soft: "#EFF6FF"
@@ -24,9 +24,9 @@ colors:
   text-secondary: "#475569"
   text-muted: "#64748B"
   text-disabled: "#94A3B8"
-  success: "#15803D"
+  success: "#16A34A"
   success-subtle: "#DCFCE7"
-  warning: "#B45309"
+  warning: "#D97706"
   warning-subtle: "#FEF3C7"
   error: "#DC2626"
   error-subtle: "#FEE2E2"
@@ -36,7 +36,7 @@ colors:
   draft-subtle: "#F1F5F9"
   submitted: "#2563EB"
   submitted-subtle: "#DBEAFE"
-  locked: "#15803D"
+  locked: "#16A34A"
   locked-subtle: "#DCFCE7"
   invalid: "#DC2626"
   invalid-subtle: "#FEE2E2"
@@ -127,9 +127,9 @@ spacing:
   table-cell-y: 10px
 rounded:
   none: 0px
-  sm: 4px
-  md: 8px
-  lg: 12px
+  sm: 8px
+  md: 10px
+  lg: 14px
   xl: 16px
   full: 9999px
 components:
@@ -264,7 +264,7 @@ Density:
 
 The palette uses high-legibility slate neutrals, scientific blue for primary actions, teal for material/sample-related secondary actions, and strict semantic colors for validation/status.
 
-- **Primary (#1D4ED8):** Used for the main action on a screen, active navigation, current wizard step, focused form controls, and primary links.
+- **Primary (#2563EB):** Used for the main action on a screen, active navigation, current wizard step, focused form controls, and primary links.
 - **Primary subtle (#DBEAFE / #EFF6FF):** Used for selected rows, active chips, info panels, and low-emphasis blue backgrounds.
 - **Secondary (#0F766E):** Used for sample, file, and characterization contexts where the action is important but not the single primary submit action.
 - **Accent (#7C3AED):** Used sparingly for AI-ready features, extracted features, or future analysis modules.
@@ -273,8 +273,8 @@ The palette uses high-legibility slate neutrals, scientific blue for primary act
 - **Borders (#CBD5E1 / #E2E8F0):** Use borders instead of strong shadows for most hierarchy.
 - **Text (#0F172A):** Primary readable text.
 - **Muted text (#64748B):** Secondary metadata, units, hints, and timestamps.
-- **Success (#15803D):** Valid, saved, locked, completed modules.
-- **Warning (#B45309):** High-risk experiment conditions, inherited values requiring confirmation, missing optional but recommended metadata.
+- **Success (#16A34A):** Valid, saved, locked, completed modules.
+- **Warning (#D97706):** High-risk experiment conditions, inherited values requiring confirmation, missing optional but recommended metadata.
 - **Error (#DC2626):** Blocking validation errors, failed upload, invalid experiment state.
 
 Status colors:
@@ -426,12 +426,12 @@ Hierarchy should come from:
 
 The shape language is **soft-technical**.
 
-- Default corner radius: 8px.
-- Cards: 12px.
+- Default corner radius: 10px.
+- Cards: 14px.
 - Modals: 16px.
 - Badges/chips: full pill.
-- Tables: 12px outer container with square internal row boundaries.
-- Inputs/buttons: 8px.
+- Tables: 14px outer container with square internal row boundaries.
+- Inputs/buttons: 9px.
 - Avoid highly rounded “consumer app” shapes for core lab workflows.
 
 Use sharper boundaries for dense data:

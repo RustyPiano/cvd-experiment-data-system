@@ -151,15 +151,15 @@ stateDiagram-v2
 ```mermaid
 erDiagram
     USER ||--o{ EXPERIMENT_RUN : owns
-    PROJECT ||--o{ EXPERIMENT_RUN : contains
-    EXPERIMENT_TEMPLATE_VERSION ||--o{ EXPERIMENT_RUN : validates
     RECIPE ||--o{ EXPERIMENT_RUN : instantiated_as
     EXPERIMENT_RUN ||--o{ EXPERIMENT_MODULE_PAYLOAD : has
     EXPERIMENT_RUN ||--o{ SAMPLE : produces
-    SAMPLE ||--o{ CHARACTERIZATION_SESSION : measured_by
-    CHARACTERIZATION_SESSION ||--o{ FILE_ASSET : generates
-    FILE_ASSET ||--o{ FEATURE : extracts
+    EXPERIMENT_RUN ||--|| EXPERIMENT_SETUP_SNAPSHOT : snapshot
+    SETUP_LIBRARY_ENTRY ||--o{ EXPERIMENT_SETUP_SNAPSHOT : template
+    EXPERIMENT_RUN ||--o{ FILE_ASSET : has
+    SAMPLE ||--o{ FILE_ASSET : measured_by
     EXPERIMENT_RUN ||--o{ AUDIT_EVENT : audited_by
+    USER ||--o{ SETUP_LIBRARY_ENTRY : owns
 ```
 
 ### 4.2 核心实体解释
@@ -167,18 +167,16 @@ erDiagram
 | 实体 | 说明 |
 |---|---|
 | User | 系统用户，通常是组内实验人员 |
-| Project | 课题或研究方向，例如 MoS2、WS2、hBN、graphene |
-| ExperimentTemplateVersion | 表单模板版本，例如 `cvd_2zone_v1` |
 | Recipe | 常用工艺模板，例如 `MoS2_2zone_standard_v1` |
 | ExperimentRun | 一次真实实验记录 |
 | ExperimentModulePayload | 某次实验下的模块数据，例如前驱体、温区、气体 |
 | Sample | 样品、基底、产物或对照片 |
-| CharacterizationSession | 一次表征记录，例如某片样品的一次 Raman 测试 |
 | FileAsset | 原始文件或处理后文件 |
-| Feature | 从文件或人工标注中提取出的结构化特征 |
+| SetupLibraryEntry | 可复用的装置与 Methods 定义 |
+| ExperimentSetupSnapshot | 实验所引用的装置与 Methods 的历史快照 |
+| FieldDefinition | 字段字典配置，定义模块字段校验元数据 |
 | AuditEvent | 审计日志 |
 
----
 
 ## 5. 总体架构设计
 
@@ -429,16 +427,17 @@ V1 表单拆分为以下模块：
 
 | 顺序 | 模块 key | 中文名 | 说明 |
 |---:|---|---|---|
-| 1 | `basic_info` | 基本信息 | 实验日期、人员、项目、材料体系、目的 |
-| 2 | `environment` | 实验环境 | 室温、湿度、制样环境、异常备注 |
-| 3 | `precheck` | 实验前检查 | 通风橱、法兰、瓷舟、石英管、密封圈 |
-| 4 | `precursors` | 前驱体 | 多个前驱体数组，不固定 A/B |
-| 5 | `substrates` | 基底与样品 | 上/下基底、尺寸、处理、位置 |
-| 6 | `furnace_program` | 温区程序 | 温区数量、时间-温度曲线、是否放前驱体 |
-| 7 | `gas_program` | 气体程序 | 洗气、生长、冷却等阶段气体流量 |
-| 8 | `process_observation` | 实验过程观察 | 颜色变化、异常、实际偏差 |
-| 9 | `characterization` | 表征记录 | OM/Raman/PL/AFM/SEM 状态和文件 |
-| 10 | `result_summary` | 结果总结 | 质量标签、结论、下一步建议 |
+| 1 | `basic_info` | 基本信息 | 实验日期、人员、项目、材料体系、目的、层数等 |
+| 2 | `setup_methods` | 装置与方法 | 所选装置模板、论文链接/未发表原因、本次偏差等 |
+| 3 | `environment` | 实验环境 | 室温、湿度、制样环境、异常备注 |
+| 4 | `precheck` | 实验前检查 | 通风橱、法兰、瓷舟、石英管、密封圈 |
+| 5 | `precursors` | 前驱体 | 多个前驱体数组，不固定 A/B |
+| 6 | `substrates` | 基底与样品 | 上/下基底、尺寸、处理、位置、批号 |
+| 7 | `furnace_program` | 温区程序 | 温区数量、时间-温度曲线、是否放前驱体 |
+| 8 | `gas_program` | 气体程序 | 洗气、生长、冷却等阶段气体流量 |
+| 9 | `process_observation` | 实验过程观察 | 颜色变化、异常、实际偏差 |
+| 10 | `characterization` | 表征记录 | OM/Raman/PL/AFM/SEM 状态和文件 |
+| 11 | `result_summary` | 结果总结 | 质量标签、结论、下一步建议 |
 
 ### 7.2 基本信息字段
 
@@ -448,6 +447,7 @@ V1 表单拆分为以下模块：
 | `experiment_date` | 实验日期 | date | 默认当天，不可空 |
 | `project_id` | 项目 | select | 可为空，但建议填写 |
 | `material_system` | 材料体系 | select/text | 例如 MoS2、WS2、hBN |
+| `layerCount` | 合成层数 | select/text | 单层/双层/多层/未知 |
 | `objective` | 实验目的 | textarea | 建议填写 |
 | `recipe_id` | 使用 Recipe | select | 可选 |
 | `derived_from_run_id` | 派生来源 | run_id | 系统自动填充 |
@@ -484,17 +484,19 @@ V1 表单拆分为以下模块：
 
 ```json
 {
-  "precursors": [
+  "items": [
     {
       "role": "A",
-      "chemical_name": "MoO3",
+      "species": "MoO3",
       "brand": "Aladdin",
       "concentration": null,
       "concentration_unit": null,
       "preparation_method": "熔融",
       "melting_temperature_C": 80,
       "spin_speed_rpm": null,
-      "pre_spin_rpm": null,
+      "spin_time_s": null,
+      "pre_spin_speed_rpm": null,
+      "pre_spin_time_s": null,
       "preparation_time_min": null,
       "mass_mg": 10,
       "batch_no": "optional",
@@ -509,12 +511,15 @@ V1 表单拆分为以下模块：
 | 字段 | 说明 | 规则 |
 |---|---|---|
 | `role` | A/B/C 或自定义 | 默认 A/B，可新增 |
-| `chemical_name` | 前驱体种类 | 必填 |
+| `species` | 前驱体种类 | 必填 |
 | `brand` | 品牌 | 建议填写 |
 | `concentration` | 浓度 | 有溶液时填写 |
 | `preparation_method` | 制样方式 | 熔融/旋涂/研磨/称量/其他 |
 | `melting_temperature_C` | 熔融温度 | 方法为熔融时显示 |
 | `spin_speed_rpm` | 旋涂转速 | 方法为旋涂时显示 |
+| `spin_time_s` | 旋涂时间 | 方法为旋涂时显示，单位秒 (s) |
+| `pre_spin_speed_rpm` | 预旋涂转速 | 方法为旋涂时显示 |
+| `pre_spin_time_s` | 预旋涂时间 | 方法为旋涂时显示，单位秒 (s) |
 | `preparation_time_min` | 制样时间 | 旋涂/预处理时显示 |
 | `mass_mg` | 质量 | 建议填写 |
 | `batch_no` | 批号 | 建议填写，便于复盘 |
@@ -525,13 +530,14 @@ V1 表单拆分为以下模块：
 
 ```json
 {
-  "substrates": [
+  "items": [
     {
       "role": "top",
       "substrate_type": "硅片单抛N<100>",
       "brand": "华赫硅材料",
       "size_mm": "5x10",
-      "treatment_method": "等离子清洗",
+      "batch_no": "optional",
+      "treatment_method": "plasma_cleaning",
       "treatment_params": {
         "temperature_C": null,
         "duration_min": 5,
@@ -544,7 +550,8 @@ V1 表单拆分为以下模块：
       "substrate_type": "硅片单抛N<100>",
       "brand": "合肥科晶",
       "size_mm": "5x10",
-      "treatment_method": "等离子清洗",
+      "batch_no": "optional",
+      "treatment_method": "plasma_cleaning",
       "position_mm": -1
     }
   ]
@@ -559,6 +566,7 @@ V1 表单拆分为以下模块：
 | `substrate_type` | 基底类型 | 必填，受控词表 |
 | `brand` | 品牌 | 建议填写 |
 | `size_mm` | 尺寸 | 统一 mm |
+| `batch_no` | 批号 | 建议填写，便于复盘 |
 | `treatment_method` | 处理方式 | 无/等离子清洗/紫外清洗/退火 |
 | `treatment_params` | 温度/时长/功率等 | 根据处理方式显示 |
 | `position_mm` | 相对温区位置 | -2/-1/0/1/2；无则为空 |
@@ -833,67 +841,91 @@ Recipe 是工艺模板，Experiment 是真实记录。
 
 ---
 
-## 10. 后端 API 草案
+## 10. 后端 API 契约 (v1)
 
 ### 10.1 Auth
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/auth/login` | 登录 |
-| POST | `/api/auth/logout` | 退出 |
-| GET | `/api/auth/me` | 当前用户 |
+| POST | `/api/v1/auth/login` | 登录 |
+| POST | `/api/v1/auth/logout` | 退出 |
+| GET | `/api/v1/auth/me` | 当前用户 |
 
 ### 10.2 Experiments
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/experiments` | 查询实验列表 |
-| POST | `/api/experiments` | 新建空白实验 |
-| POST | `/api/experiments/from-recipe` | 从 Recipe 新建 |
-| POST | `/api/experiments/{id}/clone` | 复制历史实验 |
-| GET | `/api/experiments/{id}` | 实验详情 |
-| PATCH | `/api/experiments/{id}` | 更新实验主信息 |
-| POST | `/api/experiments/{id}/submit` | 提交实验 |
-| POST | `/api/experiments/{id}/lock` | 锁定实验 |
-| POST | `/api/experiments/{id}/invalidate` | 作废实验 |
+| GET | `/api/v1/experiments` | 查询实验列表 |
+| POST | `/api/v1/experiments` | 新建空白实验 |
+| POST | `/api/v1/experiments/from-recipe` | 从 Recipe 新建 |
+| GET | `/api/v1/experiments/{id}` | 实验详情 |
+| PATCH | `/api/v1/experiments/{id}` | 更新实验主信息 |
+| POST | `/api/v1/experiments/{id}/submit` | 提交实验 |
+| POST | `/api/v1/experiments/{id}/lock` | 锁定实验 |
+| POST | `/api/v1/experiments/{id}/return-to-draft` | 退回草稿 |
+| POST | `/api/v1/experiments/{id}/invalidate` | 作废实验 |
+| POST | `/api/v1/experiments/{id}/clone` | 复制历史实验 |
+| POST | `/api/v1/experiments/{id}/save-as-recipe` | 保存为新 Recipe |
+| GET | `/api/v1/experiments/{id}/audit-events` | 单实验审计流水 |
 
 ### 10.3 Module Payloads
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/experiments/{id}/modules` | 获取所有模块 |
-| GET | `/api/experiments/{id}/modules/{module_key}` | 获取单模块 |
-| PUT | `/api/experiments/{id}/modules/{module_key}` | 保存单模块 |
-| POST | `/api/experiments/{id}/validate` | 校验整条实验 |
-| GET | `/api/experiments/{id}/diff/{source_id}` | 与来源实验对比 |
+| GET | `/api/v1/experiments/{id}/modules` | 获取所有模块 |
+| GET | `/api/v1/experiments/{id}/modules/{module_key}` | 获取单模块 |
+| PUT | `/api/v1/experiments/{id}/modules/{module_key}` | 保存单模块 |
+| POST | `/api/v1/experiments/{id}/validate` | 校验整条实验 |
 
 ### 10.4 Samples
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/samples` | 查询样品 |
-| POST | `/api/experiments/{id}/samples` | 创建样品 |
-| GET | `/api/samples/{id}` | 样品详情 |
-| PATCH | `/api/samples/{id}` | 更新样品 |
+| GET | `/api/v1/samples` | 查询样品 |
+| GET | `/api/v1/samples/{id}` | 样品详情 |
 
-### 10.5 Files
+### 10.5 Files & Uploads
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/files/upload` | 上传文件 |
-| GET | `/api/files/{id}` | 文件详情 |
-| GET | `/api/files/{id}/download` | 下载文件 |
-| DELETE | `/api/files/{id}` | 删除/标记删除文件 |
+| POST | `/api/v1/experiments/{experiment_id}/files` | 上传并关联文件 |
+| GET | `/api/v1/files` | 获取文件列表 |
+| GET | `/api/v1/files/{id}` | 文件详情 |
+| GET | `/api/v1/files/{id}/download` | 下载文件 |
+| DELETE | `/api/v1/files/{id}` | 删除/软删除文件 |
 
 ### 10.6 Export
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/experiments/{id}/export/json` | 单实验完整 JSON |
-| GET | `/api/experiments/{id}/export/excel` | 单实验 Excel |
-| POST | `/api/exports/experiments/jsonl` | 批量 JSONL |
-| POST | `/api/exports/experiments/csv` | 批量 CSV |
-| POST | `/api/exports/dataset-zip` | 数据集 ZIP |
+| GET | `/api/v1/experiments/{id}/export` | 单实验导出信息 |
+| GET | `/api/v1/experiments/{id}/export/json` | 单实验完整 JSON |
+| GET | `/api/v1/experiments/{id}/export/analysis` | 分析用长表导出 |
+| GET | `/api/v1/experiments/{id}/export/excel` | 单实验 Excel |
+
+### 10.7 Setup & Methods
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/experiments/{id}/setup-methods` | 获取实验装置快照 |
+| PUT | `/api/v1/experiments/{id}/setup-methods` | 更新实验装置快照 |
+| POST | `/api/v1/experiments/{id}/setup-methods/from-library` | 从装置库引入装置 |
+| POST | `/api/v1/experiments/{id}/setup-methods/confirm` | 确认装置 |
+| GET | `/api/v1/setup-library` | 列出可见的装置库条目 |
+| POST | `/api/v1/setup-library` | 创建装置库条目 |
+| GET | `/api/v1/setup-library/{id}` | 装置库条目详情 |
+| PATCH | `/api/v1/setup-library/{id}` | 修改装置库条目 |
+| DELETE | `/api/v1/setup-library/{id}` | 软删除/停用装置库条目 |
+| POST | `/api/v1/setup-library/{id}/diagram` | 上传装置库示意图 |
+| GET | `/api/v1/setup-library/{id}/diagram` | 下载装置库示意图 |
+
+### 10.8 Admin & Dictionary
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/admin/dashboard` | 系统审计及缺失监测看板 |
+| GET | `/api/v1/field-definitions` | 获取字段词典列表 |
+| GET | `/api/v1/vocabularies` | 获取受控词表列表 |
 
 ---
 
@@ -1334,32 +1366,11 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE projects (
-    id UUID PRIMARY KEY,
-    name TEXT NOT NULL,
-    material_system TEXT,
-    description TEXT,
-    created_by UUID REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE experiment_template_versions (
-    id UUID PRIMARY KEY,
-    template_key TEXT NOT NULL,
-    version TEXT NOT NULL,
-    display_name TEXT NOT NULL,
-    schema_json JSONB NOT NULL,
-    form_config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(template_key, version)
-);
-
 CREATE TABLE recipes (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL,
-    template_version_id UUID REFERENCES experiment_template_versions(id),
-    project_id UUID REFERENCES projects(id),
+    template_version_id UUID,
+    project_id UUID,
     material_system TEXT,
     default_payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     description TEXT,
@@ -1372,8 +1383,8 @@ CREATE TABLE experiment_runs (
     id UUID PRIMARY KEY,
     run_code TEXT UNIQUE NOT NULL,
     owner_id UUID REFERENCES users(id),
-    project_id UUID REFERENCES projects(id),
-    template_version_id UUID REFERENCES experiment_template_versions(id),
+    project_id UUID,
+    template_version_id UUID,
     recipe_id UUID REFERENCES recipes(id),
     derived_from_run_id UUID REFERENCES experiment_runs(id),
     experiment_type TEXT NOT NULL,
@@ -1413,54 +1424,101 @@ CREATE TABLE samples (
     treatment TEXT,
     position_mm NUMERIC,
     storage_location TEXT,
-    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb
-);
-
-CREATE TABLE characterization_sessions (
-    id UUID PRIMARY KEY,
-    sample_id UUID REFERENCES samples(id),
-    experiment_run_id UUID REFERENCES experiment_runs(id),
-    method TEXT NOT NULL,
-    instrument TEXT,
-    operator_id UUID REFERENCES users(id),
-    acquisition_datetime TIMESTAMPTZ,
-    acquisition_params_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-    region_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-    note TEXT
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    deleted_by_id UUID REFERENCES users(id)
 );
 
 CREATE TABLE file_assets (
     id UUID PRIMARY KEY,
     experiment_run_id UUID REFERENCES experiment_runs(id),
     sample_id UUID REFERENCES samples(id),
-    characterization_session_id UUID REFERENCES characterization_sessions(id),
     file_category TEXT NOT NULL DEFAULT 'raw',
     method TEXT,
-    original_filename TEXT NOT NULL,
-    storage_uri TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    storage_path TEXT NOT NULL UNIQUE,
+    content_type TEXT,
+    size_bytes INTEGER NOT NULL,
     sha256 TEXT NOT NULL,
-    file_size_bytes BIGINT,
-    mime_type TEXT,
+    asset_role TEXT NOT NULL DEFAULT 'characterization_file',
+    note TEXT,
+    file_kind TEXT,
     metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-    uploaded_by UUID REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    uploaded_by_id UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    deleted_by_id UUID REFERENCES users(id)
 );
 
-CREATE TABLE features (
+CREATE TABLE experiment_field_definitions (
     id UUID PRIMARY KEY,
-    experiment_run_id UUID REFERENCES experiment_runs(id),
-    sample_id UUID REFERENCES samples(id),
-    source_file_id UUID REFERENCES file_assets(id),
-    method TEXT,
-    feature_key TEXT NOT NULL,
-    value_number NUMERIC,
-    value_text TEXT,
+    field_key TEXT NOT NULL,
+    module_key TEXT NOT NULL,
+    label_zh TEXT NOT NULL,
+    label_en TEXT,
+    field_type TEXT NOT NULL DEFAULT 'text',
     unit TEXT,
-    algorithm_name TEXT,
-    algorithm_version TEXT,
-    confidence NUMERIC,
-    reviewed_by UUID REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    required BOOLEAN NOT NULL DEFAULT FALSE,
+    default_strategy TEXT,
+    inheritable BOOLEAN NOT NULL DEFAULT FALSE,
+    vocab_key TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE setup_library_entries (
+    id UUID PRIMARY KEY,
+    owner_id UUID NOT NULL REFERENCES users(id),
+    visibility TEXT NOT NULL DEFAULT 'private',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    name TEXT NOT NULL,
+    institution TEXT,
+    apparatus_description TEXT NOT NULL DEFAULT '',
+    methods_text TEXT NOT NULL DEFAULT '',
+    sample_placement_description TEXT NOT NULL DEFAULT '',
+    reaction_flow_description TEXT NOT NULL DEFAULT '',
+    reference_paper_url TEXT,
+    unpublished_reason TEXT,
+    diagram_storage_path TEXT,
+    diagram_sha256 TEXT,
+    diagram_content_type TEXT,
+    diagram_size_bytes INTEGER,
+    diagram_original_name TEXT,
+    content_hash TEXT NOT NULL DEFAULT '',
+    semantic_context JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE experiment_setup_snapshots (
+    id UUID PRIMARY KEY,
+    experiment_run_id UUID UNIQUE NOT NULL REFERENCES experiment_runs(id) ON DELETE CASCADE,
+    source_setup_library_id UUID,
+    setup_key_snapshot TEXT,
+    setup_name_snapshot TEXT NOT NULL,
+    setup_version_snapshot INTEGER NOT NULL DEFAULT 1,
+    institution_snapshot TEXT,
+    apparatus_description_snapshot TEXT NOT NULL,
+    methods_text_snapshot TEXT NOT NULL,
+    sample_placement_description_snapshot TEXT NOT NULL,
+    reaction_flow_description_snapshot TEXT NOT NULL,
+    reference_paper_url_snapshot TEXT,
+    unpublished_reason_snapshot TEXT,
+    diagram_file_asset_id UUID REFERENCES file_assets(id),
+    is_same_as_source BOOLEAN NOT NULL DEFAULT FALSE,
+    deviation_note TEXT,
+    confirmed_by_id UUID REFERENCES users(id),
+    confirmed_at TIMESTAMPTZ,
+    snapshot_hash TEXT NOT NULL DEFAULT '',
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE audit_events (

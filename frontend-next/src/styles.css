@@ -1,0 +1,294 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Orientation variants used by shadcn components (Tabs, etc.). These compose
+   with named groups, e.g. `group-data-horizontal/tabs:`. Without them the
+   orientation-aware layout classes silently no-op and the component breaks. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
+/*
+  CVD 设计系统 — 「克制现代 + 科研精密」（slate 中性阶 + 聚焦蓝 #2563EB）。
+  单一事实来源：旧 frontend/src/app/theme.ts + global.css :root 的 --cvd-* 已迁入此处的
+  shadcn 语义 token 层。新代码一律用语义 token（bg-primary / text-muted-foreground …），不写裸 hex。
+*/
+:root {
+  --radius: 0.625rem; /* 10px，对应旧 borderRadius:10 */
+
+  --background: #f5f7fa; /* colorBgLayout */
+  --foreground: #0f172a; /* colorText */
+  --card: #ffffff; /* colorBgContainer */
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #5b6678; /* colorTextSecondary */
+  --accent: #eaf1ff; /* primary-soft：hover/selected */
+  --accent-foreground: #1d4ed8; /* primary-strong */
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+
+  /* 状态软背景（Badge variant / KPI tile / status-tag） */
+  --primary-soft: #eaf1ff;
+  --success-soft: #e7f6ec;
+  --warning-soft: #fdf1de;
+  --destructive-soft: #fde8e8;
+
+  /* 图表系列（bklit chartCssVars → --chart-*） */
+  --chart-1: #2563eb;
+  --chart-2: #16a34a;
+  --chart-3: #d97706;
+  --chart-4: #8b5cf6;
+  --chart-5: #0ea5e9;
+
+  /* 侧边栏（shadcn Sidebar） */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #475569;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eaf1ff;
+  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-border: #eef1f6;
+  --sidebar-ring: #2563eb;
+
+  /* 软分层阴影（替代硬边框） */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-lg:
+    0 8px 24px -8px rgba(15, 23, 42, 0.12),
+    0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --chart-background: oklch(1 0 0);
+  --chart-foreground: oklch(0.145 0.004 285);
+  --chart-foreground-muted: oklch(0.55 0.014 260);
+  --chart-line-primary: var(--chart-1);
+  --chart-line-secondary: var(--chart-2);
+  --chart-crosshair: oklch(0.4 0.1828 274.34);
+  --chart-grid: oklch(0.9 0 0);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: oklch(0.21 0.006 285 / 0.8);
+  --chart-tooltip-foreground: oklch(0.985 0 0);
+  --chart-tooltip-muted: oklch(0.65 0.01 260);
+  --chart-marker-background: oklch(0.97 0.005 260);
+  --chart-marker-border: oklch(0.85 0.01 260);
+  --chart-marker-foreground: oklch(0.3 0.01 260);
+  --chart-ring-background: oklch(0.9 0.005 260 / 0.25);
+  --chart-label: oklch(0.45 0.01 260);
+}
+
+.dark {
+  --background: #0b1120;
+  --foreground: #e2e8f0;
+  --card: #0f172a;
+  --card-foreground: #e2e8f0;
+  --popover: #0f172a;
+  --popover-foreground: #e2e8f0;
+
+  --primary: #3b82f6;
+  --primary-foreground: #0b1120;
+  --secondary: #1e293b;
+  --secondary-foreground: #e2e8f0;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #bfdbfe;
+  --destructive: #ef4444;
+  --destructive-foreground: #0b1120;
+  --success: #22c55e;
+  --success-foreground: #0b1120;
+  --warning: #f59e0b;
+  --warning-foreground: #0b1120;
+
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #3b82f6;
+
+  --primary-soft: #16233b;
+  --success-soft: #14321f;
+  --warning-soft: #33240a;
+  --destructive-soft: #3a1414;
+
+  --chart-1: #3b82f6;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #a78bfa;
+  --chart-5: #38bdf8;
+
+  --sidebar: #0f172a;
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #0b1120;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #bfdbfe;
+  --sidebar-border: #1e293b;
+  --sidebar-ring: #3b82f6;
+  --chart-background: oklch(0.145 0 0);
+  --chart-foreground: oklch(0.45 0 0);
+  --chart-foreground-muted: oklch(0.65 0.01 260);
+  --chart-crosshair: oklch(0.45 0 0);
+  --chart-grid: oklch(0.25 0 0);
+  --chart-brush-border: var(--chart-grid);
+  --chart-marker-background: oklch(0.25 0.01 260);
+  --chart-marker-border: oklch(0.4 0.01 260);
+  --chart-marker-foreground: oklch(0.9 0 0);
+  --chart-ring-background: oklch(0.35 0.01 260 / 0.25);
+  --chart-label: oklch(0.75 0.01 260);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary-soft: var(--primary-soft);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-destructive-soft: var(--destructive-soft);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+
+  --font-sans:
+    'Noto Sans SC', Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+
+  --color-chart-label: var(--chart-label);
+
+  --color-chart-ring-background: var(--chart-ring-background);
+
+  --color-chart-marker-foreground: var(--chart-marker-foreground);
+
+  --color-chart-marker-border: var(--chart-marker-border);
+
+  --color-chart-marker-background: var(--chart-marker-background);
+
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+
+  --chart-brush-border: var(--chart-brush-border);
+
+  --color-chart-grid: var(--chart-grid);
+
+  --color-chart-crosshair: var(--chart-crosshair);
+
+  --chart-line-secondary: var(--chart-line-secondary);
+
+  --chart-line-primary: var(--chart-line-primary);
+
+  --color-chart-foreground-muted: var(--chart-foreground-muted);
+
+  --color-chart-foreground: var(--chart-foreground);
+
+  --color-chart-background: var(--chart-background);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Lift cards off the page with a soft shadow (not just a flat ring) so the
+     layout gains depth and separates from the muted background. */
+  [data-slot='card'] {
+    box-shadow: var(--shadow);
+  }
+}
+
+/* Shared editor form layout primitives — single source of truth so every
+   section component (main fields, environment, precheck, …) keeps an identical
+   responsive two-column grid and field rhythm. Use in section JSX:
+     <div className="editor-grid"> <div className="editor-field"> … </div> </div>
+   `editor-field-wide` spans the full row (textareas, alerts, tables). */
+@layer components {
+  .editor-grid {
+    @apply grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2;
+  }
+  .editor-field {
+    @apply flex flex-col gap-2;
+  }
+  .editor-field-wide {
+    @apply sm:col-span-2;
+  }
+}
+
+/* Custom scrollbar for table container to make it look premium */
+[data-slot='table-container']::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+[data-slot='table-container']::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-slot='table-container']::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+[data-slot='table-container']::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
