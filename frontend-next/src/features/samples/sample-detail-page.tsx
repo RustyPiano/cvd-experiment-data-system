@@ -609,7 +609,7 @@ export function SampleDetailPage() {
                   <Label htmlFor="metadata-json">
                     元数据 JSON
                     {metadataJsonError ? (
-                      <span className="ml-2 text-xs text-destructive">
+                      <span id="metadata-json-error" className="ml-2 text-xs text-destructive" role="alert">
                         {metadataJsonError}
                       </span>
                     ) : null}
@@ -620,6 +620,8 @@ export function SampleDetailPage() {
                     rows={6}
                     disabled={formDisabled}
                     className={metadataJsonError ? 'border-destructive' : ''}
+                    aria-invalid={metadataJsonError ? 'true' : undefined}
+                    aria-describedby={metadataJsonError ? 'metadata-json-error' : undefined}
                     value={formState.metadataJson}
                     onChange={(e) =>
                       updateFormState('metadata_json', (cur) => ({

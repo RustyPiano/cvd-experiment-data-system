@@ -24,12 +24,12 @@ const statusMeta: Record<ExperimentStatus, StatusMeta> = {
   },
   locked: {
     label: '已锁定',
-    className: 'bg-success-soft text-success hover:bg-success-soft',
+    className: 'bg-success-soft text-success-text hover:bg-success-soft',
     dot: 'bg-success',
   },
   invalid: {
     label: '已作废',
-    className: 'bg-destructive-soft text-destructive hover:bg-destructive-soft',
+    className: 'bg-destructive-soft text-destructive-text hover:bg-destructive-soft',
     dot: 'bg-destructive',
   },
 }
@@ -37,17 +37,17 @@ const statusMeta: Record<ExperimentStatus, StatusMeta> = {
 const qualityMeta: Record<QualityLabel, StatusMeta> = {
   success: {
     label: '成功',
-    className: 'bg-success-soft text-success hover:bg-success-soft',
+    className: 'bg-success-soft text-success-text hover:bg-success-soft',
     dot: 'bg-success',
   },
   partial: {
     label: '部分成功',
-    className: 'bg-warning-soft text-warning hover:bg-warning-soft',
+    className: 'bg-warning-soft text-warning-text hover:bg-warning-soft',
     dot: 'bg-warning',
   },
   failed: {
     label: '失败',
-    className: 'bg-destructive-soft text-destructive hover:bg-destructive-soft',
+    className: 'bg-destructive-soft text-destructive-text hover:bg-destructive-soft',
     dot: 'bg-destructive',
   },
   unknown: {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useNavigate, useSearch, Link } from '@tanstack/react-router'
 import {
@@ -247,7 +247,7 @@ export function ExperimentListPage() {
 
   // Navigation helpers --------------------------------------------------------
 
-  const updateSearch = (
+  const updateSearch = useCallback((
     updates: Record<string, unknown>,
     options?: { replace?: boolean },
   ) => {
@@ -257,9 +257,9 @@ export function ExperimentListPage() {
       resetScroll: false,
       replace: options?.replace,
     })
-  }
+  }, [navigate])
 
-  const handleSortToggle = (field: ExperimentSortField) => {
+  const handleSortToggle = useCallback((field: ExperimentSortField) => {
     if (currentSortBy !== field) {
       updateSearch({ sortBy: field, sortOrder: 'asc', page: 1 })
     } else if (currentSortOrder === 'asc') {
@@ -267,7 +267,7 @@ export function ExperimentListPage() {
     } else {
       updateSearch({ sortBy: null, sortOrder: null, page: 1 })
     }
-  }
+  }, [currentSortBy, currentSortOrder, updateSearch])
 
   const handleStatusToggle = (status: ExperimentStatus) => {
     const next = currentStatus.includes(status)
@@ -424,7 +424,7 @@ export function ExperimentListPage() {
     }
   }
 
-  const handleExportExcel = async (experiment: ExperimentRead) => {
+  const handleExportExcel = useCallback(async (experiment: ExperimentRead) => {
     setActiveExportKey(`${experiment.id}:excel`)
     setListActionError(null)
     try {
@@ -441,9 +441,9 @@ export function ExperimentListPage() {
     } finally {
       setActiveExportKey(null)
     }
-  }
+  }, [session.accessToken])
 
-  const handleExportJson = async (experiment: ExperimentRead) => {
+  const handleExportJson = useCallback(async (experiment: ExperimentRead) => {
     setActiveExportKey(`${experiment.id}:json`)
     setListActionError(null)
     try {
@@ -460,193 +460,206 @@ export function ExperimentListPage() {
     } finally {
       setActiveExportKey(null)
     }
-  }
+  }, [session.accessToken])
 
   // Table ─────────────────────────────────────────────────────────────────────
 
-  const sortableCol = (field: ExperimentSortField, label: string) => ({
-    header: () => (
-      <button
-        className="flex items-center text-left font-medium hover:text-foreground transition-colors"
-        onClick={() => handleSortToggle(field)}
-        type="button"
-      >
-        {label}
-        <SortIcon
-          field={field}
-          currentField={currentSortBy}
-          currentOrder={currentSortOrder}
-        />
-      </button>
-    ),
-  })
-
-  const columns: ColumnDef<ExperimentRead>[] = [
-    {
-      accessorKey: 'run_code',
-      ...sortableCol('run_code', '实验编号'),
-      cell: ({ row }) => (
-        <Link
-          to="/experiments/$experimentId"
-          params={{ experimentId: row.original.id }}
-          className="font-medium tabular-nums text-primary hover:underline"
+  const columns = useMemo<ColumnDef<ExperimentRead>[]>(() => {
+    const sortableCol = (field: ExperimentSortField, label: string) => ({
+      header: () => (
+        <button
+          className="flex items-center text-left font-medium hover:text-foreground transition-colors"
+          onClick={() => handleSortToggle(field)}
+          type="button"
         >
-          {row.original.run_code}
-        </Link>
+          {label}
+          <SortIcon
+            field={field}
+            currentField={currentSortBy}
+            currentOrder={currentSortOrder}
+          />
+        </button>
       ),
-    },
-    {
-      accessorKey: 'material_system',
-      ...sortableCol('material_system', '材料体系'),
-      cell: ({ getValue }) => {
-        const val = getValue<string | null>()
-        return val ? (
-          <span>{val}</span>
-        ) : (
-          <span className="text-muted-foreground text-sm">未填写</span>
-        )
+    })
+
+    return [
+      {
+        accessorKey: 'run_code',
+        ...sortableCol('run_code', '实验编号'),
+        cell: ({ row }) => (
+          <Link
+            to="/experiments/$experimentId"
+            params={{ experimentId: row.original.id }}
+            className="font-medium tabular-nums text-primary hover:underline"
+          >
+            {row.original.run_code}
+          </Link>
+        ),
       },
-    },
-    {
-      accessorKey: 'quality_label',
-      header: '质量标签',
-      cell: ({ getValue }) => (
-        <QualityTag label={getValue<ExperimentRead['quality_label']>()} />
-      ),
-    },
-    {
-      accessorKey: 'experiment_date',
-      ...sortableCol('experiment_date', '实验日期'),
-      cell: ({ getValue }) => (
-        <span className="tabular-nums text-sm">
-          {dayjs(getValue<string>()).format('YYYY-MM-DD')}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      ...sortableCol('status', '状态'),
-      cell: ({ getValue }) => (
-        <StatusTag status={getValue<ExperimentStatus>()} />
-      ),
-    },
-    {
-      accessorKey: 'updated_at',
-      ...sortableCol('updated_at', '更新时间'),
-      cell: ({ getValue }) => (
-        <span className="tabular-nums text-sm text-muted-foreground">
-          {dayjs(getValue<string>()).format('YYYY-MM-DD HH:mm')}
-        </span>
-      ),
-    },
-    {
-      id: 'actions',
-      header: '操作',
-      cell: ({ row }) => {
-        const experiment = row.original
-        const availability = getActionAvailability(
-          experiment,
-          currentUserId,
-          currentUserRole,
-        )
-        const isBusy =
-          activeTransitionKey?.startsWith(`${experiment.id}:`) ?? false
-        const isExporting =
-          activeExportKey?.startsWith(`${experiment.id}:`) ?? false
+      {
+        accessorKey: 'material_system',
+        ...sortableCol('material_system', '材料体系'),
+        cell: ({ getValue }) => {
+          const val = getValue<string | null>()
+          return val ? (
+            <span>{val}</span>
+          ) : (
+            <span className="text-muted-foreground text-sm">未填写</span>
+          )
+        },
+      },
+      {
+        accessorKey: 'quality_label',
+        header: '质量标签',
+        cell: ({ getValue }) => (
+          <QualityTag label={getValue<ExperimentRead['quality_label']>()} />
+        ),
+      },
+      {
+        accessorKey: 'experiment_date',
+        ...sortableCol('experiment_date', '实验日期'),
+        cell: ({ getValue }) => (
+          <span className="tabular-nums text-sm">
+            {dayjs(getValue<string>()).format('YYYY-MM-DD')}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'status',
+        ...sortableCol('status', '状态'),
+        cell: ({ getValue }) => (
+          <StatusTag status={getValue<ExperimentStatus>()} />
+        ),
+      },
+      {
+        accessorKey: 'updated_at',
+        ...sortableCol('updated_at', '更新时间'),
+        cell: ({ getValue }) => (
+          <span className="tabular-nums text-sm text-muted-foreground">
+            {dayjs(getValue<string>()).format('YYYY-MM-DD HH:mm')}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '操作',
+        cell: ({ row }) => {
+          const experiment = row.original
+          const availability = getActionAvailability(
+            experiment,
+            currentUserId,
+            currentUserRole,
+          )
+          const isBusy =
+            activeTransitionKey?.startsWith(`${experiment.id}:`) ?? false
+          const isExporting =
+            activeExportKey?.startsWith(`${experiment.id}:`) ?? false
 
-        const primaryLabel = availability.canEdit ? '继续填写' : '查看'
-        const primaryTo = availability.canEdit
-          ? ('/experiments/$experimentId/edit' as const)
-          : ('/experiments/$experimentId' as const)
+          const primaryLabel = availability.canEdit ? '继续填写' : '查看'
+          const primaryTo = availability.canEdit
+            ? ('/experiments/$experimentId/edit' as const)
+            : ('/experiments/$experimentId' as const)
 
-        return (
-          <div className="flex items-center gap-1.5">
-            <Button variant="default" size="sm" disabled={isBusy} asChild>
-              <Link to={primaryTo} params={{ experimentId: experiment.id }}>
-                {primaryLabel}
-              </Link>
-            </Button>
+          return (
+            <div className="flex items-center gap-1.5">
+              <Button variant="default" size="sm" disabled={isBusy} asChild>
+                <Link to={primaryTo} params={{ experimentId: experiment.id }}>
+                  {primaryLabel}
+                </Link>
+              </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={isBusy || isExporting}
-                  aria-label={`更多操作 ${experiment.run_code}`}
-                  className="size-8 p-0"
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() =>
-                    navigate({
-                      to: '/experiments/$experimentId',
-                      params: { experimentId: experiment.id },
-                    })
-                  }
-                >
-                  查看详情
-                </DropdownMenuItem>
-                {availability.canEdit && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isBusy || isExporting}
+                    aria-label={`更多操作 ${experiment.run_code}`}
+                    className="size-8 p-0"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
                   <DropdownMenuItem
                     onClick={() =>
                       navigate({
-                        to: '/experiments/$experimentId/edit',
+                        to: '/experiments/$experimentId',
                         params: { experimentId: experiment.id },
                       })
                     }
                   >
-                    编辑
+                    查看详情
                   </DropdownMenuItem>
-                )}
-                {availability.canLock && (
-                  <DropdownMenuItem onClick={() => setLockTarget(experiment)}>
-                    锁定
-                  </DropdownMenuItem>
-                )}
-                {availability.canClone && (
-                  <DropdownMenuItem onClick={() => setCloneTarget(experiment)}>
-                    派生草稿
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => void handleExportJson(experiment)}
-                  disabled={isExporting}
-                >
-                  导出 JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => void handleExportExcel(experiment)}
-                  disabled={isExporting}
-                >
-                  导出 Excel
-                </DropdownMenuItem>
-                {availability.canInvalidate && (
-                  <>
-                    <DropdownMenuSeparator />
+                  {availability.canEdit && (
                     <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => {
-                        setInvalidateTarget(experiment)
-                        setInvalidateReason('')
-                        setInvalidateValidation(null)
-                      }}
+                      onClick={() =>
+                        navigate({
+                          to: '/experiments/$experimentId/edit',
+                          params: { experimentId: experiment.id },
+                        })
+                      }
                     >
-                      作废实验
+                      编辑
                     </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )
+                  )}
+                  {availability.canLock && (
+                    <DropdownMenuItem onClick={() => setLockTarget(experiment)}>
+                      锁定
+                    </DropdownMenuItem>
+                  )}
+                  {availability.canClone && (
+                    <DropdownMenuItem onClick={() => setCloneTarget(experiment)}>
+                      派生草稿
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => void handleExportJson(experiment)}
+                    disabled={isExporting}
+                  >
+                    导出 JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => void handleExportExcel(experiment)}
+                    disabled={isExporting}
+                  >
+                    导出 Excel
+                  </DropdownMenuItem>
+                  {availability.canInvalidate && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => {
+                          setInvalidateTarget(experiment)
+                          setInvalidateReason('')
+                          setInvalidateValidation(null)
+                        }}
+                      >
+                        作废实验
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )
+        },
       },
-    },
-  ]
+    ]
+  }, [
+    currentUserId,
+    currentUserRole,
+    activeTransitionKey,
+    activeExportKey,
+    navigate,
+    currentSortBy,
+    currentSortOrder,
+    handleSortToggle,
+    handleExportJson,
+    handleExportExcel,
+  ])
 
   // TanStack Table (sorting is manual / URL-driven, not internal)
   const table = useReactTable({
@@ -703,7 +716,7 @@ export function ExperimentListPage() {
       {/* KPI Stats Tiles */}
       <div className="grid gap-4 sm:grid-cols-3">
         {/* 我的草稿 */}
-        <Card className="relative overflow-hidden bg-card/60 backdrop-blur-sm border border-border/50">
+        <Card className="relative overflow-hidden">
           <CardContent className="p-5 flex items-center justify-between">
             <div className="flex flex-col gap-1">
               <span className="text-sm text-muted-foreground font-medium">我的草稿</span>
@@ -715,14 +728,14 @@ export function ExperimentListPage() {
                 )}
               </span>
             </div>
-            <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl border border-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+            <div className="p-3 bg-warning-soft text-warning-text rounded-2xl">
               <FileText className="size-6" />
             </div>
           </CardContent>
         </Card>
 
         {/* 待操作 */}
-        <Card className="relative overflow-hidden bg-card/60 backdrop-blur-sm border border-border/50">
+        <Card className="relative overflow-hidden">
           <CardContent className="p-5 flex items-center justify-between">
             <div className="flex flex-col gap-1">
               <span className="text-sm text-muted-foreground font-medium">待操作</span>
@@ -734,14 +747,14 @@ export function ExperimentListPage() {
                 )}
               </span>
             </div>
-            <div className="p-3 bg-blue-500/10 text-blue-500 rounded-2xl border border-blue-500/10 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+            <div className="p-3 bg-primary-soft text-accent-foreground rounded-2xl">
               <Clock className="size-6" />
             </div>
           </CardContent>
         </Card>
 
         {/* 全部记录 */}
-        <Card className="relative overflow-hidden bg-card/60 backdrop-blur-sm border border-border/50">
+        <Card className="relative overflow-hidden">
           <CardContent className="p-5 flex items-center justify-between">
             <div className="flex flex-col gap-1">
               <span className="text-sm text-muted-foreground font-medium">全部记录</span>
@@ -753,7 +766,7 @@ export function ExperimentListPage() {
                 )}
               </span>
             </div>
-            <div className="p-3 bg-indigo-500/10 text-indigo-500 rounded-2xl border border-indigo-500/10 shadow-[0_0_15px_rgba(99,102,241,0.1)]">
+            <div className="p-3 bg-secondary text-secondary-foreground rounded-2xl">
               <Layers className="size-6" />
             </div>
           </CardContent>
@@ -958,8 +971,8 @@ export function ExperimentListPage() {
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
-                    size="sm"
                     disabled={currentPage <= 1}
+                    className="h-9 sm:h-8 px-3 text-xs sm:text-sm"
                     onClick={() => updateSearch({ page: currentPage - 1 })}
                   >
                     上一页
@@ -979,8 +992,7 @@ export function ExperimentListPage() {
                         variant={
                           pageNum === currentPage ? 'default' : 'outline'
                         }
-                        size="sm"
-                        className="w-8 p-0"
+                        className="size-9 sm:size-8 p-0 text-xs sm:text-sm"
                         onClick={() => updateSearch({ page: pageNum })}
                       >
                         {pageNum}
@@ -990,8 +1002,8 @@ export function ExperimentListPage() {
 
                   <Button
                     variant="outline"
-                    size="sm"
                     disabled={currentPage >= totalPages}
+                    className="h-9 sm:h-8 px-3 text-xs sm:text-sm"
                     onClick={() => updateSearch({ page: currentPage + 1 })}
                   >
                     下一页

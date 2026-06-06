@@ -190,8 +190,8 @@ function PrecheckTag({
       <Badge
         className={
           isOk
-            ? 'bg-success-soft text-success border-transparent'
-            : 'bg-destructive-soft text-destructive border-transparent'
+            ? 'bg-success-soft text-success-text border-transparent'
+            : 'bg-destructive-soft text-destructive-text border-transparent'
         }
       >
         是
@@ -204,8 +204,8 @@ function PrecheckTag({
       <Badge
         className={
           isOk
-            ? 'bg-success-soft text-success border-transparent'
-            : 'bg-destructive-soft text-destructive border-transparent'
+            ? 'bg-success-soft text-success-text border-transparent'
+            : 'bg-destructive-soft text-destructive-text border-transparent'
         }
       >
         否
@@ -592,7 +592,7 @@ function renderCharacterizationParams(
             <Badge
               className={
                 method.enabled
-                  ? 'bg-success-soft text-success border-transparent text-xs'
+                  ? 'bg-success-soft text-success-text border-transparent text-xs'
                   : 'bg-secondary text-muted-foreground border-transparent text-xs'
               }
             >

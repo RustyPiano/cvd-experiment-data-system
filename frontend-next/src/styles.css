@@ -43,6 +43,11 @@
   --input: #e2e8f0;
   --ring: #2563eb;
 
+  /* 状态高对比度文本颜色 */
+  --success-text: #15803d;
+  --warning-text: #b45309;
+  --destructive-text: #b91c1c;
+
   /* 状态软背景（Badge variant / KPI tile / status-tag） */
   --primary-soft: #eaf1ff;
   --success-soft: #e7f6ec;
@@ -117,6 +122,11 @@
   --input: #1e293b;
   --ring: #3b82f6;
 
+  /* 状态高对比度文本颜色 */
+  --success-text: #4ade80;
+  --warning-text: #fbbf24;
+  --destructive-text: #f87171;
+
   --primary-soft: #16233b;
   --success-soft: #14321f;
   --warning-soft: #33240a;
@@ -180,6 +190,10 @@
   --color-success-soft: var(--success-soft);
   --color-warning-soft: var(--warning-soft);
   --color-destructive-soft: var(--destructive-soft);
+
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-destructive-text: var(--destructive-text);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

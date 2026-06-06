@@ -110,7 +110,7 @@ export function AppShell({ children }: AppShellProps) {
       <Sidebar className="border-r border-sidebar-border bg-sidebar">
         <SidebarHeader className="px-4 py-3">
           <div className="flex items-center gap-3">
-            <span className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.4)]">
+            <span className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] bg-gradient-to-br from-primary/95 to-primary text-primary-foreground shadow-sm">
               <FlaskConical className="size-5" />
             </span>
             <div className="flex flex-col leading-tight">
