@@ -154,7 +154,7 @@ export function SetupMethodsSection({
                 </pre>
               </Descriptions.Item>
 
-              {value.apparatusDescriptionSnapshot && (
+              {!!value.apparatusDescriptionSnapshot && (
                 <Descriptions.Item label="装置说明">
                   <div style={{ whiteSpace: "pre-wrap" }}>
                     {value.apparatusDescriptionSnapshot}
@@ -162,7 +162,7 @@ export function SetupMethodsSection({
                 </Descriptions.Item>
               )}
 
-              {value.samplePlacementDescriptionSnapshot && (
+              {!!value.samplePlacementDescriptionSnapshot && (
                 <Descriptions.Item label="样品放置说明">
                   <div style={{ whiteSpace: "pre-wrap" }}>
                     {value.samplePlacementDescriptionSnapshot}
@@ -170,7 +170,7 @@ export function SetupMethodsSection({
                 </Descriptions.Item>
               )}
 
-              {value.reactionFlowDescriptionSnapshot && (
+              {!!value.reactionFlowDescriptionSnapshot && (
                 <Descriptions.Item label="反应气流说明">
                   <div style={{ whiteSpace: "pre-wrap" }}>
                     {value.reactionFlowDescriptionSnapshot}
