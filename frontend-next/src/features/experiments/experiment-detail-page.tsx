@@ -1015,7 +1015,7 @@ export function ExperimentDetailPage() {
         {/* ── 概览 Tab ── */}
         <TabsContent value="overview" className="mt-4 flex flex-col gap-4">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <div className="flex flex-wrap items-center gap-3">
                 <code className="rounded bg-muted px-2 py-1 font-mono text-sm">
                   {experiment.run_code}

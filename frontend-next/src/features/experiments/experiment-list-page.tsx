@@ -817,7 +817,7 @@ export function ExperimentListPage() {
 
       {/* Filter bar + table */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="flex flex-col gap-4">
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3">

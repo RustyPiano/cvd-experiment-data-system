@@ -457,7 +457,7 @@ export function SampleDetailPage() {
 
       {/* Identity card */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="flex flex-wrap items-center gap-3">
             <code className="rounded bg-muted px-2 py-1 font-mono text-sm">
               {sample.sample_code}
