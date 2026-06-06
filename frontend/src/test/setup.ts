@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import React from "react";
 import { vi } from "vitest";
 
 type StorageLike = {
@@ -77,3 +78,7 @@ Object.defineProperty(window, "getComputedStyle", {
   configurable: true,
   value: vi.fn().mockImplementation((element: Element) => fallbackGetComputedStyle(element)),
 });
+
+vi.mock("@ant-design/plots", () => ({
+  Line: (props: any) => React.createElement("div", { "data-testid": "mock-line-chart", ...props }),
+}));

@@ -14,6 +14,7 @@ import {
   syncFurnaceProgramZonesCount,
 } from "../editor-types";
 import { QuickTemplateMenu } from "./quick-template-menu";
+import { FurnaceProgramChart } from "./furnace-program-chart";
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -210,6 +211,8 @@ export function FurnaceProgramSection({
           type="success"
         />
       ) : null}
+
+      <FurnaceProgramChart value={value} />
 
       <Card size="small" title="炉子信息">
         <div className="editor-form-grid">
