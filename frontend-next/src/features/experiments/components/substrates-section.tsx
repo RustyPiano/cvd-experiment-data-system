@@ -24,6 +24,8 @@ const substrateRoles = [
   { role: 'bottom', title: '下基底' },
 ]
 const substrateRoleSet = new Set(substrateRoles.map((item) => item.role))
+// radix Select 禁止空字符串作为 item value，用哨兵代表"无"。
+const POSITION_NONE = '__none__'
 const positionOptions = [
   { label: '无', value: '' },
   { label: '-2', value: '-2' },
@@ -247,9 +249,11 @@ export function SubstratesSection({
                 >{`相对温区位置`}</Label>
                 <Select
                   disabled={disabled}
-                  value={item.positionMm}
+                  value={item.positionMm || POSITION_NONE}
                   onValueChange={(nextValue) =>
-                    updateRoleItem(roleConfig.role, { positionMm: nextValue })
+                    updateRoleItem(roleConfig.role, {
+                      positionMm: nextValue === POSITION_NONE ? '' : nextValue,
+                    })
                   }
                 >
                   <SelectTrigger
@@ -260,7 +264,10 @@ export function SubstratesSection({
                   </SelectTrigger>
                   <SelectContent>
                     {resolvedPositionOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
+                      <SelectItem
+                        key={option.value || POSITION_NONE}
+                        value={option.value || POSITION_NONE}
+                      >
                         {option.label}
                       </SelectItem>
                     ))}
