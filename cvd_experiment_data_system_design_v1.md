@@ -1,5 +1,12 @@
 # CVD 实验数据采集系统 V1 设计文档
 
+> [!WARNING]
+> **V1 代码实际实现与设计差异说明**：
+> 在系统的实际 V1 后端实现中，为简化首阶段交付，部分设计进行了调整与裁切：
+> 1. **未实现的实体**：`projects` (项目表)、`characterization_sessions` (表征排程表) 和 `features` (特征提取表) 在实际代码中被简化，目前数据库并未实现这三个物理表，其实际关联在 V1 暂被合并或以 JSONB 字段形式存储在其他表中。
+> 2. **数据字段新增**：代码和数据库中实际新增了如 `layerCount` (合成层数)、`spinTimeS` (旋涂时长)、`preSpinTimeS` (预旋涂时长) 及 `batchNo` (基底批号) 等字段，这些字段及其 field 种子在原设计文档未提及。
+> 3. **接口版本化**：实际所有的后端 API 接口都统一部署在 `/api/v1/...` 版本化前缀下，而不是设计草案早期的 `/api/...` 前缀。
+
 **文档版本**：v1.0  
 **日期**：2026-04-22  
 **适用范围**：二维材料 CVD 实验数据采集、样品记录、表征文件归档与后续 AI 分析准备  
@@ -362,11 +369,11 @@ Backend API
 | characterization_session_id | UUID | 所属表征，可为空 |
 | file_category | text | raw/processed/report |
 | method | text | OM/Raman/PL/AFM/SEM/other |
-| original_filename | text | 原始文件名 |
-| storage_uri | text | 存储路径 |
+| original_name | text | 原始文件名 |
+| storage_path | text | 存储路径 |
 | sha256 | text | 文件哈希 |
-| file_size_bytes | bigint | 文件大小 |
-| mime_type | text | 文件类型 |
+| size_bytes | bigint | 文件大小 |
+| content_type | text | 文件类型 |
 | metadata_json | jsonb | 文件元数据 |
 | uploaded_by | UUID | 上传人 |
 | created_at | timestamptz | 上传时间 |

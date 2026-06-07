@@ -226,6 +226,12 @@ components:
 
 # CVD Lab Data Capture UI DESIGN.md
 
+> [!WARNING]
+> **前端重构提示**：
+> 目前项目正处于将旧前端（`frontend`，基于 Ant Design + React Router v6）向新前端（`frontend-next`，基于 TailwindCSS v4 + Radix UI + TanStack Router）重构的过渡期。
+> 1. **设计系统演进**：新前端的样式规范以 [styles.css](file:///Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/frontend-next/src/styles.css) 中定义的 CSS 变量语义化 Token 为新的单一事实来源（例如：`--primary: #2563eb` 和 `--radius: 0.625rem`）。
+> 2. **开发规范**：组件开发一律严禁硬编码十六进制色值，必须全部采用语义化 Token（如 `bg-primary`）。新代码路由结构参考 `frontend-next` 的 `src/routes/` 结构。
+
 This document is the frontend design source of truth for the CVD experiment data collection web application. It is written for Google Stitch, coding agents, designers, and frontend developers. Use it to generate consistent screens, React/Vue components, Tailwind themes, and design reviews.
 
 The product is a scientific data collection tool for a small 2D-materials research group. The interface must help experimental researchers record CVD synthesis parameters quickly, safely, and consistently while preserving enough structure for later AI analysis.
