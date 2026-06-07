@@ -21,8 +21,16 @@ export function resolveErrorMessage(error: unknown, fallback: string): string {
       return "权限不足，拒绝访问";
     }
     if (error.status === 401) {
-      if (error.detail && !["Unauthorized", "Not authenticated", "Could not validate credentials"].includes(error.detail)) {
-        return error.detail;
+      if (error.detail) {
+        if (error.detail === "Invalid credentials") {
+          return "邮箱或密码错误";
+        }
+        if (error.detail === "Inactive user") {
+          return "该账号已被禁用，请联系管理员";
+        }
+        if (!["Unauthorized", "Not authenticated", "Could not validate credentials", "Invalid token", "User not found"].includes(error.detail)) {
+          return error.detail;
+        }
       }
       return "登录会话已过期，请重新登录";
     }
