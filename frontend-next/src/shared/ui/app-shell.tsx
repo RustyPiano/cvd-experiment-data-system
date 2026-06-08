@@ -39,7 +39,6 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from '@/components/ui/sidebar'
-import { Separator } from '@/components/ui/separator'
 import { ThemeToggle } from '@/shared/ui/theme-toggle'
 
 const roleLabels: Record<string, string> = {
@@ -275,7 +274,7 @@ export function AppShell({ children }: AppShellProps) {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-[60px] shrink-0 items-center gap-2 border-b border-border bg-card/72 px-4 backdrop-blur-md">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="h-4" />
+          <div className="h-4 w-px bg-border shrink-0" />
           <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
             {getPageTitle(pathname)}
           </nav>
@@ -283,11 +282,13 @@ export function AppShell({ children }: AppShellProps) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 overflow-auto bg-background p-6">
+        {/* SidebarInset already renders the <main> landmark; this is just the
+            content padding wrapper. */}
+        <div className="flex-1 bg-background p-6">
           <div className="mx-auto w-full max-w-[1440px]">
             {children}
           </div>
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

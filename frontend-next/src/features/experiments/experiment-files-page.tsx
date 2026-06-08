@@ -972,7 +972,7 @@ export function ExperimentFilesPage() {
             <EmptyState description="当前筛选条件下没有文件记录。可清空筛选或上传新的表征文件。" />
           ) : (
             <>
-              <div className="rounded-lg border">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

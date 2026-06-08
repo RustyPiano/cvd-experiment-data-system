@@ -299,7 +299,7 @@ function renderPrecursorsParams(
     return <p className="text-sm text-muted-foreground">无前驱体记录</p>
   }
   return (
-    <div className="rounded-md border border-border overflow-x-auto">
+    <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -343,7 +343,7 @@ function renderSubstratesParams(
     return <p className="text-sm text-muted-foreground">无基底记录</p>
   }
   return (
-    <div className="rounded-md border border-border overflow-x-auto">
+    <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -438,7 +438,7 @@ function renderFurnaceParams(
       {placements.length > 0 ? (
         <div>
           <p className="mb-2 text-sm font-medium">前驱体放置</p>
-          <div className="rounded-md border border-border overflow-x-auto">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -471,7 +471,7 @@ function renderFurnaceParams(
       {zones.map((zone, zoneIndex) => (
         <div key={safeString(zone.zone_key) || zoneIndex}>
           <p className="mb-2 text-sm font-medium">{`温区 ${zoneIndex + 1} 温度变化`}</p>
-          <div className="rounded-md border border-border overflow-x-auto">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -515,7 +515,7 @@ function renderGasParams(modules: ExperimentModulePayloadRead[] | undefined) {
     <div className="flex flex-col gap-4">
       <InfoRow label="预清洗气体" value={preWashingGas} />
       {segments.length > 0 ? (
-        <div className="rounded-md border border-border overflow-x-auto">
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

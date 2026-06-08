@@ -682,7 +682,7 @@ export function SampleDetailPage() {
           ) : fileRows.length === 0 ? (
             <EmptyState description="当前样品还没有关联文件。上传文件时选择该样品后会显示在这里。" />
           ) : (
-            <div className="rounded-md border border-border overflow-x-auto">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

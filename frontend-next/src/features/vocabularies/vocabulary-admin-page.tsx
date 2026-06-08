@@ -597,7 +597,7 @@ export function VocabularyAdminPage() {
             <EmptyState description="当前筛选条件下还没有词条。可清空筛选或新增词条。" />
           ) : (
             <div className="flex flex-col gap-4">
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

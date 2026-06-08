@@ -76,6 +76,9 @@ export function VocabularyCombobox({
               if (!open) setOpen(true)
             }}
             onFocus={() => setOpen(true)}
+            onPointerDown={() => {
+              if (!disabled) setOpen(true)
+            }}
             className="pr-9"
           />
           <ChevronsUpDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground/70" />
@@ -86,6 +89,14 @@ export function VocabularyCombobox({
           align="start"
           className="max-h-60 w-(--radix-popover-trigger-width) overflow-y-auto p-1"
           onOpenAutoFocus={(event) => event.preventDefault()}
+          onInteractOutside={(event) => {
+            // The anchored input lives outside the popover content; clicking or
+            // focusing it must NOT dismiss the suggestions (otherwise the
+            // dropdown flickers shut the moment the user clicks the field).
+            if (inputRef.current?.contains(event.target as Node)) {
+              event.preventDefault()
+            }
+          }}
         >
           {filtered.map((option) => (
             <button

@@ -303,7 +303,7 @@ export function SetupLibraryPage() {
             <EmptyState description="暂无 Setup 库记录。快去新建一个吧！" />
           ) : (
             <div className="flex flex-col gap-4">
-              <div className="rounded-lg border">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

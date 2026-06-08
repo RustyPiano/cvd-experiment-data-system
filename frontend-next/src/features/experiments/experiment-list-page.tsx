@@ -786,7 +786,7 @@ export function ExperimentListPage() {
             {recentEditedQuery.data.items.map((exp) => (
               <Card
                 key={exp.id}
-                className="relative overflow-hidden bg-card/40 hover:bg-card/85 transition-all border border-border/40 hover:border-border/80 group"
+                className="group relative overflow-hidden transition-colors hover:bg-accent/40"
               >
                 <CardContent className="p-4 flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
@@ -922,7 +922,7 @@ export function ExperimentListPage() {
             ) : (
               <div
                 className={cn(
-                  'rounded-md border border-border transition-opacity duration-200',
+                  '-mx-2 transition-opacity duration-200',
                   experimentQuery.isPlaceholderData && 'opacity-50 pointer-events-none',
                 )}
               >

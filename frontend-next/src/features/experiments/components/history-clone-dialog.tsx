@@ -274,7 +274,7 @@ export function HistoryCloneDialog({
             </Alert>
           ) : null}
 
-          <div className="rounded-lg border">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

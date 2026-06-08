@@ -233,7 +233,7 @@ export function AdminDashboardPage() {
           {members.length === 0 ? (
             <EmptyState description="暂无成员数据" />
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

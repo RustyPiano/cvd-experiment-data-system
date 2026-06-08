@@ -854,7 +854,7 @@ export function FieldDefinitionAdminPage() {
             <EmptyState description="当前筛选条件下还没有字段定义。可清空筛选或新增字段。" />
           ) : (
             <div className="flex flex-col gap-4">
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

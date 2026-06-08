@@ -689,7 +689,7 @@ export function RecipeAdminPage() {
             <EmptyState description="当前筛选条件下还没有 Recipe。可清空筛选或新增 Recipe。" />
           ) : (
             <div className="flex flex-col gap-4">
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -916,7 +916,7 @@ export function RecipeAdminPage() {
             ) : (experimentsQuery.data?.items ?? []).length === 0 ? (
               <EmptyState description="没有可导入的已提交/已锁定实验。" />
             ) : (
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
