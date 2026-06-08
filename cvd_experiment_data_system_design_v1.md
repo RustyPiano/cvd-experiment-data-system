@@ -855,6 +855,8 @@ Recipe 是工艺模板，Experiment 是真实记录。
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/v1/auth/login` | 登录 |
+| POST | `/api/v1/auth/register` | 邀请码注册 |
+| POST | `/api/v1/auth/refresh` | 滑动续期：用仍有效的令牌换取新令牌（访问令牌默认 8h，前端临近过期时静默调用） |
 | POST | `/api/v1/auth/logout` | 退出 |
 | GET | `/api/v1/auth/me` | 当前用户 |
 

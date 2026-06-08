@@ -288,6 +288,7 @@ docker compose up --build
 - `GET /health`
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/register`
+- `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 
@@ -355,6 +356,7 @@ docker compose up --build
 
 - `viewer` 只能查看 `submitted/locked` 实验，不能创建和克隆。
 - `logout` 在当前 Bearer Token 模式下用于显式结束客户端会话；实际失效方式是前端清除本地令牌，不引入服务端黑名单。
+- 访问令牌有效期 8 小时（`JWT_ACCESS_TOKEN_EXPIRE_MINUTES`，默认 `480`）。前端实现滑动会话：在令牌临近过期（剩余 < 5 分钟）或标签页重新聚焦且剩余 < 30 分钟时，静默调用 `POST /api/v1/auth/refresh` 用当前有效令牌换取新令牌。因此活跃使用期间不会掉线，只有真正闲置超过有效期才需重新登录；`refresh` 要求令牌仍然有效，已过期的令牌无法自助续期。
 - 当前密码哈希方案固定为 `Argon2id`；旧 `bcrypt` 哈希不再兼容。
 - 后端已开放本地前端开发所需 CORS，并暴露 `Content-Disposition` 供文件下载和导出读取文件名。
 - `member` 可以创建自己的草稿，查看自己的实验，以及查看其他人的 `submitted/locked` 实验。
