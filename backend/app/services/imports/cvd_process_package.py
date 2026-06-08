@@ -93,7 +93,10 @@ class CvdProcessPackageProfile(ImportProfile):
 
         precursors_payload = self._build_precursors(cell)
         substrates_payload, substrate_warnings = self._build_substrates(cell)
-        furnace_payload, furnace_warnings = self._build_furnace(cell, precursors_payload)
+        experiment_time_min = self._experiment_time_minutes(cell)
+        furnace_payload, furnace_warnings = self._build_furnace(
+            cell, precursors_payload, experiment_time_min
+        )
         gas_payload, gas_warnings = self._build_gas(cell)
         warnings.extend(substrate_warnings)
         warnings.extend(furnace_warnings)
@@ -156,49 +159,51 @@ class CvdProcessPackageProfile(ImportProfile):
         self,
         cell,
         precursors_payload: dict[str, Any],
+        experiment_time_min: float | None,
     ) -> tuple[dict[str, Any], list[str]]:
-        warnings: list[str] = []
-        zone_a_nodes = self._zone_nodes(
-            cell,
-            prefix="A",
-            temperature_steps=6,
-            end_time_key="A_end_time",
-            warnings=warnings,
-        )
-        zone_b_nodes = self._zone_nodes(
-            cell,
-            prefix="B",
-            temperature_steps=4,
-            end_time_key="B_end_time",
-            warnings=warnings,
-        )
+        # Per the lab: the per-step ramp times are unreliable (and a -121 cell is
+        # the controller's end-of-program sentinel, not a time). Only the peak
+        # ("experiment") temperature per zone matters, held for the experiment
+        # duration that is taken from the gas timing.
+        zone_a_peak = self._zone_peak_temperature(cell, prefix="A", temperature_steps=6)
+        zone_b_peak = self._zone_peak_temperature(cell, prefix="B", temperature_steps=4)
 
         zones: list[dict[str, Any]] = []
-        if zone_a_nodes:
-            zones.append({"zone_key": "zone_1", "temperature_program": zone_a_nodes, "note": ""})
-        if zone_b_nodes:
-            zones.append({"zone_key": "zone_2", "temperature_program": zone_b_nodes, "note": ""})
-
         initial_temperatures: dict[str, float] = {}
-        if zone_a_nodes and zone_a_nodes[0].get("temperature_C") is not None:
-            initial_temperatures["zone_1"] = zone_a_nodes[0]["temperature_C"]
-        if zone_b_nodes and zone_b_nodes[0].get("temperature_C") is not None:
-            initial_temperatures["zone_2"] = zone_b_nodes[0]["temperature_C"]
+        if zone_a_peak is not None:
+            zones.append(
+                {
+                    "zone_key": "zone_1",
+                    "temperature_program": self._zone_program(zone_a_peak, experiment_time_min),
+                    "note": "",
+                }
+            )
+            initial_temperatures["zone_1"] = zone_a_peak
+        if zone_b_peak is not None:
+            zones.append(
+                {
+                    "zone_key": "zone_2",
+                    "temperature_program": self._zone_program(zone_b_peak, experiment_time_min),
+                    "note": "",
+                }
+            )
+            initial_temperatures["zone_2"] = zone_b_peak
 
         placements: list[dict[str, Any]] = []
         precursor_count = len(precursors_payload.get("items", []))
-        if precursor_count >= 1 and zone_a_nodes:
+        if precursor_count >= 1 and zone_a_peak is not None:
             placements.append(
                 {"precursor_index": 0, "zone_key": "zone_1", "position_cm": None, "note": ""}
             )
-        if precursor_count >= 2 and zone_b_nodes:
+        if precursor_count >= 2 and zone_b_peak is not None:
             placements.append(
                 {"precursor_index": 1, "zone_key": "zone_2", "position_cm": None, "note": ""}
             )
 
+        warnings: list[str] = []
         if zones:
             warnings.append(
-                "炉温时间已按“每步为相邻温度间的升温时长”累加为绝对时间，请确认。"
+                "炉温取各温区最高（实验）温度，实验时长取自气体时间；逐级升温台阶未导入，请确认。"
             )
 
         payload = {
@@ -212,64 +217,49 @@ class CvdProcessPackageProfile(ImportProfile):
         }
         return payload, warnings
 
-    def _zone_nodes(
+    def _zone_peak_temperature(
         self,
         cell,
         *,
         prefix: str,
         temperature_steps: int,
-        end_time_key: str,
-        warnings: list[str],
-    ) -> list[dict[str, Any]]:
-        # Each step{i}_time is the ramp duration from temperature{i} to
-        # temperature{i+1}, so absolute node times are the running sum of those
-        # durations (node 1 sits at t=0). A final end-time adds a hold at the
-        # last temperature.
+    ) -> float | None:
         temperatures = [
             _to_float(cell(f"{prefix}_step{step}_temperature"))
             for step in range(1, temperature_steps + 1)
         ]
-        ramp_durations = [
-            _to_float(cell(f"{prefix}_step{step}_time"))
-            for step in range(1, temperature_steps)
+        present = [value for value in temperatures if value is not None]
+        return max(present) if present else None
+
+    def _zone_program(
+        self,
+        peak_temperature: float,
+        experiment_time_min: float | None,
+    ) -> list[dict[str, Any]]:
+        nodes = [
+            {"node_index": 1, "time_min": 0.0, "temperature_C": peak_temperature, "note": "实验温度"}
         ]
-
-        nodes: list[dict[str, Any]] = []
-        cumulative = 0.0
-        for index, temperature in enumerate(temperatures):
-            if index > 0:
-                duration = ramp_durations[index - 1]
-                if duration is None:
-                    duration = 0.0
-                elif duration < 0:
-                    warnings.append(
-                        f"{prefix} 温区第 {index} 步升温时间为负值（{duration}），已按 0 处理，请确认。"
-                    )
-                    duration = 0.0
-                cumulative += duration
-            if temperature is None:
-                continue
+        if experiment_time_min is not None and experiment_time_min > 0:
             nodes.append(
                 {
-                    "node_index": len(nodes) + 1,
-                    "time_min": cumulative,
-                    "temperature_C": temperature,
-                    "note": "",
-                }
-            )
-
-        end_time = _to_float(cell(end_time_key))
-        if end_time is not None and end_time > 0 and nodes:
-            cumulative += end_time
-            nodes.append(
-                {
-                    "node_index": len(nodes) + 1,
-                    "time_min": cumulative,
-                    "temperature_C": nodes[-1]["temperature_C"],
-                    "note": "保温/结束",
+                    "node_index": 2,
+                    "time_min": experiment_time_min,
+                    "temperature_C": peak_temperature,
+                    "note": "实验结束",
                 }
             )
         return nodes
+
+    def _experiment_time_minutes(self, cell) -> float | None:
+        # The experiment duration is read from the gas timing (the longest gas
+        # time across the four lines), per the lab's guidance.
+        candidates: list[float] = []
+        for gas in self.GASES:
+            for suffix in ("step1_time", "step3_time"):
+                value = _time_to_minutes(cell(f"{gas}_{suffix}"))
+                if value is not None and value > 0:
+                    candidates.append(value)
+        return max(candidates) if candidates else None
 
     def _build_gas(self, cell) -> tuple[dict[str, Any], list[str]]:
         segments: list[dict[str, Any]] = []
