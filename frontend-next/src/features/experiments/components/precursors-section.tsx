@@ -3,11 +3,9 @@ import { Plus, Trash2 } from 'lucide-react'
 import {
   createEmptyPrecursorItem,
   createPrecursorMethodPatch,
-  resolvePrecursorMethodFlags
-  
-  
+  resolvePrecursorMethodFlags,
 } from '../editor-types'
-import type {PrecursorsValues, VocabularySelectOption} from '../editor-types';
+import type { PrecursorsValues, VocabularySelectOption } from '../editor-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'

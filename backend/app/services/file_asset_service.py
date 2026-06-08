@@ -105,7 +105,7 @@ class FileAssetService:
         asset_role: str | None = None,
         note: str | None = None,
     ) -> FileAssetRead:
-        experiment = self._get_owned_draft_experiment(experiment_id, current_user)
+        experiment = self._get_editable_owned_experiment(experiment_id, current_user)
         resolved_asset_role = self._normalize_asset_role(asset_role)
         if sample_id is not None:
             sample = self.samples.get_by_id(sample_id)
@@ -269,10 +269,12 @@ class FileAssetService:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
-        self._get_owned_draft_experiment(file_asset.experiment_run_id, current_user)
+        self._get_editable_owned_experiment(file_asset.experiment_run_id, current_user)
         return file_asset
 
-    def _get_owned_draft_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRun:
+    def _get_editable_owned_experiment(
+        self, experiment_id: UUID, current_user: User
+    ) -> ExperimentRun:
         experiment = self.experiments.get_by_id(experiment_id)
         if experiment is None:
             raise HTTPException(

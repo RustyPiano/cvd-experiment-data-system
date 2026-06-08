@@ -300,6 +300,22 @@ def test_user_cannot_extend_non_whitelisted_vocabulary(active_user) -> None:
     assert response.status_code == 403
 
 
+def test_viewer_cannot_add_brand_value(viewer_user, db_session) -> None:
+    response = client.post(
+        "/api/v1/vocabularies",
+        json={"vocab_key": "precursor_brand", "value": "只读用户品牌"},
+        headers=auth_headers(viewer_user.email),
+    )
+
+    assert response.status_code == 403
+    list_response = client.get(
+        "/api/v1/vocabularies?vocab_key=precursor_brand",
+        headers=auth_headers(viewer_user.email),
+    )
+    values = {item["value"] for item in list_response.json()["items"]}
+    assert "只读用户品牌" not in values
+
+
 def test_non_admin_cannot_mutate_vocabulary_entries(active_user) -> None:
     response = client.post(
         "/api/v1/admin/vocabularies",

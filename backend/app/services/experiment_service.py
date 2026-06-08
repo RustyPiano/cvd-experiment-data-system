@@ -390,8 +390,9 @@ class ExperimentService:
         if not validation_result.ok:
             raise ExperimentValidationFailed(validation_result)
 
+        # Keep the original submission timestamp stable — each saved version
+        # carries its own ``created_at``, so there is no need to re-stamp the run.
         before = self._serialize_experiment(experiment)
-        experiment.submitted_at = datetime.now(UTC)
         saved = self.experiments.save(experiment)
         version = self._create_version(
             saved,

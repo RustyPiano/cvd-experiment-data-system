@@ -31,10 +31,12 @@ function formatSize(bytes: number) {
  */
 export function CharacterizationFileUpload({
   disabled,
+  duplicateMethod,
   experimentId,
   method,
 }: {
   disabled: boolean
+  duplicateMethod: boolean
   experimentId: string
   method: string
 }) {
@@ -45,7 +47,7 @@ export function CharacterizationFileUpload({
   const [isDragging, setIsDragging] = useState(false)
 
   const trimmedMethod = method.trim()
-  const enabled = Boolean(accessToken && trimmedMethod)
+  const enabled = Boolean(accessToken && trimmedMethod && !duplicateMethod)
 
   const filesQuery = useQuery({
     queryKey: ['experiments', 'char-files', experimentId, trimmedMethod],
@@ -118,6 +120,15 @@ export function CharacterizationFileUpload({
     return (
       <p className="text-sm text-muted-foreground">
         选择表征方法后即可在此直接上传该方法的文件。
+      </p>
+    )
+  }
+
+  if (duplicateMethod) {
+    return (
+      <p className="text-sm text-warning">
+        多条表征记录使用了相同的方法「{trimmedMethod}
+        」；文件按方法归档，请先确保方法名唯一后再上传。
       </p>
     )
   }

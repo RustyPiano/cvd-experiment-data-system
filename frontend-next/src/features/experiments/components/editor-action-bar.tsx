@@ -88,18 +88,8 @@ export function EditorActionBar({
           </div>
         ) : isSubmitted ? (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => onOpenVersions()}>
-              版本历史
-            </Button>
-            <Button
-              variant={isSubmitDeemphasized ? 'outline' : 'default'}
-              disabled={submitState.status === 'submitting'}
-              onClick={() => onOpenVersions()}
-            >
-              {submitState.status === 'submitting' ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : null}
-              存为新版本
+            <Button onClick={() => onOpenVersions()}>
+              版本历史 / 存为新版本
             </Button>
           </div>
         ) : null}

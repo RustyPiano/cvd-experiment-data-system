@@ -1,11 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
 
-import {
-  withLegacyVocabularyOption
-  
-} from '../editor-types'
-import type {VocabularySelectOption} from '../editor-types';
+import { withLegacyVocabularyOption } from '../editor-types'
+import type { VocabularySelectOption } from '../editor-types'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
@@ -70,7 +67,8 @@ export function VocabularyCombobox({
   const hasExactMatch = useMemo(
     () =>
       options.some(
-        (option) => option.value === trimmedQuery || option.label === trimmedQuery,
+        (option) =>
+          option.value === trimmedQuery || option.label === trimmedQuery,
       ),
     [options, trimmedQuery],
   )

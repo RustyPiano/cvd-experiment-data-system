@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.module_payload import ExperimentModuleKey, normalize_module_payload
 from app.models.user import User
 from app.schemas.imports import (
@@ -12,7 +13,6 @@ from app.schemas.imports import (
     ImportCommitResponse,
     ImportCommitResultItem,
     ImportPreviewResponse,
-    ImportProfileInfo,
     ImportProfileListResponse,
 )
 from app.schemas.module_payload import validate_module_payload
@@ -27,17 +27,16 @@ class ImportService:
 
     def list_profiles(self) -> ImportProfileListResponse:
         return ImportProfileListResponse(
-            profiles=[
-                ImportProfileInfo(
-                    key=profile.key,
-                    display_name=profile.display_name,
-                    description=profile.description or None,
-                )
-                for profile in list_import_profiles()
-            ]
+            profiles=[profile.info() for profile in list_import_profiles()]
         )
 
     def preview(self, *, content: bytes, profile_key: str) -> ImportPreviewResponse:
+        max_bytes = get_settings().file_upload_max_bytes
+        if len(content) > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Uploaded file exceeds {max_bytes} bytes",
+            )
         profile = self._require_profile(profile_key)
         workbook = self._load_workbook(content)
         try:
@@ -57,8 +56,13 @@ class ImportService:
     ) -> ImportCommitResponse:
         self._require_profile(payload.profile_key)
 
-        # Validate every module payload up front so a malformed row fails the
-        # whole import cleanly instead of leaving half the rows committed.
+        # Validate every module payload up front and reject the entire request
+        # before persisting anything if any row is malformed. This catches the
+        # common failure mode (bad data) without committing partial results.
+        # Persistence below commits per row (see ``create_from_import``), so a
+        # rare failure during write-out — e.g. run-code allocation exhausting
+        # its retries — leaves earlier rows committed; the response only lists
+        # the rows that were successfully created.
         validation_errors: list[dict[str, object]] = []
         for draft in payload.drafts:
             for module_key_value, module_payload in draft.module_payloads.items():

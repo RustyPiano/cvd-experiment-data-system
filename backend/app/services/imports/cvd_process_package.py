@@ -237,7 +237,12 @@ class CvdProcessPackageProfile(ImportProfile):
         experiment_time_min: float | None,
     ) -> list[dict[str, Any]]:
         nodes = [
-            {"node_index": 1, "time_min": 0.0, "temperature_C": peak_temperature, "note": "实验温度"}
+            {
+                "node_index": 1,
+                "time_min": 0.0,
+                "temperature_C": peak_temperature,
+                "note": "实验温度",
+            }
         ]
         if experiment_time_min is not None and experiment_time_min > 0:
             nodes.append(
@@ -267,7 +272,7 @@ class CvdProcessPackageProfile(ImportProfile):
         for gas in self.GASES:
             step1_flow = _to_float(cell(f"{gas}_step1_flow"))
             end_flow = _to_float(cell(f"{gas}_end_flow"))
-            if not step1_flow and not end_flow:
+            if step1_flow is None and end_flow is None:
                 continue
             start_min = _time_to_minutes(cell(f"{gas}_step1_time"))
             end_min = _time_to_minutes(cell(f"{gas}_step3_time"))
@@ -279,7 +284,7 @@ class CvdProcessPackageProfile(ImportProfile):
                     "gas": gas,
                     "start_min": start_min,
                     "end_min": end_min,
-                    "flow_sccm": step1_flow if step1_flow else end_flow,
+                    "flow_sccm": step1_flow if step1_flow is not None else end_flow,
                     "note": "",
                     "components": [{"name": gas, "gas": gas, "flow_sccm": step1_flow}],
                 }

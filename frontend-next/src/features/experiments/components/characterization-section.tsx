@@ -26,6 +26,18 @@ export function CharacterizationSection({
   onChange: (nextValue: CharacterizationValues) => void
   value: CharacterizationValues
 }) {
+  // Characterization files are stored keyed only by (experiment, method), so two
+  // rows sharing the same method would read/write the same file list. Detect
+  // those collisions and block the uploader on the affected rows.
+  const methodCounts = value.methods.reduce<Record<string, number>>(
+    (counts, item) => {
+      const trimmed = item.method.trim()
+      if (trimmed) counts[trimmed] = (counts[trimmed] ?? 0) + 1
+      return counts
+    },
+    {},
+  )
+
   const updateItem = (
     index: number,
     patch: Partial<(typeof value.methods)[number]>,
@@ -79,7 +91,9 @@ export function CharacterizationSection({
               <VocabularyCombobox
                 ariaLabel={`表征方法 ${index + 1}`}
                 disabled={disabled}
-                onChange={(nextValue) => updateItem(index, { method: nextValue })}
+                onChange={(nextValue) =>
+                  updateItem(index, { method: nextValue })
+                }
                 options={characterizationMethodOptions}
                 placeholder="选择或输入表征方法"
                 value={item.method}
@@ -160,6 +174,7 @@ export function CharacterizationSection({
                 disabled={disabled}
                 experimentId={experimentId}
                 method={item.method}
+                duplicateMethod={methodCounts[item.method.trim()] > 1}
               />
             </div>
           </div>
@@ -175,10 +190,7 @@ export function CharacterizationSection({
           onClick={() => {
             onChange({
               ...value,
-              methods: [
-                ...value.methods,
-                createEmptyCharacterizationMethod(),
-              ],
+              methods: [...value.methods, createEmptyCharacterizationMethod()],
             })
           }}
         >

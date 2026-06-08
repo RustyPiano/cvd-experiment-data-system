@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.experiment_version import ExperimentVersion
 
@@ -20,6 +20,7 @@ class ExperimentVersionRepository:
         statement = (
             select(ExperimentVersion)
             .where(ExperimentVersion.experiment_run_id == experiment_run_id)
+            .options(joinedload(ExperimentVersion.created_by))
             .order_by(ExperimentVersion.version_number.desc())
         )
         return list(self.db.scalars(statement).all())

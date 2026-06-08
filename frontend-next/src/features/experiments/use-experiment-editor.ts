@@ -48,23 +48,23 @@ import {
   toSubstratesPayload,
   toSetupMethodsCompletionPayload,
   toSetupMethodsPayload,
-  
-  
   toResultSummaryPatch,
-  validateSectionValues
-  
-  
-  
-  
+  validateSectionValues,
 } from './editor-types'
-import type {ModulePayloadMap, ModuleEditorSectionKey, EditorSectionKey, EditorValidationError, ExperimentEditorValues, SectionSaveState} from './editor-types';
-import {
-  computeModuleCompletion
-  
-  
-  
+import type {
+  ModulePayloadMap,
+  ModuleEditorSectionKey,
+  EditorSectionKey,
+  EditorValidationError,
+  ExperimentEditorValues,
+  SectionSaveState,
+} from './editor-types'
+import { computeModuleCompletion } from './components/completion-indicator'
+import type {
+  CompletionSummary,
+  CompletionValidationIssue,
+  ModuleCompletionStatus,
 } from './components/completion-indicator'
-import type {CompletionSummary, CompletionValidationIssue, ModuleCompletionStatus} from './components/completion-indicator';
 
 type SubmitState = {
   status: 'idle' | 'submitting' | 'error'
@@ -1129,8 +1129,7 @@ export function useExperimentEditor({
   )
   const isEditable =
     experiment.status === 'draft' || experiment.status === 'submitted'
-  const shouldWarnOnLeave =
-    isEditable && (hasSavingSections || hasDirtyChanges)
+  const shouldWarnOnLeave = isEditable && (hasSavingSections || hasDirtyChanges)
   const leaveWarning = hasSavingSections
     ? '仍有区块正在保存，确认离开当前编辑页吗？'
     : hasSaveErrors && hasDirtyChanges

@@ -4,10 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { AlertTriangle, Loader2, Upload } from 'lucide-react'
 
 import { commitImport, listImportProfiles, previewImport } from './api'
-import type {
-  ImportCommitResultItem,
-  ParsedExperimentDraft,
-} from './api'
+import type { ImportCommitResultItem, ParsedExperimentDraft } from './api'
 import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -19,6 +16,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 function asArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : []
@@ -122,6 +121,25 @@ export function ImportWizardPage() {
     )
   }
 
+  const selectFile = (nextFile: File | null) => {
+    if (nextFile && nextFile.size > MAX_FILE_SIZE) {
+      setError(`${nextFile.name} 超过 50MB 上限`)
+      setFile(null)
+      return
+    }
+    setError(null)
+    setFile(nextFile)
+  }
+
+  const resetToUpload = () => {
+    setDrafts(null)
+    setCreated(null)
+    setGlobalWarnings([])
+    setIncludedRows(new Set())
+    setFile(null)
+    setError(null)
+  }
+
   const toggleRow = (sourceRow: number) => {
     setIncludedRows((current) => {
       const next = new Set(current)
@@ -182,13 +200,7 @@ export function ImportWizardPage() {
           subtitle="核对解析结果与提示，可调整顶层字段；导入后可在编辑器中继续完善各模块。"
           actions={
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDrafts(null)
-                  setCreated(null)
-                }}
-              >
+              <Button variant="outline" onClick={resetToUpload}>
                 重新选择文件
               </Button>
               <Button
@@ -388,7 +400,7 @@ export function ImportWizardPage() {
             accept=".xlsx"
             className="hidden"
             onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null)
+              selectFile(event.target.files?.[0] ?? null)
               event.target.value = ''
             }}
           />
