@@ -121,7 +121,11 @@ function getActionAvailability(
       ownerOrAdmin &&
       experiment.status !== 'invalid' &&
       experiment.status !== 'locked',
-    canEdit: canMutate && experiment.status === 'draft' && ownerOrAdmin,
+    // 草稿与已提交记录都可继续编辑（提交后改动会固化为新版本）；锁定/作废为只读。
+    canEdit:
+      canMutate &&
+      (experiment.status === 'draft' || experiment.status === 'submitted') &&
+      ownerOrAdmin,
   }
 }
 
@@ -556,7 +560,11 @@ export function ExperimentListPage() {
           const isExporting =
             activeExportKey?.startsWith(`${experiment.id}:`) ?? false
 
-          const primaryLabel = availability.canEdit ? '继续填写' : '查看'
+          const primaryLabel = availability.canEdit
+            ? experiment.status === 'submitted'
+              ? '编辑'
+              : '继续填写'
+            : '查看'
           const primaryTo = availability.canEdit
             ? ('/experiments/$experimentId/edit' as const)
             : ('/experiments/$experimentId' as const)

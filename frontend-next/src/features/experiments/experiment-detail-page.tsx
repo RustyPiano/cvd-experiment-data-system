@@ -986,14 +986,19 @@ export function ExperimentDetailPage() {
                 管理文件
               </Link>
             </Button>
-            {experiment.status === 'draft' ? (
+            {(experiment.status === 'draft' ||
+              experiment.status === 'submitted') &&
+            currentUser != null &&
+            currentUser.role !== 'viewer' &&
+            (currentUser.id === experiment.owner_id ||
+              currentUser.role === 'admin') ? (
               <Button size="sm" asChild>
                 <Link
                   to="/experiments/$experimentId/edit"
                   params={{ experimentId: experiment.id }}
                 >
                   <Edit className="mr-1.5 size-4" />
-                  继续编辑
+                  {experiment.status === 'submitted' ? '编辑' : '继续编辑'}
                 </Link>
               </Button>
             ) : null}
@@ -1036,7 +1041,8 @@ export function ExperimentDetailPage() {
                 <QualityTag label={experiment.quality_label} />
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                仅草稿状态可编辑，已提交 / 已锁定实验仅保留可执行操作。
+                草稿与已提交实验均可编辑（提交后改动会固化为新版本）；已锁定 /
+                已作废实验仅保留可执行操作。
               </p>
             </CardContent>
           </Card>
