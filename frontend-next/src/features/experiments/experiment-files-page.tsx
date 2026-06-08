@@ -660,7 +660,7 @@ export function ExperimentFilesPage() {
                           }
                         }}
                         className={cn(
-                          'rounded-[5px] px-3 py-1.5 text-sm font-medium transition-colors',
+                          'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                           active
                             ? 'bg-primary text-primary-foreground'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',

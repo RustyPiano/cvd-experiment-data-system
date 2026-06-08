@@ -713,61 +713,61 @@ export function ExperimentListPage() {
         </Alert>
       )}
 
-      {/* KPI Stats Tiles */}
+      {/* KPI Stats Tiles — 语义化配色：蓝=我的/进行中，琥珀=需处理，中性=总量 */}
       <div className="grid gap-4 sm:grid-cols-3">
         {/* 我的草稿 */}
-        <Card className="relative overflow-hidden">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground font-medium">我的草稿</span>
-              <span className="text-3xl font-bold tracking-tight">
+        <Card className="relative overflow-hidden py-0">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-muted-foreground">我的草稿</span>
+              <span className="text-[28px] font-semibold leading-none tracking-tight tabular-nums">
                 {myDraftsQuery.isLoading ? (
-                  <Skeleton className="h-9 w-12" />
+                  <Skeleton className="h-7 w-10" />
                 ) : (
                   myDraftsQuery.data?.total ?? 0
                 )}
               </span>
             </div>
-            <div className="p-3 bg-warning-soft text-warning-text rounded-2xl">
-              <FileText className="size-6" />
+            <div className="rounded-md bg-primary-soft p-2.5 text-accent-foreground">
+              <FileText className="size-5" />
             </div>
           </CardContent>
         </Card>
 
         {/* 待操作 */}
-        <Card className="relative overflow-hidden">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground font-medium">待操作</span>
-              <span className="text-3xl font-bold tracking-tight">
+        <Card className="relative overflow-hidden py-0">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-muted-foreground">待操作</span>
+              <span className="text-[28px] font-semibold leading-none tracking-tight tabular-nums">
                 {pendingActionQuery.isLoading ? (
-                  <Skeleton className="h-9 w-12" />
+                  <Skeleton className="h-7 w-10" />
                 ) : (
                   pendingActionQuery.data?.total ?? 0
                 )}
               </span>
             </div>
-            <div className="p-3 bg-primary-soft text-accent-foreground rounded-2xl">
-              <Clock className="size-6" />
+            <div className="rounded-md bg-warning-soft p-2.5 text-warning-text">
+              <Clock className="size-5" />
             </div>
           </CardContent>
         </Card>
 
         {/* 全部记录 */}
-        <Card className="relative overflow-hidden">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground font-medium">全部记录</span>
-              <span className="text-3xl font-bold tracking-tight">
+        <Card className="relative overflow-hidden py-0">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-muted-foreground">全部记录</span>
+              <span className="text-[28px] font-semibold leading-none tracking-tight tabular-nums">
                 {experimentQuery.isLoading ? (
-                  <Skeleton className="h-9 w-12" />
+                  <Skeleton className="h-7 w-10" />
                 ) : (
                   experimentQuery.data?.total ?? 0
                 )}
               </span>
             </div>
-            <div className="p-3 bg-secondary text-secondary-foreground rounded-2xl">
-              <Layers className="size-6" />
+            <div className="rounded-md bg-secondary p-2.5 text-muted-foreground">
+              <Layers className="size-5" />
             </div>
           </CardContent>
         </Card>
@@ -776,12 +776,10 @@ export function ExperimentListPage() {
       {/* 最近编辑 */}
       {recentEditedQuery.data?.items && recentEditedQuery.data.items.length > 0 && (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground tracking-wide flex items-center gap-1.5">
-              <Clock className="size-4 text-primary animate-pulse" />
-              最近编辑
-            </h2>
-          </div>
+          <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Clock className="size-4" />
+            最近编辑
+          </h2>
           <div className="grid gap-4 sm:grid-cols-3">
             {recentEditedQuery.data.items.map((exp) => (
               <Card

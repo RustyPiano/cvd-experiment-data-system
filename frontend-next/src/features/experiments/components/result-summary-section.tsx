@@ -42,7 +42,7 @@ export function ResultSummarySection({
                 disabled={disabled}
                 onClick={() => onChange({ ...value, qualityLabel: option.value })}
                 className={cn(
-                  'min-w-16 rounded-[5px] px-3 py-1.5 text-sm font-medium transition-colors',
+                  'min-w-16 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                   'disabled:pointer-events-none disabled:opacity-50',
                   active
                     ? 'bg-primary text-primary-foreground'

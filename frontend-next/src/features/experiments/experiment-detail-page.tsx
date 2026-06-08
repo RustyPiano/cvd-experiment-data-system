@@ -1004,12 +1004,24 @@ export function ExperimentDetailPage() {
       <ExperimentSourceBanner experiment={experiment} />
 
       <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="parameters">参数</TabsTrigger>
-          <TabsTrigger value="samples">样品</TabsTrigger>
-          <TabsTrigger value="files">文件</TabsTrigger>
-          <TabsTrigger value="audit">审计</TabsTrigger>
+        <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
+          {(
+            [
+              ['overview', '概览'],
+              ['parameters', '参数'],
+              ['samples', '样品'],
+              ['files', '文件'],
+              ['audit', '审计'],
+            ] as const
+          ).map(([value, label]) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-0.5 pb-2.5 text-[15px] font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground data-active:border-b-primary data-active:bg-transparent data-active:text-foreground data-active:shadow-none"
+            >
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         {/* ── 概览 Tab ── */}

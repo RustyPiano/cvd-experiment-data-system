@@ -38,10 +38,12 @@ function TriStateField({
     { key: 'false', text: '否', tone: yesGood ? 'bad' : 'good' },
   ]
 
+  // Active segment lifts off the track with shadow + inset ring + a darker,
+  // higher-contrast tone text so the chosen state reads at a glance.
   const toneActive: Record<'neutral' | 'good' | 'bad', string> = {
-    neutral: 'bg-muted text-foreground',
-    good: 'bg-success-soft text-success',
-    bad: 'bg-destructive-soft text-destructive',
+    neutral: 'bg-card text-foreground shadow-sm ring-1 ring-inset ring-border',
+    good: 'bg-success-soft text-success-text shadow-sm ring-1 ring-inset ring-success/35',
+    bad: 'bg-destructive-soft text-destructive-text shadow-sm ring-1 ring-inset ring-destructive/35',
   }
 
   return (
@@ -55,7 +57,7 @@ function TriStateField({
       <div
         role="radiogroup"
         aria-label={ariaLabel}
-        className="inline-flex w-fit rounded-md border border-input bg-background p-0.5"
+        className="inline-flex w-fit rounded-lg border border-input bg-muted/60 p-1"
       >
         {options.map((option) => {
           const active = value === option.key
@@ -68,11 +70,11 @@ function TriStateField({
               disabled={disabled}
               onClick={() => onChange(option.key)}
               className={cn(
-                'min-w-16 rounded-[5px] px-3 py-1.5 text-sm font-medium transition-colors',
+                'min-w-16 rounded-md px-3 py-1.5 text-sm font-medium transition-all',
                 'disabled:pointer-events-none disabled:opacity-50',
                 active
                   ? toneActive[option.tone]
-                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               {option.text}

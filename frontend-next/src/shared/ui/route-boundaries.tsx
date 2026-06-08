@@ -18,7 +18,7 @@ function CenteredBoundary({
 }) {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-5 bg-background px-6 text-center">
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+      <div className="flex size-14 items-center justify-center rounded-lg bg-muted text-muted-foreground">
         {icon}
       </div>
       <div className="flex flex-col gap-1.5">

@@ -8,6 +8,24 @@
    orientation-aware layout classes silently no-op and the component breaks. */
 @custom-variant data-horizontal (&[data-orientation="horizontal"]);
 @custom-variant data-vertical (&[data-orientation="vertical"]);
+/* radix marks state with `data-state="..."`, but these shadcn components style
+   off BARE utilities (`data-active:`, `data-checked:`, `data-open:` …). Tailwind
+   v4 would otherwise generate `&[data-active]` (attribute-presence), which radix
+   never sets — so the utility silently no-ops. These map each bare variant onto
+   the real `data-state` value:
+     data-active     → Tabs active highlight
+     data-checked    → Checkbox / Switch / Radio "on" fill + thumb travel
+     data-unchecked  → Switch "off" track + thumb position
+     data-open/closed → Dialog/Popover/Select/DropdownMenu/Sheet/Tooltip
+                        enter+exit animations
+   (data-disabled / data-placeholder / data-selected / data-inset are left as
+   Tailwind's bare `[data-…]` form — radix/cmdk/shadcn DO set those as real
+   bare attributes, so they already resolve.) */
+@custom-variant data-active (&[data-state="active"]);
+@custom-variant data-checked (&[data-state="checked"]);
+@custom-variant data-unchecked (&[data-state="unchecked"]);
+@custom-variant data-open (&[data-state="open"]);
+@custom-variant data-closed (&[data-state="closed"]);
 
 /*
   CVD 设计系统 — 「克制现代 + 科研精密」（slate 中性阶 + 聚焦蓝 #2563EB）。
@@ -15,7 +33,7 @@
   shadcn 语义 token 层。新代码一律用语义 token（bg-primary / text-muted-foreground …），不写裸 hex。
 */
 :root {
-  --radius: 0.625rem; /* 10px，对应旧 borderRadius:10 */
+  --radius: 0.5rem; /* 8px 控件基准 —「精密克制」：收紧圆角以贴合科研精密定位 */
 
   --background: #f5f7fa; /* colorBgLayout */
   --foreground: #0f172a; /* colorText */
@@ -71,13 +89,10 @@
   --sidebar-border: #eef1f6;
   --sidebar-ring: #2563eb;
 
-  /* 软分层阴影（替代硬边框）。第一层是极淡的发丝线，让卡片在浅色背景上有
-     一条干净的边界，而不必再叠加组件级 ring/border。 */
-  --shadow-sm:
-    0 0 0 1px rgba(15, 23, 42, 0.03), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.04),
-    0 1px 3px rgba(15, 23, 42, 0.05);
+  /* 精密克制的阴影：卡片自带 1px 实色 border 画清边界，阴影只负责极轻微的
+     抬升，单层、收紧，避免「软糯漂浮」。浮层（Dialog）才用 --shadow-lg。 */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   --shadow-lg:
     0 8px 24px -8px rgba(15, 23, 42, 0.12),
     0 2px 6px -2px rgba(15, 23, 42, 0.06);
@@ -214,10 +229,12 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 4px);
-  --radius-xl: calc(var(--radius) + 8px);
+  /* 收敛的圆角阶梯：控件 8px、卡片 10px、浮层 12px。全站只用这一套，
+     禁止再出现 rounded-2xl/3xl 这类脱离 token 的值。 */
+  --radius-sm: calc(var(--radius) - 2px); /* 6px — 小芯片/checkbox */
+  --radius-md: var(--radius); /* 8px — 按钮/输入/select 等控件 */
+  --radius-lg: calc(var(--radius) + 2px); /* 10px — 卡片 */
+  --radius-xl: calc(var(--radius) + 4px); /* 12px — Dialog/Command 等浮层 */
 
   /* Inter first so Latin/数字 render in Inter; CJK glyphs fall through to
      Noto Sans SC (Inter has no CJK coverage). Both are self-hosted via
