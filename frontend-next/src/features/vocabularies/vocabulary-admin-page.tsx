@@ -1,0 +1,774 @@
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { resolveErrorMessage } from '@/shared/api/http-error'
+import { EmptyState } from '@/shared/ui/empty-state'
+import { LoadingState } from '@/shared/ui/loading-state'
+import { PageHeader } from '@/shared/ui/page-header'
+import type {
+  ControlledVocabularyCreateRequest,
+  ControlledVocabularyRead,
+  ControlledVocabularyUpdateRequest,
+} from '@/shared/types/api'
+import { useAuth } from '@/features/auth/use-auth'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  createVocabulary,
+  listAdminVocabularies,
+  updateVocabulary,
+} from './api'
+
+const NONE_SENTINEL = '__all__'
+
+type VocabularyFormState = {
+  vocabKey: string
+  value: string
+  labelZh: string
+  labelEn: string
+  sortOrder: string
+  isActive: boolean
+  metadataJson: string
+}
+
+const defaultCreateFormState: VocabularyFormState = {
+  vocabKey: '',
+  value: '',
+  labelZh: '',
+  labelEn: '',
+  sortOrder: '0',
+  isActive: true,
+  metadataJson: '{}',
+}
+
+function normalizeOptionalText(value: string) {
+  const normalized = value.trim()
+  return normalized ? normalized : null
+}
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(',')}]`
+  }
+
+  if (value && typeof value === 'object') {
+    const objectEntries = Object.entries(
+      value as Record<string, unknown>,
+    ).sort(([a], [b]) => a.localeCompare(b))
+    return `{${objectEntries
+      .map(
+        ([key, itemValue]) =>
+          `${JSON.stringify(key)}:${stableSerialize(itemValue)}`,
+      )
+      .join(',')}}`
+  }
+
+  return JSON.stringify(value)
+}
+
+function parseMetadataJson(rawValue: string) {
+  const normalized = rawValue.trim()
+  if (!normalized) {
+    return {
+      error: null,
+      value: {},
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(normalized) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {
+        error: '元数据 JSON 必须是 JSON 对象',
+        value: null,
+      }
+    }
+
+    return {
+      error: null,
+      value: parsed as Record<string, unknown>,
+    }
+  } catch {
+    return {
+      error: '元数据 JSON 不是合法的 JSON 对象',
+      value: null,
+    }
+  }
+}
+
+function buildCreatePayload(formState: VocabularyFormState) {
+  const metadataResult = parseMetadataJson(formState.metadataJson)
+  if (metadataResult.error) {
+    return {
+      error: metadataResult.error,
+      payload: null,
+    }
+  }
+
+  const vocabKey = formState.vocabKey.trim()
+  const value = formState.value.trim()
+  const labelZh = formState.labelZh.trim()
+  const sortOrder = Number(formState.sortOrder)
+
+  if (!vocabKey || !value || !labelZh) {
+    return {
+      error: '请完整填写词表 key、值和中文标签',
+      payload: null,
+    }
+  }
+
+  if (!Number.isInteger(sortOrder)) {
+    return {
+      error: '排序必须是整数',
+      payload: null,
+    }
+  }
+
+  return {
+    error: null,
+    payload: {
+      vocab_key: vocabKey,
+      value,
+      label_zh: labelZh,
+      label_en: normalizeOptionalText(formState.labelEn),
+      sort_order: sortOrder,
+      is_active: formState.isActive,
+      metadata_json: metadataResult.value ?? {},
+    } satisfies ControlledVocabularyCreateRequest,
+  }
+}
+
+function buildEditPayload(
+  original: ControlledVocabularyRead,
+  formState: VocabularyFormState,
+) {
+  const metadataResult = parseMetadataJson(formState.metadataJson)
+  if (metadataResult.error) {
+    return {
+      error: metadataResult.error,
+      payload: null,
+    }
+  }
+
+  const nextValue = formState.value.trim()
+  const nextLabelZh = formState.labelZh.trim()
+  const nextLabelEn = normalizeOptionalText(formState.labelEn)
+  const nextSortOrder = Number(formState.sortOrder)
+
+  if (!nextValue || !nextLabelZh) {
+    return {
+      error: '值和中文标签不能为空',
+      payload: null,
+    }
+  }
+
+  if (!Number.isInteger(nextSortOrder)) {
+    return {
+      error: '排序必须是整数',
+      payload: null,
+    }
+  }
+
+  const payload: ControlledVocabularyUpdateRequest = {}
+  if (nextValue !== original.value) {
+    payload.value = nextValue
+  }
+  if (nextLabelZh !== original.label_zh) {
+    payload.label_zh = nextLabelZh
+  }
+  if (nextLabelEn !== original.label_en) {
+    payload.label_en = nextLabelEn
+  }
+  if (nextSortOrder !== original.sort_order) {
+    payload.sort_order = nextSortOrder
+  }
+  if (formState.isActive !== original.is_active) {
+    payload.is_active = formState.isActive
+  }
+  if (
+    stableSerialize(metadataResult.value ?? {}) !==
+    stableSerialize(original.metadata_json ?? {})
+  ) {
+    payload.metadata_json = metadataResult.value ?? {}
+  }
+
+  return {
+    error: null,
+    payload,
+  }
+}
+
+function toFormState(item: ControlledVocabularyRead): VocabularyFormState {
+  return {
+    vocabKey: item.vocab_key,
+    value: item.value,
+    labelZh: item.label_zh,
+    labelEn: item.label_en ?? '',
+    sortOrder: String(item.sort_order),
+    isActive: item.is_active,
+    metadataJson: JSON.stringify(item.metadata_json ?? {}, null, 2),
+  }
+}
+
+function VocabularyForm({
+  formState,
+  onChange,
+  onSubmit,
+  loading,
+  isEdit,
+  submitText,
+}: {
+  formState: VocabularyFormState
+  onChange: (next: VocabularyFormState) => void
+  onSubmit: () => void
+  loading: boolean
+  isEdit: boolean
+  submitText: string
+}) {
+  const metadataError = parseMetadataJson(formState.metadataJson).error
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="editor-field">
+        <Label htmlFor="vocabulary-key">
+          词表 key{' '}
+          {isEdit ? null : <span className="text-destructive">*</span>}
+        </Label>
+        <Input
+          autoComplete="off"
+          id="vocabulary-key"
+          readOnly={isEdit}
+          className={isEdit ? 'text-muted-foreground' : undefined}
+          onChange={(e) => onChange({ ...formState, vocabKey: e.target.value })}
+          placeholder="例如 characterization_method"
+          value={formState.vocabKey}
+        />
+      </div>
+
+      <div className="editor-field">
+        <Label htmlFor="vocabulary-value">
+          值 <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          autoComplete="off"
+          id="vocabulary-value"
+          onChange={(e) => onChange({ ...formState, value: e.target.value })}
+          placeholder="例如 raman"
+          value={formState.value}
+        />
+      </div>
+
+      <div className="editor-field">
+        <Label htmlFor="vocabulary-label-zh">
+          中文标签 <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          autoComplete="off"
+          id="vocabulary-label-zh"
+          onChange={(e) => onChange({ ...formState, labelZh: e.target.value })}
+          placeholder="例如 拉曼光谱"
+          value={formState.labelZh}
+        />
+      </div>
+
+      <div className="editor-field">
+        <Label htmlFor="vocabulary-label-en">英文标签</Label>
+        <Input
+          autoComplete="off"
+          id="vocabulary-label-en"
+          onChange={(e) => onChange({ ...formState, labelEn: e.target.value })}
+          placeholder="例如 Raman Spectroscopy"
+          value={formState.labelEn}
+        />
+      </div>
+
+      <div className="editor-field">
+        <Label htmlFor="vocabulary-sort-order">
+          排序 <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          id="vocabulary-sort-order"
+          type="number"
+          min={0}
+          onChange={(e) => onChange({ ...formState, sortOrder: e.target.value })}
+          value={formState.sortOrder}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="vocabulary-enabled">启用</Label>
+        <Switch
+          aria-label="启用"
+          checked={formState.isActive}
+          id="vocabulary-enabled"
+          onCheckedChange={(checked) =>
+            onChange({ ...formState, isActive: checked })
+          }
+        />
+      </div>
+
+      <div className="editor-field">
+        <Label htmlFor="vocabulary-metadata">元数据 JSON</Label>
+        <Textarea
+          autoComplete="off"
+          rows={5}
+          id="vocabulary-metadata"
+          onChange={(e) =>
+            onChange({ ...formState, metadataJson: e.target.value })
+          }
+          value={formState.metadataJson}
+          aria-invalid={metadataError ? true : undefined}
+        />
+        {metadataError ? (
+          <p className="text-xs text-destructive">{metadataError}</p>
+        ) : null}
+      </div>
+
+      <Button disabled={loading} onClick={onSubmit}>
+        {submitText}
+      </Button>
+    </div>
+  )
+}
+
+export function VocabularyAdminPage() {
+  const queryClient = useQueryClient()
+  const { session } = useAuth()
+  const currentUser = session.currentUser
+  const [appliedFilter, setAppliedFilter] = useState('')
+  const [feedback, setFeedback] = useState<{
+    type: 'error' | 'success'
+    message: string
+  } | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editTarget, setEditTarget] =
+    useState<ControlledVocabularyRead | null>(null)
+  const [createForm, setCreateForm] = useState(defaultCreateFormState)
+  const [editForm, setEditForm] = useState<VocabularyFormState | null>(null)
+  const [page, setPage] = useState(1)
+
+  const isAdmin = currentUser?.role === 'admin'
+  const queryPrefix = ['admin', 'vocabularies', currentUser?.id ?? 'anonymous']
+
+  const vocabulariesQuery = useQuery({
+    queryKey: [...queryPrefix, appliedFilter || 'all'],
+    queryFn: () =>
+      listAdminVocabularies(session.accessToken!, appliedFilter || null),
+    enabled: session.isAuthenticated && isAdmin,
+  })
+
+  const vocabularyKeyOptionsQuery = useQuery({
+    queryKey: [...queryPrefix, 'key-options'],
+    queryFn: () => listAdminVocabularies(session.accessToken!, null),
+    enabled: session.isAuthenticated && isAdmin,
+  })
+
+  const uniqueKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const item of vocabularyKeyOptionsQuery.data?.items ??
+      vocabulariesQuery.data?.items ??
+      []) {
+      keys.add(item.vocab_key)
+    }
+    return Array.from(keys).sort((left, right) => left.localeCompare(right))
+  }, [vocabulariesQuery.data?.items, vocabularyKeyOptionsQuery.data?.items])
+
+  const invalidateVocabularyQueries = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryPrefix,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['vocabularies'],
+      }),
+    ])
+  }
+
+  const createMutation = useMutation({
+    mutationFn: (payload: ControlledVocabularyCreateRequest) =>
+      createVocabulary(session.accessToken!, payload),
+    onSuccess: async () => {
+      setFeedback({ message: '词条创建成功', type: 'success' })
+      setCreateOpen(false)
+      setCreateForm(defaultCreateFormState)
+      await invalidateVocabularyQueries()
+    },
+    onError: (error) => {
+      setFeedback({
+        message: resolveErrorMessage(error, '词条创建失败'),
+        type: 'error',
+      })
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      vocabId,
+      payload,
+    }: {
+      payload: ControlledVocabularyUpdateRequest
+      vocabId: string
+    }) => updateVocabulary(session.accessToken!, vocabId, payload),
+    onSuccess: async () => {
+      setFeedback({ message: '词条更新成功', type: 'success' })
+      setEditTarget(null)
+      setEditForm(null)
+      await invalidateVocabularyQueries()
+    },
+    onError: (error) => {
+      setFeedback({
+        message: resolveErrorMessage(error, '词条更新失败'),
+        type: 'error',
+      })
+    },
+  })
+
+  const handleCreateSubmit = () => {
+    setFeedback(null)
+    const result = buildCreatePayload(createForm)
+    if (result.error || !result.payload) {
+      setFeedback({
+        message: result.error ?? '词条创建失败',
+        type: 'error',
+      })
+      return
+    }
+
+    createMutation.mutate(result.payload)
+  }
+
+  const handleEditSubmit = () => {
+    if (!editTarget || !editForm) {
+      return
+    }
+
+    setFeedback(null)
+    const result = buildEditPayload(editTarget, editForm)
+    if (result.error || !result.payload) {
+      setFeedback({
+        message: result.error ?? '词条更新失败',
+        type: 'error',
+      })
+      return
+    }
+
+    updateMutation.mutate({ payload: result.payload, vocabId: editTarget.id })
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader subtitle="受控词表管理仅对管理员开放。" title="受控词表" />
+        <Alert className="border-warning/40 bg-warning-soft [&>svg]:text-warning">
+          <AlertDescription className="text-foreground">
+            当前账号没有词表管理权限。
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  const rows = vocabulariesQuery.data?.items ?? []
+  const PAGE_SIZE = 20
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const paginatedRows = rows.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  )
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        actions={
+          <Button
+            onClick={() => {
+              setFeedback(null)
+              setCreateForm(defaultCreateFormState)
+              setCreateOpen(true)
+            }}
+          >
+            新增词条
+          </Button>
+        }
+        subtitle="管理受控词表条目，词表变更会影响实验和文件页的候选项。"
+        title="受控词表"
+      />
+
+      {feedback ? (
+        <Alert
+          variant={feedback.type === 'error' ? 'destructive' : undefined}
+          className={
+            feedback.type === 'success'
+              ? 'border-success/40 bg-success-soft [&>svg]:text-success'
+              : undefined
+          }
+        >
+          <AlertDescription
+            className={feedback.type === 'success' ? 'text-foreground' : undefined}
+          >
+            {feedback.message}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-4">
+          <div className="editor-field">
+            <Label htmlFor="vocabulary-filter-key">词表 key 筛选</Label>
+            <Select
+              value={appliedFilter || NONE_SENTINEL}
+              onValueChange={(value) => {
+                setAppliedFilter(value === NONE_SENTINEL ? '' : value)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger
+                id="vocabulary-filter-key"
+                className="w-65"
+                aria-label="词表 key 筛选"
+              >
+                <SelectValue placeholder="选择词表 key" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE_SENTINEL}>全部</SelectItem>
+                {uniqueKeys.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {key}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setAppliedFilter('')
+              setPage(1)
+            }}
+          >
+            清空筛选
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          {vocabulariesQuery.isLoading ? (
+            <LoadingState />
+          ) : vocabulariesQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {resolveErrorMessage(
+                  vocabulariesQuery.error,
+                  '词表列表加载失败',
+                )}
+              </AlertDescription>
+            </Alert>
+          ) : rows.length === 0 ? (
+            <EmptyState description="当前筛选条件下还没有词条。可清空筛选或新增词条。" />
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>词表 key</TableHead>
+                      <TableHead>值</TableHead>
+                      <TableHead>中文标签</TableHead>
+                      <TableHead>英文标签</TableHead>
+                      <TableHead>排序</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>元数据</TableHead>
+                      <TableHead>操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedRows.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>{record.vocab_key}</TableCell>
+                        <TableCell>{record.value}</TableCell>
+                        <TableCell>{record.label_zh}</TableCell>
+                        <TableCell>{record.label_en || '-'}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {record.sort_order}
+                        </TableCell>
+                        <TableCell>
+                          {record.is_active ? (
+                            <Badge className="bg-success-soft text-success">
+                              启用
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">停用</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {Object.keys(record.metadata_json ?? {}).length > 0 ? (
+                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                              {JSON.stringify(record.metadata_json)}
+                            </code>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`编辑 ${record.vocab_key}:${record.value}`}
+                              onClick={() => {
+                                setFeedback(null)
+                                setEditTarget(record)
+                                setEditForm(toFormState(record))
+                              }}
+                            >
+                              编辑
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`${record.is_active ? '停用' : '启用'} ${record.vocab_key}:${record.value}`}
+                              disabled={
+                                updateMutation.isPending &&
+                                updateMutation.variables?.vocabId === record.id
+                              }
+                              onClick={() => {
+                                setFeedback(null)
+                                updateMutation.mutate({
+                                  payload: { is_active: !record.is_active },
+                                  vocabId: record.id,
+                                })
+                              }}
+                            >
+                              {record.is_active ? '停用' : '启用'}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {rows.length > PAGE_SIZE ? (
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>
+                    共 {rows.length} 条 · 第 {safePage}/{totalPages} 页
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage <= 1}
+                      onClick={() => setPage(safePage - 1)}
+                    >
+                      上一页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setPage(safePage + 1)}
+                    >
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create dialog */}
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (!createMutation.isPending) setCreateOpen(open)
+        }}
+      >
+        <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>新增词条</DialogTitle>
+            <DialogDescription className="sr-only">
+              创建新的受控词表词条
+            </DialogDescription>
+          </DialogHeader>
+          <div className="-mx-6 max-h-[65vh] overflow-y-auto px-6 py-2">
+            <VocabularyForm
+              formState={createForm}
+              isEdit={false}
+              loading={createMutation.isPending}
+              onChange={setCreateForm}
+              onSubmit={handleCreateSubmit}
+              submitText="创建词条"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog
+        open={editTarget !== null && editForm !== null}
+        onOpenChange={(open) => {
+          if (!open && !updateMutation.isPending) {
+            setEditTarget(null)
+            setEditForm(null)
+          }
+        }}
+      >
+        <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editTarget ? `编辑词条 · ${editTarget.vocab_key}` : '编辑词条'}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              编辑现有受控词表词条
+            </DialogDescription>
+          </DialogHeader>
+          {editTarget && editForm ? (
+            <div className="-mx-6 max-h-[65vh] overflow-y-auto px-6 py-2">
+              <VocabularyForm
+                formState={editForm}
+                isEdit={true}
+                loading={updateMutation.isPending}
+                onChange={setEditForm}
+                onSubmit={handleEditSubmit}
+                submitText="保存修改"
+              />
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
