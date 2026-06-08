@@ -225,3 +225,29 @@ def test_logout_returns_no_content_for_authenticated_user(active_user) -> None:
 
     assert response.status_code == 204
     assert response.content == b""
+
+
+def test_refresh_requires_token() -> None:
+    response = client.post("/api/v1/auth/refresh")
+
+    assert response.status_code == 401
+
+
+def test_refresh_returns_fresh_token_for_authenticated_user(active_user) -> None:
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": active_user.email, "password": "Password123!"},
+    )
+    token = login_response.json()["access_token"]
+
+    response = client.post(
+        "/api/v1/auth/refresh",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_type"] == "bearer"
+    assert body["expires_in"] == 3600
+    assert body["access_token"]
+    assert body["user"]["email"] == active_user.email

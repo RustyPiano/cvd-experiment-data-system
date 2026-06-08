@@ -25,6 +25,11 @@ def register(payload: RegisterRequest, db: DbSession) -> TokenResponse:
     return AuthService(db).register(payload)
 
 
+@router.post("/refresh", response_model=TokenResponse)
+def refresh(current_user: CurrentUser, db: DbSession) -> TokenResponse:
+    return AuthService(db).refresh(current_user)
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(current_user: CurrentUser) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -38,6 +38,21 @@ class AuthService:
 
         return self._build_token_response(user)
 
+    def refresh(self, user: User) -> TokenResponse:
+        """Re-issue a fresh access token for an already-authenticated user.
+
+        Drives the sliding-session UX: the frontend calls this shortly before
+        the current token expires so an actively-used session never hits a 401.
+        The caller must present a still-valid bearer token (enforced by the
+        `get_current_user` dependency), so an expired token cannot self-renew.
+        """
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Inactive user",
+            )
+        return self._build_token_response(user)
+
     def register(self, payload: RegisterRequest) -> TokenResponse:
         settings = get_settings()
         expected_invite_code = (settings.registration_invite_code or "").strip()

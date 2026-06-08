@@ -14,6 +14,7 @@ import {
 
 import { logout } from '@/features/auth/api'
 import { useAuth } from '@/features/auth/use-auth'
+import { useSessionRefresh } from '@/features/auth/use-session-refresh'
 import { API_UNAUTHORIZED_EVENT } from '@/shared/api/client'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -97,6 +98,9 @@ export function AppShell({ children }: AppShellProps) {
   const { clearSession, session } = useAuth()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
+  // Keep the session alive while the app is in use (sliding refresh).
+  useSessionRefresh()
+
   const currentRole = session.currentUser?.role
   const isAdmin = currentRole === 'admin'
   const roleLabel = currentRole ? (roleLabels[currentRole] ?? '') : '未登录'
@@ -135,7 +139,7 @@ export function AppShell({ children }: AppShellProps) {
       <Sidebar className="border-r border-sidebar-border bg-sidebar">
         <SidebarHeader className="px-4 py-3">
           <div className="flex items-center gap-3">
-            <span className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] bg-gradient-to-br from-primary/95 to-primary text-primary-foreground shadow-sm">
+            <span className="flex size-[38px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/95 to-primary text-primary-foreground shadow-sm">
               <FlaskConical className="size-5" />
             </span>
             <div className="flex flex-col leading-tight">
