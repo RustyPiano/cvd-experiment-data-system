@@ -235,13 +235,23 @@ function ExperimentEditorWorkspace({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const id = entry.target.id
-            const key = id.replace('section-', '') as EditorSectionKey
-            setCurrentSection(key)
-          }
-        })
+        // When several sections fall inside the active band at once (notably on
+        // initial mount), `forEach` + last-wins would highlight an arbitrary
+        // section. Pick the topmost intersecting one so the stepper matches what
+        // the user actually sees.
+        const topmost = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (a, b) =>
+              a.boundingClientRect.top - b.boundingClientRect.top,
+          )[0]
+        if (topmost) {
+          const key = topmost.target.id.replace(
+            'section-',
+            '',
+          ) as EditorSectionKey
+          setCurrentSection(key)
+        }
       },
       { rootMargin: '-40% 0px -50% 0px', threshold: 0 },
     )

@@ -20,6 +20,8 @@ function RootComponent() {
     <TooltipProvider>
       <Outlet />
       <Toaster />
+      {/* Stripped from production builds by the @tanstack/devtools-vite plugin
+          (see vite.config.ts) — ships only in dev. */}
       <TanStackDevtools
         config={{ position: 'bottom-right' }}
         plugins={[

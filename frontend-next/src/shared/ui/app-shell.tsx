@@ -40,6 +40,7 @@ import {
   SidebarInset,
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
+import { ThemeToggle } from '@/shared/ui/theme-toggle'
 
 const roleLabels: Record<string, string> = {
   admin: '管理员',
@@ -61,6 +62,31 @@ const navItems = [
     match: '/setup-library',
   },
 ]
+
+const adminDashboardItem = {
+  to: '/dashboard' as const,
+  label: '数据看板',
+  icon: LayoutDashboard,
+  match: '/dashboard',
+}
+
+const adminConfigItems = [
+  { to: '/fields' as const, label: '字段词典', icon: ClipboardList, match: '/fields' },
+  { to: '/vocabularies' as const, label: '受控词表', icon: Tag, match: '/vocabularies' },
+  { to: '/recipes' as const, label: 'Recipe', icon: BookOpen, match: '/recipes' },
+]
+
+// Single source of truth for the header page title — keep in sync with the
+// sidebar by deriving from the same nav config instead of a parallel switch.
+const navLabelLookup: { match: string; label: string }[] = [
+  ...navItems,
+  adminDashboardItem,
+  ...adminConfigItems,
+]
+
+function getPageTitle(pathname: string) {
+  return navLabelLookup.find((item) => pathname.startsWith(item.match))?.label ?? ''
+}
 
 type AppShellProps = {
   children: ReactNode
@@ -150,12 +176,12 @@ export function AppShell({ children }: AppShellProps) {
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       asChild
-                      isActive={pathname.startsWith('/dashboard')}
-                      tooltip="数据看板"
+                      isActive={pathname.startsWith(adminDashboardItem.match)}
+                      tooltip={adminDashboardItem.label}
                     >
-                      <Link to="/dashboard">
-                        <LayoutDashboard />
-                        <span>数据看板</span>
+                      <Link to={adminDashboardItem.to}>
+                        <adminDashboardItem.icon />
+                        <span>{adminDashboardItem.label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -169,42 +195,20 @@ export function AppShell({ children }: AppShellProps) {
               <SidebarGroupLabel>管理配置</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname.startsWith('/fields')}
-                      tooltip="字段词典"
-                    >
-                      <Link to="/fields">
-                        <ClipboardList />
-                        <span>字段词典</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname.startsWith('/vocabularies')}
-                      tooltip="受控词表"
-                    >
-                      <Link to="/vocabularies">
-                        <Tag />
-                        <span>受控词表</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname.startsWith('/recipes')}
-                      tooltip="Recipe"
-                    >
-                      <Link to="/recipes">
-                        <BookOpen />
-                        <span>Recipe</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {adminConfigItems.map((item) => (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname.startsWith(item.match)}
+                        tooltip={item.label}
+                      >
+                        <Link to={item.to}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -273,16 +277,11 @@ export function AppShell({ children }: AppShellProps) {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="h-4" />
           <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
-            {(() => {
-              if (pathname.startsWith('/experiments')) return '实验记录'
-              if (pathname.startsWith('/setup-library')) return 'Setup 库'
-              if (pathname.startsWith('/dashboard')) return '数据看板'
-              if (pathname.startsWith('/fields')) return '字段词典'
-              if (pathname.startsWith('/vocabularies')) return '受控词表'
-              if (pathname.startsWith('/recipes')) return 'Recipe'
-              return ''
-            })()}
+            {getPageTitle(pathname)}
           </nav>
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
         </header>
         <main className="flex-1 overflow-auto bg-background p-6">
           <div className="mx-auto w-full max-w-[1440px]">

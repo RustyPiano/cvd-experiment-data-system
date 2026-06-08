@@ -157,6 +157,7 @@ type SortKey =
   | 'created_at'
 
 const PAGE_SIZE = 10
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB, matches the backend limit
 
 export function ExperimentFilesPage() {
   const { experimentId } = Route.useParams()
@@ -511,7 +512,18 @@ export function ExperimentFilesPage() {
     if (!files || files.length === 0) {
       return
     }
-    setSelectedFiles((current) => [...current, ...Array.from(files)])
+    const incoming = Array.from(files)
+    const accepted = incoming.filter((file) => file.size <= MAX_FILE_SIZE)
+    const rejected = incoming.filter((file) => file.size > MAX_FILE_SIZE)
+    if (rejected.length > 0) {
+      toast.error(
+        `以下文件超过 50 MB，已跳过：${rejected.map((file) => file.name).join('、')}`,
+      )
+    }
+    if (accepted.length === 0) {
+      return
+    }
+    setSelectedFiles((current) => [...current, ...accepted])
   }
 
   const removeSelectedFile = (index: number) => {
