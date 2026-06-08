@@ -11,16 +11,19 @@ import type {PrecursorsValues, VocabularySelectOption} from '../editor-types';
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CreatableVocabularyCombobox } from './creatable-vocabulary-combobox'
 import { VocabularyCombobox } from './vocabulary-combobox'
 
 export function PrecursorsSection({
   disabled,
   onChange,
+  precursorBrandOptions,
   precursorMethodOptions,
   value,
 }: {
   disabled: boolean
   onChange: (nextValue: PrecursorsValues) => void
+  precursorBrandOptions: VocabularySelectOption[]
   precursorMethodOptions: VocabularySelectOption[]
   value: PrecursorsValues
 }) {
@@ -89,19 +92,17 @@ export function PrecursorsSection({
               </div>
 
               <div className="editor-field">
-                <Label
-                  htmlFor={`precursor-${index}-brand`}
-                >{`前驱体品牌 ${index + 1}`}</Label>
-                <Input
-                  id={`precursor-${index}-brand`}
-                  aria-label={`前驱体品牌 ${index + 1}`}
-                  autoComplete="off"
+                <Label>{`前驱体品牌 ${index + 1}`}</Label>
+                <CreatableVocabularyCombobox
+                  ariaLabel={`前驱体品牌 ${index + 1}`}
                   disabled={disabled}
-                  placeholder="例如 Alfa"
-                  value={item.brand}
-                  onChange={(event) =>
-                    updateItem(index, { brand: event.target.value })
+                  onChange={(nextValue) =>
+                    updateItem(index, { brand: nextValue })
                   }
+                  options={precursorBrandOptions}
+                  placeholder="选择或输入品牌"
+                  value={item.brand}
+                  vocabKey="precursor_brand"
                 />
               </div>
 

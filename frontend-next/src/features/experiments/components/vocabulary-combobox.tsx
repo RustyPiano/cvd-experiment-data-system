@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
 
 import {
   withLegacyVocabularyOption
@@ -19,15 +19,24 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
  */
 export function VocabularyCombobox({
   ariaLabel,
+  creating = false,
   disabled,
   onChange,
+  onCreate,
   options,
   placeholder,
   value,
 }: {
   ariaLabel: string
+  /** True while a new value is being persisted to the shared vocabulary. */
+  creating?: boolean
   disabled: boolean
   onChange: (value: string) => void
+  /**
+   * When provided, a typed value that is not yet in the vocabulary can be
+   * promoted into the shared list via an "add" action in the dropdown.
+   */
+  onCreate?: (rawValue: string) => void
   options: VocabularySelectOption[]
   placeholder: string
   value: string
@@ -44,15 +53,30 @@ export function VocabularyCombobox({
   const displayValue =
     resolvedOptions.find((option) => option.value === value)?.label ?? value
 
+  const trimmedQuery = displayValue.trim()
+
   const filtered = useMemo(() => {
-    const query = displayValue.trim().toLowerCase()
+    const query = trimmedQuery.toLowerCase()
     if (!query) return resolvedOptions
     return resolvedOptions.filter(
       (option) =>
         option.label.toLowerCase().includes(query) ||
         option.value.toLowerCase().includes(query),
     )
-  }, [resolvedOptions, displayValue])
+  }, [resolvedOptions, trimmedQuery])
+
+  // 仅当输入的值尚不在词表中时才提供"添加"。注意要对照真正的词表 `options`，
+  // 而不是 `resolvedOptions`——后者会把当前输入值作为 legacy 选项回显，导致永远命中。
+  const hasExactMatch = useMemo(
+    () =>
+      options.some(
+        (option) => option.value === trimmedQuery || option.label === trimmedQuery,
+      ),
+    [options, trimmedQuery],
+  )
+  const showCreate = Boolean(
+    onCreate && !disabled && trimmedQuery.length > 0 && !hasExactMatch,
+  )
 
   const commit = (nextValue: string) => {
     onChange(nextValue)
@@ -84,7 +108,7 @@ export function VocabularyCombobox({
           <ChevronsUpDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground/70" />
         </div>
       </PopoverAnchor>
-      {filtered.length > 0 ? (
+      {filtered.length > 0 || showCreate ? (
         <PopoverContent
           align="start"
           className="max-h-60 w-(--radix-popover-trigger-width) overflow-y-auto p-1"
@@ -115,6 +139,25 @@ export function VocabularyCombobox({
               ) : null}
             </button>
           ))}
+          {showCreate ? (
+            <button
+              type="button"
+              disabled={creating}
+              className={cn(
+                'mt-0.5 flex w-full items-center gap-2 rounded-sm border-t px-2 py-1.5 text-left text-sm',
+                'text-primary hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
+                'disabled:cursor-not-allowed disabled:opacity-60',
+              )}
+              onClick={() => onCreate?.(trimmedQuery)}
+            >
+              {creating ? (
+                <Loader2 className="size-4 shrink-0 animate-spin" />
+              ) : (
+                <Plus className="size-4 shrink-0" />
+              )}
+              <span className="truncate">{`添加 “${trimmedQuery}” 到公共列表`}</span>
+            </button>
+          ) : null}
         </PopoverContent>
       ) : null}
     </Popover>

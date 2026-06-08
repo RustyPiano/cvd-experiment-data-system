@@ -10,16 +10,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { CharacterizationFileUpload } from './characterization-file-upload'
 import { VocabularyCombobox } from './vocabulary-combobox'
 
 export function CharacterizationSection({
   characterizationMethodOptions,
   disabled,
+  experimentId,
   onChange,
   value,
 }: {
   characterizationMethodOptions: VocabularySelectOption[]
   disabled: boolean
+  experimentId: string
   onChange: (nextValue: CharacterizationValues) => void
   value: CharacterizationValues
 }) {
@@ -148,6 +151,15 @@ export function CharacterizationSection({
                 onChange={(event) =>
                   updateItem(index, { note: event.target.value })
                 }
+              />
+            </div>
+
+            <div className="editor-field editor-field-wide">
+              <Label>{`表征文件 ${index + 1}`}</Label>
+              <CharacterizationFileUpload
+                disabled={disabled}
+                experimentId={experimentId}
+                method={item.method}
               />
             </div>
           </div>

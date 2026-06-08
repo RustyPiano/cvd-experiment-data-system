@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus, QualityLabel
+from app.models.experiment_version import ExperimentVersion
 from app.models.module_payload import (
     ExperimentModuleKey,
     ExperimentModulePayload,
@@ -17,6 +18,7 @@ from app.models.module_payload import (
 from app.models.recipe import Recipe
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
+from app.repositories.experiment_version_repository import ExperimentVersionRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
 from app.repositories.recipe_repository import RecipeRepository
 from app.schemas.audit import AuditEventListResponse
@@ -32,6 +34,12 @@ from app.schemas.experiment import (
     ExperimentUpdate,
 )
 from app.schemas.experiment_validation import ExperimentValidationResponse
+from app.schemas.experiment_version import (
+    ExperimentVersionCreateRequest,
+    ExperimentVersionListResponse,
+    ExperimentVersionRead,
+    ExperimentVersionSummary,
+)
 from app.schemas.module_payload import (
     ExperimentModulePayloadListResponse,
     ExperimentModulePayloadRead,
@@ -62,6 +70,7 @@ class ExperimentService:
         self.db = db
         self.experiments = ExperimentRepository(db)
         self.module_payloads = ModulePayloadRepository(db)
+        self.versions = ExperimentVersionRepository(db)
         self.recipes = RecipeRepository(db)
         self.audit = AuditService(db)
         self.exporter = ExperimentExportService(db)
@@ -208,6 +217,88 @@ class ExperimentService:
         self.db.commit()
         return ExperimentRead.model_validate(created)
 
+    def create_from_import(
+        self,
+        run_level: dict[str, Any],
+        module_payloads: dict[str, Any],
+        current_user: User,
+    ) -> ExperimentRead:
+        """Create a draft experiment from a confirmed spreadsheet-import draft."""
+        if current_user.role == UserRole.VIEWER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+
+        experiment_type = run_level.get("experiment_type") or "cvd_2zone"
+        material_system = run_level.get("material_system")
+        objective = run_level.get("objective")
+        raw_date = run_level.get("experiment_date")
+        experiment_date = date.today()
+        if isinstance(raw_date, str) and raw_date:
+            try:
+                experiment_date = date.fromisoformat(raw_date)
+            except ValueError:
+                experiment_date = date.today()
+
+        created = self._create_experiment_with_retry(
+            experiment_date=experiment_date,
+            build_experiment=lambda run_code: ExperimentRun(
+                run_code=run_code,
+                owner_id=current_user.id,
+                experiment_type=experiment_type,
+                material_system=material_system,
+                experiment_date=experiment_date,
+                objective=objective,
+                status=ExperimentStatus.DRAFT,
+                quality_label=QualityLabel.UNKNOWN,
+            ),
+        )
+
+        self._upsert_module_payload_json(
+            experiment_id=created.id,
+            module_key=ExperimentModuleKey.BASIC_INFO,
+            payload_json={
+                "operator_id": str(current_user.id),
+                "experiment_type": created.experiment_type,
+                "material_system": created.material_system,
+                "experiment_date": created.experiment_date.isoformat(),
+                "objective": created.objective,
+            },
+        )
+
+        for module_key_value, payload_json in module_payloads.items():
+            try:
+                module_key = ExperimentModuleKey(module_key_value)
+            except ValueError:
+                continue
+            if module_key == ExperimentModuleKey.BASIC_INFO:
+                continue
+            if not isinstance(payload_json, dict):
+                continue
+            saved = self._upsert_module_payload_json(
+                experiment_id=created.id,
+                module_key=module_key,
+                payload_json=deepcopy(payload_json),
+            )
+            if module_key == ExperimentModuleKey.SUBSTRATES:
+                self.sample_service.sync_substrate_samples(
+                    experiment=created,
+                    current_user=current_user,
+                    substrates_payload=saved.payload_json,
+                )
+
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=created.id,
+            action="create_from_import",
+            before_json=None,
+            after_json=self._serialize_experiment(created),
+        )
+        self.db.commit()
+        return ExperimentRead.model_validate(created)
+
     def get_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRead:
         experiment = self._get_visible_experiment(experiment_id, current_user)
         return ExperimentRead.model_validate(experiment)
@@ -227,11 +318,7 @@ class ExperimentService:
         current_user: User,
     ) -> ExperimentRead:
         experiment = self._get_owned_experiment(experiment_id, current_user)
-        if experiment.status != ExperimentStatus.DRAFT:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Only draft experiments can be updated",
-            )
+        self._ensure_editable(experiment)
 
         before = self._serialize_experiment(experiment)
         updates = payload.model_dump(exclude_unset=True)
@@ -274,6 +361,7 @@ class ExperimentService:
         experiment.status = ExperimentStatus.SUBMITTED
         experiment.submitted_at = datetime.now(UTC)
         saved = self.experiments.save(experiment)
+        self._create_version(saved, current_user, change_note=None)
         self.audit.record_event(
             actor=current_user,
             entity_type="experiment_run",
@@ -281,6 +369,136 @@ class ExperimentService:
             action="submit",
             before_json=before,
             after_json=self._serialize_experiment(saved),
+        )
+        self.db.commit()
+        return ExperimentRead.model_validate(saved)
+
+    def save_version(
+        self,
+        experiment_id: UUID,
+        payload: ExperimentVersionCreateRequest,
+        current_user: User,
+    ) -> ExperimentRead:
+        """Finalize the current state of a submitted experiment as a new version."""
+        experiment = self._get_owned_experiment(experiment_id, current_user)
+        if experiment.status != ExperimentStatus.SUBMITTED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only submitted experiments can be saved as a new version",
+            )
+        validation_result = self.validation.validate_experiment(experiment)
+        if not validation_result.ok:
+            raise ExperimentValidationFailed(validation_result)
+
+        before = self._serialize_experiment(experiment)
+        experiment.submitted_at = datetime.now(UTC)
+        saved = self.experiments.save(experiment)
+        version = self._create_version(
+            saved,
+            current_user,
+            change_note=payload.change_note,
+        )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=saved.id,
+            action="save_version",
+            before_json=before,
+            after_json=self._serialize_experiment(saved),
+            reason=f"version {version.version_number}",
+        )
+        self.db.commit()
+        return ExperimentRead.model_validate(saved)
+
+    def list_versions(
+        self,
+        experiment_id: UUID,
+        current_user: User,
+    ) -> ExperimentVersionListResponse:
+        experiment = self._get_visible_experiment(experiment_id, current_user)
+        items = [
+            self._to_version_summary(version)
+            for version in self.versions.list_by_run(experiment.id)
+        ]
+        return ExperimentVersionListResponse(items=items, total=len(items))
+
+    def get_version(
+        self,
+        experiment_id: UUID,
+        version_number: int,
+        current_user: User,
+    ) -> ExperimentVersionRead:
+        experiment = self._get_visible_experiment(experiment_id, current_user)
+        version = self.versions.get_by_run_and_number(experiment.id, version_number)
+        if version is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Experiment version not found",
+            )
+        return ExperimentVersionRead(
+            **self._to_version_summary(version).model_dump(),
+            snapshot_json=version.snapshot_json,
+        )
+
+    def restore_version(
+        self,
+        experiment_id: UUID,
+        version_number: int,
+        current_user: User,
+    ) -> ExperimentRead:
+        """Load a previous version's snapshot back into the live editable record.
+
+        Restoring does not itself create a new version; the user reviews the
+        restored state and explicitly saves a new version when ready.
+        """
+        experiment = self._get_owned_experiment(experiment_id, current_user)
+        self._ensure_editable(experiment)
+        version = self.versions.get_by_run_and_number(experiment.id, version_number)
+        if version is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Experiment version not found",
+            )
+
+        snapshot = version.snapshot_json if isinstance(version.snapshot_json, dict) else {}
+        before = self._serialize_experiment(experiment)
+        self._apply_experiment_snapshot(experiment, snapshot.get("experiment", {}))
+
+        modules = snapshot.get("modules", {})
+        if isinstance(modules, dict):
+            for module_key_value, payload_json in modules.items():
+                try:
+                    module_key = ExperimentModuleKey(module_key_value)
+                except ValueError:
+                    continue
+                if not isinstance(payload_json, dict):
+                    continue
+                saved_module = self._upsert_module_payload_json(
+                    experiment_id=experiment.id,
+                    module_key=module_key,
+                    payload_json=payload_json,
+                )
+                if module_key == ExperimentModuleKey.SUBSTRATES:
+                    self.sample_service.sync_substrate_samples(
+                        experiment=experiment,
+                        current_user=current_user,
+                        substrates_payload=saved_module.payload_json,
+                    )
+                if module_key == ExperimentModuleKey.RESULT_SUMMARY:
+                    self._sync_result_summary_quality_label(
+                        experiment,
+                        saved_module.payload_json,
+                    )
+
+        saved = self.experiments.save(experiment)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=saved.id,
+            action="restore_version",
+            before_json=before,
+            after_json=self._serialize_experiment(saved),
+            reason=f"version {version_number}",
         )
         self.db.commit()
         return ExperimentRead.model_validate(saved)
@@ -560,11 +778,7 @@ class ExperimentService:
         current_user: User,
     ) -> ExperimentModulePayloadRead:
         experiment = self._get_owned_experiment(experiment_id, current_user)
-        if experiment.status != ExperimentStatus.DRAFT:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Only draft experiments can be updated",
-            )
+        self._ensure_editable(experiment)
 
         existing = self.module_payloads.get_by_run_and_key(experiment.id, module_key.value)
         before = self._serialize_module_payload(existing)
@@ -861,6 +1075,80 @@ class ExperimentService:
             ),
             "locked_at": experiment.locked_at.isoformat() if experiment.locked_at else None,
         }
+
+    def _ensure_editable(self, experiment: ExperimentRun) -> None:
+        """Allow edits to draft and submitted records; lock down locked/invalid ones."""
+        if experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Locked or invalid experiments cannot be edited",
+            )
+
+    def _build_version_snapshot(self, experiment: ExperimentRun) -> dict[str, Any]:
+        modules = {
+            item.module_key: normalize_module_payload(item.module_key, item.payload_json)
+            for item in self.module_payloads.list_by_run(experiment.id)
+        }
+        return {
+            "snapshot_version": "cvd_version_v1",
+            "experiment": self._serialize_experiment(experiment),
+            "modules": modules,
+        }
+
+    def _create_version(
+        self,
+        experiment: ExperimentRun,
+        current_user: User,
+        *,
+        change_note: str | None,
+    ) -> ExperimentVersion:
+        next_number = self.versions.max_version_number(experiment.id) + 1
+        entry = ExperimentVersion(
+            experiment_run_id=experiment.id,
+            version_number=next_number,
+            snapshot_json=self._build_version_snapshot(experiment),
+            change_note=change_note,
+            created_by_id=current_user.id,
+        )
+        return self.versions.create(entry)
+
+    def _to_version_summary(self, version: ExperimentVersion) -> ExperimentVersionSummary:
+        return ExperimentVersionSummary(
+            id=version.id,
+            version_number=version.version_number,
+            change_note=version.change_note,
+            created_by_id=version.created_by_id,
+            created_by_name=version.created_by.name if version.created_by else None,
+            created_at=version.created_at,
+        )
+
+    def _apply_experiment_snapshot(
+        self,
+        experiment: ExperimentRun,
+        experiment_snapshot: Any,
+    ) -> None:
+        if not isinstance(experiment_snapshot, dict):
+            return
+        if "experiment_type" in experiment_snapshot:
+            experiment.experiment_type = experiment_snapshot["experiment_type"]
+        if "material_system" in experiment_snapshot:
+            experiment.material_system = experiment_snapshot["material_system"]
+        if "objective" in experiment_snapshot:
+            experiment.objective = experiment_snapshot["objective"]
+        if "summary_result" in experiment_snapshot:
+            experiment.summary_result = experiment_snapshot["summary_result"]
+        experiment_date = experiment_snapshot.get("experiment_date")
+        if isinstance(experiment_date, str):
+            try:
+                experiment.experiment_date = date.fromisoformat(experiment_date)
+            except ValueError:
+                pass
+        quality_label = experiment_snapshot.get("quality_label")
+        if quality_label is not None:
+            try:
+                experiment.quality_label = QualityLabel(str(quality_label))
+            except ValueError:
+                pass
 
     def _serialize_recipe(self, recipe: Recipe) -> dict:
         return {

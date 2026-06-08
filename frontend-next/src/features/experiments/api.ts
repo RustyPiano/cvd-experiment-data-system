@@ -2,6 +2,7 @@ import { apiDownload, apiRequest } from '@/shared/api/client'
 import type {
   AuditEventListResponse,
   ControlledVocabularyListResponse,
+  ControlledVocabularyRead,
   ExperimentCreateRequest,
   ExperimentExportRead,
   ExperimentInvalidateRequest,
@@ -397,4 +398,142 @@ export function listActiveVocabularies(token: string, vocabKey: string) {
       token,
     },
   )
+}
+
+/**
+ * Contribute a user-typed value to a shared, user-extendable vocabulary
+ * (e.g. a material brand). Idempotent on the server: an existing value is
+ * returned as-is. Returns the canonical vocabulary entry.
+ */
+export function createVocabularyValue(
+  token: string,
+  payload: { vocab_key: string; value: string },
+) {
+  return apiRequest<ControlledVocabularyRead>(`/api/v1/vocabularies`, {
+    method: 'POST',
+    body: payload,
+    token,
+  })
+}
+
+export type ExperimentVersionSummary = {
+  id: string
+  version_number: number
+  change_note: string | null
+  created_by_id: string
+  created_by_name: string | null
+  created_at: string
+}
+
+export type ExperimentVersionRead = ExperimentVersionSummary & {
+  snapshot_json: Record<string, unknown>
+}
+
+export type ExperimentVersionListResponse = {
+  items: ExperimentVersionSummary[]
+  total: number
+}
+
+export function listExperimentVersions(token: string, experimentId: string) {
+  return apiRequest<ExperimentVersionListResponse>(
+    `/api/v1/experiments/${experimentId}/versions`,
+    { token },
+  )
+}
+
+export function getExperimentVersion(
+  token: string,
+  experimentId: string,
+  versionNumber: number,
+) {
+  return apiRequest<ExperimentVersionRead>(
+    `/api/v1/experiments/${experimentId}/versions/${versionNumber}`,
+    { token },
+  )
+}
+
+export function saveExperimentVersion(
+  token: string,
+  experimentId: string,
+  payload: { change_note?: string | null },
+) {
+  return apiRequest<ExperimentRead>(
+    `/api/v1/experiments/${experimentId}/versions`,
+    {
+      method: 'POST',
+      body: payload,
+      token,
+    },
+  )
+}
+
+export function restoreExperimentVersion(
+  token: string,
+  experimentId: string,
+  versionNumber: number,
+) {
+  return apiRequest<ExperimentRead>(
+    `/api/v1/experiments/${experimentId}/versions/${versionNumber}/restore`,
+    {
+      method: 'POST',
+      token,
+    },
+  )
+}
+
+export type ImportProfileInfo = {
+  key: string
+  display_name: string
+  description: string | null
+}
+
+export type ImportProfileListResponse = { profiles: ImportProfileInfo[] }
+
+export type ParsedExperimentDraft = {
+  source_row: number
+  run_level: Record<string, unknown>
+  module_payloads: Record<string, Record<string, unknown>>
+  warnings: string[]
+}
+
+export type ImportPreviewResponse = {
+  profile_key: string
+  drafts: ParsedExperimentDraft[]
+  global_warnings: string[]
+}
+
+export type ImportCommitResultItem = {
+  source_row: number
+  experiment_id: string
+  run_code: string
+}
+
+export type ImportCommitResponse = { created: ImportCommitResultItem[] }
+
+export function listImportProfiles(token: string) {
+  return apiRequest<ImportProfileListResponse>('/api/v1/imports/profiles', {
+    token,
+  })
+}
+
+export function previewImport(token: string, file: File, profileKey: string) {
+  const formData = new FormData()
+  formData.set('file', file)
+  formData.set('profile_key', profileKey)
+  return apiRequest<ImportPreviewResponse>('/api/v1/imports/preview', {
+    method: 'POST',
+    body: formData,
+    token,
+  })
+}
+
+export function commitImport(
+  token: string,
+  payload: { profile_key: string; drafts: ParsedExperimentDraft[] },
+) {
+  return apiRequest<ImportCommitResponse>('/api/v1/imports/commit', {
+    method: 'POST',
+    body: payload,
+    token,
+  })
 }

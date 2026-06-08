@@ -238,6 +238,68 @@ def test_update_vocabulary_rejects_duplicate_value(admin_user) -> None:
     assert update_response.json()["detail"] == "Vocabulary entry already exists"
 
 
+def test_user_can_add_brand_value_to_shared_list(active_user) -> None:
+    response = client.post(
+        "/api/v1/vocabularies",
+        json={"vocab_key": "precursor_brand", "value": "新品牌X"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 201
+    created = response.json()
+    assert created["vocab_key"] == "precursor_brand"
+    assert created["value"] == "新品牌X"
+    assert created["label_zh"] == "新品牌X"
+    assert created["is_active"] is True
+    assert created["metadata_json"]["source"] == "user"
+
+    list_response = client.get(
+        "/api/v1/vocabularies?vocab_key=precursor_brand",
+        headers=auth_headers(active_user.email),
+    )
+    values = {item["value"] for item in list_response.json()["items"]}
+    assert "新品牌X" in values
+
+
+def test_user_add_brand_value_is_idempotent(active_user) -> None:
+    payload = {"vocab_key": "substrate_brand", "value": "重复品牌"}
+    first = client.post(
+        "/api/v1/vocabularies",
+        json=payload,
+        headers=auth_headers(active_user.email),
+    )
+    second = client.post(
+        "/api/v1/vocabularies",
+        json={"vocab_key": "substrate_brand", "value": "  重复品牌  "},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] == second.json()["id"]
+
+    list_response = client.get(
+        "/api/v1/vocabularies?vocab_key=substrate_brand",
+        headers=auth_headers(active_user.email),
+    )
+    matches = [
+        item
+        for item in list_response.json()["items"]
+        if item["value"] == "重复品牌"
+    ]
+    assert len(matches) == 1
+
+
+def test_user_cannot_extend_non_whitelisted_vocabulary(active_user) -> None:
+    response = client.post(
+        "/api/v1/vocabularies",
+        json={"vocab_key": "material_system", "value": "FakeMaterial"},
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 403
+
+
 def test_non_admin_cannot_mutate_vocabulary_entries(active_user) -> None:
     response = client.post(
         "/api/v1/admin/vocabularies",

@@ -23,6 +23,11 @@ from app.schemas.experiment import (
     ExperimentUpdate,
 )
 from app.schemas.experiment_validation import ExperimentValidationResponse
+from app.schemas.experiment_version import (
+    ExperimentVersionCreateRequest,
+    ExperimentVersionListResponse,
+    ExperimentVersionRead,
+)
 from app.schemas.module_payload import (
     ExperimentModulePayloadListResponse,
     ExperimentModulePayloadRead,
@@ -249,6 +254,61 @@ def list_audit_events(
     current_user: CurrentUser,
 ) -> AuditEventListResponse:
     return ExperimentService(db).list_audit_events(experiment_id, current_user)
+
+
+@router.get("/{experiment_id}/versions", response_model=ExperimentVersionListResponse)
+def list_experiment_versions(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentVersionListResponse:
+    return ExperimentService(db).list_versions(experiment_id, current_user)
+
+
+@router.post(
+    "/{experiment_id}/versions",
+    response_model=ExperimentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def save_experiment_version(
+    experiment_id: UUID,
+    payload: ExperimentVersionCreateRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentRead:
+    try:
+        return ExperimentService(db).save_version(experiment_id, payload, current_user)
+    except ExperimentValidationFailed as exc:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=exc.result.model_dump(mode="json"),
+        )
+
+
+@router.get(
+    "/{experiment_id}/versions/{version_number}",
+    response_model=ExperimentVersionRead,
+)
+def get_experiment_version(
+    experiment_id: UUID,
+    version_number: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentVersionRead:
+    return ExperimentService(db).get_version(experiment_id, version_number, current_user)
+
+
+@router.post(
+    "/{experiment_id}/versions/{version_number}/restore",
+    response_model=ExperimentRead,
+)
+def restore_experiment_version(
+    experiment_id: UUID,
+    version_number: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentRead:
+    return ExperimentService(db).restore_version(experiment_id, version_number, current_user)
 
 
 @router.get("/{experiment_id}/setup-methods", response_model=SetupMethodsRead)

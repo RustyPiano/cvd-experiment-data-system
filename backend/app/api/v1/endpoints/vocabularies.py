@@ -12,6 +12,7 @@ from app.schemas.vocabulary import (
     ControlledVocabularyListResponse,
     ControlledVocabularyRead,
     ControlledVocabularyUpdate,
+    UserVocabularyCreate,
 )
 from app.services.vocabulary_service import VocabularyService
 
@@ -27,6 +28,20 @@ def list_active_vocabularies(
     vocab_key: Annotated[str | None, Query()] = None,
 ) -> ControlledVocabularyListResponse:
     return VocabularyService(db).list_active_vocabularies(vocab_key=vocab_key)
+
+
+@router.post(
+    "/vocabularies",
+    response_model=ControlledVocabularyRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_user_vocabulary_value(
+    payload: UserVocabularyCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ControlledVocabularyRead:
+    """Add a user-typed value to a shared, user-extendable vocabulary (e.g. a brand)."""
+    return VocabularyService(db).create_user_value(payload, current_user)
 
 
 @router.get("/admin/vocabularies", response_model=ControlledVocabularyListResponse)

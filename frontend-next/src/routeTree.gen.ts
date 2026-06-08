@@ -18,6 +18,7 @@ import { Route as AuthedAdminRouteImport } from './routes/_authed/_admin'
 import { Route as AuthedExperimentsIndexRouteImport } from './routes/_authed/experiments/index'
 import { Route as AuthedSamplesSampleIdRouteImport } from './routes/_authed/samples/$sampleId'
 import { Route as AuthedExperimentsNewRouteImport } from './routes/_authed/experiments/new'
+import { Route as AuthedExperimentsImportRouteImport } from './routes/_authed/experiments/import'
 import { Route as AuthedAdminVocabulariesRouteImport } from './routes/_authed/_admin/vocabularies'
 import { Route as AuthedAdminRecipesRouteImport } from './routes/_authed/_admin/recipes'
 import { Route as AuthedAdminFieldsRouteImport } from './routes/_authed/_admin/fields'
@@ -69,6 +70,11 @@ const AuthedExperimentsNewRoute = AuthedExperimentsNewRouteImport.update({
   path: '/experiments/new',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedExperimentsImportRoute = AuthedExperimentsImportRouteImport.update({
+  id: '/experiments/import',
+  path: '/experiments/import',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedAdminVocabulariesRoute = AuthedAdminVocabulariesRouteImport.update({
   id: '/vocabularies',
   path: '/vocabularies',
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/fields': typeof AuthedAdminFieldsRoute
   '/recipes': typeof AuthedAdminRecipesRoute
   '/vocabularies': typeof AuthedAdminVocabulariesRoute
+  '/experiments/import': typeof AuthedExperimentsImportRoute
   '/experiments/new': typeof AuthedExperimentsNewRoute
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/experiments/': typeof AuthedExperimentsIndexRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/fields': typeof AuthedAdminFieldsRoute
   '/recipes': typeof AuthedAdminRecipesRoute
   '/vocabularies': typeof AuthedAdminVocabulariesRoute
+  '/experiments/import': typeof AuthedExperimentsImportRoute
   '/experiments/new': typeof AuthedExperimentsNewRoute
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/experiments': typeof AuthedExperimentsIndexRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/_authed/_admin/fields': typeof AuthedAdminFieldsRoute
   '/_authed/_admin/recipes': typeof AuthedAdminRecipesRoute
   '/_authed/_admin/vocabularies': typeof AuthedAdminVocabulariesRoute
+  '/_authed/experiments/import': typeof AuthedExperimentsImportRoute
   '/_authed/experiments/new': typeof AuthedExperimentsNewRoute
   '/_authed/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/_authed/experiments/': typeof AuthedExperimentsIndexRoute
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/fields'
     | '/recipes'
     | '/vocabularies'
+    | '/experiments/import'
     | '/experiments/new'
     | '/samples/$sampleId'
     | '/experiments/'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/fields'
     | '/recipes'
     | '/vocabularies'
+    | '/experiments/import'
     | '/experiments/new'
     | '/samples/$sampleId'
     | '/experiments'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/_authed/_admin/fields'
     | '/_authed/_admin/recipes'
     | '/_authed/_admin/vocabularies'
+    | '/_authed/experiments/import'
     | '/_authed/experiments/new'
     | '/_authed/samples/$sampleId'
     | '/_authed/experiments/'
@@ -283,6 +295,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedExperimentsNewRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/experiments/import': {
+      id: '/_authed/experiments/import'
+      path: '/experiments/import'
+      fullPath: '/experiments/import'
+      preLoaderRoute: typeof AuthedExperimentsImportRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/_admin/vocabularies': {
       id: '/_authed/_admin/vocabularies'
       path: '/vocabularies'
@@ -357,6 +376,7 @@ interface AuthedRouteChildren {
   AuthedAdminRoute: typeof AuthedAdminRouteWithChildren
   AuthedSetupLibraryRoute: typeof AuthedSetupLibraryRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedExperimentsImportRoute: typeof AuthedExperimentsImportRoute
   AuthedExperimentsNewRoute: typeof AuthedExperimentsNewRoute
   AuthedSamplesSampleIdRoute: typeof AuthedSamplesSampleIdRoute
   AuthedExperimentsIndexRoute: typeof AuthedExperimentsIndexRoute
@@ -369,6 +389,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAdminRoute: AuthedAdminRouteWithChildren,
   AuthedSetupLibraryRoute: AuthedSetupLibraryRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedExperimentsImportRoute: AuthedExperimentsImportRoute,
   AuthedExperimentsNewRoute: AuthedExperimentsNewRoute,
   AuthedSamplesSampleIdRoute: AuthedSamplesSampleIdRoute,
   AuthedExperimentsIndexRoute: AuthedExperimentsIndexRoute,

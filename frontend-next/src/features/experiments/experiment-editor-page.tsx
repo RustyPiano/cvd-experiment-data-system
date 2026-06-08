@@ -44,6 +44,7 @@ import { ResultSummarySection } from './components/result-summary-section'
 import { SetupMethodsSection } from './components/setup-methods-section'
 import { SubstratesSection } from './components/substrates-section'
 import { ValidationSummary } from './components/validation-summary'
+import { VersionHistoryDialog } from './components/version-history-dialog'
 import type {
   EditorSectionKey,
   ModulePayloadMap,
@@ -133,11 +134,17 @@ function ExperimentEditorWorkspace({
     initialValues,
     onInheritanceConsumed,
   })
-  const editorDisabled = !editor.isDraft || editor.isSubmitting
+  const editorDisabled = !editor.isEditable || editor.isSubmitting
+  const [versionsOpen, setVersionsOpen] = useState(false)
   const materialSystemOptions = useActiveVocabularyOptions({
     accessToken,
     currentUserId,
     vocabKey: 'material_system',
+  })
+  const precursorBrandOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: 'precursor_brand',
   })
   const precursorMethodOptions = useActiveVocabularyOptions({
     accessToken,
@@ -296,12 +303,17 @@ function ExperimentEditorWorkspace({
                 查看差异
               </Button>
             ) : null}
+            {!editor.isDraft ? (
+              <Button variant="outline" onClick={() => setVersionsOpen(true)}>
+                版本历史
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={navigateToDetail}>
               返回详情
             </Button>
           </div>
         }
-        subtitle="各模块修改后自动保存，提交后不可再编辑。"
+        subtitle="各模块修改后自动保存；提交后仍可就地编辑，并可存为新版本。"
         title={`编辑 ${editor.experiment.run_code}`}
       />
       <ExperimentSourceBanner experiment={editor.experiment} />
@@ -438,6 +450,7 @@ function ExperimentEditorWorkspace({
                   }))
                   editor.scheduleAutosave()
                 }}
+                precursorBrandOptions={precursorBrandOptions}
                 precursorMethodOptions={precursorMethodOptions}
                 value={editor.values.precursors}
               />
@@ -539,6 +552,7 @@ function ExperimentEditorWorkspace({
               <CharacterizationSection
                 characterizationMethodOptions={characterizationMethodOptions}
                 disabled={editorDisabled}
+                experimentId={experimentId}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -576,10 +590,23 @@ function ExperimentEditorWorkspace({
         experiment={editor.experiment}
         saveDraftLoading={editor.hasSavingSections}
         isDraft={editor.isDraft}
+        isSubmitted={editor.isSubmitted}
+        onOpenVersions={() => setVersionsOpen(true)}
         onSaveDraft={editor.saveDraft}
         onSubmit={editor.submitDraft}
         saveSummary={editor.saveSummary}
         submitState={editor.submitState}
+      />
+      <VersionHistoryDialog
+        accessToken={accessToken}
+        currentUserId={currentUserId}
+        experimentId={experimentId}
+        isSubmitted={editor.isSubmitted}
+        isSubmitting={editor.isSubmitting}
+        open={versionsOpen}
+        onOpenChange={setVersionsOpen}
+        onRestored={() => window.location.reload()}
+        onSaveVersion={editor.saveNewVersion}
       />
     </div>
   )

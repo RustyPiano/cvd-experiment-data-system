@@ -16,6 +16,8 @@ export function EditorActionBar({
   completionSummary,
   experiment,
   isDraft,
+  isSubmitted,
+  onOpenVersions,
   onSaveDraft,
   onSubmit,
   saveDraftLoading,
@@ -25,6 +27,8 @@ export function EditorActionBar({
   completionSummary: CompletionSummary
   experiment: ExperimentRead
   isDraft: boolean
+  isSubmitted: boolean
+  onOpenVersions: () => void
   onSaveDraft: () => void
   onSubmit: () => void
   saveDraftLoading: boolean
@@ -49,9 +53,13 @@ export function EditorActionBar({
               {completionText}
             </span>
           </div>
-          {!isDraft ? (
+          {isSubmitted ? (
             <p className="text-sm text-muted-foreground">
-              当前实验已离开 draft 状态，编辑器保持只读。
+              实验已提交，可继续就地编辑；改动会在“存为新版本”时固化为一个历史版本。
+            </p>
+          ) : !isDraft ? (
+            <p className="text-sm text-muted-foreground">
+              当前实验已锁定或作废，编辑器保持只读。
             </p>
           ) : null}
         </div>
@@ -76,6 +84,22 @@ export function EditorActionBar({
                 <Loader2 className="size-4 animate-spin" />
               ) : null}
               提交实验
+            </Button>
+          </div>
+        ) : isSubmitted ? (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => onOpenVersions()}>
+              版本历史
+            </Button>
+            <Button
+              variant={isSubmitDeemphasized ? 'outline' : 'default'}
+              disabled={submitState.status === 'submitting'}
+              onClick={() => onOpenVersions()}
+            >
+              {submitState.status === 'submitting' ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              存为新版本
             </Button>
           </div>
         ) : null}

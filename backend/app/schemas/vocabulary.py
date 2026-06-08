@@ -15,6 +15,13 @@ class ControlledVocabularyCreate(BaseModel):
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
+class UserVocabularyCreate(BaseModel):
+    """Payload for a normal user contributing a new value to a shared vocabulary."""
+
+    vocab_key: str = Field(min_length=1, max_length=64)
+    value: str = Field(min_length=1, max_length=128)
+
+
 class ControlledVocabularyUpdate(BaseModel):
     value: str | None = Field(default=None, max_length=128)
     label_zh: str | None = Field(default=None, max_length=128)

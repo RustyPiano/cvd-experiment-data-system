@@ -10,6 +10,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import dayjs from 'dayjs'
 import {
   Plus,
+  Upload,
   MoreHorizontal,
   ArrowUpDown,
   ArrowUp,
@@ -690,12 +691,20 @@ export function ExperimentListPage() {
           </p>
         </div>
         {canCreate && (
-          <Button asChild>
-            <Link to="/experiments/new">
-              <Plus className="mr-1 size-4" />
-              新建实验 (N)
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link to="/experiments/import">
+                <Upload className="mr-1 size-4" />
+                导入 Excel
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link to="/experiments/new">
+                <Plus className="mr-1 size-4" />
+                新建实验 (N)
+              </Link>
+            </Button>
+          </div>
         )}
       </div>
 

@@ -296,7 +296,9 @@ def test_patch_experiment_date_rejects_null(active_user) -> None:
     assert patch_response.json()["detail"] == "experiment_date cannot be null"
 
 
-def test_patch_experiment_date_rejects_non_draft(active_user) -> None:
+def test_patch_submitted_experiment_is_allowed_for_in_place_edit(active_user) -> None:
+    # Submitted records remain editable in place (versioning model): a patch
+    # succeeds rather than being rejected with 409.
     create_response = client.post(
         "/api/v1/experiments",
         json={
@@ -321,7 +323,8 @@ def test_patch_experiment_date_rejects_non_draft(active_user) -> None:
         headers=auth_headers(active_user.email),
     )
 
-    assert patch_response.status_code == 409
+    assert patch_response.status_code == 200
+    assert patch_response.json()["experiment_date"] == "2026-04-20"
 
 
 def test_patch_experiment_preserves_unset_fields(active_user) -> None:

@@ -289,10 +289,10 @@ class FileAssetService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
             )
-        if experiment.status != ExperimentStatus.DRAFT:
+        if experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Only draft experiments can be updated",
+                detail="Locked or invalid experiments cannot be edited",
             )
         return experiment
 

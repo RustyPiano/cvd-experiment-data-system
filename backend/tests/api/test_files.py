@@ -332,6 +332,77 @@ def test_upload_file_rejects_locked_experiment(active_user) -> None:
     assert response.status_code == 409
 
 
+def test_upload_file_allowed_on_submitted_experiment(active_user) -> None:
+    # Characterization files can be attached to a submitted (still-editable)
+    # experiment, not only to drafts.
+    experiment_id = create_experiment(active_user.email, objective="Submitted file upload")
+
+    client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/precursors",
+        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
+        headers=auth_headers(active_user.email),
+    )
+    client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
+        json={
+            "payload_json": {
+                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
+                "placements": [],
+                "zones": [
+                    {
+                        "zone_key": "zone_1",
+                        "temperature_program": [
+                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
+                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
+                        ],
+                        "note": "",
+                    },
+                ],
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
+        json={
+            "payload_json": {
+                "segments": [
+                    {
+                        "stage": "growth",
+                        "start_min": 0,
+                        "end_min": 45,
+                        "gas": "Ar",
+                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
+                        "flow_sccm": 80,
+                    }
+                ]
+            }
+        },
+        headers=auth_headers(active_user.email),
+    )
+    create_confirmed_setup_methods(
+        client,
+        experiment_id=experiment_id,
+        headers=auth_headers(active_user.email),
+    )
+
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    assert submit_response.status_code == 200
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"method": "OM", "asset_role": "characterization_file"},
+        files={"file": ("om.txt", b"image-bytes", "text/plain")},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["method"] == "OM"
+
+
 def test_deleted_file_keeps_storage_blob_for_soft_delete(active_user) -> None:
     experiment_id = create_experiment(active_user.email, objective="Storage cleanup")
 

@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CreatableVocabularyCombobox } from './creatable-vocabulary-combobox'
 import { VocabularyCombobox } from './vocabulary-combobox'
 
 const substrateRoles = [
@@ -177,7 +178,7 @@ export function SubstratesSection({
 
               <div className="editor-field">
                 <Label>{`品牌`}</Label>
-                <VocabularyCombobox
+                <CreatableVocabularyCombobox
                   ariaLabel={`品牌 ${roleConfig.title}`}
                   disabled={disabled}
                   onChange={(nextValue) =>
@@ -186,6 +187,7 @@ export function SubstratesSection({
                   options={substrateBrandOptions}
                   placeholder="选择或输入品牌"
                   value={item.brand}
+                  vocabKey="substrate_brand"
                 />
               </div>
 

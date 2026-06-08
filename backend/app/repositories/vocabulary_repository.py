@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.vocabulary import ControlledVocabulary
@@ -40,6 +40,12 @@ class VocabularyRepository:
             ControlledVocabulary.is_active.is_(True),
         )
         return self.db.scalar(statement)
+
+    def max_sort_order(self, vocab_key: str) -> int:
+        statement = select(func.max(ControlledVocabulary.sort_order)).where(
+            ControlledVocabulary.vocab_key == vocab_key,
+        )
+        return self.db.scalar(statement) or 0
 
     def list_entries(
         self,

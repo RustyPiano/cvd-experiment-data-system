@@ -12,8 +12,13 @@ from app.schemas.vocabulary import (
     ControlledVocabularyListResponse,
     ControlledVocabularyRead,
     ControlledVocabularyUpdate,
+    UserVocabularyCreate,
 )
 from app.services.audit_service import AuditService
+
+# Vocabularies a normal (non-admin) user may extend by typing a new value.
+# Keep this narrow so user input cannot pollute controlled enums.
+USER_EXTENDABLE_VOCAB_KEYS = frozenset({"substrate_brand", "precursor_brand"})
 
 
 class VocabularyService:
@@ -70,6 +75,66 @@ class VocabularyService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Vocabulary entry already exists",
             ) from exc
+        return ControlledVocabularyRead.model_validate(saved)
+
+    def create_user_value(
+        self,
+        payload: UserVocabularyCreate,
+        current_user: User,
+    ) -> ControlledVocabularyRead:
+        """Idempotently add a user-typed value to a shared, user-extendable vocabulary.
+
+        The new value is immediately active and visible to everyone. Re-submitting an
+        existing value is a no-op (returns it, reactivating it if it was disabled).
+        """
+        vocab_key = payload.vocab_key
+        value = payload.value.strip()
+        if not value:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Vocabulary value cannot be empty",
+            )
+        if vocab_key not in USER_EXTENDABLE_VOCAB_KEYS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Vocabulary '{vocab_key}' cannot be extended by users",
+            )
+
+        existing = self.vocabularies.get_by_key_value(vocab_key, value)
+        if existing is not None:
+            if not existing.is_active:
+                existing.is_active = True
+                self.vocabularies.save(existing)
+                self.db.commit()
+            return ControlledVocabularyRead.model_validate(existing)
+
+        entry = ControlledVocabulary(
+            vocab_key=vocab_key,
+            value=value,
+            label_zh=value,
+            label_en=value,
+            sort_order=self.vocabularies.max_sort_order(vocab_key) + 1,
+            is_active=True,
+            metadata_json={"source": "user", "created_by": str(current_user.id)},
+        )
+        try:
+            saved = self.vocabularies.create(entry)
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="controlled_vocabulary",
+                entity_id=saved.id,
+                action="create",
+                before_json=None,
+                after_json=self._serialize_vocabulary(saved),
+            )
+            self.db.commit()
+        except IntegrityError:
+            # Lost a race against a concurrent insert of the same value; return the winner.
+            self.db.rollback()
+            winner = self.vocabularies.get_by_key_value(vocab_key, value)
+            if winner is None:
+                raise
+            return ControlledVocabularyRead.model_validate(winner)
         return ControlledVocabularyRead.model_validate(saved)
 
     def update_vocabulary(

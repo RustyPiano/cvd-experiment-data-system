@@ -12,6 +12,7 @@ import type {
 import {
   createSetupMethodsFromLibrary,
   listExperimentModules,
+  saveExperimentVersion,
   submitExperiment,
   updateExperiment,
   upsertExperimentModule,
@@ -762,7 +763,9 @@ export function useExperimentEditor({
   )
 
   const scheduleAutosave = useCallback(() => {
-    if (experiment.status !== 'draft') {
+    // Draft and submitted records are both editable; edits to a submitted record
+    // autosave into the live working copy and are only frozen on "save version".
+    if (experiment.status !== 'draft' && experiment.status !== 'submitted') {
       return
     }
 
@@ -782,7 +785,7 @@ export function useExperimentEditor({
   }, [enqueueSave, experiment.status, getDirtySections, persistDirtySections])
 
   const saveDraft = useCallback(async () => {
-    if (experiment.status !== 'draft') {
+    if (experiment.status !== 'draft' && experiment.status !== 'submitted') {
       return
     }
 
@@ -796,7 +799,7 @@ export function useExperimentEditor({
 
   const applySetupLibrary = useCallback(
     async (setupLibraryId: string) => {
-      if (experiment.status !== 'draft') {
+      if (experiment.status !== 'draft' && experiment.status !== 'submitted') {
         return
       }
 
@@ -1124,8 +1127,10 @@ export function useExperimentEditor({
       Object.values(sectionStates).some((state) => state.status === 'error'),
     [sectionStates],
   )
+  const isEditable =
+    experiment.status === 'draft' || experiment.status === 'submitted'
   const shouldWarnOnLeave =
-    experiment.status === 'draft' && (hasSavingSections || hasDirtyChanges)
+    isEditable && (hasSavingSections || hasDirtyChanges)
   const leaveWarning = hasSavingSections
     ? '仍有区块正在保存，确认离开当前编辑页吗？'
     : hasSaveErrors && hasDirtyChanges
@@ -1257,10 +1262,114 @@ export function useExperimentEditor({
     resetSectionStates,
   ])
 
+  const saveNewVersion = useCallback(
+    async (changeNote?: string | null) => {
+      if (experiment.status !== 'submitted') {
+        return false
+      }
+
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+
+      setSubmitState({ status: 'submitting', message: null })
+      setValidationResult(null)
+
+      try {
+        const forceSaveSections: EditorSectionKey[] =
+          shouldSanitizeSubstratesBeforeSubmit(valuesRef.current.substrates)
+            ? ['substrates']
+            : []
+        const saveFailed = await enqueueSave(() =>
+          persistDirtySections(valuesRef.current, forceSaveSections),
+        )
+
+        if (
+          saveFailed ||
+          Object.values(sectionStatesRef.current).some(
+            (state) => state.status === 'error',
+          )
+        ) {
+          setSubmitState({
+            status: 'error',
+            message: '请先修正保存失败的区块后再存为新版本。',
+          })
+          return false
+        }
+
+        const validation = await validateExperiment(accessToken, experimentId)
+        setValidationResult(
+          shouldShowValidationResult(validation) ? validation : null,
+        )
+        if (validation.errors.length > 0) {
+          setSubmitState({
+            status: 'error',
+            message: '请先处理校验错误后再存为新版本。',
+          })
+          return false
+        }
+        if (getDirtySections(valuesRef.current).length > 0) {
+          setSubmitState({
+            status: 'error',
+            message: '检测到校验后仍有未保存修改，请等待自动保存后再试。',
+          })
+          setHasDirtyChanges(true)
+          return false
+        }
+
+        const updatedExperiment = await saveExperimentVersion(
+          accessToken,
+          experimentId,
+          { change_note: changeNote?.trim() ? changeNote.trim() : null },
+        )
+        setExperiment(updatedExperiment)
+        queryClient.setQueryData(
+          ['experiments', 'detail', currentUserId, experimentId],
+          updatedExperiment,
+        )
+        queryClient.setQueryData(
+          ['experiments', 'editor', currentUserId, experimentId],
+          updatedExperiment,
+        )
+        await queryClient.invalidateQueries({
+          queryKey: ['experiments', 'versions', currentUserId, experimentId],
+        })
+        resetSectionStates()
+        setHasDirtyChanges(false)
+        setSubmitState({ status: 'idle', message: null })
+        return true
+      } catch (error) {
+        if (error instanceof HttpError && isValidationResponse(error.payload)) {
+          setValidationResult(error.payload)
+        }
+        setSubmitState({
+          status: 'error',
+          message: resolveErrorMessage(error, '存为新版本失败'),
+        })
+        return false
+      }
+    },
+    [
+      accessToken,
+      currentUserId,
+      experiment.status,
+      experimentId,
+      getDirtySections,
+      enqueueSave,
+      persistDirtySections,
+      queryClient,
+      resetSectionStates,
+    ],
+  )
+
   return {
     experiment,
     leaveWarning,
     isDraft: experiment.status === 'draft',
+    isEditable,
+    isSubmitted: experiment.status === 'submitted',
+    saveNewVersion,
     isSubmitting: submitState.status === 'submitting',
     shouldWarnOnLeave,
     inheritanceError,
