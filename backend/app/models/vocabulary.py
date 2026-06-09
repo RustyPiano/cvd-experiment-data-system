@@ -26,6 +26,9 @@ class ControlledVocabulary(Base):
     )
     vocab_key: Mapped[str] = mapped_column(String(64), index=True)
     value: Mapped[str] = mapped_column(String(128))
+    # 同一 vocab_key 内的分组键（如 substrate_type 的 silicon/sapphire）；
+    # 为空表示未分组，列表中排在已分组之后。
+    group_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     label_zh: Mapped[str] = mapped_column(String(128))
     label_en: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

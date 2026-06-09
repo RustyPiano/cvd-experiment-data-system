@@ -37,6 +37,7 @@ class ControlledVocabularyRead(BaseModel):
     id: UUID
     vocab_key: str
     value: str
+    group_key: str | None
     label_zh: str
     label_en: str | None
     sort_order: int
