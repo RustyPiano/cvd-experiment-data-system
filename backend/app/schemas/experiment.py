@@ -120,6 +120,8 @@ class ExperimentAnalysisExperimentRow(ExperimentAnalysisSetupContext):
     status: str
     quality_label: str
     summary_result: str | None
+    failure_modes: list[str] | None
+    failure_detail: str | None
     invalid_reason: str | None
     created_at: datetime
     updated_at: datetime

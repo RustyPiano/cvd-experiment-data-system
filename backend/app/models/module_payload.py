@@ -122,6 +122,9 @@ def normalize_module_payload(
     if module_key == ExperimentModuleKey.RESULT_SUMMARY.value:
         payload.setdefault("quality_label", "unknown")
         payload.setdefault("next_step", "")
+        # 失败模型字段：未填表示「未记录/不适用」(failure_modes=None)。
+        payload.setdefault("failure_modes", None)
+        payload.setdefault("failure_detail", "")
         return payload
 
     return payload

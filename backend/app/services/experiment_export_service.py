@@ -127,6 +127,7 @@ class ExperimentExportService:
             **setup_context,
         }
         basic_info_payload = payloads.get("basic_info", {})
+        result_summary_payload = payloads.get("result_summary", {})
 
         return ExperimentAnalysisExportRead(
             export_version="cvd_analysis_v1",
@@ -145,6 +146,8 @@ class ExperimentExportService:
                 status=export_payload.experiment.status,
                 quality_label=export_payload.experiment.quality_label,
                 summary_result=export_payload.experiment.summary_result,
+                failure_modes=result_summary_payload.get("failure_modes"),
+                failure_detail=result_summary_payload.get("failure_detail"),
                 invalid_reason=export_payload.experiment.invalid_reason,
                 created_at=export_payload.experiment.created_at,
                 updated_at=export_payload.experiment.updated_at,

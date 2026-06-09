@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CVD-2D 工艺数据标准 v0.1 — 可视化审阅</title>
+    <style>
+      :root {
+        --bg: #f7f8fa;
+        --surface: #ffffff;
+        --ink: #1a1d24;
+        --ink-soft: #5b6472;
+        --ink-faint: #8a93a3;
+        --line: #e6e9ef;
+        --line-strong: #d3d8e2;
+        --accent: #2f6f8f;
+        --accent-soft: #e8f1f5;
+        --req: #b4540a;
+        --req-soft: #fdf0e6;
+        --new: #2f7d54;
+        --new-soft: #e7f4ec;
+        --warn: #9a6a00;
+        --warn-soft: #fbf3df;
+        --vocab: #5a4b8a;
+        --vocab-soft: #efebf8;
+        --radius: 10px;
+        --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--accent); text-decoration: none; }
+
+      /* ---------- layout ---------- */
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+      header.hero {
+        background: linear-gradient(180deg, #fff 0%, #fbfcfd 100%);
+        border-bottom: 1px solid var(--line);
+      }
+      .hero-inner { padding: 38px 0 30px; }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0 0 10px;
+      }
+      h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.01em; font-weight: 650; }
+      .hero p { color: var(--ink-soft); margin: 0; max-width: 760px; font-size: 15px; }
+      .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 12.5px; padding: 4px 11px; border-radius: 999px;
+        border: 1px solid var(--line-strong); background: #fff; color: var(--ink-soft);
+      }
+      .pill.draft { background: var(--warn-soft); border-color: #efdfae; color: var(--warn); font-weight: 600; }
+      .pill.ver { font-family: var(--mono); }
+
+      /* ---------- nav ---------- */
+      nav.tabs {
+        position: sticky; top: 0; z-index: 20;
+        background: rgba(255,255,255,0.92);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--line);
+      }
+      .tabs-inner { display: flex; gap: 4px; overflow-x: auto; padding: 8px 0; }
+      .tab {
+        white-space: nowrap; font-size: 13.5px; padding: 7px 13px; border-radius: 8px;
+        color: var(--ink-soft); cursor: pointer; border: 1px solid transparent; background: none;
+        font-family: inherit;
+      }
+      .tab:hover { background: var(--bg); color: var(--ink); }
+      .tab.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+      /* ---------- stats ---------- */
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 12px; margin: 26px 0 8px; }
+      .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+      .stat .n { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
+      .stat .l { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+      .stat.req .n { color: var(--req); }
+      .stat.warn .n { color: var(--warn); }
+      .stat.new .n { color: var(--new); }
+
+      section.block { padding: 30px 0; border-top: 1px solid var(--line); }
+      section.block:first-of-type { border-top: none; }
+      .block h2 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
+      .block .sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 18px; max-width: 820px; }
+
+      /* ---------- toolbar ---------- */
+      .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+      .search {
+        flex: 1; min-width: 220px; padding: 9px 13px; border: 1px solid var(--line-strong);
+        border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff; color: var(--ink);
+      }
+      .search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+      .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+      .fbtn {
+        font-size: 12.5px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line-strong);
+        background: #fff; color: var(--ink-soft); cursor: pointer; font-family: inherit;
+      }
+      .fbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+      /* ---------- module card ---------- */
+      .mod { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+      .mod-head { display: flex; align-items: baseline; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+      .mod-head .key { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+      .mod-head .zh { font-weight: 600; font-size: 15.5px; }
+      .mod-head .en { color: var(--ink-faint); font-size: 13px; }
+      .mod-head .shape { margin-left: auto; font-size: 11.5px; padding: 3px 9px; border-radius: 6px; background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
+      .mod-desc { padding: 4px 18px 0; color: var(--ink-soft); font-size: 13px; }
+
+      table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+      thead th { text-align: left; font-weight: 600; color: var(--ink-faint); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+      tbody td { padding: 9px 18px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      tbody tr:last-child td { border-bottom: none; }
+      tbody tr.nested td:first-child { padding-left: 34px; }
+      tbody tr.nested { background: #fcfcfd; }
+      .fkey { font-family: var(--mono); font-size: 12.5px; }
+      .nested .fkey::before { content: "└ "; color: var(--ink-faint); }
+      .flabel { color: var(--ink-soft); font-size: 12.5px; }
+
+      .tag { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+      .t-type { background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); font-family: var(--mono); }
+      .t-unit { background: var(--accent-soft); color: var(--accent); font-family: var(--mono); }
+      .t-req { background: var(--req-soft); color: var(--req); font-weight: 600; }
+      .t-vocab { background: var(--vocab-soft); color: var(--vocab); font-family: var(--mono); cursor: help; }
+      .t-drift { background: var(--warn-soft); color: var(--warn); font-weight: 600; cursor: help; }
+      .t-new { background: var(--new-soft); color: var(--new); font-weight: 600; }
+      .muted { color: var(--ink-faint); }
+
+      /* ---------- outcome / failure ---------- */
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 12px; margin: 6px 0 20px; }
+      .ocard { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 15px; background: var(--surface); }
+      .ocard .ck { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+      .ocard.success .ck { color: var(--new); }
+      .ocard.partial .ck { color: var(--warn); }
+      .ocard.failed .ck { color: var(--req); }
+      .ocard.aborted .ck { color: var(--ink-soft); }
+      .ocard.unknown .ck { color: var(--ink-faint); }
+      .ocard p { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); }
+      .chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 4px 0 8px; }
+      .chip { font-size: 12.5px; padding: 5px 11px; border-radius: 7px; background: var(--surface); border: 1px solid var(--line-strong); }
+      .chip b { font-family: var(--mono); font-weight: 600; color: var(--ink); }
+      .callout { border-left: 3px solid var(--req); background: var(--req-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; color: #6b3408; margin-top: 8px; }
+
+      /* ---------- vocab ---------- */
+      .vrow { padding: 13px 0; border-bottom: 1px solid var(--line); }
+      .vrow:last-child { border-bottom: none; }
+      .vkey { font-family: var(--mono); font-size: 13px; color: var(--vocab); font-weight: 600; }
+      .vext { font-size: 11px; color: var(--new); border: 1px solid #bfe0cc; background: var(--new-soft); padding: 1px 7px; border-radius: 5px; margin-left: 8px; }
+      .vvals { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+      .vval { font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); font-family: var(--mono); }
+
+      /* ---------- drift ---------- */
+      .drift { display: flex; gap: 13px; padding: 14px 16px; border: 1px solid #efdfae; background: var(--warn-soft); border-radius: var(--radius); margin-bottom: 10px; }
+      .drift .id { font-family: var(--mono); font-weight: 700; color: var(--warn); flex-shrink: 0; }
+      .drift .d-body { font-size: 13.5px; }
+      .drift .d-title { font-weight: 600; }
+      .drift .d-fix { color: var(--ink-soft); margin-top: 3px; }
+      .drift .d-fix b { color: var(--new); }
+
+      /* ---------- principles / roadmap ---------- */
+      .plist { display: grid; gap: 10px; }
+      .pitem { display: flex; gap: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+      .pitem .pn { font-family: var(--mono); font-weight: 700; color: var(--accent); flex-shrink: 0; }
+      .pitem .pt { font-weight: 600; }
+      .pitem .pd { color: var(--ink-soft); font-size: 13.5px; margin-top: 2px; }
+      .road { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 12px; }
+      .road .rc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px; }
+      .road .rc h4 { margin: 0 0 8px; font-size: 14px; }
+      .road .rc.now h4 { color: var(--accent); }
+      .road ul { margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 13px; }
+      .road li { margin: 4px 0; }
+
+      .flow { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; overflow-x: auto; white-space: pre; line-height: 1.7; }
+
+      footer { padding: 30px 0 60px; color: var(--ink-faint); font-size: 12.5px; border-top: 1px solid var(--line); }
+      .hidden { display: none !important; }
+      mark { background: #fff2a8; color: inherit; padding: 0 1px; border-radius: 2px; }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="wrap hero-inner">
+        <p class="eyebrow">Standard Specification · Review Build</p>
+        <h1>CVD-2D 工艺数据标准</h1>
+        <p>面向二维材料 CVD 生长的「工艺参数 → 结果(含失败)」标准化数据规范。本页是 v0.1 草案的可视化呈现,供直观理解与审阅;字段、单位、词表均由现有系统逐字段审阅得出,非凭空设计。</p>
+        <div class="badges">
+          <span class="pill draft">● DRAFT 草案</span>
+          <span class="pill ver">v0.1.0</span>
+          <span class="pill ver">schema · cvd_v1</span>
+          <span class="pill">对齐 FAIR</span>
+          <span class="pill">10 模块</span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <div class="wrap tabs-inner" id="tabs"></div>
+    </nav>
+
+    <main class="wrap" id="app"></main>
+
+    <footer class="wrap">
+      CVD-2D Process Data Standard · v0.1.0 (DRAFT) · 本可视化与配套规范文档
+      <code>cvd-2d-process-data-standard-v0.1.md</code> 同源。审阅通过后,§ 漂移收敛 与 § 结果/失败模型 将作为 v0.1 首批实现项。
+    </footer>
+
+    <script>
+      // ---------------- DATA (源自系统 field_definitions + Pydantic + 受控词表种子) ----------------
+      const REQ = true;
+      const modules = [
+        { key:"basic_info", zh:"基础信息", en:"Basic Info", shape:"对象", desc:"操作人、实验类型、材料体系、日期、目的。",
+          fields:[
+            {k:"operator_id", zh:"操作人", en:"Operator", t:"select", req:REQ, vocab:"(用户)"},
+            {k:"experiment_type", zh:"实验类型", en:"Experiment Type", t:"select", req:REQ},
+            {k:"material_system", zh:"材料体系", en:"Material System", t:"select", req:REQ, vocab:"material_system"},
+            {k:"experiment_date", zh:"实验日期", en:"Experiment Date", t:"date", req:REQ},
+            {k:"objective", zh:"实验目的", en:"Objective", t:"textarea"},
+            {k:"recipe_id", zh:"来源 Recipe", en:"Source Recipe", t:"select"},
+            {k:"layer_count", zh:"目标层数", en:"Layer Count", t:"text", vocab:"layer_count", drift:"D4：Pydantic 有此字段，字段字典缺失，待补"},
+          ]},
+        { key:"environment", zh:"环境条件", en:"Environment", shape:"对象", desc:"实验时的环境条件。",
+          fields:[
+            {k:"indoor_temperature_C", zh:"室内温度", en:"Indoor Temperature", t:"number", u:"℃"},
+            {k:"indoor_humidity_percent", zh:"室内湿度", en:"Indoor Humidity", t:"number", u:"%"},
+            {k:"sample_env", zh:"样品环境", en:"Sample Environment", t:"select", vocab:"sample_env"},
+            {k:"abnormal_note", zh:"异常备注", en:"Abnormal Note", t:"textarea"},
+          ]},
+        { key:"precheck", zh:"预检查", en:"Precheck", shape:"对象", desc:"开炉前的密封、清洁与污染检查。",
+          fields:[
+            {k:"seal_intact", zh:"密封完好", en:"Seal Intact", t:"boolean"},
+            {k:"hood_clean", zh:"通风橱清洁", en:"Hood Clean", t:"boolean"},
+            {k:"flange_blocked", zh:"法兰口阻塞", en:"Flange Blocked", t:"boolean"},
+            {k:"boat_contamination_level", zh:"舟污染", en:"Boat Contamination", t:"boolean"},
+            {k:"tube_contamination_level", zh:"管污染", en:"Tube Contamination", t:"boolean"},
+            {k:"risk_note", zh:"风险备注", en:"Risk Note", t:"textarea"},
+          ]},
+        { key:"precursors", zh:"前驱体", en:"Precursors", shape:"数组 items[]", desc:"每种前驱体一条记录。",
+          fields:[
+            {k:"species", zh:"物种", en:"Species", t:"text"},
+            {k:"brand", zh:"品牌", en:"Brand", t:"text", vocab:"precursor_brand"},
+            {k:"concentration", zh:"浓度", en:"Concentration", t:"number"},
+            {k:"concentration_unit", zh:"浓度单位", en:"Concentration Unit", t:"text"},
+            {k:"method", zh:"制备方法", en:"Preparation Method", t:"select", vocab:"precursor_method"},
+            {k:"melting_temperature_C", zh:"熔融温度", en:"Melting Temperature", t:"number", u:"℃"},
+            {k:"spin_speed_rpm", zh:"旋涂转速", en:"Spin Speed", t:"number", u:"rpm"},
+            {k:"spin_time_s", zh:"旋涂时间", en:"Spin Time", t:"number", u:"s", drift:"D5：由迁移 0018 补入，确认字段字典已含"},
+            {k:"pre_spin_speed_rpm", zh:"预旋涂转速", en:"Pre-spin Speed", t:"number", u:"rpm"},
+            {k:"pre_spin_time_s", zh:"预旋涂时间", en:"Pre-spin Time", t:"number", u:"s", drift:"D5：同上"},
+            {k:"preparation_time_min", zh:"制备时长", en:"Preparation Time", t:"number", u:"min"},
+            {k:"mass_mg", zh:"质量", en:"Mass", t:"number", u:"mg"},
+            {k:"batch_no", zh:"批次号", en:"Batch No", t:"text"},
+          ]},
+        { key:"substrates", zh:"基底", en:"Substrates", shape:"数组 items[]", desc:"每片基底一条，可生成对应样品记录。",
+          fields:[
+            {k:"role", zh:"角色", en:"Role", t:"select", vocab:"substrate_role"},
+            {k:"type", zh:"类型", en:"Type", t:"select", vocab:"substrate_type"},
+            {k:"brand", zh:"品牌", en:"Brand", t:"text", vocab:"substrate_brand"},
+            {k:"size_mm", zh:"尺寸", en:"Size", t:"text→数值", u:"mm", vocab:"substrate_size", drift:"D6：当前为字符串，无法数值分析，待改结构化数值"},
+            {k:"treatment_method", zh:"处理方法", en:"Treatment Method", t:"select", vocab:"substrate_treatment_method"},
+            {k:"position_mm", zh:"位置", en:"Position", t:"number", u:"mm"},
+            {k:"treatment_params", zh:"处理参数(嵌套)", en:"Treatment Params", t:"object", drift:"D1：字段字典是扁平 treatment_*，运行时是嵌套 treatment_params{}，待统一为嵌套"},
+            {k:"temperature_C", zh:"处理温度", en:"Treatment Temp", t:"number", u:"℃", nested:true},
+            {k:"duration_min", zh:"处理时长", en:"Treatment Duration", t:"number", u:"min", nested:true},
+            {k:"power_W", zh:"处理功率", en:"Treatment Power", t:"number", u:"W", nested:true},
+            {k:"gas", zh:"处理气体", en:"Treatment Gas", t:"text", nested:true},
+          ]},
+        { key:"furnace_program", zh:"炉温程序", en:"Furnace Program", shape:"对象 + 数组", desc:"炉信息、前驱体放置、各温区升温程序。",
+          fields:[
+            {k:"furnace_info", zh:"炉子信息", en:"Furnace Info", t:"object", req:REQ, drift:"D2：field_type 'object' 不在类型枚举中，待补 OBJECT 或改型", note:"zones_count · model · initial_temperatures_C{}"},
+            {k:"placements", zh:"前驱体放置", en:"Placements", t:"array", note:"每条：precursor_index · zone_key · position_cm · note"},
+            {k:"zones", zh:"温区程序", en:"Zones", t:"array", req:REQ, note:"每条：zone_key · temperature_program[] · note"},
+            {k:"temperature_program[]", zh:"升温节点", en:"Temp Program Nodes", t:"array", nested:true, note:"每节点：node_index · time_min · temperature_C · note"},
+          ]},
+        { key:"gas_program", zh:"气体程序", en:"Gas Program", shape:"对象 + 数组", desc:"洗炉气体与各气体段（含混合组分）。",
+          fields:[
+            {k:"pre_washing_gas", zh:"洗炉气体", en:"Pre-washing Gas", t:"select", vocab:"gas_label"},
+            {k:"segments", zh:"气体段", en:"Segments", t:"array", req:REQ},
+            {k:"stage", zh:"阶段", en:"Stage", t:"text", nested:true},
+            {k:"start_min", zh:"开始时间", en:"Start", t:"number", u:"min", nested:true},
+            {k:"end_min", zh:"结束时间", en:"End", t:"number", u:"min", nested:true},
+            {k:"gas", zh:"气体", en:"Gas", t:"select", vocab:"gas_label", nested:true},
+            {k:"flow_sccm", zh:"流量", en:"Flow", t:"number", u:"sccm", nested:true},
+            {k:"components[]", zh:"混合组分", en:"Components", t:"array", nested:true, note:"name · gas · flow_sccm · fraction · ratio_percent"},
+          ]},
+        { key:"process_observation", zh:"过程观察", en:"Process Observation", shape:"对象", desc:"过程中的颜色变化与异常事件。",
+          fields:[
+            {k:"color_change", zh:"颜色变化", en:"Color Change", t:"text"},
+            {k:"abnormal_events", zh:"异常事件", en:"Abnormal Events", t:"multi_select"},
+            {k:"note", zh:"备注", en:"Note", t:"textarea"},
+          ]},
+        { key:"characterization", zh:"表征结果", en:"Characterization", shape:"数组 methods[]", desc:"每种表征方法一条，可附原始文件。",
+          fields:[
+            {k:"method", zh:"方法", en:"Method", t:"select", vocab:"characterization_method"},
+            {k:"result", zh:"结果", en:"Result", t:"text"},
+            {k:"enabled", zh:"启用", en:"Enabled", t:"boolean"},
+            {k:"excitation_nm", zh:"激发波长", en:"Excitation", t:"number", u:"nm"},
+            {k:"note", zh:"备注", en:"Note", t:"textarea", drift:"D3：字段字典 'characterization_note' vs 载荷 'note'，待统一"},
+          ]},
+        { key:"result_summary", zh:"结果总结", en:"Result Summary", shape:"对象", desc:"结果 / 失败模型所在（v0.1 核心扩展，见下方专章）。",
+          fields:[
+            {k:"outcome_category", zh:"结果类别", en:"Outcome Category", t:"select", req:REQ, vocab:"outcome_category", isnew:true},
+            {k:"failure_modes", zh:"失败模式", en:"Failure Modes", t:"multi_select", vocab:"failure_mode", isnew:true},
+            {k:"failure_detail", zh:"失败详情", en:"Failure Detail", t:"textarea", isnew:true},
+            {k:"coverage_percent", zh:"覆盖率", en:"Coverage", t:"number", u:"%", isnew:true},
+            {k:"observed_layer_count", zh:"实测层数", en:"Observed Layers", t:"number", isnew:true},
+            {k:"summary_result", zh:"结果摘要", en:"Summary Result", t:"textarea"},
+            {k:"next_step", zh:"下一步计划", en:"Next Step", t:"text"},
+          ]},
+      ];
+
+      const principles = [
+        ["P1","失败即数据 (True Negative)","失败 / 中断的实验必须作为正式记录保存，不得丢弃——这是相对公开数据库的核心差异化，失败数据现在不记则永久丢失。"],
+        ["P2","null ≠ 0","空值＝未测量/未记录；显式 0＝测得为零。表单与导入器不得把空白强制转 0。"],
+        ["P3","设定值 vs 实测值","v0.1 的温度/流量均为设定值（目标值），实测值 *_measured 为 v0.2 预留。"],
+        ["P4","单位显式且权威","单位由字段字典 unit 权威定义并随导出输出，不依赖字段名后缀的隐含约定。"],
+        ["P5","单一权威 + 防漂移","字段字典＝对外发布规范层；Pydantic＝运行时校验；一致性测试强制对齐，杜绝三套真相漂移。"],
+        ["P6","对接而非重造","复用 FAIR / OPTIMADE / DataCite / EMMO；只对 CVD-2D 工艺与失败这一真正空白自建词表。"],
+      ];
+
+      const outcomes = [
+        ["success","success","达到实验目标。"],
+        ["partial","partial","有产物但未达标。"],
+        ["failed","failed","完成了实验流程但结果不符 —— 真负样本，对建模最有价值。"],
+        ["aborted","aborted","过程中断 / 设备故障，非材料学结论（v0.1 新增）。"],
+        ["unknown","unknown","未判定。"],
+      ];
+      const failureModes = [
+        ["no_growth","无生长"],["discontinuous","不连续膜/覆盖不全"],["multilayer","多层/厚度失控"],
+        ["wrong_phase","物相错误"],["wrong_morphology","形貌异常"],["small_domain","畴区过小"],
+        ["low_crystallinity","结晶质量差"],["contamination","沾污"],["substrate_damage","基底损坏"],
+        ["equipment_failure","设备故障"],["other","其他"],
+      ];
+
+      const vocabs = [
+        ["material_system",["MoS2","WS2","MoSe2","WSe2","hBN","graphene","other"],false],
+        ["sample_env",["clean","normal","contaminated","unknown"],false],
+        ["precursor_method",["melting","spin_coating","powder","solution","other"],false],
+        ["precursor_brand",["（实验室录入）"],true],
+        ["substrate_role",["top","bottom","（产物/对照在样品层）"],false],
+        ["substrate_type",["硅片单抛N<100>","蓝宝石单抛<0001>/<11-20>","…（见系统）"],false],
+        ["substrate_brand",["华赫硅材料","合肥科晶","苏州研材微纳科技"],true],
+        ["substrate_size",["5x5","5x8","5x10","10x10"],false],
+        ["substrate_treatment_method",["none","plasma_cleaning","uv_cleaning","annealing"],false],
+        ["gas_label",["Ar","CO2","O2","Ar+H2","Ar+O2","H2+CO2","CO+Ar","air"],false],
+        ["characterization_method",["OM","Raman","PL","AFM","SEM","Other"],false],
+        ["quality_label",["success","partial","failed","unknown"],false],
+        ["outcome_category",["success","partial","failed","aborted","unknown"],false],
+        ["failure_mode", failureModes.map(f=>f[0]), false],
+      ];
+
+      const drifts = [
+        ["D1","基底处理参数：字段字典扁平 treatment_* vs 运行时嵌套 treatment_params{}","统一为<b>嵌套</b>（与已存数据一致），更新字段字典"],
+        ["D2","furnace_info 类型标 'object'，但 FieldType 枚举无 object","在枚举增加 <b>OBJECT</b> 或改型/拆分"],
+        ["D3","表征备注：字段字典 characterization_note vs 载荷 note","<b>统一字段名</b>"],
+        ["D4","basic_info.layer_count 在 Pydantic 有、字段字典缺失","<b>补字段定义</b>"],
+        ["D5","旋涂时间 spin_time_s / pre_spin_time_s","<b>确认</b>字段定义已随迁移补齐"],
+        ["D6","substrate.size_mm 为字符串","改<b>结构化数值</b>（length×width 或拆分）"],
+        ["D7","quality_label 扁平、信息量不足","迁移到 <b>outcome_category + failure_mode</b>（见结果模型）"],
+      ];
+
+      const roadmap = [
+        ["now","v0.1 落地", ["修复 7 项漂移 (D1–D7)","实现结果 / 失败模型","单位随导出输出","批量 / 流式导出端点","payload_json GIN 索引 + JSONB 查询"]],
+        ["","v0.2 候选", ["实测值字段 *_measured","size_mm 数值化完成","QUDT / EMMO 单位映射","OPTIMADE _prefix_ 导出"]],
+        ["","推广期", ["多机构 + 分级共享 private→组→联盟→public","禁运期 (embargo)","DataCite DOI + 署名","轻量治理小组"]],
+      ];
+
+      // ---------------- RENDER ----------------
+      const tabsDef = [
+        {id:"overview", label:"总览"},
+        {id:"principles", label:"设计原则"},
+        {id:"model", label:"数据模型"},
+        {id:"dict", label:"字段字典"},
+        {id:"outcome", label:"结果 / 失败模型"},
+        {id:"vocab", label:"受控词表"},
+        {id:"drift", label:"漂移收敛"},
+        {id:"roadmap", label:"路线图"},
+      ];
+      const esc = s => String(s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+      function fieldRow(f){
+        const tags = [];
+        tags.push(`<span class="tag t-type">${esc(f.t)}</span>`);
+        if (f.u) tags.push(`<span class="tag t-unit">${esc(f.u)}</span>`);
+        if (f.req) tags.push(`<span class="tag t-req">必填</span>`);
+        if (f.vocab) tags.push(`<span class="tag t-vocab" title="受控词表">${esc(f.vocab)}</span>`);
+        if (f.isnew) tags.push(`<span class="tag t-new">v0.1 新增</span>`);
+        if (f.drift) tags.push(`<span class="tag t-drift" title="${esc(f.drift)}">⚠ ${f.drift.split("：")[0]}</span>`);
+        const note = f.note ? `<div class="muted" style="font-size:12px;margin-top:3px">${esc(f.note)}</div>` : "";
+        const hay = (f.k+" "+f.zh+" "+f.en).toLowerCase();
+        return `<tr class="frow ${f.nested?'nested':''}" data-hay="${esc(hay)}">
+          <td><span class="fkey">${esc(f.k)}</span></td>
+          <td><span class="flabel">${esc(f.zh)} · ${esc(f.en)}</span>${note}</td>
+          <td>${tags.join(" ")}</td>
+        </tr>`;
+      }
+      function moduleCard(m){
+        return `<div class="mod" data-mod="${m.key}">
+          <div class="mod-head">
+            <span class="key">${m.key}</span>
+            <span class="zh">${m.zh}</span>
+            <span class="en">${m.en}</span>
+            <span class="shape">${m.shape} · ${m.fields.length} 字段</span>
+          </div>
+          <div class="mod-desc">${esc(m.desc)}</div>
+          <table><thead><tr><th>字段 key</th><th>名称</th><th>属性</th></tr></thead>
+          <tbody>${m.fields.map(fieldRow).join("")}</tbody></table>
+        </div>`;
+      }
+
+      function viewOverview(){
+        const allF = modules.flatMap(m=>m.fields);
+        const nReq = allF.filter(f=>f.req).length;
+        const nUnit = allF.filter(f=>f.u).length;
+        const nVocab = allF.filter(f=>f.vocab).length;
+        const nNew = allF.filter(f=>f.isnew).length;
+        const stat=(n,l,c="")=>`<div class="stat ${c}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+        return `<section class="block">
+          <h2>总览</h2>
+          <p class="sub">一条实验记录 = 一个炉次 = 标准的最小单元。下方为规模快照。</p>
+          <div class="stats">
+            ${stat(modules.length,"模块")}
+            ${stat(allF.length,"字段总数")}
+            ${stat(nReq,"必填字段","req")}
+            ${stat(nUnit,"带单位字段")}
+            ${stat(nVocab,"受控词表字段","")}
+            ${stat(vocabs.length,"受控词表")}
+            ${stat(nNew,"v0.1 新增","new")}
+            ${stat(drifts.length,"待收敛漂移","warn")}
+          </div>
+          <p class="sub" style="margin-top:18px">图例：
+            <span class="tag t-type">类型</span>
+            <span class="tag t-unit">单位</span>
+            <span class="tag t-req">必填</span>
+            <span class="tag t-vocab">受控词表</span>
+            <span class="tag t-new">v0.1 新增</span>
+            <span class="tag t-drift">⚠ 待收敛漂移</span>
+          </p>
+        </section>`;
+      }
+      function viewPrinciples(){
+        return `<section class="block"><h2>设计原则</h2>
+          <p class="sub">对齐 FAIR（可发现/可访问/可互操作/可复用），以"可复用"为首要目标。</p>
+          <div class="plist">${principles.map(p=>`<div class="pitem"><span class="pn">${p[0]}</span><div><div class="pt">${esc(p[1])}</div><div class="pd">${esc(p[2])}</div></div></div>`).join("")}</div>
+        </section>`;
+      }
+      function viewModel(){
+        const rows = modules.map(m=>`<div class="chip"><b>${m.key}</b> · ${esc(m.zh)} <span class="muted">(${m.shape})</span></div>`).join("");
+        const tree = `ExperimentRun (run_code 唯一标识)
+├── 实验级标量 (一等列, 可索引/可查询)
+│     experiment_type · material_system · experiment_date · status · outcome
+├── 10 个工艺/结果模块 (按 module_key 存储, schema_version = cvd_v1)
+├── Samples (样品, 含谱系 parent_sample_id —— 可追溯)
+├── FileAssets (setup diagram · 表征文件 · 导入源表)
+└── Versions + Audit (不可变版本快照 + 审计日志 —— 溯源)`;
+        return `<section class="block"><h2>数据模型总览</h2>
+          <p class="sub">实验 → 模块 → 样品/文件 → 版本/审计 的层级结构。标量事实为一等列(可查询)，工艺细节存于按模块组织的 JSONB 载荷。</p>
+          <div class="flow">${esc(tree)}</div>
+          <div class="chips" style="margin-top:16px">${rows}</div>
+        </section>`;
+      }
+      function viewDict(){
+        const pills = modules.map(m=>`<button class="fbtn" data-fmod="${m.key}">${m.zh}</button>`).join("");
+        return `<section class="block"><h2>字段字典</h2>
+          <p class="sub">完整字段清单。⚠ 标记的为「三套真相」漂移项，将在 v0.1 收敛（见「漂移收敛」页）。</p>
+          <div class="toolbar">
+            <input class="search" id="search" placeholder="搜索字段 key / 中文 / 英文…" />
+            <div class="filters" id="modfilters"><button class="fbtn on" data-fmod="all">全部模块</button>${pills}</div>
+          </div>
+          <div id="dictbody">${modules.map(moduleCard).join("")}</div>
+        </section>`;
+      }
+      function viewOutcome(){
+        const oc = outcomes.map(o=>`<div class="ocard ${o[0]}"><div class="ck">${o[1]}</div><p>${esc(o[2])}</p></div>`).join("");
+        const fm = failureModes.map(f=>`<span class="chip"><b>${f[0]}</b> · ${esc(f[1])}</span>`).join("");
+        return `<section class="block"><h2>结果 / 失败模型 <span class="tag t-new" style="vertical-align:middle">v0.1 核心</span></h2>
+          <p class="sub">相对现有公开数据库的核心差异化。当前系统只有扁平的 quality_label；v0.1 在 result_summary 中扩展为结构化结果模型。</p>
+          <h3 style="font-size:15px;margin:8px 0 2px">outcome_category（取代 quality_label）</h3>
+          <div class="cards">${oc}</div>
+          <div class="callout"><b>关键区分：</b> <code>failed</code>（工艺跑完但没长好 → 宝贵真负样本） vs <code>aborted</code>（炉子坏了 → 非材料学失败）。混淆二者会污染训练集。</div>
+          <h3 style="font-size:15px;margin:22px 0 8px">failure_mode 受控词表（failed / partial 时必填）</h3>
+          <div class="chips">${fm}</div>
+          <div class="callout" style="border-color:var(--req)"><b>强制规则（P1）：</b> failed / aborted 的炉次<b>必须</b>作为正式记录保存，系统不得当作可丢弃草稿。失败数据现在不记录将永久丢失，无法补录。</div>
+        </section>`;
+      }
+      function viewVocab(){
+        const rows = vocabs.map(v=>`<div class="vrow">
+          <span class="vkey">${v[0]}</span>${v[2]?'<span class="vext">用户可扩展</span>':''}
+          <div class="vvals">${v[1].map(x=>`<span class="vval">${esc(x)}</span>`).join("")}</div>
+        </div>`).join("");
+        return `<section class="block"><h2>受控词表</h2>
+          <p class="sub">分类型字段的取值受控以保证一致性。用户可扩展词表允许成员录入新值（仅 MEMBER/ADMIN 可写）。</p>
+          ${rows}</section>`;
+      }
+      function viewDrift(){
+        const rows = drifts.map(d=>`<div class="drift"><span class="id">${d[0]}</span><div class="d-body"><div class="d-title">${esc(d[1])}</div><div class="d-fix">→ ${d[2]}</div></div></div>`).join("");
+        return `<section class="block"><h2>漂移收敛清单</h2>
+          <p class="sub">「三套真相」（字段字典 / Pydantic 校验 / 实际载荷）当前的不一致项，均为 v0.1 必须修复。收敛后由一致性测试在 CI 中强制对齐。</p>
+          ${rows}</section>`;
+      }
+      function viewRoadmap(){
+        const cards = roadmap.map(r=>`<div class="rc ${r[0]}"><h4>${r[0]==='now'?'▶ ':''}${esc(r[1])}</h4><ul>${r[2].map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("");
+        return `<section class="block"><h2>路线图</h2>
+          <p class="sub">阶段一（规范化）与阶段二（AI-Ready 硬缺口）为本次范围；推广期为后续。</p>
+          <div class="road">${cards}</div></section>`;
+      }
+
+      const views = { overview:viewOverview, principles:viewPrinciples, model:viewModel, dict:viewDict, outcome:viewOutcome, vocab:viewVocab, drift:viewDrift, roadmap:viewRoadmap };
+
+      // tabs
+      const tabsEl = document.getElementById("tabs");
+      tabsEl.innerHTML = tabsDef.map((t,i)=>`<button class="tab ${i===0?'active':''}" data-tab="${t.id}">${t.label}</button>`).join("");
+      const app = document.getElementById("app");
+      function render(id){
+        document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active", b.dataset.tab===id));
+        app.innerHTML = views[id]();
+        window.scrollTo({top:0, behavior:"instant"});
+        if(id==="dict") wireDict();
+      }
+      tabsEl.addEventListener("click", e=>{ const b=e.target.closest(".tab"); if(b) render(b.dataset.tab); });
+
+      // dict interactions: search + module filter
+      function wireDict(){
+        const search = document.getElementById("search");
+        const filterBtns = document.querySelectorAll("#modfilters .fbtn");
+        let activeMod = "all";
+        function apply(){
+          const q = (search.value||"").trim().toLowerCase();
+          document.querySelectorAll(".mod").forEach(card=>{
+            const modOk = activeMod==="all" || card.dataset.mod===activeMod;
+            let anyVisible = false;
+            card.querySelectorAll(".frow").forEach(row=>{
+              const hay = row.dataset.hay;
+              const hit = !q || hay.includes(q);
+              row.classList.toggle("hidden", !(modOk && hit));
+              if(modOk && hit) anyVisible = true;
+              // highlight
+              const labelCell = row.children[1].querySelector(".flabel");
+              if(q && hit){ /* keep simple, no inner highlight to avoid breaking layout */ }
+            });
+            card.classList.toggle("hidden", !anyVisible);
+          });
+        }
+        search.addEventListener("input", apply);
+        filterBtns.forEach(b=>b.addEventListener("click", ()=>{
+          filterBtns.forEach(x=>x.classList.remove("on")); b.classList.add("on");
+          activeMod = b.dataset.fmod; apply();
+        }));
+      }
+
+      render("overview");
+    </script>
+  </body>
+</html>

@@ -93,9 +93,13 @@
 - 前端 `VocabularyCombobox` 渲染分组（grouped options）。
 - 对长词表（`substrate_type / gas_label / failure_mode`）补 `group_key` 与合理 `sort_order` 的迁移。
 
+**并入本里程碑的前端**：M2 失败模型的录入 UI——`result_summary` 的 `failure_modes`
+（`multi_select` → `failure_mode`）需要一个多选词表组件 + `failure_detail` 文本域，
+与本里程碑的 combobox 改造同属一块，一起做。
+
 **先写的测试**
 - `T3.1` 迁移后 vocab 带 `group_key`；list 接口按组 + 序返回。
-- `T3.2`（前端 vitest）combobox 分组渲染。
+- `T3.2`（前端 vitest）combobox 分组渲染 + 失败模式多选。
 
 **验收**：后端 + 前端门禁全绿。
 

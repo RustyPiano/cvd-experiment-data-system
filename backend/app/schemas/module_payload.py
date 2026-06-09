@@ -192,6 +192,9 @@ class ResultSummaryPayload(ModulePayloadBase):
     summary_result: str | None = None
     quality_label: str | None = None
     next_step: str | None = None
+    # 失败模型：failure_modes 为 failure_mode 受控词表的多选；未填表示「未记录/不适用」(null)。
+    failure_modes: list[str] | None = None
+    failure_detail: str | None = None
 
 
 MODULE_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
