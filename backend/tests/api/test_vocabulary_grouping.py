@@ -76,3 +76,24 @@ def test_t3_1_substrate_type_grouped_by_material_family(active_user) -> None:
     # _0016 的活跃取值：1 个硅基 + 6 个蓝宝石
     assert by_value.get("硅片单抛N<100>") == "silicon"
     assert by_value.get("蓝宝石单抛<0001>/<11-20>") == "sapphire"
+
+
+def test_t3_3_grouped_items_carry_group_label(active_user) -> None:
+    """T3.3 分组项带中文分组标签（标签是后端数据，非前端写死）。"""
+    items = _list("failure_mode", active_user.email)
+    by_value = {item["value"]: item for item in items}
+    assert by_value["no_growth"]["group_label_zh"] == "成核与覆盖"
+    assert by_value["multilayer"]["group_label_zh"] == "形貌与厚度"
+
+
+def test_t3_4_groups_ordered_logically_not_alphabetically(active_user) -> None:
+    """T3.4 分组按 group_sort_order 逻辑排序，而非 group_key 字母序。"""
+    items = _list("failure_mode", active_user.email)
+    # 首次出现的分组顺序应为「成核与覆盖」在前、「其他」在后。
+    group_order: list[str] = []
+    for item in items:
+        if item["group_key"] not in group_order:
+            group_order.append(item["group_key"])
+    assert group_order.index("nucleation_coverage") < group_order.index("other")
+    # 字母序会把 crystallinity 排到 nucleation_coverage 之前——逻辑序不应如此。
+    assert group_order.index("nucleation_coverage") < group_order.index("crystallinity")

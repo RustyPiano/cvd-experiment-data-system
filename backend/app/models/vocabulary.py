@@ -29,6 +29,10 @@ class ControlledVocabulary(Base):
     # 同一 vocab_key 内的分组键（如 substrate_type 的 silicon/sapphire）；
     # 为空表示未分组，列表中排在已分组之后。
     group_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # 分组的显示标签与排序（后端单一数据源；同一 (vocab_key, group_key) 内一致，由守卫测试保证）。
+    group_label_zh: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    group_label_en: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    group_sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
     label_zh: Mapped[str] = mapped_column(String(128))
     label_en: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

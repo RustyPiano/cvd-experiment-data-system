@@ -61,6 +61,7 @@ class VocabularyRepository:
 
         statement = statement.order_by(
             ControlledVocabulary.vocab_key.asc(),
+            ControlledVocabulary.group_sort_order.asc().nulls_last(),
             ControlledVocabulary.group_key.asc().nulls_last(),
             ControlledVocabulary.sort_order.asc(),
             ControlledVocabulary.value.asc(),

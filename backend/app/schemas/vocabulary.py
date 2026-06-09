@@ -38,6 +38,9 @@ class ControlledVocabularyRead(BaseModel):
     vocab_key: str
     value: str
     group_key: str | None
+    group_label_zh: str | None
+    group_label_en: str | None
+    group_sort_order: int | None
     label_zh: str
     label_en: str | None
     sort_order: int

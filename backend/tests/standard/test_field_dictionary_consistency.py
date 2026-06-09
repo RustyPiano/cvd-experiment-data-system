@@ -195,6 +195,30 @@ FLAT_MODULES: tuple[str, ...] = (
 )
 
 
+def test_t1_5_group_labels_are_consistent_within_a_vocabulary(db_session) -> None:
+    """T1.5 同一 (vocab_key, group_key) 的分组标签与排序必须一致（后端单一数据源）。"""
+    rows = db_session.scalars(
+        select(ControlledVocabulary).where(ControlledVocabulary.group_key.isnot(None))
+    ).all()
+
+    seen: dict[tuple[str, str], tuple[str | None, str | None, int | None]] = {}
+    conflicts: list[tuple[str, str]] = []
+    missing_label: list[tuple[str, str]] = []
+    for row in rows:
+        key = (row.vocab_key, row.group_key)
+        triple = (row.group_label_zh, row.group_label_en, row.group_sort_order)
+        if row.group_label_zh is None or row.group_sort_order is None:
+            missing_label.append(key)
+        if key in seen and seen[key] != triple:
+            conflicts.append(key)
+        seen.setdefault(key, triple)
+
+    assert not missing_label, (
+        f"已分组但缺标签/排序的 (vocab_key, group_key)：{sorted(set(missing_label))}"
+    )
+    assert not conflicts, f"同一分组出现不一致的标签/排序：{sorted(set(conflicts))}"
+
+
 def test_t1_4_flat_module_fields_all_have_a_definition(db_session) -> None:
     """T1.4 扁平模块里每个 Pydantic 声明字段都有对应 FieldDefinition（规范层完整）。"""
     defined: set[tuple[str, str]] = {
