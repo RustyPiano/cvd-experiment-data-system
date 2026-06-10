@@ -467,6 +467,7 @@ class ExperimentService:
 
         modules = snapshot.get("modules", {})
         if isinstance(modules, dict):
+            restored_keys: set[str] = set()
             for module_key_value, payload_json in modules.items():
                 try:
                     module_key = ExperimentModuleKey(module_key_value)
@@ -479,6 +480,7 @@ class ExperimentService:
                     module_key=module_key,
                     payload_json=payload_json,
                 )
+                restored_keys.add(module_key.value)
                 if module_key == ExperimentModuleKey.SUBSTRATES:
                     self.sample_service.sync_substrate_samples(
                         experiment=experiment,
@@ -490,6 +492,20 @@ class ExperimentService:
                         experiment,
                         saved_module.payload_json,
                     )
+
+            # 忠实回滚：删除快照中不存在、但当前记录上存留的模块，避免混合态。
+            # 实验级字段（quality_label 等）已由 _apply_experiment_snapshot 还原。
+            for live_module in self.module_payloads.list_by_run(experiment.id):
+                if live_module.module_key in restored_keys:
+                    continue
+                if live_module.module_key == ExperimentModuleKey.SUBSTRATES.value:
+                    # 同步清空派生样品（空 items 触发软删除）。
+                    self.sample_service.sync_substrate_samples(
+                        experiment=experiment,
+                        current_user=current_user,
+                        substrates_payload={"items": []},
+                    )
+                self.module_payloads.delete(live_module)
 
         saved = self.experiments.save(experiment)
         self.audit.record_event(

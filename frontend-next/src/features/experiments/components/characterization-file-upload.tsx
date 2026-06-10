@@ -70,10 +70,12 @@ export function CharacterizationFileUpload({
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
+      // 先整体校验大小，避免「前几个已上传、后一个超限」的半成功状态。
+      const oversized = files.find((file) => file.size > MAX_FILE_SIZE)
+      if (oversized) {
+        throw new Error(`${oversized.name} 超过 50MB 上限`)
+      }
       for (const file of files) {
-        if (file.size > MAX_FILE_SIZE) {
-          throw new Error(`${file.name} 超过 50MB 上限`)
-        }
         await uploadExperimentFile(accessToken!, experimentId, {
           file,
           fileCategory: 'raw',
@@ -88,6 +90,8 @@ export function CharacterizationFileUpload({
     },
     onError: (error) => {
       toast.error(resolveErrorMessage(error, '文件上传失败'))
+      // 网络中断可能已成功上传部分文件，刷新以反映真实状态。
+      invalidate()
     },
   })
 

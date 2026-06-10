@@ -37,7 +37,8 @@ class ImportPreviewResponse(BaseModel):
 
 class ImportCommitRequest(BaseModel):
     profile_key: str
-    drafts: list[ParsedExperimentDraft] = Field(min_length=1)
+    # 上限防滥用：单次导入提交的草稿数量有界（逐行提交、非单事务）。
+    drafts: list[ParsedExperimentDraft] = Field(min_length=1, max_length=500)
 
 
 class ImportCommitResultItem(BaseModel):

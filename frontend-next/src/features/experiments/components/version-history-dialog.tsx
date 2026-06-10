@@ -114,7 +114,13 @@ export function VersionHistoryDialog({
   })
 
   const baseVersionQuery = useQuery({
-    queryKey: ['experiments', 'version', currentUserId, experimentId, baseNumber],
+    queryKey: [
+      'experiments',
+      'version',
+      currentUserId,
+      experimentId,
+      baseNumber,
+    ],
     queryFn: () => getExperimentVersion(accessToken, experimentId, baseNumber!),
     enabled: open && baseNumber !== null,
   })
@@ -153,12 +159,7 @@ export function VersionHistoryDialog({
       comparableSnapshot(baseVersionQuery.data.snapshot_json),
       comparableSnapshot(targetVersionQuery.data.snapshot_json),
     )
-  }, [
-    baseNumber,
-    targetNumber,
-    baseVersionQuery.data,
-    targetVersionQuery.data,
-  ])
+  }, [baseNumber, targetNumber, baseVersionQuery.data, targetVersionQuery.data])
 
   const handleSaveVersion = async () => {
     const ok = await onSaveVersion(changeNote)
@@ -220,7 +221,9 @@ export function VersionHistoryDialog({
                 >
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">v{version.version_number}</Badge>
+                      <Badge variant="secondary">
+                        v{version.version_number}
+                      </Badge>
                       <span className="text-sm text-muted-foreground">
                         {new Date(version.created_at).toLocaleString()}
                         {version.created_by_name
@@ -250,7 +253,7 @@ export function VersionHistoryDialog({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={restoreMutation.isPending}
+                      disabled={restoreMutation.isPending || isSubmitting}
                       onClick={() => {
                         if (
                           window.confirm(
@@ -278,14 +281,20 @@ export function VersionHistoryDialog({
             {baseVersionQuery.isLoading || targetVersionQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">加载快照…</p>
             ) : diffRows && diffRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">两个版本内容一致。</p>
+              <p className="text-sm text-muted-foreground">
+                两个版本内容一致。
+              </p>
             ) : (
               <div className="flex flex-col gap-1 font-mono text-xs">
                 {diffRows?.map((row) => (
                   <div key={row.path} className="border-b py-1">
                     <div className="text-muted-foreground">{row.path}</div>
-                    <div className="text-destructive">- {row.before ?? '（无）'}</div>
-                    <div className="text-primary">+ {row.after ?? '（无）'}</div>
+                    <div className="text-destructive">
+                      - {row.before ?? '（无）'}
+                    </div>
+                    <div className="text-primary">
+                      + {row.after ?? '（无）'}
+                    </div>
                   </div>
                 ))}
               </div>

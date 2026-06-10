@@ -37,6 +37,10 @@ class ModulePayloadRepository:
         self.db.refresh(payload)
         return payload
 
+    def delete(self, payload: ExperimentModulePayload) -> None:
+        self.db.delete(payload)
+        self.db.flush()
+
     def clone_for_run(
         self,
         *,

@@ -182,6 +182,38 @@ def test_restore_version_writes_snapshot_back(active_user) -> None:
     assert versions_response.json()["total"] == 1
 
 
+def test_restore_version_removes_modules_absent_from_snapshot(active_user) -> None:
+    """忠实回滚：v1 之后新增的模块，回滚 v1 时应被移除，而非留下混合态。"""
+    email = active_user.email
+    experiment_id = create_submitted_experiment(email)
+
+    # 在 v1 之后补一个 v1 快照里没有的模块。
+    obs_response = client.put(
+        f"/api/v1/experiments/{experiment_id}/modules/process_observation",
+        json={"payload_json": {"abnormal_events": [], "note": "added after v1"}},
+        headers=auth_headers(email),
+    )
+    assert obs_response.status_code == 200
+
+    modules_before = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules",
+        headers=auth_headers(email),
+    ).json()
+    assert "process_observation" in {m["module_key"] for m in modules_before["items"]}
+
+    restore_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/versions/1/restore",
+        headers=auth_headers(email),
+    )
+    assert restore_response.status_code == 200
+
+    modules_after = client.get(
+        f"/api/v1/experiments/{experiment_id}/modules",
+        headers=auth_headers(email),
+    ).json()
+    assert "process_observation" not in {m["module_key"] for m in modules_after["items"]}
+
+
 def test_save_version_requires_submitted_status(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",
