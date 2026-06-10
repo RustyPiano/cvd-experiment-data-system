@@ -159,4 +159,24 @@ describe('VocabularyCombobox grouping', () => {
     const nucleationGroup = screen.getByRole('group', { name: '成核与覆盖' })
     expect(within(nucleationGroup).getByText('完全无生长')).toBeInTheDocument()
   })
+
+  it('still shows every option when a value is already selected', () => {
+    render(
+      <VocabularyCombobox
+        ariaLabel="失败模式选择"
+        disabled={false}
+        options={FAILURE_OPTIONS}
+        placeholder="选择"
+        value="multilayer"
+        onChange={() => {}}
+      />,
+    )
+    fireEvent.focus(screen.getByLabelText('失败模式选择'))
+    // 已选中 multilayer，但其它分组的候选仍应可见（不被收窄到所选标签）。
+    expect(screen.getByText('完全无生长')).toBeInTheDocument()
+    expect(screen.getByText('覆盖率低')).toBeInTheDocument()
+    expect(
+      screen.getByRole('group', { name: '形貌与厚度' }),
+    ).toBeInTheDocument()
+  })
 })

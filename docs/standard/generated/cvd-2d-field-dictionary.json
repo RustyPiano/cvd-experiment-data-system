@@ -1382,84 +1382,84 @@
             {
               "value": "no_growth",
               "label_zh": "无生长",
-              "label_en": "no_growth",
+              "label_en": "No Growth",
               "group_key": "nucleation_coverage",
               "group_label_zh": "成核与覆盖"
             },
             {
               "value": "sparse_nucleation",
               "label_zh": "成核稀疏",
-              "label_en": "sparse_nucleation",
+              "label_en": "Sparse Nucleation",
               "group_key": "nucleation_coverage",
               "group_label_zh": "成核与覆盖"
             },
             {
               "value": "low_coverage",
               "label_zh": "覆盖率低",
-              "label_en": "low_coverage",
+              "label_en": "Low Coverage",
               "group_key": "nucleation_coverage",
               "group_label_zh": "成核与覆盖"
             },
             {
               "value": "multilayer",
               "label_zh": "多层",
-              "label_en": "multilayer",
+              "label_en": "Multilayer",
               "group_key": "morphology",
               "group_label_zh": "形貌与厚度"
             },
             {
               "value": "discontinuous",
               "label_zh": "不连续/孤岛",
-              "label_en": "discontinuous",
+              "label_en": "Discontinuous / Islands",
               "group_key": "morphology",
               "group_label_zh": "形貌与厚度"
             },
             {
               "value": "poor_uniformity",
               "label_zh": "不均匀",
-              "label_en": "poor_uniformity",
+              "label_en": "Poor Uniformity",
               "group_key": "morphology",
               "group_label_zh": "形貌与厚度"
             },
             {
               "value": "wrong_phase",
               "label_zh": "物相错误",
-              "label_en": "wrong_phase",
+              "label_en": "Wrong Phase",
               "group_key": "crystallinity",
               "group_label_zh": "结晶质量"
             },
             {
               "value": "amorphous",
               "label_zh": "非晶",
-              "label_en": "amorphous",
+              "label_en": "Amorphous",
               "group_key": "crystallinity",
               "group_label_zh": "结晶质量"
             },
             {
               "value": "contamination",
               "label_zh": "沾污/杂质",
-              "label_en": "contamination",
+              "label_en": "Contamination",
               "group_key": "contamination_damage",
               "group_label_zh": "污染与损伤"
             },
             {
               "value": "cracked",
               "label_zh": "开裂/破损",
-              "label_en": "cracked",
+              "label_en": "Cracked / Damaged",
               "group_key": "contamination_damage",
               "group_label_zh": "污染与损伤"
             },
             {
               "value": "equipment_fault",
               "label_zh": "设备故障",
-              "label_en": "equipment_fault",
+              "label_en": "Equipment Fault",
               "group_key": "equipment",
               "group_label_zh": "设备/工艺"
             },
             {
               "value": "other",
               "label_zh": "其他",
-              "label_en": "other",
+              "label_en": "Other",
               "group_key": "other",
               "group_label_zh": "其他"
             }

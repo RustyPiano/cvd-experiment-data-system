@@ -290,6 +290,48 @@ def test_user_add_brand_value_is_idempotent(active_user) -> None:
     assert len(matches) == 1
 
 
+def test_user_revalue_reactivation_writes_audit_event(
+    admin_user,
+    active_user,
+    db_session,
+) -> None:
+    """重新激活一个被停用的词条也应留审计痕迹（与其它变更一致）。"""
+    added = client.post(
+        "/api/v1/vocabularies",
+        json={"vocab_key": "substrate_brand", "value": "停用再启用品牌"},
+        headers=auth_headers(active_user.email),
+    )
+    assert added.status_code == 201
+    vocab_id = added.json()["id"]
+
+    deactivate = client.patch(
+        f"/api/v1/admin/vocabularies/{vocab_id}",
+        json={"is_active": False},
+        headers=auth_headers(admin_user.email),
+    )
+    assert deactivate.status_code == 200
+
+    def event_count() -> int:
+        return len(
+            [
+                event
+                for event in controlled_vocabulary_audit_events(db_session)
+                if str(event.entity_id) == vocab_id
+            ]
+        )
+
+    before = event_count()
+
+    reactivated = client.post(
+        "/api/v1/vocabularies",
+        json={"vocab_key": "substrate_brand", "value": "停用再启用品牌"},
+        headers=auth_headers(active_user.email),
+    )
+    assert reactivated.status_code == 201
+    assert reactivated.json()["is_active"] is True
+    assert event_count() == before + 1
+
+
 def test_user_cannot_extend_non_whitelisted_vocabulary(active_user) -> None:
     response = client.post(
         "/api/v1/vocabularies",

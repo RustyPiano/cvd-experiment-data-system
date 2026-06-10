@@ -110,8 +110,17 @@ class VocabularyService:
         existing = self.vocabularies.get_by_key_value(vocab_key, value)
         if existing is not None:
             if not existing.is_active:
+                before = self._serialize_vocabulary(existing)
                 existing.is_active = True
-                self.vocabularies.save(existing)
+                saved = self.vocabularies.save(existing)
+                self.audit.record_event(
+                    actor=current_user,
+                    entity_type="controlled_vocabulary",
+                    entity_id=saved.id,
+                    action="update",
+                    before_json=before,
+                    after_json=self._serialize_vocabulary(saved),
+                )
                 self.db.commit()
             return ControlledVocabularyRead.model_validate(existing)
 

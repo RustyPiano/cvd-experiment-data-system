@@ -1119,15 +1119,30 @@ class ExperimentService:
         *,
         change_note: str | None,
     ) -> ExperimentVersion:
-        next_number = self.versions.max_version_number(experiment.id) + 1
-        entry = ExperimentVersion(
-            experiment_run_id=experiment.id,
-            version_number=next_number,
-            snapshot_json=self._build_version_snapshot(experiment),
-            change_note=change_note,
-            created_by_id=current_user.id,
+        # 版本号取 max+1，理论上存在并发撞号（唯一约束兜底）。用 SAVEPOINT 隔离插入，
+        # 撞号则只回滚该插入并重算号码重试，不影响父事务里已有的改动。
+        snapshot = self._build_version_snapshot(experiment)
+        for _ in range(3):
+            next_number = self.versions.max_version_number(experiment.id) + 1
+            entry = ExperimentVersion(
+                experiment_run_id=experiment.id,
+                version_number=next_number,
+                snapshot_json=snapshot,
+                change_note=change_note,
+                created_by_id=current_user.id,
+            )
+            try:
+                with self.db.begin_nested():
+                    return self.versions.create(entry)
+            except IntegrityError as exc:
+                if not self._is_retryable_integrity_error(
+                    exc, {"version_number", "uq_experiment_version"}
+                ):
+                    raise
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Failed to allocate experiment version number",
         )
-        return self.versions.create(entry)
 
     def _to_version_summary(self, version: ExperimentVersion) -> ExperimentVersionSummary:
         return ExperimentVersionSummary(

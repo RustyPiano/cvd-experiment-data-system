@@ -55,7 +55,15 @@ export function VocabularyCombobox({
 
   const trimmedQuery = displayValue.trim()
 
+  // value 命中一个真实词表项时，输入框展示的是「已选中项的标签」而非用户正在输入的
+  // 查询——此时不要据此过滤，否则重新打开下拉只剩选中项、无法浏览其它候选。
+  const reflectsSelection = useMemo(
+    () => options.some((option) => option.value === value),
+    [options, value],
+  )
+
   const filtered = useMemo(() => {
+    if (reflectsSelection) return resolvedOptions
     const query = trimmedQuery.toLowerCase()
     if (!query) return resolvedOptions
     return resolvedOptions.filter(
@@ -63,7 +71,7 @@ export function VocabularyCombobox({
         option.label.toLowerCase().includes(query) ||
         option.value.toLowerCase().includes(query),
     )
-  }, [resolvedOptions, trimmedQuery])
+  }, [resolvedOptions, trimmedQuery, reflectsSelection])
 
   // 仅当输入的值尚不在词表中时才提供"添加"。注意要对照真正的词表 `options`，
   // 而不是 `resolvedOptions`——后者会把当前输入值作为 legacy 选项回显，导致永远命中。
