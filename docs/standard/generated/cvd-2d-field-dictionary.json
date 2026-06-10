@@ -1,0 +1,1484 @@
+{
+  "standard_id": "cvd-2d-process",
+  "version": "1.0.0",
+  "module_payload_schema_version": "cvd_v1",
+  "modules": [
+    {
+      "module_key": "basic_info",
+      "fields": [
+        {
+          "module_key": "basic_info",
+          "field_key": "operator_id",
+          "label_zh": "操作人",
+          "label_en": "Operator",
+          "field_type": "select",
+          "unit": null,
+          "required": true,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "basic_info",
+          "field_key": "experiment_type",
+          "label_zh": "实验类型",
+          "label_en": "Experiment Type",
+          "field_type": "select",
+          "unit": null,
+          "required": true,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "basic_info",
+          "field_key": "material_system",
+          "label_zh": "材料体系",
+          "label_en": "Material System",
+          "field_type": "select",
+          "unit": null,
+          "required": true,
+          "inheritable": true,
+          "vocab_key": "material_system",
+          "allowed_values": [
+            {
+              "value": "MoS2",
+              "label_zh": "MoS2",
+              "label_en": "MoS2",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "WS2",
+              "label_zh": "WS2",
+              "label_en": "WS2",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "WSe2",
+              "label_zh": "WSe2",
+              "label_en": "WSe2",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "MoSe2",
+              "label_zh": "MoSe2",
+              "label_en": "MoSe2",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "hBN",
+              "label_zh": "hBN",
+              "label_en": "hBN",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "graphene",
+              "label_zh": "石墨烯",
+              "label_en": "graphene",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "other",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "basic_info",
+          "field_key": "experiment_date",
+          "label_zh": "实验日期",
+          "label_en": "Experiment Date",
+          "field_type": "date",
+          "unit": null,
+          "required": true,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "basic_info",
+          "field_key": "objective",
+          "label_zh": "实验目的",
+          "label_en": "Objective",
+          "field_type": "textarea",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "basic_info",
+          "field_key": "recipe_id",
+          "label_zh": "来源 Recipe",
+          "label_en": "Source Recipe",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "basic_info",
+          "field_key": "layer_count",
+          "label_zh": "层数",
+          "label_en": "Layer Count",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": "layer_count",
+          "allowed_values": [
+            {
+              "value": "1",
+              "label_zh": "1",
+              "label_en": "1",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "2",
+              "label_zh": "2",
+              "label_en": "2",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "3",
+              "label_zh": "3",
+              "label_en": "3",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "多层",
+              "label_zh": "多层",
+              "label_en": "多层",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_key": "environment",
+      "fields": [
+        {
+          "module_key": "environment",
+          "field_key": "indoor_temperature_C",
+          "label_zh": "室内温度",
+          "label_en": "Indoor Temperature",
+          "field_type": "number",
+          "unit": "℃",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "environment",
+          "field_key": "indoor_humidity_percent",
+          "label_zh": "室内湿度",
+          "label_en": "Indoor Humidity",
+          "field_type": "number",
+          "unit": "%",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "environment",
+          "field_key": "sample_env",
+          "label_zh": "样品环境",
+          "label_en": "Sample Environment",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": "sample_env",
+          "allowed_values": [
+            {
+              "value": "clean",
+              "label_zh": "洁净",
+              "label_en": "clean",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "normal",
+              "label_zh": "正常",
+              "label_en": "normal",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "contaminated",
+              "label_zh": "污染",
+              "label_en": "contaminated",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "unknown",
+              "label_zh": "未知",
+              "label_en": "unknown",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "environment",
+          "field_key": "abnormal_note",
+          "label_zh": "异常备注",
+          "label_en": "Abnormal Note",
+          "field_type": "textarea",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "precheck",
+      "fields": [
+        {
+          "module_key": "precheck",
+          "field_key": "seal_intact",
+          "label_zh": "密封完好",
+          "label_en": "Seal Intact",
+          "field_type": "boolean",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precheck",
+          "field_key": "hood_clean",
+          "label_zh": "通风橱清洁",
+          "label_en": "Hood Clean",
+          "field_type": "boolean",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precheck",
+          "field_key": "flange_blocked",
+          "label_zh": "法兰口阻塞",
+          "label_en": "Flange Blocked",
+          "field_type": "boolean",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precheck",
+          "field_key": "boat_contamination_level",
+          "label_zh": "舟污染程度",
+          "label_en": "Boat Contamination",
+          "field_type": "boolean",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precheck",
+          "field_key": "tube_contamination_level",
+          "label_zh": "管污染程度",
+          "label_en": "Tube Contamination",
+          "field_type": "boolean",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precheck",
+          "field_key": "risk_note",
+          "label_zh": "风险备注",
+          "label_en": "Risk Note",
+          "field_type": "textarea",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "precursors",
+      "fields": [
+        {
+          "module_key": "precursors",
+          "field_key": "items",
+          "label_zh": "前驱体列表",
+          "label_en": "Precursor Items",
+          "field_type": "array",
+          "unit": null,
+          "required": true,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "species",
+          "label_zh": "物种",
+          "label_en": "Species",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "brand",
+          "label_zh": "品牌",
+          "label_en": "Brand",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": "precursor_brand",
+          "allowed_values": [
+            {
+              "value": "阿拉丁",
+              "label_zh": "阿拉丁",
+              "label_en": "阿拉丁",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "麦克林",
+              "label_zh": "麦克林",
+              "label_en": "麦克林",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "国药",
+              "label_zh": "国药",
+              "label_en": "国药",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "Sigma-Aldrich",
+              "label_zh": "Sigma-Aldrich",
+              "label_en": "Sigma-Aldrich",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "Alfa Aesar",
+              "label_zh": "Alfa Aesar",
+              "label_en": "Alfa Aesar",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "concentration",
+          "label_zh": "浓度",
+          "label_en": "Concentration",
+          "field_type": "number",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "concentration_unit",
+          "label_zh": "浓度单位",
+          "label_en": "Concentration Unit",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "method",
+          "label_zh": "制备方法",
+          "label_en": "Preparation Method",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": "precursor_method",
+          "allowed_values": [
+            {
+              "value": "melting",
+              "label_zh": "熔融",
+              "label_en": "melting",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "spin_coating",
+              "label_zh": "旋涂",
+              "label_en": "spin_coating",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "powder",
+              "label_zh": "粉末",
+              "label_en": "powder",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "solution",
+              "label_zh": "溶液",
+              "label_en": "solution",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "other",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "melting_temperature_C",
+          "label_zh": "熔融温度",
+          "label_en": "Melting Temperature",
+          "field_type": "number",
+          "unit": "℃",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "spin_speed_rpm",
+          "label_zh": "旋涂转速",
+          "label_en": "Spin Speed",
+          "field_type": "number",
+          "unit": "rpm",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "spin_time_s",
+          "label_zh": "旋涂时长",
+          "label_en": "Spin Time",
+          "field_type": "number",
+          "unit": "s",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "pre_spin_speed_rpm",
+          "label_zh": "预旋涂转速",
+          "label_en": "Pre-spin Speed",
+          "field_type": "number",
+          "unit": "rpm",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "pre_spin_time_s",
+          "label_zh": "预旋涂时长",
+          "label_en": "Pre-spin Time",
+          "field_type": "number",
+          "unit": "s",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "preparation_time_min",
+          "label_zh": "制备时长",
+          "label_en": "Preparation Time",
+          "field_type": "number",
+          "unit": "min",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "mass_mg",
+          "label_zh": "质量",
+          "label_en": "Mass",
+          "field_type": "number",
+          "unit": "mg",
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "precursors",
+          "field_key": "batch_no",
+          "label_zh": "批次号",
+          "label_en": "Batch No",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "substrates",
+      "fields": [
+        {
+          "module_key": "substrates",
+          "field_key": "items",
+          "label_zh": "基底列表",
+          "label_en": "Substrate Items",
+          "field_type": "array",
+          "unit": null,
+          "required": true,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "role",
+          "label_zh": "角色",
+          "label_en": "Role",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": "substrate_role",
+          "allowed_values": [
+            {
+              "value": "top",
+              "label_zh": "上基底",
+              "label_en": "top",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "bottom",
+              "label_zh": "下基底",
+              "label_en": "bottom",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "control",
+              "label_zh": "对照",
+              "label_en": "control",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "product",
+              "label_zh": "产物",
+              "label_en": "product",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "type",
+          "label_zh": "类型",
+          "label_en": "Type",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": "substrate_type",
+          "allowed_values": [
+            {
+              "value": "硅片单抛N<100>",
+              "label_zh": "硅片单抛N<100>",
+              "label_en": "硅片单抛N<100>",
+              "group_key": "silicon",
+              "group_label_zh": "硅基"
+            },
+            {
+              "value": "蓝宝石单抛<0001>/<11-20>",
+              "label_zh": "蓝宝石单抛<0001>/<11-20>",
+              "label_en": "蓝宝石单抛<0001>/<11-20>",
+              "group_key": "sapphire",
+              "group_label_zh": "蓝宝石"
+            },
+            {
+              "value": "蓝宝石单抛<10-10>/<0001>",
+              "label_zh": "蓝宝石单抛<10-10>/<0001>",
+              "label_en": "蓝宝石单抛<10-10>/<0001>",
+              "group_key": "sapphire",
+              "group_label_zh": "蓝宝石"
+            },
+            {
+              "value": "蓝宝石单抛<11-20>/<0001>",
+              "label_zh": "蓝宝石单抛<11-20>/<0001>",
+              "label_en": "蓝宝石单抛<11-20>/<0001>",
+              "group_key": "sapphire",
+              "group_label_zh": "蓝宝石"
+            },
+            {
+              "value": "蓝宝石双抛C<0001>",
+              "label_zh": "蓝宝石双抛C<0001>",
+              "label_en": "蓝宝石双抛C<0001>",
+              "group_key": "sapphire",
+              "group_label_zh": "蓝宝石"
+            },
+            {
+              "value": "蓝宝石双抛A<11-20>",
+              "label_zh": "蓝宝石双抛A<11-20>",
+              "label_en": "蓝宝石双抛A<11-20>",
+              "group_key": "sapphire",
+              "group_label_zh": "蓝宝石"
+            },
+            {
+              "value": "蓝宝石双抛M<10-10>",
+              "label_zh": "蓝宝石双抛M<10-10>",
+              "label_en": "蓝宝石双抛M<10-10>",
+              "group_key": "sapphire",
+              "group_label_zh": "蓝宝石"
+            }
+          ]
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "brand",
+          "label_zh": "品牌",
+          "label_en": "Brand",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": "substrate_brand",
+          "allowed_values": [
+            {
+              "value": "华赫硅材料",
+              "label_zh": "华赫硅材料",
+              "label_en": "华赫硅材料",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "合肥科晶",
+              "label_zh": "合肥科晶",
+              "label_en": "合肥科晶",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "苏州研材微纳科技",
+              "label_zh": "苏州研材微纳科技",
+              "label_en": "苏州研材微纳科技",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "size_mm",
+          "label_zh": "尺寸",
+          "label_en": "Size",
+          "field_type": "select",
+          "unit": "mm",
+          "required": false,
+          "inheritable": false,
+          "vocab_key": "substrate_size",
+          "allowed_values": [
+            {
+              "value": "5x5",
+              "label_zh": "5x5",
+              "label_en": "5x5",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "5x8",
+              "label_zh": "5x8",
+              "label_en": "5x8",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "5x10",
+              "label_zh": "5x10",
+              "label_en": "5x10",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "10x10",
+              "label_zh": "10x10",
+              "label_en": "10x10",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "batch_no",
+          "label_zh": "基底批次",
+          "label_en": "Substrate Batch",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "treatment_method",
+          "label_zh": "处理方法",
+          "label_en": "Treatment Method",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": "substrate_treatment_method",
+          "allowed_values": [
+            {
+              "value": "none",
+              "label_zh": "无",
+              "label_en": "none",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "plasma_cleaning",
+              "label_zh": "等离子清洗",
+              "label_en": "plasma_cleaning",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "uv_cleaning",
+              "label_zh": "紫外清洗",
+              "label_en": "uv_cleaning",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "annealing",
+              "label_zh": "退火",
+              "label_en": "annealing",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "position_mm",
+          "label_zh": "相对温区位置",
+          "label_en": "Relative Zone Position",
+          "field_type": "number",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "treatment_temperature_C",
+          "label_zh": "处理温度",
+          "label_en": "Treatment Temperature",
+          "field_type": "number",
+          "unit": "℃",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "treatment_duration_min",
+          "label_zh": "处理时长",
+          "label_en": "Treatment Duration",
+          "field_type": "number",
+          "unit": "min",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "treatment_power_W",
+          "label_zh": "处理功率",
+          "label_en": "Treatment Power",
+          "field_type": "number",
+          "unit": "W",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "substrates",
+          "field_key": "treatment_gas",
+          "label_zh": "处理气体",
+          "label_en": "Treatment Gas",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "furnace_program",
+      "fields": [
+        {
+          "module_key": "furnace_program",
+          "field_key": "furnace_info",
+          "label_zh": "炉子信息",
+          "label_en": "Furnace Info",
+          "field_type": "object",
+          "unit": null,
+          "required": true,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "furnace_program",
+          "field_key": "placements",
+          "label_zh": "前驱体放置",
+          "label_en": "Precursor Placements",
+          "field_type": "array",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "furnace_program",
+          "field_key": "zones",
+          "label_zh": "温区程序",
+          "label_en": "Zone Programs",
+          "field_type": "array",
+          "unit": null,
+          "required": true,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "gas_program",
+      "fields": [
+        {
+          "module_key": "gas_program",
+          "field_key": "pre_washing_gas",
+          "label_zh": "洗炉气体",
+          "label_en": "Pre-washing Gas",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": "gas_label",
+          "allowed_values": [
+            {
+              "value": "Ar",
+              "label_zh": "氩气",
+              "label_en": "Ar",
+              "group_key": "pure",
+              "group_label_zh": "单一气体"
+            },
+            {
+              "value": "CO2",
+              "label_zh": "二氧化碳",
+              "label_en": "CO2",
+              "group_key": "pure",
+              "group_label_zh": "单一气体"
+            },
+            {
+              "value": "O2",
+              "label_zh": "氧气",
+              "label_en": "O2",
+              "group_key": "pure",
+              "group_label_zh": "单一气体"
+            },
+            {
+              "value": "Ar+H2",
+              "label_zh": "氩氢混合",
+              "label_en": "Ar+H2",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "Ar+O2",
+              "label_zh": "氩氧混合",
+              "label_en": "Ar+O2",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "H2+CO2",
+              "label_zh": "氢气二氧化碳混合",
+              "label_en": "H2+CO2",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "CO+Ar",
+              "label_zh": "一氧化碳氩气混合",
+              "label_en": "CO+Ar",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "air",
+              "label_zh": "空气",
+              "label_en": "air",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            }
+          ]
+        },
+        {
+          "module_key": "gas_program",
+          "field_key": "segments",
+          "label_zh": "气体段列表",
+          "label_en": "Gas Segments",
+          "field_type": "array",
+          "unit": null,
+          "required": true,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "gas_program",
+          "field_key": "stage",
+          "label_zh": "阶段",
+          "label_en": "Stage",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "gas_program",
+          "field_key": "gas",
+          "label_zh": "气体",
+          "label_en": "Gas",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": "gas_label",
+          "allowed_values": [
+            {
+              "value": "Ar",
+              "label_zh": "氩气",
+              "label_en": "Ar",
+              "group_key": "pure",
+              "group_label_zh": "单一气体"
+            },
+            {
+              "value": "CO2",
+              "label_zh": "二氧化碳",
+              "label_en": "CO2",
+              "group_key": "pure",
+              "group_label_zh": "单一气体"
+            },
+            {
+              "value": "O2",
+              "label_zh": "氧气",
+              "label_en": "O2",
+              "group_key": "pure",
+              "group_label_zh": "单一气体"
+            },
+            {
+              "value": "Ar+H2",
+              "label_zh": "氩氢混合",
+              "label_en": "Ar+H2",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "Ar+O2",
+              "label_zh": "氩氧混合",
+              "label_en": "Ar+O2",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "H2+CO2",
+              "label_zh": "氢气二氧化碳混合",
+              "label_en": "H2+CO2",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "CO+Ar",
+              "label_zh": "一氧化碳氩气混合",
+              "label_en": "CO+Ar",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            },
+            {
+              "value": "air",
+              "label_zh": "空气",
+              "label_en": "air",
+              "group_key": "mixed",
+              "group_label_zh": "混合气体"
+            }
+          ]
+        },
+        {
+          "module_key": "gas_program",
+          "field_key": "start_min",
+          "label_zh": "开始时间",
+          "label_en": "Start Time",
+          "field_type": "number",
+          "unit": "min",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "gas_program",
+          "field_key": "end_min",
+          "label_zh": "结束时间",
+          "label_en": "End Time",
+          "field_type": "number",
+          "unit": "min",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "gas_program",
+          "field_key": "flow_sccm",
+          "label_zh": "流量",
+          "label_en": "Flow",
+          "field_type": "number",
+          "unit": "sccm",
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "gas_program",
+          "field_key": "components",
+          "label_zh": "混合组分",
+          "label_en": "Gas Components",
+          "field_type": "array",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "process_observation",
+      "fields": [
+        {
+          "module_key": "process_observation",
+          "field_key": "color_change",
+          "label_zh": "颜色变化",
+          "label_en": "Color Change",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "process_observation",
+          "field_key": "abnormal_events",
+          "label_zh": "异常事件",
+          "label_en": "Abnormal Events",
+          "field_type": "multi_select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "process_observation",
+          "field_key": "note",
+          "label_zh": "备注",
+          "label_en": "Note",
+          "field_type": "textarea",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "characterization",
+      "fields": [
+        {
+          "module_key": "characterization",
+          "field_key": "methods",
+          "label_zh": "表征方法列表",
+          "label_en": "Characterization Methods",
+          "field_type": "array",
+          "unit": null,
+          "required": true,
+          "inheritable": true,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "characterization",
+          "field_key": "method",
+          "label_zh": "方法",
+          "label_en": "Method",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": true,
+          "vocab_key": "characterization_method",
+          "allowed_values": [
+            {
+              "value": "OM",
+              "label_zh": "光学显微镜",
+              "label_en": "OM",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "Raman",
+              "label_zh": "拉曼",
+              "label_en": "Raman",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "PL",
+              "label_zh": "光致发光",
+              "label_en": "PL",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "AFM",
+              "label_zh": "原子力显微镜",
+              "label_en": "AFM",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "SEM",
+              "label_zh": "扫描电镜",
+              "label_en": "SEM",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "Other",
+              "label_zh": "其他",
+              "label_en": "Other",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "characterization",
+          "field_key": "result",
+          "label_zh": "结果",
+          "label_en": "Result",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "characterization",
+          "field_key": "enabled",
+          "label_zh": "启用",
+          "label_en": "Enabled",
+          "field_type": "boolean",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "characterization",
+          "field_key": "excitation_nm",
+          "label_zh": "激发波长",
+          "label_en": "Excitation Wavelength",
+          "field_type": "number",
+          "unit": "nm",
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "characterization",
+          "field_key": "characterization_note",
+          "label_zh": "备注",
+          "label_en": "Note",
+          "field_type": "textarea",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "module_key": "result_summary",
+      "fields": [
+        {
+          "module_key": "result_summary",
+          "field_key": "summary_result",
+          "label_zh": "结果摘要",
+          "label_en": "Summary Result",
+          "field_type": "textarea",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "result_summary",
+          "field_key": "quality_label",
+          "label_zh": "质量标签",
+          "label_en": "Quality Label",
+          "field_type": "select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": "quality_label",
+          "allowed_values": [
+            {
+              "value": "success",
+              "label_zh": "成功",
+              "label_en": "success",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "partial",
+              "label_zh": "部分成功",
+              "label_en": "partial",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "failed",
+              "label_zh": "失败",
+              "label_en": "failed",
+              "group_key": null,
+              "group_label_zh": null
+            },
+            {
+              "value": "unknown",
+              "label_zh": "未知",
+              "label_en": "unknown",
+              "group_key": null,
+              "group_label_zh": null
+            }
+          ]
+        },
+        {
+          "module_key": "result_summary",
+          "field_key": "next_step",
+          "label_zh": "下一步计划",
+          "label_en": "Next Step",
+          "field_type": "text",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        },
+        {
+          "module_key": "result_summary",
+          "field_key": "failure_modes",
+          "label_zh": "失败模式",
+          "label_en": "Failure Modes",
+          "field_type": "multi_select",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": "failure_mode",
+          "allowed_values": [
+            {
+              "value": "no_growth",
+              "label_zh": "无生长",
+              "label_en": "no_growth",
+              "group_key": "nucleation_coverage",
+              "group_label_zh": "成核与覆盖"
+            },
+            {
+              "value": "sparse_nucleation",
+              "label_zh": "成核稀疏",
+              "label_en": "sparse_nucleation",
+              "group_key": "nucleation_coverage",
+              "group_label_zh": "成核与覆盖"
+            },
+            {
+              "value": "low_coverage",
+              "label_zh": "覆盖率低",
+              "label_en": "low_coverage",
+              "group_key": "nucleation_coverage",
+              "group_label_zh": "成核与覆盖"
+            },
+            {
+              "value": "multilayer",
+              "label_zh": "多层",
+              "label_en": "multilayer",
+              "group_key": "morphology",
+              "group_label_zh": "形貌与厚度"
+            },
+            {
+              "value": "discontinuous",
+              "label_zh": "不连续/孤岛",
+              "label_en": "discontinuous",
+              "group_key": "morphology",
+              "group_label_zh": "形貌与厚度"
+            },
+            {
+              "value": "poor_uniformity",
+              "label_zh": "不均匀",
+              "label_en": "poor_uniformity",
+              "group_key": "morphology",
+              "group_label_zh": "形貌与厚度"
+            },
+            {
+              "value": "wrong_phase",
+              "label_zh": "物相错误",
+              "label_en": "wrong_phase",
+              "group_key": "crystallinity",
+              "group_label_zh": "结晶质量"
+            },
+            {
+              "value": "amorphous",
+              "label_zh": "非晶",
+              "label_en": "amorphous",
+              "group_key": "crystallinity",
+              "group_label_zh": "结晶质量"
+            },
+            {
+              "value": "contamination",
+              "label_zh": "沾污/杂质",
+              "label_en": "contamination",
+              "group_key": "contamination_damage",
+              "group_label_zh": "污染与损伤"
+            },
+            {
+              "value": "cracked",
+              "label_zh": "开裂/破损",
+              "label_en": "cracked",
+              "group_key": "contamination_damage",
+              "group_label_zh": "污染与损伤"
+            },
+            {
+              "value": "equipment_fault",
+              "label_zh": "设备故障",
+              "label_en": "equipment_fault",
+              "group_key": "equipment",
+              "group_label_zh": "设备/工艺"
+            },
+            {
+              "value": "other",
+              "label_zh": "其他",
+              "label_en": "other",
+              "group_key": "other",
+              "group_label_zh": "其他"
+            }
+          ]
+        },
+        {
+          "module_key": "result_summary",
+          "field_key": "failure_detail",
+          "label_zh": "失败说明",
+          "label_en": "Failure Detail",
+          "field_type": "textarea",
+          "unit": null,
+          "required": false,
+          "inheritable": false,
+          "vocab_key": null,
+          "allowed_values": []
+        }
+      ]
+    }
+  ],
+  "field_count": 68
+}
