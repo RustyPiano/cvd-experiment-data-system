@@ -71,17 +71,8 @@ MODULE_MODELS: dict[str, tuple[type[BaseModel], ...]] = {
 }
 
 
-# FieldDefinition 用扁平命名描述某些嵌套字段，而 payload 是嵌套结构。
-# 这里显式登记「字典扁平名 → 规范层 canonical 字段名」的对应；测试会校验
-# canonical 名确实存在于该模块的 Pydantic 模型中（非盲目白名单）。
-# TODO(standard/M5): 在生成规范产物时统一命名（扁平 vs 嵌套路径），届时消除别名。
-ALIASED_FIELDS: dict[tuple[str, str], str] = {
-    ("substrates", "treatment_temperature_C"): "temperature_C",
-    ("substrates", "treatment_duration_min"): "duration_min",
-    ("substrates", "treatment_power_W"): "power_W",
-    ("substrates", "treatment_gas"): "gas",
-    ("characterization", "characterization_note"): "note",
-}
+# 命名已统一（迁移 0028）：FieldDefinition.field_key 直接采用 Pydantic 叶子名，
+# 不再需要扁平→canonical 别名映射。T1.3 因此要求 field_key 直接命中已声明字段。
 
 
 def _declared_field_names(module_key: str) -> set[str]:
@@ -171,9 +162,6 @@ def test_t1_3_field_definitions_map_to_a_declared_pydantic_field(db_session) -> 
             continue
         declared = _declared_field_names(field.module_key)
         if field.field_key in declared:
-            continue
-        canonical = ALIASED_FIELDS.get((field.module_key, field.field_key))
-        if canonical is not None and canonical in declared:
             continue
         unknown_field.append((field.module_key, field.field_key))
 

@@ -34,18 +34,6 @@ SCHEMA_BASE_URI = f"https://standard.cvd-2d.org/{STANDARD_VERSION}"
 # 受词表驱动、需在字段字典里展开候选值的字段类型。
 _VOCAB_FIELD_TYPES = frozenset({"select", "multi_select"})
 
-# FieldDefinition 用扁平命名描述了若干嵌套字段，而 Pydantic(JSON Schema) 是嵌套结构。
-# 发布字段字典时附上 canonical（Pydantic 叶子）字段名，让两份产物可对接（消除
-# 「字典里有、schema 里查不到」的漂移）。与 M1 ALIASED_FIELDS 同源。
-# TODO(standard): 后续统一命名后可移除此映射。
-_CANONICAL_FIELD_NAMES: dict[tuple[str, str], str] = {
-    ("substrates", "treatment_temperature_C"): "temperature_C",
-    ("substrates", "treatment_duration_min"): "duration_min",
-    ("substrates", "treatment_power_W"): "power_W",
-    ("substrates", "treatment_gas"): "gas",
-    ("characterization", "characterization_note"): "note",
-}
-
 
 class SpecExportService:
     def __init__(self, db: Session) -> None:
@@ -106,12 +94,9 @@ class SpecExportService:
             grouped.setdefault(field.module_key, []).append(
                 {
                     "module_key": field.module_key,
+                    # field_key 已与 Pydantic/JSON Schema 叶子名一致（迁移 0028），
+                    # 可直接作为两份产物的对接键。
                     "field_key": field.field_key,
-                    # canonical_field = 该字段在 Pydantic/JSON Schema 中的叶子名；
-                    # 多数与 field_key 相同，少数扁平别名映射到嵌套 canonical 名。
-                    "canonical_field": _CANONICAL_FIELD_NAMES.get(
-                        (field.module_key, field.field_key), field.field_key
-                    ),
                     "label_zh": field.label_zh,
                     "label_en": field.label_en,
                     "field_type": field.field_type,
@@ -179,10 +164,8 @@ class SpecExportService:
         for module in field_dictionary["modules"]:
             lines.append(f"## {module['module_key']}")
             lines.append("")
-            lines.append(
-                "| 字段 | canonical | 中文 | 英文 | 类型 | 单位 | 必填 | 词表 | 候选值 |"
-            )
-            lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+            lines.append("| 字段 | 中文 | 英文 | 类型 | 单位 | 必填 | 词表 | 候选值 |")
+            lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
             for field in module["fields"]:
                 allowed = "、".join(
                     self._md_cell(option["value"])
@@ -190,7 +173,6 @@ class SpecExportService:
                 )
                 lines.append(
                     f"| `{self._md_cell(field['field_key'])}` "
-                    f"| `{self._md_cell(field['canonical_field'])}` "
                     f"| {self._md_cell(field['label_zh'])} "
                     f"| {self._md_cell(field['label_en'] or '')} "
                     f"| {self._md_cell(field['field_type'])} "
