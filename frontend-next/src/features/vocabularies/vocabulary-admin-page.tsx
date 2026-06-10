@@ -602,6 +602,18 @@ export function VocabularyAdminPage() {
     )
   }, [rows])
 
+  // 词条已在「当前所填分组键」组内者，本对话框不能移除（后端按并集应用，取消勾选
+  // 不会移除）。锁定其复选框，并把移除引导到行编辑（清除分组键）。
+  const lockedMemberIds = useMemo(() => {
+    const key = groupForm.groupKey.trim()
+    if (!key) {
+      return new Set<string>()
+    }
+    return new Set(
+      rows.filter((item) => item.group_key === key).map((item) => item.id),
+    )
+  }, [rows, groupForm.groupKey])
+
   const handleGroupSubmit = () => {
     setFeedback(null)
     const result = buildGroupUpsertPayload(appliedFilter, groupForm)
@@ -1061,11 +1073,13 @@ export function VocabularyAdminPage() {
               <div className="editor-field">
                 <Label>归入该组的词条</Label>
                 <p className="text-xs text-muted-foreground">
-                  勾选要归入本组的词条；标签会统一应用到该组全部成员。
+                  勾选可将词条加入本组；已在组内的词条不能在此移除——如需移出，请在该
+                  词条的「编辑」中清除分组键。
                 </p>
                 <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-input p-2">
                   {rows.map((item) => {
                     const checked = groupForm.memberIds.includes(item.id)
+                    const locked = lockedMemberIds.has(item.id)
                     return (
                       <label
                         key={item.id}
@@ -1074,7 +1088,9 @@ export function VocabularyAdminPage() {
                         <input
                           type="checkbox"
                           aria-label={`成员 ${item.value}`}
-                          checked={checked}
+                          // 已在组内者恒显为选中（即便经手输入分组键未预填成员）。
+                          checked={checked || locked}
+                          disabled={locked}
                           onChange={(e) =>
                             setGroupForm({
                               ...groupForm,
@@ -1092,6 +1108,12 @@ export function VocabularyAdminPage() {
                             {' '}
                             · {item.value}
                           </span>
+                          {locked ? (
+                            <span className="text-muted-foreground">
+                              {' '}
+                              · 已在组内
+                            </span>
+                          ) : null}
                         </span>
                       </label>
                     )
