@@ -45,6 +45,18 @@ export type EditorValidationError = {
 export type VocabularySelectOption = {
   label: string
   value: string
+  /** 同一词表内的分组键（来自后端 group_key）；为空表示未分组。 */
+  groupKey?: string | null
+  /** 分组显示标签（后端 group_label_zh，回退 group_label_en）。 */
+  groupLabel?: string | null
+  /** 分组排序（后端 group_sort_order）；为空排在已分组之后。 */
+  groupSortOrder?: number | null
+}
+
+export type VocabularyOptionGroup = {
+  key: string | null
+  label: string | null
+  options: VocabularySelectOption[]
 }
 
 type NumberParseResult =
@@ -223,6 +235,8 @@ export type ResultSummaryValues = {
   summaryResult: string
   qualityLabel: QualityLabel
   nextStep: string
+  failureModes: string[]
+  failureDetail: string
 }
 
 export type ExperimentEditorValues = {
@@ -443,6 +457,80 @@ export function withLegacyVocabularyOption(
     },
     ...options,
   ]
+}
+
+const UNGROUPED_BUCKET = '__ungrouped__'
+
+/**
+ * 把扁平的词表选项按 groupKey 聚成有序分组：已分组的按 groupSortOrder 升序
+ * （缺失排在有序之后、保持首次出现的相对顺序），未分组的整体排在最后。组内顺序
+ * 保持输入原序（后端已按分组+sort_order 排好）。纯函数，便于单测。
+ */
+export function groupVocabularyOptions(
+  options: VocabularySelectOption[],
+): VocabularyOptionGroup[] {
+  type Bucket = {
+    key: string | null
+    label: string | null
+    sortOrder: number | null
+    firstIndex: number
+    options: VocabularySelectOption[]
+  }
+  const buckets = new Map<string, Bucket>()
+
+  options.forEach((option, index) => {
+    const key = option.groupKey ?? null
+    const bucketId = key ?? UNGROUPED_BUCKET
+    let bucket = buckets.get(bucketId)
+    if (!bucket) {
+      bucket = {
+        key,
+        label: option.groupLabel ?? null,
+        sortOrder: option.groupSortOrder ?? null,
+        firstIndex: index,
+        options: [],
+      }
+      buckets.set(bucketId, bucket)
+    }
+    bucket.options.push(option)
+  })
+
+  return [...buckets.values()]
+    .sort((a, b) => {
+      const aUngrouped = a.key === null
+      const bUngrouped = b.key === null
+      if (aUngrouped !== bUngrouped) return aUngrouped ? 1 : -1
+      if (
+        a.sortOrder != null &&
+        b.sortOrder != null &&
+        a.sortOrder !== b.sortOrder
+      ) {
+        return a.sortOrder - b.sortOrder
+      }
+      if (a.sortOrder != null && b.sortOrder == null) return -1
+      if (a.sortOrder == null && b.sortOrder != null) return 1
+      return a.firstIndex - b.firstIndex
+    })
+    .map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      options: bucket.options,
+    }))
+}
+
+/**
+ * 多选场景：把当前已选、但已不在 active 词表里的 legacy 值补成未分组选项，
+ * 以免用户无法看到/取消它们。
+ */
+export function withMissingMultiSelectOptions(
+  options: VocabularySelectOption[],
+  values: string[],
+): VocabularySelectOption[] {
+  const known = new Set(options.map((option) => option.value))
+  const missing = values
+    .filter((value) => value && !known.has(value))
+    .map((value) => ({ label: value, value }))
+  return missing.length > 0 ? [...options, ...missing] : options
 }
 
 function parseNullableNumber(value: string, label: string): NumberParseResult {
@@ -1343,6 +1431,8 @@ export function createInitialEditorValues(
         (asString(resultSummary.quality_label) as QualityLabel) ||
         experiment.quality_label,
       nextStep: asString(resultSummary.next_step),
+      failureModes: asStringArray(resultSummary.failure_modes),
+      failureDetail: asString(resultSummary.failure_detail),
     },
   }
 }
@@ -1889,6 +1979,8 @@ export function toResultSummaryPayload(values: ResultSummaryValues) {
     summary_result: normalizeNullableString(values.summaryResult),
     quality_label: values.qualityLabel,
     next_step: normalizeNullableString(values.nextStep),
+    failure_modes: values.failureModes.length > 0 ? values.failureModes : null,
+    failure_detail: normalizeNullableString(values.failureDetail),
   })
 }
 
@@ -1900,5 +1992,7 @@ export function mergeResultSummaryPayload(
     'summary_result',
     'quality_label',
     'next_step',
+    'failure_modes',
+    'failure_detail',
   ])
 }

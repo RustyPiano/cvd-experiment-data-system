@@ -1,7 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
 import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
 
-import { withLegacyVocabularyOption } from '../editor-types'
+import {
+  groupVocabularyOptions,
+  withLegacyVocabularyOption,
+} from '../editor-types'
 import type { VocabularySelectOption } from '../editor-types'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -76,6 +79,13 @@ export function VocabularyCombobox({
     onCreate && !disabled && trimmedQuery.length > 0 && !hasExactMatch,
   )
 
+  // 分组渲染：仅当词表带有分组标签时才显示分组标题，否则保持扁平列表外观。
+  const groupedFiltered = useMemo(
+    () => groupVocabularyOptions(filtered),
+    [filtered],
+  )
+  const showGroupHeaders = groupedFiltered.some((group) => group.label)
+
   const commit = (nextValue: string) => {
     onChange(nextValue)
     setOpen(false)
@@ -120,22 +130,35 @@ export function VocabularyCombobox({
             }
           }}
         >
-          {filtered.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={cn(
-                'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm',
-                'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none',
-                option.value === value && 'bg-accent/60',
-              )}
-              onClick={() => commit(option.value)}
+          {groupedFiltered.map((group) => (
+            <div
+              key={group.key ?? '__ungrouped__'}
+              role="group"
+              aria-label={group.label ?? undefined}
             >
-              <span className="truncate">{option.label}</span>
-              {option.value === value ? (
-                <Check className="size-4 shrink-0 text-primary" />
+              {showGroupHeaders && group.label ? (
+                <div className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                  {group.label}
+                </div>
               ) : null}
-            </button>
+              {group.options.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm',
+                    'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none',
+                    option.value === value && 'bg-accent/60',
+                  )}
+                  onClick={() => commit(option.value)}
+                >
+                  <span className="truncate">{option.label}</span>
+                  {option.value === value ? (
+                    <Check className="size-4 shrink-0 text-primary" />
+                  ) : null}
+                </button>
+              ))}
+            </div>
           ))}
           {showCreate ? (
             <button

@@ -1,5 +1,9 @@
 import type { QualityLabel } from '@/shared/types/api'
-import type { ResultSummaryValues } from '../editor-types'
+import type {
+  ResultSummaryValues,
+  VocabularySelectOption,
+} from '../editor-types'
+import { VocabularyMultiSelect } from './vocabulary-multi-select'
 import { cn } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,15 +15,25 @@ const QUALITY_OPTIONS: { label: string; value: QualityLabel }[] = [
   { label: '失败', value: 'failed' },
 ]
 
+// 质量评级为这些值时，凸显失败信息采集（失败数据是数据集对 AI 有价值的关键）。
+const FAILURE_RELEVANT: ReadonlySet<QualityLabel> = new Set<QualityLabel>([
+  'failed',
+  'partial',
+])
+
 export function ResultSummarySection({
   disabled,
+  failureModeOptions,
   onChange,
   value,
 }: {
   disabled: boolean
+  failureModeOptions: VocabularySelectOption[]
   onChange: (nextValue: ResultSummaryValues) => void
   value: ResultSummaryValues
 }) {
+  const showFailureHint =
+    FAILURE_RELEVANT.has(value.qualityLabel) || value.failureModes.length > 0
   return (
     <div className="flex flex-col gap-5">
       <div className="editor-field">
@@ -40,7 +54,9 @@ export function ResultSummarySection({
                 role="radio"
                 aria-checked={active}
                 disabled={disabled}
-                onClick={() => onChange({ ...value, qualityLabel: option.value })}
+                onClick={() =>
+                  onChange({ ...value, qualityLabel: option.value })
+                }
                 className={cn(
                   'min-w-16 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                   'disabled:pointer-events-none disabled:opacity-50',
@@ -54,6 +70,40 @@ export function ResultSummarySection({
             )
           })}
         </div>
+      </div>
+
+      <div className="editor-field">
+        <Label asChild>
+          <span>失败模式</span>
+        </Label>
+        <p className="text-sm text-muted-foreground">
+          {showFailureHint
+            ? '记录本次未达预期的原因（可多选）。失败数据同样是标准数据集的一部分——它让结果对 AI 有意义。'
+            : '如本次实验存在未达预期之处，可在此标注失败模式（可多选）。'}
+        </p>
+        <VocabularyMultiSelect
+          ariaLabel="失败模式"
+          disabled={disabled}
+          emptyHint="暂无失败模式词表"
+          options={failureModeOptions}
+          value={value.failureModes}
+          onChange={(failureModes) => onChange({ ...value, failureModes })}
+        />
+      </div>
+
+      <div className="editor-field">
+        <Label htmlFor="result-summary-failure-detail">失败细节</Label>
+        <Textarea
+          id="result-summary-failure-detail"
+          aria-label="失败细节"
+          disabled={disabled}
+          rows={3}
+          placeholder="补充失败/异常的具体现象、可能原因或排查线索"
+          value={value.failureDetail}
+          onChange={(event) =>
+            onChange({ ...value, failureDetail: event.target.value })
+          }
+        />
       </div>
 
       <div className="editor-field">

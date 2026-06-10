@@ -76,6 +76,9 @@ function toVocabularyOptions(
   return (items ?? []).map((item) => ({
     label: item.label_zh || item.label_en || item.value,
     value: item.value,
+    groupKey: item.group_key,
+    groupLabel: item.group_label_zh || item.group_label_en,
+    groupSortOrder: item.group_sort_order,
   }))
 }
 
@@ -181,6 +184,11 @@ function ExperimentEditorWorkspace({
     currentUserId,
     vocabKey: 'characterization_method',
   })
+  const failureModeOptions = useActiveVocabularyOptions({
+    accessToken,
+    currentUserId,
+    vocabKey: 'failure_mode',
+  })
   const recipeTemplatesQuery = useQuery({
     queryKey: ['recipes', 'active', 'experiment-editor', currentUserId],
     queryFn: () => listActiveRecipes(accessToken),
@@ -200,7 +208,10 @@ function ExperimentEditorWorkspace({
       'diff-source',
     ],
     queryFn: () =>
-      listExperimentModules(accessToken, editor.experiment.derived_from_run_id!),
+      listExperimentModules(
+        accessToken,
+        editor.experiment.derived_from_run_id!,
+      ),
     enabled: diffOpen && Boolean(editor.experiment.derived_from_run_id),
   })
   const sourceModulePayloads = useMemo(() => {
@@ -249,8 +260,7 @@ function ExperimentEditorWorkspace({
         const topmost = entries
           .filter((entry) => entry.isIntersecting)
           .sort(
-            (a, b) =>
-              a.boundingClientRect.top - b.boundingClientRect.top,
+            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
           )[0]
         if (topmost) {
           const key = topmost.target.id.replace(
@@ -474,7 +484,9 @@ function ExperimentEditorWorkspace({
                 }}
                 substrateBrandOptions={substrateBrandOptions}
                 substrateSizeOptions={substrateSizeOptions}
-                substrateTreatmentMethodOptions={substrateTreatmentMethodOptions}
+                substrateTreatmentMethodOptions={
+                  substrateTreatmentMethodOptions
+                }
                 substrateTypeOptions={substrateTypeOptions}
                 value={editor.values.substrates}
               />
@@ -572,6 +584,7 @@ function ExperimentEditorWorkspace({
             >
               <ResultSummarySection
                 disabled={editorDisabled}
+                failureModeOptions={failureModeOptions}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
