@@ -4,6 +4,7 @@
   "title": "CVD-2D 工艺数据标准 / CVD-2D Process Data Standard",
   "version": "1.0.0",
   "module_payload_schema_version": "cvd_v1",
+  "usage": "Validate an experiment module payload against modules.<module_key> as a standalone JSON Schema (each carries its own $id and $defs).",
   "modules": {
     "basic_info": {
       "additionalProperties": true,
@@ -94,7 +95,8 @@
         }
       },
       "title": "BasicInfoPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/basic_info.schema.json"
     },
     "environment": {
       "additionalProperties": true,
@@ -149,7 +151,8 @@
         }
       },
       "title": "EnvironmentPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/environment.schema.json"
     },
     "precheck": {
       "additionalProperties": true,
@@ -228,7 +231,8 @@
         }
       },
       "title": "PrecheckPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/precheck.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -415,7 +419,8 @@
         }
       },
       "title": "PrecursorsPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/precursors.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -596,7 +601,8 @@
         }
       },
       "title": "SubstratesPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/substrates.schema.json"
     },
     "furnace_program": {
       "$defs": {
@@ -855,7 +861,8 @@
         }
       },
       "title": "FurnaceProgramPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/furnace_program.schema.json"
     },
     "gas_program": {
       "$defs": {
@@ -1052,7 +1059,8 @@
         }
       },
       "title": "GasProgramPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/gas_program.schema.json"
     },
     "process_observation": {
       "additionalProperties": true,
@@ -1098,7 +1106,8 @@
         }
       },
       "title": "ProcessObservationPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/process_observation.schema.json"
     },
     "characterization": {
       "$defs": {
@@ -1189,7 +1198,8 @@
         }
       },
       "title": "CharacterizationPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/characterization.schema.json"
     },
     "result_summary": {
       "additionalProperties": true,
@@ -1259,7 +1269,8 @@
         }
       },
       "title": "ResultSummaryPayload",
-      "type": "object"
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/1.0.0/result_summary.schema.json"
     }
   }
 }

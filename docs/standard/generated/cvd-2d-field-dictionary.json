@@ -9,6 +9,7 @@
         {
           "module_key": "basic_info",
           "field_key": "operator_id",
+          "canonical_field": "operator_id",
           "label_zh": "操作人",
           "label_en": "Operator",
           "field_type": "select",
@@ -21,6 +22,7 @@
         {
           "module_key": "basic_info",
           "field_key": "experiment_type",
+          "canonical_field": "experiment_type",
           "label_zh": "实验类型",
           "label_en": "Experiment Type",
           "field_type": "select",
@@ -33,6 +35,7 @@
         {
           "module_key": "basic_info",
           "field_key": "material_system",
+          "canonical_field": "material_system",
           "label_zh": "材料体系",
           "label_en": "Material System",
           "field_type": "select",
@@ -95,6 +98,7 @@
         {
           "module_key": "basic_info",
           "field_key": "experiment_date",
+          "canonical_field": "experiment_date",
           "label_zh": "实验日期",
           "label_en": "Experiment Date",
           "field_type": "date",
@@ -107,6 +111,7 @@
         {
           "module_key": "basic_info",
           "field_key": "objective",
+          "canonical_field": "objective",
           "label_zh": "实验目的",
           "label_en": "Objective",
           "field_type": "textarea",
@@ -119,6 +124,7 @@
         {
           "module_key": "basic_info",
           "field_key": "recipe_id",
+          "canonical_field": "recipe_id",
           "label_zh": "来源 Recipe",
           "label_en": "Source Recipe",
           "field_type": "select",
@@ -131,6 +137,7 @@
         {
           "module_key": "basic_info",
           "field_key": "layer_count",
+          "canonical_field": "layer_count",
           "label_zh": "层数",
           "label_en": "Layer Count",
           "field_type": "select",
@@ -177,6 +184,7 @@
         {
           "module_key": "environment",
           "field_key": "indoor_temperature_C",
+          "canonical_field": "indoor_temperature_C",
           "label_zh": "室内温度",
           "label_en": "Indoor Temperature",
           "field_type": "number",
@@ -189,6 +197,7 @@
         {
           "module_key": "environment",
           "field_key": "indoor_humidity_percent",
+          "canonical_field": "indoor_humidity_percent",
           "label_zh": "室内湿度",
           "label_en": "Indoor Humidity",
           "field_type": "number",
@@ -201,6 +210,7 @@
         {
           "module_key": "environment",
           "field_key": "sample_env",
+          "canonical_field": "sample_env",
           "label_zh": "样品环境",
           "label_en": "Sample Environment",
           "field_type": "select",
@@ -242,6 +252,7 @@
         {
           "module_key": "environment",
           "field_key": "abnormal_note",
+          "canonical_field": "abnormal_note",
           "label_zh": "异常备注",
           "label_en": "Abnormal Note",
           "field_type": "textarea",
@@ -259,6 +270,7 @@
         {
           "module_key": "precheck",
           "field_key": "seal_intact",
+          "canonical_field": "seal_intact",
           "label_zh": "密封完好",
           "label_en": "Seal Intact",
           "field_type": "boolean",
@@ -271,6 +283,7 @@
         {
           "module_key": "precheck",
           "field_key": "hood_clean",
+          "canonical_field": "hood_clean",
           "label_zh": "通风橱清洁",
           "label_en": "Hood Clean",
           "field_type": "boolean",
@@ -283,6 +296,7 @@
         {
           "module_key": "precheck",
           "field_key": "flange_blocked",
+          "canonical_field": "flange_blocked",
           "label_zh": "法兰口阻塞",
           "label_en": "Flange Blocked",
           "field_type": "boolean",
@@ -295,6 +309,7 @@
         {
           "module_key": "precheck",
           "field_key": "boat_contamination_level",
+          "canonical_field": "boat_contamination_level",
           "label_zh": "舟污染程度",
           "label_en": "Boat Contamination",
           "field_type": "boolean",
@@ -307,6 +322,7 @@
         {
           "module_key": "precheck",
           "field_key": "tube_contamination_level",
+          "canonical_field": "tube_contamination_level",
           "label_zh": "管污染程度",
           "label_en": "Tube Contamination",
           "field_type": "boolean",
@@ -319,6 +335,7 @@
         {
           "module_key": "precheck",
           "field_key": "risk_note",
+          "canonical_field": "risk_note",
           "label_zh": "风险备注",
           "label_en": "Risk Note",
           "field_type": "textarea",
@@ -336,6 +353,7 @@
         {
           "module_key": "precursors",
           "field_key": "items",
+          "canonical_field": "items",
           "label_zh": "前驱体列表",
           "label_en": "Precursor Items",
           "field_type": "array",
@@ -348,6 +366,7 @@
         {
           "module_key": "precursors",
           "field_key": "species",
+          "canonical_field": "species",
           "label_zh": "物种",
           "label_en": "Species",
           "field_type": "text",
@@ -360,6 +379,7 @@
         {
           "module_key": "precursors",
           "field_key": "brand",
+          "canonical_field": "brand",
           "label_zh": "品牌",
           "label_en": "Brand",
           "field_type": "select",
@@ -408,6 +428,7 @@
         {
           "module_key": "precursors",
           "field_key": "concentration",
+          "canonical_field": "concentration",
           "label_zh": "浓度",
           "label_en": "Concentration",
           "field_type": "number",
@@ -420,6 +441,7 @@
         {
           "module_key": "precursors",
           "field_key": "concentration_unit",
+          "canonical_field": "concentration_unit",
           "label_zh": "浓度单位",
           "label_en": "Concentration Unit",
           "field_type": "text",
@@ -432,6 +454,7 @@
         {
           "module_key": "precursors",
           "field_key": "method",
+          "canonical_field": "method",
           "label_zh": "制备方法",
           "label_en": "Preparation Method",
           "field_type": "select",
@@ -480,6 +503,7 @@
         {
           "module_key": "precursors",
           "field_key": "melting_temperature_C",
+          "canonical_field": "melting_temperature_C",
           "label_zh": "熔融温度",
           "label_en": "Melting Temperature",
           "field_type": "number",
@@ -492,6 +516,7 @@
         {
           "module_key": "precursors",
           "field_key": "spin_speed_rpm",
+          "canonical_field": "spin_speed_rpm",
           "label_zh": "旋涂转速",
           "label_en": "Spin Speed",
           "field_type": "number",
@@ -504,6 +529,7 @@
         {
           "module_key": "precursors",
           "field_key": "spin_time_s",
+          "canonical_field": "spin_time_s",
           "label_zh": "旋涂时长",
           "label_en": "Spin Time",
           "field_type": "number",
@@ -516,6 +542,7 @@
         {
           "module_key": "precursors",
           "field_key": "pre_spin_speed_rpm",
+          "canonical_field": "pre_spin_speed_rpm",
           "label_zh": "预旋涂转速",
           "label_en": "Pre-spin Speed",
           "field_type": "number",
@@ -528,6 +555,7 @@
         {
           "module_key": "precursors",
           "field_key": "pre_spin_time_s",
+          "canonical_field": "pre_spin_time_s",
           "label_zh": "预旋涂时长",
           "label_en": "Pre-spin Time",
           "field_type": "number",
@@ -540,6 +568,7 @@
         {
           "module_key": "precursors",
           "field_key": "preparation_time_min",
+          "canonical_field": "preparation_time_min",
           "label_zh": "制备时长",
           "label_en": "Preparation Time",
           "field_type": "number",
@@ -552,6 +581,7 @@
         {
           "module_key": "precursors",
           "field_key": "mass_mg",
+          "canonical_field": "mass_mg",
           "label_zh": "质量",
           "label_en": "Mass",
           "field_type": "number",
@@ -564,6 +594,7 @@
         {
           "module_key": "precursors",
           "field_key": "batch_no",
+          "canonical_field": "batch_no",
           "label_zh": "批次号",
           "label_en": "Batch No",
           "field_type": "text",
@@ -581,6 +612,7 @@
         {
           "module_key": "substrates",
           "field_key": "items",
+          "canonical_field": "items",
           "label_zh": "基底列表",
           "label_en": "Substrate Items",
           "field_type": "array",
@@ -593,6 +625,7 @@
         {
           "module_key": "substrates",
           "field_key": "role",
+          "canonical_field": "role",
           "label_zh": "角色",
           "label_en": "Role",
           "field_type": "select",
@@ -634,6 +667,7 @@
         {
           "module_key": "substrates",
           "field_key": "type",
+          "canonical_field": "type",
           "label_zh": "类型",
           "label_en": "Type",
           "field_type": "select",
@@ -696,6 +730,7 @@
         {
           "module_key": "substrates",
           "field_key": "brand",
+          "canonical_field": "brand",
           "label_zh": "品牌",
           "label_en": "Brand",
           "field_type": "select",
@@ -730,6 +765,7 @@
         {
           "module_key": "substrates",
           "field_key": "size_mm",
+          "canonical_field": "size_mm",
           "label_zh": "尺寸",
           "label_en": "Size",
           "field_type": "select",
@@ -771,6 +807,7 @@
         {
           "module_key": "substrates",
           "field_key": "batch_no",
+          "canonical_field": "batch_no",
           "label_zh": "基底批次",
           "label_en": "Substrate Batch",
           "field_type": "text",
@@ -783,6 +820,7 @@
         {
           "module_key": "substrates",
           "field_key": "treatment_method",
+          "canonical_field": "treatment_method",
           "label_zh": "处理方法",
           "label_en": "Treatment Method",
           "field_type": "select",
@@ -824,6 +862,7 @@
         {
           "module_key": "substrates",
           "field_key": "position_mm",
+          "canonical_field": "position_mm",
           "label_zh": "相对温区位置",
           "label_en": "Relative Zone Position",
           "field_type": "number",
@@ -836,6 +875,7 @@
         {
           "module_key": "substrates",
           "field_key": "treatment_temperature_C",
+          "canonical_field": "temperature_C",
           "label_zh": "处理温度",
           "label_en": "Treatment Temperature",
           "field_type": "number",
@@ -848,6 +888,7 @@
         {
           "module_key": "substrates",
           "field_key": "treatment_duration_min",
+          "canonical_field": "duration_min",
           "label_zh": "处理时长",
           "label_en": "Treatment Duration",
           "field_type": "number",
@@ -860,6 +901,7 @@
         {
           "module_key": "substrates",
           "field_key": "treatment_power_W",
+          "canonical_field": "power_W",
           "label_zh": "处理功率",
           "label_en": "Treatment Power",
           "field_type": "number",
@@ -872,6 +914,7 @@
         {
           "module_key": "substrates",
           "field_key": "treatment_gas",
+          "canonical_field": "gas",
           "label_zh": "处理气体",
           "label_en": "Treatment Gas",
           "field_type": "text",
@@ -889,6 +932,7 @@
         {
           "module_key": "furnace_program",
           "field_key": "furnace_info",
+          "canonical_field": "furnace_info",
           "label_zh": "炉子信息",
           "label_en": "Furnace Info",
           "field_type": "object",
@@ -901,6 +945,7 @@
         {
           "module_key": "furnace_program",
           "field_key": "placements",
+          "canonical_field": "placements",
           "label_zh": "前驱体放置",
           "label_en": "Precursor Placements",
           "field_type": "array",
@@ -913,6 +958,7 @@
         {
           "module_key": "furnace_program",
           "field_key": "zones",
+          "canonical_field": "zones",
           "label_zh": "温区程序",
           "label_en": "Zone Programs",
           "field_type": "array",
@@ -930,6 +976,7 @@
         {
           "module_key": "gas_program",
           "field_key": "pre_washing_gas",
+          "canonical_field": "pre_washing_gas",
           "label_zh": "洗炉气体",
           "label_en": "Pre-washing Gas",
           "field_type": "select",
@@ -999,6 +1046,7 @@
         {
           "module_key": "gas_program",
           "field_key": "segments",
+          "canonical_field": "segments",
           "label_zh": "气体段列表",
           "label_en": "Gas Segments",
           "field_type": "array",
@@ -1011,6 +1059,7 @@
         {
           "module_key": "gas_program",
           "field_key": "stage",
+          "canonical_field": "stage",
           "label_zh": "阶段",
           "label_en": "Stage",
           "field_type": "text",
@@ -1023,6 +1072,7 @@
         {
           "module_key": "gas_program",
           "field_key": "gas",
+          "canonical_field": "gas",
           "label_zh": "气体",
           "label_en": "Gas",
           "field_type": "select",
@@ -1092,6 +1142,7 @@
         {
           "module_key": "gas_program",
           "field_key": "start_min",
+          "canonical_field": "start_min",
           "label_zh": "开始时间",
           "label_en": "Start Time",
           "field_type": "number",
@@ -1104,6 +1155,7 @@
         {
           "module_key": "gas_program",
           "field_key": "end_min",
+          "canonical_field": "end_min",
           "label_zh": "结束时间",
           "label_en": "End Time",
           "field_type": "number",
@@ -1116,6 +1168,7 @@
         {
           "module_key": "gas_program",
           "field_key": "flow_sccm",
+          "canonical_field": "flow_sccm",
           "label_zh": "流量",
           "label_en": "Flow",
           "field_type": "number",
@@ -1128,6 +1181,7 @@
         {
           "module_key": "gas_program",
           "field_key": "components",
+          "canonical_field": "components",
           "label_zh": "混合组分",
           "label_en": "Gas Components",
           "field_type": "array",
@@ -1145,6 +1199,7 @@
         {
           "module_key": "process_observation",
           "field_key": "color_change",
+          "canonical_field": "color_change",
           "label_zh": "颜色变化",
           "label_en": "Color Change",
           "field_type": "text",
@@ -1157,6 +1212,7 @@
         {
           "module_key": "process_observation",
           "field_key": "abnormal_events",
+          "canonical_field": "abnormal_events",
           "label_zh": "异常事件",
           "label_en": "Abnormal Events",
           "field_type": "multi_select",
@@ -1169,6 +1225,7 @@
         {
           "module_key": "process_observation",
           "field_key": "note",
+          "canonical_field": "note",
           "label_zh": "备注",
           "label_en": "Note",
           "field_type": "textarea",
@@ -1186,6 +1243,7 @@
         {
           "module_key": "characterization",
           "field_key": "methods",
+          "canonical_field": "methods",
           "label_zh": "表征方法列表",
           "label_en": "Characterization Methods",
           "field_type": "array",
@@ -1198,6 +1256,7 @@
         {
           "module_key": "characterization",
           "field_key": "method",
+          "canonical_field": "method",
           "label_zh": "方法",
           "label_en": "Method",
           "field_type": "select",
@@ -1253,6 +1312,7 @@
         {
           "module_key": "characterization",
           "field_key": "result",
+          "canonical_field": "result",
           "label_zh": "结果",
           "label_en": "Result",
           "field_type": "text",
@@ -1265,6 +1325,7 @@
         {
           "module_key": "characterization",
           "field_key": "enabled",
+          "canonical_field": "enabled",
           "label_zh": "启用",
           "label_en": "Enabled",
           "field_type": "boolean",
@@ -1277,6 +1338,7 @@
         {
           "module_key": "characterization",
           "field_key": "excitation_nm",
+          "canonical_field": "excitation_nm",
           "label_zh": "激发波长",
           "label_en": "Excitation Wavelength",
           "field_type": "number",
@@ -1289,6 +1351,7 @@
         {
           "module_key": "characterization",
           "field_key": "characterization_note",
+          "canonical_field": "note",
           "label_zh": "备注",
           "label_en": "Note",
           "field_type": "textarea",
@@ -1306,6 +1369,7 @@
         {
           "module_key": "result_summary",
           "field_key": "summary_result",
+          "canonical_field": "summary_result",
           "label_zh": "结果摘要",
           "label_en": "Summary Result",
           "field_type": "textarea",
@@ -1318,6 +1382,7 @@
         {
           "module_key": "result_summary",
           "field_key": "quality_label",
+          "canonical_field": "quality_label",
           "label_zh": "质量标签",
           "label_en": "Quality Label",
           "field_type": "select",
@@ -1359,6 +1424,7 @@
         {
           "module_key": "result_summary",
           "field_key": "next_step",
+          "canonical_field": "next_step",
           "label_zh": "下一步计划",
           "label_en": "Next Step",
           "field_type": "text",
@@ -1371,6 +1437,7 @@
         {
           "module_key": "result_summary",
           "field_key": "failure_modes",
+          "canonical_field": "failure_modes",
           "label_zh": "失败模式",
           "label_en": "Failure Modes",
           "field_type": "multi_select",
@@ -1468,6 +1535,7 @@
         {
           "module_key": "result_summary",
           "field_key": "failure_detail",
+          "canonical_field": "failure_detail",
           "label_zh": "失败说明",
           "label_en": "Failure Detail",
           "field_type": "textarea",

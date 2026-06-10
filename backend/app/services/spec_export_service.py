@@ -26,9 +26,25 @@ from app.schemas.module_payload import MODULE_PAYLOAD_MODELS
 STANDARD_ID = "cvd-2d-process"
 STANDARD_VERSION = "1.0.0"
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
+# 每个模块 schema 的 $id 基址。给每个模块一个 $id，使其内部 `#/$defs/...` 引用以该
+# 模块子树为解析根——这样无论「抽取该模块单独校验」还是「从顶层文档以 $ref 指向该
+# 模块 $id」都能正确解析，避免顶层引用静默失效（fail-open）。
+SCHEMA_BASE_URI = f"https://standard.cvd-2d.org/{STANDARD_VERSION}"
 
 # 受词表驱动、需在字段字典里展开候选值的字段类型。
 _VOCAB_FIELD_TYPES = frozenset({"select", "multi_select"})
+
+# FieldDefinition 用扁平命名描述了若干嵌套字段，而 Pydantic(JSON Schema) 是嵌套结构。
+# 发布字段字典时附上 canonical（Pydantic 叶子）字段名，让两份产物可对接（消除
+# 「字典里有、schema 里查不到」的漂移）。与 M1 ALIASED_FIELDS 同源。
+# TODO(standard): 后续统一命名后可移除此映射。
+_CANONICAL_FIELD_NAMES: dict[tuple[str, str], str] = {
+    ("substrates", "treatment_temperature_C"): "temperature_C",
+    ("substrates", "treatment_duration_min"): "duration_min",
+    ("substrates", "treatment_power_W"): "power_W",
+    ("substrates", "treatment_gas"): "gas",
+    ("characterization", "characterization_note"): "note",
+}
 
 
 class SpecExportService:
@@ -42,18 +58,24 @@ class SpecExportService:
     def build_json_schema(self) -> dict[str, Any]:
         """把各模块 payload 的 Pydantic JSON Schema 汇成一份带版本元信息的文档。
 
-        每个模块条目本身是一份可独立校验的 JSON Schema（含自身 $defs）。
+        每个模块条目本身是一份可独立校验的 JSON Schema（含自身 $defs + $id）。
         """
-        modules = {
-            module_key: model.model_json_schema()
-            for module_key, model in MODULE_PAYLOAD_MODELS.items()
-        }
+        modules: dict[str, Any] = {}
+        for module_key, model in MODULE_PAYLOAD_MODELS.items():
+            module_schema = model.model_json_schema()
+            # 设 $id 使内部 #/$defs 引用以该模块子树为解析根（顶层/抽取两种用法都成立）。
+            module_schema["$id"] = f"{SCHEMA_BASE_URI}/{module_key}.schema.json"
+            modules[module_key] = module_schema
         return {
             "$schema": JSON_SCHEMA_DIALECT,
             "standard_id": STANDARD_ID,
             "title": "CVD-2D 工艺数据标准 / CVD-2D Process Data Standard",
             "version": STANDARD_VERSION,
             "module_payload_schema_version": MODULE_PAYLOAD_SCHEMA_VERSION,
+            "usage": (
+                "Validate an experiment module payload against modules.<module_key> "
+                "as a standalone JSON Schema (each carries its own $id and $defs)."
+            ),
             "modules": modules,
         }
 
@@ -85,6 +107,11 @@ class SpecExportService:
                 {
                     "module_key": field.module_key,
                     "field_key": field.field_key,
+                    # canonical_field = 该字段在 Pydantic/JSON Schema 中的叶子名；
+                    # 多数与 field_key 相同，少数扁平别名映射到嵌套 canonical 名。
+                    "canonical_field": _CANONICAL_FIELD_NAMES.get(
+                        (field.module_key, field.field_key), field.field_key
+                    ),
                     "label_zh": field.label_zh,
                     "label_en": field.label_en,
                     "field_type": field.field_type,
@@ -132,6 +159,12 @@ class SpecExportService:
             ]
         return cache[vocab_key]
 
+    @staticmethod
+    def _md_cell(value: Any) -> str:
+        """转义 Markdown 表格单元格：竖线与换行会破坏表格结构。"""
+        text = "" if value is None else str(value)
+        return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
+
     def render_field_dictionary_markdown(self, field_dictionary: dict[str, Any]) -> str:
         lines: list[str] = [
             f"# CVD-2D 工艺数据字段字典 · {field_dictionary['standard_id']} "
@@ -146,17 +179,24 @@ class SpecExportService:
         for module in field_dictionary["modules"]:
             lines.append(f"## {module['module_key']}")
             lines.append("")
-            lines.append("| 字段 | 中文 | 英文 | 类型 | 单位 | 必填 | 词表 | 候选值 |")
-            lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+            lines.append(
+                "| 字段 | canonical | 中文 | 英文 | 类型 | 单位 | 必填 | 词表 | 候选值 |"
+            )
+            lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
             for field in module["fields"]:
                 allowed = "、".join(
-                    option["value"] for option in field["allowed_values"]
+                    self._md_cell(option["value"])
+                    for option in field["allowed_values"]
                 )
                 lines.append(
-                    f"| `{field['field_key']}` | {field['label_zh']} "
-                    f"| {field['label_en'] or ''} | {field['field_type']} "
-                    f"| {field['unit'] or ''} | {'是' if field['required'] else ''} "
-                    f"| {field['vocab_key'] or ''} | {allowed} |"
+                    f"| `{self._md_cell(field['field_key'])}` "
+                    f"| `{self._md_cell(field['canonical_field'])}` "
+                    f"| {self._md_cell(field['label_zh'])} "
+                    f"| {self._md_cell(field['label_en'] or '')} "
+                    f"| {self._md_cell(field['field_type'])} "
+                    f"| {self._md_cell(field['unit'] or '')} "
+                    f"| {'是' if field['required'] else ''} "
+                    f"| {self._md_cell(field['vocab_key'] or '')} | {allowed} |"
                 )
             lines.append("")
         return "\n".join(lines)

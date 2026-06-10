@@ -72,6 +72,62 @@ def test_t5_2_field_dictionary_covers_all_active_fields_with_units(db_session) -
         assert all("value" in option for option in field["allowed_values"])
 
 
+def test_t5_4_module_schema_is_self_contained_and_validates_nested(db_session) -> None:
+    """带 $ref 的模块（substrates）抽出后能独立校验嵌套结构，且带 $id。"""
+    schema = SpecExportService(db_session).build_json_schema()
+    substrates = schema["modules"]["substrates"]
+    assert "$id" in substrates
+
+    validator = Draft202012Validator(substrates)
+    good = {
+        "items": [{"type": "硅片", "treatment_params": {"temperature_C": 300.0}}]
+    }
+    assert validator.is_valid(good)
+    # 嵌套数值字段填字符串 → JSON Schema 应判失败（证明 $ref 正确解析到嵌套子模型）。
+    bad = {"items": [{"treatment_params": {"temperature_C": "hot"}}]}
+    assert not validator.is_valid(bad)
+
+
+def test_t5_4_field_dictionary_canonical_field_resolves_flat_aliases(db_session) -> None:
+    """字段字典的 canonical_field 把扁平别名解析为 Pydantic 叶子名，消除两产物漂移。"""
+    field_dict = SpecExportService(db_session).build_field_dictionary()
+    all_fields = [field for module in field_dict["modules"] for field in module["fields"]]
+    by_key = {(f["module_key"], f["field_key"]): f for f in all_fields}
+
+    assert (
+        by_key[("substrates", "treatment_temperature_C")]["canonical_field"]
+        == "temperature_C"
+    )
+    assert (
+        by_key[("characterization", "characterization_note")]["canonical_field"]
+        == "note"
+    )
+    # 普通字段 canonical 与自身一致。
+    assert by_key[("environment", "sample_env")]["canonical_field"] == "sample_env"
+
+
+def test_t5_5_committed_artifacts_match_regeneration(
+    db_session, tmp_path: Path
+) -> None:
+    """提交在仓库里的产物必须与当前代码/seed 重新生成的一致，否则属漂移须重新发布。"""
+    paths = SpecExportService(db_session).generate(tmp_path)
+    committed_dir = (
+        Path(__file__).resolve().parents[3] / "docs" / "standard" / "generated"
+    )
+    filenames = {
+        "json_schema": "cvd-2d-process.schema.json",
+        "field_dictionary_json": "cvd-2d-field-dictionary.json",
+        "field_dictionary_md": "cvd-2d-field-dictionary.md",
+    }
+    for key, filename in filenames.items():
+        generated = Path(paths[key]).read_text(encoding="utf-8")
+        committed = (committed_dir / filename).read_text(encoding="utf-8")
+        assert generated == committed, (
+            f"{filename} 与提交的产物不一致；请运行 "
+            "`python -m app.commands.generate_spec` 重新生成并提交。"
+        )
+
+
 def test_t5_3_generate_writes_versioned_artifacts(db_session, tmp_path: Path) -> None:
     paths = SpecExportService(db_session).generate(tmp_path)
 
