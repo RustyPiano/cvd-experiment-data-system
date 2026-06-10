@@ -86,6 +86,36 @@ def test_t4_2_reorder_rejects_ids_from_another_vocabulary(admin_user) -> None:
     assert response.status_code == 422
 
 
+def test_t4_2_reorder_rejects_incomplete_id_set(admin_user) -> None:
+    a = create_entry(admin_user.email, "mgmt_partial", "a", sort_order=0)
+    create_entry(admin_user.email, "mgmt_partial", "b", sort_order=1)
+
+    # 只发其中一个 id：漏掉 b 会让 b 的 sort_order 与 a 撞号，必须拒绝。
+    response = client.post(
+        "/api/v1/admin/vocabularies/reorder",
+        json={"vocab_key": "mgmt_partial", "ordered_ids": [a["id"]]},
+        headers=auth_headers(admin_user.email),
+    )
+
+    assert response.status_code == 422
+
+
+def test_t4_2_reorder_rejects_duplicate_ids(admin_user) -> None:
+    a = create_entry(admin_user.email, "mgmt_dup", "a", sort_order=0)
+    b = create_entry(admin_user.email, "mgmt_dup", "b", sort_order=1)
+
+    response = client.post(
+        "/api/v1/admin/vocabularies/reorder",
+        json={
+            "vocab_key": "mgmt_dup",
+            "ordered_ids": [a["id"], a["id"], b["id"]],
+        },
+        headers=auth_headers(admin_user.email),
+    )
+
+    assert response.status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # Group upsert
 # ---------------------------------------------------------------------------

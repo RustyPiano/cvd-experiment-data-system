@@ -191,9 +191,31 @@ class VocabularyService:
         payload: VocabularyReorderRequest,
         current_user: User,
     ) -> ControlledVocabularyListResponse:
-        """按 ordered_ids 顺序把同一 vocab_key 的条目 sort_order 重排为列表下标。"""
+        """按 ordered_ids 顺序把同一 vocab_key 的条目 sort_order 重排为列表下标。
+
+        要求 ordered_ids 恰好「不重不漏」地覆盖该 vocab_key 的全部条目，否则部分
+        重排会让漏掉的条目与新下标撞号、破坏全序——对外契约须显式拒绝。
+        """
         self._require_admin(current_user)
         entries = self._load_owned_entries(payload.ordered_ids, payload.vocab_key)
+
+        if len(set(payload.ordered_ids)) != len(payload.ordered_ids):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="ordered_ids contains duplicate entries",
+            )
+        all_ids = {
+            entry.id
+            for entry in self.vocabularies.list_entries(vocab_key=payload.vocab_key)
+        }
+        if set(payload.ordered_ids) != all_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    "ordered_ids must cover exactly all entries of "
+                    f"vocab_key '{payload.vocab_key}'"
+                ),
+            )
 
         for index, vocab_id in enumerate(payload.ordered_ids):
             entry = entries[vocab_id]
