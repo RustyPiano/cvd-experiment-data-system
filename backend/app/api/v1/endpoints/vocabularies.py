@@ -13,6 +13,8 @@ from app.schemas.vocabulary import (
     ControlledVocabularyRead,
     ControlledVocabularyUpdate,
     UserVocabularyCreate,
+    VocabularyGroupUpsertRequest,
+    VocabularyReorderRequest,
 )
 from app.services.vocabulary_service import VocabularyService
 
@@ -67,6 +69,30 @@ def create_vocabulary(
     current_user: CurrentUser,
 ) -> ControlledVocabularyRead:
     return VocabularyService(db).create_vocabulary(payload, current_user)
+
+
+@router.post(
+    "/admin/vocabularies/reorder",
+    response_model=ControlledVocabularyListResponse,
+)
+def reorder_vocabularies(
+    payload: VocabularyReorderRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ControlledVocabularyListResponse:
+    return VocabularyService(db).reorder_vocabularies(payload, current_user)
+
+
+@router.put(
+    "/admin/vocabularies/groups",
+    response_model=ControlledVocabularyListResponse,
+)
+def upsert_vocabulary_group(
+    payload: VocabularyGroupUpsertRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ControlledVocabularyListResponse:
+    return VocabularyService(db).upsert_group(payload, current_user)
 
 
 @router.patch("/admin/vocabularies/{vocab_id}", response_model=ControlledVocabularyRead)

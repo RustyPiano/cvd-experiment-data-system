@@ -26,6 +26,19 @@ class VocabularyRepository:
         statement = select(ControlledVocabulary).where(ControlledVocabulary.id == vocab_id)
         return self.db.scalar(statement)
 
+    def get_many(self, ids: list[UUID]) -> list[ControlledVocabulary]:
+        if not ids:
+            return []
+        statement = select(ControlledVocabulary).where(ControlledVocabulary.id.in_(ids))
+        return list(self.db.scalars(statement).all())
+
+    def list_by_group(self, vocab_key: str, group_key: str) -> list[ControlledVocabulary]:
+        statement = select(ControlledVocabulary).where(
+            ControlledVocabulary.vocab_key == vocab_key,
+            ControlledVocabulary.group_key == group_key,
+        )
+        return list(self.db.scalars(statement).all())
+
     def get_by_key_value(self, vocab_key: str, value: str) -> ControlledVocabulary | None:
         statement = select(ControlledVocabulary).where(
             ControlledVocabulary.vocab_key == vocab_key,

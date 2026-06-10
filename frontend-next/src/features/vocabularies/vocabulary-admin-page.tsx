@@ -8,7 +8,6 @@ import { PageHeader } from '@/shared/ui/page-header'
 import type {
   ControlledVocabularyCreateRequest,
   ControlledVocabularyRead,
-  ControlledVocabularyUpdateRequest,
 } from '@/shared/types/api'
 import { useAuth } from '@/features/auth/use-auth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -44,8 +43,11 @@ import {
 import {
   createVocabulary,
   listAdminVocabularies,
+  reorderVocabularies,
   updateVocabulary,
 } from './api'
+import type { VocabularyReorderRequest, VocabularyUpdateWithGroup } from './api'
+import { moveInOrder } from './reorder-utils'
 
 const NONE_SENTINEL = '__all__'
 
@@ -57,6 +59,7 @@ type VocabularyFormState = {
   sortOrder: string
   isActive: boolean
   metadataJson: string
+  groupKey: string
 }
 
 const defaultCreateFormState: VocabularyFormState = {
@@ -67,6 +70,7 @@ const defaultCreateFormState: VocabularyFormState = {
   sortOrder: '0',
   isActive: true,
   metadataJson: '{}',
+  groupKey: '',
 }
 
 function normalizeOptionalText(value: string) {
@@ -80,9 +84,9 @@ function stableSerialize(value: unknown): string {
   }
 
   if (value && typeof value === 'object') {
-    const objectEntries = Object.entries(
-      value as Record<string, unknown>,
-    ).sort(([a], [b]) => a.localeCompare(b))
+    const objectEntries = Object.entries(value as Record<string, unknown>).sort(
+      ([a], [b]) => a.localeCompare(b),
+    )
     return `{${objectEntries
       .map(
         ([key, itemValue]) =>
@@ -197,7 +201,7 @@ function buildEditPayload(
     }
   }
 
-  const payload: ControlledVocabularyUpdateRequest = {}
+  const payload: VocabularyUpdateWithGroup = {}
   if (nextValue !== original.value) {
     payload.value = nextValue
   }
@@ -219,6 +223,11 @@ function buildEditPayload(
   ) {
     payload.metadata_json = metadataResult.value ?? {}
   }
+  // 分组成员变更：归入已存在分组（继承其标签）或留空清除分组。
+  const nextGroupKey = formState.groupKey.trim() || null
+  if (nextGroupKey !== (original.group_key ?? null)) {
+    payload.group_key = nextGroupKey
+  }
 
   return {
     error: null,
@@ -235,6 +244,7 @@ function toFormState(item: ControlledVocabularyRead): VocabularyFormState {
     sortOrder: String(item.sort_order),
     isActive: item.is_active,
     metadataJson: JSON.stringify(item.metadata_json ?? {}, null, 2),
+    groupKey: item.group_key ?? '',
   }
 }
 
@@ -259,8 +269,7 @@ function VocabularyForm({
     <div className="flex flex-col gap-4">
       <div className="editor-field">
         <Label htmlFor="vocabulary-key">
-          词表 key{' '}
-          {isEdit ? null : <span className="text-destructive">*</span>}
+          词表 key {isEdit ? null : <span className="text-destructive">*</span>}
         </Label>
         <Input
           autoComplete="off"
@@ -318,10 +327,30 @@ function VocabularyForm({
           id="vocabulary-sort-order"
           type="number"
           min={0}
-          onChange={(e) => onChange({ ...formState, sortOrder: e.target.value })}
+          onChange={(e) =>
+            onChange({ ...formState, sortOrder: e.target.value })
+          }
           value={formState.sortOrder}
         />
       </div>
+
+      {isEdit ? (
+        <div className="editor-field">
+          <Label htmlFor="vocabulary-group-key">分组键</Label>
+          <Input
+            autoComplete="off"
+            id="vocabulary-group-key"
+            onChange={(e) =>
+              onChange({ ...formState, groupKey: e.target.value })
+            }
+            placeholder="填写已存在的分组键以归入该组；留空清除分组"
+            value={formState.groupKey}
+          />
+          <p className="text-xs text-muted-foreground">
+            归入的分组需已存在（其标签由分组统一维护，会自动继承）；留空表示移出分组。
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="vocabulary-enabled">启用</Label>
@@ -369,8 +398,9 @@ export function VocabularyAdminPage() {
     message: string
   } | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
-  const [editTarget, setEditTarget] =
-    useState<ControlledVocabularyRead | null>(null)
+  const [editTarget, setEditTarget] = useState<ControlledVocabularyRead | null>(
+    null,
+  )
   const [createForm, setCreateForm] = useState(defaultCreateFormState)
   const [editForm, setEditForm] = useState<VocabularyFormState | null>(null)
   const [page, setPage] = useState(1)
@@ -434,7 +464,7 @@ export function VocabularyAdminPage() {
       vocabId,
       payload,
     }: {
-      payload: ControlledVocabularyUpdateRequest
+      payload: VocabularyUpdateWithGroup
       vocabId: string
     }) => updateVocabulary(session.accessToken!, vocabId, payload),
     onSuccess: async () => {
@@ -446,6 +476,21 @@ export function VocabularyAdminPage() {
     onError: (error) => {
       setFeedback({
         message: resolveErrorMessage(error, '词条更新失败'),
+        type: 'error',
+      })
+    },
+  })
+
+  const reorderMutation = useMutation({
+    mutationFn: (payload: VocabularyReorderRequest) =>
+      reorderVocabularies(session.accessToken!, payload),
+    onSuccess: async () => {
+      setFeedback({ message: '排序已更新', type: 'success' })
+      await invalidateVocabularyQueries()
+    },
+    onError: (error) => {
+      setFeedback({
+        message: resolveErrorMessage(error, '排序更新失败'),
         type: 'error',
       })
     },
@@ -497,6 +542,18 @@ export function VocabularyAdminPage() {
   }
 
   const rows = vocabulariesQuery.data?.items ?? []
+  // 仅当筛选到单一 vocab_key 时，列表顺序才代表该词表内的真实排序，才允许重排。
+  const canReorder = Boolean(appliedFilter) && !reorderMutation.isPending
+  const handleMove = (vocabId: string, direction: 'up' | 'down') => {
+    const orderedIds = rows.map((item) => item.id)
+    const index = orderedIds.indexOf(vocabId)
+    const next = moveInOrder(orderedIds, index, direction)
+    if (next === orderedIds) {
+      return
+    }
+    setFeedback(null)
+    reorderMutation.mutate({ vocab_key: appliedFilter, ordered_ids: next })
+  }
   const PAGE_SIZE = 20
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -533,7 +590,9 @@ export function VocabularyAdminPage() {
           }
         >
           <AlertDescription
-            className={feedback.type === 'success' ? 'text-foreground' : undefined}
+            className={
+              feedback.type === 'success' ? 'text-foreground' : undefined
+            }
           >
             {feedback.message}
           </AlertDescription>
@@ -605,6 +664,7 @@ export function VocabularyAdminPage() {
                       <TableHead>值</TableHead>
                       <TableHead>中文标签</TableHead>
                       <TableHead>英文标签</TableHead>
+                      <TableHead>分组</TableHead>
                       <TableHead>排序</TableHead>
                       <TableHead>状态</TableHead>
                       <TableHead>元数据</TableHead>
@@ -618,6 +678,15 @@ export function VocabularyAdminPage() {
                         <TableCell>{record.value}</TableCell>
                         <TableCell>{record.label_zh}</TableCell>
                         <TableCell>{record.label_en || '-'}</TableCell>
+                        <TableCell>
+                          {record.group_label_zh ? (
+                            <Badge variant="secondary">
+                              {record.group_label_zh}
+                            </Badge>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
                         <TableCell className="tabular-nums">
                           {record.sort_order}
                         </TableCell>
@@ -631,7 +700,8 @@ export function VocabularyAdminPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {Object.keys(record.metadata_json ?? {}).length > 0 ? (
+                          {Object.keys(record.metadata_json ?? {}).length >
+                          0 ? (
                             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
                               {JSON.stringify(record.metadata_json)}
                             </code>
@@ -641,6 +711,30 @@ export function VocabularyAdminPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-2">
+                            {canReorder ? (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label={`上移 ${record.vocab_key}:${record.value}`}
+                                  disabled={rows[0]?.id === record.id}
+                                  onClick={() => handleMove(record.id, 'up')}
+                                >
+                                  ↑
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label={`下移 ${record.vocab_key}:${record.value}`}
+                                  disabled={
+                                    rows[rows.length - 1]?.id === record.id
+                                  }
+                                  onClick={() => handleMove(record.id, 'down')}
+                                >
+                                  ↓
+                                </Button>
+                              </>
+                            ) : null}
                             <Button
                               variant="outline"
                               size="sm"
