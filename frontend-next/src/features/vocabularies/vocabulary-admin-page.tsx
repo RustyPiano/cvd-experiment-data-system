@@ -8,6 +8,9 @@ import { PageHeader } from '@/shared/ui/page-header'
 import type {
   ControlledVocabularyCreateRequest,
   ControlledVocabularyRead,
+  ControlledVocabularyUpdateRequest,
+  VocabularyGroupUpsertRequest,
+  VocabularyReorderRequest,
 } from '@/shared/types/api'
 import { useAuth } from '@/features/auth/use-auth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -45,9 +48,11 @@ import {
   listAdminVocabularies,
   reorderVocabularies,
   updateVocabulary,
+  upsertVocabularyGroup,
 } from './api'
-import type { VocabularyReorderRequest, VocabularyUpdateWithGroup } from './api'
 import { moveInOrder } from './reorder-utils'
+import type { GroupFormState } from './group-utils'
+import { buildGroupUpsertPayload, emptyGroupFormState } from './group-utils'
 
 const NONE_SENTINEL = '__all__'
 
@@ -201,7 +206,7 @@ function buildEditPayload(
     }
   }
 
-  const payload: VocabularyUpdateWithGroup = {}
+  const payload: ControlledVocabularyUpdateRequest = {}
   if (nextValue !== original.value) {
     payload.value = nextValue
   }
@@ -404,6 +409,9 @@ export function VocabularyAdminPage() {
   const [createForm, setCreateForm] = useState(defaultCreateFormState)
   const [editForm, setEditForm] = useState<VocabularyFormState | null>(null)
   const [page, setPage] = useState(1)
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false)
+  const [groupForm, setGroupForm] =
+    useState<GroupFormState>(emptyGroupFormState)
 
   const isAdmin = currentUser?.role === 'admin'
   const queryPrefix = ['admin', 'vocabularies', currentUser?.id ?? 'anonymous']
@@ -464,7 +472,7 @@ export function VocabularyAdminPage() {
       vocabId,
       payload,
     }: {
-      payload: VocabularyUpdateWithGroup
+      payload: ControlledVocabularyUpdateRequest
       vocabId: string
     }) => updateVocabulary(session.accessToken!, vocabId, payload),
     onSuccess: async () => {
@@ -491,6 +499,23 @@ export function VocabularyAdminPage() {
     onError: (error) => {
       setFeedback({
         message: resolveErrorMessage(error, '排序更新失败'),
+        type: 'error',
+      })
+    },
+  })
+
+  const upsertGroupMutation = useMutation({
+    mutationFn: (payload: VocabularyGroupUpsertRequest) =>
+      upsertVocabularyGroup(session.accessToken!, payload),
+    onSuccess: async () => {
+      setFeedback({ message: '分组已保存', type: 'success' })
+      setGroupDialogOpen(false)
+      setGroupForm(emptyGroupFormState)
+      await invalidateVocabularyQueries()
+    },
+    onError: (error) => {
+      setFeedback({
+        message: resolveErrorMessage(error, '分组保存失败'),
         type: 'error',
       })
     },
@@ -544,6 +569,8 @@ export function VocabularyAdminPage() {
   const rows = vocabulariesQuery.data?.items ?? []
   // 仅当筛选到单一 vocab_key 时，列表顺序才代表该词表内的真实排序，才允许重排。
   const canReorder = Boolean(appliedFilter) && !reorderMutation.isPending
+  // 分组管理也只在单一 vocab_key 视图下有意义（成员来自该词表）。
+  const canManageGroups = Boolean(appliedFilter)
   const handleMove = (vocabId: string, direction: 'up' | 'down') => {
     const orderedIds = rows.map((item) => item.id)
     const index = orderedIds.indexOf(vocabId)
@@ -553,6 +580,48 @@ export function VocabularyAdminPage() {
     }
     setFeedback(null)
     reorderMutation.mutate({ vocab_key: appliedFilter, ordered_ids: next })
+  }
+
+  // 该词表已存在的分组（用于预填/选择已有分组进行编辑）。
+  const existingGroups = useMemo(() => {
+    const byKey = new Map<
+      string,
+      { groupKey: string; labelZh: string; sortOrder: number }
+    >()
+    for (const item of rows) {
+      if (item.group_key && !byKey.has(item.group_key)) {
+        byKey.set(item.group_key, {
+          groupKey: item.group_key,
+          labelZh: item.group_label_zh ?? item.group_key,
+          sortOrder: item.group_sort_order ?? 0,
+        })
+      }
+    }
+    return Array.from(byKey.values()).sort(
+      (left, right) => left.sortOrder - right.sortOrder,
+    )
+  }, [rows])
+
+  const handleGroupSubmit = () => {
+    setFeedback(null)
+    const result = buildGroupUpsertPayload(appliedFilter, groupForm)
+    if (result.error || !result.payload) {
+      setFeedback({ message: result.error ?? '分组保存失败', type: 'error' })
+      return
+    }
+    upsertGroupMutation.mutate(result.payload)
+  }
+
+  const prefillGroupForm = (groupKey: string) => {
+    const members = rows.filter((item) => item.group_key === groupKey)
+    const sample = members[0]
+    setGroupForm({
+      groupKey,
+      groupLabelZh: sample?.group_label_zh ?? '',
+      groupLabelEn: sample?.group_label_en ?? '',
+      groupSortOrder: String(sample?.group_sort_order ?? 0),
+      memberIds: members.map((item) => item.id),
+    })
   }
   const PAGE_SIZE = 20
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
@@ -636,6 +705,18 @@ export function VocabularyAdminPage() {
           >
             清空筛选
           </Button>
+          {canManageGroups ? (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFeedback(null)
+                setGroupForm(emptyGroupFormState)
+                setGroupDialogOpen(true)
+              }}
+            >
+              管理分组
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -861,6 +942,171 @@ export function VocabularyAdminPage() {
               />
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Group management dialog */}
+      <Dialog
+        open={groupDialogOpen}
+        onOpenChange={(open) => {
+          if (!upsertGroupMutation.isPending) setGroupDialogOpen(open)
+        }}
+      >
+        <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{`管理分组 · ${appliedFilter}`}</DialogTitle>
+            <DialogDescription className="sr-only">
+              定义或编辑该词表的分组，并选择归入该组的词条
+            </DialogDescription>
+          </DialogHeader>
+          <div className="-mx-6 max-h-[65vh] overflow-y-auto px-6 py-2">
+            <div className="flex flex-col gap-4">
+              {existingGroups.length > 0 ? (
+                <div className="editor-field">
+                  <Label htmlFor="group-existing">编辑已有分组</Label>
+                  <Select
+                    value={
+                      existingGroups.some(
+                        (g) => g.groupKey === groupForm.groupKey,
+                      )
+                        ? groupForm.groupKey
+                        : NONE_SENTINEL
+                    }
+                    onValueChange={(value) => {
+                      if (value === NONE_SENTINEL) {
+                        setGroupForm(emptyGroupFormState)
+                      } else {
+                        prefillGroupForm(value)
+                      }
+                    }}
+                  >
+                    <SelectTrigger
+                      id="group-existing"
+                      aria-label="编辑已有分组"
+                    >
+                      <SelectValue placeholder="新建分组" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_SENTINEL}>新建分组</SelectItem>
+                      {existingGroups.map((group) => (
+                        <SelectItem key={group.groupKey} value={group.groupKey}>
+                          {group.labelZh}（{group.groupKey}）
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              <div className="editor-field">
+                <Label htmlFor="group-key">
+                  分组键 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  autoComplete="off"
+                  id="group-key"
+                  onChange={(e) =>
+                    setGroupForm({ ...groupForm, groupKey: e.target.value })
+                  }
+                  placeholder="例如 morphology"
+                  value={groupForm.groupKey}
+                />
+              </div>
+
+              <div className="editor-field">
+                <Label htmlFor="group-label-zh">
+                  中文标签 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  autoComplete="off"
+                  id="group-label-zh"
+                  onChange={(e) =>
+                    setGroupForm({ ...groupForm, groupLabelZh: e.target.value })
+                  }
+                  placeholder="例如 形貌与厚度"
+                  value={groupForm.groupLabelZh}
+                />
+              </div>
+
+              <div className="editor-field">
+                <Label htmlFor="group-label-en">英文标签</Label>
+                <Input
+                  autoComplete="off"
+                  id="group-label-en"
+                  onChange={(e) =>
+                    setGroupForm({ ...groupForm, groupLabelEn: e.target.value })
+                  }
+                  placeholder="例如 Morphology & Thickness"
+                  value={groupForm.groupLabelEn}
+                />
+              </div>
+
+              <div className="editor-field">
+                <Label htmlFor="group-sort-order">
+                  分组排序 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="group-sort-order"
+                  type="number"
+                  onChange={(e) =>
+                    setGroupForm({
+                      ...groupForm,
+                      groupSortOrder: e.target.value,
+                    })
+                  }
+                  value={groupForm.groupSortOrder}
+                />
+              </div>
+
+              <div className="editor-field">
+                <Label>归入该组的词条</Label>
+                <p className="text-xs text-muted-foreground">
+                  勾选要归入本组的词条；标签会统一应用到该组全部成员。
+                </p>
+                <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-input p-2">
+                  {rows.map((item) => {
+                    const checked = groupForm.memberIds.includes(item.id)
+                    return (
+                      <label
+                        key={item.id}
+                        className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
+                      >
+                        <input
+                          type="checkbox"
+                          aria-label={`成员 ${item.value}`}
+                          checked={checked}
+                          onChange={(e) =>
+                            setGroupForm({
+                              ...groupForm,
+                              memberIds: e.target.checked
+                                ? [...groupForm.memberIds, item.id]
+                                : groupForm.memberIds.filter(
+                                    (id) => id !== item.id,
+                                  ),
+                            })
+                          }
+                        />
+                        <span className="truncate">
+                          {item.label_zh}
+                          <span className="text-muted-foreground">
+                            {' '}
+                            · {item.value}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <Button
+                disabled={upsertGroupMutation.isPending}
+                onClick={handleGroupSubmit}
+              >
+                保存分组
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

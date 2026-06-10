@@ -805,6 +805,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/vocabularies/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reorder Vocabularies */
+        post: operations["reorder_vocabularies_api_v1_admin_vocabularies_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/vocabularies/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upsert Vocabulary Group */
+        put: operations["upsert_vocabulary_group_api_v1_admin_vocabularies_groups_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/vocabularies/{vocab_id}": {
         parameters: {
             query?: never;
@@ -1143,6 +1177,8 @@ export interface components {
             metadata_json?: {
                 [key: string]: unknown;
             } | null;
+            /** Group Key */
+            group_key?: string | null;
         };
         /** DashboardMemberStat */
         DashboardMemberStat: {
@@ -2843,6 +2879,38 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * VocabularyGroupUpsertRequest
+         * @description 定义/编辑一个分组：把 member_ids 归入 (vocab_key, group_key)，并把统一的
+         *     标签/排序应用到该分组的全部成员（既有 + 新增），保证组内一致（T1.5 口径）。
+         */
+        VocabularyGroupUpsertRequest: {
+            /** Vocab Key */
+            vocab_key: string;
+            /** Group Key */
+            group_key: string;
+            /** Group Label Zh */
+            group_label_zh: string;
+            /** Group Label En */
+            group_label_en?: string | null;
+            /**
+             * Group Sort Order
+             * @default 0
+             */
+            group_sort_order: number;
+            /** Member Ids */
+            member_ids?: string[];
+        };
+        /**
+         * VocabularyReorderRequest
+         * @description 按给定顺序重排同一 vocab_key 下条目的 sort_order（= 列表下标）。
+         */
+        VocabularyReorderRequest: {
+            /** Vocab Key */
+            vocab_key: string;
+            /** Ordered Ids */
+            ordered_ids: string[];
         };
     };
     responses: never;
@@ -4789,6 +4857,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ControlledVocabularyRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_vocabularies_api_v1_admin_vocabularies_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VocabularyReorderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlledVocabularyListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_vocabulary_group_api_v1_admin_vocabularies_groups_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VocabularyGroupUpsertRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlledVocabularyListResponse"];
                 };
             };
             /** @description Validation Error */

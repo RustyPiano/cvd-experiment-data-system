@@ -96,6 +96,9 @@ export type ControlledVocabularyCreateRequest =
   Schemas['ControlledVocabularyCreate']
 export type ControlledVocabularyUpdateRequest =
   Schemas['ControlledVocabularyUpdate']
+export type VocabularyReorderRequest = Schemas['VocabularyReorderRequest']
+export type VocabularyGroupUpsertRequest =
+  Schemas['VocabularyGroupUpsertRequest']
 export type ExperimentCreateRequest = Schemas['ExperimentCreate']
 export type ExperimentUpdateRequest = Schemas['ExperimentUpdate']
 // schema_version 后端有默认值 'cvd_v1'，openapi-typescript 将其生成为 required；
