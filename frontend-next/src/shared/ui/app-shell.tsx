@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { toast } from 'sonner'
 import {
   FlaskConical,
   Settings,
@@ -39,6 +40,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
   SidebarInset,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/shared/ui/theme-toggle'
 
@@ -88,6 +90,87 @@ function getPageTitle(pathname: string) {
   return navLabelLookup.find((item) => pathname.startsWith(item.match))?.label ?? ''
 }
 
+// Nav body lives inside SidebarProvider so it can close the mobile drawer when a
+// link is tapped (default shadcn sidebar leaves the overlay open on selection).
+function SidebarBody({
+  isAdmin,
+  pathname,
+}: {
+  isAdmin: boolean
+  pathname: string
+}) {
+  const { isMobile, setOpenMobile } = useSidebar()
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false)
+  }
+
+  return (
+    <SidebarContent>
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {navItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(item.match)}
+                    tooltip={item.label}
+                  >
+                    <Link to={item.to} onClick={closeOnMobile}>
+                      <Icon />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+            {isAdmin && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith(adminDashboardItem.match)}
+                  tooltip={adminDashboardItem.label}
+                >
+                  <Link to={adminDashboardItem.to} onClick={closeOnMobile}>
+                    <adminDashboardItem.icon />
+                    <span>{adminDashboardItem.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      {isAdmin && (
+        <SidebarGroup>
+          <SidebarGroupLabel>管理配置</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {adminConfigItems.map((item) => (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(item.match)}
+                    tooltip={item.label}
+                  >
+                    <Link to={item.to} onClick={closeOnMobile}>
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
+    </SidebarContent>
+  )
+}
+
 type AppShellProps = {
   children: ReactNode
 }
@@ -97,6 +180,11 @@ export function AppShell({ children }: AppShellProps) {
   const queryClient = useQueryClient()
   const { clearSession, session } = useAuth()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const locationHref = useRouterState({ select: (s) => s.location.href })
+  // Keep the latest href in a ref so the 401 handler (registered once) can read
+  // it without re-subscribing the listener on every navigation.
+  const locationHrefRef = useRef(locationHref)
+  locationHrefRef.current = locationHref
 
   // Keep the session alive while the app is in use (sliding refresh).
   useSessionRefresh()
@@ -112,7 +200,13 @@ export function AppShell({ children }: AppShellProps) {
     const handleUnauthorized = () => {
       queryClient.clear()
       clearSession()
-      void navigate({ to: '/login', replace: true })
+      toast.error('登录会话已过期，请重新登录')
+      const current = locationHrefRef.current
+      void navigate({
+        to: '/login',
+        replace: true,
+        search: current && !current.startsWith('/login') ? { redirect: current } : {},
+      })
     }
 
     window.addEventListener(API_UNAUTHORIZED_EVENT, handleUnauthorized)
@@ -153,70 +247,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </SidebarHeader>
 
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navItems.map((item) => {
-                  const isActive = pathname.startsWith(item.match)
-                  const Icon = item.icon
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        tooltip={item.label}
-                      >
-                        <Link to={item.to}>
-                          <Icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                })}
-                {isAdmin && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname.startsWith(adminDashboardItem.match)}
-                      tooltip={adminDashboardItem.label}
-                    >
-                      <Link to={adminDashboardItem.to}>
-                        <adminDashboardItem.icon />
-                        <span>{adminDashboardItem.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {isAdmin && (
-            <SidebarGroup>
-              <SidebarGroupLabel>管理配置</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {adminConfigItems.map((item) => (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={pathname.startsWith(item.match)}
-                        tooltip={item.label}
-                      >
-                        <Link to={item.to}>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
-        </SidebarContent>
+        <SidebarBody isAdmin={isAdmin} pathname={pathname} />
 
         <SidebarFooter className="px-2 py-3">
           <SidebarMenu>
