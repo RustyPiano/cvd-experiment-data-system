@@ -13,8 +13,6 @@ Create Date: 2026-06-11 00:30:00.000000
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
-
 from alembic import op
 
 revision: str = "20260611_0030"
@@ -22,13 +20,12 @@ down_revision: str | None = "20260610_0029"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
-_USERS = sa.table("users", sa.column("role", sa.String()))
-
 
 def upgrade() -> None:
-    op.get_bind().execute(
-        _USERS.update().where(_USERS.c.role == "viewer").values(role="member")
-    )
+    # Raw SQL with untyped string literals: Postgres implicitly casts them to the
+    # `user_role` enum. A parameterized UPDATE binds as ::VARCHAR, which Postgres
+    # refuses to compare against the enum column (operator does not exist).
+    op.execute("UPDATE users SET role = 'member' WHERE role = 'viewer'")
 
 
 def downgrade() -> None:
