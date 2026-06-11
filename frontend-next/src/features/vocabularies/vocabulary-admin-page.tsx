@@ -811,7 +811,7 @@ export function VocabularyAdminPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-nowrap items-center gap-2">
                             {canReorder ? (
                               <>
                                 <Button
