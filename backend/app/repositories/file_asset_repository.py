@@ -50,16 +50,12 @@ class FileAssetRepository:
 
         if current_user.role == UserRole.ADMIN:
             pass
-        elif current_user.role == UserRole.MEMBER:
+        else:
             statement = statement.where(
                 or_(
                     ExperimentRun.owner_id == current_user.id,
                     ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED]),
                 )
-            )
-        else:
-            statement = statement.where(
-                ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED])
             )
 
         if experiment_id is not None:

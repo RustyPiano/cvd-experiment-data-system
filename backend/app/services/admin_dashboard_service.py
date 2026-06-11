@@ -41,8 +41,8 @@ class AdminDashboardService:
         }
         # List every active admin/member account (so people who have not started
         # recording still appear with zeroes), plus any owner that already has records
-        # even if their account is now inactive or downgraded to viewer. Including those
-        # owners keeps the per-member totals reconciled with the global totals card.
+        # even if their account is now inactive. Including those owners keeps the
+        # per-member totals reconciled with the global totals card.
         users_by_id = {user.id: user for user in self.users.list_all()}
         member_ids = {
             user_id

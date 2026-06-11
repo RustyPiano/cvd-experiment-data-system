@@ -11,7 +11,6 @@ from app.db.base import Base
 class UserRole(StrEnum):
     ADMIN = "admin"
     MEMBER = "member"
-    VIEWER = "viewer"
 
 
 class User(Base):

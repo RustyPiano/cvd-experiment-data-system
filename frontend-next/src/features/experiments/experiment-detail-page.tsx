@@ -989,7 +989,6 @@ export function ExperimentDetailPage() {
             {(experiment.status === 'draft' ||
               experiment.status === 'submitted') &&
             currentUser != null &&
-            currentUser.role !== 'viewer' &&
             (currentUser.id === experiment.owner_id ||
               currentUser.role === 'admin') ? (
               <Button size="sm" asChild>

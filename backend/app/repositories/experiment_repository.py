@@ -107,7 +107,7 @@ class ExperimentRepository:
         if current_user.role == UserRole.ADMIN:
             if mine:
                 statement = statement.where(ExperimentRun.owner_id == current_user.id)
-        elif current_user.role == UserRole.MEMBER:
+        else:
             visible_statuses = [ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED]
             if mine:
                 statement = statement.where(ExperimentRun.owner_id == current_user.id)
@@ -118,10 +118,6 @@ class ExperimentRepository:
                         ExperimentRun.status.in_(visible_statuses),
                     )
                 )
-        else:
-            statement = statement.where(
-                ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED])
-            )
 
         if status_filters is not None:
             statement = statement.where(ExperimentRun.status.in_(status_filters))

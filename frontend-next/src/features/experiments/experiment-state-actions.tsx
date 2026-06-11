@@ -93,10 +93,8 @@ export function ExperimentStateActions({
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   // ─── Action availability rules (mirrors OLD experiment-state-actions.tsx) ───
-  const canMutate = currentUser.role !== 'viewer'
   const isOwnerOrAdmin =
-    canMutate &&
-    (currentUser.role === 'admin' || currentUser.id === experiment.owner_id)
+    currentUser.role === 'admin' || currentUser.id === experiment.owner_id
   const isOwner = currentUser.id === experiment.owner_id
   const isBusy = activeAction !== null
 
@@ -109,12 +107,10 @@ export function ExperimentStateActions({
   // 作废仅对已提交记录开放：草稿应当直接删除/丢弃，而非进入永久作废终态。
   const canInvalidate = isOwnerOrAdmin && experiment.status === 'submitted'
   const canClone =
-    currentUser.role !== 'viewer' &&
-    (experiment.status === 'locked' ||
-      (experiment.status === 'submitted' && isOwner))
+    experiment.status === 'locked' ||
+    (experiment.status === 'submitted' && isOwner)
   const canSaveAsRecipe =
-    currentUser.role !== 'viewer' &&
-    (experiment.status === 'submitted' || experiment.status === 'locked')
+    experiment.status === 'submitted' || experiment.status === 'locked'
 
   if (
     !canReturnToDraft &&

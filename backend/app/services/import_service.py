@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.module_payload import ExperimentModuleKey, normalize_module_payload
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.imports import (
     ImportCommitRequest,
     ImportCommitResponse,
@@ -54,11 +54,6 @@ class ImportService:
         payload: ImportCommitRequest,
         current_user: User,
     ) -> ImportCommitResponse:
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
         self._require_profile(payload.profile_key)
 
         # Validate every module payload up front and reject the entire request

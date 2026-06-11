@@ -68,7 +68,6 @@ def test_admin_dashboard_overview_aggregates_records_and_reconciles_members(
     admin_user,
     active_user,
     inactive_user,
-    viewer_user,
 ) -> None:
     now = datetime.now(UTC)
     zero_member = create_member(db_session, email="zero@example.com", name="Zero Member")
@@ -123,15 +122,14 @@ def test_admin_dashboard_overview_aggregates_records_and_reconciles_members(
     }
 
     members_by_email = {member["email"]: member for member in body["members"]}
-    # Active admin/member accounts and any record-owner (even the now-inactive one) are
-    # listed; the active viewer with no records stays out.
+    # Active member/admin accounts and any record-owner (even the now-inactive one)
+    # are listed.
     assert set(members_by_email) == {
         admin_user.email,
         active_user.email,
         inactive_user.email,
         zero_member.email,
     }
-    assert viewer_user.email not in members_by_email
     assert members_by_email[active_user.email]["total"] == 2
     assert members_by_email[active_user.email]["draft"] == 1
     assert members_by_email[active_user.email]["submitted"] == 1
@@ -147,18 +145,13 @@ def test_admin_dashboard_overview_aggregates_records_and_reconciles_members(
     assert sum(point["count"] for point in body["trend"]) == 3
 
 
-def test_admin_dashboard_requires_admin(active_user, viewer_user) -> None:
+def test_admin_dashboard_requires_admin(active_user) -> None:
     member_response = client.get(
         "/api/v1/admin/dashboard/overview",
         headers=auth_headers(active_user.email),
     )
-    viewer_response = client.get(
-        "/api/v1/admin/dashboard/overview",
-        headers=auth_headers(viewer_user.email),
-    )
 
     assert member_response.status_code == 403
-    assert viewer_response.status_code == 403
 
 
 def test_admin_dashboard_counts_experiments_missing_setup_methods(

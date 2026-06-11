@@ -89,11 +89,6 @@ class VocabularyService:
         The new value is immediately active and visible to everyone. Re-submitting an
         existing value is a no-op (returns it, reactivating it if it was disabled).
         """
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
         vocab_key = payload.vocab_key
         value = payload.value.strip()
         if not value:

@@ -48,7 +48,6 @@ import { ThemeToggle } from '@/shared/ui/theme-toggle'
 const roleLabels: Record<string, string> = {
   admin: '管理员',
   member: '成员',
-  viewer: '只读',
 }
 
 const navItems = [

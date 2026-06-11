@@ -63,7 +63,6 @@ class SetupLibraryService:
         payload: SetupLibraryCreate,
         current_user: User,
     ) -> SetupLibraryRead:
-        self._require_author(current_user)
         entry = SetupLibraryEntry(
             owner_id=current_user.id,
             visibility=payload.visibility,
@@ -218,13 +217,6 @@ class SetupLibraryService:
 
     def _can_edit(self, entry: SetupLibraryEntry, current_user: User) -> bool:
         return current_user.role == UserRole.ADMIN or entry.owner_id == current_user.id
-
-    def _require_author(self, current_user: User) -> None:
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
 
     def _to_read(self, entry: SetupLibraryEntry, current_user: User) -> SetupLibraryRead:
         return SetupLibraryRead(

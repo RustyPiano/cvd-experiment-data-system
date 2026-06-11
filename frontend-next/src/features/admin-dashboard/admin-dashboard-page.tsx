@@ -44,7 +44,6 @@ dayjs.locale('zh-cn')
 const roleLabels: Record<DashboardMemberStat['role'], string> = {
   admin: '管理员',
   member: '成员',
-  viewer: '查看者',
 }
 
 type SortKey =

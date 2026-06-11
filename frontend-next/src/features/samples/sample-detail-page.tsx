@@ -215,7 +215,6 @@ export function SampleDetailPage() {
     currentUser !== null &&
     experimentQuery.data !== undefined &&
     experimentQuery.data.status === 'draft' &&
-    currentUser.role !== 'viewer' &&
     (currentUser.role === 'admin' ||
       currentUser.id === experimentQuery.data.owner_id)
 

@@ -382,11 +382,6 @@ class SampleService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Experiment not found",
             )
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
         if current_user.role != UserRole.ADMIN and experiment.owner_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

@@ -1016,8 +1016,8 @@ def test_export_experiment_excel_returns_openable_workbook(active_user) -> None:
     assert any(row[1] == "file_asset" and row[3] == "create" for row in audit_rows)
 
 
-def test_viewer_can_export_locked_experiment_but_not_other_users_draft(
-    admin_user, viewer_user
+def test_member_can_export_others_locked_experiment_but_not_their_draft(
+    admin_user, active_user
 ) -> None:
     locked_experiment_id = create_experiment(admin_user.email, objective="Visible export")
     populate_required_modules(locked_experiment_id, admin_user.email)
@@ -1041,7 +1041,7 @@ def test_viewer_can_export_locked_experiment_but_not_other_users_draft(
 
     visible_response = client.get(
         f"/api/v1/experiments/{locked_experiment_id}/export",
-        headers=auth_headers(viewer_user.email),
+        headers=auth_headers(active_user.email),
     )
     assert visible_response.status_code == 200
     assert visible_response.json()["experiment"]["status"] == "locked"
@@ -1049,7 +1049,7 @@ def test_viewer_can_export_locked_experiment_but_not_other_users_draft(
     draft_experiment_id = create_experiment(admin_user.email, objective="Hidden draft export")
     hidden_response = client.get(
         f"/api/v1/experiments/{draft_experiment_id}/export",
-        headers=auth_headers(viewer_user.email),
+        headers=auth_headers(active_user.email),
     )
 
     assert hidden_response.status_code == 404

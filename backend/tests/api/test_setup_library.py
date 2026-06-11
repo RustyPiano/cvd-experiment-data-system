@@ -39,15 +39,6 @@ def test_create_entry_returns_owner_and_can_edit(active_user) -> None:
     assert entry["content_hash"]
 
 
-def test_viewer_cannot_create_entry(viewer_user) -> None:
-    response = client.post(
-        "/api/v1/setup-library",
-        json={"name": "Nope"},
-        headers=auth_headers(viewer_user.email),
-    )
-    assert response.status_code == 403
-
-
 def test_private_entry_hidden_from_other_member(active_user, inactive_user, db_session) -> None:
     from app.models.user import User, UserRole
 

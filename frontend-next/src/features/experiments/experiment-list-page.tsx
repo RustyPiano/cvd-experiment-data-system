@@ -87,7 +87,8 @@ type TransitionAction = 'lock' | 'clone' | 'invalidate'
 // ─── Action availability rules (mirrors OLD experiment-state-actions.tsx) ───
 
 function canMutateExperiment(role: string | undefined) {
-  return role !== 'viewer' && role !== undefined
+  // All authenticated roles (admin/member) may mutate; viewer was retired.
+  return role !== undefined
 }
 
 function isOwnerOrAdmin(

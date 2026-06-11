@@ -18,7 +18,6 @@ def load_create_user_main():
     [
         ("admin", "admin"),
         ("member", "member"),
-        ("viewer", "viewer"),
     ],
 )
 def test_create_user_creates_supported_roles(

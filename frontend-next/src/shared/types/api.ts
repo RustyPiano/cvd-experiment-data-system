@@ -8,7 +8,7 @@ import type { components } from './openapi'
 type Schemas = components['schemas']
 
 /* ---------- 领域枚举（后端为裸 string，显式声明联合） ---------- */
-export type UserRole = 'admin' | 'member' | 'viewer'
+export type UserRole = 'admin' | 'member'
 export type ExperimentStatus = 'draft' | 'submitted' | 'locked' | 'invalid'
 export type QualityLabel = 'success' | 'partial' | 'failed' | 'unknown'
 

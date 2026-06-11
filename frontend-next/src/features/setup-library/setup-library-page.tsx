@@ -108,7 +108,8 @@ export function SetupLibraryPage() {
   const queryClient = useQueryClient()
   const { session } = useAuth()
   const token = session.accessToken || ''
-  const isViewer = session.currentUser?.role === 'viewer'
+  // viewer role retired: all authenticated users may author setup entries.
+  const isViewer = false
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<SetupLibraryRead | null>(

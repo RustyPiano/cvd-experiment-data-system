@@ -156,23 +156,6 @@ export function ImportWizardPage() {
     [drafts, includedRows],
   )
 
-  // Viewer guard: import creates draft experiments, which viewers may not do.
-  if (session.currentUser?.role === 'viewer') {
-    return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          title="导入 Excel 数据"
-          subtitle="从机台导出的工艺参数包批量生成草稿实验。"
-        />
-        <Alert variant="destructive">
-          <AlertDescription>
-            当前账号为只读（查看者），没有导入权限。如需导入，请联系管理员调整角色。
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
-
   // Step 3: done -------------------------------------------------------------
   if (created) {
     return (

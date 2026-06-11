@@ -232,19 +232,6 @@ def test_delete_file_soft_deletes_metadata_and_hides_content(active_user) -> Non
     assert download_response.status_code == 404
 
 
-def test_viewer_cannot_upload_file_to_visible_experiment(admin_user, viewer_user) -> None:
-    experiment_id = create_experiment(admin_user.email, objective="Viewer upload forbidden")
-
-    response = client.post(
-        f"/api/v1/experiments/{experiment_id}/files",
-        headers=auth_headers(viewer_user.email),
-        data={"method": "OM"},
-        files={"file": ("note.txt", b"forbidden", "text/plain")},
-    )
-
-    assert response.status_code == 403
-
-
 def test_upload_file_rejects_locked_experiment(active_user) -> None:
     experiment_id = create_experiment(active_user.email, objective="Locked file upload")
 

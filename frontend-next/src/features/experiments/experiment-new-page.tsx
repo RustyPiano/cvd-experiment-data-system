@@ -186,7 +186,8 @@ function removeInheritancePayload(sourceExperimentId: string | null) {
 export function ExperimentNewPage() {
   const navigate = useNavigate()
   const { session } = useAuth()
-  const isViewer = session.currentUser?.role === 'viewer'
+  // viewer role retired: all authenticated users may create experiments.
+  const isViewer = false
   const [historyCloneOpen, setHistoryCloneOpen] = useState(false)
   const [recipeModalOpen, setRecipeModalOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)

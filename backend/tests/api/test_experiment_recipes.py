@@ -385,10 +385,9 @@ def test_create_from_recipe_rejects_malformed_allowed_module_without_partial_com
     assert table_count(db_session, AuditEvent) == before_audit_events
 
 
-def test_create_from_recipe_rejects_missing_inactive_and_viewer(
+def test_create_from_recipe_rejects_missing_and_inactive(
     active_user,
     admin_user,
-    viewer_user,
     db_session,
 ) -> None:
     inactive_recipe = create_recipe_row(
@@ -408,15 +407,9 @@ def test_create_from_recipe_rejects_missing_inactive_and_viewer(
         json={"recipe_id": str(inactive_recipe.id)},
         headers=auth_headers(active_user.email),
     )
-    viewer_response = client.post(
-        "/api/v1/experiments/from-recipe",
-        json={"recipe_id": str(inactive_recipe.id)},
-        headers=auth_headers(viewer_user.email),
-    )
 
     assert missing_response.status_code == 404
     assert inactive_response.status_code == 404
-    assert viewer_response.status_code == 403
 
 
 def test_save_submitted_experiment_as_recipe_extracts_allowed_modules_and_sanitizes_precursors(
@@ -468,23 +461,13 @@ def test_save_submitted_experiment_as_recipe_extracts_allowed_modules_and_saniti
     )
 
 
-def test_save_as_recipe_rejects_draft_and_viewer(
-    active_user,
-    viewer_user,
-) -> None:
+def test_save_as_recipe_rejects_draft(active_user) -> None:
     draft_experiment_id = create_experiment(active_user.email)
-    submitted_experiment_id = create_experiment(active_user.email, status_ready=True)
 
     draft_response = client.post(
         f"/api/v1/experiments/{draft_experiment_id}/save-as-recipe",
         json={"name": "Draft recipe"},
         headers=auth_headers(active_user.email),
     )
-    viewer_response = client.post(
-        f"/api/v1/experiments/{submitted_experiment_id}/save-as-recipe",
-        json={"name": "Viewer recipe"},
-        headers=auth_headers(viewer_user.email),
-    )
 
     assert draft_response.status_code == 409
-    assert viewer_response.status_code == 403

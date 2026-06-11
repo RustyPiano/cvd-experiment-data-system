@@ -113,11 +113,6 @@ class ExperimentService:
         )
 
     def create_experiment(self, payload: ExperimentCreate, current_user: User) -> ExperimentRead:
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
 
         created = self._create_experiment_with_retry(
             experiment_date=payload.experiment_date,
@@ -148,11 +143,6 @@ class ExperimentService:
         payload: ExperimentFromRecipeCreate,
         current_user: User,
     ) -> ExperimentRead:
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
 
         recipe = self.recipes.get_by_id(payload.recipe_id)
         if recipe is None or not recipe.is_active:
@@ -224,11 +214,6 @@ class ExperimentService:
         current_user: User,
     ) -> ExperimentRead:
         """Create a draft experiment from a confirmed spreadsheet-import draft."""
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
 
         experiment_type = run_level.get("experiment_type") or "cvd_2zone"
         material_system = run_level.get("material_system")
@@ -686,11 +671,6 @@ class ExperimentService:
                 pass
 
     def clone_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRead:
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
 
         source = self._get_visible_experiment(experiment_id, current_user)
         if source.status in {ExperimentStatus.DRAFT, ExperimentStatus.INVALID}:
@@ -764,11 +744,6 @@ class ExperimentService:
         payload: ExperimentSaveAsRecipeRequest,
         current_user: User,
     ) -> RecipeRead:
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
 
         experiment = self._get_visible_experiment(experiment_id, current_user)
         if experiment.status not in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
@@ -1066,11 +1041,6 @@ class ExperimentService:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experiment not found")
 
     def _get_owned_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRun:
-        if current_user.role == UserRole.VIEWER:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
 
         experiment = self.experiments.get_by_id(experiment_id)
         if experiment is None:
