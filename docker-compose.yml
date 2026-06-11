@@ -81,7 +81,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: frontend-next/Dockerfile
     restart: unless-stopped
     depends_on:
       backend:
