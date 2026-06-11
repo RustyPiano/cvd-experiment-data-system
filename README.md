@@ -1,11 +1,15 @@
 # CVD 实验数据采集系统
 
-当前仓库已完成的能力分为两部分：
+当前仓库已完成的能力分为两部分。
 
-## 当前前端能力
+> **前端说明（重要）**：生产前端是 **`frontend-next/`**（Bun + Vite + React + TypeScript + **TanStack Router + shadcn/ui + Tailwind v4**），线上部署于 <https://cvd.rustypiano.com>。
+> 早期的 `frontend/`（Ant Design + React Router）为**遗留前端，正在退役**，仅保留作历史参考。
+> `frontend-next` 的管理后台是**无 `/admin` 前缀**的扁平路由（`/dashboard`、`/vocabularies`、`/fields`、`/recipes`、`/setup-library`），由 pathless `_admin` 布局做角色守卫；旧 `frontend/` 才是 `/admin/*`。
 
-- Bun + Vite + React + TypeScript 工程初始化
-- Ant Design 主题、全局样式与带全局搜索的应用壳层
+## 当前前端能力（frontend-next）
+
+- Bun + Vite + React + TypeScript + TanStack Router + shadcn/ui + Tailwind v4
+- 运行时可配置 API 基址（`runtime-config.js` / `VITE_API_BASE_URL`），dev 下用 Vite 代理转发 `/api`
 - Bearer Token 登录、登出与本地会话持久化
 - 受保护路由与基础导航
 - `/login`
@@ -13,11 +17,13 @@
 - `/experiments/new`
 - `/experiments/:id`
 - `/experiments/:id/files`
+- `/experiments/import`
 - `/samples/:id`
-- `/admin/vocabularies`
-- `/admin/fields`
-- `/admin/recipes`
-- `/admin/dashboard`
+- `/vocabularies`
+- `/fields`
+- `/recipes`
+- `/setup-library`
+- `/dashboard`
 - `/experiments/:id/edit` 已接通全部 V1 模块 key 的 Beta 编辑器
 - `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
 - 编辑器新增 Setup / Methods 区块；实验提交或锁定前必须完成 setup snapshot、methods、setup diagram 并确认
@@ -32,9 +38,9 @@
 - 文件页已接通文件列表、筛选、上传、下载、软删除，并支持 `asset_role=setup_diagram` 的 setup 示意图上传
 - 样品详情页已接通样品读取、draft 编辑、关联文件查看与下载
 - 受控词表后台已接通列表筛选、创建、编辑与启停用
-- 字段词典后台已接通 `/admin/fields`，支持模块筛选、CRUD、受控词表关联与启停用
+- 字段词典后台已接通 `/fields`，支持模块筛选、CRUD、受控词表关联与启停用
 - Recipe 后台已接通列表、创建、编辑与停用、重新激活
-- 管理员数据看板 `/admin/dashboard` 已接通：顶部总记录/草稿/待审/已锁定/已作废/本周新增/缺 Setup 统计卡、最近 12 周录入趋势图、按成员的记录情况表（记录数、状态分布、缺 Setup、最近活动、停滞草稿告警），点击成员行可下钻到该成员的全部实验；侧栏入口与 `/admin/*` 路由均受 `AdminRoute` 角色守卫，非管理员会被重定向
+- 管理员数据看板 `/dashboard` 已接通：顶部总记录/草稿/待审/已锁定/已作废/本周新增/缺 Setup 统计卡、最近 12 周录入趋势图、按成员的记录情况表（记录数、状态分布、缺 Setup、最近活动、停滞草稿告警），点击成员行可下钻到该成员的全部实验；管理后台经 pathless `_admin` 布局做角色守卫，非管理员会被重定向
 - 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
 
 当前前端尚未完成的部分：
@@ -44,6 +50,8 @@
 - 更细的运行时性能优化
 
 ## 本轮交付质量状态
+
+> 注：以下为历史交付记录；其中涉及前端 UI 框架（Ant Design / vendor 拆包）与 `/admin/*` 路由的条目描述的是**遗留前端 `frontend/`**，不代表生产前端 `frontend-next` 的当前形态。
 
 - 2026-04-23 已完成一次 subagent 审核，并修正了首轮前端基础实现中的关键问题。
 - 登出现在会清空 TanStack Query 缓存，避免跨账号残留上一位用户的实验数据。
@@ -116,10 +124,12 @@ uv run alembic upgrade head
 uv run python -m app.commands.create_user --email admin@example.com --name Admin --role admin
 uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
 
-cd ../frontend
+cd ../frontend-next
 bun install
-bun run dev --host 0.0.0.0 --port 5173
+bun run dev   # 生产前端，默认 http://localhost:3000（Vite 代理 /api → 后端）
 ```
+
+> 旧前端 `frontend/`（Ant Design，遗留）如需运行：`cd ../frontend && bun install && bun run dev --port 5173`。
 
 ## Docker Compose 本地开发
 
@@ -130,9 +140,11 @@ docker compose config
 docker compose up --build
 ```
 
+> 注：dev compose 的 `frontend` 服务构建的是**遗留前端 `frontend/`**（端口 5173）。开发**生产前端 frontend-next** 请用上文 `cd frontend-next && bun run dev`（端口 3000）。
+
 开发模式默认入口：
 
-- 前端：`http://localhost:5173`
+- 前端（遗留 `frontend/`）：`http://localhost:5173`
 - 后端 OpenAPI：`http://localhost:8000/docs`
 - 健康检查：`http://localhost:8000/health`
 - Compose 会在 backend 容器启动时自动执行 `uv run alembic upgrade head`。
@@ -141,25 +153,27 @@ docker compose up --build
 
 ## 生产部署
 
-```bash
-# 1. 初始化配置
-cp .env.production.example .env
-# 编辑 .env，用 openssl 生成强密钥：
-#   JWT_SECRET_KEY:  openssl rand -hex 32
-#   POSTGRES_PASSWORD: openssl rand -base64 24
-# 同时设置 REGISTRATION_INVITE_CODE，用于内部成员自助注册。
+生产环境（hongkong 服务器，1Panel + openresty 管理）使用 **`docker-compose.prod.yml`**：仅后端 + 前端容器，数据库是**共享的 1Panel PostgreSQL**（经外部 `1panel-network` 访问，本 compose 不启动 postgres）。前端镜像为多阶段构建（`frontend-next/Dockerfile`：bun 构建 → nginx）。部署从 `main` 分支进行。
 
-# 2. 一键部署
+```bash
+# 1. 初始化配置（首次）
+cp .env.production.example .env
+# 编辑 .env，至少设置：
+#   COMPOSE_DATABASE_URL=postgresql+psycopg://<用户>:<密码>@1Panel-postgresql-xxxx:5432/cvd  # 指向共享 1Panel PostgreSQL
+#   JWT_SECRET_KEY:  openssl rand -hex 32
+#   REGISTRATION_INVITE_CODE：内部成员自助注册码
+#   FRONTEND_PORT / BACKEND_PORT：默认 8080 / 8000（仅监听 127.0.0.1，由 openresty 反代）
+
+# 2. 一键部署（自动备份 → git pull → 构建 → 后端启动时自动 alembic 迁移 → 健康检查）
 ./deploy.sh
 
 # 3. 创建管理员账户（首次必需）
-docker compose exec backend uv run python -m app.commands.create_admin --email your@email.com --name "Your Name"
+docker compose -f docker-compose.prod.yml exec backend uv run python -m app.commands.create_admin --email your@email.com --name "Your Name"
 ```
 
-生产模式默认入口（端口可在 `.env` 中修改）：
-
-- 前端：`http://<服务器 IP>:80`
-- 后端健康检查：`http://<服务器 IP>:8000/health`
+- 对外访问：1Panel openresty 反向代理「域名 → 前端容器」+ SSL → <https://cvd.rustypiano.com>
+- 前端容器内置 nginx，把 `/api`、`/health`、`/docs` 等同源反代到后端容器（127.0.0.1，不对外暴露）
+- **日常更新流程**：本地改完 → `git push origin main` → 服务器 `./deploy.sh`
 
 ## 数据备份
 
@@ -177,11 +191,12 @@ crontab -e
 ### 恢复备份
 
 ```bash
-# 数据库恢复
-docker compose exec -T postgres psql -U postgres cvd < backups/YYYYMMDD_HHMMSS/database.sql
+# 数据库恢复（生产：共享 1Panel PostgreSQL 容器）
+docker exec -i 1Panel-postgresql-xxxx psql -U <用户> cvd < backups/YYYYMMDD_HHMMSS/database.sql
+#（本地 dev 用自带 postgres：docker compose exec -T postgres psql -U postgres cvd < ...）
 
 # 文件恢复
-docker compose exec -T backend tar xzf - -C / < backups/YYYYMMDD_HHMMSS/storage.tar.gz
+docker compose -f docker-compose.prod.yml exec -T backend tar xzf - -C / < backups/YYYYMMDD_HHMMSS/storage.tar.gz
 ```
 
 ## Docker Compose 说明
@@ -229,8 +244,9 @@ uv run python -m app.commands.create_admin --email admin@example.com --name Admi
 
 - 默认后端地址：`http://127.0.0.1:8000`
 - OpenAPI 文档：`http://127.0.0.1:8000/docs`
-- 本地运行时配置文件：`frontend/public/runtime-config.js`，默认不覆盖 `VITE_API_BASE_URL`
-- Compose 默认通过 Nginx 同源反代 `/api/*`、`/health`、`/docs` 和 `/openapi.json` 到后端容器
+- 运行时配置文件：`frontend-next/public/runtime-config.js`（生产前端；旧 `frontend/public/runtime-config.js` 为遗留），默认不覆盖 `VITE_API_BASE_URL`
+- frontend-next 本地 dev（端口 `3000`）通过 Vite 代理把 `/api` 转发到后端，无需 CORS
+- 生产前端容器内置 nginx 同源反代 `/api/*`、`/health`、`/docs` 和 `/openapi.json` 到后端容器
 - Compose 运行时通过 `VITE_API_BASE_URL` 覆盖前端容器里的 `runtime-config.js`；默认值为 `/`
 - 如果前后端部署在不同域名或不同端口上，需要把 `VITE_API_BASE_URL` 和 `CORS_ALLOW_ORIGINS` 一起改成可访问地址
 - 本地 Vite 开发端口 `5173/4173` 已默认加入 `CORS_ALLOW_ORIGINS`
@@ -247,10 +263,10 @@ uv run ruff format --check .
 uv run pytest
 ```
 
-前端：
+前端（生产前端 frontend-next）：
 
 ```bash
-cd frontend
+cd frontend-next
 bun run lint
 bun run typecheck
 bun run test

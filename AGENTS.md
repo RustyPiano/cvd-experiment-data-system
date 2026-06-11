@@ -3,10 +3,10 @@
 ## 项目概览
 
 CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、样品、表征文件与审计轨迹，支持后续结构化分析。
-- 前端：React + TypeScript + Vite + Ant Design
+- 前端：生产前端 `frontend-next/`（React + TypeScript + Vite + TanStack Router + shadcn/ui + Tailwind v4）；旧 `frontend/`（Ant Design + React Router）为**遗留，正在退役**
 - 后端：FastAPI + SQLAlchemy 2.x + Alembic + PostgreSQL
 - 文件：本地文件系统（V1）+ metadata 入库
-- 部署：Docker Compose（frontend/backend/postgres）
+- 部署：生产用 `docker-compose.prod.yml`（后端 + frontend-next 容器 + 共享 1Panel PostgreSQL，1Panel/openresty 反代，域名 cvd.rustypiano.com）；本地 dev 用 `docker-compose.yml`（自带 postgres）
 
 ## 强制工具链（必须遵守）
 
@@ -26,18 +26,18 @@ CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、�
 
 - 版本检查：`uv --version && bun --version && docker --version && docker compose version`
 - 后端初始化（backend/）：`uv venv && uv sync`
-- 前端初始化（frontend/）：`bun install`
+- 前端初始化（frontend-next/）：`bun install`
 
 ## 开发流程
 
 1. 启动数据库：`docker compose up -d postgres`
 2. 启动后端（backend/）：`uv sync && uv run alembic upgrade head && uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000`
-3. 启动前端（frontend/）：`bun install && bun run dev --host 0.0.0.0 --port 5173`
+3. 启动前端（frontend-next/）：`bun install && bun run dev`（默认 http://localhost:3000，Vite 代理 /api → 后端）
 
 ## 测试与质量门禁
 
 - 后端（backend/）：`uv run ruff check . && uv run ruff format --check . && uv run pytest`
-- 前端（frontend/）：`bun run lint && bun run typecheck && bun run test`
+- 前端（frontend-next/）：`bun run lint && bun run typecheck && bun run test`
 - 最低合并要求：lint + typecheck + 核心测试通过。
 
 ## 开发约定

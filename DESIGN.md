@@ -1080,7 +1080,7 @@ Sections:
 - Feature table.
 - Provenance timeline.
 
-### Admin: field dictionary `/admin/fields`
+### Admin: field dictionary `/fields`
 
 Purpose: manage standardized fields, labels, units, validation, and defaults.
 
@@ -1098,7 +1098,7 @@ Rules:
 - Editing a field that affects existing templates should warn about versioning.
 - Prefer creating a new template version over modifying locked historical definitions.
 
-### Admin: controlled vocabulary `/admin/vocabularies`
+### Admin: controlled vocabulary `/vocabularies`
 
 Purpose: manage dropdown values such as substrate type, precursor method, gas type, characterization method.
 
