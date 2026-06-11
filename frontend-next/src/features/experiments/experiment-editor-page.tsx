@@ -350,9 +350,9 @@ function ExperimentEditorWorkspace({
         <Alert variant="destructive">
           <TriangleAlert className="size-4" />
           <AlertDescription>
-            以下区块因填写格式有误{' '}
+            以下区块
             <span className="font-medium">暂未自动保存</span>
-            ，请修正后将自动保存（离开本页会提示未保存）：{' '}
+            （填写格式有误或保存失败），请修正或稍后重试；离开本页会提示未保存：{' '}
             {autosaveBlockedSections.map((section, index) => (
               <span key={section.key}>
                 <button

@@ -1030,12 +1030,9 @@ class ExperimentService:
 
         if current_user.role == UserRole.ADMIN:
             return experiment
-        if current_user.role == UserRole.MEMBER:
-            if experiment.owner_id == current_user.id:
-                return experiment
-            if experiment.status in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
-                return experiment
-        elif experiment.status in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
+        if experiment.owner_id == current_user.id:
+            return experiment
+        if experiment.status in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
             return experiment
 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experiment not found")

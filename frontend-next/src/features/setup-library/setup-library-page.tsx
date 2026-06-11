@@ -108,8 +108,6 @@ export function SetupLibraryPage() {
   const queryClient = useQueryClient()
   const { session } = useAuth()
   const token = session.accessToken || ''
-  // viewer role retired: all authenticated users may author setup entries.
-  const isViewer = false
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<SetupLibraryRead | null>(
@@ -279,12 +277,10 @@ export function SetupLibraryPage() {
         title="Setup 库"
         subtitle="记录和管理实验室的 CVD 装置与实验 Setup，用于在实验中快速引用。"
         actions={
-          isViewer ? undefined : (
-            <Button aria-label="新建 Setup 记录" onClick={handleOpenCreate}>
-              <Plus className="size-4" />
-              新建 Setup
-            </Button>
-          )
+          <Button aria-label="新建 Setup 记录" onClick={handleOpenCreate}>
+            <Plus className="size-4" />
+            新建 Setup
+          </Button>
         }
       />
 
