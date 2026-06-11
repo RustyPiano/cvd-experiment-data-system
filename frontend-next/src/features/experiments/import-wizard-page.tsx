@@ -156,6 +156,23 @@ export function ImportWizardPage() {
     [drafts, includedRows],
   )
 
+  // Viewer guard: import creates draft experiments, which viewers may not do.
+  if (session.currentUser?.role === 'viewer') {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          title="导入 Excel 数据"
+          subtitle="从机台导出的工艺参数包批量生成草稿实验。"
+        />
+        <Alert variant="destructive">
+          <AlertDescription>
+            当前账号为只读（查看者），没有导入权限。如需导入，请联系管理员调整角色。
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
   // Step 3: done -------------------------------------------------------------
   if (created) {
     return (
@@ -361,26 +378,89 @@ export function ImportWizardPage() {
       <Card className="flex flex-col gap-4 p-6">
         <div className="flex flex-col gap-2">
           <Label>导入格式</Label>
-          <select
-            className="h-9 rounded-md border bg-background px-3 text-sm"
-            value={activeProfileKey}
-            onChange={(event) => setProfileKey(event.target.value)}
-          >
-            {profiles.map((profile) => (
-              <option key={profile.key} value={profile.key}>
-                {profile.display_name}
-              </option>
-            ))}
-          </select>
-          {profiles.find((profile) => profile.key === activeProfileKey)
-            ?.description ? (
-            <p className="text-sm text-muted-foreground">
-              {
-                profiles.find((profile) => profile.key === activeProfileKey)
-                  ?.description
-              }
+          {profilesQuery.isLoading ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              正在加载可用导入格式…
             </p>
-          ) : null}
+          ) : profilesQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription className="flex items-center justify-between gap-3">
+                <span>
+                  {resolveErrorMessage(profilesQuery.error, '加载导入格式失败')}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void profilesQuery.refetch()}
+                >
+                  重试
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : profiles.length === 0 ? (
+            <Alert>
+              <AlertTriangle className="size-4" />
+              <AlertDescription>
+                当前没有可用的导入格式。请联系管理员确认后端导入配置后再试。
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <select
+                className="h-9 rounded-md border bg-background px-3 text-sm"
+                value={activeProfileKey}
+                onChange={(event) => setProfileKey(event.target.value)}
+              >
+                {profiles.map((profile) => (
+                  <option key={profile.key} value={profile.key}>
+                    {profile.display_name}
+                  </option>
+                ))}
+              </select>
+              {profiles.find((profile) => profile.key === activeProfileKey)
+                ?.description ? (
+                <p className="text-sm text-muted-foreground">
+                  {
+                    profiles.find((profile) => profile.key === activeProfileKey)
+                      ?.description
+                  }
+                </p>
+              ) : null}
+              <details className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                <summary className="cursor-pointer font-medium text-foreground">
+                  需要哪些列？
+                </summary>
+                <div className="mt-2 flex flex-col gap-1.5 text-muted-foreground">
+                  <p>
+                    宽表，每行一条实验。表头需至少包含{' '}
+                    <code className="rounded bg-muted px-1">Order</code> 或{' '}
+                    <code className="rounded bg-muted px-1">A</code> 列，常用列：
+                  </p>
+                  <ul className="list-disc pl-5">
+                    <li>
+                      前驱体：<code className="rounded bg-muted px-1">A</code> /{' '}
+                      <code className="rounded bg-muted px-1">B</code>（种类、质量等）
+                    </li>
+                    <li>
+                      基底：<code className="rounded bg-muted px-1">Substrate</code>
+                    </li>
+                    <li>炉温台阶（升温/保温/降温的温度与时间列）</li>
+                    <li>
+                      四路气体：
+                      <code className="rounded bg-muted px-1">Ar</code>{' '}
+                      <code className="rounded bg-muted px-1">H2</code>{' '}
+                      <code className="rounded bg-muted px-1">O2</code>{' '}
+                      <code className="rounded bg-muted px-1">CO2</code>（流量）
+                    </li>
+                  </ul>
+                  <p>
+                    列名不匹配不会报错，只会在解析预览中以「提示」形式标出，可在确认页逐行核对修正。
+                  </p>
+                </div>
+              </details>
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

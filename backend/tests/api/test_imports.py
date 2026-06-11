@@ -118,6 +118,33 @@ def test_preview_then_commit_creates_draft_experiments(active_user) -> None:
     assert {"zone_1", "zone_2"} <= zone_keys
 
 
+def test_commit_rejects_viewer(viewer_user) -> None:
+    content = build_process_package_bytes()
+    preview_response = client.post(
+        "/api/v1/imports/preview",
+        headers=auth_headers(viewer_user.email),
+        data={"profile_key": "cvd_process_package_v1"},
+        files={
+            "file": (
+                "package.xlsx",
+                content,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+    assert preview_response.status_code == 200
+
+    commit_response = client.post(
+        "/api/v1/imports/commit",
+        headers=auth_headers(viewer_user.email),
+        json={
+            "profile_key": "cvd_process_package_v1",
+            "drafts": preview_response.json()["drafts"],
+        },
+    )
+    assert commit_response.status_code == 403
+
+
 def test_preview_rejects_unknown_profile(active_user) -> None:
     response = client.post(
         "/api/v1/imports/preview",
