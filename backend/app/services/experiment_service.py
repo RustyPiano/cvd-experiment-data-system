@@ -639,6 +639,52 @@ class ExperimentService:
         self.db.commit()
         return ExperimentRead.model_validate(saved)
 
+    def delete_experiment(self, experiment_id: UUID, current_user: User) -> None:
+        """Hard-delete a *draft* (owner or admin).
+
+        Drafts are early-stage scratch space and should be discardable rather
+        than entering the permanent `invalid` terminal state. ORM cascade removes
+        module / sample / file rows; the setup snapshot and version snapshots have
+        no cascade from the run, so they are removed explicitly, and the stored
+        file blobs are cleaned up best-effort after the row delete commits.
+        """
+        experiment = self._get_owned_experiment(experiment_id, current_user)
+        if experiment.status != ExperimentStatus.DRAFT:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only draft experiments can be deleted",
+            )
+
+        before = self._serialize_experiment(experiment)
+        blob_paths = [
+            file_asset.storage_path
+            for file_asset in experiment.file_assets
+            if file_asset.deleted_at is None
+        ]
+
+        snapshot = self.setup_methods_service.setup_methods.get_by_experiment(experiment.id)
+        if snapshot is not None:
+            self.db.delete(snapshot)
+        for version in self.versions.list_by_run(experiment.id):
+            self.db.delete(version)
+
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=experiment.id,
+            action="delete",
+            before_json=before,
+            after_json=None,
+        )
+        self.db.delete(experiment)
+        self.db.commit()
+
+        for path in blob_paths:
+            try:
+                self.setup_methods_service.storage.delete(path)
+            except (OSError, ValueError):
+                pass
+
     def clone_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRead:
         if current_user.role == UserRole.VIEWER:
             raise HTTPException(

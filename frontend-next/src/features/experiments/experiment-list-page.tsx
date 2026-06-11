@@ -71,6 +71,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   cloneExperiment,
+  deleteExperiment,
   downloadExperimentExcel,
   exportExperimentJson,
   invalidateExperiment,
@@ -121,6 +122,8 @@ function getActionAvailability(
       canMutate &&
       ownerOrAdmin &&
       experiment.status === 'submitted',
+    // 草稿可直接删除/丢弃（区别于已提交记录的「作废」终态）。
+    canDelete: canMutate && ownerOrAdmin && experiment.status === 'draft',
     // 草稿与已提交记录都可继续编辑（提交后改动会固化为新版本）；锁定/作废为只读。
     canEdit:
       canMutate &&
@@ -205,6 +208,10 @@ export function ExperimentListPage() {
   const [lockTarget, setLockTarget] = useState<ExperimentRead | null>(null)
   const [cloneTarget, setCloneTarget] = useState<ExperimentRead | null>(null)
   const [confirmBusy, setConfirmBusy] = useState(false)
+
+  // Discard-draft confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<ExperimentRead | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   // Derive API filters from URL search + debounced local inputs
   const currentPage = search.page ?? 1
@@ -428,6 +435,22 @@ export function ExperimentListPage() {
       setListActionError(resolveErrorMessage(error, '作废实验失败'))
     } finally {
       setInvalidateSubmitting(false)
+    }
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleteBusy(true)
+    setListActionError(null)
+    try {
+      await deleteExperiment(session.accessToken!, deleteTarget.id)
+      await refreshList()
+      toast.success(`草稿 ${deleteTarget.run_code} 已删除`)
+      setDeleteTarget(null)
+    } catch (error) {
+      setListActionError(resolveErrorMessage(error, '删除草稿失败'))
+    } finally {
+      setDeleteBusy(false)
     }
   }
 
@@ -661,6 +684,17 @@ export function ExperimentListPage() {
                         }}
                       >
                         作废实验
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {availability.canDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget(experiment)}
+                      >
+                        删除草稿
                       </DropdownMenuItem>
                     </>
                   )}
@@ -1152,6 +1186,40 @@ export function ExperimentListPage() {
               onClick={() => void handleCloneConfirm()}
             >
               确认派生
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard draft confirm dialog */}
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !deleteBusy) setDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              删除草稿 {deleteTarget?.run_code}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              将永久删除该草稿及其已填模块、样品与上传文件，此操作
+              <span className="font-medium text-foreground">无法撤销</span>。
+              仅草稿可删除；已提交记录请使用「作废」。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteBusy}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleDeleteConfirm()
+              }}
+            >
+              {deleteBusy ? '删除中…' : '确认删除'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

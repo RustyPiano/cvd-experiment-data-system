@@ -268,6 +268,13 @@ export function lockExperiment(token: string, experimentId: string) {
   )
 }
 
+export function deleteExperiment(token: string, experimentId: string) {
+  return apiRequest<void>(`/api/v1/experiments/${experimentId}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
 export function unlockExperiment(token: string, experimentId: string) {
   return apiRequest<ExperimentRead>(
     `/api/v1/experiments/${experimentId}/unlock`,

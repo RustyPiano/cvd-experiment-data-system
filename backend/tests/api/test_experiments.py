@@ -530,6 +530,107 @@ def test_submit_then_lock_updates_status_timestamps(active_user) -> None:
     assert lock_response.json()["locked_at"] is not None
 
 
+def test_owner_can_delete_own_draft(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Discard me",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    delete_response = client.delete(
+        f"/api/v1/experiments/{experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert delete_response.status_code == 204
+
+    get_response = client.get(
+        f"/api/v1/experiments/{experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert get_response.status_code == 404
+
+
+def test_delete_populated_draft_cascades_modules_setup_and_files(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Fully populated draft to discard",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    # Fills precursors/furnace/gas modules + a confirmed setup snapshot with an
+    # uploaded diagram file — exercises the cascade + snapshot/blob cleanup path.
+    populate_required_modules(experiment_id, active_user.email)
+
+    delete_response = client.delete(
+        f"/api/v1/experiments/{experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert delete_response.status_code == 204
+
+    get_response = client.get(
+        f"/api/v1/experiments/{experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert get_response.status_code == 404
+
+
+def test_delete_rejects_submitted_experiment(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Submitted not deletable",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    populate_required_modules(experiment_id, active_user.email)
+    submit_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    assert submit_response.status_code == 200
+
+    delete_response = client.delete(
+        f"/api/v1/experiments/{experiment_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert delete_response.status_code == 409
+
+
+def test_member_cannot_delete_other_members_draft(active_user, admin_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Admin draft",
+        },
+        headers=auth_headers(admin_user.email),
+    )
+    admin_draft_id = create_response.json()["id"]
+
+    delete_response = client.delete(
+        f"/api/v1/experiments/{admin_draft_id}",
+        headers=auth_headers(active_user.email),
+    )
+    assert delete_response.status_code in {403, 404}
+
+
 def test_admin_can_unlock_locked_experiment(active_user, admin_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",

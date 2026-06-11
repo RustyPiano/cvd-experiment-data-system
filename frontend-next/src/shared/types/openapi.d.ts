@@ -152,7 +152,8 @@ export interface paths {
         get: operations["get_experiment_api_v1_experiments__experiment_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Experiment */
+        delete: operations["delete_experiment_api_v1_experiments__experiment_id__delete"];
         options?: never;
         head?: never;
         /** Update Experiment */
@@ -3210,6 +3211,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ExperimentRead"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_experiment_api_v1_experiments__experiment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

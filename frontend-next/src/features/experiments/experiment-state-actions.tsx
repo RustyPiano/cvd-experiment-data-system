@@ -30,6 +30,7 @@ import type { ExperimentRead } from '@/shared/types/api'
 import type { SessionUser } from '@/features/auth/auth-store'
 import {
   cloneExperiment,
+  deleteExperiment,
   invalidateExperiment,
   lockExperiment,
   returnExperimentToDraft,
@@ -44,6 +45,7 @@ type ActionKind =
   | 'invalidate'
   | 'clone'
   | 'save-recipe'
+  | 'delete'
   | null
 
 function updateExperimentCache(
@@ -88,6 +90,7 @@ export function ExperimentStateActions({
   const [recipeValidation, setRecipeValidation] = useState<string | null>(null)
   const [lockOpen, setLockOpen] = useState(false)
   const [unlockOpen, setUnlockOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   // ─── Action availability rules (mirrors OLD experiment-state-actions.tsx) ───
   const canMutate = currentUser.role !== 'viewer'
@@ -101,6 +104,8 @@ export function ExperimentStateActions({
   const canLock = isOwnerOrAdmin && experiment.status === 'submitted'
   // 仅管理员可解锁：锁定不再是死路，管理员可让记录回到已提交以便更正。
   const canUnlock = currentUser.role === 'admin' && experiment.status === 'locked'
+  // 草稿可直接删除/丢弃（区别于已提交记录的永久「作废」终态）。
+  const canDelete = isOwnerOrAdmin && experiment.status === 'draft'
   // 作废仅对已提交记录开放：草稿应当直接删除/丢弃，而非进入永久作废终态。
   const canInvalidate = isOwnerOrAdmin && experiment.status === 'submitted'
   const canClone =
@@ -117,9 +122,26 @@ export function ExperimentStateActions({
     !canUnlock &&
     !canInvalidate &&
     !canClone &&
-    !canSaveAsRecipe
+    !canSaveAsRecipe &&
+    !canDelete
   ) {
     return null
+  }
+
+  const handleDelete = async () => {
+    setActiveAction('delete')
+    setActionError(null)
+    try {
+      await deleteExperiment(accessToken, experiment.id)
+      await queryClient.invalidateQueries({
+        queryKey: ['experiments', 'list', currentUser.id],
+      })
+      toast.success('草稿已删除')
+      await navigate({ to: '/experiments' })
+    } catch (error) {
+      setActionError(resolveErrorMessage(error, '删除草稿失败'))
+      setActiveAction(null)
+    }
   }
 
   const syncExperiment = async (nextExperiment: ExperimentRead) => {
@@ -293,6 +315,20 @@ export function ExperimentStateActions({
             作废实验
           </Button>
         ) : null}
+
+        {canDelete ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={isBusy}
+            onClick={() => {
+              setActionError(null)
+              setDeleteOpen(true)
+            }}
+          >
+            {activeAction === 'delete' ? '删除中…' : '删除草稿'}
+          </Button>
+        ) : null}
       </div>
 
       {actionError ? (
@@ -366,6 +402,39 @@ export function ExperimentStateActions({
               }}
             >
               {activeAction === 'unlock' ? '解锁中…' : '确认解锁'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Discard draft confirm */}
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (!isBusy) setDeleteOpen(open)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除草稿 {experiment.run_code}</AlertDialogTitle>
+            <AlertDialogDescription>
+              将永久删除该草稿及其已填模块、样品与上传文件，此操作
+              <span className="font-medium text-foreground">无法撤销</span>。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={activeAction === 'delete'}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={activeAction === 'delete'}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleDelete()
+              }}
+            >
+              {activeAction === 'delete' ? '删除中…' : '确认删除'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

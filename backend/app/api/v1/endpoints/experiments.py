@@ -158,6 +158,15 @@ def update_experiment(
     return ExperimentService(db).update_experiment(experiment_id, payload, current_user)
 
 
+@router.delete("/{experiment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_experiment(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> None:
+    ExperimentService(db).delete_experiment(experiment_id, current_user)
+
+
 @router.post(
     "/{experiment_id}/submit",
     response_model=ExperimentRead,
