@@ -35,6 +35,8 @@ class SampleRead(BaseModel):
     id: UUID
     sample_code: str
     experiment_run_id: UUID
+    run_code: str | None = None
+    material_system: str | None = None
     parent_sample_id: UUID | None
     role: str
     substrate_type: str | None

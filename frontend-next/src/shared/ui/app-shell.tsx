@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Tag,
   BookOpen,
+  TestTube2,
 } from 'lucide-react'
 
 import { logout } from '@/features/auth/api'
@@ -56,6 +57,12 @@ const navItems = [
     label: '实验记录',
     icon: FlaskConical,
     match: '/experiments',
+  },
+  {
+    to: '/samples' as const,
+    label: '样品',
+    icon: TestTube2,
+    match: '/samples',
   },
   {
     to: '/setup-library' as const,

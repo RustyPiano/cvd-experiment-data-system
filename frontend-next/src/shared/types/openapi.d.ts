@@ -2533,6 +2533,10 @@ export interface components {
              * Format: uuid
              */
             experiment_run_id: string;
+            /** Run Code */
+            run_code?: string | null;
+            /** Material System */
+            material_system?: string | null;
             /** Parent Sample Id */
             parent_sample_id: string | null;
             /** Role */

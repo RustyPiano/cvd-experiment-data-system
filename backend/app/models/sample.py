@@ -74,3 +74,11 @@ class Sample(Base):
     @property
     def is_deleted(self) -> bool:
         return self.deleted_at is not None
+
+    @property
+    def run_code(self) -> str | None:
+        return self.experiment_run.run_code if self.experiment_run else None
+
+    @property
+    def material_system(self) -> str | None:
+        return self.experiment_run.material_system if self.experiment_run else None

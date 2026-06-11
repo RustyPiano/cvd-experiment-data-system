@@ -106,6 +106,34 @@ def populate_substrates_module(experiment_id: str, email: str) -> None:
     assert response.status_code == 200
 
 
+def test_list_all_samples_includes_run_code(active_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WSe2",
+            "experiment_date": "2026-04-23",
+            "objective": "All-samples view",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment = create_response.json()
+    experiment_id = experiment["id"]
+    populate_substrates_module(experiment_id, active_user.email)
+
+    # No experiment_id filter → the cross-experiment "my samples" view.
+    list_response = client.get(
+        "/api/v1/samples",
+        headers=auth_headers(active_user.email),
+    )
+    assert list_response.status_code == 200
+    body = list_response.json()
+    mine = [item for item in body["items"] if item["experiment_run_id"] == experiment_id]
+    assert len(mine) == 2
+    assert all(item["run_code"] == experiment["run_code"] for item in mine)
+    assert all(item["material_system"] == "WSe2" for item in mine)
+
+
 def test_substrates_module_syncs_top_and_bottom_samples(active_user) -> None:
     create_response = client.post(
         "/api/v1/experiments",

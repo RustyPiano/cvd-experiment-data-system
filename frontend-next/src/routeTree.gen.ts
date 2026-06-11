@@ -15,6 +15,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedSetupLibraryRouteImport } from './routes/_authed/setup-library'
 import { Route as AuthedAdminRouteImport } from './routes/_authed/_admin'
+import { Route as AuthedSamplesIndexRouteImport } from './routes/_authed/samples/index'
 import { Route as AuthedExperimentsIndexRouteImport } from './routes/_authed/experiments/index'
 import { Route as AuthedSamplesSampleIdRouteImport } from './routes/_authed/samples/$sampleId'
 import { Route as AuthedExperimentsNewRouteImport } from './routes/_authed/experiments/new'
@@ -53,6 +54,11 @@ const AuthedSetupLibraryRoute = AuthedSetupLibraryRouteImport.update({
 } as any)
 const AuthedAdminRoute = AuthedAdminRouteImport.update({
   id: '/_admin',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedSamplesIndexRoute = AuthedSamplesIndexRouteImport.update({
+  id: '/samples/',
+  path: '/samples/',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedExperimentsIndexRoute = AuthedExperimentsIndexRouteImport.update({
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/experiments/new': typeof AuthedExperimentsNewRoute
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/experiments/': typeof AuthedExperimentsIndexRoute
+  '/samples/': typeof AuthedSamplesIndexRoute
   '/experiments/$experimentId/edit': typeof AuthedExperimentsExperimentIdEditRoute
   '/experiments/$experimentId/files': typeof AuthedExperimentsExperimentIdFilesRoute
   '/experiments/$experimentId/': typeof AuthedExperimentsExperimentIdIndexRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/experiments/new': typeof AuthedExperimentsNewRoute
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/experiments': typeof AuthedExperimentsIndexRoute
+  '/samples': typeof AuthedSamplesIndexRoute
   '/experiments/$experimentId/edit': typeof AuthedExperimentsExperimentIdEditRoute
   '/experiments/$experimentId/files': typeof AuthedExperimentsExperimentIdFilesRoute
   '/experiments/$experimentId': typeof AuthedExperimentsExperimentIdIndexRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/_authed/experiments/new': typeof AuthedExperimentsNewRoute
   '/_authed/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/_authed/experiments/': typeof AuthedExperimentsIndexRoute
+  '/_authed/samples/': typeof AuthedSamplesIndexRoute
   '/_authed/experiments/$experimentId/edit': typeof AuthedExperimentsExperimentIdEditRoute
   '/_authed/experiments/$experimentId/files': typeof AuthedExperimentsExperimentIdFilesRoute
   '/_authed/experiments/$experimentId/': typeof AuthedExperimentsExperimentIdIndexRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/experiments/new'
     | '/samples/$sampleId'
     | '/experiments/'
+    | '/samples/'
     | '/experiments/$experimentId/edit'
     | '/experiments/$experimentId/files'
     | '/experiments/$experimentId/'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/experiments/new'
     | '/samples/$sampleId'
     | '/experiments'
+    | '/samples'
     | '/experiments/$experimentId/edit'
     | '/experiments/$experimentId/files'
     | '/experiments/$experimentId'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/_authed/experiments/new'
     | '/_authed/samples/$sampleId'
     | '/_authed/experiments/'
+    | '/_authed/samples/'
     | '/_authed/experiments/$experimentId/edit'
     | '/_authed/experiments/$experimentId/files'
     | '/_authed/experiments/$experimentId/'
@@ -272,6 +284,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthedAdminRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/samples/': {
+      id: '/_authed/samples/'
+      path: '/samples'
+      fullPath: '/samples/'
+      preLoaderRoute: typeof AuthedSamplesIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/experiments/': {
@@ -380,6 +399,7 @@ interface AuthedRouteChildren {
   AuthedExperimentsNewRoute: typeof AuthedExperimentsNewRoute
   AuthedSamplesSampleIdRoute: typeof AuthedSamplesSampleIdRoute
   AuthedExperimentsIndexRoute: typeof AuthedExperimentsIndexRoute
+  AuthedSamplesIndexRoute: typeof AuthedSamplesIndexRoute
   AuthedExperimentsExperimentIdEditRoute: typeof AuthedExperimentsExperimentIdEditRoute
   AuthedExperimentsExperimentIdFilesRoute: typeof AuthedExperimentsExperimentIdFilesRoute
   AuthedExperimentsExperimentIdIndexRoute: typeof AuthedExperimentsExperimentIdIndexRoute
@@ -393,6 +413,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedExperimentsNewRoute: AuthedExperimentsNewRoute,
   AuthedSamplesSampleIdRoute: AuthedSamplesSampleIdRoute,
   AuthedExperimentsIndexRoute: AuthedExperimentsIndexRoute,
+  AuthedSamplesIndexRoute: AuthedSamplesIndexRoute,
   AuthedExperimentsExperimentIdEditRoute:
     AuthedExperimentsExperimentIdEditRoute,
   AuthedExperimentsExperimentIdFilesRoute:

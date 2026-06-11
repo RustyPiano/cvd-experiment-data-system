@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.sample import Sample, SampleRole
@@ -108,7 +108,11 @@ class SampleRepository:
         sample_code: str | None = None,
         include_deleted: bool = False,
     ) -> list[Sample]:
-        statement = select(Sample).join(ExperimentRun, Sample.experiment_run_id == ExperimentRun.id)
+        statement = (
+            select(Sample)
+            .join(ExperimentRun, Sample.experiment_run_id == ExperimentRun.id)
+            .options(selectinload(Sample.experiment_run))
+        )
         if not include_deleted:
             statement = statement.where(Sample.deleted_at.is_(None))
 
