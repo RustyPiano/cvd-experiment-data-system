@@ -21,7 +21,6 @@ import { Route as AuthedSamplesSampleIdRouteImport } from './routes/_authed/samp
 import { Route as AuthedExperimentsNewRouteImport } from './routes/_authed/experiments/new'
 import { Route as AuthedExperimentsImportRouteImport } from './routes/_authed/experiments/import'
 import { Route as AuthedAdminVocabulariesRouteImport } from './routes/_authed/_admin/vocabularies'
-import { Route as AuthedAdminRecipesRouteImport } from './routes/_authed/_admin/recipes'
 import { Route as AuthedAdminFieldsRouteImport } from './routes/_authed/_admin/fields'
 import { Route as AuthedAdminDashboardRouteImport } from './routes/_authed/_admin/dashboard'
 import { Route as AuthedExperimentsExperimentIdIndexRouteImport } from './routes/_authed/experiments/$experimentId/index'
@@ -86,11 +85,6 @@ const AuthedAdminVocabulariesRoute = AuthedAdminVocabulariesRouteImport.update({
   path: '/vocabularies',
   getParentRoute: () => AuthedAdminRoute,
 } as any)
-const AuthedAdminRecipesRoute = AuthedAdminRecipesRouteImport.update({
-  id: '/recipes',
-  path: '/recipes',
-  getParentRoute: () => AuthedAdminRoute,
-} as any)
 const AuthedAdminFieldsRoute = AuthedAdminFieldsRouteImport.update({
   id: '/fields',
   path: '/fields',
@@ -127,7 +121,6 @@ export interface FileRoutesByFullPath {
   '/setup-library': typeof AuthedSetupLibraryRoute
   '/dashboard': typeof AuthedAdminDashboardRoute
   '/fields': typeof AuthedAdminFieldsRoute
-  '/recipes': typeof AuthedAdminRecipesRoute
   '/vocabularies': typeof AuthedAdminVocabulariesRoute
   '/experiments/import': typeof AuthedExperimentsImportRoute
   '/experiments/new': typeof AuthedExperimentsNewRoute
@@ -145,7 +138,6 @@ export interface FileRoutesByTo {
   '/setup-library': typeof AuthedSetupLibraryRoute
   '/dashboard': typeof AuthedAdminDashboardRoute
   '/fields': typeof AuthedAdminFieldsRoute
-  '/recipes': typeof AuthedAdminRecipesRoute
   '/vocabularies': typeof AuthedAdminVocabulariesRoute
   '/experiments/import': typeof AuthedExperimentsImportRoute
   '/experiments/new': typeof AuthedExperimentsNewRoute
@@ -166,7 +158,6 @@ export interface FileRoutesById {
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/_admin/dashboard': typeof AuthedAdminDashboardRoute
   '/_authed/_admin/fields': typeof AuthedAdminFieldsRoute
-  '/_authed/_admin/recipes': typeof AuthedAdminRecipesRoute
   '/_authed/_admin/vocabularies': typeof AuthedAdminVocabulariesRoute
   '/_authed/experiments/import': typeof AuthedExperimentsImportRoute
   '/_authed/experiments/new': typeof AuthedExperimentsNewRoute
@@ -186,7 +177,6 @@ export interface FileRouteTypes {
     | '/setup-library'
     | '/dashboard'
     | '/fields'
-    | '/recipes'
     | '/vocabularies'
     | '/experiments/import'
     | '/experiments/new'
@@ -204,7 +194,6 @@ export interface FileRouteTypes {
     | '/setup-library'
     | '/dashboard'
     | '/fields'
-    | '/recipes'
     | '/vocabularies'
     | '/experiments/import'
     | '/experiments/new'
@@ -224,7 +213,6 @@ export interface FileRouteTypes {
     | '/_authed/'
     | '/_authed/_admin/dashboard'
     | '/_authed/_admin/fields'
-    | '/_authed/_admin/recipes'
     | '/_authed/_admin/vocabularies'
     | '/_authed/experiments/import'
     | '/_authed/experiments/new'
@@ -328,13 +316,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminVocabulariesRouteImport
       parentRoute: typeof AuthedAdminRoute
     }
-    '/_authed/_admin/recipes': {
-      id: '/_authed/_admin/recipes'
-      path: '/recipes'
-      fullPath: '/recipes'
-      preLoaderRoute: typeof AuthedAdminRecipesRouteImport
-      parentRoute: typeof AuthedAdminRoute
-    }
     '/_authed/_admin/fields': {
       id: '/_authed/_admin/fields'
       path: '/fields'
@@ -376,14 +357,12 @@ declare module '@tanstack/react-router' {
 interface AuthedAdminRouteChildren {
   AuthedAdminDashboardRoute: typeof AuthedAdminDashboardRoute
   AuthedAdminFieldsRoute: typeof AuthedAdminFieldsRoute
-  AuthedAdminRecipesRoute: typeof AuthedAdminRecipesRoute
   AuthedAdminVocabulariesRoute: typeof AuthedAdminVocabulariesRoute
 }
 
 const AuthedAdminRouteChildren: AuthedAdminRouteChildren = {
   AuthedAdminDashboardRoute: AuthedAdminDashboardRoute,
   AuthedAdminFieldsRoute: AuthedAdminFieldsRoute,
-  AuthedAdminRecipesRoute: AuthedAdminRecipesRoute,
   AuthedAdminVocabulariesRoute: AuthedAdminVocabulariesRoute,
 }
 

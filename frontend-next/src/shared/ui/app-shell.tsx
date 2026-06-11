@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   ClipboardList,
   Tag,
-  BookOpen,
   TestTube2,
 } from 'lucide-react'
 
@@ -81,7 +80,6 @@ const adminDashboardItem = {
 const adminConfigItems = [
   { to: '/fields' as const, label: '字段词典', icon: ClipboardList, match: '/fields' },
   { to: '/vocabularies' as const, label: '受控词表', icon: Tag, match: '/vocabularies' },
-  { to: '/recipes' as const, label: 'Recipe', icon: BookOpen, match: '/recipes' },
 ]
 
 // Single source of truth for the header page title — keep in sync with the

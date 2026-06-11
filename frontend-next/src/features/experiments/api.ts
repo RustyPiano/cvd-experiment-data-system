@@ -16,7 +16,6 @@ import type {
   ExperimentUpdateRequest,
   FileAssetListResponse,
   FileAssetRead,
-  RecipeRead,
   SampleListResponse,
   SetupMethodsMutationResponse,
   SetupMethodsRead,
@@ -106,32 +105,6 @@ export function createExperiment(
     body: payload,
     token,
   })
-}
-
-export function createExperimentFromRecipe(
-  accessToken: string,
-  data: { recipe_id: string; experiment_date?: string; objective?: string },
-): Promise<ExperimentRead> {
-  return apiRequest<ExperimentRead>('/api/v1/experiments/from-recipe', {
-    method: 'POST',
-    body: data,
-    token: accessToken,
-  })
-}
-
-export function saveExperimentAsRecipe(
-  accessToken: string,
-  experimentId: string,
-  data: { name: string; description?: string },
-): Promise<RecipeRead> {
-  return apiRequest<RecipeRead>(
-    `/api/v1/experiments/${experimentId}/save-as-recipe`,
-    {
-      method: 'POST',
-      body: data,
-      token: accessToken,
-    },
-  )
 }
 
 export function getExperiment(token: string, experimentId: string) {

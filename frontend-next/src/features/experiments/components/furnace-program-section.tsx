@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react'
 
-import type { RecipeRead } from '@/shared/types/api'
 import type { QuickTemplate } from '../data/builtin-templates'
 import { BUILTIN_FURNACE_TEMPLATES } from '../data/builtin-templates'
 import type {
@@ -54,18 +53,14 @@ function parsePositiveIntegerValue(value: string) {
 
 export function FurnaceProgramSection({
   disabled,
-  materialSystem,
   onChange,
   precursorItems,
-  recipeTemplates = [],
   templates = BUILTIN_FURNACE_TEMPLATES,
   value,
 }: {
   disabled: boolean
-  materialSystem?: string
   onChange: (nextValue: FurnaceProgramValues) => void
   precursorItems: PrecursorItemValues[]
-  recipeTemplates?: RecipeRead[]
   templates?: QuickTemplate[]
   value: FurnaceProgramValues
 }) {
@@ -222,10 +217,8 @@ export function FurnaceProgramSection({
       <div>
         <QuickTemplateMenu
           disabled={disabled}
-          materialSystem={materialSystem}
           moduleKey="furnace_program"
           onSelect={applyTemplate}
-          recipeTemplates={recipeTemplates}
           templates={templates}
         />
       </div>

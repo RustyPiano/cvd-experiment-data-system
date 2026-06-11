@@ -77,8 +77,6 @@ export type FieldDefinitionRead = Schemas['FieldDefinitionRead']
 export type FileAssetListResponse = Schemas['FileAssetListResponse']
 export type FileAssetRead = Schemas['FileAssetRead']
 export type LoginRequest = Schemas['LoginRequest']
-export type RecipeListResponse = Schemas['RecipeListResponse']
-export type RecipeRead = Schemas['RecipeRead']
 export type RegisterRequest = Schemas['RegisterRequest']
 export type SampleListResponse = Schemas['SampleListResponse']
 export type SampleRead = Schemas['SampleRead']
@@ -109,8 +107,6 @@ export type ExperimentModulePayloadUpsertRequest = Omit<
 > & { schema_version?: string }
 export type FieldDefinitionCreateRequest = Schemas['FieldDefinitionCreate']
 export type FieldDefinitionUpdateRequest = Schemas['FieldDefinitionUpdate']
-export type RecipeCreateRequest = Schemas['RecipeCreate']
-export type RecipeUpdateRequest = Schemas['RecipeUpdate']
 export type SampleUpdateRequest = Schemas['SampleUpdate']
 export type SetupLibraryCreateRequest = Schemas['SetupLibraryCreate']
 export type SetupLibraryUpdateRequest = Schemas['SetupLibraryUpdate']
@@ -121,9 +117,6 @@ export type SetupMethodsUpsertRequest = Schemas['SetupMethodsUpsert'] & {
 }
 
 /* ---------- 新增写/读模型（旧 api.ts 未导出，新代码会用到） ---------- */
-export type ExperimentFromRecipeCreate = Schemas['ExperimentFromRecipeCreate']
-export type ExperimentSaveAsRecipeRequest =
-  Schemas['ExperimentSaveAsRecipeRequest']
 export type SampleCreate = Schemas['SampleCreate']
 export type SetupMethodsFromLibraryRequest =
   Schemas['SetupMethodsFromLibraryRequest']

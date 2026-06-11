@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react'
 
-import type { RecipeRead } from '@/shared/types/api'
 import type { QuickTemplate } from '../data/builtin-templates'
 import { BUILTIN_GAS_TEMPLATES } from '../data/builtin-templates'
 import type {
@@ -88,17 +87,13 @@ function computeComponentPercent(
 export function GasProgramSection({
   disabled,
   gasOptions,
-  materialSystem,
   onChange,
-  recipeTemplates = [],
   templates = BUILTIN_GAS_TEMPLATES,
   value,
 }: {
   disabled: boolean
   gasOptions: VocabularySelectOption[]
-  materialSystem?: string
   onChange: (nextValue: GasProgramValues) => void
-  recipeTemplates?: RecipeRead[]
   templates?: QuickTemplate[]
   value: GasProgramValues
 }) {
@@ -163,10 +158,8 @@ export function GasProgramSection({
       <div>
         <QuickTemplateMenu
           disabled={disabled}
-          materialSystem={materialSystem}
           moduleKey="gas_program"
           onSelect={applyTemplate}
-          recipeTemplates={recipeTemplates}
           templates={templates}
         />
       </div>

@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +33,6 @@ import {
   invalidateExperiment,
   lockExperiment,
   returnExperimentToDraft,
-  saveExperimentAsRecipe,
   unlockExperiment,
 } from './api'
 
@@ -44,7 +42,6 @@ type ActionKind =
   | 'unlock'
   | 'invalidate'
   | 'clone'
-  | 'save-recipe'
   | 'delete'
   | null
 
@@ -83,11 +80,6 @@ export function ExperimentStateActions({
     string | null
   >(null)
   const [invalidateOpen, setInvalidateOpen] = useState(false)
-  const [recipeOpen, setRecipeOpen] = useState(false)
-  const [recipeName, setRecipeName] = useState('')
-  const [recipeDescription, setRecipeDescription] = useState('')
-  const [recipeError, setRecipeError] = useState<string | null>(null)
-  const [recipeValidation, setRecipeValidation] = useState<string | null>(null)
   const [lockOpen, setLockOpen] = useState(false)
   const [unlockOpen, setUnlockOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -109,8 +101,6 @@ export function ExperimentStateActions({
   const canClone =
     experiment.status === 'locked' ||
     (experiment.status === 'submitted' && isOwner)
-  const canSaveAsRecipe =
-    experiment.status === 'submitted' || experiment.status === 'locked'
 
   if (
     !canReturnToDraft &&
@@ -118,7 +108,6 @@ export function ExperimentStateActions({
     !canUnlock &&
     !canInvalidate &&
     !canClone &&
-    !canSaveAsRecipe &&
     !canDelete
   ) {
     return null
@@ -160,47 +149,6 @@ export function ExperimentStateActions({
       await syncExperiment(nextExperiment)
     } catch (error) {
       setActionError(resolveErrorMessage(error, fallbackMessage))
-    } finally {
-      setActiveAction(null)
-    }
-  }
-
-  const closeRecipeModal = () => {
-    setRecipeOpen(false)
-    setRecipeName('')
-    setRecipeDescription('')
-    setRecipeError(null)
-    setRecipeValidation(null)
-  }
-
-  const submitRecipe = async () => {
-    const normalizedName = recipeName.trim()
-    const normalizedDescription = recipeDescription.trim()
-    if (!normalizedName) {
-      setRecipeValidation('请填写 Recipe 名称')
-      return
-    }
-    setActiveAction('save-recipe')
-    setRecipeError(null)
-    setRecipeValidation(null)
-    try {
-      await saveExperimentAsRecipe(accessToken, experiment.id, {
-        name: normalizedName,
-        ...(normalizedDescription
-          ? { description: normalizedDescription }
-          : {}),
-      })
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['recipes'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin', 'recipes'] }),
-        queryClient.invalidateQueries({
-          queryKey: ['experiments', 'audit', currentUser.id, experiment.id],
-        }),
-      ])
-      toast.success('Recipe 已保存')
-      closeRecipeModal()
-    } catch (error) {
-      setRecipeError(resolveErrorMessage(error, '保存 Recipe 失败'))
     } finally {
       setActiveAction(null)
     }
@@ -278,22 +226,6 @@ export function ExperimentStateActions({
             }}
           >
             {activeAction === 'clone' ? '派生中…' : '派生草稿'}
-          </Button>
-        ) : null}
-
-        {canSaveAsRecipe ? (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={isBusy}
-            onClick={() => {
-              setActionError(null)
-              setRecipeError(null)
-              setRecipeValidation(null)
-              setRecipeOpen(true)
-            }}
-          >
-            保存为 Recipe
           </Button>
         ) : null}
 
@@ -515,76 +447,6 @@ export function ExperimentStateActions({
               }}
             >
               {activeAction === 'invalidate' ? '作废中…' : '确认作废'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Save as Recipe dialog */}
-      <Dialog
-        open={recipeOpen}
-        onOpenChange={(open) => {
-          if (!open && activeAction !== 'save-recipe') {
-            closeRecipeModal()
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>保存为 Recipe</DialogTitle>
-            <DialogDescription>
-              将本实验参数保存为可复用的 Recipe 模板。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="recipe-name">Recipe 名称</Label>
-              <Input
-                id="recipe-name"
-                autoComplete="off"
-                placeholder="例如 MoS2 标准生长流程"
-                value={recipeName}
-                disabled={activeAction === 'save-recipe'}
-                onChange={(e) => {
-                  setRecipeName(e.target.value)
-                  if (recipeValidation) setRecipeValidation(null)
-                }}
-              />
-              {recipeValidation ? (
-                <p className="text-sm text-destructive">{recipeValidation}</p>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="recipe-description">描述（可选）</Label>
-              <Textarea
-                id="recipe-description"
-                autoComplete="off"
-                placeholder="可选：说明适用材料、窗口参数或注意事项"
-                rows={3}
-                value={recipeDescription}
-                disabled={activeAction === 'save-recipe'}
-                onChange={(e) => setRecipeDescription(e.target.value)}
-              />
-            </div>
-            {recipeError ? (
-              <Alert variant="destructive">
-                <AlertDescription>{recipeError}</AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={activeAction === 'save-recipe'}
-              onClick={closeRecipeModal}
-            >
-              取消
-            </Button>
-            <Button
-              disabled={activeAction === 'save-recipe'}
-              onClick={() => void submitRecipe()}
-            >
-              {activeAction === 'save-recipe' ? '保存中…' : '保存'}
             </Button>
           </DialogFooter>
         </DialogContent>

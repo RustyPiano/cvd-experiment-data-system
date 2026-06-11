@@ -15,7 +15,6 @@ import type {
   SetupLibraryRead,
 } from '@/shared/types/api'
 import { useAuth } from '@/features/auth/use-auth'
-import { listActiveRecipes } from '@/features/recipes/api'
 import { listSetupLibrary } from '@/features/setup-library/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -189,13 +188,6 @@ function ExperimentEditorWorkspace({
     currentUserId,
     vocabKey: 'failure_mode',
   })
-  const recipeTemplatesQuery = useQuery({
-    queryKey: ['recipes', 'active', 'experiment-editor', currentUserId],
-    queryFn: () => listActiveRecipes(accessToken),
-    enabled: Boolean(accessToken),
-  })
-  const recipeTemplates = recipeTemplatesQuery.data?.items ?? []
-
   const [currentSection, setCurrentSection] =
     useState<EditorSectionKey>('basic_info')
   const [diffOpen, setDiffOpen] = useState(false)
@@ -528,7 +520,6 @@ function ExperimentEditorWorkspace({
             >
               <FurnaceProgramSection
                 disabled={editorDisabled}
-                materialSystem={editor.values.basicInfo.materialSystem}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -537,7 +528,6 @@ function ExperimentEditorWorkspace({
                   editor.scheduleAutosave()
                 }}
                 precursorItems={editor.values.precursors.items}
-                recipeTemplates={recipeTemplates}
                 value={editor.values.furnaceProgram}
               />
             </EditorSectionCard>
@@ -551,7 +541,6 @@ function ExperimentEditorWorkspace({
               <GasProgramSection
                 disabled={editorDisabled}
                 gasOptions={gasOptions}
-                materialSystem={editor.values.basicInfo.materialSystem}
                 onChange={(nextValue) => {
                   editor.updateValues((current) => ({
                     ...current,
@@ -559,7 +548,6 @@ function ExperimentEditorWorkspace({
                   }))
                   editor.scheduleAutosave()
                 }}
-                recipeTemplates={recipeTemplates}
                 value={editor.values.gasProgram}
               />
             </EditorSectionCard>
