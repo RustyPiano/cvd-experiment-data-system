@@ -268,6 +268,16 @@ export function lockExperiment(token: string, experimentId: string) {
   )
 }
 
+export function unlockExperiment(token: string, experimentId: string) {
+  return apiRequest<ExperimentRead>(
+    `/api/v1/experiments/${experimentId}/unlock`,
+    {
+      method: 'POST',
+      token,
+    },
+  )
+}
+
 export function invalidateExperiment(
   token: string,
   experimentId: string,

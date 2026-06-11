@@ -21,6 +21,7 @@ const moduleLabels: Record<string, string> = {
   process_observation: '过程观察',
   characterization: '表征结果',
   result_summary: '结果总结',
+  setup_methods: '装置 / 方法 (Setup)',
   files: '实验文件',
 }
 

@@ -116,11 +116,11 @@ function getActionAvailability(
       canMutate &&
       (experiment.status === 'locked' ||
         (experiment.status === 'submitted' && isOwner)),
+    // 作废仅对已提交记录开放：草稿应当「直接删除/丢弃」而非作废（作废是永久终态）。
     canInvalidate:
       canMutate &&
       ownerOrAdmin &&
-      experiment.status !== 'invalid' &&
-      experiment.status !== 'locked',
+      experiment.status === 'submitted',
     // 草稿与已提交记录都可继续编辑（提交后改动会固化为新版本）；锁定/作废为只读。
     canEdit:
       canMutate &&
@@ -213,11 +213,13 @@ export function ExperimentListPage() {
   const currentSortOrder = search.sortOrder ?? null
   const currentStatus = search.status ?? []
   const currentMine = search.mine ?? false
+  const currentOwnerId = search.ownerId ?? null
 
   const apiFilters = {
     mine: currentMine,
     status: currentStatus as string[],
     materialSystem: debouncedMaterialSystem.trim() || null,
+    owner: currentOwnerId,
     q: debouncedQ.trim() || null,
     page: currentPage,
     pageSize: currentPageSize,
@@ -514,6 +516,18 @@ export function ExperimentListPage() {
         },
       },
       {
+        accessorKey: 'owner_name',
+        header: '成员',
+        cell: ({ row }) => {
+          const name = row.original.owner_name
+          return name ? (
+            <span className="text-sm">{name}</span>
+          ) : (
+            <span className="text-muted-foreground text-sm">—</span>
+          )
+        },
+      },
+      {
         accessorKey: 'quality_label',
         header: '质量标签',
         cell: ({ getValue }) => (
@@ -684,6 +698,12 @@ export function ExperimentListPage() {
   const total = experimentQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / currentPageSize))
 
+  // When filtered to a single member (e.g. via the dashboard), surface whose
+  // records these are. Name is read off the returned rows (all share owner_id).
+  const filteredOwnerName = currentOwnerId
+    ? (items.find((it) => it.owner_id === currentOwnerId)?.owner_name ?? null)
+    : null
+
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -728,6 +748,26 @@ export function ExperimentListPage() {
         <Alert variant="destructive">
           <AlertDescription>{listActionError}</AlertDescription>
         </Alert>
+      )}
+
+      {/* Member filter banner — shown when scoped to a single member */}
+      {currentOwnerId && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary-soft/50 px-4 py-2.5">
+          <span className="text-sm text-foreground">
+            正在查看{' '}
+            <span className="font-medium">
+              {filteredOwnerName ?? '该成员'}
+            </span>{' '}
+            的实验记录
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => updateSearch({ ownerId: undefined, page: 1 })}
+          >
+            查看全部成员
+          </Button>
+        </div>
       )}
 
       {/* KPI Stats Tiles — 语义化配色：蓝=我的/进行中，琥珀=需处理，中性=总量 */}
@@ -919,12 +959,13 @@ export function ExperimentListPage() {
             {experimentQuery.isLoading ? (
               <TableSkeleton />
             ) : items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <p className="text-sm">当前没有可见实验记录。</p>
-                {(currentStatus.length > 0 ||
-                  currentMine ||
-                  debouncedQ ||
-                  debouncedMaterialSystem) && (
+              currentStatus.length > 0 ||
+              currentMine ||
+              currentOwnerId ||
+              debouncedQ ||
+              debouncedMaterialSystem ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                  <p className="text-sm">没有符合当前筛选条件的实验记录。</p>
                   <Button
                     variant="link"
                     className="mt-2 text-primary"
@@ -932,12 +973,43 @@ export function ExperimentListPage() {
                   >
                     清除筛选条件
                   </Button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                  <span
+                    aria-hidden
+                    className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary"
+                  >
+                    <FileText className="size-6" />
+                  </span>
+                  <p className="text-sm font-medium text-foreground">
+                    还没有实验记录
+                  </p>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    从这里记录第一条 CVD 实验，或从已有的 Excel 工艺参数包导入。
+                  </p>
+                  {canCreate && (
+                    <div className="mt-1 flex flex-wrap justify-center gap-2">
+                      <Button asChild variant="outline">
+                        <Link to="/experiments/import">
+                          <Upload className="mr-1 size-4" />
+                          导入 Excel
+                        </Link>
+                      </Button>
+                      <Button asChild>
+                        <Link to="/experiments/new">
+                          <Plus className="mr-1 size-4" />
+                          新建实验
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )
             ) : (
               <div
                 className={cn(
-                  '-mx-2 transition-opacity duration-200',
+                  '-mx-2 overflow-x-auto transition-opacity duration-200',
                   experimentQuery.isPlaceholderData && 'opacity-50 pointer-events-none',
                 )}
               >
@@ -1041,7 +1113,8 @@ export function ExperimentListPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>锁定实验 {lockTarget?.run_code}</AlertDialogTitle>
             <AlertDialogDescription>
-              锁定后不可修改，只能派生新实验。此操作会写入审计日志。
+              锁定后该记录永久只读、<span className="font-medium text-foreground">无法撤销</span>，
+              后续修改只能通过「派生草稿」生成新实验。此操作会写入审计日志。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

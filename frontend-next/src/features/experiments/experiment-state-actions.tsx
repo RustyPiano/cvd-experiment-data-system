@@ -34,11 +34,13 @@ import {
   lockExperiment,
   returnExperimentToDraft,
   saveExperimentAsRecipe,
+  unlockExperiment,
 } from './api'
 
 type ActionKind =
   | 'return-to-draft'
   | 'lock'
+  | 'unlock'
   | 'invalidate'
   | 'clone'
   | 'save-recipe'
@@ -85,6 +87,7 @@ export function ExperimentStateActions({
   const [recipeError, setRecipeError] = useState<string | null>(null)
   const [recipeValidation, setRecipeValidation] = useState<string | null>(null)
   const [lockOpen, setLockOpen] = useState(false)
+  const [unlockOpen, setUnlockOpen] = useState(false)
 
   // ─── Action availability rules (mirrors OLD experiment-state-actions.tsx) ───
   const canMutate = currentUser.role !== 'viewer'
@@ -96,10 +99,10 @@ export function ExperimentStateActions({
 
   const canReturnToDraft = isOwnerOrAdmin && experiment.status === 'submitted'
   const canLock = isOwnerOrAdmin && experiment.status === 'submitted'
-  const canInvalidate =
-    isOwnerOrAdmin &&
-    experiment.status !== 'invalid' &&
-    experiment.status !== 'locked'
+  // 仅管理员可解锁：锁定不再是死路，管理员可让记录回到已提交以便更正。
+  const canUnlock = currentUser.role === 'admin' && experiment.status === 'locked'
+  // 作废仅对已提交记录开放：草稿应当直接删除/丢弃，而非进入永久作废终态。
+  const canInvalidate = isOwnerOrAdmin && experiment.status === 'submitted'
   const canClone =
     currentUser.role !== 'viewer' &&
     (experiment.status === 'locked' ||
@@ -111,6 +114,7 @@ export function ExperimentStateActions({
   if (
     !canReturnToDraft &&
     !canLock &&
+    !canUnlock &&
     !canInvalidate &&
     !canClone &&
     !canSaveAsRecipe
@@ -210,6 +214,17 @@ export function ExperimentStateActions({
           </Button>
         ) : null}
 
+        {canUnlock ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isBusy}
+            onClick={() => setUnlockOpen(true)}
+          >
+            {activeAction === 'unlock' ? '解锁中…' : '解锁'}
+          </Button>
+        ) : null}
+
         {canClone ? (
           <Button
             variant="outline"
@@ -297,7 +312,9 @@ export function ExperimentStateActions({
           <AlertDialogHeader>
             <AlertDialogTitle>锁定实验 {experiment.run_code}</AlertDialogTitle>
             <AlertDialogDescription>
-              锁定后不可修改，只能派生新实验。此操作会写入审计日志。
+              锁定后该记录永久只读、
+              <span className="font-medium text-foreground">无法撤销</span>
+              ，后续修改只能通过「派生草稿」生成新实验。此操作会写入审计日志。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -315,6 +332,40 @@ export function ExperimentStateActions({
               }}
             >
               {activeAction === 'lock' ? '锁定中…' : '确认锁定'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unlock confirm (admin only) */}
+      <AlertDialog
+        open={unlockOpen}
+        onOpenChange={(open) => {
+          if (!isBusy) setUnlockOpen(open)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>解锁实验 {experiment.run_code}</AlertDialogTitle>
+            <AlertDialogDescription>
+              解锁后记录回到「已提交」状态，可重新编辑或再次锁定。此操作仅管理员可执行，并会写入审计日志。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={activeAction === 'unlock'}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={activeAction === 'unlock'}
+              onClick={() => {
+                void runTransition(
+                  'unlock',
+                  () => unlockExperiment(accessToken, experiment.id),
+                  '解锁实验失败',
+                ).then(() => setUnlockOpen(false))
+              }}
+            >
+              {activeAction === 'unlock' ? '解锁中…' : '确认解锁'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
