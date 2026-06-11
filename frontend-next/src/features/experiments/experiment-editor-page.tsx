@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { GitCompare } from 'lucide-react'
+import { GitCompare, TriangleAlert } from 'lucide-react'
 
 import { Route } from '@/routes/_authed/experiments/$experimentId/edit'
 import { HttpError, resolveErrorMessage } from '@/shared/api/http-error'
@@ -298,6 +298,12 @@ function ExperimentEditorWorkspace({
     })
   }
 
+  // Sections whose local validation is blocking autosave — surfaced prominently
+  // so a format error in one field can't silently stop a whole section saving.
+  const autosaveBlockedSections = sectionAnchorList.filter(
+    (section) => editor.sectionStates[section.key]?.status === 'error',
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <RouteLeaveGuard
@@ -346,6 +352,28 @@ function ExperimentEditorWorkspace({
       {editor.inheritanceError ? (
         <Alert variant="destructive">
           <AlertDescription>{editor.inheritanceError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {autosaveBlockedSections.length > 0 ? (
+        <Alert variant="destructive">
+          <TriangleAlert className="size-4" />
+          <AlertDescription>
+            以下区块因填写格式有误{' '}
+            <span className="font-medium">暂未自动保存</span>
+            ，请修正后将自动保存（离开本页会提示未保存）：{' '}
+            {autosaveBlockedSections.map((section, index) => (
+              <span key={section.key}>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(section.key)}
+                  className="font-medium underline underline-offset-2 hover:opacity-80"
+                >
+                  {section.label}
+                </button>
+                {index < autosaveBlockedSections.length - 1 ? '、' : ''}
+              </span>
+            ))}
+          </AlertDescription>
         </Alert>
       ) : null}
       {editor.validationResult ? (
