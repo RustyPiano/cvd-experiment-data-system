@@ -295,6 +295,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/experiments/{experiment_id}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unlock Experiment */
+        post: operations["unlock_experiment_api_v1_experiments__experiment_id__unlock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/experiments/{experiment_id}/invalidate": {
         parameters: {
             query?: never;
@@ -1949,6 +1966,8 @@ export interface components {
              * Format: uuid
              */
             owner_id: string;
+            /** Owner Name */
+            owner_name?: string | null;
             /** Recipe Id */
             recipe_id: string | null;
             /** Derived From Run Id */
@@ -3456,6 +3475,37 @@ export interface operations {
         };
     };
     lock_experiment_api_v1_experiments__experiment_id__lock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlock_experiment_api_v1_experiments__experiment_id__unlock_post: {
         parameters: {
             query?: never;
             header?: never;

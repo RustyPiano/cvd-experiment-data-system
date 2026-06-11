@@ -546,6 +546,41 @@ class ExperimentService:
         self.db.commit()
         return ExperimentRead.model_validate(saved)
 
+    def unlock_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRead:
+        """Admin-only escape hatch: return a locked record to `submitted` so it
+        can be corrected (then re-locked) instead of being permanently frozen."""
+        if current_user.role != UserRole.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only an administrator can unlock experiments",
+            )
+        experiment = self.experiments.get_by_id(experiment_id)
+        if experiment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Experiment not found",
+            )
+        if experiment.status != ExperimentStatus.LOCKED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only locked experiments can be unlocked",
+            )
+
+        before = self._serialize_experiment(experiment)
+        experiment.status = ExperimentStatus.SUBMITTED
+        experiment.locked_at = None
+        saved = self.experiments.save(experiment)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=saved.id,
+            action="unlock",
+            before_json=before,
+            after_json=self._serialize_experiment(saved),
+        )
+        self.db.commit()
+        return ExperimentRead.model_validate(saved)
+
     def return_to_draft(self, experiment_id: UUID, current_user: User) -> ExperimentRead:
         experiment = self._get_owned_experiment(experiment_id, current_user)
         if experiment.status != ExperimentStatus.SUBMITTED:

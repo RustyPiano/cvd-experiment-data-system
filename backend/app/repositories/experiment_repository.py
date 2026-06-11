@@ -18,6 +18,30 @@ SORTABLE_EXPERIMENT_COLUMNS = {
 }
 
 
+def _blank(column):
+    return or_(column.is_(None), func.trim(column) == "")
+
+
+def _setup_content_incomplete():
+    """Condition for "missing setup" on the dashboard.
+
+    Mirrors the *submit* gate (a usable setup needs a diagram, methods text, and
+    a reference / unpublished reason) rather than the unused confirm ceremony —
+    `confirmed_at` is never written by the production frontend, so keying the
+    metric on it counted every experiment as missing. Assumes the query has
+    outer-joined `ExperimentSetupSnapshot`.
+    """
+    return or_(
+        ExperimentSetupSnapshot.id.is_(None),
+        ExperimentSetupSnapshot.diagram_file_asset_id.is_(None),
+        _blank(ExperimentSetupSnapshot.methods_text_snapshot),
+        and_(
+            _blank(ExperimentSetupSnapshot.reference_paper_url_snapshot),
+            _blank(ExperimentSetupSnapshot.unpublished_reason_snapshot),
+        ),
+    )
+
+
 class ExperimentRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -37,7 +61,10 @@ class ExperimentRepository:
     def get_by_id(self, experiment_id: UUID) -> ExperimentRun | None:
         statement = (
             select(ExperimentRun)
-            .options(selectinload(ExperimentRun.derived_from_run))
+            .options(
+                selectinload(ExperimentRun.derived_from_run),
+                selectinload(ExperimentRun.owner),
+            )
             .where(ExperimentRun.id == experiment_id)
         )
         return self.db.scalar(statement)
@@ -69,7 +96,10 @@ class ExperimentRepository:
         sort_by: str = "updated_at",
         sort_order: str = "desc",
     ) -> tuple[list[ExperimentRun], int]:
-        statement = select(ExperimentRun).options(selectinload(ExperimentRun.derived_from_run))
+        statement = select(ExperimentRun).options(
+            selectinload(ExperimentRun.derived_from_run),
+            selectinload(ExperimentRun.owner),
+        )
 
         if status_filters is None:
             statement = statement.where(ExperimentRun.status != ExperimentStatus.INVALID)
@@ -153,13 +183,7 @@ class ExperimentRepository:
                 ExperimentSetupSnapshot,
                 ExperimentSetupSnapshot.experiment_run_id == ExperimentRun.id,
             )
-            .where(
-                or_(
-                    ExperimentSetupSnapshot.id.is_(None),
-                    ExperimentSetupSnapshot.confirmed_at.is_(None),
-                    ExperimentSetupSnapshot.confirmed_by_id.is_(None),
-                )
-            )
+            .where(_setup_content_incomplete())
         )
         return self.db.scalar(statement) or 0
 
@@ -190,13 +214,7 @@ class ExperimentRepository:
                 )
                 .label("stale_draft_count"),
                 func.count(ExperimentRun.id)
-                .filter(
-                    or_(
-                        ExperimentSetupSnapshot.id.is_(None),
-                        ExperimentSetupSnapshot.confirmed_at.is_(None),
-                        ExperimentSetupSnapshot.confirmed_by_id.is_(None),
-                    )
-                )
+                .filter(_setup_content_incomplete())
                 .label("missing_setup_methods"),
             )
             .outerjoin(

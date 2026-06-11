@@ -210,6 +210,15 @@ def lock_experiment(
         )
 
 
+@router.post("/{experiment_id}/unlock", response_model=ExperimentRead)
+def unlock_experiment(
+    experiment_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ExperimentRead:
+    return ExperimentService(db).unlock_experiment(experiment_id, current_user)
+
+
 @router.post("/{experiment_id}/invalidate", response_model=ExperimentRead)
 def invalidate_experiment(
     experiment_id: UUID,

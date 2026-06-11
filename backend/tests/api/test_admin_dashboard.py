@@ -243,6 +243,98 @@ def test_admin_dashboard_counts_experiments_missing_setup_methods(
     assert member["missing_setup_methods"] == 3
 
 
+def test_dashboard_missing_setup_is_content_based_not_confirmation(
+    db_session,
+    admin_user,
+    active_user,
+) -> None:
+    """A content-complete setup must NOT count as missing even when never
+    confirmed (the frontend never confirms); a setup lacking a diagram must."""
+    from app.models.file_asset import FileAsset
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    now = datetime.now(UTC)
+
+    complete = add_experiment(
+        db_session,
+        owner=active_user,
+        run_code="CVD-2026-COMPLETE-UNCONFIRMED",
+        status=ExperimentStatus.DRAFT,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.flush()
+    diagram = FileAsset(
+        experiment_run_id=complete.id,
+        uploaded_by_id=active_user.id,
+        original_name="setup.png",
+        storage_path=f"diagrams/{complete.id}.png",
+        size_bytes=10,
+        sha256="c" * 64,
+        method="setup",
+        file_category="setup",
+        asset_role="setup_diagram",
+    )
+    db_session.add(diagram)
+    db_session.flush()
+    db_session.add(
+        ExperimentSetupSnapshot(
+            experiment_run_id=complete.id,
+            setup_key_snapshot="manual:complete0001",
+            setup_name_snapshot="Complete setup",
+            setup_version_snapshot=1,
+            apparatus_description_snapshot="Tube furnace",
+            methods_text_snapshot="Full methods",
+            sample_placement_description_snapshot="Placement",
+            reaction_flow_description_snapshot="Flow",
+            reference_paper_url_snapshot="https://example.com/paper",
+            diagram_file_asset_id=diagram.id,
+            is_same_as_source=False,
+            confirmed_by_id=None,
+            confirmed_at=None,
+            snapshot_hash="d" * 64,
+            metadata_json={"semantic_context": {}},
+        )
+    )
+
+    no_diagram = add_experiment(
+        db_session,
+        owner=active_user,
+        run_code="CVD-2026-NO-DIAGRAM",
+        status=ExperimentStatus.DRAFT,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(
+        ExperimentSetupSnapshot(
+            experiment_run_id=no_diagram.id,
+            setup_key_snapshot="manual:nodiagram01",
+            setup_name_snapshot="No diagram setup",
+            setup_version_snapshot=1,
+            apparatus_description_snapshot="Tube furnace",
+            methods_text_snapshot="Methods",
+            sample_placement_description_snapshot="Placement",
+            reaction_flow_description_snapshot="Flow",
+            unpublished_reason_snapshot="Internal",
+            diagram_file_asset_id=None,
+            is_same_as_source=False,
+            snapshot_hash="e" * 64,
+            metadata_json={"semantic_context": {}},
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        "/api/v1/admin/dashboard/overview",
+        headers=auth_headers(admin_user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    # Only the diagram-less experiment is missing; the complete-but-unconfirmed is not.
+    assert body["totals"]["missing_setup_methods"] == 1
+
+
 def test_admin_can_filter_experiment_list_by_owner_id(
     db_session,
     admin_user,

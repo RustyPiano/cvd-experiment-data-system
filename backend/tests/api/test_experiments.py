@@ -90,7 +90,16 @@ def assert_issue_exists(
     message_contains: str,
 ) -> None:
     accepted_message_fragments = {
-        "required": ["required", "必填", "必须填写", "至少需要", "at least one", "至少一个"],
+        "required": [
+            "required",
+            "必填",
+            "必须填写",
+            "至少需要",
+            "at least one",
+            "至少一个",
+            "缺少",
+            "需要",
+        ],
         "strictly increasing": ["strictly increasing", "严格递增"],
         "overlap": ["overlap", "重叠"],
         "out of range": ["out of range", "超出"],
@@ -216,6 +225,68 @@ def test_list_experiments_shows_own_drafts_and_public_submitted(active_user, adm
     run_codes = {item["run_code"] for item in list_response.json()["items"]}
     assert own_response.json()["run_code"] in run_codes
     assert other_response.json()["run_code"] in run_codes
+
+
+def test_list_experiments_includes_owner_name(active_user) -> None:
+    created = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Owner name check",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert created.status_code == 201
+
+    list_response = client.get(
+        "/api/v1/experiments",
+        headers=auth_headers(active_user.email),
+    )
+    assert list_response.status_code == 200
+    item = next(
+        i for i in list_response.json()["items"] if i["id"] == created.json()["id"]
+    )
+    assert item["owner_name"] == active_user.name
+
+
+def test_list_experiments_filters_by_owner_id(active_user, admin_user) -> None:
+    member_run = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Member draft",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    assert member_run.status_code == 201
+
+    admin_run = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "WS2",
+            "experiment_date": "2026-04-22",
+            "objective": "Admin draft",
+        },
+        headers=auth_headers(admin_user.email),
+    )
+    assert admin_run.status_code == 201
+
+    # Admin scopes the list to the member (mirrors clicking a member on the dashboard).
+    scoped = client.get(
+        f"/api/v1/experiments?owner_id={active_user.id}",
+        headers=auth_headers(admin_user.email),
+    )
+    assert scoped.status_code == 200
+    owners = {item["owner_id"] for item in scoped.json()["items"]}
+    assert owners == {str(active_user.id)}
+    run_codes = {item["run_code"] for item in scoped.json()["items"]}
+    assert member_run.json()["run_code"] in run_codes
+    assert admin_run.json()["run_code"] not in run_codes
 
 
 def test_patch_experiment_updates_draft_for_owner(active_user) -> None:
@@ -457,6 +528,67 @@ def test_submit_then_lock_updates_status_timestamps(active_user) -> None:
     assert lock_response.status_code == 200
     assert lock_response.json()["status"] == "locked"
     assert lock_response.json()["locked_at"] is not None
+
+
+def test_admin_can_unlock_locked_experiment(active_user, admin_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Unlock flow",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+    populate_required_modules(experiment_id, active_user.email)
+    client.post(
+        f"/api/v1/experiments/{experiment_id}/submit",
+        headers=auth_headers(active_user.email),
+    )
+    lock_response = client.post(
+        f"/api/v1/experiments/{experiment_id}/lock",
+        headers=auth_headers(active_user.email),
+    )
+    assert lock_response.status_code == 200
+    assert lock_response.json()["status"] == "locked"
+
+    # Owner (non-admin) cannot unlock.
+    owner_unlock = client.post(
+        f"/api/v1/experiments/{experiment_id}/unlock",
+        headers=auth_headers(active_user.email),
+    )
+    assert owner_unlock.status_code == 403
+
+    # Admin can unlock; record returns to submitted and locked_at clears.
+    admin_unlock = client.post(
+        f"/api/v1/experiments/{experiment_id}/unlock",
+        headers=auth_headers(admin_user.email),
+    )
+    assert admin_unlock.status_code == 200
+    assert admin_unlock.json()["status"] == "submitted"
+    assert admin_unlock.json()["locked_at"] is None
+
+
+def test_unlock_rejects_non_locked_experiment(active_user, admin_user) -> None:
+    create_response = client.post(
+        "/api/v1/experiments",
+        json={
+            "experiment_type": "cvd_2zone",
+            "material_system": "MoS2",
+            "experiment_date": "2026-04-23",
+            "objective": "Unlock guard",
+        },
+        headers=auth_headers(active_user.email),
+    )
+    experiment_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/unlock",
+        headers=auth_headers(admin_user.email),
+    )
+    assert response.status_code == 409
 
 
 def test_return_to_draft_moves_submitted_experiment_back_to_draft(active_user) -> None:

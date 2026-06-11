@@ -138,7 +138,8 @@ class SetupMethodsService:
         if snapshot is not None:
             self._recalculate_snapshot_hash(snapshot)
         errors: list[ExperimentValidationIssue] = []
-        validate_setup_content(snapshot, self._issue, errors)
+        confirm_warnings: list[ExperimentValidationIssue] = []
+        validate_setup_content(snapshot, self._issue, errors, confirm_warnings)
         if (
             snapshot is not None
             and snapshot.diagram_file_asset_id is not None

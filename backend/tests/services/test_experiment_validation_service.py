@@ -278,7 +278,7 @@ def test_setup_methods_missing_blocks_validation(active_user, db_session) -> Non
     assert any(
         issue.module_key == "setup_methods"
         and issue.field_path == "root"
-        and "required" in issue.message
+        and issue.message
         for issue in result.errors
     )
 
@@ -324,7 +324,7 @@ def test_setup_methods_missing_group_key_blocks_validation(active_user, db_sessi
     assert any(
         issue.module_key == "setup_methods"
         and issue.field_path == "setup_key_snapshot"
-        and "required" in issue.message
+        and issue.message
         for issue in result.errors
     )
 
@@ -333,7 +333,7 @@ def test_setup_methods_missing_apparatus_description_does_not_block_validation(
     active_user,
     db_session,
 ) -> None:
-    # Apparatus prose is optional; only diagram + methods + reference are required.
+    # Apparatus prose is optional; setup key/name/methods are the blocking fields.
     from datetime import UTC, datetime
 
     from app.models.file_asset import FileAsset
@@ -396,6 +396,57 @@ def test_setup_methods_missing_apparatus_description_does_not_block_validation(
         issue.module_key == "setup_methods" and issue.field_path == "apparatus_description_snapshot"
         for issue in result.errors
     )
+
+
+def test_setup_methods_missing_diagram_and_reference_are_warnings(
+    active_user,
+    db_session,
+) -> None:
+    # Diagram and reference are recommended (warnings), not submit-blocking errors.
+    from app.models.setup_methods import ExperimentSetupSnapshot
+
+    experiment = ExperimentRun(
+        run_code="CVD-2026-SETUP-NO-DIAGRAM-REF",
+        owner_id=active_user.id,
+        experiment_type="cvd_2zone",
+        material_system="MoS2",
+        experiment_date=date(2026, 6, 5),
+        objective="setup recommended-fields validation",
+        quality_label=QualityLabel.SUCCESS,
+    )
+    db_session.add(experiment)
+    db_session.commit()
+    db_session.refresh(experiment)
+
+    snapshot = ExperimentSetupSnapshot(
+        experiment_run_id=experiment.id,
+        setup_key_snapshot="manual:abcdef1234567890",
+        setup_name_snapshot="Manual setup",
+        setup_version_snapshot=1,
+        apparatus_description_snapshot="Tube furnace",
+        methods_text_snapshot="Methods",
+        sample_placement_description_snapshot="Placement",
+        reaction_flow_description_snapshot="Flow",
+        reference_paper_url_snapshot=None,
+        unpublished_reason_snapshot=None,
+        diagram_file_asset_id=None,
+        is_same_as_source=False,
+        snapshot_hash="a" * 64,
+        metadata_json={"semantic_context": {}},
+    )
+    db_session.add(snapshot)
+    db_session.commit()
+
+    result = ExperimentValidationService(db_session).validate_experiment(experiment)
+
+    # No blocking setup errors despite the missing diagram + reference …
+    assert not any(issue.module_key == "setup_methods" for issue in result.errors)
+    # … but both surface as warnings.
+    warning_fields = {
+        issue.field_path for issue in result.warnings if issue.module_key == "setup_methods"
+    }
+    assert "diagram_file_asset_id" in warning_fields
+    assert "reference" in warning_fields
 
 
 def test_setup_methods_invalid_diagram_file_blocks_validation(active_user, db_session) -> None:

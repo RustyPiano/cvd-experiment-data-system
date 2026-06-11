@@ -272,7 +272,9 @@ def test_experiment_audit_endpoint_includes_setup_method_events(active_user) -> 
     assert {item["entity_id"] for item in setup_events} == {setup_id}
 
 
-def test_confirm_setup_methods_rejects_incomplete_snapshot(active_user) -> None:
+def test_confirm_setup_methods_allows_missing_diagram(active_user) -> None:
+    # Diagram is now recommended, not required: a setup carrying key/name/methods
+    # can be confirmed (and submitted) without a diagram file.
     experiment_id = create_experiment(active_user.email)
     upsert_response = client.put(
         f"/api/v1/experiments/{experiment_id}/setup-methods",
@@ -295,20 +297,13 @@ def test_confirm_setup_methods_rejects_incomplete_snapshot(active_user) -> None:
         headers=auth_headers(active_user.email),
     )
 
-    assert response.status_code == 422
-    assert response.json()["errors"] == [
-        {
-            "module_key": "setup_methods",
-            "field_path": "diagram_file_asset_id",
-            "message": "Setup diagram is required",
-        }
-    ]
+    assert response.status_code == 200
     get_response = client.get(
         f"/api/v1/experiments/{experiment_id}/setup-methods",
         headers=auth_headers(active_user.email),
     )
     assert get_response.status_code == 200
-    assert get_response.json()["confirmed_at"] is None
+    assert get_response.json()["confirmed_at"] is not None
 
 
 def test_confirm_setup_methods_allows_missing_apparatus_description(active_user) -> None:

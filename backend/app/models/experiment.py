@@ -103,3 +103,9 @@ class ExperimentRun(Base):
         if self.derived_from_run is None:
             return None
         return self.derived_from_run.run_code
+
+    @property
+    def owner_name(self) -> str | None:
+        if self.owner is None:
+            return None
+        return self.owner.name

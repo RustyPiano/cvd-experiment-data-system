@@ -15,13 +15,16 @@ def validate_setup_content(
     snapshot: ExperimentSetupSnapshot | None,
     issue_factory: IssueFactory,
     errors: list[ExperimentValidationIssue],
+    warnings: list[ExperimentValidationIssue],
 ) -> None:
-    """Validate the minimum setup/methods a submitted experiment must carry.
+    """Validate the setup/methods a submitted experiment carries.
 
-    Per the group requirement, an experiment must at least carry an apparatus
-    diagram, a methods description, and a reference (or an unpublished reason).
-    Apparatus / sample-placement / reaction-flow prose are optional enrichments
-    captured on the setup library entry, not blocking fields.
+    Submit-blocking (errors): a setup must at least be identified (key + name)
+    and describe its method (methods text). An apparatus diagram and a reference
+    (or unpublished reason) are strongly *recommended* for a high-quality record
+    but, per the group decision, no longer block daily submission — they surface
+    as warnings instead. Apparatus / sample-placement / reaction-flow prose are
+    optional enrichments captured on the setup library entry.
     """
     if snapshot is None:
         errors.append(issue_factory("setup_methods", "root", "Setup methods are required"))
@@ -33,26 +36,26 @@ def validate_setup_content(
         errors.append(
             issue_factory("setup_methods", "setup_name_snapshot", "Setup name is required")
         )
-    if snapshot.diagram_file_asset_id is None:
-        errors.append(
-            issue_factory(
-                "setup_methods",
-                "diagram_file_asset_id",
-                "Setup diagram is required",
-            )
-        )
     if _is_blank(snapshot.methods_text_snapshot):
         errors.append(
             issue_factory("setup_methods", "methods_text_snapshot", "Methods text is required")
         )
+    if snapshot.diagram_file_asset_id is None:
+        warnings.append(
+            issue_factory(
+                "setup_methods",
+                "diagram_file_asset_id",
+                "Setup diagram is recommended",
+            )
+        )
     if _is_blank(snapshot.reference_paper_url_snapshot) and _is_blank(
         snapshot.unpublished_reason_snapshot
     ):
-        errors.append(
+        warnings.append(
             issue_factory(
                 "setup_methods",
                 "reference",
-                "Reference paper URL or unpublished reason is required",
+                "Reference paper URL or unpublished reason is recommended",
             )
         )
     if (

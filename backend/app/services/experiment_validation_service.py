@@ -70,6 +70,22 @@ ISSUE_MESSAGE_ZH = {
     "File experiment_id is required": "文件关联实验必填",
     "File experiment_id does not match experiment": "文件关联实验与当前实验不一致",
     "File is not linked to a sample": "文件未关联样品",
+    "Setup methods are required": "缺少装置/方法（Setup）信息",
+    "Setup key is required": "Setup 标识必填",
+    "Setup name is required": "Setup 名称必填",
+    "Setup diagram is required": "需要上传装置示意图（setup diagram）",
+    "Methods text is required": "方法描述（methods）必填",
+    "Reference paper URL or unpublished reason is required": "需要填写参考文献链接或未发表理由",
+    "Setup diagram is recommended": "建议上传装置示意图（setup diagram）",
+    "Reference paper URL or unpublished reason is recommended": (
+        "建议填写参考文献链接或未发表理由"
+    ),
+    "Deviation note is required when setup differs from the referenced setup": (
+        "装置与所引用 Setup 不一致时，必须填写差异说明"
+    ),
+    "Setup diagram must be an active setup diagram file": (
+        "装置示意图必须是有效的 setup diagram 文件"
+    ),
 }
 
 SCHEMA_VALIDATION_MESSAGE_ZH = {
@@ -818,12 +834,14 @@ class ExperimentValidationService:
         errors: list[ExperimentValidationIssue],
         warnings: list[ExperimentValidationIssue],
     ) -> None:
-        del warnings
-        before_count = len(errors)
-        validate_setup_content(snapshot, self._issue, errors)
-        if snapshot is None or len(errors) > before_count:
-            return
-        if not self._is_valid_setup_diagram_file(experiment, snapshot.diagram_file_asset_id):
+        validate_setup_content(snapshot, self._issue, errors, warnings)
+        # A provided diagram must still be a valid, active setup-diagram file —
+        # but a *missing* diagram is only a warning now, so guard on presence.
+        if (
+            snapshot is not None
+            and snapshot.diagram_file_asset_id is not None
+            and not self._is_valid_setup_diagram_file(experiment, snapshot.diagram_file_asset_id)
+        ):
             errors.append(
                 self._issue(
                     "setup_methods",

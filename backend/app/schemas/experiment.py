@@ -47,6 +47,7 @@ class ExperimentRead(BaseModel):
     id: UUID
     run_code: str
     owner_id: UUID
+    owner_name: str | None = None
     recipe_id: UUID | None
     derived_from_run_id: UUID | None
     derived_from_run_code: str | None = None
