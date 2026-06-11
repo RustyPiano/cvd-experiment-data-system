@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { RequiredMark } from '@/shared/ui/required-mark'
 import { VocabularyCombobox } from './vocabulary-combobox'
 
 const layerCountOptions = [
@@ -32,11 +33,15 @@ export function ExperimentMainFields({
   return (
     <div className="editor-grid">
       <p className="editor-field-wide text-sm text-muted-foreground">
-        草稿可修正实验日期；编号保持创建时的历史标识。
+        草稿可修正实验日期；编号保持创建时的历史标识。带{' '}
+        <span className="text-destructive">*</span> 的字段为提交前必填。
       </p>
 
       <div className="editor-field">
-        <Label htmlFor="main-experiment-type">实验类型</Label>
+        <Label htmlFor="main-experiment-type">
+          实验类型
+          <RequiredMark />
+        </Label>
         <Input
           id="main-experiment-type"
           aria-label="实验类型"
@@ -51,7 +56,10 @@ export function ExperimentMainFields({
       </div>
 
       <div className="editor-field">
-        <Label htmlFor="main-material-system">材料体系</Label>
+        <Label htmlFor="main-material-system">
+          材料体系
+          <RequiredMark />
+        </Label>
         <VocabularyCombobox
           ariaLabel="材料体系"
           disabled={disabled}
@@ -65,7 +73,10 @@ export function ExperimentMainFields({
       </div>
 
       <div className="editor-field">
-        <Label htmlFor="main-experiment-date">实验日期</Label>
+        <Label htmlFor="main-experiment-date">
+          实验日期
+          <RequiredMark />
+        </Label>
         <Input
           id="main-experiment-date"
           aria-label="实验日期"

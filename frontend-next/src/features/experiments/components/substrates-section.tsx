@@ -10,6 +10,7 @@ import type {SubstrateItemValues, SubstratesValues, VocabularySelectOption} from
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RequiredMark } from '@/shared/ui/required-mark'
 import {
   Select,
   SelectContent,
@@ -163,7 +164,10 @@ export function SubstratesSection({
 
             <div className="editor-grid">
               <div className="editor-field">
-                <Label>{`基底类型`}</Label>
+                <Label>
+                  基底类型
+                  <RequiredMark />
+                </Label>
                 <VocabularyCombobox
                   ariaLabel={`基底类型 ${roleConfig.title}`}
                   disabled={disabled}

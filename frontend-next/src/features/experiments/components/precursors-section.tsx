@@ -9,6 +9,7 @@ import type { PrecursorsValues, VocabularySelectOption } from '../editor-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RequiredMark } from '@/shared/ui/required-mark'
 import { CreatableVocabularyCombobox } from './creatable-vocabulary-combobox'
 import { VocabularyCombobox } from './vocabulary-combobox'
 
@@ -73,9 +74,10 @@ export function PrecursorsSection({
 
             <div className="editor-grid">
               <div className="editor-field">
-                <Label
-                  htmlFor={`precursor-${index}-species`}
-                >{`前驱体种类 ${index + 1}`}</Label>
+                <Label htmlFor={`precursor-${index}-species`}>
+                  {`前驱体种类 ${index + 1}`}
+                  <RequiredMark />
+                </Label>
                 <Input
                   id={`precursor-${index}-species`}
                   aria-label={`前驱体种类 ${index + 1}`}
@@ -105,7 +107,10 @@ export function PrecursorsSection({
               </div>
 
               <div className="editor-field">
-                <Label>{`制备方法 ${index + 1}`}</Label>
+                <Label>
+                  {`制备方法 ${index + 1}`}
+                  <RequiredMark />
+                </Label>
                 <VocabularyCombobox
                   ariaLabel={`制备方法 ${index + 1}`}
                   disabled={disabled}
