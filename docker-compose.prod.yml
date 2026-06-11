@@ -1,0 +1,88 @@
+# Production compose for the hongkong server (cvd.rustypiano.com).
+# - Backend + frontend containers only; the database is the shared 1Panel
+#   PostgreSQL reached over the external `1panel-network`.
+# - Secrets and ports come from .env (kept on the server, gitignored).
+# Deploy with: docker compose -f docker-compose.prod.yml up -d --build
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME:-CVD Backend}
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:?Set COMPOSE_DATABASE_URL in .env}
+      FILE_STORAGE_ROOT: ${COMPOSE_FILE_STORAGE_ROOT:-/data/storage}
+      FILE_UPLOAD_MAX_BYTES: ${FILE_UPLOAD_MAX_BYTES:-52428800}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      REGISTRATION_INVITE_CODE: ${REGISTRATION_INVITE_CODE:-}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - storage_data:/data/storage
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
+      - 1panel-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend-next/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/}
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/runtime-config.js"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  storage_data:
+
+networks:
+  1panel-network:
+    external: true
