@@ -767,8 +767,16 @@ export function VocabularyAdminPage() {
                   <TableBody>
                     {paginatedRows.map((record) => (
                       <TableRow key={record.id}>
-                        <TableCell>{record.vocab_key}</TableCell>
-                        <TableCell>{record.value}</TableCell>
+                        <TableCell>
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                            {record.vocab_key}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                            {record.value}
+                          </code>
+                        </TableCell>
                         <TableCell>{record.label_zh}</TableCell>
                         <TableCell>{record.label_en || '-'}</TableCell>
                         <TableCell>
