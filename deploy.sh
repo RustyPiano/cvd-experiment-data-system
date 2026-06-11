@@ -50,7 +50,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
 import sys, json
 lines = [json.loads(l) for l in sys.stdin if l.strip()]
 all_healthy = bool(lines) and all(
-    h.get('Status') == 'running' and ('healthy' in (h.get('Health') or ''))
+    h.get('State') == 'running' and ('healthy' in (h.get('Health') or ''))
     for h in lines if 'exited' not in (h.get('State') or '')
 )
 print('yes' if all_healthy else 'no')
