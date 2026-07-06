@@ -1,0 +1,321 @@
+<!-- ⚠️ 已归档·仅历史（v1，不代表现状）。现行真相见 docs/standard/STATUS.md；字段以 docs/standard/字段草案-v3.xlsx 为准。归档于 2026-07-06。 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CVD 标准数据库 · 进展汇报</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel-2:#1c232d; --line:#283039;
+    --ink:#e6edf3; --muted:#9aa7b4; --faint:#6b7682;
+    --accent:#4f9cf9; --accent-soft:#1f3a5f;
+    --green:#3fb950; --green-soft:#16341f;
+    --amber:#d29922; --amber-soft:#3a2e12;
+    --violet:#a371f7; --violet-soft:#2c2143;
+    --radius:12px;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:"PingFang SC","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--sans);
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+    padding:48px 24px 96px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  header.hero{
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:linear-gradient(135deg,#161b22,#11161d);
+    padding:36px 40px; margin-bottom:32px; position:relative; overflow:hidden;
+  }
+  header.hero::after{
+    content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px;
+    background:radial-gradient(circle,rgba(79,156,249,.18),transparent 70%);
+  }
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+  h1{font-size:30px;font-weight:680;letter-spacing:-.01em;margin-bottom:10px}
+  .subtitle{color:var(--muted);font-size:15px;max-width:680px}
+  .meta-row{display:flex;gap:24px;margin-top:22px;flex-wrap:wrap}
+  .meta-row .m{font-size:13px;color:var(--faint)}
+  .meta-row .m b{color:var(--ink);font-weight:600}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .dot.live{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+
+  section{margin-bottom:40px}
+  h2{font-size:13px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+     margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  h2 .num{color:var(--accent);font-weight:700}
+
+  /* architecture */
+  .arch{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);padding:22px 24px}
+  .card h3{font-size:15px;font-weight:640;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .card .tag{font-family:var(--mono);font-size:11px;color:var(--faint);margin-bottom:14px}
+  .stack{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .stack li{font-size:13.5px;color:var(--muted);padding-left:16px;position:relative}
+  .stack li::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  .stack li b{color:var(--ink);font-weight:600}
+
+  /* three truths */
+  .truths{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:4px}
+  .truth{border:1px solid var(--line);border-radius:10px;padding:18px;background:var(--panel-2)}
+  .truth .role{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+  .truth.authority .role{color:var(--green)}
+  .truth.spec .role{color:var(--accent)}
+  .truth.store .role{color:var(--violet)}
+  .truth code{font-family:var(--mono);font-size:13px;color:var(--ink);display:block;margin-bottom:8px}
+  .truth p{font-size:12.5px;color:var(--faint);line-height:1.5}
+  .truth-note{margin-top:14px;font-size:12.5px;color:var(--muted);padding:12px 16px;border-left:2px solid var(--accent);background:var(--accent-soft)}
+
+  /* milestones */
+  .timeline{position:relative;padding-left:28px}
+  .timeline::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--line)}
+  .ms{position:relative;margin-bottom:18px}
+  .ms::before{content:"";position:absolute;left:-28px;top:5px;width:16px;height:16px;border-radius:50%;border:2px solid var(--bg)}
+  .ms.done::before{background:var(--green);box-shadow:0 0 0 2px var(--green)}
+  .ms.next::before{background:var(--amber);box-shadow:0 0 0 2px var(--amber)}
+  .ms.todo::before{background:var(--faint)}
+  .ms-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .ms-head .id{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink)}
+  .ms-head .title{font-size:14.5px;font-weight:560}
+  .ms-head .sha{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-left:auto}
+  .badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;font-weight:600}
+  .badge.green{background:var(--green-soft);color:var(--green)}
+  .badge.amber{background:var(--amber-soft);color:var(--amber)}
+  .badge.gray{background:var(--panel-2);color:var(--faint)}
+  .ms-desc{font-size:13px;color:var(--muted);margin-top:6px;padding-left:1px}
+  .ms-desc .t{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+
+  .status-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+  .stat{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:16px 18px;text-align:center}
+  .stat .v{font-size:26px;font-weight:700;letter-spacing:-.02em}
+  .stat .v.g{color:var(--green)} .stat .v.a{color:var(--accent)}
+  .stat .l{font-size:11.5px;color:var(--faint);margin-top:2px;font-family:var(--mono)}
+
+  /* next plan */
+  .plan{display:flex;flex-direction:column;gap:12px}
+  .plan-item{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:18px 22px;display:flex;gap:18px;align-items:flex-start}
+  .plan-item .k{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--amber);min-width:48px}
+  .plan-item.future .k{color:var(--faint)}
+  .plan-item .body h4{font-size:14.5px;font-weight:580;margin-bottom:4px}
+  .plan-item .body p{font-size:13px;color:var(--muted)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);padding:2px 9px;border-radius:6px}
+
+  .callout{border:1px solid var(--amber);background:var(--amber-soft);border-radius:10px;padding:16px 20px;margin-top:8px}
+  .callout h4{font-size:13.5px;color:var(--amber);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .callout p{font-size:13px;color:var(--ink)}
+  .callout code{font-family:var(--mono);font-size:12px;background:#000;padding:1px 6px;border-radius:4px;color:#e6edf3}
+
+  footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);text-align:center;font-family:var(--mono)}
+
+  @media(max-width:760px){
+    .arch,.truths,.status-strip{grid-template-columns:1fr}
+    body{padding:28px 14px 64px}
+    header.hero{padding:26px 22px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">2D Materials · CVD · AI-Ready Standard DB</div>
+    <h1>标准数据库 Schema 收敛 · 进展汇报</h1>
+    <p class="subtitle">
+      在保留现有 App 的前提下，于 <b>Schema 层</b>对齐标准化、可追溯、AI-Ready 的目标。
+      采用 TDD（红→绿→提交），逐里程碑推进。本轮聚焦：字段字典一致性、失败/结果模型、词表分组与友好度。
+    </p>
+    <div class="meta-row">
+      <div class="m"><span class="dot live"></span><b>后端</b> 运行于 :8000</div>
+      <div class="m"><b>分支</b> feat/group-meeting-four-features</div>
+      <div class="m"><b>同步</b> dev 迁移 + 前端类型已生成</div>
+      <div class="m"><b>日期</b> 2026-06-10</div>
+    </div>
+  </header>
+
+  <!-- ARCHITECTURE -->
+  <section>
+    <h2><span class="num">01</span> 项目架构</h2>
+    <div class="arch">
+      <div class="card">
+        <h3>⚙️ 后端 Backend</h3>
+        <div class="tag">FastAPI · SQLAlchemy · Alembic · PostgreSQL</div>
+        <ul class="stack">
+          <li><b>模块化 payload</b>：实验由 10 个模块组成（basic_info、environment、precheck、precursors、substrates、furnace_program、gas_program、process_observation、characterization、result_summary）</li>
+          <li><b>JSONB 存储</b>：<code style="font-family:var(--mono);font-size:12px">payload_json</code> 落 JSONB，Pydantic 做运行时校验</li>
+          <li><b>受控词表</b>：controlled_vocabularies，本轮新增分组列</li>
+          <li><b>版本化</b>：实验草稿 / 提交 / 版本快照</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>🖥️ 前端 Frontend</h3>
+        <div class="tag">TanStack Router/Query · shadcn/ui · Tailwind v4</div>
+        <ul class="stack">
+          <li><b>类型安全</b>：由后端 OpenAPI 生成 <code style="font-family:var(--mono);font-size:12px">openapi.d.ts</code>（<code style="font-family:var(--mono);font-size:12px">npm run gen:api</code>）</li>
+          <li><b>模块编辑器</b>：每个模块一个 section 组件 + 序列化层 editor-types</li>
+          <li><b>词表下拉</b>：VocabularyCombobox，本轮将做分组渲染</li>
+          <li><b>设计系统</b>：克制的现代 + 科研气质，token 化</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top:22px">
+      <h3 style="font-size:13px;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">「三套真相」与定调</h3>
+      <div class="truths">
+        <div class="truth authority">
+          <div class="role">● 运行时校验权威</div>
+          <code>Pydantic schemas</code>
+          <p>module_payload 的实际校验者。<b>不重写</b>，作为唯一真相源。</p>
+        </div>
+        <div class="truth spec">
+          <div class="role">● 可发布规范层</div>
+          <code>FieldDefinition 表</code>
+          <p>描述单位 / 类型 / 词表 / 标签，用于表单渲染与对外规范产物。</p>
+        </div>
+        <div class="truth store">
+          <div class="role">● 存储数据</div>
+          <code>payload_json (JSONB)</code>
+          <p>真正落库的数据 blob。</p>
+        </div>
+      </div>
+      <p class="truth-note">
+        <b>定调</b>：三者会漂移 → M1 用一致性守卫测试把它们锁在一起；后续新增字段无法再悄悄制造漂移。
+      </p>
+    </div>
+  </section>
+
+  <!-- PROGRESS -->
+  <section>
+    <h2><span class="num">02</span> 当前进展 · 已完成并提交</h2>
+
+    <div class="status-strip">
+      <div class="stat"><div class="v g">262</div><div class="l">tests passed</div></div>
+      <div class="stat"><div class="v a">4</div><div class="l">milestones 提交</div></div>
+      <div class="stat"><div class="v a">3</div><div class="l">迁移 up/down 验证</div></div>
+      <div class="stat"><div class="v g">0</div><div class="l">ruff 问题</div></div>
+    </div>
+
+    <div class="timeline">
+      <div class="ms done">
+        <div class="ms-head">
+          <span class="id">M1</span>
+          <span class="title">字段字典一致性守卫</span>
+          <span class="badge green">done</span>
+          <span class="sha">e11b177</span>
+        </div>
+        <div class="ms-desc">
+          5 条守卫：<span class="t">T1.1</span> 无悬空 vocab_key · <span class="t">T1.2</span> 下拉字段须有词表或白名单 ·
+          <span class="t">T1.3</span> FieldDefinition→Pydantic 字段映射（发现并登记真实漂移别名）·
+          <span class="t">T1.4</span> 扁平模块完整覆盖 · <span class="t">T1.5</span> 分组标签一致性。
+        </div>
+      </div>
+
+      <div class="ms done">
+        <div class="ms-head">
+          <span class="id">M2</span>
+          <span class="title">失败 / 结果模型（核心差异化）</span>
+          <span class="badge green">done</span>
+          <span class="sha">a31ef9f</span>
+        </div>
+        <div class="ms-desc">
+          失败数据成为一等公民：<span class="t">failure_mode</span> 词表（12 值）+ 结构化字段
+          <span class="t">failure_modes / failure_detail</span> + 分析导出包含失败字段。
+          可记录「真负样本」（失败实验），这是 AI-Ready 数据集的关键。
+        </div>
+      </div>
+
+      <div class="ms done">
+        <div class="ms-head">
+          <span class="id">M3a</span>
+          <span class="title">词表分组（后端）</span>
+          <span class="badge green">done</span>
+          <span class="sha">46d7677</span>
+        </div>
+        <div class="ms-desc">
+          新增 <span class="t">group_key</span> 列并回填 failure_mode / gas_label / substrate_type；
+          仓库排序改为按分组优先。解决「列表长 / 排序乱 / 无分组」的友好度问题（后端侧）。
+        </div>
+      </div>
+
+      <div class="ms done">
+        <div class="ms-head">
+          <span class="id">M3b-1</span>
+          <span class="title">分组标签与逻辑排序</span>
+          <span class="badge green">done</span>
+          <span class="sha">ef0afa6</span>
+        </div>
+        <div class="ms-desc">
+          <span class="t">group_label_zh/en + group_sort_order</span> 作为后端单一数据源（避免前端写死成第二套真相）；
+          修正字母序缺陷为业务逻辑序。守卫 T1.5 保证同组标签一致。
+        </div>
+      </div>
+
+      <div class="ms next">
+        <div class="ms-head">
+          <span class="id">M3b-2</span>
+          <span class="title">前端：分组下拉 + 失败模式录入 UI</span>
+          <span class="badge amber">下一步</span>
+        </div>
+        <div class="ms-desc">
+          ← 你刚完成的 dev 同步正是为这一步铺路（真实后端已带分组/失败字段）。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NEXT -->
+  <section>
+    <h2><span class="num">03</span> 后续计划</h2>
+    <div class="plan">
+      <div class="plan-item">
+        <div class="k">M3b-2</div>
+        <div class="body">
+          <h4>前端 · 分组渲染 + 失败模型 UI</h4>
+          <p>VocabularyCombobox 按 group_key / group_label_zh / group_sort_order 分组渲染；
+             result_summary 增加 failure_modes 多选词表组件 + failure_detail 文本域，接入 editor-types 序列化。</p>
+          <div class="chips"><span class="chip">vocabulary-combobox.tsx</span><span class="chip">result-summary-section.tsx</span><span class="chip">editor-types.ts</span><span class="chip">vitest T3.2</span></div>
+        </div>
+      </div>
+      <div class="plan-item">
+        <div class="k">M4</div>
+        <div class="body">
+          <h4>词表管理</h4>
+          <p>核对 / 扩展管理员词表 CRUD：排序、分组编辑；确认前端是否有词表管理页；补测试。</p>
+          <div class="chips"><span class="chip">admin vocab CRUD</span><span class="chip">reorder</span><span class="chip">group editing</span></div>
+        </div>
+      </div>
+      <div class="plan-item">
+        <div class="k">M5</div>
+        <div class="body">
+          <h4>规范产物生成</h4>
+          <p>由 FieldDefinition(+Pydantic) 生成版本化的 JSON Schema + 人读字段字典；
+             届时统一扁平 vs 嵌套命名（消除 M1 登记的 ALIASED_FIELDS 别名）。</p>
+          <div class="chips"><span class="chip">JSON Schema</span><span class="chip">字段字典</span><span class="chip">versioned</span></div>
+        </div>
+      </div>
+      <div class="plan-item future">
+        <div class="k">M6</div>
+        <div class="body">
+          <h4>延后 · 生态对齐与规模化</h4>
+          <p>单位显式化、JSONB 可查询性 / GIN 索引、批量与流式导出，以及标准生态对齐。</p>
+          <div class="chips"><span class="chip">OPTIMADE</span><span class="chip">DataCite DOI</span><span class="chip">NOMAD ELN</span><span class="chip">multi-tenancy</span><span class="chip">GIN</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <h4>⚠ 一个提醒</h4>
+      <p>你已完成 dev 迁移与 <code>npm run gen:api</code>，后端 :8000 在线 —— M3b-2 前端现在可以端到端在浏览器里验证。
+         我接下来会按 TDD 写前端组件 + vitest，再到真实后端联调。</p>
+    </div>
+  </section>
+
+  <footer>
+    CVD 实验数据采集系统 · 标准数据库 Schema 收敛 v0.1 · TDD 自动推进 M2–M5
+  </footer>
+
+</div>
+</body>
+</html>

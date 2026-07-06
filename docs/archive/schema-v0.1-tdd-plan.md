@@ -1,3 +1,5 @@
+> ⚠️ **已归档 · 仅历史（v1/早期设想，不代表现状）。** 现行真相见仓库 `docs/standard/STATUS.md`；字段以 `docs/standard/字段草案-v3.xlsx` 为准。归档于 2026-07-06。
+
 # CVD-2D 工艺数据标准 v0.1 — 开发计划（TDD）
 
 > 状态：草案 / 执行中　|　创建：2026-06-09　|　北极星见 memory: standard-database-vision

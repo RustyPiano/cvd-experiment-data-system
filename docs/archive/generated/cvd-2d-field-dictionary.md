@@ -1,3 +1,5 @@
+> ⚠️ **已归档 · 仅历史（v1 自动生成产物，不代表现状）。** 现行真相见仓库 `docs/standard/STATUS.md`；字段以 `docs/standard/字段草案-v3.xlsx` 为准。归档于 2026-07-06。
+
 # CVD-2D 工艺数据字段字典 · cvd-2d-process v1.0.0
 
 > module_payload schema 版本：`cvd_v1`　|　字段总数：68

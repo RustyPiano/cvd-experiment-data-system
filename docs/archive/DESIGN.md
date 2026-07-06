@@ -1,3 +1,5 @@
+> ⚠️ **已归档 · 仅历史（v1/早期设想，不代表现状）。** 现行真相见仓库 `docs/standard/STATUS.md`；字段以 `docs/standard/字段草案-v3.xlsx` 为准。归档于 2026-07-06。
+
 ---
 version: alpha
 name: CVD Lab Data Capture UI

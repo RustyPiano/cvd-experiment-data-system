@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 字段 / 元数据设计的唯一真相指针。现状：线上 = v1；字段以 `docs/standard/字段草案-v3.xlsx` 为准；`docs/archive/` 为历史，勿当现状。
+
 ## 项目概览
 
 CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、样品、表征文件与审计轨迹，支持后续结构化分析。
@@ -18,9 +20,10 @@ CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、�
 
 ## 文档入口
 
-- cvd_experiment_data_system_design_v1.md（业务与数据模型）
-- DESIGN.md（前端设计规范）
-- AGENT_IMPLEMENTATION_BRIEF.md（V1 实现边界）
+- **`docs/standard/STATUS.md`（先读：现状与真相指针）**
+- `docs/standard/字段草案-v3.xlsx`（现行字段表）
+- `docs/standard/metadata-v2-review-and-redesign.md`（设计理由与国际对标）
+- 历史（已归档、v1/早期、勿当现状）：`docs/archive/` 下的 `cvd_experiment_data_system_design_v1.md`（业务与数据模型）、`DESIGN.md`（前端设计规范）、`AGENT_IMPLEMENTATION_BRIEF.md`（V1 实现边界）
 
 ## 环境准备
 

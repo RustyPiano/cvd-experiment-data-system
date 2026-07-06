@@ -1,0 +1,545 @@
+<!-- ⚠️ 已归档·仅历史（v1/早期设想，不代表现状）。现行真相见 docs/standard/STATUS.md；字段以 docs/standard/字段草案-v3.xlsx 为准。归档于 2026-07-06。 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CVD 实验数据采集系统 · 介绍</title>
+<style>
+  :root {
+    --ink: #16191f;
+    --ink-2: #3b424d;
+    --muted: #6b7280;
+    --line: #e7e9ee;
+    --line-2: #eef0f4;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --accent: #4f46e5;       /* indigo */
+    --accent-soft: #eef0fe;
+    /* phase colors */
+    --prep: #2563eb;   --prep-soft: #eaf1fe;
+    --feed: #0d9488;   --feed-soft: #e6f5f3;
+    --core: #d97706;   --core-soft: #fdf1e1;
+    --out:  #16a34a;   --out-soft: #e8f6ec;
+    --supp: #7c3aed;   --supp-soft: #f1ecfd;
+    --danger:#dc2626;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.55;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px 64px; }
+  code, .mono { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+
+  /* ---- header ---- */
+  header.top {
+    background: linear-gradient(135deg, #1e2230 0%, #2b2f45 55%, #3b3f63 100%);
+    color: #fff; padding: 38px 0 30px;
+  }
+  header.top .wrap { padding-bottom: 0; }
+  .brand-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .logo {
+    width: 46px; height: 46px; border-radius: 12px; flex: none;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    display: grid; place-items: center; font-size: 24px;
+    box-shadow: 0 4px 14px rgba(99,102,241,.4);
+  }
+  header.top h1 { font-size: 26px; margin: 0; letter-spacing: .3px; font-weight: 700; }
+  header.top .sub { color: #c7cbe0; font-size: 14px; margin-top: 2px; }
+  .tagline {
+    margin: 20px 0 4px; font-size: 17px; color: #eef0ff; font-weight: 500;
+    max-width: 880px;
+  }
+  .tagline b { color: #fff; border-bottom: 2px solid #818cf8; padding-bottom: 1px; }
+  .meta-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .meta-chips .chip {
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.16);
+    color: #e8eaf6; padding: 6px 12px; border-radius: 999px; font-size: 12.5px;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .meta-chips .chip b { color: #fff; font-weight: 600; }
+
+  /* ---- section ---- */
+  section { margin-top: 44px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+  .sec-num {
+    font-size: 40px; font-weight: 800; color: var(--accent-soft);
+    line-height: 1; -webkit-text-stroke: 1px #c7cafe; letter-spacing: -1px;
+  }
+  .sec-title { font-size: 21px; font-weight: 700; margin: 0; }
+  .sec-title .en { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 8px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(16,19,31,.03);
+  }
+  .pad { padding: 20px 22px; }
+
+  /* ---- WHY ---- */
+  .why-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .why-col h3 { margin: 0 0 12px; font-size: 14px; letter-spacing: .5px; text-transform: uppercase; }
+  .why-pain h3 { color: var(--danger); }
+  .why-gain h3 { color: var(--out); }
+  .why-list { list-style: none; margin: 0; padding: 0; }
+  .why-list li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line-2); font-size: 14px; color: var(--ink-2); }
+  .why-list li:last-child { border-bottom: none; }
+  .why-list .ic { flex: none; width: 18px; text-align: center; }
+  .why-pain .ic { color: var(--danger); }
+  .why-gain .ic { color: var(--out); }
+  .value-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-top: 18px; }
+  .value { padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); }
+  .value .vt { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; display:flex; align-items:center; gap:7px; }
+  .value .vd { font-size: 12.8px; color: var(--muted); line-height: 1.5; }
+  .value .dot { width:8px;height:8px;border-radius:3px;flex:none; }
+
+  /* ---- ARCHITECTURE ---- */
+  .arch { display: grid; grid-template-columns: 1.55fr 1fr; gap: 20px; align-items: start; }
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .node {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    padding: 13px 16px; position: relative;
+  }
+  .node .nt { font-weight: 700; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+  .node .nd { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .node .stack { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tch { font-size: 11px; background: var(--bg); border: 1px solid var(--line); color: var(--ink-2); padding: 2.5px 8px; border-radius: 6px; }
+  .arrow { text-align: center; color: #b7bdc9; font-size: 16px; line-height: 1; padding: 7px 0; }
+  .arrow span { font-size: 11px; color: var(--muted); margin-left: 6px; }
+  .ic-badge { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 14px; flex: none; }
+  .b-browser { background: #eef2ff; } .b-proxy { background: #fef3e6; }
+  .b-front { background: #e6f5f3; } .b-back { background: #eaf1fe; } .b-db { background: #f1ecfd; }
+  .aside-title { font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 0 0 10px; }
+  .concern { display: flex; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--line-2); }
+  .concern:last-child { border-bottom: none; }
+  .concern .ci { flex: none; font-size: 15px; width: 20px; text-align:center; }
+  .concern .cn { font-weight: 600; font-size: 13.5px; }
+  .concern .cd { font-size: 12px; color: var(--muted); }
+
+  /* ---- DATABASE ---- */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin: 0 0 16px; font-size: 12.5px; color: var(--ink-2); }
+  .legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+  .req { color: var(--danger); font-weight: 700; }
+  .vk { font-size: 9.5px; color: var(--accent); border: 1px solid #c7cafe; border-radius: 4px; padding: 0 3px; margin-left: 3px; vertical-align: 1px; }
+
+  .entity-hero { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 22px; }
+  .hero-center {
+    border: 1.5px solid var(--accent); background: linear-gradient(180deg,#fafbff,#f4f5ff);
+    border-radius: 14px; padding: 14px 18px; text-align: center;
+  }
+  .hero-center .ht { font-weight: 800; font-size: 16px; }
+  .hero-center .hk { font-size: 12px; color: var(--muted); }
+  .hero-center .hd { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+  .satellites { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .sat { border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; background: var(--card); }
+  .sat .sn { font-weight: 700; font-size: 13px; display:flex; align-items:center; gap:6px; }
+  .sat .sd { font-size: 11.6px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+  .sat .sb { width: 8px; height: 8px; border-radius: 3px; flex:none; }
+
+  .modules { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .mod { border: 1px solid var(--line); border-left-width: 4px; border-radius: 10px; background: var(--card); padding: 13px 15px; }
+  .mod .mh { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .mod .mn { font-weight: 700; font-size: 14.5px; }
+  .mod .mk { font-size: 11px; color: var(--muted); }
+  .mod .mtag { margin-left: auto; font-size: 10.5px; font-weight: 600; padding: 1.5px 8px; border-radius: 999px; }
+  .mod .mdesc { font-size: 12px; color: var(--muted); margin: -3px 0 9px; }
+  .fields { display: flex; flex-wrap: wrap; gap: 6px; }
+  .f { font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2.5px 8px; color: var(--ink-2); white-space: nowrap; }
+  .f.r { border-color: #f3c9c9; background: #fef5f5; }
+
+  .phase-prep .mn,.phase-prep .f.lead{color:var(--prep)} .phase-prep{border-left-color:var(--prep)} .phase-prep .mtag{background:var(--prep-soft);color:var(--prep)}
+  .phase-feed{border-left-color:var(--feed)} .phase-feed .mtag{background:var(--feed-soft);color:var(--feed)}
+  .phase-core{border-left-color:var(--core)} .phase-core .mtag{background:var(--core-soft);color:var(--core)}
+  .phase-out{border-left-color:var(--out)} .phase-out .mtag{background:var(--out-soft);color:var(--out)}
+
+  .vocab-note { margin-top: 16px; border-radius: 12px; background: var(--accent-soft); border: 1px solid #d8dcfe; padding: 14px 18px; }
+  .vocab-note .vn-t { font-weight: 700; font-size: 14px; color: var(--accent); margin-bottom: 6px; }
+  .vocab-note .vn-d { font-size: 13px; color: var(--ink-2); }
+  .vocab-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .vocab-tags .vt2 { font-size: 11.5px; background: #fff; border: 1px solid #d8dcfe; color: var(--accent); border-radius: 6px; padding: 2px 8px; }
+
+  .support-band { margin-top: 18px; }
+  .support-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .supp { border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; background: var(--supp-soft); }
+  .supp .un { font-weight: 700; font-size: 13.5px; color: var(--supp); display:flex; align-items:center; gap:6px; }
+  .supp .ud { font-size: 11.8px; color: var(--ink-2); margin-top: 4px; line-height: 1.45; }
+
+  /* ---- FLOW ---- */
+  .steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; }
+  .step { position: relative; padding: 0 9px; }
+  .step .sc { width: 30px; height: 30px; border-radius: 999px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; margin-bottom: 9px; }
+  .step .st { font-weight: 700; font-size: 13.5px; }
+  .step .sx { font-size: 11.8px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+  .step:not(:last-child)::after { content: "→"; position: absolute; top: 4px; right: -6px; color: #c2c7d2; font-size: 16px; }
+
+  .lifecycle { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .state { padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; border: 1.5px solid; }
+  .s-draft { color: #6b7280; border-color: #d1d5db; background: #f9fafb; }
+  .s-sub { color: var(--prep); border-color: #bcd2fb; background: var(--prep-soft); }
+  .s-lock { color: var(--out); border-color: #b7e3c4; background: var(--out-soft); }
+  .s-void { color: var(--danger); border-color: #f3c9c9; background: #fef5f5; }
+  .trans { color: var(--muted); font-size: 12px; display:inline-flex; flex-direction:column; align-items:center; }
+  .trans b { color: var(--ink-2); font-weight: 600; }
+
+  table.roles { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+  table.roles th, table.roles td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+  table.roles th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+  table.roles td.role { font-weight: 700; white-space: nowrap; }
+  .pill { font-size: 11px; padding: 1.5px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .mini-title { font-size: 13px; font-weight: 700; color: var(--ink); margin: 0 0 10px; display:flex;align-items:center;gap:7px;}
+
+  footer { margin-top: 50px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 880px) {
+    .why-grid,.arch,.two,.modules { grid-template-columns: 1fr; }
+    .value-strip,.satellites,.support-grid { grid-template-columns: 1fr 1fr; }
+    .steps { grid-template-columns: 1fr 1fr 1fr; row-gap: 18px; }
+    .step:nth-child(3n)::after { content: none; }
+  }
+  @media print {
+    body { background: #fff; font-size: 12px; }
+    header.top { background: #20243a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    section { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand-row">
+      <div class="logo">🧪</div>
+      <div>
+        <h1>CVD 实验数据采集系统</h1>
+        <div class="sub">面向课题组的标准化 · 结构化 · 可挖掘的 CVD 二维材料工艺数据库</div>
+      </div>
+    </div>
+    <p class="tagline">把全组的 CVD 实验,变成一套<b>人人用同一套词、结构一致、不会丢</b>的数据库 —— 既能日常记录,也能横向比较、检索复用,长期沉淀为可做数据挖掘的 AI-Ready 资产。</p>
+    <div class="meta-chips">
+      <span class="chip">📊 <b>10</b> 个数据模块</span>
+      <span class="chip">🏷️ <b>68</b> 个标准字段</span>
+      <span class="chip">📖 受控词表统一选项</span>
+      <span class="chip">🔒 状态机 + 版本快照 + 审计</span>
+      <span class="chip">🌐 已上线 cvd.rustypiano.com</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- 01 WHY -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">01</div>
+      <h2 class="sec-title">为什么需要这个系统<span class="en">Why</span></h2>
+    </div>
+    <div class="card pad">
+      <div class="why-grid">
+        <div class="why-col why-pain">
+          <h3>现状的痛点</h3>
+          <ul class="why-list">
+            <li><span class="ic">✕</span>数据散在各人的本子 / Excel / 微信里,人一走就断档</li>
+            <li><span class="ic">✕</span>同一材料、同一表征,写法五花八门 → 没法横向比较与检索</li>
+            <li><span class="ic">✕</span>失败实验往往不记录,别人反复踩同一个坑</li>
+            <li><span class="ic">✕</span>装置/参数版本说不清,"这炉到底用的哪套条件"无法追溯</li>
+          </ul>
+        </div>
+        <div class="why-col why-gain">
+          <h3>系统带来的</h3>
+          <ul class="why-list">
+            <li><span class="ic">✓</span>统一字段 + 受控词表,数据天然可比、可检索</li>
+            <li><span class="ic">✓</span>按模块结构化录入,自动保存、不会丢</li>
+            <li><span class="ic">✓</span>成功与失败都记(含失败模式词表),沉淀经验</li>
+            <li><span class="ic">✓</span>提交即版本快照 + 全程审计,装置以快照冻结可追溯</li>
+          </ul>
+        </div>
+      </div>
+      <div class="value-strip">
+        <div class="value"><div class="vt"><span class="dot" style="background:var(--prep)"></span>标准化</div><div class="vd">同一套词表与字段,全组数据口径一致,可横向比对。</div></div>
+        <div class="value"><div class="vt"><span class="dot" style="background:var(--feed)"></span>结构化</div><div class="vd">10 模块 / 68 字段,机器可读,一键导出 JSON·Excel。</div></div>
+        <div class="value"><div class="vt"><span class="dot" style="background:var(--core)"></span>可追溯</div><div class="vd">状态机 + 版本快照 + 审计日志,谁改了什么一清二楚。</div></div>
+        <div class="value"><div class="vt"><span class="dot" style="background:var(--supp)"></span>可挖掘</div><div class="vd">长期沉淀为 AI-Ready 数据集,支撑数据挖掘与论文。</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 ARCHITECTURE -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">02</div>
+      <h2 class="sec-title">系统架构<span class="en">Architecture</span></h2>
+    </div>
+    <div class="card pad">
+      <div class="arch">
+        <div class="flow">
+          <div class="node">
+            <div class="nt"><span class="ic-badge b-browser">🖥️</span>浏览器（组员 / 师兄）</div>
+            <div class="nd">任意电脑打开网址即用,无需安装</div>
+          </div>
+          <div class="arrow">↓ <span>HTTPS</span></div>
+          <div class="node">
+            <div class="nt"><span class="ic-badge b-proxy">🛡️</span>反向代理 openresty（1Panel）</div>
+            <div class="nd">域名 + SSL 证书,统一入口</div>
+            <div class="stack"><span class="tch">HTTPS</span><span class="tch">cvd.rustypiano.com</span></div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="node">
+            <div class="nt"><span class="ic-badge b-front">🎨</span>前端容器 · nginx + 单页应用</div>
+            <div class="nd">托管静态页面,并把 /api 反代到后端</div>
+            <div class="stack"><span class="tch">React 19</span><span class="tch">TanStack Router</span><span class="tch">shadcn/ui</span><span class="tch">Tailwind v4</span><span class="tch">Vite · Bun</span></div>
+          </div>
+          <div class="arrow">↓ <span>/api · /health · /docs</span></div>
+          <div class="node">
+            <div class="nt"><span class="ic-badge b-back">⚙️</span>后端容器 · API 服务</div>
+            <div class="nd">业务逻辑、校验、鉴权、导出</div>
+            <div class="stack"><span class="tch">FastAPI</span><span class="tch">SQLAlchemy 2</span><span class="tch">Pydantic</span><span class="tch">Alembic 迁移</span><span class="tch">Uvicorn</span></div>
+          </div>
+          <div class="arrow">↓</div>
+          <div class="node">
+            <div class="nt"><span class="ic-badge b-db">🗄️</span>PostgreSQL 数据库</div>
+            <div class="nd">实验、模块、样品、文件元数据、词表、审计…</div>
+            <div class="stack"><span class="tch">PostgreSQL</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="card pad" style="background:var(--bg)">
+            <p class="aside-title">横切关注点</p>
+            <div class="concern"><span class="ci">🔑</span><div><div class="cn">鉴权</div><div class="cd">Bearer Token 登录,滑动续期,过期自动回跳</div></div></div>
+            <div class="concern"><span class="ci">📁</span><div><div class="cn">文件存储</div><div class="cd">表征文件、装置示意图存于容器卷</div></div></div>
+            <div class="concern"><span class="ci">🧬</span><div><div class="cn">数据库迁移</div><div class="cd">Alembic,后端启动自动 upgrade,失败则不对外</div></div></div>
+            <div class="concern"><span class="ci">🕓</span><div><div class="cn">版本 / 审计</div><div class="cd">提交即版本快照;所有变更写审计日志</div></div></div>
+            <div class="concern"><span class="ci">💾</span><div><div class="cn">部署 / 备份</div><div class="cd">Docker Compose;每次部署自动备份 DB + 文件</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 DATABASE -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">03</div>
+      <h2 class="sec-title">数据库结构<span class="en">Data Model</span></h2>
+    </div>
+
+    <!-- entity model -->
+    <div class="card pad">
+      <div class="entity-hero">
+        <div class="hero-center">
+          <div class="ht">实验记录 ExperimentRun</div>
+          <div class="hk">run_code · 负责人 · 材料体系 · 实验日期 · 状态 · 质量标签</div>
+          <div class="hd">一条主记录 = 一炉实验的"身份";下面挂 10 个数据模块与若干关联实体</div>
+        </div>
+        <div class="satellites">
+          <div class="sat"><div class="sn"><span class="sb" style="background:var(--feed)"></span>10 个数据模块</div><div class="sd">基础/环境/前驱体/基底/炉温/气体/表征… 按模块分块存储</div></div>
+          <div class="sat"><div class="sn"><span class="sb" style="background:var(--supp)"></span>装置/方法快照</div><div class="sd">引用 Setup 库并冻结为快照,带哈希,可追溯</div></div>
+          <div class="sat"><div class="sn"><span class="sb" style="background:var(--out)"></span>样品 + 文件</div><div class="sd">基底/产物→可追踪样品;表征文件挂实验或样品</div></div>
+          <div class="sat"><div class="sn"><span class="sb" style="background:var(--core)"></span>版本 + 审计</div><div class="sd">版本快照 + 审计日志,完整可回溯</div></div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="lg"><span class="req">★</span> 提交前必填</span>
+        <span class="lg"><span class="vk">词</span> 受控词表（统一下拉选项）</span>
+        <span class="lg">模块顺序 = 一炉实验的生命周期</span>
+      </div>
+
+      <div class="modules">
+        <!-- basic -->
+        <div class="mod phase-prep">
+          <div class="mh"><span class="mn">基础信息</span><span class="mk">basic_info</span><span class="mtag">准备</span></div>
+          <div class="mdesc">这条实验是什么</div>
+          <div class="fields">
+            <span class="f r">★ 操作人</span><span class="f r">★ 实验类型</span>
+            <span class="f r">★ 材料体系<span class="vk">词</span></span><span class="f r">★ 实验日期</span>
+            <span class="f">实验目的</span><span class="f">层数<span class="vk">词</span></span>
+          </div>
+        </div>
+        <!-- env -->
+        <div class="mod phase-prep">
+          <div class="mh"><span class="mn">环境条件</span><span class="mk">environment</span><span class="mtag">准备</span></div>
+          <div class="mdesc">开炉前的环境</div>
+          <div class="fields">
+            <span class="f">室内温度 ℃</span><span class="f">室内湿度 %</span>
+            <span class="f">样品环境<span class="vk">词</span></span><span class="f">异常备注</span>
+          </div>
+        </div>
+        <!-- precheck -->
+        <div class="mod phase-prep">
+          <div class="mh"><span class="mn">预检查</span><span class="mk">precheck</span><span class="mtag">准备</span></div>
+          <div class="mdesc">开炉前的设备检查</div>
+          <div class="fields">
+            <span class="f">密封完好</span><span class="f">通风橱清洁</span><span class="f">法兰口阻塞</span>
+            <span class="f">舟污染</span><span class="f">管污染</span><span class="f">风险备注</span>
+          </div>
+        </div>
+        <!-- precursors -->
+        <div class="mod phase-feed">
+          <div class="mh"><span class="mn">前驱体</span><span class="mk">precursors</span><span class="mtag">投料</span></div>
+          <div class="mdesc">源材料（可多条）</div>
+          <div class="fields">
+            <span class="f r">★ 物种</span><span class="f r">★ 制备方法<span class="vk">词</span></span>
+            <span class="f">品牌<span class="vk">词</span></span><span class="f">浓度 / 单位</span>
+            <span class="f">熔融温度 ℃</span><span class="f">旋涂转速/时长</span>
+            <span class="f">质量 mg</span><span class="f">批次号</span>
+          </div>
+        </div>
+        <!-- substrates -->
+        <div class="mod phase-feed">
+          <div class="mh"><span class="mn">基底</span><span class="mk">substrates</span><span class="mtag">投料</span></div>
+          <div class="mdesc">衬底（上/下/对照/产物）</div>
+          <div class="fields">
+            <span class="f">角色<span class="vk">词</span></span><span class="f r">★ 类型<span class="vk">词</span></span>
+            <span class="f">品牌<span class="vk">词</span></span><span class="f">尺寸<span class="vk">词</span></span>
+            <span class="f">处理方法<span class="vk">词</span></span><span class="f">相对温区位置</span>
+            <span class="f">处理温度/时长/功率</span>
+          </div>
+        </div>
+        <!-- furnace -->
+        <div class="mod phase-core">
+          <div class="mh"><span class="mn">炉温程序</span><span class="mk">furnace_program</span><span class="mtag">核心工艺</span></div>
+          <div class="mdesc">温区与升温台阶（时间-温度曲线）</div>
+          <div class="fields">
+            <span class="f r">★ 炉子信息</span><span class="f r">★ 温区程序</span>
+            <span class="f">温区数 / 初始温度</span><span class="f">每温区 ≥2 节点,时间严格递增</span>
+            <span class="f">前驱体放置</span>
+          </div>
+        </div>
+        <!-- gas -->
+        <div class="mod phase-core">
+          <div class="mh"><span class="mn">气体程序</span><span class="mk">gas_program</span><span class="mtag">核心工艺</span></div>
+          <div class="mdesc">各时间段的气体与流量</div>
+          <div class="fields">
+            <span class="f">洗炉气体<span class="vk">词</span></span><span class="f r">★ 气体段列表</span>
+            <span class="f">气体<span class="vk">词</span></span><span class="f">开始/结束 min</span>
+            <span class="f">流量 sccm</span><span class="f">混合组分</span>
+          </div>
+        </div>
+        <!-- process -->
+        <div class="mod phase-out">
+          <div class="mh"><span class="mn">过程观察</span><span class="mk">process_observation</span><span class="mtag">结果</span></div>
+          <div class="mdesc">生长过程现象</div>
+          <div class="fields">
+            <span class="f">颜色变化</span><span class="f">异常事件（多选）</span><span class="f">备注</span>
+          </div>
+        </div>
+        <!-- char -->
+        <div class="mod phase-out">
+          <div class="mh"><span class="mn">表征结果</span><span class="mk">characterization</span><span class="mtag">结果</span></div>
+          <div class="mdesc">OM/Raman/PL… 可挂原始文件</div>
+          <div class="fields">
+            <span class="f r">★ 表征方法列表</span><span class="f">方法<span class="vk">词</span></span>
+            <span class="f">结果</span><span class="f">激发波长 nm</span><span class="f">备注</span>
+          </div>
+        </div>
+        <!-- result -->
+        <div class="mod phase-out">
+          <div class="mh"><span class="mn">结果总结</span><span class="mk">result_summary</span><span class="mtag">结果</span></div>
+          <div class="mdesc">结论 + 质量 + 失败模式</div>
+          <div class="fields">
+            <span class="f">结果摘要</span><span class="f">质量标签<span class="vk">词</span></span>
+            <span class="f">下一步计划</span><span class="f">失败模式（多选）<span class="vk">词</span></span>
+            <span class="f">失败说明</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- vocab -->
+      <div class="vocab-note">
+        <div class="vn-t">📖 题眼 · 受控词表 = 标准化的核心</div>
+        <div class="vn-d">大量字段的选项来自统一维护的"受控词表",大家填的是同一套词,数据才可比、可检索、可挖掘 —— 这正是"标准数据库"与"每人一个 Excel"的本质区别。词表由管理员统一维护、可随时扩充。</div>
+        <div class="vocab-tags">
+          <span class="vt2">material_system 材料体系</span>
+          <span class="vt2">precursor_method 制备方法</span>
+          <span class="vt2">substrate_type 基底类型</span>
+          <span class="vt2">gas_label 气体</span>
+          <span class="vt2">characterization_method 表征方法</span>
+          <span class="vt2">quality_label 质量标签</span>
+          <span class="vt2">failure_mode 失败模式</span>
+          <span class="vt2">…</span>
+        </div>
+      </div>
+
+      <!-- support entities -->
+      <div class="support-band">
+        <div class="support-grid">
+          <div class="supp"><div class="un">🧰 Setup 库 / 装置快照</div><div class="ud">装置示意图 + 方法文本 + 参考文献;一键引用并冻结为快照（带哈希）,保证"这炉用哪套装置"可追溯。</div></div>
+          <div class="supp"><div class="un">🔬 样品 Samples</div><div class="ud">基底与产物自动成为可追踪样品,有独立编号、角色、存放位置。</div></div>
+          <div class="supp"><div class="un">📎 文件 Files</div><div class="ud">Raman/SEM 等原始文件直接挂在实验或样品下,统一管理。</div></div>
+          <div class="supp"><div class="un">🛠️ 词表 / 字段字典</div><div class="ud">管理员维护受控词表与字段定义,字段字典可自动生成（本页即由其而来）。</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 USAGE -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">04</div>
+      <h2 class="sec-title">使用流程<span class="en">Workflow</span></h2>
+    </div>
+    <div class="card pad">
+      <div class="steps">
+        <div class="step"><div class="sc">1</div><div class="st">登录</div><div class="sx">浏览器打开网址,账号登录,落到实验列表</div></div>
+        <div class="step"><div class="sc">2</div><div class="st">新建</div><div class="sx">空白创建 / 复制最近一条 / 搜索历史派生</div></div>
+        <div class="step"><div class="sc">3</div><div class="st">填写</div><div class="sx">按模块录入,带 ★ 必填,改即自动保存</div></div>
+        <div class="step"><div class="sc">4</div><div class="st">提交</div><div class="sx">系统校验,通过后自动存版本快照</div></div>
+        <div class="step"><div class="sc">5</div><div class="st">锁定</div><div class="sx">定稿,只读;管理员可解锁更正</div></div>
+        <div class="step"><div class="sc">6</div><div class="st">导出</div><div class="sx">逐条导出 JSON / Excel</div></div>
+      </div>
+    </div>
+
+    <div class="two" style="margin-top:18px">
+      <div class="card pad">
+        <p class="mini-title">🔄 记录状态机</p>
+        <div class="lifecycle">
+          <span class="state s-draft">草稿</span>
+          <span class="trans">→<b>提交</b></span>
+          <span class="state s-sub">已提交</span>
+          <span class="trans">→<b>锁定</b></span>
+          <span class="state s-lock">已锁定</span>
+        </div>
+        <div class="lifecycle" style="margin-top:12px">
+          <span class="state s-void">已作废</span>
+          <span class="trans" style="color:var(--muted)">↞ <b>作废</b>（已提交记录）</span>
+          <span class="trans" style="color:var(--muted)">· 草稿可<b>直接删除</b></span>
+          <span class="trans" style="color:var(--muted)">· 锁定可由<b>管理员解锁</b></span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin:12px 0 0">提交即生成版本快照;复制 / 派生历史实验可一键起步同类工艺,改几个数即可。</p>
+      </div>
+
+      <div class="card pad">
+        <p class="mini-title">👥 两类角色</p>
+        <table class="roles">
+          <tr><th>角色</th><th>能做什么</th></tr>
+          <tr>
+            <td class="role">组员<br><span class="pill">member</span></td>
+            <td>新建 / 填写 / 提交自己的实验;可查看他人已提交·已锁定的记录;导出、上传表征文件、管理自己的样品。</td>
+          </tr>
+          <tr>
+            <td class="role">管理员<br><span class="pill">admin</span></td>
+            <td>组员的全部能力 + <b>数据看板</b>（全员记录数·状态·停滞草稿·缺装置·录入趋势,点成员可单看）;锁定 / 解锁;维护受控词表与字段字典、Setup 库。</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>CVD 实验数据采集系统 · 标准化 / 结构化 / 可追溯 / 可挖掘</span>
+    <span>线上：<a href="https://cvd.rustypiano.com">cvd.rustypiano.com</a> · 字段字典自动生成（cvd_v1 · 68 字段）</span>
+  </footer>
+
+</div>
+</body>
+</html>
