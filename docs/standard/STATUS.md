@@ -21,7 +21,7 @@
 
 ## 5. 交付目标（进行中）
 1. 字段表：已以 v3 收敛（含 Fable 评审回炉 v3.2，75 字段）；
-2. 文字标准：已起草 **v2.0**（`docs/standard/cvd-2d-process-data-standard-v2.0.md`），取代已归档 v1 标准，**待评审冻结**。结果模型定为"纯客观事实、不设失败模式词表"（标准 §7）。
+2. 文字标准：已起草 **v2.0**（`docs/standard/cvd-2d-process-data-standard-v2.0.md`），取代已归档 v1 标准。经**两轮 Fable 独立评审 + 回炉**（6→7.5/10），**记录 schema 主体已达冻结门槛**；批次实体字段表 / 词表归一列下一轮（或用 §10「合规范围声明」scope 掉，不阻塞冻结）。结果模型 = 砍主观成败标签、保留 §7『观察到的现象』客观词表 + 结果留存规则。
 
 ## 6. 已归档、别当真相的（在 `docs/archive/`）
 - v1 文字标准三件套：`cvd-2d-process-data-standard-v0.1.md`、`schema-v0.1-tdd-plan.md`、`cvd-2d-spec-v0.1.html`
