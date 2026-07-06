@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '=== 本项目现状指针（STATUS.md 自动载入，单一入口）===\\n开始前请以此为准；已冻结决策见 §4，勿重开。\\n\\n'; cat \"$CLAUDE_PROJECT_DIR/docs/standard/STATUS.md\" 2>/dev/null"
+          }
+        ]
+      }
+    ]
+  }
+}
