@@ -60,7 +60,8 @@
 | 07-07/08 | **导师书面评审回件**（标黄9+红字2）→ **v3.4 回改 6 条**：目标性能补示例 · §3新增『外观描述』(潮解溯源) · 外场参数→条件必填(Setup有外场) · 检出相增堆垛 · PL峰宽+SEM占比改名覆盖率 · 图例行+必填字体强化；观察现象粒度留待俊杰 | `048f57b` |
 | 07-08 | **实现期启动**：v1 代码库全量摸底（4份字段拷贝/无CI/双前端等）→ 定稿 `docs/v2-implementation-plan.md`（D1单一YAML源+五路生成器 · P0–P6 阶段与验收门） | `c13dc5e` |
 | 07-08 | **P0 工程底线完成，门禁全绿**（Codex xhigh 初稿 + 本机验证收尾）：GitHub Actions 三 job（backend ruff+format+pytest / frontend tsc+eslint+vitest / generated-artifacts regen漂移检查）；`generated/` 从迁移种子库**真正重新生成**修复 `test_t5_5`（归档副本带⚠️横幅，拷贝恢复不成立）；ruff format 一次性拉平14文件；lint 零 warning 门禁；去重 router-plugin devDep。**pytest 287/287 · vitest 31/31 · tsc/eslint/ruff 全绿** | `f80808a` |
-| 07-08 | **P1 完成（字段单一源）**：新增 **`field-source.yaml`**（77字段+46实体字段+条件必填表达式+R0×16+pending×4，由旧 ROWS 机械转换）；`build_field_tables.py` 改造为纯渲染器；新增 `check_field_source.py`（YAML↔xlsx **逐格一致** + 结构约束 + R0 计数护栏）并进 CI（第4个 job）；**验收门通过：YAML 渲染与 v3.4 现版字段级 diff = 空**。五路生成器分期决策记入实现方案 §7。CLAUDE/AGENTS/STATUS 入口同步改为"改字段=改 YAML" | 本次 |
+| 07-08 | **P1 完成（字段单一源）**：新增 **`field-source.yaml`**（77字段+46实体字段+条件必填表达式+R0×16+pending×4，由旧 ROWS 机械转换）；`build_field_tables.py` 改造为纯渲染器；新增 `check_field_source.py`（YAML↔xlsx **逐格一致** + 结构约束 + R0 计数护栏）并进 CI（第4个 job）；**验收门通过：YAML 渲染与 v3.4 现版字段级 diff = 空**。五路生成器分期决策记入实现方案 §7。CLAUDE/AGENTS/STATUS 入口同步改为"改字段=改 YAML" | `af42197` |
+| 07-08 | **实现计划定稿 v1.1**：方案新增 §4b（P1.5–P6 逐阶段工作分解+验收清单）、P5 硬性备份门、P1.5 push/CI首绿门、P2 命名锚定、预授权例外（P1.5 拖延>2天 P2 可先行）、4 周目标周历 | 本次 |
 
 ## 6. 下一步 / 开放项
 0. **⏰ 最近待办（2026-07-08 当面问，问题全文见 xlsx `待明确清单` #5–10）**：

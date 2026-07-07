@@ -47,14 +47,70 @@
 |---|---|---|---|---|
 | **P0 工程底线** | CI 工作流；修 eslint 配置；修 `generated/` 断测（重定目录并重新生成） | `.github/workflows/*`；绿的全量测试 | CI 全绿跑通一次 | ~1 天 |
 | **P1 单一源+生成器** | `field-source.yaml`（含 77 字段 + 3 实体 + 条件表达式 + R0；4 个待对齐字段标 `pending-alignment`）；五路生成器；regen-drift 测试 | YAML + 生成器 + 测试 | 由 YAML 重生成的 xlsx 与 v3.4 现版**字段级 diff = 空**；drift 测试进 CI | 2–4 天 |
-| **P1.5 对齐+冻结**（外部事件） | 俊杰 4 问落 YAML；回复导师 2 点；标准头 `DRAFT`→`FROZEN`；打 `v2.0.0` tag | 冻结的标准 | 待明确清单 #5–9 全部关闭 | 等对齐 |
+| **P1.5 对齐+冻结**（外部事件） | 俊杰 4 问落 YAML；回复导师 2 点；标准头 `DRAFT`→`FROZEN`；**push + 云端 CI 首绿**；打 `v2.0.0` tag | 冻结的标准 | 待明确清单 #5–9 关闭 + Actions 全绿 + tag 存在 | 等对齐 |
 | **P2 v2 数据库** | 实体表 + 版本表 + 快照；`cvd_v2` 结构 migration；seed 命令 | Alembic 结构迁移 + seed | 空库 `migrate + seed` 一键起；模型测试绿 | 3–5 天 |
 | **P3 API+校验** | v2 Pydantic（生成/校验）；实体库与实验 v2 endpoints；`check-r0` 合规命令 | API + 合规报告 | 契约测试绿；样例记录 R0 报告正确（含条件必填用例） | 3–5 天 |
 | **P4 前端表单** | 实体库管理页；v2 表单区块（**§7 最后做**）；字段键漂移测试 | v2 录入界面 | 漂移测试进 CI；主流程 e2e 手工过一遍 | 5–8 天 |
-| **P5 数据迁移** | mapping YAML；迁移命令 dry-run→报告→执行；并行验证（v1/v2 导出对账） | 迁移工具 + 对账报告 | 全量 dry-run 无未映射字段；抽样对账 100% 一致 | 2–4 天 |
+| **P5 数据迁移** | **⚠️ 生产库+文件卷备份（硬性前置）**；mapping YAML；迁移命令 dry-run→报告→执行；并行验证（v1/v2 导出对账） | 迁移工具 + 对账报告 | 备份可恢复；全量 dry-run 无未映射字段；抽样对账 100% 一致 | 2–4 天 |
 | **P6 切换** | 切 `cvd_v2`；旧表单下线；`frontend/` 归档删除；STATUS/AGENTS 更新 | 上线 | v2 录入一条真实炉次全流程走通 | ~1 天 |
 
 \* 粗估为"专注工作日"，允许穿插；**顺序不允许跳**（P4 的 §7 部分依赖 P1.5）。
+**预授权例外**：若 P1.5 因日程拖延超过 2 天，P2 可先行开工——实体表与记录结构均为已冻结决策，不受对齐结果影响；但 §7 相关实现与冻结仪式（FROZEN/tag）仍必须等 P1.5。
+
+## 4b. 阶段工作分解与验收清单（2026-07-08 定稿）
+
+### P1.5 对齐+冻结（外部事件，约半天）
+1. 俊杰 4 问答案落 `field-source.yaml`（#5 观察现象词表/层级 · #6 SEM覆盖率叫法 · #7 堆垛下拉或文本 · #8 外观词表）→ 重跑渲染 + 校验
+2. 回导师两点（SEM覆盖率定义；必填标识方案）；待明确清单 #5–9 状态置"已定"
+3. `cvd-2d-process-data-standard-v2.0.md` 头 `DRAFT→FROZEN`；`field-source.yaml` meta.status → `FROZEN`
+4. **push origin/main → 确认 Actions 四 job 云端首绿**；打 `v2.0.0` tag；STATUS 标记冻结
+- ✅ 验收：待明确 #5–9 关闭 · 云端 CI 全绿 · tag 存在
+
+### P2 v2 数据库（3–5 天）
+1. 实体三件套：`material_lots` / `setups` / `instruments` + 各自 `*_versions` 表（**版本行不可变**，`(entity_id, version)` 唯一，修改=插入新版本）；注册必填字段用类型列、其余进 attrs JSONB（默认取向，改动登记）
+2. 实验侧引用：`(entity_id, version)` 外键 + 引用时刻快照 JSON（沿用 v1 `ExperimentSetupSnapshot` 模式）
+3. `cvd_v2` 模块键锚定（默认命名，微调需登记）：`basic_info / target_product / equipment / precursors / substrates / process_steps / process_events / pvd`；§7 → `characterization_records` + `measured_products` 独立表，FK→`samples`
+4. "结果缺失"合规支撑：run 终态派生状态位（机制 P2 定，语义按标准 §7/§10）
+5. **生成器③**：`app/commands/seed_from_field_source.py`（读 YAML 幂等写字段字典/词表）
+6. Alembic 结构 migration（只增、不碰 v1 表、不嵌种子）
+- ✅ 验收：空库 `migrate + seed` 一键起 · seed 跑两遍幂等 · 模型/迁移测试绿
+
+### P3 API + 校验（3–5 天）
+1. **生成器①**：由 YAML 生成 v2 Pydantic（模块模型 + 阶段类型 discriminated union + 条件必填 validator 直接消费 YAML 表达式）；生成物入库 + regen-drift 测试
+2. **生成器②**：v2 JSON Schema 导出（spec_export v2 版）
+3. 实体库 CRUD + 版本锁定 + 引用快照端点；实验 v2 端点（run / payload / 样品 / 表征）
+4. **`check-r0` 合规命令**：任意 run 输出 R0 报告（条件必填按表达式判定；PVD 排除）——论文实证物
+5. 词表结构化（options 拆受控列表，此时才动 YAML 结构）；化学式/异质结显示串渲染规则=纯函数+测试（关闭待明确 #1）
+- ✅ 验收：契约测试绿 · 样例 run 的 R0 报告含全部条件必填用例 · OpenAPI 可 `gen:api`
+
+### P4 前端表单（5–8 天，最大块）
+1. **生成器⑤**：TS 字段元数据模块（label/单位/选项/必填/条件显隐）+ "前端字段键 ⊆ schema"漂移测试进 CI
+2. 实体库管理页 ×3（含版本历史与"改动即新版本"交互）
+3. v2 录入表单 §1–§6：复刻 v1 furnace/gas 区块模式；条件显隐 + **必填红星**（导师B93）；components[] 编辑器；化学式输入（文本+元素校验，关闭待明确 #2）
+4. §7 区块**最后做**（表征引用仪器 + 实测产物 + 对齐后的观察现象词表）
+5. `gen:api` 重新生成 openapi 类型
+- ✅ 验收：漂移测试绿 · 一条完整炉次（条件字段/复合体系/事件/表征全覆盖）手工录入全流程走通
+
+### P5 数据迁移（2–4 天）
+0. **⚠️ 硬性前置门：生产库 `pg_dump` + 文件卷备份，并实际验证可恢复**；写明回滚预案
+1. mapping YAML：68 字段逐字段去向——重点三个落点 `quality_label` / `failure_modes` / `color_change` →（§7 客观词表/过程事件）映射表；v1 自由文本 Setup → 实体重建人工辅助映射（映射不完的挂"待人工确认"）
+2. `migrate_v1_to_v2` 命令：dry-run 全量报告（**未映射字段=0 才许执行**）→ 执行；v1 payload 原样存档
+3. `file_assets` + 存储卷迁移；导出 v2 适配 + v1/v2 导出对账（抽样 100% 一致）；导入 profile 适配（D8）
+- ✅ 验收：备份可恢复 · dry-run 零未映射 · 对账 100% · 回滚预案在案
+
+### P6 切换（约 1 天）
+1. 前端默认 v2 表单，v1 数据只读可查；compose / prod 配置更新
+2. 删除旧 `frontend/`（git 历史保留）
+3. STATUS / AGENTS 回写；应用侧 release tag
+- ✅ 验收：真实录入一条新炉次全流程走通 · 旧数据可读可导出
+
+### 目标节奏（周历，按实际可顺延，顺序不变）
+| 周 | 目标 |
+|---|---|
+| 本周（≤07-11） | P1.5 + P2 |
+| 07-13 ~ 07-17 | P3 完成 + P4 开工 |
+| 07-20 ~ 07-24 | P4 完成 + P5（含备份+dry-run） |
+| 07-27 ~ 07-31 | P6 切换 + 缓冲 + 论文侧 R0 报告示例 |
 
 ## 5. 冻结纪律与变更流程（P1.5 之后生效）
 
@@ -76,6 +132,7 @@
 ## 7. 决策变更记录（按 §3 要求，改 D1–D8 须在此登记）
 
 - **2026-07-08 · D1 五路生成器分期落地**：P1 实际交付 = `field-source.yaml`（含条件表达式/R0/pending 标记）+ ④xlsx 渲染器（`build_field_tables.py` 改造完成）+ 逐格一致性校验（`check_field_source.py`，进 CI）。①Pydantic、②JSON Schema、③字典种子、⑤前端 TS 元数据的生成器**推迟到各自消费阶段**（③→P2、①②→P3、⑤→P4）落地——先于消费者产出的生成模板必然返工。词表结构化（options 拆受控列表）同步推迟到 P3 与 Pydantic 词表校验联动。D1 红线不变：字段改动只走 YAML。
+- **2026-07-08 · 计划定稿 v1.1（P1 完成后全盘细化）**：新增 §4b 阶段工作分解与验收清单；P1.5 验收门补 **push + 云端 CI 首绿**；P5 补**硬性备份前置门**（生产库 pg_dump + 文件卷 + 恢复演练 + 回滚预案）；锚定 P2 默认命名（实体三件套 `*_versions` 不可变版本行、`cvd_v2` 八个模块键、§7 两张独立表）与三条命令名（`seed_from_field_source` / `check-r0` / `migrate_v1_to_v2`）；新增**预授权例外**（P1.5 拖延 >2 天时 P2 可先行，§7 与冻结仪式除外）；附目标周历（4 周，可顺延不可乱序）。
 
 ## 8. 风险与对策
 
