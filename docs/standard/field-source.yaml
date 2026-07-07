@@ -10,6 +10,89 @@ meta:
   updated: '2026-07-08'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → python3 docs/standard/build_field_tables.py 重新生成 xlsx → python3 docs/standard/check_field_source.py 校验。
+  keys_convention: 字段 key = API/payload 契约（D10）：snake_case，单位后缀沿 v1 风格(_C/_mm/_min/_sccm…)；冻结后改 key 视同改字段，须走变更流程；v1→v2 对应关系统一在 P5 mapping，不靠同名。
+modules:
+  基本信息: basic_info
+  目标产物: target_product
+  设备: equipment
+  前驱体: precursors
+  衬底: substrates
+  过程步: process_steps
+  步·温度: process_steps
+  步·降温: process_steps
+  步·气体: process_steps
+  步·压力: process_steps
+  步·外场: process_steps
+  过程事件: process_events
+  表征: characterization
+  实测产物: measured_products
+  PVD: pvd
+entity_keys:
+  MaterialLot: material_lot
+  装置Setup: setup
+  表征仪器: instrument
+stage_types:
+  note: §5 动态表单的权威映射（D11）：阶段类型 → 显示哪些参数组；common 组恒显。P3 的 discriminated union 与 P4 的表单显隐都从这里生成，禁止在代码里散写。初版由标准§5语义推导，如与实际操作不符改此处即可。
+  groups:
+    common: 所有阶段共用（阶段类型/步序/时长）
+    temperature: 温度组（设定程序/实测/测温设备）
+    cooling: 降温组（仅降温段，字段级条件必填）
+    gas: 气体组（组分/纯度/流量）
+    pressure: 压力组（压力体系/本底压力）
+    external_field: 外场组（Setup有外场才显示，字段级条件必填）
+  types:
+  - name: 抽气
+    shows:
+    - pressure
+  - name: 漏检
+    shows:
+    - pressure
+  - name: 吹扫
+    shows:
+    - gas
+    - pressure
+  - name: 预处理
+    shows:
+    - temperature
+    - gas
+    - pressure
+    - external_field
+  - name: 升温
+    shows:
+    - temperature
+    - gas
+    - pressure
+  - name: 温度稳定
+    shows:
+    - temperature
+    - gas
+    - pressure
+  - name: 反应生长
+    shows:
+    - temperature
+    - gas
+    - pressure
+    - external_field
+    required_extra:
+    - pressure_system
+  - name: 后退火
+    shows:
+    - temperature
+    - gas
+    - pressure
+    - external_field
+  - name: 降温
+    shows:
+    - temperature
+    - cooling
+    - gas
+    - pressure
+  - name: 放气
+    shows:
+    - gas
+    - pressure
+  - name: 卸样
+    shows: []
 experiment_record:
   headers:
   - 模块
@@ -27,6 +110,7 @@ experiment_record:
     fields:
     - module: 基本信息
       label: 实验时间
+      key: started_at
       meaning: 实验开始的日期与具体时刻；整条记录及所有时序数据的时间基准(t0)
       input: 日期时间
       options: —
@@ -40,6 +124,7 @@ experiment_record:
       r0: true
     - module: 基本信息
       label: 合成方法
+      key: synthesis_method
       meaning: 本次用的气相沉积方法；顶层选择器，决定是否启用§8 PVD模块
       input: 下拉+其他
       options: CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD/其他
@@ -53,6 +138,7 @@ experiment_record:
       r0: true
     - module: 基本信息
       label: 实验人
+      key: operator
       meaning: 操作者
       input: 下拉+其他
       options: 课题组成员
@@ -66,6 +152,7 @@ experiment_record:
       r0: true
     - module: 基本信息
       label: 样品/实验编号
+      key: run_code
       meaning: 本条记录的唯一编号
       input: 文本
       options: 建议含日期
@@ -79,6 +166,7 @@ experiment_record:
       r0: true
     - module: 基本信息
       label: 环境温度
+      key: ambient_temperature_C
       meaning: 实验间环境温度
       input: 数值
       options: —
@@ -91,6 +179,7 @@ experiment_record:
       note: ''
     - module: 基本信息
       label: 环境湿度
+      key: ambient_humidity_percent
       meaning: 实验间相对湿度（影响生长时较重要）
       input: 数值
       options: —
@@ -103,6 +192,7 @@ experiment_record:
       note: ★v3：选填→推荐（湿度隐变量）
     - module: 基本信息
       label: 悬浮粒子浓度
+      key: particle_count_per_m3
       meaning: 环境洁净度，用粒子数替代主观『干净』
       input: 数值
       options: —
@@ -115,6 +205,7 @@ experiment_record:
       note: 暂无设备，先占位
     - module: 基本信息
       label: 实验前预检查
+      key: precheck_reminder
       meaning: 开始前的检查提醒（漏率/气路/水路）
       input: 提示
       options: —
@@ -129,6 +220,7 @@ experiment_record:
     fields:
     - module: 目标产物
       label: 化学体系/化学式
+      key: chemical_formula
       meaning: 规范显示串；复合体系须与组成明细一致、以组成明细为准（可自动生成）
       input: 文本
       options: 标准写法（渲染规则）
@@ -142,6 +234,7 @@ experiment_record:
       r0: true
     - module: 目标产物
       label: 结构类型
+      key: structure_type
       meaning: 材料结构类别（是否掺杂/合金/异质结，供机器检索）
       input: 下拉+多选
       options: 本征/掺杂/合金/垂直异质结/横向异质结/其他
@@ -154,6 +247,7 @@ experiment_record:
       note: 判别器；决定组成明细是否必填
     - module: 目标产物
       label: 组成明细(components)
+      key: components
       meaning: 逐组分结构化（复合体系的权威数据源）
       input: 数组items[]
       options: 每条:化学式/角色(基体·掺杂剂·上层·下层·横向域)/浓度(at%)/层序(整数)
@@ -170,6 +264,7 @@ experiment_record:
       note: ★v3.2b升为权威源+条件必填；数量拆浓度/层序；杜绝退回字符串（复审N2）
     - module: 目标产物
       label: 目标层数
+      key: target_layer_count
       meaning: 期望层数
       input: 数值
       options: —
@@ -182,6 +277,7 @@ experiment_record:
       note: 目标与实测分开
     - module: 目标产物
       label: 体相空间群
+      key: bulk_space_group
       meaning: 晶体对称性：用体相空间群号 + 说明单层结构
       input: 下拉+文本
       options: 空间群号(1–230)+单层结构说明；未指定
@@ -194,6 +290,7 @@ experiment_record:
       note: ★v3：从『层群/点群/多型』改回体相空间群；手性/扭转角/堆垛→备注
     - module: 目标产物
       label: 样品形态
+      key: target_morphology
       meaning: 目标形态
       input: 下拉+其他
       options: 连续膜/纳米片(flake)/纳米带/纳米管/纳米棒/纳米颗粒/其他
@@ -206,6 +303,7 @@ experiment_record:
       note: ''
     - module: 目标产物
       label: 目标性能
+      key: target_performance
       meaning: 应用导向的目标性能（写清想要什么性能 + 打算用什么方法/判据衡量）
       input: 自由+数值
       options: 示例：光学属性-高荧光量子效率 / 电属性-高迁移率
@@ -218,6 +316,7 @@ experiment_record:
       note: ★v3.4导师评审：可选项列补示例引导；目标=愿景保持轻量；严格『数值绑测试方法』在§7实测侧
     - module: 目标产物
       label: 备注
+      key: note
       meaning: 补充说明（手性/扭转角/堆垛类型等放这里）
       input: 自由
       options: —
@@ -232,6 +331,7 @@ experiment_record:
     fields:
     - module: 设备
       label: 装置（引用）
+      key: setup_ref
       meaning: 选择已登记的装置
       input: 引用
       options: 装置库
@@ -245,6 +345,7 @@ experiment_record:
       r0: true
     - module: 设备
       label: 品牌/型号
+      key: brand_model
       meaning: 设备品牌与型号
       input: 下拉+其他
       options: 受控+其他
@@ -257,6 +358,7 @@ experiment_record:
       note: ''
     - module: 设备
       label: 壁型
+      key: wall_type
       meaning: 热壁炉还是冷壁炉（影响生长机理）
       input: 下拉
       options: 热壁/冷壁
@@ -269,6 +371,7 @@ experiment_record:
       note: ''
     - module: 设备
       label: 温区数
+      key: zone_count
       meaning: 独立控温的温区数量
       input: 数值
       options: 1/2/3…
@@ -282,6 +385,7 @@ experiment_record:
       r0: true
     - module: 设备
       label: 炉体方向
+      key: orientation
       meaning: 炉管水平还是竖直
       input: 下拉
       options: 水平/垂直
@@ -295,6 +399,7 @@ experiment_record:
       r0: true
     - module: 设备
       label: 管材质/形状
+      key: tube_material_shape
       meaning: 炉管材料与截面形状
       input: 下拉+其他
       options: 石英/刚玉；圆/方/矩
@@ -307,6 +412,7 @@ experiment_record:
       note: ''
     - module: 设备
       label: 管外径/壁厚
+      key: tube_od_wall_mm
       meaning: 管径规格与壁厚（内径自动算）
       input: 下拉+数值
       options: 1″/2″/4″/自定义 + 壁厚
@@ -319,6 +425,7 @@ experiment_record:
       note: 内径决定流速/分压
     - module: 设备
       label: 坐标系
+      key: coordinate_system
       meaning: 本装置位置参照；全局固定、不可编辑
       input: 固定定义
       options: 上游为负 / 下游为正，原点固定
@@ -331,6 +438,7 @@ experiment_record:
       note: ★v3：从逐次填『原点+轴向』改为全局定死，防选反
     - module: 设备
       label: 外场激励
+      key: field_excitation
       meaning: 是否有等离子/光/电场（区分PECVD/光CVD）
       input: 多选+展开
       options: 无/等离子/光/电
@@ -343,6 +451,7 @@ experiment_record:
       note: 仅选『用了哪些』；定量参数在§5，定性几何进示意图
     - module: 设备
       label: 装置示意图/描述
+      key: setup_diagram
       meaning: 装置照片或示意图 + 文字批注
       input: 附件+自由
       options: —
@@ -355,6 +464,7 @@ experiment_record:
       note: ''
     - module: 设备
       label: 炉管/舟履历
+      key: tube_boat_history
       meaning: 累计使用与重置情况
       input: 数值×2
       options: 重置次数 + 重置后使用次数
@@ -369,6 +479,7 @@ experiment_record:
     fields:
     - module: 前驱体
       label: 名称/化学式
+      key: name_formula
       meaning: 原料名称与化学式
       input: 下拉+其他
       options: 受控+其他
@@ -382,6 +493,7 @@ experiment_record:
       r0: true
     - module: 前驱体
       label: CAS/InChI
+      key: cas_inchi
       meaning: 唯一化学标识（消除同名歧义）
       input: 文本
       options: CAS 或 InChI
@@ -394,6 +506,7 @@ experiment_record:
       note: ''
     - module: 前驱体
       label: 相态
+      key: phase_state
       meaning: 前驱体物态（决定用量单位、是否有投料mg）
       input: 下拉
       options: 固/气/液
@@ -406,6 +519,7 @@ experiment_record:
       note: ★v3.2b补：为『用量条件必填(固态源)』提供机器判别位（复审N1）
     - module: 前驱体
       label: 外观描述
+      key: appearance
       meaning: 使用时外观/性状——溯源时判断是否潮解、变质（湿度隐变量的可观察代理）
       input: 下拉+其他
       options: 白色粉末/白色晶粒/淡黄色粉末/结块或潮解/变色/其他
@@ -424,6 +538,7 @@ experiment_record:
       pending: 待明确清单#8：外观描述词表待确认
     - module: 前驱体
       label: 物料批次（引用）
+      key: lot_ref
       meaning: 引用批号（纯度/粒径自动带出），锁定当时版本
       input: 引用
       options: 批次库
@@ -436,6 +551,7 @@ experiment_record:
       note: 防以后改批次信息影响旧记录
     - module: 前驱体
       label: 角色（role）
+      key: role
       meaning: 在反应里的角色
       input: 下拉
       options: 主源/辅助剂/掺杂源/其他
@@ -448,6 +564,7 @@ experiment_record:
       note: 界面中文(英文)
     - module: 前驱体
       label: 用量
+      key: amount
       meaning: 投料量（只记投料，不记残余）
       input: 数值
       options: —
@@ -465,6 +582,7 @@ experiment_record:
       r0: true
     - module: 前驱体
       label: 处理方式
+      key: treatment_steps
       meaning: 投料前处理（可多步，选了再展开参数）
       input: 下拉+其他
       options: 直接加载/熔融凝固/压片/旋涂/退火/研磨/其他
@@ -477,6 +595,7 @@ experiment_record:
       note: ''
     - module: 前驱体
       label: 舟/坩埚
+      key: boat_crucible
       meaning: 盛装容器材质与尺寸
       input: 下拉+数值
       options: 石英舟/陶瓷(刚玉)舟/其他；长×宽×高（直径）
@@ -489,6 +608,7 @@ experiment_record:
       note: v3暂保留长×宽×高
     - module: 前驱体
       label: 所在温区/源温
+      key: zone_source_temp
       meaning: 放第几温区、源温（若可设/可测）
       input: 下拉+数值
       options: 温区1…
@@ -501,6 +621,7 @@ experiment_record:
       note: 按进气端编号
     - module: 前驱体
       label: 距热电偶距离
+      key: distance_to_tc_mm
       meaning: 距所在温区热电偶的水平距离
       input: 数值
       options: —
@@ -515,6 +636,7 @@ experiment_record:
     fields:
     - module: 衬底
       label: 衬底材料
+      key: material
       meaning: 衬底种类
       input: 下拉+其他
       options: SiO₂/Si·蓝宝石(Al₂O₃)·石英·云母·Cu箔·Au箔·h-BN·其他
@@ -528,6 +650,7 @@ experiment_record:
       r0: true
     - module: 衬底
       label: 化学式/取向
+      key: formula_orientation
       meaning: 化学式与晶面取向/偏转角
       input: 文本
       options: 标准写法（如 x面向x轴偏X°）
@@ -540,6 +663,7 @@ experiment_record:
       note: 单晶记取向+偏转角
     - module: 衬底
       label: 氧化层厚度
+      key: oxide_thickness_nm
       meaning: SiO₂ 层厚度（决定光学判层数）
       input: 数值
       options: 写成 SiO₂/Si(285nm)
@@ -556,6 +680,7 @@ experiment_record:
       note: ''
     - module: 衬底
       label: 表面粗糙度
+      key: surface_roughness_nm
       meaning: Ra / RMS
       input: 数值
       options: —
@@ -568,6 +693,7 @@ experiment_record:
       note: 常比化学式更决定成核；可问厂家或AFM
     - module: 衬底
       label: 尺寸/朝向
+      key: size_placement
       meaning: 几何尺寸与放置朝向
       input: 数值+下拉
       options: 长×宽×厚；正放/倒扣/倾角/竖放
@@ -580,6 +706,7 @@ experiment_record:
       note: ''
     - module: 衬底
       label: 预处理（有序步骤）
+      key: pretreatment_steps
       meaning: 预处理步骤序列（记顺序，展开参数）
       input: 下拉+其他
       options: 清洗/退火/等离子/亲水化/其他
@@ -592,6 +719,7 @@ experiment_record:
       note: ''
     - module: 衬底
       label: 处理到装炉间隔/暴露环境
+      key: exposure_interval_min
       meaning: 清洗后到装炉的时间与环境
       input: 数值
       options: —
@@ -604,6 +732,7 @@ experiment_record:
       note: 表面老化
     - module: 衬底
       label: 所在温区/距热电偶距离
+      key: zone_distance_mm
       meaning: 第几温区、距离(±)
       input: 下拉+数值
       options: 温区2…
@@ -618,6 +747,8 @@ experiment_record:
     fields:
     - module: 过程步
       label: 阶段类型
+      key: stage_type
+      group: common
       meaning: 这一步在做什么（选后只显示对应参数）
       input: 下拉+其他
       options: 抽气/漏检/吹扫/预处理/升温/温度稳定/反应生长/后退火/降温/放气/卸样
@@ -631,6 +762,8 @@ experiment_record:
       r0: true
     - module: 过程步
       label: 步序/起止时刻
+      key: step_order_time
+      group: common
       meaning: 第几步、起止时间
       input: 数值+时间
       options: —
@@ -643,6 +776,8 @@ experiment_record:
       note: 支持重叠/循环
     - module: 步·温度
       label: 设定温度程序
+      key: temperature_program
+      group: temperature
       meaning: 各温区升温曲线（目标温/速率/保温）
       input: 数组
       options: —
@@ -656,6 +791,8 @@ experiment_record:
       r0: true
     - module: 步·温度
       label: 实测温度
+      key: measured_temperature
+      group: temperature
       meaning: 控温热电偶实测曲线（导入）。注意：不是衬底真温
       input: 数组(时序)
       options: —
@@ -668,6 +805,8 @@ experiment_record:
       note: ★v3：删『估算衬底真温』，只留设定+实测
     - module: 步·温度
       label: 测温设备/不确定度
+      key: temperature_metrology
+      group: temperature
       meaning: 测温点用什么设备、不确定度多少
       input: 引用+数值
       options: 热电偶/高温计；来源：仪器/校准/重复性/估计
@@ -680,6 +819,8 @@ experiment_record:
       note: 测量不确定度
     - module: 步·降温
       label: 降温方式/开盖温度/速率
+      key: cooling_params
+      group: cooling
       meaning: 降温段参数（阶段类型=降温 时）
       input: 下拉+数值
       options: 随炉冷却/开盖冷却/移炉快速冷却；开盖温度；降温速率
@@ -696,6 +837,8 @@ experiment_record:
       note: ★v3.2补回：review文档头部隐变量，勿再漏（Fable评审）
     - module: 步·气体
       label: 气体组分
+      key: gas_species
+      group: gas
       meaning: 每种气体单独一条（混合气拆开）
       input: 下拉(多条)
       options: Ar/N₂/H₂/O₂/CH₄/其他
@@ -709,6 +852,8 @@ experiment_record:
       r0: true
     - module: 步·气体
       label: 纯度/浓度/水氧
+      key: gas_purity_impurities
+      group: gas
       meaning: 纯度、体积比、水氧杂质
       input: 数值
       options: —
@@ -721,6 +866,8 @@ experiment_record:
       note: ''
     - module: 步·气体
       label: 流量/来源
+      key: gas_flow_sccm
+      group: gas
       meaning: 流量、流量计类型
       input: 数值+下拉
       options: MFC/转子
@@ -734,6 +881,8 @@ experiment_record:
       r0: true
     - module: 步·压力
       label: 压力体系/工作压力
+      key: pressure_system
+      group: pressure
       meaning: 常压/低压/超高真空 + 工作压力
       input: 下拉+数值
       options: 常压(APCVD)/低压(LPCVD)/超高真空
@@ -751,6 +900,8 @@ experiment_record:
       r0: true
     - module: 步·压力
       label: 本底压力/漏率
+      key: base_pressure_leak
+      group: pressure
       meaning: 反应前底压、漏率
       input: 数值
       options: —
@@ -763,6 +914,8 @@ experiment_record:
       note: ''
     - module: 过程步
       label: 时长/循环次数
+      key: duration_cycles
+      group: common
       meaning: 本阶段时长、吹扫抽-充次数
       input: 数值
       options: —
@@ -775,6 +928,8 @@ experiment_record:
       note: ''
     - module: 步·外场
       label: 外场参数
+      key: field_params
+      group: external_field
       meaning: 等离子功率/光源（有外场才填，可自填添加）
       input: 数值
       options: 电场强度；光场:中心波长/线宽/功率密度/光斑大小
@@ -793,6 +948,7 @@ experiment_record:
     fields:
     - module: 过程事件
       label: 事件/部位
+      key: event_part
       meaning: 过程中发生的客观事件 + 关联部位（合并）
       input: 下拉+其他
       options: 供电/供水/供气中断·管路堵塞·压力突变·信号异常·人工干预·其他（可加）
@@ -805,6 +961,7 @@ experiment_record:
       note: ★v3：事件类型与关联对象合并为一个下拉
     - module: 过程事件
       label: 发生时刻
+      key: occurred_at
       meaning: 何时发生（记绝对时间）
       input: 时间
       options: —
@@ -817,6 +974,7 @@ experiment_record:
       note: 相对时间可由t0算
     - module: 过程事件
       label: 中止原因
+      key: abort_reason
       meaning: 若中止（只记客观原因，不写成败）
       input: 下拉
       options: 设备报警/人工停止/计划结束
@@ -829,6 +987,7 @@ experiment_record:
       note: ''
     - module: 过程事件
       label: 描述/措施/附件
+      key: description_action
       meaning: 现象、处理、相关文件
       input: 自由+附件
       options: —
@@ -843,6 +1002,7 @@ experiment_record:
     fields:
     - module: 表征
       label: 表征类型/仪器
+      key: method_instrument
       meaning: 表征手段 + 引用仪器
       input: 下拉+其他
       options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
@@ -855,6 +1015,7 @@ experiment_record:
       note: ★v3：长一批表征一批，拆成独立表编号关联
     - module: 表征
       label: 测试条件
+      key: test_conditions
       meaning: 该表征的测试参数
       input: 文本/自由
       options: —
@@ -867,6 +1028,7 @@ experiment_record:
       note: 随仪器导出
     - module: 表征
       label: 原始数据
+      key: raw_data
       meaning: 上传原始文件（留校验和）
       input: 附件
       options: —
@@ -879,6 +1041,7 @@ experiment_record:
       note: ''
     - module: 实测产物
       label: 观察到的现象
+      key: observed_phenomena
       meaning: 光镜可判的客观现象（非成败判断）
       input: 下拉+多选
       options: 无生长/不连续覆盖/厚层区域/可见颗粒沾污/衬底破损/变色/其他
@@ -893,6 +1056,7 @@ experiment_record:
       pending: 待明确清单#5：词表粒度（7项多选 vs 生长/不生长），导师K75点名
     - module: 实测产物
       label: 检出相/多型/堆垛
+      key: detected_phase_stacking
       meaning: 测到的物相/多型/堆垛类型
       input: 文本
       options: —
@@ -907,6 +1071,7 @@ experiment_record:
       pending: 待明确清单#7：堆垛可判粒度→定自由文本还是下拉
     - module: 实测产物
       label: 实测层数/覆盖率
+      key: measured_layers_coverage
       meaning: 实测层数与覆盖率
       input: 数值
       options: —
@@ -919,6 +1084,7 @@ experiment_record:
       note: ''
     - module: 实测产物
       label: 畴尺寸/成核密度/连续性
+      key: domain_nucleation_continuity
       meaning: ''
       input: 数值
       options: —
@@ -931,6 +1097,7 @@ experiment_record:
       note: ''
     - module: 实测产物
       label: 关键谱学指标
+      key: key_spectral_metrics
       meaning: Raman峰位/峰宽/峰面积；PL峰位/峰宽；AFM厚度/粗糙度；SEM覆盖率(视场内材料面积占比,%)/尺寸
       input: 数值
       options: —
@@ -947,6 +1114,7 @@ experiment_record:
     fields:
     - module: PVD
       label: 靶材（批次）
+      key: target_lot_ref
       meaning: 靶材化学身份 + 批次
       input: 引用
       options: 批次库
@@ -966,6 +1134,7 @@ experiment_record:
       note: ''
     - module: PVD
       label: 靶基距
+      key: target_substrate_distance_mm
       meaning: 靶到衬底距离
       input: 数值
       options: —
@@ -979,6 +1148,7 @@ experiment_record:
       note: ''
     - module: PVD
       label: 功率/偏压
+      key: power_bias
       meaning: DC/RF 功率、基底偏压
       input: 数值
       options: DC/RF
@@ -992,6 +1162,7 @@ experiment_record:
       note: ''
     - module: PVD
       label: 等离子气氛/工作气压
+      key: plasma_gas_pressure
       meaning: 溅射气体与气压
       input: 下拉+数值
       options: Ar / Ar+N₂…
@@ -1005,6 +1176,7 @@ experiment_record:
       note: ''
     - module: PVD
       label: 预溅射/挡板时序
+      key: presputter_shutter
       meaning: 预溅射时长、挡板开合时序
       input: 数值
       options: —
@@ -1018,6 +1190,7 @@ experiment_record:
       note: ''
     - module: PVD
       label: 沉积速率
+      key: deposition_rate_nm_s
       meaning: 速率（QCM 等）
       input: 数值
       options: —
@@ -1048,6 +1221,7 @@ entities:
     fields:
     - module: MaterialLot
       label: 批次类别
+      key: lot_category
       meaning: 决定启用哪组子类字段
       input: 下拉
       options: 化学品/衬底/气瓶
@@ -1060,6 +1234,7 @@ entities:
       note: 驱动子类条件字段
     - module: MaterialLot
       label: 版本号
+      key: version
       meaning: 每次修改+1；实验引用时冻结此版本
       input: 数值
       options: —
@@ -1072,6 +1247,7 @@ entities:
       note: 改则新版本，旧引用不受影响
     - module: MaterialLot
       label: 物质名称
+      key: substance_name
       meaning: 化学身份：名称
       input: 文本
       options: —
@@ -1084,6 +1260,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: 化学式
+      key: chemical_formula
       meaning: 化学身份：分子式
       input: 文本
       options: —
@@ -1096,6 +1273,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: CAS号
+      key: cas_number
       meaning: 唯一化学标识
       input: 文本
       options: CAS
@@ -1108,6 +1286,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: InChIKey/PubChem CID
+      key: inchikey_cid
       meaning: 可选唯一标识
       input: 文本
       options: —
@@ -1120,6 +1299,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: 供应商
+      key: supplier
       meaning: 商业批次：厂商
       input: 下拉+其他(可扩展)
       options: 受控+其他
@@ -1132,6 +1312,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: 货号
+      key: catalog_number
       meaning: 商业批次：产品号
       input: 文本
       options: —
@@ -1144,6 +1325,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: 批号
+      key: batch_number
       meaning: 商业批次：生产批号（同名不同批的区分键）
       input: 文本
       options: —
@@ -1156,6 +1338,7 @@ entities:
       note: GMP法定术语『批号』
     - module: MaterialLot
       label: 纯度
+      key: purity
       meaning: 质量分数或N值
       input: 数值
       options: '%或N值'
@@ -1168,6 +1351,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: 粒径(x50/D50)
+      key: particle_size_d50_um
       meaning: 中位径（影响挥发/成核）
       input: 数值
       options: x50严谨；目数可接受
@@ -1180,6 +1364,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: 形态/性状
+      key: form_appearance
       meaning: 试剂外观
       input: 下拉+其他
       options: 粉末/颗粒/块/箔/靶/其他
@@ -1192,6 +1377,7 @@ entities:
       note: 外观=性状
     - module: MaterialLot
       label: 开封日期
+      key: opened_date
       meaning: 影响吸潮/氧化
       input: 日期
       options: —
@@ -1204,6 +1390,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: 存储方式
+      key: storage_method
       meaning: 存放条件
       input: 下拉+其他
       options: 干燥器/手套箱/常温避光/冷藏/其他
@@ -1216,6 +1403,7 @@ entities:
       note: desiccator=干燥器
     - module: MaterialLot
       label: 证书附件(CoA)
+      key: coa_attachment
       meaning: 质检证书
       input: 附件
       options: —
@@ -1228,6 +1416,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: ▸衬底·材料
+      key: substrate_material
       meaning: 子类(批次类别=衬底)
       input: 下拉
       options: SiO₂/Si·蓝宝石·石英·云母·Cu箔·Au箔·h-BN·其他
@@ -1244,6 +1433,7 @@ entities:
       note: 与§4衬底材料词表一致
     - module: MaterialLot
       label: ▸衬底·氧化层厚度
+      key: substrate_oxide_thickness_nm
       meaning: 仅SiO₂/Si
       input: 数值
       options: —
@@ -1260,6 +1450,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: ▸衬底·晶向/抛光
+      key: substrate_orientation_polish
       meaning: 取向与抛光面
       input: 文本+下拉
       options: 晶向；单面抛/双面抛
@@ -1272,6 +1463,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: ▸衬底·尺寸规格
+      key: substrate_size_spec
       meaning: 出厂几何
       input: 文本
       options: 长×宽×厚
@@ -1284,6 +1476,7 @@ entities:
       note: ''
     - module: MaterialLot
       label: ▸气瓶·纯度等级
+      key: gas_purity_grade
       meaning: 子类(批次类别=气瓶)；与base『纯度』分工
       input: 下拉
       options: 6N/5N/4N/工业级/其他
@@ -1300,6 +1493,7 @@ entities:
       note: 分工：base纯度填数值%、此处填等级标签(Fable三轮B4)
     - module: MaterialLot
       label: ▸气瓶·气瓶编号
+      key: gas_cylinder_number
       meaning: 钢瓶追溯号
       input: 文本
       options: —
@@ -1314,6 +1508,7 @@ entities:
     fields:
     - module: 装置Setup
       label: 装置编号
+      key: setup_code
       meaning: 唯一编号
       input: 文本
       options: —
@@ -1326,6 +1521,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 装置名称
+      key: setup_name
       meaning: 人读名
       input: 文本
       options: —
@@ -1338,6 +1534,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 版本号
+      key: version
       meaning: 每次修改+1；引用时冻结此版本
       input: 数值
       options: —
@@ -1350,6 +1547,7 @@ entities:
       note: 对标 v1 setup_version_snapshot
     - module: 装置Setup
       label: 品牌/型号
+      key: brand_model
       meaning: 设备品牌型号
       input: 下拉+其他
       options: 受控+其他
@@ -1362,6 +1560,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 壁型
+      key: wall_type
       meaning: 热壁/冷壁
       input: 下拉
       options: 热壁/冷壁
@@ -1374,6 +1573,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 温区数
+      key: zone_count
       meaning: 独立控温区数
       input: 数值
       options: —
@@ -1386,6 +1586,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 炉体方向
+      key: orientation
       meaning: 水平/垂直
       input: 下拉
       options: 水平/垂直
@@ -1398,6 +1599,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 管材质/形状
+      key: tube_material_shape
       meaning: 炉管材料与截面
       input: 下拉+其他
       options: 石英/刚玉；圆/方/矩
@@ -1410,6 +1612,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 管外径/壁厚(→内径)
+      key: tube_od_wall_mm
       meaning: 管规格
       input: 下拉+数值
       options: 1″/2″/4″/自定义 + 壁厚
@@ -1422,6 +1625,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 加热区长度
+      key: heated_zone_length_mm
       meaning: 恒温区长度（影响停留/温场）
       input: 数值
       options: —
@@ -1434,6 +1638,7 @@ entities:
       note: v3曾漏，Fable点名
     - module: 装置Setup
       label: 坐标系定义
+      key: coordinate_system
       meaning: 原点固定、上游负/下游正（随引用冻结）
       input: 固定定义
       options: 原点+轴向
@@ -1446,6 +1651,7 @@ entities:
       note: 全局定死，防选反
     - module: 装置Setup
       label: 泵型号/极限压力
+      key: pump_model_base_pressure
       meaning: 真空能力
       input: 文本+数值
       options: —
@@ -1458,6 +1664,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: MFC配置
+      key: mfc_config
       meaning: 各通道气体/量程/校准日期
       input: 数组
       options: 通道/气体/量程(sccm)/校准日期
@@ -1470,6 +1677,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 仪器PID
+      key: instrument_pid
       meaning: 持久标识（预留）
       input: 文本
       options: PIDINST/PID
@@ -1482,6 +1690,7 @@ entities:
       note: ''
     - module: 装置Setup
       label: 外场装置
+      key: field_devices
       meaning: 是否配光/电/等离子源
       input: 多选+描述
       options: 无/光/电/等离子
@@ -1494,6 +1703,7 @@ entities:
       note: 定量参数在实验§5
     - module: 装置Setup
       label: 装置示意图/描述
+      key: setup_diagram
       meaning: 照片/示意图+文字
       input: 附件+自由
       options: —
@@ -1508,6 +1718,7 @@ entities:
     fields:
     - module: 表征仪器
       label: 仪器编号
+      key: instrument_code
       meaning: 唯一编号
       input: 文本
       options: —
@@ -1520,6 +1731,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: 仪器名称/类型
+      key: name_type
       meaning: 手段类型
       input: 下拉+其他
       options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
@@ -1532,6 +1744,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: 厂商(vendor)
+      key: vendor
       meaning: 品牌
       input: 文本
       options: —
@@ -1544,6 +1757,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: 型号(model)
+      key: model
       meaning: 型号
       input: 文本
       options: —
@@ -1556,6 +1770,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: 序列号(serial)
+      key: serial_number
       meaning: 设备序列号
       input: 文本
       options: —
@@ -1568,6 +1783,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: PID(持久标识)
+      key: pid
       meaning: 仪器持久标识（预留）
       input: 文本
       options: —
@@ -1580,6 +1796,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: 所在实验室/位置
+      key: location
       meaning: 物理位置
       input: 文本
       options: —
@@ -1592,6 +1809,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: 关键固定配置
+      key: fixed_config
       meaning: 随仪器固定的参数（可变测试条件在实验§7填）
       input: 自由
       options: 如激光波长/物镜/探测器
@@ -1604,6 +1822,7 @@ entities:
       note: ''
     - module: 表征仪器
       label: 最近校准/维护
+      key: last_calibration
       meaning: 校准/维护日期
       input: 日期
       options: —

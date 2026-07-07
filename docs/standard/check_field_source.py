@@ -56,7 +56,17 @@ if n_entity != EXPECTED_ENTITY_FIELDS:
 if n_r0 != EXPECTED_R0:
     err(f"R0 标记数 {n_r0} ≠ 预期 {EXPECTED_R0}（R0 集合改动须导师/组会确认，见实现方案 §5）")
 
-for part in ("experiment_record", "entities"):
+import re
+
+KEY_RE = re.compile(r"^[a-z][a-zA-Z0-9_]*$")  # 单位后缀允许大写（_C 等，沿 v1 风格）
+modules_map = doc.get("modules", {})
+entity_keys = doc.get("entity_keys", {})
+stage_types = doc.get("stage_types", {})
+group_names = set((stage_types.get("groups") or {}).keys())
+
+seen_keys: dict[str, set] = {}
+for part, scope_of in (("experiment_record", lambda f: modules_map.get(f["module"])),
+                       ("entities", lambda f: entity_keys.get(f["module"]))):
     for f in iter_fields(part):
         where = f"{f['module']}/{f['label']}"
         req = f.get("requirement") or {}
@@ -69,6 +79,33 @@ for part in ("experiment_record", "entities"):
             err(f"{where}: condition 缺少 field/op/value")
         if f.get("status") == "pending-alignment" and not f.get("pending"):
             err(f"{where}: pending-alignment 缺少 pending 说明")
+        # D10: 机器字段键——必有、合法、模块/实体内唯一
+        scope = scope_of(f)
+        if scope is None:
+            err(f"{where}: 模块 {f['module']!r} 未在 modules/entity_keys 映射中登记")
+        key = f.get("key")
+        if not key or not KEY_RE.match(str(key)):
+            err(f"{where}: key 缺失或不合法: {key!r}")
+        elif scope:
+            if key in seen_keys.setdefault(scope, set()):
+                err(f"{where}: key {key!r} 在 {scope} 内重复")
+            seen_keys[scope].add(key)
+        # D11: §5 字段必须有参数组
+        if part == "experiment_record" and scope == "process_steps":
+            if f.get("group") not in group_names:
+                err(f"{where}: process_steps 字段缺少合法 group（现值 {f.get('group')!r}）")
+
+# D11: stage_types 自洽——shows ⊆ 组名；required_extra ⊆ §5 字段键
+ps_keys = {f["key"] for f in iter_fields("experiment_record") if modules_map.get(f["module"]) == "process_steps"}
+for t in stage_types.get("types", []):
+    bad = set(t.get("shows", [])) - group_names
+    if bad:
+        err(f"stage_types[{t.get('name')}]: 未知参数组 {sorted(bad)}")
+    bad = set(t.get("required_extra", [])) - ps_keys
+    if bad:
+        err(f"stage_types[{t.get('name')}]: required_extra 引用不存在的字段键 {sorted(bad)}")
+if not stage_types.get("types"):
+    err("缺少 stage_types.types（§5 动态表单权威映射，D11）")
 
 # ---- 2. xlsx 逐格一致 ----
 if not os.path.exists(COMMITTED):

@@ -40,6 +40,9 @@
 | D6 | **前端** | 只保留 `frontend-next`；模块区块**手写**，但 label/单位/选项/必填显隐从生成的字段元数据模块取（替代手维护 `editor-types.ts` 的字段清单部分）；加"前端字段键 ⊆ schema"漂移测试 | 不引入表单自动生成框架；§7 相关 UI 排在 P1.5 冻结之后 |
 | D7 | **CI 门禁** | GitHub Actions：backend（ruff + pytest）、frontend（tsc + eslint + vitest）、regen-drift（重跑生成器 git diff 必须为空）。先修 eslint 配置与断裂的 `test_t5_5` | CI 红不准进下一阶段；不准 skip 测试换进度 |
 | D8 | **兼容承诺** | 三种导出形状与导入 profile 在 v2 给出等价版本；消费端字段改名须出对照说明 | 悄悄改导出列名/结构 = 跑偏 |
+| D9 | **v1/v2 表复用策略** | v2 **复用** `experiment_runs`/`experiment_module_payloads`/`samples` 等 v1 表（`schema_version='cvd_v2'` 区分行），继承审计/版本/文件外键机制；实体三件套与 §7 两张表为**新表**。"不碰 v1 表"精确化为：**只允许加可空列和新表，禁止改语义、删列、改 v1 行为** | 另起一套平行实验表 = 跑偏；给 v1 列改语义 = 跑偏 |
+| D10 | **机器字段键 = 契约** | 每字段带 `key`（snake_case + 单位后缀，沿 v1 风格 `_C/_mm/_sccm`…），是 API/payload/生成代码的对接键；**冻结后改 key 视同改字段**，走 §5 流程；v1→v2 对应**不靠同名**，统一落 P5 mapping YAML | 代码里出现 YAML 之外的字段名 = 跑偏；改 key 不登记 = 跑偏 |
+| D11 | **动态表单映射与词表存储** | §5"阶段类型→参数组"映射 = YAML `stage_types` 节（数据非代码），P3 union 与 P4 显隐都从它生成；v2 词表**复用 `ControlledVocabulary` 表**由 YAML 种子写入，**不用 DB enum** | 在代码里散写"某阶段显示某字段" = 跑偏；新建 DB enum = 跑偏 |
 
 ## 4. 阶段计划与验收门（P0→P6 顺序执行，门不绿不进下一阶段）
 
@@ -72,7 +75,7 @@
 3. `cvd_v2` 模块键锚定（默认命名，微调需登记）：`basic_info / target_product / equipment / precursors / substrates / process_steps / process_events / pvd`；§7 → `characterization_records` + `measured_products` 独立表，FK→`samples`
 4. "结果缺失"合规支撑：run 终态派生状态位（机制 P2 定，语义按标准 §7/§10）
 5. **生成器③**：`app/commands/seed_from_field_source.py`（读 YAML 幂等写字段字典/词表）
-6. Alembic 结构 migration（只增、不碰 v1 表、不嵌种子）
+6. Alembic 结构 migration（按 D9：新表 + 仅加可空列、语义不变；不嵌种子）
 - ✅ 验收：空库 `migrate + seed` 一键起 · seed 跑两遍幂等 · 模型/迁移测试绿
 
 ### P3 API + 校验（3–5 天）
@@ -132,6 +135,7 @@
 ## 7. 决策变更记录（按 §3 要求，改 D1–D8 须在此登记）
 
 - **2026-07-08 · D1 五路生成器分期落地**：P1 实际交付 = `field-source.yaml`（含条件表达式/R0/pending 标记）+ ④xlsx 渲染器（`build_field_tables.py` 改造完成）+ 逐格一致性校验（`check_field_source.py`，进 CI）。①Pydantic、②JSON Schema、③字典种子、⑤前端 TS 元数据的生成器**推迟到各自消费阶段**（③→P2、①②→P3、⑤→P4）落地——先于消费者产出的生成模板必然返工。词表结构化（options 拆受控列表）同步推迟到 P3 与 Pydantic 词表校验联动。D1 红线不变：字段改动只走 YAML。
+- **2026-07-08 · 四个架构空白补定（D9–D11，用户委托"按最优方案定"）**：① D9 表复用策略（复用 v1 头表/payload/samples，additive-only 规则）；② D10 机器字段键——`field-source.yaml` 全部 123 字段已补 `key`（77 实验 + 46 实体，v1 命名风格），`check_field_source.py` 强制"必有/合法/域内唯一"；③ D11 `stage_types` 节落 YAML（11 个阶段类型 × 6 参数组的显隐映射 + `required_extra`，护栏校验自洽性），初版由标准 §5 语义推导、实操不符时改 YAML 即可；④ D11 词表存储=复用 `ControlledVocabulary`、无 DB enum。
 - **2026-07-08 · 计划定稿 v1.1（P1 完成后全盘细化）**：新增 §4b 阶段工作分解与验收清单；P1.5 验收门补 **push + 云端 CI 首绿**；P5 补**硬性备份前置门**（生产库 pg_dump + 文件卷 + 恢复演练 + 回滚预案）；锚定 P2 默认命名（实体三件套 `*_versions` 不可变版本行、`cvd_v2` 八个模块键、§7 两张独立表）与三条命令名（`seed_from_field_source` / `check-r0` / `migrate_v1_to_v2`）；新增**预授权例外**（P1.5 拖延 >2 天时 P2 可先行，§7 与冻结仪式除外）；附目标周历（4 周，可顺延不可乱序）。
 
 ## 8. 风险与对策
