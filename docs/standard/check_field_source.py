@@ -86,6 +86,9 @@ for part, scope_of in (("experiment_record", lambda f: modules_map.get(f["module
         key = f.get("key")
         if not key or not KEY_RE.match(str(key)):
             err(f"{where}: key 缺失或不合法: {key!r}")
+        # D12: 字段层双语——英文名全量必填
+        if not str(f.get("label_en") or "").strip():
+            err(f"{where}: 缺少 label_en（国际化 D12 要求全量双语）")
         elif scope:
             if key in seen_keys.setdefault(scope, set()):
                 err(f"{where}: key {key!r} 在 {scope} 内重复")
