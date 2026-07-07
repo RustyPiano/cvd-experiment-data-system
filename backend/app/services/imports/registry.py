@@ -2,8 +2,7 @@ from app.services.imports.base import ImportProfile
 from app.services.imports.cvd_process_package import CvdProcessPackageProfile
 
 _PROFILES: dict[str, ImportProfile] = {
-    profile.key: profile
-    for profile in (CvdProcessPackageProfile(),)
+    profile.key: profile for profile in (CvdProcessPackageProfile(),)
 }
 
 

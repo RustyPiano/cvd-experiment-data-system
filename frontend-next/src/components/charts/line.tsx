@@ -6,18 +6,13 @@ import { LinePath } from '@visx/shape'
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import { chartCssVars, useChartStable, useYScale } from './chart-context'
 import {
-  
   fadeGradientStops,
   resolveFadeSides,
-  viewportFadeGradientAttrs
+  viewportFadeGradientAttrs,
 } from './fade-edges'
-import type {FadeEdges} from './fade-edges';
-import {
-  
-  LineLoadingPulseStroke,
-  resolveLineLoadingPulseMode
-} from './line-loading-pulse'
-import type {LineLoadingPulseMode} from './line-loading-pulse';
+import type { FadeEdges } from './fade-edges'
+import { LineLoadingPulseStroke, resolveLineLoadingPulseMode } from './line-loading-pulse'
+import type { LineLoadingPulseMode } from './line-loading-pulse'
 import { LINE_LOADING_LOOP_PAUSE_MS } from './line-loading-timing'
 import {
   resolveDashTailBounds,
@@ -29,9 +24,7 @@ import { SeriesHoverDim } from './series-hover-dim'
 import { SeriesMarkers } from './series-markers'
 import type { SeriesPointMarkerStyle } from './series-point-marker'
 
-// CurveFactory type - simplified version compatible with visx
-// biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
-type CurveFactory = any
+type CurveFactory = typeof curveNatural
 
 export interface LineProps {
   /** Key in data to use for y values */

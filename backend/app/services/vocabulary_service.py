@@ -209,15 +209,13 @@ class VocabularyService:
                 detail="ordered_ids contains duplicate entries",
             )
         all_ids = {
-            entry.id
-            for entry in self.vocabularies.list_entries(vocab_key=payload.vocab_key)
+            entry.id for entry in self.vocabularies.list_entries(vocab_key=payload.vocab_key)
         }
         if set(payload.ordered_ids) != all_ids:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
-                    "ordered_ids must cover exactly all entries of "
-                    f"vocab_key '{payload.vocab_key}'"
+                    f"ordered_ids must cover exactly all entries of vocab_key '{payload.vocab_key}'"
                 ),
             )
 
@@ -235,9 +233,7 @@ class VocabularyService:
                 after_json=self._serialize_vocabulary(entry),
             )
         self.db.commit()
-        return self.list_admin_vocabularies(
-            current_user=current_user, vocab_key=payload.vocab_key
-        )
+        return self.list_admin_vocabularies(current_user=current_user, vocab_key=payload.vocab_key)
 
     def upsert_group(
         self,
@@ -252,9 +248,7 @@ class VocabularyService:
         # 受影响成员 = 该分组既有成员 ∪ 本次指定成员（去重）。
         affected: dict[UUID, ControlledVocabulary] = {
             entry.id: entry
-            for entry in self.vocabularies.list_by_group(
-                payload.vocab_key, payload.group_key
-            )
+            for entry in self.vocabularies.list_by_group(payload.vocab_key, payload.group_key)
         }
         affected.update(requested)
 
@@ -274,9 +268,7 @@ class VocabularyService:
                 after_json=self._serialize_vocabulary(entry),
             )
         self.db.commit()
-        return self.list_admin_vocabularies(
-            current_user=current_user, vocab_key=payload.vocab_key
-        )
+        return self.list_admin_vocabularies(current_user=current_user, vocab_key=payload.vocab_key)
 
     def _load_owned_entries(
         self,

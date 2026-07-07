@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    env:
+      APP_NAME: CVD Backend
+      APP_ENV: test
+      APP_DEBUG: "false"
+      APP_HOST: 127.0.0.1
+      APP_PORT: "8000"
+      DATABASE_URL: sqlite+pysqlite:///${{ runner.temp }}/cvd-backend.sqlite3
+      FILE_STORAGE_ROOT: ${{ runner.temp }}/cvd-backend-storage
+      JWT_SECRET_KEY: test-secret-key
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        working-directory: backend
+        run: uv run ruff format --check .
+
+      - name: Pytest
+        working-directory: backend
+        run: uv run pytest
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: frontend-next
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: frontend-next
+        run: bun run typecheck
+
+      - name: ESLint
+        working-directory: frontend-next
+        run: bun run lint
+
+      - name: Vitest
+        working-directory: frontend-next
+        run: bun run test
+
+  generated-artifacts:
+    name: Generated artifacts
+    runs-on: ubuntu-latest
+    env:
+      APP_NAME: CVD Backend
+      APP_ENV: test
+      APP_DEBUG: "false"
+      APP_HOST: 127.0.0.1
+      APP_PORT: "8000"
+      DATABASE_URL: sqlite+pysqlite:///${{ runner.temp }}/cvd-generated.sqlite3
+      FILE_STORAGE_ROOT: ${{ runner.temp }}/cvd-generated-storage
+      JWT_SECRET_KEY: test-secret-key
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Migrate SQLite database
+        working-directory: backend
+        run: uv run alembic upgrade head
+
+      - name: Regenerate committed spec artifacts
+        working-directory: backend
+        run: uv run python -m app.commands.generate_spec
+
+      - name: Check generated artifact drift
+        run: git diff --exit-code -- docs/standard/generated

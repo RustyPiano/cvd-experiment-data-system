@@ -229,9 +229,7 @@ def test_list_experiments_includes_owner_name(active_user) -> None:
         headers=auth_headers(active_user.email),
     )
     assert list_response.status_code == 200
-    item = next(
-        i for i in list_response.json()["items"] if i["id"] == created.json()["id"]
-    )
+    item = next(i for i in list_response.json()["items"] if i["id"] == created.json()["id"])
     assert item["owner_name"] == active_user.name
 
 

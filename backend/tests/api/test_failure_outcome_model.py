@@ -153,18 +153,12 @@ def test_t2_3_failed_experiment_can_be_submitted_and_persisted(active_user) -> N
     experiment_id = _create_experiment(email)
     _populate_required_modules(experiment_id, email)
     _set_failed_result_summary(experiment_id, email)
-    create_confirmed_setup_methods(
-        client, experiment_id=experiment_id, headers=auth_headers(email)
-    )
+    create_confirmed_setup_methods(client, experiment_id=experiment_id, headers=auth_headers(email))
 
-    submit = client.post(
-        f"/api/v1/experiments/{experiment_id}/submit", headers=auth_headers(email)
-    )
+    submit = client.post(f"/api/v1/experiments/{experiment_id}/submit", headers=auth_headers(email))
     assert submit.status_code == 200
 
-    detail = client.get(
-        f"/api/v1/experiments/{experiment_id}", headers=auth_headers(email)
-    )
+    detail = client.get(f"/api/v1/experiments/{experiment_id}", headers=auth_headers(email))
     assert detail.status_code == 200
     assert detail.json()["quality_label"] == "failed"
 

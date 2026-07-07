@@ -43,9 +43,7 @@ def build_process_package_bytes() -> bytes:
         "Ar_end_flow",
     ]
     worksheet.append(headers)
-    worksheet.append(
-        [1, "S", "Na2MoO4", 6, 1, "SiO2", 25, 2, 180, 8, 25, 8, 1, 30, 20, 0]
-    )
+    worksheet.append([1, "S", "Na2MoO4", 6, 1, "SiO2", 25, 2, 180, 8, 25, 8, 1, 30, 20, 0])
     buffer = BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
@@ -107,8 +105,7 @@ def test_preview_then_commit_creates_draft_experiments(active_user) -> None:
     )
     assert modules_response.status_code == 200
     modules = {
-        item["module_key"]: item["payload_json"]
-        for item in modules_response.json()["items"]
+        item["module_key"]: item["payload_json"] for item in modules_response.json()["items"]
     }
     assert [item["species"] for item in modules["precursors"]["items"]] == [
         "S",

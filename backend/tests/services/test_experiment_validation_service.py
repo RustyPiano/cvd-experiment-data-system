@@ -276,9 +276,7 @@ def test_setup_methods_missing_blocks_validation(active_user, db_session) -> Non
     result = ExperimentValidationService(db_session).validate_experiment(experiment)
 
     assert any(
-        issue.module_key == "setup_methods"
-        and issue.field_path == "root"
-        and issue.message
+        issue.module_key == "setup_methods" and issue.field_path == "root" and issue.message
         for issue in result.errors
     )
 

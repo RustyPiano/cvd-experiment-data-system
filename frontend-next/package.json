@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint",
+    "lint": "eslint --max-warnings=0",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
     "gen:api": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/shared/types/openapi.d.ts"
@@ -60,7 +60,6 @@
     "@tanstack/devtools-vite": "latest",
     "@tanstack/eslint-config": "latest",
     "@tanstack/router-cli": "^1.132.0",
-    "@tanstack/router-plugin": "latest",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

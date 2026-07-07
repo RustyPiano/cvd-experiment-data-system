@@ -81,6 +81,7 @@ def _declared_field_names(module_key: str) -> set[str]:
         names.update(model.model_fields.keys())
     return names
 
+
 # ---------------------------------------------------------------------------
 # 显式例外白名单（自带文档性）。
 # ---------------------------------------------------------------------------
@@ -101,17 +102,13 @@ SELECT_FIELDS_WITHOUT_VOCAB: frozenset[tuple[str, str]] = frozenset(
 
 def _active_field_definitions(db_session) -> list[FieldDefinition]:
     return list(
-        db_session.scalars(
-            select(FieldDefinition).where(FieldDefinition.is_active.is_(True))
-        ).all()
+        db_session.scalars(select(FieldDefinition).where(FieldDefinition.is_active.is_(True))).all()
     )
 
 
 def _active_vocab_keys(db_session) -> set[str]:
     rows = db_session.scalars(
-        select(ControlledVocabulary.vocab_key).where(
-            ControlledVocabulary.is_active.is_(True)
-        )
+        select(ControlledVocabulary.vocab_key).where(ControlledVocabulary.is_active.is_(True))
     ).all()
     return set(rows)
 
@@ -126,8 +123,7 @@ def test_t1_1_field_definition_vocab_keys_have_no_dangling_reference(db_session)
             dangling.append((field.module_key, field.field_key, field.vocab_key))
 
     assert not dangling, (
-        "存在指向空词表的字段定义 (module_key, field_key, vocab_key)："
-        f"{sorted(dangling)}"
+        f"存在指向空词表的字段定义 (module_key, field_key, vocab_key)：{sorted(dangling)}"
     )
 
 
@@ -210,8 +206,7 @@ def test_t1_5_group_labels_are_consistent_within_a_vocabulary(db_session) -> Non
 def test_t1_4_flat_module_fields_all_have_a_definition(db_session) -> None:
     """T1.4 扁平模块里每个 Pydantic 声明字段都有对应 FieldDefinition（规范层完整）。"""
     defined: set[tuple[str, str]] = {
-        (field.module_key, field.field_key)
-        for field in _active_field_definitions(db_session)
+        (field.module_key, field.field_key) for field in _active_field_definitions(db_session)
     }
 
     missing: list[tuple[str, str]] = []
@@ -220,7 +215,4 @@ def test_t1_4_flat_module_fields_all_have_a_definition(db_session) -> None:
             if (module_key, field_name) not in defined:
                 missing.append((module_key, field_name))
 
-    assert not missing, (
-        "扁平模块存在未登记进字段字典的字段（规范层缺失）："
-        f"{sorted(missing)}"
-    )
+    assert not missing, f"扁平模块存在未登记进字段字典的字段（规范层缺失）：{sorted(missing)}"

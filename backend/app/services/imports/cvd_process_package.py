@@ -292,7 +292,5 @@ class CvdProcessPackageProfile(ImportProfile):
 
         warnings: list[str] = []
         if any_time_cells:
-            warnings.append(
-                "气体时间单元格按 时:分:秒 折算为分钟，流量与时间请在确认时核对。"
-            )
+            warnings.append("气体时间单元格按 时:分:秒 折算为分钟，流量与时间请在确认时核对。")
         return {"pre_washing_gas": None, "segments": segments}, warnings

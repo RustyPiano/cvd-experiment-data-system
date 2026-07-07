@@ -282,11 +282,7 @@ def test_user_add_brand_value_is_idempotent(active_user) -> None:
         "/api/v1/vocabularies?vocab_key=substrate_brand",
         headers=auth_headers(active_user.email),
     )
-    matches = [
-        item
-        for item in list_response.json()["items"]
-        if item["value"] == "重复品牌"
-    ]
+    matches = [item for item in list_response.json()["items"] if item["value"] == "重复品牌"]
     assert len(matches) == 1
 
 

@@ -24,9 +24,7 @@ from app.services.spec_export_service import (
 
 def _active_field_count(db_session) -> int:
     return db_session.scalar(
-        select(func.count())
-        .select_from(FieldDefinition)
-        .where(FieldDefinition.is_active.is_(True))
+        select(func.count()).select_from(FieldDefinition).where(FieldDefinition.is_active.is_(True))
     )
 
 
@@ -79,9 +77,7 @@ def test_t5_4_module_schema_is_self_contained_and_validates_nested(db_session) -
     assert "$id" in substrates
 
     validator = Draft202012Validator(substrates)
-    good = {
-        "items": [{"type": "硅片", "treatment_params": {"temperature_C": 300.0}}]
-    }
+    good = {"items": [{"type": "硅片", "treatment_params": {"temperature_C": 300.0}}]}
     assert validator.is_valid(good)
     # 嵌套数值字段填字符串 → JSON Schema 应判失败（证明 $ref 正确解析到嵌套子模型）。
     bad = {"items": [{"treatment_params": {"temperature_C": "hot"}}]}
@@ -108,20 +104,14 @@ def test_t5_4_field_dictionary_keys_match_pydantic_leaf_names(db_session) -> Non
     # substrates 的 temperature_C 确实是 JSON Schema 中嵌套子模型的属性。
     schema = service.build_json_schema()
     defs = schema["modules"]["substrates"].get("$defs", {})
-    treatment_props = (
-        defs.get("SubstrateTreatmentParamsPayload", {}).get("properties", {})
-    )
+    treatment_props = defs.get("SubstrateTreatmentParamsPayload", {}).get("properties", {})
     assert "temperature_C" in treatment_props
 
 
-def test_t5_5_committed_artifacts_match_regeneration(
-    db_session, tmp_path: Path
-) -> None:
+def test_t5_5_committed_artifacts_match_regeneration(db_session, tmp_path: Path) -> None:
     """提交在仓库里的产物必须与当前代码/seed 重新生成的一致，否则属漂移须重新发布。"""
     paths = SpecExportService(db_session).generate(tmp_path)
-    committed_dir = (
-        Path(__file__).resolve().parents[3] / "docs" / "standard" / "generated"
-    )
+    committed_dir = Path(__file__).resolve().parents[3] / "docs" / "standard" / "generated"
     filenames = {
         "json_schema": "cvd-2d-process.schema.json",
         "field_dictionary_json": "cvd-2d-field-dictionary.json",
@@ -146,9 +136,7 @@ def test_t5_3_generate_writes_versioned_artifacts(db_session, tmp_path: Path) ->
 
     schema_doc = json.loads(Path(paths["json_schema"]).read_text(encoding="utf-8"))
     assert schema_doc["version"] == STANDARD_VERSION
-    dictionary_doc = json.loads(
-        Path(paths["field_dictionary_json"]).read_text(encoding="utf-8")
-    )
+    dictionary_doc = json.loads(Path(paths["field_dictionary_json"]).read_text(encoding="utf-8"))
     assert dictionary_doc["version"] == STANDARD_VERSION
     # 人读 Markdown 含标准号标题。
     markdown = Path(paths["field_dictionary_md"]).read_text(encoding="utf-8")

@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { useAuth } from '@/features/auth/use-auth'
-import { AuthenticatedImage } from '@/shared/ui/authenticated-image'
-import type { FileAssetRead, SetupLibraryRead } from '@/shared/types/api'
+import { resolveErrorMessage } from '@/shared/api/http-error'
 import { triggerBlobDownload } from '@/shared/lib/download'
-import type { SetupMethodsValues } from '../editor-types'
-import { downloadExperimentFile } from '../api'
+import type { FileAssetRead, SetupLibraryRead } from '@/shared/types/api'
+import { AuthenticatedImage } from '@/shared/ui/authenticated-image'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -25,6 +25,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { downloadExperimentFile } from '../api'
+import type { SetupMethodsValues } from '../editor-types'
 
 function DefinitionList({ children }: { children: ReactNode }) {
   return (
@@ -131,7 +133,7 @@ export function SetupMethodsSection({
       const payload = await downloadExperimentFile(session.accessToken, file.id)
       triggerBlobDownload(payload.blob, payload.filename || file.original_name)
     } catch (error) {
-      console.error('Failed to download diagram', error)
+      toast.error(resolveErrorMessage(error, '示意图下载失败'))
     } finally {
       setDownloadingDiagram(false)
     }

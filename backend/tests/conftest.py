@@ -159,4 +159,3 @@ def admin_user(db_session):
     db_session.commit()
     db_session.refresh(user)
     return user
-

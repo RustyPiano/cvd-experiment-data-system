@@ -132,9 +132,7 @@ LEGACY_FIELDS: list[dict[str, object]] = [
 
 
 def _table() -> sa.Table:
-    payload_type = sa.JSON().with_variant(
-        postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-    )
+    payload_type = sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql")
     return sa.table(
         "experiment_field_definitions",
         sa.column("id", sa.Uuid()),

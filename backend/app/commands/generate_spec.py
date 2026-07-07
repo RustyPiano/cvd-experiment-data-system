@@ -17,9 +17,7 @@ from app.db.session import SessionLocal
 from app.services.spec_export_service import SpecExportService
 
 # backend/app/commands/generate_spec.py -> 仓库根 / docs / standard / generated
-DEFAULT_OUTPUT_DIR = (
-    Path(__file__).resolve().parents[3] / "docs" / "standard" / "generated"
-)
+DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[3] / "docs" / "standard" / "generated"
 
 
 def build_parser() -> argparse.ArgumentParser:

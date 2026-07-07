@@ -111,9 +111,7 @@ class SpecExportService:
         # 模块顺序优先沿用 module_payload 的声明顺序，其余追加在后。
         ordered_keys = [key for key in MODULE_PAYLOAD_MODELS if key in grouped]
         ordered_keys += [key for key in grouped if key not in MODULE_PAYLOAD_MODELS]
-        modules = [
-            {"module_key": key, "fields": grouped[key]} for key in ordered_keys
-        ]
+        modules = [{"module_key": key, "fields": grouped[key]} for key in ordered_keys]
 
         return {
             "standard_id": STANDARD_ID,
@@ -129,9 +127,7 @@ class SpecExportService:
         cache: dict[str, list[dict[str, Any]]],
     ) -> list[dict[str, Any]]:
         if vocab_key not in cache:
-            entries = self.vocabularies.list_entries(
-                vocab_key=vocab_key, active_only=True
-            )
+            entries = self.vocabularies.list_entries(vocab_key=vocab_key, active_only=True)
             cache[vocab_key] = [
                 {
                     "value": entry.value,
@@ -168,8 +164,7 @@ class SpecExportService:
             lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
             for field in module["fields"]:
                 allowed = "、".join(
-                    self._md_cell(option["value"])
-                    for option in field["allowed_values"]
+                    self._md_cell(option["value"]) for option in field["allowed_values"]
                 )
                 lines.append(
                     f"| `{self._md_cell(field['field_key'])}` "
