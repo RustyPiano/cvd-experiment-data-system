@@ -72,6 +72,22 @@ jobs:
         working-directory: frontend-next
         run: bun run test
 
+  field-source:
+    name: Field source (v2 单一源)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install openpyxl pyyaml
+
+      - name: Check field-source consistency (YAML ↔ xlsx 逐格一致)
+        run: python3 docs/standard/check_field_source.py
+
   generated-artifacts:
     name: Generated artifacts
     runs-on: ubuntu-latest

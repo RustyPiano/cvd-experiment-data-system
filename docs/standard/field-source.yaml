@@ -1,0 +1,1845 @@
+# ============================================================================
+# CVD-2D 元数据标准 v2.0 —— 字段【单一权威源】(实现方案 D1)
+# 改字段只改这里；生成: python3 docs/standard/build_field_tables.py
+# 校验: python3 docs/standard/check_field_source.py（CI 强制）
+# ============================================================================
+meta:
+  name: CVD-2D 工艺数据标准 · 字段单一源
+  version: v3.4
+  status: DRAFT
+  updated: '2026-07-08'
+  authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
+  edit_howto: 改字段=改本文件 → python3 docs/standard/build_field_tables.py 重新生成 xlsx → python3 docs/standard/check_field_source.py 校验。
+experiment_record:
+  headers:
+  - 模块
+  - 字段
+  - 含义/为什么记
+  - 填写方式
+  - 可选项/格式
+  - 单位
+  - 必填
+  - 填写示例
+  - 来源
+  - 备注
+  sections:
+  - title: §1 基本信息（这次实验是谁、什么时候、在什么环境做的）
+    fields:
+    - module: 基本信息
+      label: 实验时间
+      meaning: 实验开始的日期与具体时刻；整条记录及所有时序数据的时间基准(t0)
+      input: 日期时间
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 2026-06-20 09:30
+      source: 会议
+      note: 时刻不能只到天
+      r0: true
+    - module: 基本信息
+      label: 合成方法
+      meaning: 本次用的气相沉积方法；顶层选择器，决定是否启用§8 PVD模块
+      input: 下拉+其他
+      options: CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD/其他
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 常压CVD(APCVD)
+      source: v3新增
+      note: ★v3新增；可挂CHMO本体ID
+      r0: true
+    - module: 基本信息
+      label: 实验人
+      meaning: 操作者
+      input: 下拉+其他
+      options: 课题组成员
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 李俊杰
+      source: 会议
+      note: ''
+      r0: true
+    - module: 基本信息
+      label: 样品/实验编号
+      meaning: 本条记录的唯一编号
+      input: 文本
+      options: 建议含日期
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: CVD-20260620-03
+      source: 建议
+      note: ''
+      r0: true
+    - module: 基本信息
+      label: 环境温度
+      meaning: 实验间环境温度
+      input: 数值
+      options: —
+      unit: ℃
+      requirement:
+        raw: 选填
+        level: optional
+      example: '25'
+      source: 会议
+      note: ''
+    - module: 基本信息
+      label: 环境湿度
+      meaning: 实验间相对湿度（影响生长时较重要）
+      input: 数值
+      options: —
+      unit: '%RH'
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: '45'
+      source: 会议
+      note: ★v3：选填→推荐（湿度隐变量）
+    - module: 基本信息
+      label: 悬浮粒子浓度
+      meaning: 环境洁净度，用粒子数替代主观『干净』
+      input: 数值
+      options: —
+      unit: 个/m³
+      requirement:
+        raw: 选填
+        level: optional
+      example: —
+      source: 会议
+      note: 暂无设备，先占位
+    - module: 基本信息
+      label: 实验前预检查
+      meaning: 开始前的检查提醒（漏率/气路/水路）
+      input: 提示
+      options: —
+      unit: —
+      requirement:
+        raw: —
+        level: none
+      example: （勾选确认）
+      source: 会议
+      note: 只是提醒，不存数据
+  - title: §1b 目标产物（你想做出什么——按你关心的维度选填，不强制全填，每项可选『其他』）
+    fields:
+    - module: 目标产物
+      label: 化学体系/化学式
+      meaning: 规范显示串；复合体系须与组成明细一致、以组成明细为准（可自动生成）
+      input: 文本
+      options: 标准写法（渲染规则）
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: MoS₂
+      source: 会议
+      note: ★R0；复合体系权威在『组成明细』
+      r0: true
+    - module: 目标产物
+      label: 结构类型
+      meaning: 材料结构类别（是否掺杂/合金/异质结，供机器检索）
+      input: 下拉+多选
+      options: 本征/掺杂/合金/垂直异质结/横向异质结/其他
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 本征
+      source: 复审
+      note: 判别器；决定组成明细是否必填
+    - module: 目标产物
+      label: 组成明细(components)
+      meaning: 逐组分结构化（复合体系的权威数据源）
+      input: 数组items[]
+      options: 每条:化学式/角色(基体·掺杂剂·上层·下层·横向域)/浓度(at%)/层序(整数)
+      unit: —
+      requirement:
+        raw: 条件必填(结构类型≠本征)
+        level: conditional_required
+        condition:
+          field: 目标产物.结构类型
+          op: ne
+          value: 本征
+      example: '{WS₂,上层,层序2};{MoS₂,下层,层序1}'
+      source: 复审
+      note: ★v3.2b升为权威源+条件必填；数量拆浓度/层序；杜绝退回字符串（复审N2）
+    - module: 目标产物
+      label: 目标层数
+      meaning: 期望层数
+      input: 数值
+      options: —
+      unit: 层
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 1（单层）
+      source: 会议
+      note: 目标与实测分开
+    - module: 目标产物
+      label: 体相空间群
+      meaning: 晶体对称性：用体相空间群号 + 说明单层结构
+      input: 下拉+文本
+      options: 空间群号(1–230)+单层结构说明；未指定
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 194(P6₃/mmc)，单层2H
+      source: 复审
+      note: ★v3：从『层群/点群/多型』改回体相空间群；手性/扭转角/堆垛→备注
+    - module: 目标产物
+      label: 样品形态
+      meaning: 目标形态
+      input: 下拉+其他
+      options: 连续膜/纳米片(flake)/纳米带/纳米管/纳米棒/纳米颗粒/其他
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 单层连续膜
+      source: 会议
+      note: ''
+    - module: 目标产物
+      label: 目标性能
+      meaning: 应用导向的目标性能（写清想要什么性能 + 打算用什么方法/判据衡量）
+      input: 自由+数值
+      options: 示例：光学属性-高荧光量子效率 / 电属性-高迁移率
+      unit: 视性能
+      requirement:
+        raw: 选填
+        level: optional
+      example: 高迁移率（拟FET场效应测）
+      source: 会议/导师
+      note: ★v3.4导师评审：可选项列补示例引导；目标=愿景保持轻量；严格『数值绑测试方法』在§7实测侧
+    - module: 目标产物
+      label: 备注
+      meaning: 补充说明（手性/扭转角/堆垛类型等放这里）
+      input: 自由
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 盐辅助法，追求大畴单层；手性:右手
+      source: 会议
+      note: ''
+  - title: §2 实验设备与设计（用到的炉子/装置——一台炉录一次，以后直接引用；壁型/温区数/炉体方向/管径/坐标系等由所引用装置快照【只读投影】带出，不重录）
+    fields:
+    - module: 设备
+      label: 装置（引用）
+      meaning: 选择已登记的装置
+      input: 引用
+      options: 装置库
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 1号双温区管式炉
+      source: 会议
+      note: ''
+      r0: true
+    - module: 设备
+      label: 品牌/型号
+      meaning: 设备品牌与型号
+      input: 下拉+其他
+      options: 受控+其他
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 合肥科晶 OTF-1200X
+      source: 会议
+      note: ''
+    - module: 设备
+      label: 壁型
+      meaning: 热壁炉还是冷壁炉（影响生长机理）
+      input: 下拉
+      options: 热壁/冷壁
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 热壁
+      source: 复审
+      note: ''
+    - module: 设备
+      label: 温区数
+      meaning: 独立控温的温区数量
+      input: 数值
+      options: 1/2/3…
+      unit: 个
+      requirement:
+        raw: 必填
+        level: required
+      example: '2'
+      source: 会议
+      note: ''
+      r0: true
+    - module: 设备
+      label: 炉体方向
+      meaning: 炉管水平还是竖直
+      input: 下拉
+      options: 水平/垂直
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 水平
+      source: 会议
+      note: ''
+      r0: true
+    - module: 设备
+      label: 管材质/形状
+      meaning: 炉管材料与截面形状
+      input: 下拉+其他
+      options: 石英/刚玉；圆/方/矩
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 石英·圆形
+      source: 会议
+      note: ''
+    - module: 设备
+      label: 管外径/壁厚
+      meaning: 管径规格与壁厚（内径自动算）
+      input: 下拉+数值
+      options: 1″/2″/4″/自定义 + 壁厚
+      unit: mm
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 1″(25.4)，壁厚2
+      source: 会议
+      note: 内径决定流速/分压
+    - module: 设备
+      label: 坐标系
+      meaning: 本装置位置参照；全局固定、不可编辑
+      input: 固定定义
+      options: 上游为负 / 下游为正，原点固定
+      unit: —
+      requirement:
+        raw: 定义项
+        level: definition
+      example: 上游(-)←原点→下游(+)
+      source: 复审
+      note: ★v3：从逐次填『原点+轴向』改为全局定死，防选反
+    - module: 设备
+      label: 外场激励
+      meaning: 是否有等离子/光/电场（区分PECVD/光CVD）
+      input: 多选+展开
+      options: 无/等离子/光/电
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 无
+      source: 建议
+      note: 仅选『用了哪些』；定量参数在§5，定性几何进示意图
+    - module: 设备
+      label: 装置示意图/描述
+      meaning: 装置照片或示意图 + 文字批注
+      input: 附件+自由
+      options: —
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: setup.png + 卧式双温区
+      source: 会议
+      note: ''
+    - module: 设备
+      label: 炉管/舟履历
+      meaning: 累计使用与重置情况
+      input: 数值×2
+      options: 重置次数 + 重置后使用次数
+      unit: 次
+      requirement:
+        raw: 选填
+        level: optional
+      example: 重置1，之后用7
+      source: 复审
+      note: ★v3：自由文本→结构化两数字；退火/清管方法另记
+  - title: §3 前驱体（用了哪些原料：主源、辅助剂等，可多个；每个一组）
+    fields:
+    - module: 前驱体
+      label: 名称/化学式
+      meaning: 原料名称与化学式
+      input: 下拉+其他
+      options: 受控+其他
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 三氧化钼 / MoO₃
+      source: 会议
+      note: ''
+      r0: true
+    - module: 前驱体
+      label: CAS/InChI
+      meaning: 唯一化学标识（消除同名歧义）
+      input: 文本
+      options: CAS 或 InChI
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 1313-27-5
+      source: 建议
+      note: ''
+    - module: 前驱体
+      label: 相态
+      meaning: 前驱体物态（决定用量单位、是否有投料mg）
+      input: 下拉
+      options: 固/气/液
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 固
+      source: 复审
+      note: ★v3.2b补：为『用量条件必填(固态源)』提供机器判别位（复审N1）
+    - module: 前驱体
+      label: 外观描述
+      meaning: 使用时外观/性状——溯源时判断是否潮解、变质（湿度隐变量的可观察代理）
+      input: 下拉+其他
+      options: 白色粉末/白色晶粒/淡黄色粉末/结块或潮解/变色/其他
+      unit: —
+      requirement:
+        raw: 推荐(固态源)
+        level: conditional_recommended
+        condition:
+          field: 前驱体.相态
+          op: eq
+          value: 固
+      example: 白色粉末
+      source: 导师
+      note: ★v3.4导师评审新增(K35)；记『使用时』状态（随时间变化），故放每炉次而非MaterialLot；词表待与俊杰确认
+      status: pending-alignment
+      pending: 待明确清单#8：外观描述词表待确认
+    - module: 前驱体
+      label: 物料批次（引用）
+      meaning: 引用批号（纯度/粒径自动带出），锁定当时版本
+      input: 引用
+      options: 批次库
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: MoO₃-B202（锁 v1）
+      source: 会议/复审
+      note: 防以后改批次信息影响旧记录
+    - module: 前驱体
+      label: 角色（role）
+      meaning: 在反应里的角色
+      input: 下拉
+      options: 主源/辅助剂/掺杂源/其他
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 主源
+      source: 建议
+      note: 界面中文(英文)
+    - module: 前驱体
+      label: 用量
+      meaning: 投料量（只记投料，不记残余）
+      input: 数值
+      options: —
+      unit: mg(固)/µL(液)
+      requirement:
+        raw: 条件必填(非气态)
+        level: conditional_required
+        condition:
+          field: 前驱体.相态
+          op: ne
+          value: 气
+      example: '20'
+      source: 会议/复审
+      note: ★相态≠气时必填；固态mg、液态µL/质量（Fable三轮B3）
+      r0: true
+    - module: 前驱体
+      label: 处理方式
+      meaning: 投料前处理（可多步，选了再展开参数）
+      input: 下拉+其他
+      options: 直接加载/熔融凝固/压片/旋涂/退火/研磨/其他
+      unit: 见展开
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 直接加载
+      source: 会议
+      note: ''
+    - module: 前驱体
+      label: 舟/坩埚
+      meaning: 盛装容器材质与尺寸
+      input: 下拉+数值
+      options: 石英舟/陶瓷(刚玉)舟/其他；长×宽×高（直径）
+      unit: mm
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 石英舟 90×15
+      source: 复审
+      note: v3暂保留长×宽×高
+    - module: 前驱体
+      label: 所在温区/源温
+      meaning: 放第几温区、源温（若可设/可测）
+      input: 下拉+数值
+      options: 温区1…
+      unit: ℃
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 温区1，设定~620
+      source: 会议
+      note: 按进气端编号
+    - module: 前驱体
+      label: 距热电偶距离
+      meaning: 距所在温区热电偶的水平距离
+      input: 数值
+      options: —
+      unit: mm
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: '-20'
+      source: 会议
+      note: 上游为负、下游为正
+  - title: §4 衬底（长在什么基底上，可多片）
+    fields:
+    - module: 衬底
+      label: 衬底材料
+      meaning: 衬底种类
+      input: 下拉+其他
+      options: SiO₂/Si·蓝宝石(Al₂O₃)·石英·云母·Cu箔·Au箔·h-BN·其他
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: SiO₂/Si
+      source: 会议
+      note: ''
+      r0: true
+    - module: 衬底
+      label: 化学式/取向
+      meaning: 化学式与晶面取向/偏转角
+      input: 文本
+      options: 标准写法（如 x面向x轴偏X°）
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: Si(100)
+      source: 会议
+      note: 单晶记取向+偏转角
+    - module: 衬底
+      label: 氧化层厚度
+      meaning: SiO₂ 层厚度（决定光学判层数）
+      input: 数值
+      options: 写成 SiO₂/Si(285nm)
+      unit: nm
+      requirement:
+        raw: 条件必填(仅SiO₂/Si)
+        level: conditional_required
+        condition:
+          field: 衬底.衬底材料
+          op: eq
+          value: SiO₂/Si
+      example: '285'
+      source: 会议
+      note: ''
+    - module: 衬底
+      label: 表面粗糙度
+      meaning: Ra / RMS
+      input: 数值
+      options: —
+      unit: nm
+      requirement:
+        raw: 选填
+        level: optional
+      example: <1
+      source: 复审
+      note: 常比化学式更决定成核；可问厂家或AFM
+    - module: 衬底
+      label: 尺寸/朝向
+      meaning: 几何尺寸与放置朝向
+      input: 数值+下拉
+      options: 长×宽×厚；正放/倒扣/倾角/竖放
+      unit: mm
+      requirement:
+        raw: 选填
+        level: optional
+      example: 10×10×0.5；正放
+      source: 会议/建议
+      note: ''
+    - module: 衬底
+      label: 预处理（有序步骤）
+      meaning: 预处理步骤序列（记顺序，展开参数）
+      input: 下拉+其他
+      options: 清洗/退火/等离子/亲水化/其他
+      unit: 见展开
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 丙酮→异丙醇→N₂吹干
+      source: 会议
+      note: ''
+    - module: 衬底
+      label: 处理到装炉间隔/暴露环境
+      meaning: 清洗后到装炉的时间与环境
+      input: 数值
+      options: —
+      unit: min
+      requirement:
+        raw: 选填
+        level: optional
+      example: 30 min，空气
+      source: 复审
+      note: 表面老化
+    - module: 衬底
+      label: 所在温区/距热电偶距离
+      meaning: 第几温区、距离(±)
+      input: 下拉+数值
+      options: 温区2…
+      unit: mm
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 温区2，+15
+      source: 会议
+      note: ''
+  - title: §5 反应条件（按时间顺序的各阶段；每阶段填同一套：气体/温度/压力/时长；阶段类型驱动动态表单）
+    fields:
+    - module: 过程步
+      label: 阶段类型
+      meaning: 这一步在做什么（选后只显示对应参数）
+      input: 下拉+其他
+      options: 抽气/漏检/吹扫/预处理/升温/温度稳定/反应生长/后退火/降温/放气/卸样
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 反应生长
+      source: 会议/复审
+      note: 多步可加；跨组比较看类型
+      r0: true
+    - module: 过程步
+      label: 步序/起止时刻
+      meaning: 第几步、起止时间
+      input: 数值+时间
+      options: —
+      unit: datetime
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: '#3，10:20–10:35'
+      source: 复审
+      note: 支持重叠/循环
+    - module: 步·温度
+      label: 设定温度程序
+      meaning: 各温区升温曲线（目标温/速率/保温）
+      input: 数组
+      options: —
+      unit: ℃·℃/min·min
+      requirement:
+        raw: 必填
+        level: required
+      example: 温区2：25→750@20℃/min，保温15
+      source: 会议
+      note: 设定值；分温区
+      r0: true
+    - module: 步·温度
+      label: 实测温度
+      meaning: 控温热电偶实测曲线（导入）。注意：不是衬底真温
+      input: 数组(时序)
+      options: —
+      unit: ℃ 随时间
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: '[导入 furnace.csv]'
+      source: 会议/复审
+      note: ★v3：删『估算衬底真温』，只留设定+实测
+    - module: 步·温度
+      label: 测温设备/不确定度
+      meaning: 测温点用什么设备、不确定度多少
+      input: 引用+数值
+      options: 热电偶/高温计；来源：仪器/校准/重复性/估计
+      unit: ℃
+      requirement:
+        raw: 选填
+        level: optional
+      example: K型热电偶，±1℃
+      source: 会议/复审
+      note: 测量不确定度
+    - module: 步·降温
+      label: 降温方式/开盖温度/速率
+      meaning: 降温段参数（阶段类型=降温 时）
+      input: 下拉+数值
+      options: 随炉冷却/开盖冷却/移炉快速冷却；开盖温度；降温速率
+      unit: ℃·℃/min
+      requirement:
+        raw: 条件必填(降温段)
+        level: conditional_required
+        condition:
+          field: 过程步.阶段类型
+          op: eq
+          value: 降温
+      example: 随炉冷却；开盖~580
+      source: 复审
+      note: ★v3.2补回：review文档头部隐变量，勿再漏（Fable评审）
+    - module: 步·气体
+      label: 气体组分
+      meaning: 每种气体单独一条（混合气拆开）
+      input: 下拉(多条)
+      options: Ar/N₂/H₂/O₂/CH₄/其他
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: Ar
+      source: 会议
+      note: ''
+      r0: true
+    - module: 步·气体
+      label: 纯度/浓度/水氧
+      meaning: 纯度、体积比、水氧杂质
+      input: 数值
+      options: —
+      unit: N·%·ppm
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: Ar 5N；水氧<1ppm
+      source: 会议/复审
+      note: ''
+    - module: 步·气体
+      label: 流量/来源
+      meaning: 流量、流量计类型
+      input: 数值+下拉
+      options: MFC/转子
+      unit: sccm
+      requirement:
+        raw: 必填
+        level: required
+      example: 80（MFC）
+      source: 会议/复审
+      note: sccm须绑标准状态；设定+实测
+      r0: true
+    - module: 步·压力
+      label: 压力体系/工作压力
+      meaning: 常压/低压/超高真空 + 工作压力
+      input: 下拉+数值
+      options: 常压(APCVD)/低压(LPCVD)/超高真空
+      unit: Pa
+      requirement:
+        raw: 必填(生长)/选填(其余)
+        level: conditional_required
+        condition:
+          field: 过程步.阶段类型
+          op: eq
+          value: 反应生长
+      example: 常压；1.0×10⁵ Pa
+      source: 会议
+      note: 所有阶段可出现
+      r0: true
+    - module: 步·压力
+      label: 本底压力/漏率
+      meaning: 反应前底压、漏率
+      input: 数值
+      options: —
+      unit: Pa·Pa·L/s
+      requirement:
+        raw: 选填
+        level: optional
+      example: —
+      source: 会议/复审
+      note: ''
+    - module: 过程步
+      label: 时长/循环次数
+      meaning: 本阶段时长、吹扫抽-充次数
+      input: 数值
+      options: —
+      unit: min·次
+      requirement:
+        raw: 必填/选填
+        level: mixed
+      example: 15 min
+      source: 会议
+      note: ''
+    - module: 步·外场
+      label: 外场参数
+      meaning: 等离子功率/光源（有外场才填，可自填添加）
+      input: 数值
+      options: 电场强度；光场:中心波长/线宽/功率密度/光斑大小
+      unit: V·nm·W…
+      requirement:
+        raw: 条件必填(Setup有外场)
+        level: conditional_required
+        condition:
+          field: 装置Setup.外场装置
+          op: ne
+          value: 无
+      example: —
+      source: 建议/导师
+      note: ★v3.4导师评审(K65)：选填→条件必填；判别位=Setup.外场装置≠无；无外场则不显示
+  - title: §6 过程事件 Process Events（含异常/中断/人工干预等客观事件；只记客观事实、不判成败）
+    fields:
+    - module: 过程事件
+      label: 事件/部位
+      meaning: 过程中发生的客观事件 + 关联部位（合并）
+      input: 下拉+其他
+      options: 供电/供水/供气中断·管路堵塞·压力突变·信号异常·人工干预·其他（可加）
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 气流中断（Ar气路）
+      source: 复审
+      note: ★v3：事件类型与关联对象合并为一个下拉
+    - module: 过程事件
+      label: 发生时刻
+      meaning: 何时发生（记绝对时间）
+      input: 时间
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: '10:28'
+      source: 会议
+      note: 相对时间可由t0算
+    - module: 过程事件
+      label: 中止原因
+      meaning: 若中止（只记客观原因，不写成败）
+      input: 下拉
+      options: 设备报警/人工停止/计划结束
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 计划结束
+      source: 复审
+      note: ''
+    - module: 过程事件
+      label: 描述/措施/附件
+      meaning: 现象、处理、相关文件
+      input: 自由+附件
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: Ar瓶压不足，已更换
+      source: 会议
+      note: ''
+  - title: §7 产物表征 + 实测产物（★独立表，用编号与实验记录关联；只记事实，不判好坏）
+    fields:
+    - module: 表征
+      label: 表征类型/仪器
+      meaning: 表征手段 + 引用仪器
+      input: 下拉+其他
+      options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: Raman
+      source: 会议
+      note: ★v3：长一批表征一批，拆成独立表编号关联
+    - module: 表征
+      label: 测试条件
+      meaning: 该表征的测试参数
+      input: 文本/自由
+      options: —
+      unit: 视仪器
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 532nm / 1mW / 100×
+      source: 会议
+      note: 随仪器导出
+    - module: 表征
+      label: 原始数据
+      meaning: 上传原始文件（留校验和）
+      input: 附件
+      options: —
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: raman.txt
+      source: 会议/复审
+      note: ''
+    - module: 实测产物
+      label: 观察到的现象
+      meaning: 光镜可判的客观现象（非成败判断）
+      input: 下拉+多选
+      options: 无生长/不连续覆盖/厚层区域/可见颗粒沾污/衬底破损/变色/其他
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 不连续覆盖
+      source: 复审
+      note: ★失败炉次最小痕迹；终态无任何结果→『结果缺失』待办(标准§7/§10)
+      status: pending-alignment
+      pending: 待明确清单#5：词表粒度（7项多选 vs 生长/不生长），导师K75点名
+    - module: 实测产物
+      label: 检出相/多型/堆垛
+      meaning: 测到的物相/多型/堆垛类型
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 2H-MoS₂；AB堆垛
+      source: 复审/导师
+      note: ★v3.4导师评审(B76红字)：增记堆垛类型（可判粒度待与俊杰确认，或改下拉）；最小结构化结果
+      status: pending-alignment
+      pending: 待明确清单#7：堆垛可判粒度→定自由文本还是下拉
+    - module: 实测产物
+      label: 实测层数/覆盖率
+      meaning: 实测层数与覆盖率
+      input: 数值
+      options: —
+      unit: 层·%
+      requirement:
+        raw: 选填
+        level: optional
+      example: 1 层；~70%
+      source: 复审
+      note: ''
+    - module: 实测产物
+      label: 畴尺寸/成核密度/连续性
+      meaning: ''
+      input: 数值
+      options: —
+      unit: μm·cm⁻²·(连续/孤立)
+      requirement:
+        raw: 选填
+        level: optional
+      example: 畴 ~50 μm
+      source: 复审
+      note: ''
+    - module: 实测产物
+      label: 关键谱学指标
+      meaning: Raman峰位/峰宽/峰面积；PL峰位/峰宽；AFM厚度/粗糙度；SEM覆盖率(视场内材料面积占比,%)/尺寸
+      input: 数值
+      options: —
+      unit: cm⁻¹·eV·nm·%…
+      requirement:
+        raw: 选填
+        level: optional
+      example: Δ(A1g-E2g)≈20；PL~1.85eV
+      source: 复审/导师
+      note: ★v3.4导师评审(C79红字/K79)：PL补峰宽；『SEM占比』改名『SEM覆盖率』并给定义；随技术选填
+      status: pending-alignment
+      pending: 待明确清单#6：SEM覆盖率组里叫法/量化方式待确认
+  - title: §8 PVD 专用（若合成方法选 PVD 类才启用；延后实现，先占位）
+    fields:
+    - module: PVD
+      label: 靶材（批次）
+      meaning: 靶材化学身份 + 批次
+      input: 引用
+      options: 批次库
+      unit: —
+      requirement:
+        raw: 条件必填(PVD)
+        level: conditional_required
+        condition: &id001
+          field: 基本信息.合成方法
+          op: in
+          value:
+          - PVD-磁控溅射
+          - PVD-热蒸发
+          - PLD
+      example: MoS₂ 靶-T01
+      source: 复审
+      note: ''
+    - module: PVD
+      label: 靶基距
+      meaning: 靶到衬底距离
+      input: 数值
+      options: —
+      unit: mm
+      requirement:
+        raw: 条件必填(PVD)
+        level: conditional_required
+        condition: *id001
+      example: '80'
+      source: 复审
+      note: ''
+    - module: PVD
+      label: 功率/偏压
+      meaning: DC/RF 功率、基底偏压
+      input: 数值
+      options: DC/RF
+      unit: W·V
+      requirement:
+        raw: 条件必填(PVD)
+        level: conditional_required
+        condition: *id001
+      example: RF 150W；偏压 -50V
+      source: 复审
+      note: ''
+    - module: PVD
+      label: 等离子气氛/工作气压
+      meaning: 溅射气体与气压
+      input: 下拉+数值
+      options: Ar / Ar+N₂…
+      unit: Pa
+      requirement:
+        raw: 条件必填(PVD)
+        level: conditional_required
+        condition: *id001
+      example: Ar，0.5 Pa
+      source: 复审
+      note: ''
+    - module: PVD
+      label: 预溅射/挡板时序
+      meaning: 预溅射时长、挡板开合时序
+      input: 数值
+      options: —
+      unit: min·s
+      requirement:
+        raw: 条件必填(PVD)
+        level: conditional_required
+        condition: *id001
+      example: 预溅 5 min
+      source: 复审
+      note: ''
+    - module: PVD
+      label: 沉积速率
+      meaning: 速率（QCM 等）
+      input: 数值
+      options: —
+      unit: nm/s
+      requirement:
+        raw: 条件必填(PVD)
+        level: conditional_required
+        condition: *id001
+      example: '0.1'
+      source: 复审
+      note: ''
+entities:
+  headers:
+  - 实体
+  - 字段
+  - 含义/为什么记
+  - 填写方式
+  - 可选项/格式
+  - 单位
+  - 必填(登记)
+  - 填写示例
+  - 来源
+  - 备注
+  sections:
+  - title: ※ 本表定义『实验只引用、不重复录入』的一等实体；『必填(登记)』指登记该实体时必填，与实验记录的 R0 不同。实验引用时对当时版本快照冻结。
+    fields: []
+  - title: 实体① 物料批次库 MaterialLot（前驱体/衬底/气瓶通用 + 子类；实验中只填批号引用，纯度/粒径自动带出并锁版）
+    fields:
+    - module: MaterialLot
+      label: 批次类别
+      meaning: 决定启用哪组子类字段
+      input: 下拉
+      options: 化学品/衬底/气瓶
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 化学品
+      source: 复审
+      note: 驱动子类条件字段
+    - module: MaterialLot
+      label: 版本号
+      meaning: 每次修改+1；实验引用时冻结此版本
+      input: 数值
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: '1'
+      source: ★锁版使能(Fable三轮B2)
+      note: 改则新版本，旧引用不受影响
+    - module: MaterialLot
+      label: 物质名称
+      meaning: 化学身份：名称
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 三氧化钼
+      source: review§4.1A
+      note: ''
+    - module: MaterialLot
+      label: 化学式
+      meaning: 化学身份：分子式
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: MoO₃
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: CAS号
+      meaning: 唯一化学标识
+      input: 文本
+      options: CAS
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 1313-27-5
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: InChIKey/PubChem CID
+      meaning: 可选唯一标识
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: —
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: 供应商
+      meaning: 商业批次：厂商
+      input: 下拉+其他(可扩展)
+      options: 受控+其他
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 阿拉丁
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: 货号
+      meaning: 商业批次：产品号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: M112056
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: 批号
+      meaning: 商业批次：生产批号（同名不同批的区分键）
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: B202405
+      source: review
+      note: GMP法定术语『批号』
+    - module: MaterialLot
+      label: 纯度
+      meaning: 质量分数或N值
+      input: 数值
+      options: '%或N值'
+      unit: '%'
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 99.95（4N5）
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: 粒径(x50/D50)
+      meaning: 中位径（影响挥发/成核）
+      input: 数值
+      options: x50严谨；目数可接受
+      unit: µm
+      requirement:
+        raw: 选填
+        level: optional
+      example: '10'
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: 形态/性状
+      meaning: 试剂外观
+      input: 下拉+其他
+      options: 粉末/颗粒/块/箔/靶/其他
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 粉末
+      source: review
+      note: 外观=性状
+    - module: MaterialLot
+      label: 开封日期
+      meaning: 影响吸潮/氧化
+      input: 日期
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: '2026-05-01'
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: 存储方式
+      meaning: 存放条件
+      input: 下拉+其他
+      options: 干燥器/手套箱/常温避光/冷藏/其他
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 干燥器
+      source: review
+      note: desiccator=干燥器
+    - module: MaterialLot
+      label: 证书附件(CoA)
+      meaning: 质检证书
+      input: 附件
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: coa.pdf
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: ▸衬底·材料
+      meaning: 子类(批次类别=衬底)
+      input: 下拉
+      options: SiO₂/Si·蓝宝石·石英·云母·Cu箔·Au箔·h-BN·其他
+      unit: —
+      requirement:
+        raw: 条件必填(衬底)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: eq
+          value: 衬底
+      example: SiO₂/Si
+      source: review
+      note: 与§4衬底材料词表一致
+    - module: MaterialLot
+      label: ▸衬底·氧化层厚度
+      meaning: 仅SiO₂/Si
+      input: 数值
+      options: —
+      unit: nm
+      requirement:
+        raw: 条件必填(SiO₂/Si)
+        level: conditional_required
+        condition:
+          field: MaterialLot.▸衬底·材料
+          op: eq
+          value: SiO₂/Si
+      example: '285'
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: ▸衬底·晶向/抛光
+      meaning: 取向与抛光面
+      input: 文本+下拉
+      options: 晶向；单面抛/双面抛
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: Si(100)；单面抛
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: ▸衬底·尺寸规格
+      meaning: 出厂几何
+      input: 文本
+      options: 长×宽×厚
+      unit: mm
+      requirement:
+        raw: 选填
+        level: optional
+      example: 10×10×0.5
+      source: review
+      note: ''
+    - module: MaterialLot
+      label: ▸气瓶·纯度等级
+      meaning: 子类(批次类别=气瓶)；与base『纯度』分工
+      input: 下拉
+      options: 6N/5N/4N/工业级/其他
+      unit: —
+      requirement:
+        raw: 条件必填(气瓶)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: eq
+          value: 气瓶
+      example: 5N
+      source: review
+      note: 分工：base纯度填数值%、此处填等级标签(Fable三轮B4)
+    - module: MaterialLot
+      label: ▸气瓶·气瓶编号
+      meaning: 钢瓶追溯号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: GC-Ar-07
+      source: review
+      note: ''
+  - title: 实体② 装置库 Setup（一台炉登记一次，实验 §2 引用；坐标系随引用冻结）
+    fields:
+    - module: 装置Setup
+      label: 装置编号
+      meaning: 唯一编号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: CVD-炉1
+      source: review§4.1B
+      note: ''
+    - module: 装置Setup
+      label: 装置名称
+      meaning: 人读名
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 1号双温区管式炉
+      source: 会议
+      note: ''
+    - module: 装置Setup
+      label: 版本号
+      meaning: 每次修改+1；引用时冻结此版本
+      input: 数值
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: '1'
+      source: ★锁版使能(Fable三轮B2)
+      note: 对标 v1 setup_version_snapshot
+    - module: 装置Setup
+      label: 品牌/型号
+      meaning: 设备品牌型号
+      input: 下拉+其他
+      options: 受控+其他
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 合肥科晶 OTF-1200X
+      source: 会议
+      note: ''
+    - module: 装置Setup
+      label: 壁型
+      meaning: 热壁/冷壁
+      input: 下拉
+      options: 热壁/冷壁
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 热壁
+      source: 复审
+      note: ''
+    - module: 装置Setup
+      label: 温区数
+      meaning: 独立控温区数
+      input: 数值
+      options: —
+      unit: 个
+      requirement:
+        raw: 必填
+        level: required
+      example: '2'
+      source: 会议
+      note: ''
+    - module: 装置Setup
+      label: 炉体方向
+      meaning: 水平/垂直
+      input: 下拉
+      options: 水平/垂直
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 水平
+      source: 会议
+      note: ''
+    - module: 装置Setup
+      label: 管材质/形状
+      meaning: 炉管材料与截面
+      input: 下拉+其他
+      options: 石英/刚玉；圆/方/矩
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 石英·圆形
+      source: 会议
+      note: ''
+    - module: 装置Setup
+      label: 管外径/壁厚(→内径)
+      meaning: 管规格
+      input: 下拉+数值
+      options: 1″/2″/4″/自定义 + 壁厚
+      unit: mm
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 1″，壁厚2
+      source: 会议
+      note: ''
+    - module: 装置Setup
+      label: 加热区长度
+      meaning: 恒温区长度（影响停留/温场）
+      input: 数值
+      options: —
+      unit: mm
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: '300'
+      source: ★review§4.1B补
+      note: v3曾漏，Fable点名
+    - module: 装置Setup
+      label: 坐标系定义
+      meaning: 原点固定、上游负/下游正（随引用冻结）
+      input: 固定定义
+      options: 原点+轴向
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 原点=温区2热电偶；下游为正
+      source: 复审
+      note: 全局定死，防选反
+    - module: 装置Setup
+      label: 泵型号/极限压力
+      meaning: 真空能力
+      input: 文本+数值
+      options: —
+      unit: Pa
+      requirement:
+        raw: 选填
+        level: optional
+      example: 机械泵，10 Pa
+      source: ★review§4.1B补
+      note: ''
+    - module: 装置Setup
+      label: MFC配置
+      meaning: 各通道气体/量程/校准日期
+      input: 数组
+      options: 通道/气体/量程(sccm)/校准日期
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: CH1 Ar 0–200sccm
+      source: ★review§4.1B补
+      note: ''
+    - module: 装置Setup
+      label: 仪器PID
+      meaning: 持久标识（预留）
+      input: 文本
+      options: PIDINST/PID
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: —
+      source: ★NXfabrication
+      note: ''
+    - module: 装置Setup
+      label: 外场装置
+      meaning: 是否配光/电/等离子源
+      input: 多选+描述
+      options: 无/光/电/等离子
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 无
+      source: 建议
+      note: 定量参数在实验§5
+    - module: 装置Setup
+      label: 装置示意图/描述
+      meaning: 照片/示意图+文字
+      input: 附件+自由
+      options: —
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: setup.png
+      source: 会议
+      note: ''
+  - title: 实体③ 表征仪器 Instrument（实验 §7 表征引用；对标 NeXus NXfabrication 仪器溯源）
+    fields:
+    - module: 表征仪器
+      label: 仪器编号
+      meaning: 唯一编号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: RAMAN-1
+      source: 复审
+      note: ''
+    - module: 表征仪器
+      label: 仪器名称/类型
+      meaning: 手段类型
+      input: 下拉+其他
+      options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: Raman
+      source: 会议
+      note: ''
+    - module: 表征仪器
+      label: 厂商(vendor)
+      meaning: 品牌
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: Horiba
+      source: ★NXfabrication
+      note: ''
+    - module: 表征仪器
+      label: 型号(model)
+      meaning: 型号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: LabRAM HR
+      source: ★NXfabrication
+      note: ''
+    - module: 表征仪器
+      label: 序列号(serial)
+      meaning: 设备序列号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: —
+      source: ★NXfabrication
+      note: ''
+    - module: 表征仪器
+      label: PID(持久标识)
+      meaning: 仪器持久标识（预留）
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: —
+      source: ★NXfabrication/PIDINST
+      note: ''
+    - module: 表征仪器
+      label: 所在实验室/位置
+      meaning: 物理位置
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: A305
+      source: 建议
+      note: ''
+    - module: 表征仪器
+      label: 关键固定配置
+      meaning: 随仪器固定的参数（可变测试条件在实验§7填）
+      input: 自由
+      options: 如激光波长/物镜/探测器
+      unit: 视仪器
+      requirement:
+        raw: 选填
+        level: optional
+      example: 532nm激光
+      source: 会议
+      note: ''
+    - module: 表征仪器
+      label: 最近校准/维护
+      meaning: 校准/维护日期
+      input: 日期
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 2026-06
+      source: 会议
+      note: ''
+changelog:
+  headers:
+  - '#'
+  - 模块
+  - 改动
+  - 类型
+  rows:
+  - - '1'
+    - §1 基本信息
+    - 新增「合成方法」字段（顶层 CVD/PVD 选择器，必填，决定PVD模块是否出现）
+    - 新增(我补)
+  - - '2'
+    - §1 基本信息
+    - 环境湿度 选填→推荐
+    - 必填级
+  - - '3'
+    - §1b 目标产物
+    - 对称性字段落实批注：空间群系→体相空间群，选项简化为空间群号+单层结构说明
+    - 落实批注
+  - - '4'
+    - §1b 目标产物
+    - 手性/扭转角/堆垛类型 明确放『备注』
+    - 落实批注
+  - - '5'
+    - §2 设备
+    - 坐标系：逐次填『原点+轴向』→ 全局固定、不可编辑的定义项（上游负/下游正）
+    - 会议决定
+  - - '6'
+    - §2 设备
+    - 炉管/舟履历：自由文本 → 重置次数 + 重置后使用次数（两个结构化数字）
+    - 落实批注
+  - - '7'
+    - §3 前驱体
+    - 用量 推荐→必填（纳入R0）
+    - 必填级
+  - - '8'
+    - §5 反应条件
+    - 删除『估算衬底真温』行，温度只留 设定温度 + 实测温度
+    - 会议决定
+  - - '9'
+    - §6 过程事件
+    - 事件类型 与 关联对象 合并为一个细化下拉
+    - 会议决定
+  - - '10'
+    - §7 表征
+    - 产物表征拆成独立表、用编号与实验记录关联
+    - 会议决定
+  - - —
+    - 回退保留v2
+    - §3『舟/坩埚』仍长×宽×高（未拆高）
+    - 未改
+  - - ''
+    - ── 2026-07-06 表头定稿修订 ──
+    - ''
+    - ''
+  - - v3.1
+    - §1b
+    - 掺杂/合金/异质结自由文本 → 新增『结构类型』下拉多选（本征/掺杂/合金/垂直·横向异质结）；明细走化学式标准写法
+    - 定稿修订
+  - - v3.1
+    - §6
+    - 模块定名『过程事件 Process Events』；『事件类型(含关联对象)』→『事件/部位』
+    - 定稿修订
+  - - v3.1
+    - §1b
+    - 目标性能保持轻量自由文本（性能+衡量方法）；严格『数值绑测试方法』落在§7实测侧
+    - 定稿修订
+  - - ''
+    - ── 2026-07-06 v3.2 评审回炉（Fable 独立评审）──
+    - ''
+    - ''
+  - - v3.2
+    - §7
+    - 新增『观察到的现象』客观多选词表——录入端仍不判成败，但保留光镜可判的客观负结果（失败炉次最小结构化痕迹）
+    - 评审回炉
+  - - v3.2
+    - §1b
+    - 化学式升R0；新增『组成明细 components[]』结构化掺杂/异质结，替代字符串承载；结构类型保留为判别器
+    - 评审回炉
+  - - v3.2
+    - §5
+    - 补回降温段参数（方式/开盖温度/速率），条件必填(降温段)——review头部隐变量勿再漏
+    - 评审回炉
+  - - v3.2
+    - R0
+    - 按合成方法条件化：前驱体用量→条件必填(固态源)，气态源/PVD不逼填mg
+    - 评审回炉
+  - - v3.2
+    - 数据模型
+    - 记录最小单元拍板：炉次=记录单元、样品=关联主键、表征外键指向样品
+    - 评审回炉
+  - - ''
+    - ── v3.2b 二轮复审再修（Fable 第二轮）──
+    - ''
+    - ''
+  - - v3.2b
+    - §3
+    - 新增前驱体『相态(固/气/液)』字段，为『用量条件必填(固态源)』提供机器判别位（复审N1）
+    - 复审再修
+  - - v3.2b
+    - §1b
+    - 组成明细升为权威+条件必填(结构类型≠本征)、化学式复合体系以其为准；数量拆『浓度(at%)』『层序』；结构类型改必填（复审N2/③）
+    - 复审再修
+  - - v3.2b
+    - §7/§10
+    - 加生命周期规则：炉次终态而无任何现象/表征行→『结果缺失』待办，堵『失败炉次零痕迹』（复审①）
+    - 复审再修
+  - - v3.2b
+    - §8/§10
+    - PVD 暂不纳入 v2.0 合规判定（占位），R0 不校验 PVD 炉次，待 profile 落地（复审N3）
+    - 复审再修
+  - - ''
+    - ── v3.3 一等实体补齐（复审⑤/must-fix4-5）──
+    - ''
+    - ''
+  - - v3.3
+    - 实体表
+    - 新增『一等实体字段表』sheet：MaterialLot/装置Setup/表征仪器三张权威字段表（补齐半个数据模型）；§10 合规纳入（PVD 仍排除）
+    - 实体补齐
+  - - v3.3
+    - §5/§8.1
+    - AP/LP 冗余二选一敲定：保留合成方法 AP/LP，以校验规则强制与压力体系一致（不再悬置）
+    - 实体补齐
+  - - v3.3b
+    - 冻结前收尾
+    - Fable三轮B1-B4：MaterialLot/Setup 加『版本号』(锁版使能)；§2属性=Setup快照【只读投影】声明；用量含液态(非气态条件、µL)；气瓶纯度与base分工注
+    - 冻结前收尾
+  - - ''
+    - ── 2026-07-07 导师书面评审回改（v3.4，FSS Re-副本 标黄9处+红字2处）──
+    - ''
+    - ''
+  - - v3.4
+    - §1b
+    - 目标性能：可选项列补示例引导『光学属性-高荧光量子效率 / 电属性-高迁移率』（导师标黄E18）
+    - 导师评审
+  - - v3.4
+    - §3
+    - 新增『外观描述』字段：使用时性状，溯源判断潮解/变质；推荐(固态源)；放每炉次而非MaterialLot（导师批注K35）
+    - 导师评审
+  - - v3.4
+    - §5
+    - 外场参数 选填→条件必填(Setup有外场)；判别位=Setup.外场装置≠无，机器可校验（导师批注K65）
+    - 导师评审
+  - - v3.4
+    - §7
+    - 检出相/多型→检出相/多型/堆垛，增记堆垛类型；示例加『AB堆垛』（导师红字B76）
+    - 导师评审
+  - - v3.4
+    - §7
+    - 关键谱学指标：PL补峰宽；『SEM占比』改名『SEM覆盖率(视场内材料面积占比,%)』并给定义（导师红字C79/问询K79）
+    - 导师评审
+  - - v3.4
+    - 全表
+    - 表头下加必填级别图例行；必填/条件必填字体加粗着色（导师提醒B93）；表单UI红星标识记入待明确清单
+    - 导师评审
+  - - 未改
+    - §7
+    - 『观察到的现象』词表粒度（7项多选 vs 只记生长/不生长）——导师K75点名与俊杰确认后再定，见待明确清单#5
+    - 待俊杰对齐
+  - - ''
+    - ── review→v3 回退存档（每条给去向）──
+    - ''
+    - ''
+  - - 存档
+    - 湿度
+    - review建议升必填(有DOI)；v3=推荐(6/24未升)。保留推荐，复议是否升R0
+    - 回退备案
+  - - 存档
+    - 装置加热区长/泵型号/MFC配置/PID
+    - review §4.1B承诺；v3暂缺。留待『装置』实体字段表（下一轮）
+    - 回退备案
+  - - 存档
+    - 炉管履历
+    - review想自动累加；6/24定为手填两数字。保留手填+加重置口径说明（手填有漂移风险）
+    - 回退备案
+  - - 存档
+    - 时序四元组
+    - review对标NOMAD；v3仅一行导入。落地设计见标准§4时序小节：走FileAsset+通道注册，不进payload
+    - 回退备案
+  - - ''
+    - ''
+    - ''
+    - ''
+  - - R0
+    - 硬必填核心(≈16项，含条件必填)
+    - 实验时间·合成方法·实验人·样品编号·目标化学式·装置·温区数·炉体方向·前驱体名称·前驱体用量(固态源)·衬底材料·阶段类型·设定温度程序·气体组分·流量·压力体系(生长)
+    - 必填集
+open_items:
+  headers:
+  - '#'
+  - 问题
+  - 状态
+  rows:
+  - - '1'
+    - 化学式 / 异质结 标准写法（渲染规则，找国标或组内定）
+    - 待办
+  - - '2'
+    - 化学式录入：文本+元素校验/自动补全（建议，非周期表点选）
+    - 待办(技术)
+  - - '3'
+    - 权威源从xlsx转仓库内YAML/CSV（可行级diff）；词表归一到单一源
+    - 下一轮
+  - - '4'
+    - v1→v2 逐字段迁移映射（68字段去向，含quality_label/failure_modes/color_change落点）
+    - 下一轮
+  - - ''
+    - ── 2026-07-07 导师评审引出的待对齐（计划 07-08 当面问）──
+    - ''
+  - - '5'
+    - 【问俊杰·导师K75点名】§7『观察到的现象』粒度：现7项客观多选 vs 只记『生长/不生长』？可带折中案：一级『生长/未生长』必选＋二级现象细分可选（保失败溯源卖点）
+    - 待对齐(问俊杰)
+  - - '6'
+    - 【问俊杰】SEM覆盖率：组里习惯的叫法/量化方式/单位？（导师问『SEM占比是什么』，已先改名『SEM覆盖率(视场内材料面积占比,%)』）
+    - 待对齐(问俊杰)
+  - - '7'
+    - 【问俊杰】堆垛类型实际可判到什么粒度（2H/3R？AA/AB/ABC？扭转角？）→ 决定自由文本还是下拉词表
+    - 待对齐(问俊杰)
+  - - '8'
+    - 【问俊杰】前驱体『外观描述』词表：组里常用前驱体的形态 + 潮解/变质后的典型外观有哪些
+    - 待对齐(问俊杰)
+  - - '9'
+    - 【回导师】①SEM占比=SEM视场内材料面积覆盖占比（已改名并给定义）；②必填/选填已加图例行+字体强化，表单UI将用红星标必填
+    - 待回复
+  - - '10'
+    - 表单UI：必填红星/选填弱化等明显标识（导师B93提醒）
+    - 实现期
+  - - —
+    - 已定/已改：一等实体字段表 · 记录单元=炉次+样品 · 掺杂→结构类型+components · 观察现象词表 · 降温参数 · R0条件化(相态判别) · AP/LP校验 · v3.4导师评审回改
+    - 见『v2→v3变更说明』

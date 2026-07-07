@@ -1,123 +1,51 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
-# 字段草案-v3.xlsx 的【权威生成脚本】—— CVD-2D 元数据标准 v2.0 的字段字典源
+# 字段草案-v3.xlsx 的【渲染器】—— 数据权威源在 field-source.yaml（实现方案 D1）
 #
-# 为什么它在这里：xlsx 是二进制、git 不可行级 diff。本脚本是可 diff 的真源。
-# 改字段的正确姿势：改本脚本里的 ROWS / ENTITY_ROWS / CHG / TBD，然后运行：
-#     python3 docs/standard/build_field_tables.py
-# 依赖：openpyxl（pip install --break-system-packages openpyxl）
+# ⚠️ 本脚本自 P1 起不再内嵌字段数据：改字段请改 docs/standard/field-source.yaml，
+# 然后运行：
+#     python3 docs/standard/build_field_tables.py [可选:输出路径]
+#     python3 docs/standard/check_field_source.py   # 校验 xlsx 与 YAML 一致（CI 强制）
+# 依赖：openpyxl、pyyaml（pip install --break-system-packages openpyxl pyyaml）
 #
 # 四个 sheet：字段草案（实验记录 77 字段/9 模块）、一等实体字段表（MaterialLot/
 # 装置Setup/表征仪器）、v2→v3变更说明、待明确清单。
-# 当前版本：v3.4（2026-07-07 导师书面评审回改，见 CHG『导师评审』段）。
-# 全流程背景与进度见 docs/standard/STATUS.md。
+# 全流程背景与进度见 docs/standard/STATUS.md；阶段边界见 docs/v2-implementation-plan.md。
 # ============================================================================
 import os
+import sys
+
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+import yaml
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "字段草案-v3.xlsx")
+BASE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(BASE, "field-source.yaml")
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(BASE, "字段草案-v3.xlsx")
 
-HEADERS = ["模块","字段","含义/为什么记","填写方式","可选项/格式","单位","必填","填写示例","来源","备注"]
+with open(SRC, encoding="utf-8") as fh:
+    DOC = yaml.safe_load(fh)
 
-# Section header marker: tuple ("SEC", text)
-# Field row: list of 10 cells
-ROWS = [
- ("SEC","§1 基本信息（这次实验是谁、什么时候、在什么环境做的）"),
- ["基本信息","实验时间","实验开始的日期与具体时刻；整条记录及所有时序数据的时间基准(t0)","日期时间","—","—","必填","2026-06-20 09:30","会议","时刻不能只到天"],
- ["基本信息","合成方法","本次用的气相沉积方法；顶层选择器，决定是否启用§8 PVD模块","下拉+其他","CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD/其他","—","必填","常压CVD(APCVD)","v3新增","★v3新增；可挂CHMO本体ID"],
- ["基本信息","实验人","操作者","下拉+其他","课题组成员","—","必填","李俊杰","会议",""],
- ["基本信息","样品/实验编号","本条记录的唯一编号","文本","建议含日期","—","必填","CVD-20260620-03","建议",""],
- ["基本信息","环境温度","实验间环境温度","数值","—","℃","选填","25","会议",""],
- ["基本信息","环境湿度","实验间相对湿度（影响生长时较重要）","数值","—","%RH","推荐","45","会议","★v3：选填→推荐（湿度隐变量）"],
- ["基本信息","悬浮粒子浓度","环境洁净度，用粒子数替代主观『干净』","数值","—","个/m³","选填","—","会议","暂无设备，先占位"],
- ["基本信息","实验前预检查","开始前的检查提醒（漏率/气路/水路）","提示","—","—","—","（勾选确认）","会议","只是提醒，不存数据"],
 
- ("SEC","§1b 目标产物（你想做出什么——按你关心的维度选填，不强制全填，每项可选『其他』）"),
- ["目标产物","化学体系/化学式","规范显示串；复合体系须与组成明细一致、以组成明细为准（可自动生成）","文本","标准写法（渲染规则）","—","必填","MoS₂","会议","★R0；复合体系权威在『组成明细』"],
- ["目标产物","结构类型","材料结构类别（是否掺杂/合金/异质结，供机器检索）","下拉+多选","本征/掺杂/合金/垂直异质结/横向异质结/其他","—","必填","本征","复审","判别器；决定组成明细是否必填"],
- ["目标产物","组成明细(components)","逐组分结构化（复合体系的权威数据源）","数组items[]","每条:化学式/角色(基体·掺杂剂·上层·下层·横向域)/浓度(at%)/层序(整数)","—","条件必填(结构类型≠本征)","{WS₂,上层,层序2};{MoS₂,下层,层序1}","复审","★v3.2b升为权威源+条件必填；数量拆浓度/层序；杜绝退回字符串（复审N2）"],
- ["目标产物","目标层数","期望层数","数值","—","层","推荐","1（单层）","会议","目标与实测分开"],
- ["目标产物","体相空间群","晶体对称性：用体相空间群号 + 说明单层结构","下拉+文本","空间群号(1–230)+单层结构说明；未指定","—","选填","194(P6₃/mmc)，单层2H","复审","★v3：从『层群/点群/多型』改回体相空间群；手性/扭转角/堆垛→备注"],
- ["目标产物","样品形态","目标形态","下拉+其他","连续膜/纳米片(flake)/纳米带/纳米管/纳米棒/纳米颗粒/其他","—","推荐","单层连续膜","会议",""],
- ["目标产物","目标性能","应用导向的目标性能（写清想要什么性能 + 打算用什么方法/判据衡量）","自由+数值","示例：光学属性-高荧光量子效率 / 电属性-高迁移率","视性能","选填","高迁移率（拟FET场效应测）","会议/导师","★v3.4导师评审：可选项列补示例引导；目标=愿景保持轻量；严格『数值绑测试方法』在§7实测侧"],
- ["目标产物","备注","补充说明（手性/扭转角/堆垛类型等放这里）","自由","—","—","选填","盐辅助法，追求大畴单层；手性:右手","会议",""],
+def sections_to_rows(sections):
+    """YAML sections -> 渲染行：("SEC", 标题) 或 10 列字段行（列序与表头一致）。"""
+    rows = []
+    for sec in sections:
+        rows.append(("SEC", sec["title"]))
+        for f in sec["fields"]:
+            rows.append([
+                f["module"], f["label"], f["meaning"], f["input"], f["options"],
+                f["unit"], f["requirement"]["raw"], f["example"], f["source"], f["note"],
+            ])
+    return rows
 
- ("SEC","§2 实验设备与设计（用到的炉子/装置——一台炉录一次，以后直接引用；壁型/温区数/炉体方向/管径/坐标系等由所引用装置快照【只读投影】带出，不重录）"),
- ["设备","装置（引用）","选择已登记的装置","引用","装置库","—","必填","1号双温区管式炉","会议",""],
- ["设备","品牌/型号","设备品牌与型号","下拉+其他","受控+其他","—","推荐","合肥科晶 OTF-1200X","会议",""],
- ["设备","壁型","热壁炉还是冷壁炉（影响生长机理）","下拉","热壁/冷壁","—","推荐","热壁","复审",""],
- ["设备","温区数","独立控温的温区数量","数值","1/2/3…","个","必填","2","会议",""],
- ["设备","炉体方向","炉管水平还是竖直","下拉","水平/垂直","—","必填","水平","会议",""],
- ["设备","管材质/形状","炉管材料与截面形状","下拉+其他","石英/刚玉；圆/方/矩","—","推荐","石英·圆形","会议",""],
- ["设备","管外径/壁厚","管径规格与壁厚（内径自动算）","下拉+数值","1″/2″/4″/自定义 + 壁厚","mm","推荐","1″(25.4)，壁厚2","会议","内径决定流速/分压"],
- ["设备","坐标系","本装置位置参照；全局固定、不可编辑","固定定义","上游为负 / 下游为正，原点固定","—","定义项","上游(-)←原点→下游(+)","复审","★v3：从逐次填『原点+轴向』改为全局定死，防选反"],
- ["设备","外场激励","是否有等离子/光/电场（区分PECVD/光CVD）","多选+展开","无/等离子/光/电","—","选填","无","建议","仅选『用了哪些』；定量参数在§5，定性几何进示意图"],
- ["设备","装置示意图/描述","装置照片或示意图 + 文字批注","附件+自由","—","—","推荐","setup.png + 卧式双温区","会议",""],
- ["设备","炉管/舟履历","累计使用与重置情况","数值×2","重置次数 + 重置后使用次数","次","选填","重置1，之后用7","复审","★v3：自由文本→结构化两数字；退火/清管方法另记"],
 
- ("SEC","§3 前驱体（用了哪些原料：主源、辅助剂等，可多个；每个一组）"),
- ["前驱体","名称/化学式","原料名称与化学式","下拉+其他","受控+其他","—","必填","三氧化钼 / MoO₃","会议",""],
- ["前驱体","CAS/InChI","唯一化学标识（消除同名歧义）","文本","CAS 或 InChI","—","选填","1313-27-5","建议",""],
- ["前驱体","相态","前驱体物态（决定用量单位、是否有投料mg）","下拉","固/气/液","—","必填","固","复审","★v3.2b补：为『用量条件必填(固态源)』提供机器判别位（复审N1）"],
- ["前驱体","外观描述","使用时外观/性状——溯源时判断是否潮解、变质（湿度隐变量的可观察代理）","下拉+其他","白色粉末/白色晶粒/淡黄色粉末/结块或潮解/变色/其他","—","推荐(固态源)","白色粉末","导师","★v3.4导师评审新增(K35)；记『使用时』状态（随时间变化），故放每炉次而非MaterialLot；词表待与俊杰确认"],
- ["前驱体","物料批次（引用）","引用批号（纯度/粒径自动带出），锁定当时版本","引用","批次库","—","推荐","MoO₃-B202（锁 v1）","会议/复审","防以后改批次信息影响旧记录"],
- ["前驱体","角色（role）","在反应里的角色","下拉","主源/辅助剂/掺杂源/其他","—","选填","主源","建议","界面中文(英文)"],
- ["前驱体","用量","投料量（只记投料，不记残余）","数值","—","mg(固)/µL(液)","条件必填(非气态)","20","会议/复审","★相态≠气时必填；固态mg、液态µL/质量（Fable三轮B3）"],
- ["前驱体","处理方式","投料前处理（可多步，选了再展开参数）","下拉+其他","直接加载/熔融凝固/压片/旋涂/退火/研磨/其他","见展开","推荐","直接加载","会议",""],
- ["前驱体","舟/坩埚","盛装容器材质与尺寸","下拉+数值","石英舟/陶瓷(刚玉)舟/其他；长×宽×高（直径）","mm","推荐","石英舟 90×15","复审","v3暂保留长×宽×高"],
- ["前驱体","所在温区/源温","放第几温区、源温（若可设/可测）","下拉+数值","温区1…","℃","推荐","温区1，设定~620","会议","按进气端编号"],
- ["前驱体","距热电偶距离","距所在温区热电偶的水平距离","数值","—","mm","推荐","-20","会议","上游为负、下游为正"],
-
- ("SEC","§4 衬底（长在什么基底上，可多片）"),
- ["衬底","衬底材料","衬底种类","下拉+其他","SiO₂/Si·蓝宝石(Al₂O₃)·石英·云母·Cu箔·Au箔·h-BN·其他","—","必填","SiO₂/Si","会议",""],
- ["衬底","化学式/取向","化学式与晶面取向/偏转角","文本","标准写法（如 x面向x轴偏X°）","—","推荐","Si(100)","会议","单晶记取向+偏转角"],
- ["衬底","氧化层厚度","SiO₂ 层厚度（决定光学判层数）","数值","写成 SiO₂/Si(285nm)","nm","条件必填(仅SiO₂/Si)","285","会议",""],
- ["衬底","表面粗糙度","Ra / RMS","数值","—","nm","选填","<1","复审","常比化学式更决定成核；可问厂家或AFM"],
- ["衬底","尺寸/朝向","几何尺寸与放置朝向","数值+下拉","长×宽×厚；正放/倒扣/倾角/竖放","mm","选填","10×10×0.5；正放","会议/建议",""],
- ["衬底","预处理（有序步骤）","预处理步骤序列（记顺序，展开参数）","下拉+其他","清洗/退火/等离子/亲水化/其他","见展开","推荐","丙酮→异丙醇→N₂吹干","会议",""],
- ["衬底","处理到装炉间隔/暴露环境","清洗后到装炉的时间与环境","数值","—","min","选填","30 min，空气","复审","表面老化"],
- ["衬底","所在温区/距热电偶距离","第几温区、距离(±)","下拉+数值","温区2…","mm","推荐","温区2，+15","会议",""],
-
- ("SEC","§5 反应条件（按时间顺序的各阶段；每阶段填同一套：气体/温度/压力/时长；阶段类型驱动动态表单）"),
- ["过程步","阶段类型","这一步在做什么（选后只显示对应参数）","下拉+其他","抽气/漏检/吹扫/预处理/升温/温度稳定/反应生长/后退火/降温/放气/卸样","—","必填","反应生长","会议/复审","多步可加；跨组比较看类型"],
- ["过程步","步序/起止时刻","第几步、起止时间","数值+时间","—","datetime","推荐","#3，10:20–10:35","复审","支持重叠/循环"],
- ["步·温度","设定温度程序","各温区升温曲线（目标温/速率/保温）","数组","—","℃·℃/min·min","必填","温区2：25→750@20℃/min，保温15","会议","设定值；分温区"],
- ["步·温度","实测温度","控温热电偶实测曲线（导入）。注意：不是衬底真温","数组(时序)","—","℃ 随时间","推荐","[导入 furnace.csv]","会议/复审","★v3：删『估算衬底真温』，只留设定+实测"],
- ["步·温度","测温设备/不确定度","测温点用什么设备、不确定度多少","引用+数值","热电偶/高温计；来源：仪器/校准/重复性/估计","℃","选填","K型热电偶，±1℃","会议/复审","测量不确定度"],
- ["步·降温","降温方式/开盖温度/速率","降温段参数（阶段类型=降温 时）","下拉+数值","随炉冷却/开盖冷却/移炉快速冷却；开盖温度；降温速率","℃·℃/min","条件必填(降温段)","随炉冷却；开盖~580","复审","★v3.2补回：review文档头部隐变量，勿再漏（Fable评审）"],
- ["步·气体","气体组分","每种气体单独一条（混合气拆开）","下拉(多条)","Ar/N₂/H₂/O₂/CH₄/其他","—","必填","Ar","会议",""],
- ["步·气体","纯度/浓度/水氧","纯度、体积比、水氧杂质","数值","—","N·%·ppm","推荐","Ar 5N；水氧<1ppm","会议/复审",""],
- ["步·气体","流量/来源","流量、流量计类型","数值+下拉","MFC/转子","sccm","必填","80（MFC）","会议/复审","sccm须绑标准状态；设定+实测"],
- ["步·压力","压力体系/工作压力","常压/低压/超高真空 + 工作压力","下拉+数值","常压(APCVD)/低压(LPCVD)/超高真空","Pa","必填(生长)/选填(其余)","常压；1.0×10⁵ Pa","会议","所有阶段可出现"],
- ["步·压力","本底压力/漏率","反应前底压、漏率","数值","—","Pa·Pa·L/s","选填","—","会议/复审",""],
- ["过程步","时长/循环次数","本阶段时长、吹扫抽-充次数","数值","—","min·次","必填/选填","15 min","会议",""],
- ["步·外场","外场参数","等离子功率/光源（有外场才填，可自填添加）","数值","电场强度；光场:中心波长/线宽/功率密度/光斑大小","V·nm·W…","条件必填(Setup有外场)","—","建议/导师","★v3.4导师评审(K65)：选填→条件必填；判别位=Setup.外场装置≠无；无外场则不显示"],
-
- ("SEC","§6 过程事件 Process Events（含异常/中断/人工干预等客观事件；只记客观事实、不判成败）"),
- ["过程事件","事件/部位","过程中发生的客观事件 + 关联部位（合并）","下拉+其他","供电/供水/供气中断·管路堵塞·压力突变·信号异常·人工干预·其他（可加）","—","选填","气流中断（Ar气路）","复审","★v3：事件类型与关联对象合并为一个下拉"],
- ["过程事件","发生时刻","何时发生（记绝对时间）","时间","—","—","选填","10:28","会议","相对时间可由t0算"],
- ["过程事件","中止原因","若中止（只记客观原因，不写成败）","下拉","设备报警/人工停止/计划结束","—","选填","计划结束","复审",""],
- ["过程事件","描述/措施/附件","现象、处理、相关文件","自由+附件","—","—","选填","Ar瓶压不足，已更换","会议",""],
-
- ("SEC","§7 产物表征 + 实测产物（★独立表，用编号与实验记录关联；只记事实，不判好坏）"),
- ["表征","表征类型/仪器","表征手段 + 引用仪器","下拉+其他","光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他","—","推荐","Raman","会议","★v3：长一批表征一批，拆成独立表编号关联"],
- ["表征","测试条件","该表征的测试参数","文本/自由","—","视仪器","推荐","532nm / 1mW / 100×","会议","随仪器导出"],
- ["表征","原始数据","上传原始文件（留校验和）","附件","—","—","推荐","raman.txt","会议/复审",""],
- ["实测产物","观察到的现象","光镜可判的客观现象（非成败判断）","下拉+多选","无生长/不连续覆盖/厚层区域/可见颗粒沾污/衬底破损/变色/其他","—","选填","不连续覆盖","复审","★失败炉次最小痕迹；终态无任何结果→『结果缺失』待办(标准§7/§10)"],
- ["实测产物","检出相/多型/堆垛","测到的物相/多型/堆垛类型","文本","—","—","选填","2H-MoS₂；AB堆垛","复审/导师","★v3.4导师评审(B76红字)：增记堆垛类型（可判粒度待与俊杰确认，或改下拉）；最小结构化结果"],
- ["实测产物","实测层数/覆盖率","实测层数与覆盖率","数值","—","层·%","选填","1 层；~70%","复审",""],
- ["实测产物","畴尺寸/成核密度/连续性","","数值","—","μm·cm⁻²·(连续/孤立)","选填","畴 ~50 μm","复审",""],
- ["实测产物","关键谱学指标","Raman峰位/峰宽/峰面积；PL峰位/峰宽；AFM厚度/粗糙度；SEM覆盖率(视场内材料面积占比,%)/尺寸","数值","—","cm⁻¹·eV·nm·%…","选填","Δ(A1g-E2g)≈20；PL~1.85eV","复审/导师","★v3.4导师评审(C79红字/K79)：PL补峰宽；『SEM占比』改名『SEM覆盖率』并给定义；随技术选填"],
-
- ("SEC","§8 PVD 专用（若合成方法选 PVD 类才启用；延后实现，先占位）"),
- ["PVD","靶材（批次）","靶材化学身份 + 批次","引用","批次库","—","条件必填(PVD)","MoS₂ 靶-T01","复审",""],
- ["PVD","靶基距","靶到衬底距离","数值","—","mm","条件必填(PVD)","80","复审",""],
- ["PVD","功率/偏压","DC/RF 功率、基底偏压","数值","DC/RF","W·V","条件必填(PVD)","RF 150W；偏压 -50V","复审",""],
- ["PVD","等离子气氛/工作气压","溅射气体与气压","下拉+数值","Ar / Ar+N₂…","Pa","条件必填(PVD)","Ar，0.5 Pa","复审",""],
- ["PVD","预溅射/挡板时序","预溅射时长、挡板开合时序","数值","—","min·s","条件必填(PVD)","预溅 5 min","复审",""],
- ["PVD","沉积速率","速率（QCM 等）","数值","—","nm/s","条件必填(PVD)","0.1","复审",""],
-]
+HEADERS = DOC["experiment_record"]["headers"]
+ROWS = sections_to_rows(DOC["experiment_record"]["sections"])
+ENT_HEADERS = DOC["entities"]["headers"]
+ENTITY_ROWS = sections_to_rows(DOC["entities"]["sections"])
+CHG = DOC["changelog"]["rows"]
+TBD = DOC["open_items"]["rows"]
 
 wb = openpyxl.Workbook()
 ws = wb.active
@@ -130,7 +58,7 @@ sec_fill = PatternFill("solid", fgColor="D6E4F0")
 sec_font = Font(bold=True, color="1F4E79", size=11)
 star_font = Font(color="C00000")
 thin = Side(style="thin", color="D0D0D0")
-border = Border(left=thin,right=thin,top=thin,bottom=thin)
+border = Border(left=thin, right=thin, top=thin, bottom=thin)
 req_fills = {
     "必填": PatternFill("solid", fgColor="FCE4E4"),
     "条件必填(仅SiO₂/Si)": PatternFill("solid", fgColor="FCEFD6"),
@@ -140,6 +68,9 @@ req_fills = {
     "条件必填(降温段)": PatternFill("solid", fgColor="FCEFD6"),
     "条件必填(结构类型≠本征)": PatternFill("solid", fgColor="FCEFD6"),
     "条件必填(Setup有外场)": PatternFill("solid", fgColor="FCEFD6"),
+    "条件必填(衬底)": PatternFill("solid", fgColor="FCEFD6"),
+    "条件必填(SiO₂/Si)": PatternFill("solid", fgColor="FCEFD6"),
+    "条件必填(气瓶)": PatternFill("solid", fgColor="FCEFD6"),
     "必填(生长)/选填(其余)": PatternFill("solid", fgColor="FCE4E4"),
     "必填/选填": PatternFill("solid", fgColor="FCEFD6"),
     "推荐": PatternFill("solid", fgColor="FFF7DA"),
@@ -147,233 +78,155 @@ req_fills = {
     "定义项": PatternFill("solid", fgColor="E4ECF7"),
 }
 
+
 # v3.4 导师提醒(B93)：必填/选填要有明显标识 → 必填级别加粗着色字体 + 表头下图例行
 def req_font(req):
-    if req.startswith("必填"): return Font(bold=True, color="C00000")
-    if req.startswith("条件必填"): return Font(bold=True, color="B26B00")
-    if req.startswith("推荐"): return Font(color="806000")
+    if req.startswith("必填"):
+        return Font(bold=True, color="C00000")
+    if req.startswith("条件必填"):
+        return Font(bold=True, color="B26B00")
+    if req.startswith("推荐"):
+        return Font(color="806000")
     return None
 
+
 def add_legend(sheet):
-    sheet.cell(2,1,"图例▶").font = Font(bold=True, color="1F4E79")
-    items = [("必填","FCE4E4","C00000"),("条件必填(×××时)","FCEFD6","B26B00"),
-             ("推荐","FFF7DA","806000"),("选填(无底色)","FFFFFF","666666"),
-             ("定义项(全局固定)","E4ECF7","1F4E79")]
-    for i,(label,fg,fc) in enumerate(items, start=2):
-        cell = sheet.cell(2,i,label)
+    sheet.cell(2, 1, "图例▶").font = Font(bold=True, color="1F4E79")
+    items = [("必填", "FCE4E4", "C00000"), ("条件必填(×××时)", "FCEFD6", "B26B00"),
+             ("推荐", "FFF7DA", "806000"), ("选填(无底色)", "FFFFFF", "666666"),
+             ("定义项(全局固定)", "E4ECF7", "1F4E79")]
+    for i, (label, fg, fc) in enumerate(items, start=2):
+        cell = sheet.cell(2, i, label)
         cell.fill = PatternFill("solid", fgColor=fg)
         cell.font = Font(bold=True, color=fc)
         cell.alignment = Alignment(horizontal="center", vertical="center")
-    sheet.cell(2,8,"表单UI另用红星*标必填（待实现，见待明确清单）").font = Font(color="666666", size=9)
-    for c in range(1,11): sheet.cell(2,c).border = border
+    sheet.cell(2, 8, "表单UI另用红星*标必填（待实现，见待明确清单）").font = Font(color="666666", size=9)
+    for c in range(1, 11):
+        sheet.cell(2, c).border = border
     sheet.row_dimensions[2].height = 18
 
+
 # header
-for c,h in enumerate(HEADERS,1):
-    cell = ws.cell(1,c,h); cell.fill=hdr_fill; cell.font=hdr_font
-    cell.alignment=Alignment(horizontal="center",vertical="center"); cell.border=border
+for c, h in enumerate(HEADERS, 1):
+    cell = ws.cell(1, c, h)
+    cell.fill = hdr_fill
+    cell.font = hdr_font
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = border
 add_legend(ws)
 
 r = 3
 for item in ROWS:
     if isinstance(item, tuple):  # section
-        ws.cell(r,1,item[1])
-        ws.merge_cells(start_row=r,start_column=1,end_row=r,end_column=10)
-        cc = ws.cell(r,1); cc.fill=sec_fill; cc.font=sec_font
-        cc.alignment=Alignment(horizontal="left",vertical="center",wrap_text=True)
-        for c in range(1,11): ws.cell(r,c).border=border
-        ws.row_dimensions[r].height=20
+        ws.cell(r, 1, item[1])
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
+        cc = ws.cell(r, 1)
+        cc.fill = sec_fill
+        cc.font = sec_font
+        cc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        for c in range(1, 11):
+            ws.cell(r, c).border = border
+        ws.row_dimensions[r].height = 20
     else:
-        for c,val in enumerate(item,1):
-            cell=ws.cell(r,c,val); cell.border=border
-            cell.alignment=Alignment(vertical="center",wrap_text=True)
+        for c, val in enumerate(item, 1):
+            cell = ws.cell(r, c, val)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
         req = item[6]
-        if req in req_fills: ws.cell(r,7).fill=req_fills[req]
+        if req in req_fills:
+            ws.cell(r, 7).fill = req_fills[req]
         rf = req_font(req)
-        if rf: ws.cell(r,7).font=rf
-        ws.cell(r,7).alignment=Alignment(horizontal="center",vertical="center",wrap_text=True)
+        if rf:
+            ws.cell(r, 7).font = rf
+        ws.cell(r, 7).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         # star note red
-        if str(item[9]).startswith("★"): ws.cell(r,10).font=star_font
-    r+=1
+        if str(item[9]).startswith("★"):
+            ws.cell(r, 10).font = star_font
+    r += 1
 
-widths=[10,16,30,12,34,10,14,26,10,34]
-for c,w in enumerate(widths,1):
-    ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width=w
-ws.freeze_panes="A3"
+widths = [10, 16, 30, 12, 34, 10, 14, 26, 10, 34]
+for c, w in enumerate(widths, 1):
+    ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
+ws.freeze_panes = "A3"
 
 # ---- 一等实体字段表 sheet ----
-ENT_HEADERS=["实体","字段","含义/为什么记","填写方式","可选项/格式","单位","必填(登记)","填写示例","来源","备注"]
-ENTITY_ROWS=[
- ("SEC","※ 本表定义『实验只引用、不重复录入』的一等实体；『必填(登记)』指登记该实体时必填，与实验记录的 R0 不同。实验引用时对当时版本快照冻结。"),
- ("SEC","实体① 物料批次库 MaterialLot（前驱体/衬底/气瓶通用 + 子类；实验中只填批号引用，纯度/粒径自动带出并锁版）"),
- ["MaterialLot","批次类别","决定启用哪组子类字段","下拉","化学品/衬底/气瓶","—","必填","化学品","复审","驱动子类条件字段"],
- ["MaterialLot","版本号","每次修改+1；实验引用时冻结此版本","数值","—","—","必填","1","★锁版使能(Fable三轮B2)","改则新版本，旧引用不受影响"],
- ["MaterialLot","物质名称","化学身份：名称","文本","—","—","必填","三氧化钼","review§4.1A",""],
- ["MaterialLot","化学式","化学身份：分子式","文本","—","—","必填","MoO₃","review",""],
- ["MaterialLot","CAS号","唯一化学标识","文本","CAS","—","推荐","1313-27-5","review",""],
- ["MaterialLot","InChIKey/PubChem CID","可选唯一标识","文本","—","—","选填","—","review",""],
- ["MaterialLot","供应商","商业批次：厂商","下拉+其他(可扩展)","受控+其他","—","推荐","阿拉丁","review",""],
- ["MaterialLot","货号","商业批次：产品号","文本","—","—","选填","M112056","review",""],
- ["MaterialLot","批号","商业批次：生产批号（同名不同批的区分键）","文本","—","—","必填","B202405","review","GMP法定术语『批号』"],
- ["MaterialLot","纯度","质量分数或N值","数值","%或N值","%","推荐","99.95（4N5）","review",""],
- ["MaterialLot","粒径(x50/D50)","中位径（影响挥发/成核）","数值","x50严谨；目数可接受","µm","选填","10","review",""],
- ["MaterialLot","形态/性状","试剂外观","下拉+其他","粉末/颗粒/块/箔/靶/其他","—","选填","粉末","review","外观=性状"],
- ["MaterialLot","开封日期","影响吸潮/氧化","日期","—","—","选填","2026-05-01","review",""],
- ["MaterialLot","存储方式","存放条件","下拉+其他","干燥器/手套箱/常温避光/冷藏/其他","—","选填","干燥器","review","desiccator=干燥器"],
- ["MaterialLot","证书附件(CoA)","质检证书","附件","—","—","选填","coa.pdf","review",""],
- ["MaterialLot","▸衬底·材料","子类(批次类别=衬底)","下拉","SiO₂/Si·蓝宝石·石英·云母·Cu箔·Au箔·h-BN·其他","—","条件必填(衬底)","SiO₂/Si","review","与§4衬底材料词表一致"],
- ["MaterialLot","▸衬底·氧化层厚度","仅SiO₂/Si","数值","—","nm","条件必填(SiO₂/Si)","285","review",""],
- ["MaterialLot","▸衬底·晶向/抛光","取向与抛光面","文本+下拉","晶向；单面抛/双面抛","—","推荐","Si(100)；单面抛","review",""],
- ["MaterialLot","▸衬底·尺寸规格","出厂几何","文本","长×宽×厚","mm","选填","10×10×0.5","review",""],
- ["MaterialLot","▸气瓶·纯度等级","子类(批次类别=气瓶)；与base『纯度』分工","下拉","6N/5N/4N/工业级/其他","—","条件必填(气瓶)","5N","review","分工：base纯度填数值%、此处填等级标签(Fable三轮B4)"],
- ["MaterialLot","▸气瓶·气瓶编号","钢瓶追溯号","文本","—","—","选填","GC-Ar-07","review",""],
- ("SEC","实体② 装置库 Setup（一台炉登记一次，实验 §2 引用；坐标系随引用冻结）"),
- ["装置Setup","装置编号","唯一编号","文本","—","—","必填","CVD-炉1","review§4.1B",""],
- ["装置Setup","装置名称","人读名","文本","—","—","必填","1号双温区管式炉","会议",""],
- ["装置Setup","版本号","每次修改+1；引用时冻结此版本","数值","—","—","必填","1","★锁版使能(Fable三轮B2)","对标 v1 setup_version_snapshot"],
- ["装置Setup","品牌/型号","设备品牌型号","下拉+其他","受控+其他","—","推荐","合肥科晶 OTF-1200X","会议",""],
- ["装置Setup","壁型","热壁/冷壁","下拉","热壁/冷壁","—","推荐","热壁","复审",""],
- ["装置Setup","温区数","独立控温区数","数值","—","个","必填","2","会议",""],
- ["装置Setup","炉体方向","水平/垂直","下拉","水平/垂直","—","必填","水平","会议",""],
- ["装置Setup","管材质/形状","炉管材料与截面","下拉+其他","石英/刚玉；圆/方/矩","—","推荐","石英·圆形","会议",""],
- ["装置Setup","管外径/壁厚(→内径)","管规格","下拉+数值","1″/2″/4″/自定义 + 壁厚","mm","推荐","1″，壁厚2","会议",""],
- ["装置Setup","加热区长度","恒温区长度（影响停留/温场）","数值","—","mm","推荐","300","★review§4.1B补","v3曾漏，Fable点名"],
- ["装置Setup","坐标系定义","原点固定、上游负/下游正（随引用冻结）","固定定义","原点+轴向","—","必填","原点=温区2热电偶；下游为正","复审","全局定死，防选反"],
- ["装置Setup","泵型号/极限压力","真空能力","文本+数值","—","Pa","选填","机械泵，10 Pa","★review§4.1B补",""],
- ["装置Setup","MFC配置","各通道气体/量程/校准日期","数组","通道/气体/量程(sccm)/校准日期","—","选填","CH1 Ar 0–200sccm","★review§4.1B补",""],
- ["装置Setup","仪器PID","持久标识（预留）","文本","PIDINST/PID","—","选填","—","★NXfabrication",""],
- ["装置Setup","外场装置","是否配光/电/等离子源","多选+描述","无/光/电/等离子","—","选填","无","建议","定量参数在实验§5"],
- ["装置Setup","装置示意图/描述","照片/示意图+文字","附件+自由","—","—","推荐","setup.png","会议",""],
- ("SEC","实体③ 表征仪器 Instrument（实验 §7 表征引用；对标 NeXus NXfabrication 仪器溯源）"),
- ["表征仪器","仪器编号","唯一编号","文本","—","—","必填","RAMAN-1","复审",""],
- ["表征仪器","仪器名称/类型","手段类型","下拉+其他","光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他","—","必填","Raman","会议",""],
- ["表征仪器","厂商(vendor)","品牌","文本","—","—","推荐","Horiba","★NXfabrication",""],
- ["表征仪器","型号(model)","型号","文本","—","—","推荐","LabRAM HR","★NXfabrication",""],
- ["表征仪器","序列号(serial)","设备序列号","文本","—","—","选填","—","★NXfabrication",""],
- ["表征仪器","PID(持久标识)","仪器持久标识（预留）","文本","—","—","选填","—","★NXfabrication/PIDINST",""],
- ["表征仪器","所在实验室/位置","物理位置","文本","—","—","选填","A305","建议",""],
- ["表征仪器","关键固定配置","随仪器固定的参数（可变测试条件在实验§7填）","自由","如激光波长/物镜/探测器","视仪器","选填","532nm激光","会议",""],
- ["表征仪器","最近校准/维护","校准/维护日期","日期","—","—","选填","2026-06","会议",""],
-]
-wsE=wb.create_sheet("一等实体字段表")
-for c,h in enumerate(ENT_HEADERS,1):
-    cell=wsE.cell(1,c,h); cell.fill=hdr_fill; cell.font=hdr_font
-    cell.alignment=Alignment(horizontal="center",vertical="center"); cell.border=border
-r=2
+wsE = wb.create_sheet("一等实体字段表")
+for c, h in enumerate(ENT_HEADERS, 1):
+    cell = wsE.cell(1, c, h)
+    cell.fill = hdr_fill
+    cell.font = hdr_font
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = border
+r = 2
 for item in ENTITY_ROWS:
-    if isinstance(item,tuple):
-        wsE.cell(r,1,item[1]); wsE.merge_cells(start_row=r,start_column=1,end_row=r,end_column=10)
-        cc=wsE.cell(r,1); cc.fill=sec_fill; cc.font=sec_font
-        cc.alignment=Alignment(horizontal="left",vertical="center",wrap_text=True)
-        for c in range(1,11): wsE.cell(r,c).border=border
-        wsE.row_dimensions[r].height=20
+    if isinstance(item, tuple):
+        wsE.cell(r, 1, item[1])
+        wsE.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
+        cc = wsE.cell(r, 1)
+        cc.fill = sec_fill
+        cc.font = sec_font
+        cc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        for c in range(1, 11):
+            wsE.cell(r, c).border = border
+        wsE.row_dimensions[r].height = 20
     else:
-        for c,val in enumerate(item,1):
-            cell=wsE.cell(r,c,val); cell.border=border
-            cell.alignment=Alignment(vertical="center",wrap_text=True)
-        req=item[6]
-        if req in req_fills: wsE.cell(r,7).fill=req_fills[req]
-        rf=req_font(req)
-        if rf: wsE.cell(r,7).font=rf
-        wsE.cell(r,7).alignment=Alignment(horizontal="center",vertical="center",wrap_text=True)
-        if str(item[9]).startswith("★"): wsE.cell(r,10).font=star_font
-    r+=1
-for c,w in enumerate(widths,1):
-    wsE.column_dimensions[openpyxl.utils.get_column_letter(c)].width=w
-wsE.freeze_panes="A2"
+        for c, val in enumerate(item, 1):
+            cell = wsE.cell(r, c, val)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+        req = item[6]
+        if req in req_fills:
+            wsE.cell(r, 7).fill = req_fills[req]
+        rf = req_font(req)
+        if rf:
+            wsE.cell(r, 7).font = rf
+        wsE.cell(r, 7).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        if str(item[9]).startswith("★"):
+            wsE.cell(r, 10).font = star_font
+    r += 1
+for c, w in enumerate(widths, 1):
+    wsE.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
+wsE.freeze_panes = "A2"
 
 # ---- 变更说明 sheet ----
 ws2 = wb.create_sheet("v2→v3变更说明")
-chg_hdr=["#","模块","改动","类型"]
-CHG=[
- ["1","§1 基本信息","新增「合成方法」字段（顶层 CVD/PVD 选择器，必填，决定PVD模块是否出现）","新增(我补)"],
- ["2","§1 基本信息","环境湿度 选填→推荐","必填级"],
- ["3","§1b 目标产物","对称性字段落实批注：空间群系→体相空间群，选项简化为空间群号+单层结构说明","落实批注"],
- ["4","§1b 目标产物","手性/扭转角/堆垛类型 明确放『备注』","落实批注"],
- ["5","§2 设备","坐标系：逐次填『原点+轴向』→ 全局固定、不可编辑的定义项（上游负/下游正）","会议决定"],
- ["6","§2 设备","炉管/舟履历：自由文本 → 重置次数 + 重置后使用次数（两个结构化数字）","落实批注"],
- ["7","§3 前驱体","用量 推荐→必填（纳入R0）","必填级"],
- ["8","§5 反应条件","删除『估算衬底真温』行，温度只留 设定温度 + 实测温度","会议决定"],
- ["9","§6 过程事件","事件类型 与 关联对象 合并为一个细化下拉","会议决定"],
- ["10","§7 表征","产物表征拆成独立表、用编号与实验记录关联","会议决定"],
- ["—","回退保留v2","§3『舟/坩埚』仍长×宽×高（未拆高）","未改"],
- ["","── 2026-07-06 表头定稿修订 ──","",""],
- ["v3.1","§1b","掺杂/合金/异质结自由文本 → 新增『结构类型』下拉多选（本征/掺杂/合金/垂直·横向异质结）；明细走化学式标准写法","定稿修订"],
- ["v3.1","§6","模块定名『过程事件 Process Events』；『事件类型(含关联对象)』→『事件/部位』","定稿修订"],
- ["v3.1","§1b","目标性能保持轻量自由文本（性能+衡量方法）；严格『数值绑测试方法』落在§7实测侧","定稿修订"],
- ["","── 2026-07-06 v3.2 评审回炉（Fable 独立评审）──","",""],
- ["v3.2","§7","新增『观察到的现象』客观多选词表——录入端仍不判成败，但保留光镜可判的客观负结果（失败炉次最小结构化痕迹）","评审回炉"],
- ["v3.2","§1b","化学式升R0；新增『组成明细 components[]』结构化掺杂/异质结，替代字符串承载；结构类型保留为判别器","评审回炉"],
- ["v3.2","§5","补回降温段参数（方式/开盖温度/速率），条件必填(降温段)——review头部隐变量勿再漏","评审回炉"],
- ["v3.2","R0","按合成方法条件化：前驱体用量→条件必填(固态源)，气态源/PVD不逼填mg","评审回炉"],
- ["v3.2","数据模型","记录最小单元拍板：炉次=记录单元、样品=关联主键、表征外键指向样品","评审回炉"],
- ["","── v3.2b 二轮复审再修（Fable 第二轮）──","",""],
- ["v3.2b","§3","新增前驱体『相态(固/气/液)』字段，为『用量条件必填(固态源)』提供机器判别位（复审N1）","复审再修"],
- ["v3.2b","§1b","组成明细升为权威+条件必填(结构类型≠本征)、化学式复合体系以其为准；数量拆『浓度(at%)』『层序』；结构类型改必填（复审N2/③）","复审再修"],
- ["v3.2b","§7/§10","加生命周期规则：炉次终态而无任何现象/表征行→『结果缺失』待办，堵『失败炉次零痕迹』（复审①）","复审再修"],
- ["v3.2b","§8/§10","PVD 暂不纳入 v2.0 合规判定（占位），R0 不校验 PVD 炉次，待 profile 落地（复审N3）","复审再修"],
- ["","── v3.3 一等实体补齐（复审⑤/must-fix4-5）──","",""],
- ["v3.3","实体表","新增『一等实体字段表』sheet：MaterialLot/装置Setup/表征仪器三张权威字段表（补齐半个数据模型）；§10 合规纳入（PVD 仍排除）","实体补齐"],
- ["v3.3","§5/§8.1","AP/LP 冗余二选一敲定：保留合成方法 AP/LP，以校验规则强制与压力体系一致（不再悬置）","实体补齐"],
- ["v3.3b","冻结前收尾","Fable三轮B1-B4：MaterialLot/Setup 加『版本号』(锁版使能)；§2属性=Setup快照【只读投影】声明；用量含液态(非气态条件、µL)；气瓶纯度与base分工注","冻结前收尾"],
- ["","── 2026-07-07 导师书面评审回改（v3.4，FSS Re-副本 标黄9处+红字2处）──","",""],
- ["v3.4","§1b","目标性能：可选项列补示例引导『光学属性-高荧光量子效率 / 电属性-高迁移率』（导师标黄E18）","导师评审"],
- ["v3.4","§3","新增『外观描述』字段：使用时性状，溯源判断潮解/变质；推荐(固态源)；放每炉次而非MaterialLot（导师批注K35）","导师评审"],
- ["v3.4","§5","外场参数 选填→条件必填(Setup有外场)；判别位=Setup.外场装置≠无，机器可校验（导师批注K65）","导师评审"],
- ["v3.4","§7","检出相/多型→检出相/多型/堆垛，增记堆垛类型；示例加『AB堆垛』（导师红字B76）","导师评审"],
- ["v3.4","§7","关键谱学指标：PL补峰宽；『SEM占比』改名『SEM覆盖率(视场内材料面积占比,%)』并给定义（导师红字C79/问询K79）","导师评审"],
- ["v3.4","全表","表头下加必填级别图例行；必填/条件必填字体加粗着色（导师提醒B93）；表单UI红星标识记入待明确清单","导师评审"],
- ["未改","§7","『观察到的现象』词表粒度（7项多选 vs 只记生长/不生长）——导师K75点名与俊杰确认后再定，见待明确清单#5","待俊杰对齐"],
- ["","── review→v3 回退存档（每条给去向）──","",""],
- ["存档","湿度","review建议升必填(有DOI)；v3=推荐(6/24未升)。保留推荐，复议是否升R0","回退备案"],
- ["存档","装置加热区长/泵型号/MFC配置/PID","review §4.1B承诺；v3暂缺。留待『装置』实体字段表（下一轮）","回退备案"],
- ["存档","炉管履历","review想自动累加；6/24定为手填两数字。保留手填+加重置口径说明（手填有漂移风险）","回退备案"],
- ["存档","时序四元组","review对标NOMAD；v3仅一行导入。落地设计见标准§4时序小节：走FileAsset+通道注册，不进payload","回退备案"],
- ["","","",""],
- ["R0","硬必填核心(≈16项，含条件必填)","实验时间·合成方法·实验人·样品编号·目标化学式·装置·温区数·炉体方向·前驱体名称·前驱体用量(固态源)·衬底材料·阶段类型·设定温度程序·气体组分·流量·压力体系(生长)","必填集"],
-]
-for c,h in enumerate(chg_hdr,1):
-    cell=ws2.cell(1,c,h); cell.fill=hdr_fill; cell.font=hdr_font
-    cell.alignment=Alignment(horizontal="center",vertical="center"); cell.border=border
-for i,row in enumerate(CHG,2):
-    for c,val in enumerate(row,1):
-        cell=ws2.cell(i,c,val); cell.border=border
-        cell.alignment=Alignment(vertical="center",wrap_text=True)
-for c,w in enumerate([6,16,72,14],1):
-    ws2.column_dimensions[openpyxl.utils.get_column_letter(c)].width=w
-ws2.freeze_panes="A2"
+chg_hdr = DOC["changelog"]["headers"]
+for c, h in enumerate(chg_hdr, 1):
+    cell = ws2.cell(1, c, h)
+    cell.fill = hdr_fill
+    cell.font = hdr_font
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = border
+for i, row in enumerate(CHG, 2):
+    for c, val in enumerate(row, 1):
+        cell = ws2.cell(i, c, val)
+        cell.border = border
+        cell.alignment = Alignment(vertical="center", wrap_text=True)
+for c, w in enumerate([6, 16, 72, 14], 1):
+    ws2.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
+ws2.freeze_panes = "A2"
 
 # ---- 待明确清单 sheet ----
 ws3 = wb.create_sheet("待明确清单")
-tbd_hdr=["#","问题","状态"]
-TBD=[
- ["1","化学式 / 异质结 标准写法（渲染规则，找国标或组内定）","待办"],
- ["2","化学式录入：文本+元素校验/自动补全（建议，非周期表点选）","待办(技术)"],
- ["3","权威源从xlsx转仓库内YAML/CSV（可行级diff）；词表归一到单一源","下一轮"],
- ["4","v1→v2 逐字段迁移映射（68字段去向，含quality_label/failure_modes/color_change落点）","下一轮"],
- ["","── 2026-07-07 导师评审引出的待对齐（计划 07-08 当面问）──",""],
- ["5","【问俊杰·导师K75点名】§7『观察到的现象』粒度：现7项客观多选 vs 只记『生长/不生长』？可带折中案：一级『生长/未生长』必选＋二级现象细分可选（保失败溯源卖点）","待对齐(问俊杰)"],
- ["6","【问俊杰】SEM覆盖率：组里习惯的叫法/量化方式/单位？（导师问『SEM占比是什么』，已先改名『SEM覆盖率(视场内材料面积占比,%)』）","待对齐(问俊杰)"],
- ["7","【问俊杰】堆垛类型实际可判到什么粒度（2H/3R？AA/AB/ABC？扭转角？）→ 决定自由文本还是下拉词表","待对齐(问俊杰)"],
- ["8","【问俊杰】前驱体『外观描述』词表：组里常用前驱体的形态 + 潮解/变质后的典型外观有哪些","待对齐(问俊杰)"],
- ["9","【回导师】①SEM占比=SEM视场内材料面积覆盖占比（已改名并给定义）；②必填/选填已加图例行+字体强化，表单UI将用红星标必填","待回复"],
- ["10","表单UI：必填红星/选填弱化等明显标识（导师B93提醒）","实现期"],
- ["—","已定/已改：一等实体字段表 · 记录单元=炉次+样品 · 掺杂→结构类型+components · 观察现象词表 · 降温参数 · R0条件化(相态判别) · AP/LP校验 · v3.4导师评审回改","见『v2→v3变更说明』"],
-]
-for c,h in enumerate(tbd_hdr,1):
-    cell=ws3.cell(1,c,h); cell.fill=hdr_fill; cell.font=hdr_font
-    cell.alignment=Alignment(horizontal="center",vertical="center"); cell.border=border
-for i,row in enumerate(TBD,2):
-    for c,val in enumerate(row,1):
-        cell=ws3.cell(i,c,val); cell.border=border
-        cell.alignment=Alignment(vertical="center",wrap_text=True)
-for c,w in enumerate([6,64,26],1):
-    ws3.column_dimensions[openpyxl.utils.get_column_letter(c)].width=w
-ws3.freeze_panes="A2"
+tbd_hdr = DOC["open_items"]["headers"]
+for c, h in enumerate(tbd_hdr, 1):
+    cell = ws3.cell(1, c, h)
+    cell.fill = hdr_fill
+    cell.font = hdr_font
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = border
+for i, row in enumerate(TBD, 2):
+    for c, val in enumerate(row, 1):
+        cell = ws3.cell(i, c, val)
+        cell.border = border
+        cell.alignment = Alignment(vertical="center", wrap_text=True)
+for c, w in enumerate([6, 64, 26], 1):
+    ws3.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
+ws3.freeze_panes = "A2"
 
 wb.save(OUT)
 # count fields
-nf=sum(1 for x in ROWS if not isinstance(x,tuple))
-nreq=sum(1 for x in ROWS if not isinstance(x,tuple) and x[6]=="必填")
-print("saved:",OUT)
-print("字段行数:",nf," 硬必填(必填)行:",nreq," 章节:",sum(1 for x in ROWS if isinstance(x,tuple)))
+nf = sum(1 for x in ROWS if not isinstance(x, tuple))
+nreq = sum(1 for x in ROWS if not isinstance(x, tuple) and x[6] == "必填")
+print("saved:", OUT)
+print("字段行数:", nf, " 硬必填(必填)行:", nreq, " 章节:", sum(1 for x in ROWS if isinstance(x, tuple)))

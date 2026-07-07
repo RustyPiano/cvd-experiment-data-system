@@ -21,7 +21,7 @@ CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、�
 ## 文档入口
 
 - **`docs/standard/STATUS.md`（先读：现状与真相指针；含全部背景+进度+已冻结决策+下一步）**
-- **维护约定**：完成实质改动后，回写 `STATUS.md`（进展日志 + 最后更新日期）；**字段改动改 `docs/standard/build_field_tables.py` 再重跑**，勿手改二进制 xlsx。
+- **维护约定**：完成实质改动后，回写 `STATUS.md`（进展日志 + 最后更新日期）；**字段改动改单一源 `docs/standard/field-source.yaml`**，再 `python3 docs/standard/build_field_tables.py` 重新生成 + `python3 docs/standard/check_field_source.py` 校验（CI 强制），勿手改二进制 xlsx、勿改回脚本内嵌数据。
 - `docs/standard/字段草案-v3.xlsx`（现行字段表）
 - `docs/standard/metadata-v2-review-and-redesign.md`（设计理由与国际对标）
 - 历史（已归档、v1/早期、勿当现状）：`docs/archive/` 下的 `cvd_experiment_data_system_design_v1.md`（业务与数据模型）、`DESIGN.md`（前端设计规范）、`AGENT_IMPLEMENTATION_BRIEF.md`（V1 实现边界）

@@ -21,8 +21,8 @@
 - 工程约定（工具链 UV/Bun、开发流程、测试门禁）见根 `AGENTS.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）
-1. **`字段草案-v3.xlsx`** —— 权威字段字典。4 个 sheet：`字段草案`（实验记录 77 字段/9 模块 §1–§8）、`一等实体字段表`（MaterialLot/装置Setup/表征仪器）、`v2→v3变更说明`、`待明确清单`。导师批注原件在 `FSS Re-副本字段草案-v3.xlsx`（勿改，输入件）。
-   - ⚠️ **改字段不要手改 xlsx**（二进制、不可 diff）：改生成脚本 **`docs/standard/build_field_tables.py`** 里的 `ROWS`/`ENTITY_ROWS`/`CHG`/`TBD`，再 `python3 docs/standard/build_field_tables.py` 重新生成。
+1. **`field-source.yaml`** —— **字段单一权威源**（P1 起生效，实现方案 D1）：77 字段 + 46 实体字段 + 条件必填表达式 + R0 标记 + pending-alignment 标记。`字段草案-v3.xlsx` 是它的**渲染产物**（人读视图，4 个 sheet），由 `build_field_tables.py` 生成。导师批注原件在 `FSS Re-副本字段草案-v3.xlsx`（勿改，输入件）。
+   - ⚠️ **改字段只改 `field-source.yaml`**：改完 `python3 docs/standard/build_field_tables.py` 重新生成 xlsx，再 `python3 docs/standard/check_field_source.py` 校验（CI 强制逐格一致，防手改/防漂移）。
 2. **`cvd-2d-process-data-standard-v2.0.md`** —— 人读规范 / 规则书（原则·五判据·数据模型·词表·结果哲学·合规）；**字段级明细以 xlsx 为准**。
 3. **`metadata-v2-review-and-redesign.md`** —— 设计依据 / 国际对标（NOMAD/GEMD/ESCALATE/2DCC/NeXus/CHMO）+ 隐变量文献。
 
@@ -59,14 +59,15 @@
 | 07-06 | **Fable 三轮 8.5/10「可冻结」** → 冻结前收尾 B1-B4（实体版本号/§2只读投影/用量含液态/气瓶纯度分工） | `1a6e708` |
 | 07-07/08 | **导师书面评审回件**（标黄9+红字2）→ **v3.4 回改 6 条**：目标性能补示例 · §3新增『外观描述』(潮解溯源) · 外场参数→条件必填(Setup有外场) · 检出相增堆垛 · PL峰宽+SEM占比改名覆盖率 · 图例行+必填字体强化；观察现象粒度留待俊杰 | `048f57b` |
 | 07-08 | **实现期启动**：v1 代码库全量摸底（4份字段拷贝/无CI/双前端等）→ 定稿 `docs/v2-implementation-plan.md`（D1单一YAML源+五路生成器 · P0–P6 阶段与验收门） | `c13dc5e` |
-| 07-08 | **P0 工程底线完成，门禁全绿**（Codex xhigh 初稿 + 本机验证收尾）：GitHub Actions 三 job（backend ruff+format+pytest / frontend tsc+eslint+vitest / generated-artifacts regen漂移检查）；`generated/` 从迁移种子库**真正重新生成**修复 `test_t5_5`（归档副本带⚠️横幅，拷贝恢复不成立）；ruff format 一次性拉平14文件；lint 零 warning 门禁；去重 router-plugin devDep。**pytest 287/287 · vitest 31/31 · tsc/eslint/ruff 全绿** | 本次 |
+| 07-08 | **P0 工程底线完成，门禁全绿**（Codex xhigh 初稿 + 本机验证收尾）：GitHub Actions 三 job（backend ruff+format+pytest / frontend tsc+eslint+vitest / generated-artifacts regen漂移检查）；`generated/` 从迁移种子库**真正重新生成**修复 `test_t5_5`（归档副本带⚠️横幅，拷贝恢复不成立）；ruff format 一次性拉平14文件；lint 零 warning 门禁；去重 router-plugin devDep。**pytest 287/287 · vitest 31/31 · tsc/eslint/ruff 全绿** | `f80808a` |
+| 07-08 | **P1 完成（字段单一源）**：新增 **`field-source.yaml`**（77字段+46实体字段+条件必填表达式+R0×16+pending×4，由旧 ROWS 机械转换）；`build_field_tables.py` 改造为纯渲染器；新增 `check_field_source.py`（YAML↔xlsx **逐格一致** + 结构约束 + R0 计数护栏）并进 CI（第4个 job）；**验收门通过：YAML 渲染与 v3.4 现版字段级 diff = 空**。五路生成器分期决策记入实现方案 §7。CLAUDE/AGENTS/STATUS 入口同步改为"改字段=改 YAML" | 本次 |
 
 ## 6. 下一步 / 开放项
 0. **⏰ 最近待办（2026-07-08 当面问，问题全文见 xlsx `待明确清单` #5–10）**：
    - **问俊杰**：① §7『观察到的现象』粒度——7项多选 vs 只记生长/不生长（导师K75点名；可带折中案：一级『生长/未生长』必选＋二级细分可选）；② SEM覆盖率组里习惯叫法/量化方式；③ 堆垛类型可判粒度（2H/3R/AA/AB/扭转角→定文本还是下拉）；④ 前驱体『外观描述』词表（常见形态+潮解后外观）。
    - **回导师**：SEM占比=SEM视场内材料面积覆盖占比（已改名给定义）；必填/选填标识已加图例+字体强化，表单UI将用红星。
 1. **正式冻结**：标准头 `DRAFT`→`FROZEN` + STATUS 标记 + 打 `v2.0.0` git tag —— 导师书面评审已回改（v3.4），**与俊杰对齐上述 4 问后即可落锤**（=实现方案 P1.5）。
-1b. **实现推进**：按 `docs/v2-implementation-plan.md` 顺序执行；**P0 已完成（07-08，门禁全绿）**，当前阶段 **P1 单一源+生成器**；下列 2–5 项均已并入该方案的 P1/P5 阶段。
+1b. **实现推进**：按 `docs/v2-implementation-plan.md` 顺序执行；**P0、P1 已完成（07-08）**；当前卡在 **P1.5 对齐+冻结**（即上面第 0/1 条，等与俊杰对齐后落锤），随后进 **P2 v2 数据库**；下列 2–5 项均已并入该方案的 P2/P3/P5 阶段。
 2. **v1 → v2 逐字段迁移映射**：68 字段每个的去向（尤其 `quality_label`/`failure_modes`/`color_change` 的落点）。
 3. **词表归一到单一源**（YAML/CSV，xlsx 反向生成）；化学式/异质结**渲染规则**（显示串写法）。
 4. **v1 自由文本 Setup → 结构化重建策略**；化学式录入 UI（文本+元素校验）。
