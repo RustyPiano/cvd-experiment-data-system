@@ -5,8 +5,8 @@
 
 ## 0. 一分钟速览（给接手的 Agent）
 - 这是一个 **CVD 二维材料实验数据采集系统**。
-- **线上系统 = v1**（`cvd_v1` / 68 字段，在跑）。**v2/v3 是元数据重构的设计，尚未落代码**。
-- 当前工作聚焦在**元数据标准 / 字段的重构设计**（不是写业务功能、不是改 v1 代码）。
+- **线上运行 = v1**（`cvd_v1` / 68 字段）。**v2 代码已开发完成（P0–P5 工具，2026-07-08 多智能体编排一夜完成，见 §5）但未部署、未迁移数据**——实体库/v2 表单/API/迁移工具都在仓库里，等冻结与人工门。
+- 当前阶段：**等 P1.5 对齐+冻结**（俊杰 4 问）→ 精简批次 → 人工门（UI 走查/备份迁移/切换）。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
@@ -16,9 +16,9 @@
 - 推荐读序：本文件 → `cvd-2d-process-data-standard-v2.0.md` → `字段草案-v3.xlsx` →（要背景细节再看）`metadata-v2-review-and-redesign.md` →（写代码）`../v2-implementation-plan.md`。
 
 ## 1. 系统现状
-- **运行中的系统 = v1**（schema `cvd_v1`，68 字段）。后端（FastAPI + SQLAlchemy + Alembic + PostgreSQL）与数据库**仍是 v1**，尚未按 v2/v3 改动。
-- v2/v3 是**设计阶段**产物。看到任何"v2/v3 字段"时，默认它 = 设计稿，不是线上现状。
-- 工程约定（工具链 UV/Bun、开发流程、测试门禁）见根 `AGENTS.md`。
+- **线上运行 = v1**（schema `cvd_v1`，68 字段）；**生产数据未迁移**。
+- **v2 代码已在仓库**（2026-07-08 完成）：实体三件套+锁版（Alembic `0032–0034`，additive-only 不碰 v1 语义）、`/api/v1/v2` 全套端点、生成器①–⑤、`experiments-v2`/`entity-library` 前端、`check_r0`/`migrate_v1_to_v2` 命令。**门禁：后端 pytest 319 · 前端 vitest 117 · CI 四 job 全绿（本地）；commit 尚未 push**。
+- 工程约定见根 `AGENTS.md`；实现路线与红线见 `docs/v2-implementation-plan.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）
 1. **`field-source.yaml`** —— **字段单一权威源**（P1 起生效，实现方案 D1）：77 字段 + 46 实体字段 + 条件必填表达式 + R0 标记 + pending-alignment 标记。`字段草案-v3.xlsx` 是它的**渲染产物**（人读视图，4 个 sheet），由 `build_field_tables.py` 生成。导师批注原件在 `FSS Re-副本字段草案-v3.xlsx`（勿改，输入件）。
@@ -63,22 +63,27 @@
 | 07-08 | **P1 完成（字段单一源）**：新增 **`field-source.yaml`**（77字段+46实体字段+条件必填表达式+R0×16+pending×4，由旧 ROWS 机械转换）；`build_field_tables.py` 改造为纯渲染器；新增 `check_field_source.py`（YAML↔xlsx **逐格一致** + 结构约束 + R0 计数护栏）并进 CI（第4个 job）；**验收门通过：YAML 渲染与 v3.4 现版字段级 diff = 空**。五路生成器分期决策记入实现方案 §7。CLAUDE/AGENTS/STATUS 入口同步改为"改字段=改 YAML" | `af42197` |
 | 07-08 | **实现计划定稿 v1.1**：方案新增 §4b（P1.5–P6 逐阶段工作分解+验收清单）、P5 硬性备份门、P1.5 push/CI首绿门、P2 命名锚定、预授权例外（P1.5 拖延>2天 P2 可先行）、4 周目标周历 | `7704971` |
 | 07-08 | **四个架构空白补定（D9–D11）**：表复用策略(additive-only) · **123 字段全部补机器键 key**（API/payload 契约，v1 命名风格）· §5 动态表单映射落 YAML `stage_types` 节（11 阶段×6 参数组）· 词表复用 ControlledVocabulary 无 DB enum；护栏同步升级（key 必有/唯一/合法 + stage_types 自洽）。**空降 agent 按方案开工已无架构级歧义** | `4c93748` |
-| 07-08 | **D10 命名标准化二轮 + D12 国际化**：key 全词化 5 处、命名规则入 YAML meta；**123 字段全量补 `label_en`**（护栏强制）；D12 分层策略入方案（词表英文@P3 · i18next@P4 · 英文UI打磨不阻塞 v2.0）；P6 增 v1 退役清理择机项 | 本次 |
-| 07-08 | **P2 完成（v2 数据库，按预授权先行；Codex xhigh 初稿 + Fable 验收）**：新增实体三件套 `material_lots`/`setups`/`instruments` + 不可变 `*_versions` 表（(entity_id,version) 唯一，required 字段=类型列+attrs JSONB）；`experiment_runs` 仅加 4 个可空列（setup_ref/版本/快照/结果缺失位，D9 合规）；新增 `characterization_records`/`measured_products`（FK→samples）；`seed_from_field_source.py` 幂等（验收修正：二遍 +0/~0/-0）写 cvd_v2 字段字典 123 条+词表 189 条；Alembic `20260708_0032` 续链、SQLite 空库 migrate+seed 一键起；**pytest 300/300 · ruff/format 全绿** | 本次 |
-| 07-08 | **P3 后端完成（API+校验）**：新增生成器① `generate_v2_models.py` 生成 `schemas/generated/v2_module_payload.py`（stage_types 判别 union + 记录内条件 validator，Setup 外场跨实体条件留服务层）；生成器② `export_v2_schema.py` 输出 `cvd-2d-process-v2.schema.json` + `cvd-2d-field-dictionary-v2.json` 并进 generated-artifacts CI；新增 `/api/v1/v2` 实体库/实验/模块/表征/实测产物端点，run 级 `schema_version` 可空列 additive-only；新增 `check_r0.py`（PVD 排除）与化学式显示串默认规则纯函数（待明确#1）；**pytest 309/309 · ruff/format 全绿**。未改 `field-source.yaml` / xlsx；词表英文结构化待 P1.5 对齐后走 YAML 补丁 | 本次 |
-| 07-08 | **P5 工具建设批次 + 硬化完成（未执行正式迁移）**：新增 `docs/standard/v1-to-v2-mapping.yaml` 覆盖 v1 68 字段（52 已映射 / 12 丢弃 / 3 待用户确认 / 1 需人工映射；`quality_label`/`failure_modes`/`color_change` 均保持待确认，`furnace_info` 纳入人工 Setup 重建）；新增 archive 表 `experiment_module_payloads_v1_archive`（Alembic `20260708_0034`，additive-only）；新增 `migrate_v1_to_v2` 命令（dry-run 默认、文本/JSON、`--execute`+`--i-have-backup` 双闸、先归档后覆盖、同事务、对账模式）；实体版本创建服务层改为基于 `field-source.yaml` 汇总返回全部缺失必填/条件必填字段；新增映射一致性/命令/硬化测试。**ruff/format 全绿 · pytest 319/319 · SQLite 空库 migrate+seed 二遍通过 · 仅 dry-run/安全闸验证，未跑正式写库迁移** | 本次 |
+| 07-08 | **D10 命名标准化二轮 + D12 国际化**：key 全词化 5 处、命名规则入 YAML meta；**123 字段全量补 `label_en`**（护栏强制）；D12 分层策略入方案（词表英文@P3 · i18next@P4 · 英文UI打磨不阻塞 v2.0）；P6 增 v1 退役清理择机项 | `8ecedb4` |
+| 07-08 | **多智能体编排模式登记**（Codex后端/Opus前端/Sonnet机械/Fable总编排+验收门；分阶段发射；P5执行与P6切换保留人工门；§7先建后补授权） | `20984a8` |
+| 07-08 | **P2 完成（v2 数据库；Codex xhigh 初稿 + Fable 验收）**：实体三件套 `material_lots`/`setups`/`instruments` + 不可变 `*_versions` 表；`experiment_runs` 仅加 4 可空列（D9 合规）；`characterization_records`/`measured_products` 新表；`seed_from_field_source.py` 幂等种子；Alembic `0032`；**pytest 300/300** | `01790cc` |
+| 07-08 | **P3 完成（API+校验）**：生成器①（YAML→Pydantic，11 阶段判别 union+条件 validator）+②（v2 JSON Schema/字典导出进 CI）；`/api/v1/v2` 全套端点；`schema_version` 可空列（`0033`）；`check_r0` 命令；化学式渲染默认纯函数（待明确#1）；**pytest 309/309 · 生成器逐字节复现** | `f93d467` |
+| 07-08 | **P4 完成（前端表单，Opus 三步 + Fable 验收）**：(1/3) 生成器⑤ TS 双语字段元数据+防漂移 CI+i18next+openapi v2 类型 `92370b4`；(2/3) 实体库管理页×3（锁版语义交互/条件显隐）`81b09b3`；(3a) v2 表单骨架+§1–§4（components 编辑器/化学式校验/快照只读投影）`74c9720`；(3b) §5–§8（stageTypes 驱动动态过程步/事件/表征+实测/PVD 判别）`18f4864`；**vitest 117/117** | 见左 |
+| 07-08 | **P4 验收门回归测试**：完整 cvd_v2 炉次全流程（实体→引用→全模块含全部条件必填→样品→表征→实测→`check-r0` compliant）**首跑即过**，永久留 CI；**pytest 310/310** | `b0a5b3e` |
+| 07-08 | **P5 工具建设+硬化完成（未执行正式迁移）**：`v1-to-v2-mapping.yaml` 覆盖 68 字段（52 映射/12 丢弃/3 **待用户确认**（quality_label/failure_modes/color_change）/1 需人工（furnace_info→Setup 重建））；archive 表（`0034`）；`migrate_v1_to_v2`（dry-run 默认、`--execute`+`--i-have-backup` 双闸、先归档后覆盖、`--reconcile` 对账）；实体版本服务层必填校验；**pytest 319/319 · 双闸拒绝实测 · 未跑正式迁移** | `814725c` |
+| 07-08 | **代码精简审查完成（4 个 Fable 组并行，43 条发现，未执行修改）**：无结构性问题；死代码簇 14 处、迁移报告 mapped 计数与实际执行范围错位（★迁移前必修）、表单三重枚举等。**报告与执行批次（批1零风险/批2低风险/批3需走查）见 `docs/reviews/2026-07-08-simplify-review.md`** | 本次 |
 
-## 6. 下一步 / 开放项
-0. **⏰ 最近待办（2026-07-08 当面问，问题全文见 xlsx `待明确清单` #5–10）**：
-   - **问俊杰**：① §7『观察到的现象』粒度——7项多选 vs 只记生长/不生长（导师K75点名；可带折中案：一级『生长/未生长』必选＋二级细分可选）；② SEM覆盖率组里习惯叫法/量化方式；③ 堆垛类型可判粒度（2H/3R/AA/AB/扭转角→定文本还是下拉）；④ 前驱体『外观描述』词表（常见形态+潮解后外观）。
-   - **回导师**：SEM占比=SEM视场内材料面积覆盖占比（已改名给定义）；必填/选填标识已加图例+字体强化，表单UI将用红星。
-1. **正式冻结**：标准头 `DRAFT`→`FROZEN` + STATUS 标记 + 打 `v2.0.0` git tag —— 导师书面评审已回改（v3.4），**与俊杰对齐上述 4 问后即可落锤**（=实现方案 P1.5）。
-1b. **实现推进**：按 `docs/v2-implementation-plan.md` 顺序执行；**P0、P1、P2 已完成（07-08；P2 按实现方案预授权例外先行）**；**P3 后端 API+校验已完成（未动待对齐 YAML 词表结构）**；**P1.5 对齐+冻结**仍待外部当面对齐（即上面第 0/1 条，§7 词表与冻结仪式等对齐后落锤）；下一工程阶段为 **P4 前端表单**，但 §7 词表最终口径仍须等 P1.5。
-2. **v1 → v2 逐字段迁移映射**：工具批次已出初稿并进测试（68/68 覆盖，未映射=0）；`quality_label`/`failure_modes`/`color_change` 仍为科学判断，标 `待用户确认`；`furnace_info` 标 `需人工映射`，需人工重建 Setup。
-3. **词表归一到单一源**（YAML/CSV，xlsx 反向生成）；化学式/异质结**渲染规则**已落后端默认纯函数，仍待组内确认（待明确#1）。
-4. **v1 自由文本 Setup → 结构化重建策略**；化学式录入 UI（文本+元素校验）。
-5. 最终：**实现 cvd_v1 → cvd_v2**（迁移 + Pydantic/API + 前端表单 + 一致性/regen-drift 测试）。
-> 详见 xlsx `待明确清单` sheet 与标准 §11。
+## 6. 下一步（按序执行；P0–P5 工具已全部完成，剩余步骤如下）
+1. **⏰ 与俊杰当面对齐（外部，待用户）**——问题全文见 xlsx `待明确清单` #5–10：
+   - ① §7『观察到的现象』粒度——7项多选 vs 只记生长/不生长（导师K75点名；折中案：一级『生长/未生长』必选＋二级细分可选）；② SEM覆盖率叫法/量化；③ 堆垛类型可判粒度→定文本或下拉；④ 外观描述词表。
+   - **回导师**：SEM占比=视场内材料面积覆盖占比（已改名）；必填标识已加图例+字体强化，表单UI用红星。
+   - **顺带确认 3 个迁移语义映射**（`v1-to-v2-mapping.yaml` 标`待用户确认`）：color_change→现象"变色"；quality_label→客观词表草案映射；failure_modes 12值→7项词表映射。
+2. **俊杰答案落地**：改 `field-source.yaml` → 重跑 `build_field_tables.py`+`check_field_source.py`+`gen:fields`+生成器①② → §7 相关 UI 补丁（预计≤半天）。
+3. **P1.5 冻结仪式**：标准头 `DRAFT`→`FROZEN`、`field-source.yaml` meta.status→FROZEN → **push（累计 17+ commit，Actions 首绿）** → tag `v2.0.0`。
+4. **精简批次**（审查报告 `docs/reviews/2026-07-08-simplify-review.md`，43 条发现三批方案）：批1 零风险（死代码簇+注释钉死，~半小时）、批2 低风险直白化——**新会话可直接执行**；批3（表单三重枚举→表驱动）与下条同天。
+5. **UI 手工走查**（P4 验收门收尾）：浏览器完整录入一条炉次（API 级已有永久回归测试 `test_v2_full_walkthrough` 兜底）。
+6. **P5 正式迁移（人工门）**：先复审映射（含审查报告 §4 两点：11 条被跳过条目、直拷 stage_type 词表风险）→ 生产库 pg_dump+文件卷备份+恢复演练 → `migrate_v1_to_v2 --execute --i-have-backup` → `--reconcile` 对账。
+7. **P6 切换**：v2 默认、v1 只读、删旧 `frontend/`、compose 更新；择机 v1 废弃列退役清理。
+> 悬而未决小项：化学式渲染规则组内确认（待明确#1）；`list_runs` 100 条上限修复（行为变更，P6 前决策，见审查 A7）。
 
 ## 7. 已归档、别当真相的（在 `docs/archive/`，均带⚠️横幅）
 v1 文字标准三件套、旧字段表(v1/v2)、v1 自动生成产物(`generated/`)、旧顶层设计(DESIGN/PRODUCT/v1设计/Agent brief)、汇报PPT/系统介绍/组会大纲、progress-report。**仅供追溯，不代表现状。**
