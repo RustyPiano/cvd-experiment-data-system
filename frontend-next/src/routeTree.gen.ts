@@ -20,18 +20,21 @@ import { Route as AuthedSamplesIndexRouteImport } from './routes/_authed/samples
 import { Route as AuthedMaterialLotsIndexRouteImport } from './routes/_authed/material-lots/index'
 import { Route as AuthedInstrumentsIndexRouteImport } from './routes/_authed/instruments/index'
 import { Route as AuthedExperimentsIndexRouteImport } from './routes/_authed/experiments/index'
+import { Route as AuthedExperimentsV2IndexRouteImport } from './routes/_authed/experiments-v2/index'
 import { Route as AuthedSetupsEntityIdRouteImport } from './routes/_authed/setups/$entityId'
 import { Route as AuthedSamplesSampleIdRouteImport } from './routes/_authed/samples/$sampleId'
 import { Route as AuthedMaterialLotsEntityIdRouteImport } from './routes/_authed/material-lots/$entityId'
 import { Route as AuthedInstrumentsEntityIdRouteImport } from './routes/_authed/instruments/$entityId'
 import { Route as AuthedExperimentsNewRouteImport } from './routes/_authed/experiments/new'
 import { Route as AuthedExperimentsImportRouteImport } from './routes/_authed/experiments/import'
+import { Route as AuthedExperimentsV2NewRouteImport } from './routes/_authed/experiments-v2/new'
 import { Route as AuthedAdminVocabulariesRouteImport } from './routes/_authed/_admin/vocabularies'
 import { Route as AuthedAdminFieldsRouteImport } from './routes/_authed/_admin/fields'
 import { Route as AuthedAdminDashboardRouteImport } from './routes/_authed/_admin/dashboard'
 import { Route as AuthedExperimentsExperimentIdIndexRouteImport } from './routes/_authed/experiments/$experimentId/index'
 import { Route as AuthedExperimentsExperimentIdFilesRouteImport } from './routes/_authed/experiments/$experimentId/files'
 import { Route as AuthedExperimentsExperimentIdEditRouteImport } from './routes/_authed/experiments/$experimentId/edit'
+import { Route as AuthedExperimentsV2RunIdEditRouteImport } from './routes/_authed/experiments-v2/$runId/edit'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -86,6 +89,12 @@ const AuthedExperimentsIndexRoute = AuthedExperimentsIndexRouteImport.update({
   path: '/experiments/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedExperimentsV2IndexRoute =
+  AuthedExperimentsV2IndexRouteImport.update({
+    id: '/experiments-v2/',
+    path: '/experiments-v2/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedSetupsEntityIdRoute = AuthedSetupsEntityIdRouteImport.update({
   id: '/setups/$entityId',
   path: '/setups/$entityId',
@@ -116,6 +125,11 @@ const AuthedExperimentsNewRoute = AuthedExperimentsNewRouteImport.update({
 const AuthedExperimentsImportRoute = AuthedExperimentsImportRouteImport.update({
   id: '/experiments/import',
   path: '/experiments/import',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedExperimentsV2NewRoute = AuthedExperimentsV2NewRouteImport.update({
+  id: '/experiments-v2/new',
+  path: '/experiments-v2/new',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedAdminVocabulariesRoute = AuthedAdminVocabulariesRouteImport.update({
@@ -151,6 +165,12 @@ const AuthedExperimentsExperimentIdEditRoute =
     path: '/experiments/$experimentId/edit',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedExperimentsV2RunIdEditRoute =
+  AuthedExperimentsV2RunIdEditRouteImport.update({
+    id: '/experiments-v2/$runId/edit',
+    path: '/experiments-v2/$runId/edit',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -160,17 +180,20 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthedAdminDashboardRoute
   '/fields': typeof AuthedAdminFieldsRoute
   '/vocabularies': typeof AuthedAdminVocabulariesRoute
+  '/experiments-v2/new': typeof AuthedExperimentsV2NewRoute
   '/experiments/import': typeof AuthedExperimentsImportRoute
   '/experiments/new': typeof AuthedExperimentsNewRoute
   '/instruments/$entityId': typeof AuthedInstrumentsEntityIdRoute
   '/material-lots/$entityId': typeof AuthedMaterialLotsEntityIdRoute
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/setups/$entityId': typeof AuthedSetupsEntityIdRoute
+  '/experiments-v2/': typeof AuthedExperimentsV2IndexRoute
   '/experiments/': typeof AuthedExperimentsIndexRoute
   '/instruments/': typeof AuthedInstrumentsIndexRoute
   '/material-lots/': typeof AuthedMaterialLotsIndexRoute
   '/samples/': typeof AuthedSamplesIndexRoute
   '/setups/': typeof AuthedSetupsIndexRoute
+  '/experiments-v2/$runId/edit': typeof AuthedExperimentsV2RunIdEditRoute
   '/experiments/$experimentId/edit': typeof AuthedExperimentsExperimentIdEditRoute
   '/experiments/$experimentId/files': typeof AuthedExperimentsExperimentIdFilesRoute
   '/experiments/$experimentId/': typeof AuthedExperimentsExperimentIdIndexRoute
@@ -183,17 +206,20 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthedAdminDashboardRoute
   '/fields': typeof AuthedAdminFieldsRoute
   '/vocabularies': typeof AuthedAdminVocabulariesRoute
+  '/experiments-v2/new': typeof AuthedExperimentsV2NewRoute
   '/experiments/import': typeof AuthedExperimentsImportRoute
   '/experiments/new': typeof AuthedExperimentsNewRoute
   '/instruments/$entityId': typeof AuthedInstrumentsEntityIdRoute
   '/material-lots/$entityId': typeof AuthedMaterialLotsEntityIdRoute
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/setups/$entityId': typeof AuthedSetupsEntityIdRoute
+  '/experiments-v2': typeof AuthedExperimentsV2IndexRoute
   '/experiments': typeof AuthedExperimentsIndexRoute
   '/instruments': typeof AuthedInstrumentsIndexRoute
   '/material-lots': typeof AuthedMaterialLotsIndexRoute
   '/samples': typeof AuthedSamplesIndexRoute
   '/setups': typeof AuthedSetupsIndexRoute
+  '/experiments-v2/$runId/edit': typeof AuthedExperimentsV2RunIdEditRoute
   '/experiments/$experimentId/edit': typeof AuthedExperimentsExperimentIdEditRoute
   '/experiments/$experimentId/files': typeof AuthedExperimentsExperimentIdFilesRoute
   '/experiments/$experimentId': typeof AuthedExperimentsExperimentIdIndexRoute
@@ -209,17 +235,20 @@ export interface FileRoutesById {
   '/_authed/_admin/dashboard': typeof AuthedAdminDashboardRoute
   '/_authed/_admin/fields': typeof AuthedAdminFieldsRoute
   '/_authed/_admin/vocabularies': typeof AuthedAdminVocabulariesRoute
+  '/_authed/experiments-v2/new': typeof AuthedExperimentsV2NewRoute
   '/_authed/experiments/import': typeof AuthedExperimentsImportRoute
   '/_authed/experiments/new': typeof AuthedExperimentsNewRoute
   '/_authed/instruments/$entityId': typeof AuthedInstrumentsEntityIdRoute
   '/_authed/material-lots/$entityId': typeof AuthedMaterialLotsEntityIdRoute
   '/_authed/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/_authed/setups/$entityId': typeof AuthedSetupsEntityIdRoute
+  '/_authed/experiments-v2/': typeof AuthedExperimentsV2IndexRoute
   '/_authed/experiments/': typeof AuthedExperimentsIndexRoute
   '/_authed/instruments/': typeof AuthedInstrumentsIndexRoute
   '/_authed/material-lots/': typeof AuthedMaterialLotsIndexRoute
   '/_authed/samples/': typeof AuthedSamplesIndexRoute
   '/_authed/setups/': typeof AuthedSetupsIndexRoute
+  '/_authed/experiments-v2/$runId/edit': typeof AuthedExperimentsV2RunIdEditRoute
   '/_authed/experiments/$experimentId/edit': typeof AuthedExperimentsExperimentIdEditRoute
   '/_authed/experiments/$experimentId/files': typeof AuthedExperimentsExperimentIdFilesRoute
   '/_authed/experiments/$experimentId/': typeof AuthedExperimentsExperimentIdIndexRoute
@@ -234,17 +263,20 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/fields'
     | '/vocabularies'
+    | '/experiments-v2/new'
     | '/experiments/import'
     | '/experiments/new'
     | '/instruments/$entityId'
     | '/material-lots/$entityId'
     | '/samples/$sampleId'
     | '/setups/$entityId'
+    | '/experiments-v2/'
     | '/experiments/'
     | '/instruments/'
     | '/material-lots/'
     | '/samples/'
     | '/setups/'
+    | '/experiments-v2/$runId/edit'
     | '/experiments/$experimentId/edit'
     | '/experiments/$experimentId/files'
     | '/experiments/$experimentId/'
@@ -257,17 +289,20 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/fields'
     | '/vocabularies'
+    | '/experiments-v2/new'
     | '/experiments/import'
     | '/experiments/new'
     | '/instruments/$entityId'
     | '/material-lots/$entityId'
     | '/samples/$sampleId'
     | '/setups/$entityId'
+    | '/experiments-v2'
     | '/experiments'
     | '/instruments'
     | '/material-lots'
     | '/samples'
     | '/setups'
+    | '/experiments-v2/$runId/edit'
     | '/experiments/$experimentId/edit'
     | '/experiments/$experimentId/files'
     | '/experiments/$experimentId'
@@ -282,17 +317,20 @@ export interface FileRouteTypes {
     | '/_authed/_admin/dashboard'
     | '/_authed/_admin/fields'
     | '/_authed/_admin/vocabularies'
+    | '/_authed/experiments-v2/new'
     | '/_authed/experiments/import'
     | '/_authed/experiments/new'
     | '/_authed/instruments/$entityId'
     | '/_authed/material-lots/$entityId'
     | '/_authed/samples/$sampleId'
     | '/_authed/setups/$entityId'
+    | '/_authed/experiments-v2/'
     | '/_authed/experiments/'
     | '/_authed/instruments/'
     | '/_authed/material-lots/'
     | '/_authed/samples/'
     | '/_authed/setups/'
+    | '/_authed/experiments-v2/$runId/edit'
     | '/_authed/experiments/$experimentId/edit'
     | '/_authed/experiments/$experimentId/files'
     | '/_authed/experiments/$experimentId/'
@@ -383,6 +421,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedExperimentsIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/experiments-v2/': {
+      id: '/_authed/experiments-v2/'
+      path: '/experiments-v2'
+      fullPath: '/experiments-v2/'
+      preLoaderRoute: typeof AuthedExperimentsV2IndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/setups/$entityId': {
       id: '/_authed/setups/$entityId'
       path: '/setups/$entityId'
@@ -423,6 +468,13 @@ declare module '@tanstack/react-router' {
       path: '/experiments/import'
       fullPath: '/experiments/import'
       preLoaderRoute: typeof AuthedExperimentsImportRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/experiments-v2/new': {
+      id: '/_authed/experiments-v2/new'
+      path: '/experiments-v2/new'
+      fullPath: '/experiments-v2/new'
+      preLoaderRoute: typeof AuthedExperimentsV2NewRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/_admin/vocabularies': {
@@ -467,6 +519,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedExperimentsExperimentIdEditRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/experiments-v2/$runId/edit': {
+      id: '/_authed/experiments-v2/$runId/edit'
+      path: '/experiments-v2/$runId/edit'
+      fullPath: '/experiments-v2/$runId/edit'
+      preLoaderRoute: typeof AuthedExperimentsV2RunIdEditRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -490,17 +549,20 @@ interface AuthedRouteChildren {
   AuthedAdminRoute: typeof AuthedAdminRouteWithChildren
   AuthedSetupLibraryRoute: typeof AuthedSetupLibraryRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedExperimentsV2NewRoute: typeof AuthedExperimentsV2NewRoute
   AuthedExperimentsImportRoute: typeof AuthedExperimentsImportRoute
   AuthedExperimentsNewRoute: typeof AuthedExperimentsNewRoute
   AuthedInstrumentsEntityIdRoute: typeof AuthedInstrumentsEntityIdRoute
   AuthedMaterialLotsEntityIdRoute: typeof AuthedMaterialLotsEntityIdRoute
   AuthedSamplesSampleIdRoute: typeof AuthedSamplesSampleIdRoute
   AuthedSetupsEntityIdRoute: typeof AuthedSetupsEntityIdRoute
+  AuthedExperimentsV2IndexRoute: typeof AuthedExperimentsV2IndexRoute
   AuthedExperimentsIndexRoute: typeof AuthedExperimentsIndexRoute
   AuthedInstrumentsIndexRoute: typeof AuthedInstrumentsIndexRoute
   AuthedMaterialLotsIndexRoute: typeof AuthedMaterialLotsIndexRoute
   AuthedSamplesIndexRoute: typeof AuthedSamplesIndexRoute
   AuthedSetupsIndexRoute: typeof AuthedSetupsIndexRoute
+  AuthedExperimentsV2RunIdEditRoute: typeof AuthedExperimentsV2RunIdEditRoute
   AuthedExperimentsExperimentIdEditRoute: typeof AuthedExperimentsExperimentIdEditRoute
   AuthedExperimentsExperimentIdFilesRoute: typeof AuthedExperimentsExperimentIdFilesRoute
   AuthedExperimentsExperimentIdIndexRoute: typeof AuthedExperimentsExperimentIdIndexRoute
@@ -510,17 +572,20 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAdminRoute: AuthedAdminRouteWithChildren,
   AuthedSetupLibraryRoute: AuthedSetupLibraryRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedExperimentsV2NewRoute: AuthedExperimentsV2NewRoute,
   AuthedExperimentsImportRoute: AuthedExperimentsImportRoute,
   AuthedExperimentsNewRoute: AuthedExperimentsNewRoute,
   AuthedInstrumentsEntityIdRoute: AuthedInstrumentsEntityIdRoute,
   AuthedMaterialLotsEntityIdRoute: AuthedMaterialLotsEntityIdRoute,
   AuthedSamplesSampleIdRoute: AuthedSamplesSampleIdRoute,
   AuthedSetupsEntityIdRoute: AuthedSetupsEntityIdRoute,
+  AuthedExperimentsV2IndexRoute: AuthedExperimentsV2IndexRoute,
   AuthedExperimentsIndexRoute: AuthedExperimentsIndexRoute,
   AuthedInstrumentsIndexRoute: AuthedInstrumentsIndexRoute,
   AuthedMaterialLotsIndexRoute: AuthedMaterialLotsIndexRoute,
   AuthedSamplesIndexRoute: AuthedSamplesIndexRoute,
   AuthedSetupsIndexRoute: AuthedSetupsIndexRoute,
+  AuthedExperimentsV2RunIdEditRoute: AuthedExperimentsV2RunIdEditRoute,
   AuthedExperimentsExperimentIdEditRoute:
     AuthedExperimentsExperimentIdEditRoute,
   AuthedExperimentsExperimentIdFilesRoute:

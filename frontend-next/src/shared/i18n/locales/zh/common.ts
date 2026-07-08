@@ -81,4 +81,113 @@ export const common = {
       submitError: '保存失败',
     },
   },
+  // v2 实验录入表单（P4 §1–§4）。字段标签走 field-metadata，此处只放 UI chrome。
+  experimentsV2: {
+    nav: 'v2 实验录入',
+    r0: {
+      badge: 'R0',
+      tooltip: 'R0 最小可复现集字段',
+    },
+    new: {
+      title: '新建实验（v2）',
+      subtitle: '按 v2 元数据标准录入炉次；填好 §1 即可创建并保存草稿。',
+    },
+    edit: {
+      title: '编辑实验（v2）',
+      subtitle: '可分模块保存草稿。',
+      loadError: '加载实验失败',
+    },
+    list: {
+      title: 'v2 实验记录',
+      subtitle: '按 v2 元数据标准（cvd_v2）录入的炉次。',
+      create: '新建实验',
+      empty: '暂无 v2 实验，点击右上角「新建实验」。',
+      loadError: '加载失败',
+      edit: '编辑',
+      columns: {
+        runCode: '炉次编号',
+        materialSystem: '材料体系',
+        date: '实验日期',
+        status: '状态',
+        actions: '操作',
+      },
+    },
+    form: {
+      requiredHint: '带 * 为提交前必填；R0 为最小可复现集字段。',
+      selectPlaceholder: '请选择',
+      inputPlaceholder: '请输入',
+      removeItem: '删除该条目',
+      saveModule: '保存本模块',
+      moduleSaved: '已保存',
+      moduleSaveSuccess: '模块已保存',
+      saveError: '保存失败',
+      fixRequired: '请先补齐必填项',
+      selectSetupFirst: '请先选择装置',
+      createAction: '创建并保存草稿',
+      createSuccess: '已创建炉次',
+      createError: '创建失败',
+      editingRun: '炉次：{{runCode}}',
+    },
+    formula: {
+      parsedElements: '识别元素：{{elements}}',
+      unknownSymbols: '非法元素符号：{{symbols}}',
+      noElement: '未识别到有效元素符号',
+    },
+    components: {
+      add: '新增组分',
+      remove: '删除组分',
+      empty: '尚无组分。',
+      requiredHint: '结构类型≠本征时至少需一条组分。',
+      formula: '化学式',
+      role: '角色',
+      concentration: '浓度(at%)',
+      layerOrder: '层序',
+    },
+    reference: {
+      placeholder: '请选择引用',
+      empty: '实体库暂无可引用记录。',
+      goToLibrary: '前往实体库登记',
+    },
+    sections: {
+      basicInfo: {
+        title: '基本信息',
+        subtitle:
+          '实验时间、合成方法、实验人等。合成方法决定后续 PVD 区块显隐。',
+      },
+      targetProduct: {
+        title: '目标产物',
+        subtitle:
+          '结构类型判别复合体系；化学式带元素校验，显示串按渲染规则派生。',
+        displayPreview: '显示串预览',
+        displayNote: '与后端 formula_display 规则保持一致，待组内确认。',
+      },
+      equipment: {
+        title: '设备',
+        subtitle: '引用装置库中的装置；投影字段随引用冻结。',
+        frozenNote:
+          '以下为被引用装置 v{{version}} 的快照投影，随引用冻结（只读）。',
+      },
+      precursors: {
+        title: '前驱体',
+        subtitle: '可重复条目；相态决定用量是否必填、固态源展示外观描述。',
+        add: '新增前驱体',
+        empty: '尚无前驱体条目。',
+        item: '前驱体 {{position}}',
+      },
+      substrates: {
+        title: '衬底',
+        subtitle: '可重复条目；衬底材料=SiO₂/Si 时展示并必填氧化层厚度。',
+        add: '新增衬底',
+        empty: '尚无衬底条目。',
+        item: '衬底 {{position}}',
+      },
+    },
+    placeholders: {
+      comingNext: '本区块由下一步实现。',
+      processSteps: { title: '过程步' },
+      processEvents: { title: '过程事件' },
+      characterization: { title: '表征 · 实测产物' },
+      pvd: { title: 'PVD' },
+    },
+  },
 } as const

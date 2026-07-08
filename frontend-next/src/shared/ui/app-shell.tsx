@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import {
   FlaskConical,
+  FlaskRound,
   Settings,
   LogOut,
   LayoutDashboard,
@@ -77,6 +78,14 @@ const navItems = [
   },
 ]
 
+// v2 实验录入（P4）导航项，文案走 i18n（D12）。additive-only，不改动 v1 实验导航。
+const v2ExperimentsNavItem = {
+  to: '/experiments-v2' as const,
+  labelKey: 'experimentsV2.nav' as const,
+  icon: FlaskRound,
+  match: '/experiments-v2',
+}
+
 const adminDashboardItem = {
   to: '/dashboard' as const,
   label: '数据看板',
@@ -85,8 +94,18 @@ const adminDashboardItem = {
 }
 
 const adminConfigItems = [
-  { to: '/fields' as const, label: '字段词典', icon: ClipboardList, match: '/fields' },
-  { to: '/vocabularies' as const, label: '受控词表', icon: Tag, match: '/vocabularies' },
+  {
+    to: '/fields' as const,
+    label: '字段词典',
+    icon: ClipboardList,
+    match: '/fields',
+  },
+  {
+    to: '/vocabularies' as const,
+    label: '受控词表',
+    icon: Tag,
+    match: '/vocabularies',
+  },
 ]
 
 // 一等实体库（v2）导航项 —— 由 field-metadata 实体配置派生（单一源），文案走 i18n（D12）。
@@ -105,8 +124,11 @@ const navLabelLookup: { match: string; label: string }[] = [
   ...adminConfigItems,
 ]
 
-// 实体库路由的标题走 i18n（不进静态 navLabelLookup），命中则优先返回。
+// i18n 标题（不进静态 navLabelLookup），命中则优先返回。v2 实验须先于 v1 '/experiments' 匹配。
 function getEntityNavLabel(pathname: string, t: TFunction): string | null {
+  if (pathname.startsWith(v2ExperimentsNavItem.match)) {
+    return t(v2ExperimentsNavItem.labelKey)
+  }
   const item = entityLibraryNavItems.find((entry) =>
     pathname.startsWith(entry.match),
   )
@@ -114,7 +136,9 @@ function getEntityNavLabel(pathname: string, t: TFunction): string | null {
 }
 
 function getPageTitle(pathname: string) {
-  return navLabelLookup.find((item) => pathname.startsWith(item.match))?.label ?? ''
+  return (
+    navLabelLookup.find((item) => pathname.startsWith(item.match))?.label ?? ''
+  )
 }
 
 // Nav body lives inside SidebarProvider so it can close the mobile drawer when a
@@ -154,6 +178,18 @@ function SidebarBody({
                 </SidebarMenuItem>
               )
             })}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith(v2ExperimentsNavItem.match)}
+                tooltip={t(v2ExperimentsNavItem.labelKey)}
+              >
+                <Link to={v2ExperimentsNavItem.to} onClick={closeOnMobile}>
+                  <v2ExperimentsNavItem.icon />
+                  <span>{t(v2ExperimentsNavItem.labelKey)}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             {isAdmin && (
               <SidebarMenuItem>
                 <SidebarMenuButton
@@ -259,7 +295,8 @@ export function AppShell({ children }: AppShellProps) {
       void navigate({
         to: '/login',
         replace: true,
-        search: current && !current.startsWith('/login') ? { redirect: current } : {},
+        search:
+          current && !current.startsWith('/login') ? { redirect: current } : {},
       })
     }
 
@@ -327,11 +364,7 @@ export function AppShell({ children }: AppShellProps) {
                     </div>
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="top"
-                  align="start"
-                  className="w-56"
-                >
+                <DropdownMenuContent side="top" align="start" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col gap-1">
                       <span className="font-semibold">
@@ -374,9 +407,7 @@ export function AppShell({ children }: AppShellProps) {
         {/* SidebarInset already renders the <main> landmark; this is just the
             content padding wrapper. */}
         <div className="flex-1 bg-background p-6">
-          <div className="mx-auto w-full max-w-[1440px]">
-            {children}
-          </div>
+          <div className="mx-auto w-full max-w-[1440px]">{children}</div>
         </div>
       </SidebarInset>
     </SidebarProvider>

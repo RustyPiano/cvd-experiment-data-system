@@ -82,4 +82,120 @@ export const common = {
       submitError: 'Failed to save',
     },
   },
+  // v2 experiment entry form (P4 §1–§4). Field labels come from field-metadata.
+  experimentsV2: {
+    nav: 'v2 experiment entry',
+    r0: {
+      badge: 'R0',
+      tooltip: 'R0 minimal reproducible set field',
+    },
+    new: {
+      title: 'New experiment (v2)',
+      subtitle:
+        'Record a run per the v2 metadata standard; fill §1 to create and save a draft.',
+    },
+    edit: {
+      title: 'Edit experiment (v2)',
+      subtitle: 'Drafts can be saved per module.',
+      loadError: 'Failed to load experiment',
+    },
+    list: {
+      title: 'v2 experiments',
+      subtitle: 'Runs recorded under the v2 metadata standard (cvd_v2).',
+      create: 'New experiment',
+      empty: 'No v2 experiments yet — use “New experiment” in the top-right.',
+      loadError: 'Failed to load',
+      edit: 'Edit',
+      columns: {
+        runCode: 'Run code',
+        materialSystem: 'Material system',
+        date: 'Date',
+        status: 'Status',
+        actions: 'Actions',
+      },
+    },
+    form: {
+      requiredHint:
+        'Fields marked * are required to submit; R0 marks minimal-reproducible-set fields.',
+      selectPlaceholder: 'Select',
+      inputPlaceholder: 'Enter a value',
+      removeItem: 'Remove this item',
+      saveModule: 'Save this module',
+      moduleSaved: 'Saved',
+      moduleSaveSuccess: 'Module saved',
+      saveError: 'Failed to save',
+      fixRequired: 'Please complete the required fields first',
+      selectSetupFirst: 'Select a setup first',
+      createAction: 'Create and save draft',
+      createSuccess: 'Run created',
+      createError: 'Failed to create',
+      editingRun: 'Run: {{runCode}}',
+    },
+    formula: {
+      parsedElements: 'Elements: {{elements}}',
+      unknownSymbols: 'Invalid element symbols: {{symbols}}',
+      noElement: 'No valid element symbol recognized',
+    },
+    components: {
+      add: 'Add component',
+      remove: 'Remove component',
+      empty: 'No components yet.',
+      requiredHint:
+        'At least one component is required when structure type ≠ intrinsic.',
+      formula: 'Formula',
+      role: 'Role',
+      concentration: 'Concentration (at%)',
+      layerOrder: 'Layer order',
+    },
+    reference: {
+      placeholder: 'Select a reference',
+      empty: 'No entities to reference yet.',
+      goToLibrary: 'Register in the entity library',
+    },
+    sections: {
+      basicInfo: {
+        title: 'Basic info',
+        subtitle:
+          'Time, synthesis method, operator, etc. Synthesis method drives the later PVD block.',
+      },
+      targetProduct: {
+        title: 'Target product',
+        subtitle:
+          'Structure type discriminates composite systems; formula is element-validated, display string is derived.',
+        displayPreview: 'Display string preview',
+        displayNote:
+          'Consistent with the backend formula_display rule, pending group confirmation.',
+      },
+      equipment: {
+        title: 'Equipment',
+        subtitle:
+          'Reference a setup from the library; projected fields are frozen on reference.',
+        frozenNote:
+          'Below is the snapshot projection of referenced setup v{{version}}, frozen on reference (read-only).',
+      },
+      precursors: {
+        title: 'Precursors',
+        subtitle:
+          'Repeatable items; phase state drives whether amount is required and shows appearance for solids.',
+        add: 'Add precursor',
+        empty: 'No precursor items yet.',
+        item: 'Precursor {{position}}',
+      },
+      substrates: {
+        title: 'Substrates',
+        subtitle:
+          'Repeatable items; oxide thickness is shown and required when material = SiO₂/Si.',
+        add: 'Add substrate',
+        empty: 'No substrate items yet.',
+        item: 'Substrate {{position}}',
+      },
+    },
+    placeholders: {
+      comingNext: 'This block is implemented in the next step.',
+      processSteps: { title: 'Process steps' },
+      processEvents: { title: 'Process events' },
+      characterization: { title: 'Characterization · measured products' },
+      pvd: { title: 'PVD' },
+    },
+  },
 } as const
