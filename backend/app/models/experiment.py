@@ -1,8 +1,22 @@
 import uuid
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Any
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, Uuid, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -10,6 +24,8 @@ from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
 from app.models.sample import Sample
 from app.models.user import User
+
+json_payload_type = JSON().with_variant(JSONB(), "postgresql")
 
 
 class ExperimentStatus(StrEnum):
@@ -79,6 +95,17 @@ class ExperimentRun(Base):
     )
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    setup_ref: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    setup_ref_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    setup_ref_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
+    result_missing_todo: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=False,
+    )
 
     owner: Mapped[User] = relationship(foreign_keys=[owner_id])
     derived_from_run: Mapped["ExperimentRun | None"] = relationship(
