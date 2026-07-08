@@ -55,6 +55,24 @@ def test_v2_entity_versions_are_append_only_and_queryable(active_user) -> None:
     assert [item["version"] for item in versions.json()["items"]] == [1, 2]
 
 
+def test_v2_entity_create_reports_all_missing_required_fields(active_user) -> None:
+    headers = auth_headers(active_user.email)
+
+    response = client.post(
+        "/api/v1/v2/material-lots",
+        json={"lot_category": "化学品"},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["missing_fields"] == [
+        "substance_name",
+        "chemical_formula",
+        "batch_number",
+    ]
+
+
 def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     headers = auth_headers(active_user.email)
     setup = client.post(

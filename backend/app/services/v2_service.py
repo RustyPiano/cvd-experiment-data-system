@@ -175,14 +175,12 @@ class V2EntityService:
         )
 
     def _validate_entity_payload(self, kind: str, data: dict[str, Any]) -> None:
+        missing_fields: list[str] = []
         for field in self.fields[kind]:
             key = field["key"]
             level = field["requirement"]["level"]
             if level == "required" and key != "version" and missing(data.get(key)):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"{key} is required",
-                )
+                missing_fields.append(key)
             condition = field["requirement"].get("condition")
             local_key = condition_local_key(field, condition, self.doc)
             if (
@@ -192,10 +190,12 @@ class V2EntityService:
                 and condition_matches(condition, data.get(local_key))
                 and missing(data.get(key))
             ):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"{key} is conditionally required",
-                )
+                missing_fields.append(key)
+        if missing_fields:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"missing_fields": missing_fields},
+            )
 
     def _entity_read(self, kind: str, entity: Any, latest_version: Any | None) -> V2EntityRead:
         return V2EntityRead(

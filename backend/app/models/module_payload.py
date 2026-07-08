@@ -80,6 +80,48 @@ class ExperimentModulePayload(Base):
     experiment_run: Mapped[ExperimentRun] = relationship(back_populates="module_payloads")
 
 
+class ExperimentModulePayloadV1Archive(Base):
+    __tablename__ = "experiment_module_payloads_v1_archive"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_payload_id",
+            name="uq_module_payloads_v1_archive_source_payload_id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    source_payload_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), index=True)
+    experiment_run_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("experiment_runs.id"),
+        index=True,
+    )
+    module_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[dict] = mapped_column(
+        json_payload_type,
+        nullable=False,
+        default=dict,
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    source_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    archived_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
 def normalize_module_payload(
     module_key: str,
     payload_json: dict[str, Any] | None,

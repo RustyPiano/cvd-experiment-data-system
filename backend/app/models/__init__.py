@@ -3,7 +3,11 @@ from app.models.experiment import ExperimentRun, ExperimentStatus, QualityLabel
 from app.models.experiment_version import ExperimentVersion
 from app.models.field_definition import FieldDefinition, FieldType
 from app.models.file_asset import FileAsset
-from app.models.module_payload import ExperimentModuleKey, ExperimentModulePayload
+from app.models.module_payload import (
+    ExperimentModuleKey,
+    ExperimentModulePayload,
+    ExperimentModulePayloadV1Archive,
+)
 from app.models.recipe import Recipe, RecipeStatus
 from app.models.sample import Sample, SampleRole
 from app.models.setup_library import SetupLibraryEntry, SetupVisibility
@@ -28,6 +32,7 @@ __all__ = [
     "ExperimentSetupSnapshot",
     "ExperimentModuleKey",
     "ExperimentModulePayload",
+    "ExperimentModulePayloadV1Archive",
     "ExperimentStatus",
     "ExperimentVersion",
     "FieldDefinition",
