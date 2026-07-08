@@ -73,6 +73,7 @@
 | 07-08 | **代码精简审查完成（4 个 Fable 组并行，43 条发现，未执行修改）**：无结构性问题；死代码簇 14 处、迁移报告 mapped 计数与实际执行范围错位（★迁移前必修）、表单三重枚举等。**报告与执行批次（批1零风险/批2低风险/批3需走查）见 `docs/reviews/2026-07-08-simplify-review.md`** | 本次 |
 | 07-08 | **精简批1 执行**（零风险净赚）：死代码簇删除 + `del current_user`→`_current_user`×15 + 100上限/占位/冻结闸注释 + 迁移 mapped-vs-执行范围语义注释钉死。**门禁全绿：pytest 319 · vitest 117 · 生成物零漂移 · check_field_source 逐格一致** | `759a472` |
 | 07-08 | **精简批2 执行**（低风险直白化）：B4 生成器拼接残影→f-string(regen 同 commit) · B7/B8/B9 migrate 去重加载/拆形状嗅探/状态查表 · B10 formula 双键兜底删除(前后端) · C3 去绕道扫模块 · C9 AddSampleControls · C10 §7 标签走元数据(删12 locale 键) · C11 叶子自取 useAuth · D2 zodResolver→手写 · D3 去枚举 token 启发式→声明条件反查 · D4/D5 render_field_sheet 提取+req_fill 前缀函数。**门禁同上全绿** | `abd00f9` |
+| 07-08 | **批1+批2 Codex xhigh 独立复审**：10 项非机械重构逐条判等价，**零行为变更**（无 confirmed/plausible 发现，各带 file:line 证据）；Codex 未跑门禁（沙箱只读），门禁本机已绿。结论落 `docs/reviews/2026-07-08-simplify-review.md` 头 | 复审 |
 
 ## 6. 下一步（按序执行；P0–P5 工具已全部完成，剩余步骤如下）
 1. **⏰ 与俊杰当面对齐（外部，待用户）**——问题全文见 xlsx `待明确清单` #5–10：
