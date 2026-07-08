@@ -30,6 +30,8 @@ const setupWithExternal = { field_devices: '光' }
 const setupNoExternal = { field_devices: '无' }
 
 describe('§5 阶段类型 → 参数组显隐（对照 stageTypes 全 11 项）', () => {
+  // Freeze gate: changing the number of stage types requires an explicit decision
+  // (edit field-source.yaml `stage_types`, re-run gen:fields, then update this count).
   it('covers exactly 11 stage types', () => {
     expect(stageTypes).toHaveLength(11)
   })

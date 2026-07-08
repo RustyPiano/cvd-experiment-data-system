@@ -13,7 +13,7 @@ def setup_version_snapshot(version: SetupVersion) -> dict:
         "zone_count_snapshot": version.zone_count,
         "orientation_snapshot": version.orientation,
         "coordinate_system_snapshot": version.coordinate_system,
-        "attrs_snapshot": version.attrs or {},
+        "attrs_snapshot": version.attrs,
     }
 
 
@@ -29,5 +29,5 @@ def instrument_version_snapshot(version: InstrumentVersion) -> dict:
         "instrument_version": version.version,
         "instrument_code_snapshot": version.instrument_code,
         "name_type_snapshot": version.name_type,
-        "attrs_snapshot": version.attrs or {},
+        "attrs_snapshot": version.attrs,
     }

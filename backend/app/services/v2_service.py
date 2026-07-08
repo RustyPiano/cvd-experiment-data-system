@@ -5,7 +5,6 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -63,7 +62,6 @@ from app.services.v2_field_source import (
 
 @dataclass(frozen=True)
 class EntityConfig:
-    key: str
     entity_model: type
     version_model: type
     columns: tuple[str, ...]
@@ -71,19 +69,16 @@ class EntityConfig:
 
 ENTITY_CONFIGS = {
     "material_lot": EntityConfig(
-        key="material_lot",
         entity_model=MaterialLot,
         version_model=MaterialLotVersion,
         columns=("lot_category", "substance_name", "chemical_formula", "batch_number"),
     ),
     "setup": EntityConfig(
-        key="setup",
         entity_model=Setup,
         version_model=SetupVersion,
         columns=("setup_code", "setup_name", "zone_count", "orientation", "coordinate_system"),
     ),
     "instrument": EntityConfig(
-        key="instrument",
         entity_model=Instrument,
         version_model=InstrumentVersion,
         columns=("instrument_code", "name_type"),
@@ -208,7 +203,7 @@ class V2EntityService:
     def _version_read(self, kind: str, version: Any) -> V2EntityVersionRead:
         config = ENTITY_CONFIGS[kind]
         data = {key: getattr(version, key) for key in config.columns}
-        data.update(version.attrs or {})
+        data.update(version.attrs)
         return V2EntityVersionRead(
             id=version.id,
             entity_id=version.entity_id,
@@ -231,6 +226,7 @@ class V2ExperimentService:
         run = ExperimentRun(
             run_code=run_code,
             owner_id=current_user.id,
+            # v2 runs reuse the legacy experiment_type column to tag the schema version.
             experiment_type=SCHEMA_VERSION,
             schema_version=SCHEMA_VERSION,
             material_system=payload.chemical_formula,
@@ -262,6 +258,7 @@ class V2ExperimentService:
             self._save_v2_payload(
                 run.id,
                 "target_product",
+                # structure_type defaults to "本征" here; the user refines it in the form later.
                 {"chemical_formula": payload.chemical_formula, "structure_type": "本征"},
             )
         self.db.commit()
@@ -269,6 +266,9 @@ class V2ExperimentService:
         return self._run_read(run)
 
     def list_runs(self, current_user: User) -> V2ExperimentListResponse:
+        # Borrows v1 pagination: fetches the first 100 visible runs, then filters to v2
+        # in memory. v2 runs beyond the first 100 are silently truncated — acceptable for
+        # now; a repository-level schema_version filter is deferred to P6 (behaviour change).
         items, _ = self.experiments.list_visible(
             current_user=current_user,
             status_filters=None,
@@ -300,8 +300,8 @@ class V2ExperimentService:
             "equipment",
             {
                 "setup_ref": str(version.entity_id),
-                "brand_model": version.attrs.get("brand_model") if version.attrs else None,
-                "wall_type": version.attrs.get("wall_type") if version.attrs else None,
+                "brand_model": version.attrs.get("brand_model"),
+                "wall_type": version.attrs.get("wall_type"),
                 "zone_count": version.zone_count,
                 "orientation": version.orientation,
                 "coordinate_system": version.coordinate_system,
@@ -322,7 +322,8 @@ class V2ExperimentService:
         self._ensure_editable(run)
         try:
             validated = validate_v2_module_payload(module_key, payload.payload_json)
-        except (ValidationError, ValueError) as exc:
+        # pydantic ValidationError is a subclass of ValueError, so this catches both.
+        except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(exc),
@@ -551,7 +552,7 @@ class V2ExperimentService:
             id=run.id,
             run_code=run.run_code,
             owner_id=run.owner_id,
-            schema_version=run.schema_version or SCHEMA_VERSION,
+            schema_version=run.schema_version,
             experiment_type=run.experiment_type,
             material_system=run.material_system,
             experiment_date=run.experiment_date,

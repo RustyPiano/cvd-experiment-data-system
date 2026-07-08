@@ -86,9 +86,7 @@ export function EntityDetailPage({
       )
       setEditOpen(false)
       setSelectedVersion(null)
-      await queryClient.invalidateQueries({
-        queryKey: ['v2-entity', kind, entityId],
-      })
+      // Prefix match: ['v2-entity', kind] also invalidates ['v2-entity', kind, entityId].
       await queryClient.invalidateQueries({ queryKey: ['v2-entity', kind] })
     },
     onError: (mutationError) => {

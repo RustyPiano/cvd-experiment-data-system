@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import type { ModuleValues } from '../field-logic'
 import {
+  emptyModuleValues,
   getModuleFields,
   isProcessStepFieldRequired,
   isProcessStepFieldVisible,
@@ -38,11 +39,6 @@ export function ProcessStepsSection({
   const fields = getModuleFields('process_steps')
   const stageTypeField = fields.find((field) => field.key === STAGE_TYPE_KEY)
 
-  const emptyStep = (): ModuleValues => {
-    const values: ModuleValues = {}
-    for (const field of fields) values[field.key] = ''
-    return values
-  }
   const setStepValue = (stepIndex: number, key: string, value: string) => {
     onStepsChange(
       steps.map((step, i) =>
@@ -50,7 +46,8 @@ export function ProcessStepsSection({
       ),
     )
   }
-  const addStep = () => onStepsChange([...steps, emptyStep()])
+  const addStep = () =>
+    onStepsChange([...steps, emptyModuleValues('process_steps')])
   const removeStep = (stepIndex: number) =>
     onStepsChange(steps.filter((_, i) => i !== stepIndex))
   const moveStep = (stepIndex: number, delta: number) => {

@@ -19,6 +19,17 @@
 # transform:
 #   copy is direct; other values document a lossy or structural rewrite and are not
 #   used by export reconciliation unless compare=true.
+#   Machine semantics: ONLY transform names starting with "merge_into_" are executed
+#   (nest source_field under a dict); every other transform name is descriptive and the
+#   value is copied/set verbatim (see migrate_v1_to_v2._merge_or_set).
+#
+# ⚠️ EXECUTION SCOPE (migrate_v1_to_v2 --execute):
+#   --execute ONLY materializes status=已映射 entries whose target.kind == module_payload.
+#   entity_field / table_field / run_field targets are NOT written by the migrator even
+#   though they count toward the report's `mapped` total — so `mapped` OVERSTATES what a
+#   real run writes. Before a production --execute (P5), review these skipped entries by
+#   hand and decide whether/how to migrate them (e.g. characterization.method,
+#   basic_info.recipe_id, furnace_info -> Setup rebuild).
 # ============================================================================
 schema:
   version: 1

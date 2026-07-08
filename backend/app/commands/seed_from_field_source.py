@@ -47,7 +47,7 @@ def load_field_source(path: str | Path = DEFAULT_FIELD_SOURCE) -> dict[str, Any]
 
 def seed_from_field_source(db: Session, path: str | Path = DEFAULT_FIELD_SOURCE) -> SeedStats:
     doc = load_field_source(path)
-    fields = list(_iter_seed_fields(doc))
+    fields = _iter_seed_fields(doc)
     field_stats = _upsert_field_definitions(db, fields)
     vocab_stats = _upsert_vocabularies(db, fields)
     return SeedStats(*field_stats, *vocab_stats)
@@ -133,7 +133,6 @@ def _option_values(field: dict[str, Any]) -> list[str]:
         if not value:
             continue
         value = re.sub(r"[（(].*可加.*[）)]", "", value).strip()
-        value = value.removesuffix("（可加）").strip()
         if value and value not in values:
             values.append(value)
     return values if len(values) > 1 else []

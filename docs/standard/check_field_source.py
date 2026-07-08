@@ -9,6 +9,7 @@
 # 用法：python3 docs/standard/check_field_source.py
 # ============================================================================
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -55,8 +56,6 @@ if n_entity != EXPECTED_ENTITY_FIELDS:
     err(f"一等实体字段数 {n_entity} ≠ 预期 {EXPECTED_ENTITY_FIELDS}（同上）")
 if n_r0 != EXPECTED_R0:
     err(f"R0 标记数 {n_r0} ≠ 预期 {EXPECTED_R0}（R0 集合改动须导师/组会确认，见实现方案 §5）")
-
-import re
 
 KEY_RE = re.compile(r"^[a-z][a-zA-Z0-9_]*$")  # 单位后缀允许大写（_C 等，沿 v1 风格）
 modules_map = doc.get("modules", {})
@@ -127,6 +126,8 @@ else:
             if wa.sheetnames != wb.sheetnames:
                 err(f"sheet 列表不一致：{wa.sheetnames} vs {wb.sheetnames}")
             for name in wa.sheetnames:
+                if len(errors) > 40:
+                    break
                 if name not in wb.sheetnames:
                     continue
                 sa, sb = wa[name], wb[name]

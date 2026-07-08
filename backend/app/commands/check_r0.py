@@ -44,7 +44,7 @@ def build_r0_reports(
     doc = load_field_source()
     statement = (
         select(ExperimentRun)
-        .options(selectinload(ExperimentRun.module_payloads), selectinload(ExperimentRun.samples))
+        .options(selectinload(ExperimentRun.module_payloads))
         .where(ExperimentRun.schema_version == SCHEMA_VERSION)
         .order_by(ExperimentRun.run_code.asc())
     )
@@ -52,7 +52,7 @@ def build_r0_reports(
         statement = statement.where(ExperimentRun.id == run_id)
     if run_code is not None:
         statement = statement.where(ExperimentRun.run_code == run_code)
-    return [_build_run_report(db, run, doc) for run in db.scalars(statement).all()]
+    return [_build_run_report(run, doc) for run in db.scalars(statement).all()]
 
 
 def render_text_report(reports: list[dict[str, Any]]) -> str:
@@ -68,7 +68,7 @@ def render_text_report(reports: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _build_run_report(db: Session, run: ExperimentRun, doc: dict[str, Any]) -> dict[str, Any]:
+def _build_run_report(run: ExperimentRun, doc: dict[str, Any]) -> dict[str, Any]:
     payloads = {item.module_key: item.payload_json for item in run.module_payloads}
     basic_info = payloads.get("basic_info") or {}
     if basic_info.get("synthesis_method") in PVD_METHODS:
@@ -81,7 +81,7 @@ def _build_run_report(db: Session, run: ExperimentRun, doc: dict[str, Any]) -> d
         }
 
     items = [
-        _check_r0_field(db, run, payloads, field, doc)
+        _check_r0_field(run, payloads, field, doc)
         for field in experiment_fields(doc)
         if field.get("r0")
     ]
@@ -97,7 +97,6 @@ def _build_run_report(db: Session, run: ExperimentRun, doc: dict[str, Any]) -> d
 
 
 def _check_r0_field(
-    db: Session,
     run: ExperimentRun,
     payloads: dict[str, dict[str, Any]],
     field: dict[str, Any],
@@ -140,8 +139,6 @@ def _records_for_module(
     payloads: dict[str, dict[str, Any]],
     module_key: str,
 ) -> list[dict[str, Any]]:
-    if module_key == "measured_products":
-        return []
     payload = payloads.get(module_key) or {}
     items = payload.get("items")
     if isinstance(items, list):

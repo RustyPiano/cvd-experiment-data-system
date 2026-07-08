@@ -34,23 +34,6 @@ export interface ComponentRow {
   layer_order: string
 }
 
-/** 本步实现的模块键（§1–§4）。§5–§8 由下一步实现，此处仅占位。 */
-export const IMPLEMENTED_MODULE_KEYS = [
-  'basic_info',
-  'target_product',
-  'equipment',
-  'precursors',
-  'substrates',
-] as const
-export type ImplementedModuleKey = (typeof IMPLEMENTED_MODULE_KEYS)[number]
-
-/** §5–§8 模块键（本步实现；§7 表征/实测走各自端点，非模块 payload）。 */
-export const STEP_MODULE_KEYS = [
-  'process_steps',
-  'process_events',
-  'pvd',
-] as const
-
 /** 该模块的字段元数据（生成物），未知模块返回空数组。 */
 export function getModuleFields(moduleKey: string): FieldMetadata[] {
   return experimentModules[moduleKey] ?? []
@@ -508,9 +491,4 @@ export function missingPvdKeys(
     if ((values[field.key] ?? '').trim() === '') missing.push(field.key)
   }
   return missing
-}
-
-/** §8 是否有实质录入（决定新建态是否 upsert pvd 模块）。 */
-export function pvdHasAnyValue(values: ModuleValues): boolean {
-  return itemHasAnyValue(values)
 }

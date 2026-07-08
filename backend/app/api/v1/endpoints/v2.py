@@ -38,8 +38,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 @router.get("/material-lots", response_model=V2EntityListResponse)
-def list_material_lots(db: DbSession, current_user: CurrentUser) -> V2EntityListResponse:
-    del current_user
+def list_material_lots(db: DbSession, _current_user: CurrentUser) -> V2EntityListResponse:
     return V2EntityService(db).list_entities("material_lot")
 
 
@@ -51,23 +50,20 @@ def list_material_lots(db: DbSession, current_user: CurrentUser) -> V2EntityList
 def create_material_lot(
     payload: V2EntityVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> V2EntityRead:
-    del current_user
     return V2EntityService(db).create_entity("material_lot", payload)
 
 
 @router.get("/material-lots/{entity_id}", response_model=V2EntityRead)
-def get_material_lot(entity_id: UUID, db: DbSession, current_user: CurrentUser) -> V2EntityRead:
-    del current_user
+def get_material_lot(entity_id: UUID, db: DbSession, _current_user: CurrentUser) -> V2EntityRead:
     return V2EntityService(db).get_entity("material_lot", entity_id)
 
 
 @router.get("/material-lots/{entity_id}/versions", response_model=V2EntityVersionListResponse)
 def list_material_lot_versions(
-    entity_id: UUID, db: DbSession, current_user: CurrentUser
+    entity_id: UUID, db: DbSession, _current_user: CurrentUser
 ) -> V2EntityVersionListResponse:
-    del current_user
     return V2EntityService(db).list_versions("material_lot", entity_id)
 
 
@@ -80,15 +76,13 @@ def append_material_lot_version(
     entity_id: UUID,
     payload: V2EntityVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> V2EntityVersionRead:
-    del current_user
     return V2EntityService(db).append_version("material_lot", entity_id, payload)
 
 
 @router.get("/setups", response_model=V2EntityListResponse)
-def list_setups(db: DbSession, current_user: CurrentUser) -> V2EntityListResponse:
-    del current_user
+def list_setups(db: DbSession, _current_user: CurrentUser) -> V2EntityListResponse:
     return V2EntityService(db).list_entities("setup")
 
 
@@ -96,23 +90,20 @@ def list_setups(db: DbSession, current_user: CurrentUser) -> V2EntityListRespons
 def create_setup(
     payload: V2EntityVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> V2EntityRead:
-    del current_user
     return V2EntityService(db).create_entity("setup", payload)
 
 
 @router.get("/setups/{entity_id}", response_model=V2EntityRead)
-def get_setup(entity_id: UUID, db: DbSession, current_user: CurrentUser) -> V2EntityRead:
-    del current_user
+def get_setup(entity_id: UUID, db: DbSession, _current_user: CurrentUser) -> V2EntityRead:
     return V2EntityService(db).get_entity("setup", entity_id)
 
 
 @router.get("/setups/{entity_id}/versions", response_model=V2EntityVersionListResponse)
 def list_setup_versions(
-    entity_id: UUID, db: DbSession, current_user: CurrentUser
+    entity_id: UUID, db: DbSession, _current_user: CurrentUser
 ) -> V2EntityVersionListResponse:
-    del current_user
     return V2EntityService(db).list_versions("setup", entity_id)
 
 
@@ -125,15 +116,13 @@ def append_setup_version(
     entity_id: UUID,
     payload: V2EntityVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> V2EntityVersionRead:
-    del current_user
     return V2EntityService(db).append_version("setup", entity_id, payload)
 
 
 @router.get("/instruments", response_model=V2EntityListResponse)
-def list_instruments(db: DbSession, current_user: CurrentUser) -> V2EntityListResponse:
-    del current_user
+def list_instruments(db: DbSession, _current_user: CurrentUser) -> V2EntityListResponse:
     return V2EntityService(db).list_entities("instrument")
 
 
@@ -141,23 +130,20 @@ def list_instruments(db: DbSession, current_user: CurrentUser) -> V2EntityListRe
 def create_instrument(
     payload: V2EntityVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> V2EntityRead:
-    del current_user
     return V2EntityService(db).create_entity("instrument", payload)
 
 
 @router.get("/instruments/{entity_id}", response_model=V2EntityRead)
-def get_instrument(entity_id: UUID, db: DbSession, current_user: CurrentUser) -> V2EntityRead:
-    del current_user
+def get_instrument(entity_id: UUID, db: DbSession, _current_user: CurrentUser) -> V2EntityRead:
     return V2EntityService(db).get_entity("instrument", entity_id)
 
 
 @router.get("/instruments/{entity_id}/versions", response_model=V2EntityVersionListResponse)
 def list_instrument_versions(
-    entity_id: UUID, db: DbSession, current_user: CurrentUser
+    entity_id: UUID, db: DbSession, _current_user: CurrentUser
 ) -> V2EntityVersionListResponse:
-    del current_user
     return V2EntityService(db).list_versions("instrument", entity_id)
 
 
@@ -170,9 +156,8 @@ def append_instrument_version(
     entity_id: UUID,
     payload: V2EntityVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> V2EntityVersionRead:
-    del current_user
     return V2EntityService(db).append_version("instrument", entity_id, payload)
 
 

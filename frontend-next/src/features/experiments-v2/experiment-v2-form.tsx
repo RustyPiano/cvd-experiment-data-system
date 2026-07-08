@@ -29,7 +29,6 @@ import {
   missingProcessStepKeys,
   missingPvdKeys,
   missingRequiredKeys,
-  pvdHasAnyValue,
 } from './field-logic'
 import { toIsoDateTime } from './datetime'
 import { createRun, setSetupReference, upsertModule } from './api'
@@ -318,7 +317,7 @@ export function ExperimentV2Form({
       (state.process_steps.some(isProcessStepActive) &&
         processStepsMissing(state.process_steps, state.equipment.snapshot)) ||
       (pvdApplicable &&
-        pvdHasAnyValue(state.pvd) &&
+        itemHasAnyValue(state.pvd) &&
         missingPvdKeys(state.pvd, synthesisMethod).length > 0)
     if (blocked) {
       setShowErrors(true)
@@ -392,7 +391,7 @@ export function ExperimentV2Form({
           token,
         )
       }
-      if (pvdApplicable && pvdHasAnyValue(state.pvd)) {
+      if (pvdApplicable && itemHasAnyValue(state.pvd)) {
         await upsertModule(
           created.id,
           'pvd',

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 from pathlib import Path
 from typing import Any
 
@@ -187,7 +186,7 @@ def _render_process_step_models(
     stage_classes: list[str] = []
     for stage in doc["stage_types"]["types"]:
         name = stage["name"]
-        class_name = STAGE_CLASS_NAMES.get(name) or _stage_class_name(name)
+        class_name = STAGE_CLASS_NAMES[name]
         stage_classes.append(class_name)
         allowed: list[dict[str, Any]] = []
         for group in ["common", *stage.get("shows", [])]:
@@ -249,24 +248,21 @@ def _render_field_lines(
     indent: str,
 ) -> list[str]:
     return [
-        _field_line(field, required=_field_is_required(field, doc), indent=indent)
-        for field in fields
+        _field_line(field, required=_field_is_required(field), indent=indent) for field in fields
     ] or [f"{indent}pass"]
 
 
-def _field_is_required(field: dict[str, Any], doc: dict[str, Any]) -> bool:
-    del doc
+def _field_is_required(field: dict[str, Any]) -> bool:
     return field["requirement"]["level"] == "required"
 
 
 def _field_line(field: dict[str, Any], *, required: bool, indent: str) -> str:
-    type_expr = _type_expr(field)
+    type_expr = _type_expr()
     default = "" if required else " = None"
     return f"{indent}{field['key']}: {type_expr}{default}"
 
 
-def _type_expr(field: dict[str, Any]) -> str:
-    del field
+def _type_expr() -> str:
     # field-source.yaml still stores several formats as prose ("数组", "数值×2",
     # "下拉+多选"). P3 validates required/visible/conditional rules; stricter value
     # shapes can be generated after those formats become structured data.
@@ -310,11 +306,6 @@ def _render_condition_validator(
         *checks,
         f"{indent}    return self",
     ]
-
-
-def _stage_class_name(stage_name: str) -> str:
-    safe = re.sub(r"\\W+", "_", stage_name).strip("_")
-    return f"Stage{safe}StepPayload"
 
 
 def main(argv: list[str] | None = None) -> int:

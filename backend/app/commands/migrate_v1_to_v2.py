@@ -19,6 +19,7 @@ from app.models.module_payload import (
     ExperimentModulePayloadV1Archive,
 )
 from app.services.v2_field_source import SCHEMA_VERSION
+from app.services.v2_field_source import missing as _missing
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MAPPING_PATH = REPO_ROOT / "docs" / "standard" / "v1-to-v2-mapping.yaml"
@@ -360,6 +361,15 @@ def _write_v2_payloads(
     run: ExperimentRun,
     entries: list[dict[str, Any]],
 ) -> None:
+    """Materialize the cvd_v2 module payloads for a run.
+
+    IMPORTANT: only status=已映射 entries whose target.kind == "module_payload" are
+    written here. entity_field / table_field / run_field targets are silently skipped
+    even though they count as "mapped" in the migration report (see _build_run_report).
+    So report `mapped` OVERSTATES what --execute actually writes; run_field schema tags
+    are set separately in migrate_runs, and entity_field/table_field targets need the
+    manual P5 review before a real --execute (see v1-to-v2-mapping.yaml header).
+    """
     source_payloads = {
         payload.module_key: deepcopy(payload.payload_json)
         for payload in run.module_payloads
@@ -372,6 +382,7 @@ def _write_v2_payloads(
         if entry["status"] != STATUS_MAPPED:
             continue
         target = entry.get("target")
+        # Skips non-module_payload targets — see docstring: these still counted as mapped.
         if not isinstance(target, dict) or target.get("kind") != "module_payload":
             continue
         value = _get_payload_value(
@@ -409,6 +420,8 @@ def _assign_module_value(
     path = target.get("path") or target["key"]
     transform = entry.get("transform")
 
+    # Special case: a scalar v1 value mapped to the process_events items[] array is
+    # wrapped into a single {description_action: value} item. The only path-suffix rule.
     if path.endswith("[].description_action") and not isinstance(value, list):
         payload.setdefault("items", []).append({"description_action": value})
         return
@@ -434,6 +447,9 @@ def _merge_or_set(
     value: Any,
     transform: str | None,
 ) -> None:
+    # Only "merge_into_*" transforms carry machine semantics (nest source_field under a
+    # dict at `path`). Every other transform name is descriptive only and falls through
+    # to plain copy/set below — see v1-to-v2-mapping.yaml header.
     if transform and transform.startswith("merge_into_"):
         existing = _get_nested(payload, path)
         if not isinstance(existing, dict):
@@ -515,10 +531,6 @@ def _set_nested(payload: dict[str, Any], path: str, value: Any) -> None:
             current[part] = next_value
         current = next_value
     current[parts[-1]] = value
-
-
-def _missing(value: Any) -> bool:
-    return value is None or value == "" or value == [] or value == {}
 
 
 if __name__ == "__main__":

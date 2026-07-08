@@ -7,7 +7,11 @@ import type { EntityKind } from '@/features/entity-library/config'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import type { ModuleValues } from '../field-logic'
-import { getModuleFields, isFieldVisible } from '../field-logic'
+import {
+  emptyModuleValues,
+  getModuleFields,
+  isFieldVisible,
+} from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
 import { FieldLabel } from './field-bits'
@@ -49,11 +53,6 @@ export function RepeatableItemsSection({
   const { t } = useTranslation()
   const fields = getModuleFields(moduleKey)
 
-  const emptyItem = (): ModuleValues => {
-    const values: ModuleValues = {}
-    for (const field of fields) values[field.key] = ''
-    return values
-  }
   const setItemValue = (itemIndex: number, key: string, value: string) => {
     onItemsChange(
       items.map((item, i) =>
@@ -61,7 +60,7 @@ export function RepeatableItemsSection({
       ),
     )
   }
-  const addItem = () => onItemsChange([...items, emptyItem()])
+  const addItem = () => onItemsChange([...items, emptyModuleValues(moduleKey)])
   const removeItem = (itemIndex: number) =>
     onItemsChange(items.filter((_, i) => i !== itemIndex))
 
