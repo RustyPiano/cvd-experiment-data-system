@@ -33,6 +33,12 @@ export default [
       'prettier.config.js',
       'public/**',
       'src/routeTree.gen.ts',
+      // Generator⑤ output (data module) + the bun build script that emits it.
+      // The data file is generated from docs/standard/field-source.yaml and is
+      // typechecked (kept in tsconfig include); the bun script uses Bun globals
+      // and runs outside the app's browser tsconfig.
+      'src/shared/generated/field-metadata.ts',
+      'scripts/**',
     ],
   },
 ]

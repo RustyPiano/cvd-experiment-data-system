@@ -10,8 +10,10 @@ import ReactDOM from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from 'next-themes'
+import { I18nextProvider } from 'react-i18next'
 import { AuthProvider } from '@/features/auth/auth-store'
 import { RootErrorComponent, RootNotFound } from '@/shared/ui/route-boundaries'
+import i18n from '@/shared/i18n'
 import { routeTree } from './routeTree.gen'
 
 const queryClient = new QueryClient({
@@ -43,17 +45,19 @@ const rootElement = document.getElementById('app')!
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
   root.render(
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="light"
-        enableSystem={false}
-        disableTransitionOnChange
-      >
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>,
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <RouterProvider router={router} />
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </I18nextProvider>,
   )
 }

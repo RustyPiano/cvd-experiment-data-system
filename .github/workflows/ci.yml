@@ -54,11 +54,18 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.14
 
       - name: Install dependencies
         working-directory: frontend-next
         run: bun install --frozen-lockfile
+
+      - name: Regenerate field metadata (生成器⑤)
+        working-directory: frontend-next
+        run: bun run gen:fields
+
+      - name: Check field metadata drift
+        run: git diff --exit-code -- frontend-next/src/shared/generated
 
       - name: Typecheck
         working-directory: frontend-next
