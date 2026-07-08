@@ -59,24 +59,23 @@ sec_font = Font(bold=True, color="1F4E79", size=11)
 star_font = Font(color="C00000")
 thin = Side(style="thin", color="D0D0D0")
 border = Border(left=thin, right=thin, top=thin, bottom=thin)
-req_fills = {
-    "必填": PatternFill("solid", fgColor="FCE4E4"),
-    "条件必填(仅SiO₂/Si)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(PVD)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(固态源)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(非气态)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(降温段)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(结构类型≠本征)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(Setup有外场)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(衬底)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(SiO₂/Si)": PatternFill("solid", fgColor="FCEFD6"),
-    "条件必填(气瓶)": PatternFill("solid", fgColor="FCEFD6"),
-    "必填(生长)/选填(其余)": PatternFill("solid", fgColor="FCE4E4"),
-    "必填/选填": PatternFill("solid", fgColor="FCEFD6"),
-    "推荐": PatternFill("solid", fgColor="FFF7DA"),
-    "推荐(固态源)": PatternFill("solid", fgColor="FFF7DA"),
-    "定义项": PatternFill("solid", fgColor="E4ECF7"),
-}
+widths = [10, 16, 30, 12, 34, 10, 14, 26, 10, 34]
+
+
+# 必填级别底色（前缀判定，与 req_font 同族）。「必填/选填」现行橙底为特例，须先于
+# 通用「必填」前缀判断。其余「必填…」粉底、「条件必填…」橙底、「推荐…」黄底、「定义项」蓝底。
+def req_fill(req):
+    if req == "必填/选填":
+        return PatternFill("solid", fgColor="FCEFD6")
+    if req.startswith("必填"):
+        return PatternFill("solid", fgColor="FCE4E4")
+    if req.startswith("条件必填"):
+        return PatternFill("solid", fgColor="FCEFD6")
+    if req.startswith("推荐"):
+        return PatternFill("solid", fgColor="FFF7DA")
+    if req.startswith("定义项"):
+        return PatternFill("solid", fgColor="E4ECF7")
+    return None
 
 
 # v3.4 导师提醒(B93)：必填/选填要有明显标识 → 必填级别加粗着色字体 + 表头下图例行
@@ -106,87 +105,56 @@ def add_legend(sheet):
     sheet.row_dimensions[2].height = 18
 
 
-# header
-for c, h in enumerate(HEADERS, 1):
-    cell = ws.cell(1, c, h)
-    cell.fill = hdr_fill
-    cell.font = hdr_font
-    cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = border
+def render_field_sheet(sheet, headers, rows, *, start_row, freeze):
+    """字段表 sheet 渲染（字段草案 / 一等实体字段表共用）：表头 + 章节行 + 字段行 + 列宽 + 冻结。"""
+    for c, h in enumerate(headers, 1):
+        cell = sheet.cell(1, c, h)
+        cell.fill = hdr_fill
+        cell.font = hdr_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+    r = start_row
+    for item in rows:
+        if isinstance(item, tuple):  # section
+            sheet.cell(r, 1, item[1])
+            sheet.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
+            cc = sheet.cell(r, 1)
+            cc.fill = sec_fill
+            cc.font = sec_font
+            cc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            for c in range(1, 11):
+                sheet.cell(r, c).border = border
+            sheet.row_dimensions[r].height = 20
+        else:
+            for c, val in enumerate(item, 1):
+                cell = sheet.cell(r, c, val)
+                cell.border = border
+                cell.alignment = Alignment(vertical="center", wrap_text=True)
+            req = item[6]
+            fill = req_fill(req)
+            if fill:
+                sheet.cell(r, 7).fill = fill
+            rf = req_font(req)
+            if rf:
+                sheet.cell(r, 7).font = rf
+            sheet.cell(r, 7).alignment = Alignment(
+                horizontal="center", vertical="center", wrap_text=True
+            )
+            # star note red
+            if str(item[9]).startswith("★"):
+                sheet.cell(r, 10).font = star_font
+        r += 1
+    for c, w in enumerate(widths, 1):
+        sheet.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
+    sheet.freeze_panes = freeze
+
+
+render_field_sheet(ws, HEADERS, ROWS, start_row=3, freeze="A3")
 add_legend(ws)
-
-r = 3
-for item in ROWS:
-    if isinstance(item, tuple):  # section
-        ws.cell(r, 1, item[1])
-        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
-        cc = ws.cell(r, 1)
-        cc.fill = sec_fill
-        cc.font = sec_font
-        cc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-        for c in range(1, 11):
-            ws.cell(r, c).border = border
-        ws.row_dimensions[r].height = 20
-    else:
-        for c, val in enumerate(item, 1):
-            cell = ws.cell(r, c, val)
-            cell.border = border
-            cell.alignment = Alignment(vertical="center", wrap_text=True)
-        req = item[6]
-        if req in req_fills:
-            ws.cell(r, 7).fill = req_fills[req]
-        rf = req_font(req)
-        if rf:
-            ws.cell(r, 7).font = rf
-        ws.cell(r, 7).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        # star note red
-        if str(item[9]).startswith("★"):
-            ws.cell(r, 10).font = star_font
-    r += 1
-
-widths = [10, 16, 30, 12, 34, 10, 14, 26, 10, 34]
-for c, w in enumerate(widths, 1):
-    ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
-ws.freeze_panes = "A3"
 
 # ---- 一等实体字段表 sheet ----
 wsE = wb.create_sheet("一等实体字段表")
-for c, h in enumerate(ENT_HEADERS, 1):
-    cell = wsE.cell(1, c, h)
-    cell.fill = hdr_fill
-    cell.font = hdr_font
-    cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = border
-r = 2
-for item in ENTITY_ROWS:
-    if isinstance(item, tuple):
-        wsE.cell(r, 1, item[1])
-        wsE.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
-        cc = wsE.cell(r, 1)
-        cc.fill = sec_fill
-        cc.font = sec_font
-        cc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-        for c in range(1, 11):
-            wsE.cell(r, c).border = border
-        wsE.row_dimensions[r].height = 20
-    else:
-        for c, val in enumerate(item, 1):
-            cell = wsE.cell(r, c, val)
-            cell.border = border
-            cell.alignment = Alignment(vertical="center", wrap_text=True)
-        req = item[6]
-        if req in req_fills:
-            wsE.cell(r, 7).fill = req_fills[req]
-        rf = req_font(req)
-        if rf:
-            wsE.cell(r, 7).font = rf
-        wsE.cell(r, 7).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        if str(item[9]).startswith("★"):
-            wsE.cell(r, 10).font = star_font
-    r += 1
-for c, w in enumerate(widths, 1):
-    wsE.column_dimensions[openpyxl.utils.get_column_letter(c)].width = w
-wsE.freeze_panes = "A2"
+render_field_sheet(wsE, ENT_HEADERS, ENTITY_ROWS, start_row=2, freeze="A2")
 
 # ---- 变更说明 sheet ----
 ws2 = wb.create_sheet("v2→v3变更说明")

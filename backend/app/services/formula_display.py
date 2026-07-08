@@ -8,7 +8,11 @@ def render_formula_display(
     structure_type: str,
     components: list[dict[str, Any]] | None = None,
 ) -> str:
-    """默认规则，待组内确认（待明确#1）."""
+    """默认规则，待组内确认（待明确#1）.
+
+    参考实现：v2 显示串目前由前端 formula.ts 的 renderFormulaDisplay 渲染，本函数暂无
+    后端生产调用点，仅作为同规则的服务端参考实现与测试基线保留。
+    """
 
     parts = components or []
     if structure_type == "本征" or not parts:
@@ -27,11 +31,11 @@ def render_formula_display(
 
 
 def _formula(component: dict[str, Any]) -> str:
-    return str(component.get("formula") or component.get("chemical_formula") or "").strip()
+    return str(component.get("formula") or "").strip()
 
 
 def _layer_order(component: dict[str, Any]) -> tuple[int, str]:
-    raw_order = component.get("layer_order") or component.get("order")
+    raw_order = component.get("layer_order")
     try:
         order = int(raw_order)
     except (TypeError, ValueError):

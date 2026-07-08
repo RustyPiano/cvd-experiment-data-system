@@ -60,7 +60,7 @@ class TargetProductPayload(V2PayloadBase):
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
         if _matches(self.structure_type, 'ne', '本征') and _missing(self.components):
-            raise ValueError('components' + ' is conditionally required')
+            raise ValueError("components is conditionally required")
         return self
 
 
@@ -96,7 +96,7 @@ class PrecursorItemPayload(V2PayloadBase):
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
         if _matches(self.phase_state, 'ne', '气') and _missing(self.amount):
-            raise ValueError('amount' + ' is conditionally required')
+            raise ValueError("amount is conditionally required")
         return self
 
 
@@ -118,7 +118,7 @@ class SubstrateItemPayload(V2PayloadBase):
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
         if _matches(self.material, 'eq', 'SiO₂/Si') and _missing(self.oxide_thickness_nm):
-            raise ValueError('oxide_thickness_nm' + ' is conditionally required')
+            raise ValueError("oxide_thickness_nm is conditionally required")
         return self
 
 

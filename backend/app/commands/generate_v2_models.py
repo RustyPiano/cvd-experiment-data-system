@@ -291,10 +291,7 @@ def _render_condition_validator(
                     f"{indent}    if _matches(self.{local_key}, {op!r}, "
                     f"{expected!r}) and _missing(self.{field['key']}):"
                 ),
-                (
-                    f"{indent}        raise ValueError("
-                    f"{field['key']!r} + ' is conditionally required')"
-                ),
+                f'{indent}        raise ValueError("{field["key"]} is conditionally required")',
             ]
         )
     if not checks:

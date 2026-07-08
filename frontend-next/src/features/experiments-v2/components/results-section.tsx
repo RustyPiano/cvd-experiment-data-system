@@ -71,11 +71,80 @@ function sampleLabel(sample: SampleRead): string {
     : sample.role
 }
 
+/** 字段标签取自元数据（单一源），不进 locale。未知字段返回空串。 */
+function fieldLabel(moduleKey: string, key: string): string {
+  return getModuleFields(moduleKey).find((item) => item.key === key)?.labelZh ?? ''
+}
+
+/** 加样品控件：空态（带标签 + outline 按钮）与非空态（内联 + ghost 按钮）共用。 */
+function AddSampleControls({
+  layout,
+  newRole,
+  onRoleChange,
+  onAdd,
+  pending,
+}: {
+  layout: 'empty' | 'inline'
+  newRole: SampleCreate['role']
+  onRoleChange: (role: SampleCreate['role']) => void
+  onAdd: () => void
+  pending: boolean
+}) {
+  const { t } = useTranslation()
+  const roleSelect = (
+    <Select
+      value={newRole}
+      onValueChange={(value) => onRoleChange(value as SampleCreate['role'])}
+    >
+      <SelectTrigger className={layout === 'empty' ? 'w-48' : 'w-40'}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {SAMPLE_ROLES.map((role) => (
+          <SelectItem key={role} value={role}>
+            {t(`experimentsV2.sections.results.roles.${role}`)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+  const addButton = (
+    <Button
+      type="button"
+      variant={layout === 'empty' ? 'outline' : 'ghost'}
+      size="sm"
+      disabled={pending}
+      onClick={onAdd}
+    >
+      {t('experimentsV2.sections.results.addSample')}
+    </Button>
+  )
+  if (layout === 'inline') {
+    return (
+      <div className="flex items-end gap-2">
+        {roleSelect}
+        {addButton}
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-col gap-1.5">
+        <FieldLabel
+          labelZh={t('experimentsV2.sections.results.sampleRole')}
+          unit={null}
+          required={false}
+          r0={false}
+        />
+        {roleSelect}
+      </div>
+      {addButton}
+    </div>
+  )
+}
+
 export function ResultsSection({ runId }: { runId: string | undefined }) {
   const { t } = useTranslation()
-  const { session } = useAuth()
-  const token = session.accessToken || ''
-  const enabled = Boolean(runId) && session.isAuthenticated && !!token
 
   if (!runId) {
     return (
@@ -97,21 +166,21 @@ export function ResultsSection({ runId }: { runId: string | undefined }) {
       title={t('experimentsV2.sections.results.title')}
       subtitle={t('experimentsV2.sections.results.subtitle')}
     >
-      <ResultsBody runId={runId} token={token} enabled={enabled} />
+      <ResultsBody runId={runId} />
     </ModuleCard>
   )
 }
 
-function ResultsBody({
-  runId,
-  token,
-  enabled,
-}: {
-  runId: string
-  token: string
-  enabled: boolean
-}) {
+/** 叶子组件各自 useAuth（本仓先例），不再逐层钻 token/enabled。 */
+function useAuthGate(): { token: string; enabled: boolean } {
+  const { session } = useAuth()
+  const token = session.accessToken || ''
+  return { token, enabled: session.isAuthenticated && !!token }
+}
+
+function ResultsBody({ runId }: { runId: string }) {
   const { t } = useTranslation()
+  const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
 
   const samplesQuery = useQuery({
@@ -147,42 +216,13 @@ function ResultsBody({
         <p className="text-sm text-muted-foreground">
           {t('experimentsV2.sections.results.noSamples')}
         </p>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel
-              labelZh={t('experimentsV2.sections.results.sampleRole')}
-              unit={null}
-              required={false}
-              r0={false}
-            />
-            <Select
-              value={newRole}
-              onValueChange={(value) =>
-                setNewRole(value as SampleCreate['role'])
-              }
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SAMPLE_ROLES.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {t(`experimentsV2.sections.results.roles.${role}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={createSampleMutation.isPending}
-            onClick={() => createSampleMutation.mutate()}
-          >
-            {t('experimentsV2.sections.results.addSample')}
-          </Button>
-        </div>
+        <AddSampleControls
+          layout="empty"
+          newRole={newRole}
+          onRoleChange={setNewRole}
+          onAdd={() => createSampleMutation.mutate()}
+          pending={createSampleMutation.isPending}
+        />
       </div>
     )
   }
@@ -214,70 +254,40 @@ function ResultsBody({
               ))}
             </SelectContent>
           </Select>
-          <div className="flex items-end gap-2">
-            <Select
-              value={newRole}
-              onValueChange={(value) =>
-                setNewRole(value as SampleCreate['role'])
-              }
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SAMPLE_ROLES.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {t(`experimentsV2.sections.results.roles.${role}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={createSampleMutation.isPending}
-              onClick={() => createSampleMutation.mutate()}
-            >
-              {t('experimentsV2.sections.results.addSample')}
-            </Button>
-          </div>
+          <AddSampleControls
+            layout="inline"
+            newRole={newRole}
+            onRoleChange={setNewRole}
+            onAdd={() => createSampleMutation.mutate()}
+            pending={createSampleMutation.isPending}
+          />
         </div>
       </div>
 
       <Separator />
       <CharacterizationRecords
         runId={runId}
-        token={token}
-        enabled={enabled}
         samples={samples}
         defaultSampleId={activeSampleId}
       />
 
       <Separator />
-      <MeasuredProducts
-        token={token}
-        enabled={enabled}
-        sampleId={activeSampleId}
-      />
+      <MeasuredProducts sampleId={activeSampleId} />
     </div>
   )
 }
 
 function CharacterizationRecords({
   runId,
-  token,
-  enabled,
   samples,
   defaultSampleId,
 }: {
   runId: string
-  token: string
-  enabled: boolean
   samples: SampleRead[]
   defaultSampleId: string
 }) {
   const { t } = useTranslation()
+  const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
   const methods = useMemo(characterizationMethods, [])
 
@@ -451,7 +461,7 @@ function CharacterizationRecords({
 
         <div className="flex flex-col gap-1.5">
           <FieldLabel
-            labelZh={t('experimentsV2.sections.results.testConditions')}
+            labelZh={fieldLabel('characterization', 'test_conditions')}
             unit={null}
             required={false}
             r0={false}
@@ -486,16 +496,9 @@ function CharacterizationRecords({
   )
 }
 
-function MeasuredProducts({
-  token,
-  enabled,
-  sampleId,
-}: {
-  token: string
-  enabled: boolean
-  sampleId: string
-}) {
+function MeasuredProducts({ sampleId }: { sampleId: string }) {
   const { t } = useTranslation()
+  const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
   const phenomena = useMemo(observedPhenomenaOptions, [])
 
@@ -610,7 +613,7 @@ function MeasuredProducts({
       <div className="flex flex-col gap-4 rounded-md border border-dashed border-border p-4">
         <div className="flex flex-col gap-2">
           <FieldLabel
-            labelZh={t('experimentsV2.sections.results.observedPhenomena')}
+            labelZh={fieldLabel('measured_products', 'observed_phenomena')}
             unit={null}
             required={false}
             r0={false}
@@ -636,7 +639,7 @@ function MeasuredProducts({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <FieldLabel
-              labelZh={t('experimentsV2.sections.results.phaseStacking')}
+              labelZh={fieldLabel('measured_products', 'detected_phase_stacking')}
               unit={null}
               required={false}
               r0={false}
@@ -650,7 +653,7 @@ function MeasuredProducts({
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
-              labelZh={t('experimentsV2.sections.results.layersCoverage')}
+              labelZh={fieldLabel('measured_products', 'measured_layers_coverage')}
               unit={null}
               required={false}
               r0={false}
@@ -664,7 +667,7 @@ function MeasuredProducts({
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
-              labelZh={t('experimentsV2.sections.results.domain')}
+              labelZh={fieldLabel('measured_products', 'domain_nucleation_continuity')}
               unit={null}
               required={false}
               r0={false}
@@ -678,7 +681,7 @@ function MeasuredProducts({
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
-              labelZh={t('experimentsV2.sections.results.spectral')}
+              labelZh={fieldLabel('measured_products', 'key_spectral_metrics')}
               unit={null}
               required={false}
               r0={false}

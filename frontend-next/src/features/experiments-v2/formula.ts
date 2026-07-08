@@ -194,18 +194,16 @@ export function validateChemicalFormula(input: string): FormulaValidation {
 
 export interface DisplayComponent {
   formula?: string | null
-  chemical_formula?: string | null
   role?: string | null
   layer_order?: string | number | null
-  order?: string | number | null
 }
 
 function componentFormula(component: DisplayComponent): string {
-  return String(component.formula ?? component.chemical_formula ?? '').trim()
+  return String(component.formula ?? '').trim()
 }
 
 function layerOrder(component: DisplayComponent): [number, string] {
-  const raw = component.layer_order ?? component.order
+  const raw = component.layer_order
   const parsed = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10)
   const order = Number.isFinite(parsed) ? parsed : 0
   return [order, componentFormula(component)]

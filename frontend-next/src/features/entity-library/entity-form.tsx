@@ -2,9 +2,7 @@
 // 字段清单、显隐、必填、选项均由 field-metadata 驱动；UI 文案全部走 i18n（D12）。
 import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
-import type { Control, Resolver } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod/v4'
+import type { Control, FieldError, Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 
@@ -74,23 +72,25 @@ export function EntityForm({
   const { t } = useTranslation()
   const fields = useMemo(() => getEntityFields(kind), [kind])
 
-  // 校验模式随当前取值动态重建：可见且有效必填的字段才强制非空（隐藏字段不校验）。
-  // 动态 z.object 的输出类型会被推断为 Record<string, unknown>，故把 zodResolver
-  // 产物断言回本表单的 Resolver<EntityFormValues>（键集恒为字符串字段，运行期一致）。
-  const resolver: Resolver<EntityFormValues> = (values, context, options) => {
-    const shape: Record<string, z.ZodType> = {}
+  // 校验随当前取值动态计算：可见且有效必填的字段才强制非空（隐藏字段不校验）。
+  // 手写 resolver 等价于旧的动态 z.object（值不 trim；提交时 buildSubmitPayload 再 trim，
+  // 载荷逐键相同），省去 zod + 双重 as 断言。
+  const resolver: Resolver<EntityFormValues> = (values) => {
+    const errors: Record<string, FieldError> = {}
     for (const field of fields) {
       const required =
         isFieldVisible(kind, field, values) &&
         isEffectivelyRequired(kind, field, values)
-      shape[field.key] = required
-        ? z.string().trim().min(1, t('validation.required'))
-        : z.string()
+      if (required && (values[field.key] ?? '').trim() === '') {
+        errors[field.key] = {
+          type: 'required',
+          message: t('validation.required'),
+        }
+      }
     }
-    const zodBackedResolver = zodResolver(
-      z.object(shape),
-    ) as unknown as Resolver<EntityFormValues>
-    return zodBackedResolver(values, context, options)
+    return Object.keys(errors).length > 0
+      ? { values: {}, errors }
+      : { values, errors: {} }
   }
 
   const form = useForm<EntityFormValues>({

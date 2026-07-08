@@ -65,16 +65,19 @@ export function parseSubcategory(labelZh: string): string | null {
 }
 
 /**
- * 找到「类别驱动字段」的键：其枚举选项包含该子类名的字段（如 批次类别 的选项含 衬底/气瓶）。
- * 完全由元数据推导，不硬编码 material_lot 语义。
+ * 找到「类别驱动字段」的键。子类字段自带显式 eq 条件（如 ▸衬底·材料 的
+ * requirement.condition = {批次类别 eq 衬底}），故直接反查「带 value===子类名 的 eq 条件」
+ * 的字段，取其条件引用键即驱动键——由声明的条件推导，不靠枚举 token 匹配启发式。
  */
 function findCategoryDriverKey(
   kind: EntityKind,
   subcategory: string,
 ): string | null {
   for (const field of entities[kind]) {
-    const options = parseEnumOptions(field.options)
-    if (options?.includes(subcategory)) return field.key
+    const condition = field.requirement.condition
+    if (condition?.op === 'eq' && condition.value === subcategory) {
+      return resolveConditionKey(kind, condition.field)
+    }
   }
   return null
 }

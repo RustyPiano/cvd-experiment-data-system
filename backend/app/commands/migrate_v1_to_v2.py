@@ -31,6 +31,15 @@ STATUS_MANUAL = "需人工映射"
 STATUS_PENDING = "待用户确认"
 STATUS_DROPPED = "丢弃"
 
+# status -> counts key. Unknown/typo status raises KeyError (fail loud) instead of being
+# silently dropped from the totals.
+STATUS_TO_COUNT = {
+    STATUS_MAPPED: "mapped",
+    STATUS_MANUAL: "manual",
+    STATUS_PENDING: "pending_confirmation",
+    STATUS_DROPPED: "dropped",
+}
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -72,6 +81,14 @@ def v1_field_paths() -> set[str]:
     }
 
 
+def _reports_for_runs(
+    runs: list[ExperimentRun],
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    missing_entries = sorted(v1_field_paths() - {entry["source_path"] for entry in entries})
+    return [_build_run_report(run, entries, missing_entries) for run in runs]
+
+
 def build_migration_reports(
     db: Session,
     *,
@@ -79,13 +96,9 @@ def build_migration_reports(
     run_code: str | None = None,
     mapping_path: str | Path = DEFAULT_MAPPING_PATH,
 ) -> list[dict[str, Any]]:
-    mapping = load_mapping(mapping_path)
-    entries = mapping["mappings"]
-    missing_entries = sorted(v1_field_paths() - {entry["source_path"] for entry in entries})
-    return [
-        _build_run_report(run, entries, missing_entries)
-        for run in _select_v1_runs(db, run_id=run_id, run_code=run_code)
-    ]
+    entries = load_mapping(mapping_path)["mappings"]
+    runs = _select_v1_runs(db, run_id=run_id, run_code=run_code)
+    return _reports_for_runs(runs, entries)
 
 
 def migrate_runs(
@@ -96,21 +109,15 @@ def migrate_runs(
     mapping_path: str | Path = DEFAULT_MAPPING_PATH,
     execute: bool = False,
 ) -> list[dict[str, Any]]:
-    reports = build_migration_reports(
-        db,
-        run_id=run_id,
-        run_code=run_code,
-        mapping_path=mapping_path,
-    )
+    entries = load_mapping(mapping_path)["mappings"]
+    runs = _select_v1_runs(db, run_id=run_id, run_code=run_code)
+    reports = _reports_for_runs(runs, entries)
     if not execute:
         return reports
     if any(report["blocker"] for report in reports):
         raise RuntimeError("Refusing to execute while unmapped v1 fields remain.")
-
-    mapping = load_mapping(mapping_path)
-    entries = mapping["mappings"]
     try:
-        for run in _select_v1_runs(db, run_id=run_id, run_code=run_code):
+        for run in runs:
             _archive_v1_payloads(db, run)
             _write_v2_payloads(db, run, entries)
             run.schema_version = SCHEMA_VERSION
@@ -170,17 +177,6 @@ def build_reconciliation_reports(
 def render_text_report(reports: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for report in reports:
-        if "counts" not in report:
-            lines.append(
-                f"{report['run_code']} reconcile: "
-                f"{len(report['matched'])} matched, {report['difference_count']} differences"
-            )
-            for diff in report["differences"]:
-                lines.append(
-                    f"  x {diff['source_path']} -> {diff['target']}: "
-                    f"{diff['expected']!r} != {diff['actual']!r}"
-                )
-            continue
         counts = report["counts"]
         blocker = " BLOCKER" if report["blocker"] else ""
         lines.append(f"{report['run_code']} [{report['schema_version'] or 'cvd_v1'}]{blocker}")
@@ -192,6 +188,21 @@ def render_text_report(reports: list[dict[str, Any]]) -> str:
         )
         for item in report["unmapped_fields"]:
             lines.append(f"  x unmapped: {item}")
+    return "\n".join(lines)
+
+
+def render_reconcile_text(reports: list[dict[str, Any]]) -> str:
+    lines: list[str] = []
+    for report in reports:
+        lines.append(
+            f"{report['run_code']} reconcile: "
+            f"{len(report['matched'])} matched, {report['difference_count']} differences"
+        )
+        for diff in report["differences"]:
+            lines.append(
+                f"  x {diff['source_path']} -> {diff['target']}: "
+                f"{diff['expected']!r} != {diff['actual']!r}"
+            )
     return "\n".join(lines)
 
 
@@ -229,8 +240,9 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         db.close()
 
+    render_text = render_reconcile_text if args.reconcile else render_text_report
     if args.format in {"text", "both"}:
-        print(render_text_report(reports))
+        print(render_text(reports))
     if args.format == "both":
         print("\nJSON:")
     if args.format in {"json", "both"}:
@@ -296,14 +308,7 @@ def _build_run_report(
     }
     for entry in entries:
         status_value = entry["status"]
-        if status_value == STATUS_MAPPED:
-            counts["mapped"] += 1
-        elif status_value == STATUS_MANUAL:
-            counts["manual"] += 1
-        elif status_value == STATUS_PENDING:
-            counts["pending_confirmation"] += 1
-        elif status_value == STATUS_DROPPED:
-            counts["dropped"] += 1
+        counts[STATUS_TO_COUNT[status_value]] += 1
         fields.append(
             {
                 "source_path": entry["source_path"],

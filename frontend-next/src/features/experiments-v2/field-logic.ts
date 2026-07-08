@@ -476,7 +476,7 @@ export function isPvdFieldRequired(
   if (level !== 'conditional_required') return false
   const condition = field.requirement.condition
   if (!condition) return false
-  return isPvdApplicable(synthesisMethod)
+  return matchesCondition(condition, synthesisMethod.trim())
 }
 
 /** 提交前拦截：§8 内「有效必填 + 空」的字段键（仅当 PVD 适用）。 */
