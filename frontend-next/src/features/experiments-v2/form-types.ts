@@ -17,6 +17,12 @@ export interface ExperimentV2FormState {
   equipment: EquipmentRef
   precursors: ModuleValues[]
   substrates: ModuleValues[]
+  /** §5 过程步（每条含 stage_type + 该阶段字段键）。 */
+  process_steps: ModuleValues[]
+  /** §6 过程事件（可重复轻量条目）。 */
+  process_events: ModuleValues[]
+  /** §8 PVD（扁平模块；仅 PVD 合成方法时纳入保存）。 */
+  pvd: ModuleValues
 }
 
 /** 分模块草稿保存的注入接口（编辑态提供；新建态为 undefined）。 */

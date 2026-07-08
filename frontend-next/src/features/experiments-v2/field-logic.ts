@@ -7,10 +7,14 @@
 //    （空值下发 null），保证 required 键在场且不夹带 schema 之外的键。
 //  - target_product.components / precursors.items / substrates.items 的条件必填由生成的
 //    model_validator 强制；前端此处复刻同一判据用于动态红星与提交前拦截。
-import { experimentModules } from '@/shared/generated/field-metadata'
+import {
+  experimentModules,
+  stageTypes,
+} from '@/shared/generated/field-metadata'
 import type {
   FieldCondition,
   FieldMetadata,
+  StageType,
 } from '@/shared/generated/field-metadata'
 import {
   matchesCondition,
@@ -40,8 +44,8 @@ export const IMPLEMENTED_MODULE_KEYS = [
 ] as const
 export type ImplementedModuleKey = (typeof IMPLEMENTED_MODULE_KEYS)[number]
 
-/** §5–§8 占位模块键（下一步落地）。 */
-export const PLACEHOLDER_MODULE_KEYS = [
+/** §5–§8 模块键（本步实现；§7 表征/实测走各自端点，非模块 payload）。 */
+export const STEP_MODULE_KEYS = [
   'process_steps',
   'process_events',
   'pvd',
@@ -313,4 +317,200 @@ export function itemsFromPayload(
   return raw.map((item) =>
     moduleValuesFromPayload(moduleKey, (item ?? {}) as Record<string, unknown>),
   )
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// §5 过程步（D11 数据驱动）：阶段类型 → 参数组显隐/必填 + discriminated union 载荷。
+// 「阶段类型→参数组」映射 = 生成物 stageTypes（YAML `stage_types` 节，与后端 union
+// 生成器同源）。改映射改 YAML 再重跑 gen:fields，勿在此散写「某阶段显示某字段」。
+// ════════════════════════════════════════════════════════════════════════
+
+/** common 参数组恒显；其余组按阶段 shows 出现。 */
+const COMMON_GROUP = 'common'
+const EXTERNAL_FIELD_GROUP = 'external_field'
+
+/** 按阶段类型名取 stageTypes 定义（未知阶段返回 undefined）。 */
+export function getStageType(name: string): StageType | undefined {
+  return stageTypes.find((stage) => stage.name === name)
+}
+
+/** 该阶段可见的参数组集合（common 恒含 + shows）。未知阶段仅 common。 */
+export function visibleGroupsForStage(name: string): Set<string> {
+  const stage = getStageType(name)
+  return new Set<string>([COMMON_GROUP, ...(stage?.shows ?? [])])
+}
+
+/**
+ * 被引用 Setup 快照是否带外场装置（field_devices≠无）。跨实体条件：从表单已存的 setup
+ * 快照读（form-state 已把 attrs_snapshot 摊平为直取键，故直接读 field_devices）。
+ */
+export function hasExternalFieldSetup(
+  snapshot: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!snapshot) return false
+  const value = snapshot['field_devices']
+  if (value == null || value === '' || value === '无') return false
+  if (Array.isArray(value)) {
+    return value.length > 0 && !(value.length === 1 && value[0] === '无')
+  }
+  return true
+}
+
+/**
+ * 过程步字段在给定阶段下是否显示：
+ *  - common 恒显；
+ *  - 其余组仅当阶段 shows 含该组；
+ *  - 外场组额外要求「§2 已选 Setup 且快照 field_devices≠无」（跨实体条件）。
+ * 阶段未选时仅 common 组可见（UI 先只露阶段类型选择器）。
+ */
+export function isProcessStepFieldVisible(
+  field: FieldMetadata,
+  stageType: string,
+  setupSnapshot: Record<string, unknown> | null | undefined,
+): boolean {
+  const group = field.group ?? COMMON_GROUP
+  if (group === COMMON_GROUP) return true
+  if (!stageType) return false
+  if (!visibleGroupsForStage(stageType).has(group)) return false
+  if (group === EXTERNAL_FIELD_GROUP)
+    return hasExternalFieldSetup(setupSnapshot)
+  return true
+}
+
+/**
+ * 过程步字段在当前阶段下是否有效必填（驱动红星）：
+ *  - required 恒必填；
+ *  - conditional_required：阶段 requiredExtra 命中（如反应生长的压力体系）或字段自身条件成立
+ *    （降温组=降温段、外场组=Setup有外场）。
+ * 全部数据驱动：requiredExtra 来自 stageTypes，条件来自字段元数据。
+ */
+export function isProcessStepFieldRequired(
+  field: FieldMetadata,
+  stageType: string,
+  setupSnapshot: Record<string, unknown> | null | undefined,
+): boolean {
+  const level = field.requirement.level
+  if (level === 'required') return true
+  if (level !== 'conditional_required') return false
+  const stage = getStageType(stageType)
+  if (stage?.requiredExtra?.includes(field.key)) return true
+  const condition = field.requirement.condition
+  if (!condition) return false
+  if ((field.group ?? COMMON_GROUP) === EXTERNAL_FIELD_GROUP) {
+    return hasExternalFieldSetup(setupSnapshot)
+  }
+  // 组内条件（降温组/压力组）以「阶段类型」为驱动值。
+  return matchesCondition(condition, stageType)
+}
+
+/** 一条过程步是否已选阶段类型（判定是否纳入保存/校验）。 */
+export function isProcessStepActive(step: ModuleValues): boolean {
+  return (step['stage_type'] ?? '').trim() !== ''
+}
+
+/**
+ * 单条过程步 payload：stage_type + 该阶段允许的字段键（common ∪ shows 组）。
+ * 键集与后端 discriminated union（同 stage_types 源生成）逐阶段对齐；未选阶段返回 null。
+ */
+export function buildProcessStepPayload(
+  step: ModuleValues,
+): Record<string, unknown> | null {
+  const stageType = (step['stage_type'] ?? '').trim()
+  const stage = getStageType(stageType)
+  if (!stage) return null
+  const allowed = visibleGroupsForStage(stageType)
+  const payload: Record<string, unknown> = {}
+  for (const field of getModuleFields('process_steps')) {
+    const group = field.group ?? COMMON_GROUP
+    if (!allowed.has(group)) continue
+    payload[field.key] =
+      field.key === 'stage_type' ? stageType : emptyToNull(step[field.key])
+  }
+  return payload
+}
+
+/** §5 过程步模块 payload：{ items: [...] }，滤掉未选阶段的空步。 */
+export function buildProcessStepsPayload(steps: ModuleValues[]): {
+  items: Record<string, unknown>[]
+} {
+  const items: Record<string, unknown>[] = []
+  for (const step of steps) {
+    const payload = buildProcessStepPayload(step)
+    if (payload) items.push(payload)
+  }
+  return { items }
+}
+
+/** 提交前拦截：一条过程步内「可见 + 有效必填 + 空」的字段键。 */
+export function missingProcessStepKeys(
+  step: ModuleValues,
+  setupSnapshot: Record<string, unknown> | null | undefined,
+): string[] {
+  const stageType = (step['stage_type'] ?? '').trim()
+  const missing: string[] = []
+  for (const field of getModuleFields('process_steps')) {
+    if (!isProcessStepFieldVisible(field, stageType, setupSnapshot)) continue
+    if (!isProcessStepFieldRequired(field, stageType, setupSnapshot)) continue
+    if ((step[field.key] ?? '').trim() === '') missing.push(field.key)
+  }
+  return missing
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// §8 PVD：§1 合成方法判别器驱动整段显隐 + 段内字段条件必填。适用方法从字段元数据
+// 条件读取（数据驱动），不硬编码方法清单。
+// ════════════════════════════════════════════════════════════════════════
+
+function pvdCondition(): FieldCondition | null {
+  const field = getModuleFields('pvd').find(
+    (item) => item.requirement.condition != null,
+  )
+  return field?.requirement.condition ?? null
+}
+
+/** PVD 段适用的合成方法清单（从字段条件读取，供 §1 无值时兜底/展示）。 */
+export function pvdMethods(): string[] {
+  const condition = pvdCondition()
+  if (!condition) return []
+  return Array.isArray(condition.value) ? condition.value : [condition.value]
+}
+
+/** §1 合成方法是否属 PVD 体系（决定 §8 整段显隐）。 */
+export function isPvdApplicable(synthesisMethod: string): boolean {
+  const method = (synthesisMethod ?? '').trim()
+  if (method === '') return false
+  const condition = pvdCondition()
+  return condition ? matchesCondition(condition, method) : false
+}
+
+/** PVD 字段在给定合成方法下是否有效必填（conditional_required(PVD) → PVD 方法时必填）。 */
+export function isPvdFieldRequired(
+  field: FieldMetadata,
+  synthesisMethod: string,
+): boolean {
+  const level = field.requirement.level
+  if (level === 'required') return true
+  if (level !== 'conditional_required') return false
+  const condition = field.requirement.condition
+  if (!condition) return false
+  return isPvdApplicable(synthesisMethod)
+}
+
+/** 提交前拦截：§8 内「有效必填 + 空」的字段键（仅当 PVD 适用）。 */
+export function missingPvdKeys(
+  values: ModuleValues,
+  synthesisMethod: string,
+): string[] {
+  if (!isPvdApplicable(synthesisMethod)) return []
+  const missing: string[] = []
+  for (const field of getModuleFields('pvd')) {
+    if (!isPvdFieldRequired(field, synthesisMethod)) continue
+    if ((values[field.key] ?? '').trim() === '') missing.push(field.key)
+  }
+  return missing
+}
+
+/** §8 是否有实质录入（决定新建态是否 upsert pvd 模块）。 */
+export function pvdHasAnyValue(values: ModuleValues): boolean {
+  return itemHasAnyValue(values)
 }

@@ -17,13 +17,19 @@ import type { ComponentRow, ModuleValues } from './field-logic'
 import {
   buildFlatModulePayload,
   buildItemsModulePayload,
+  buildProcessStepsPayload,
   buildTargetProductPayload,
   getModuleFields,
   isEffectivelyRequired,
   isFieldVisible,
   isNonEmptyComponent,
+  isProcessStepActive,
+  isPvdApplicable,
   itemHasAnyValue,
+  missingProcessStepKeys,
+  missingPvdKeys,
   missingRequiredKeys,
+  pvdHasAnyValue,
 } from './field-logic'
 import { toIsoDateTime } from './datetime'
 import { createRun, setSetupReference, upsertModule } from './api'
@@ -33,7 +39,9 @@ import { BasicInfoSection } from './components/basic-info-section'
 import { TargetProductSection } from './components/target-product-section'
 import { EquipmentSection } from './components/equipment-section'
 import { RepeatableItemsSection } from './components/repeatable-items-section'
-import { PlaceholderSections } from './components/placeholder-sections'
+import { ProcessStepsSection } from './components/process-steps-section'
+import { PvdSection } from './components/pvd-section'
+import { ResultsSection } from './components/results-section'
 
 const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method', 'operator']
 
@@ -75,6 +83,16 @@ function itemsMissing(moduleKey: string, items: ModuleValues[]): boolean {
   return items
     .filter(itemHasAnyValue)
     .some((item) => missingRequiredKeys(moduleKey, item).length > 0)
+}
+
+/** §5 过程步：已选阶段的步中有必填空缺（外场组显隐依赖 §2 装置快照）。 */
+function processStepsMissing(
+  steps: ModuleValues[],
+  setupSnapshot: Record<string, unknown> | null,
+): boolean {
+  return steps
+    .filter(isProcessStepActive)
+    .some((step) => missingProcessStepKeys(step, setupSnapshot).length > 0)
 }
 
 export function ExperimentV2Form({
@@ -152,6 +170,21 @@ export function ExperimentV2Form({
       },
     }))
   }
+  const setProcessSteps = (steps: ModuleValues[]) => {
+    markDirty('process_steps')
+    setState((prev) => ({ ...prev, process_steps: steps }))
+  }
+  const setProcessEvents = (items: ModuleValues[]) => {
+    markDirty('process_events')
+    setState((prev) => ({ ...prev, process_events: items }))
+  }
+  const setPvd = (key: string, value: string) => {
+    markDirty('pvd')
+    setState((prev) => ({ ...prev, pvd: { ...prev.pvd, [key]: value } }))
+  }
+
+  const synthesisMethod = state.basic_info['synthesis_method'] ?? ''
+  const pvdApplicable = isPvdApplicable(synthesisMethod)
 
   // ── payload 组装（键=字段 key，与后端契约对齐） ──
   const buildBasicInfoPayload = () => {
@@ -180,6 +213,12 @@ export function ExperimentV2Form({
     }
     if (moduleKey === 'substrates') {
       return itemsMissing('substrates', state.substrates)
+    }
+    if (moduleKey === 'process_steps') {
+      return processStepsMissing(state.process_steps, state.equipment.snapshot)
+    }
+    if (moduleKey === 'pvd') {
+      return missingPvdKeys(state.pvd, synthesisMethod).length > 0
     }
     return false
   }
@@ -215,6 +254,27 @@ export function ExperimentV2Form({
           runId,
           'target_product',
           buildTargetProductPayload(state.target_product, state.components),
+          token,
+        )
+      } else if (moduleKey === 'process_steps') {
+        await upsertModule(
+          runId,
+          'process_steps',
+          buildProcessStepsPayload(state.process_steps),
+          token,
+        )
+      } else if (moduleKey === 'process_events') {
+        await upsertModule(
+          runId,
+          'process_events',
+          buildItemsModulePayload('process_events', state.process_events),
+          token,
+        )
+      } else if (moduleKey === 'pvd') {
+        await upsertModule(
+          runId,
+          'pvd',
+          buildFlatModulePayload('pvd', state.pvd),
           token,
         )
       } else {
@@ -254,7 +314,12 @@ export function ExperimentV2Form({
       (state.precursors.some(itemHasAnyValue) &&
         itemsMissing('precursors', state.precursors)) ||
       (state.substrates.some(itemHasAnyValue) &&
-        itemsMissing('substrates', state.substrates))
+        itemsMissing('substrates', state.substrates)) ||
+      (state.process_steps.some(isProcessStepActive) &&
+        processStepsMissing(state.process_steps, state.equipment.snapshot)) ||
+      (pvdApplicable &&
+        pvdHasAnyValue(state.pvd) &&
+        missingPvdKeys(state.pvd, synthesisMethod).length > 0)
     if (blocked) {
       setShowErrors(true)
       toast.error(t('experimentsV2.form.fixRequired'))
@@ -308,6 +373,30 @@ export function ExperimentV2Form({
           created.id,
           'substrates',
           buildItemsModulePayload('substrates', state.substrates),
+          token,
+        )
+      }
+      if (state.process_steps.some(isProcessStepActive)) {
+        await upsertModule(
+          created.id,
+          'process_steps',
+          buildProcessStepsPayload(state.process_steps),
+          token,
+        )
+      }
+      if (state.process_events.some(itemHasAnyValue)) {
+        await upsertModule(
+          created.id,
+          'process_events',
+          buildItemsModulePayload('process_events', state.process_events),
+          token,
+        )
+      }
+      if (pvdApplicable && pvdHasAnyValue(state.pvd)) {
+        await upsertModule(
+          created.id,
+          'pvd',
+          buildFlatModulePayload('pvd', state.pvd),
           token,
         )
       }
@@ -402,7 +491,41 @@ export function ExperimentV2Form({
         save={saveProps('substrates')}
       />
 
-      <PlaceholderSections />
+      <ProcessStepsSection
+        steps={state.process_steps}
+        setupSnapshot={state.equipment.snapshot}
+        onStepsChange={setProcessSteps}
+        disabled={creating}
+        showErrors={showErrors}
+        save={saveProps('process_steps')}
+      />
+      <RepeatableItemsSection
+        moduleKey="process_events"
+        index="§6"
+        title={t('experimentsV2.sections.processEvents.title')}
+        subtitle={t('experimentsV2.sections.processEvents.subtitle')}
+        addLabel={t('experimentsV2.sections.processEvents.add')}
+        emptyHint={t('experimentsV2.sections.processEvents.empty')}
+        itemLabel={(position) =>
+          t('experimentsV2.sections.processEvents.item', { position })
+        }
+        items={state.process_events}
+        onItemsChange={setProcessEvents}
+        disabled={creating}
+        showErrors={showErrors}
+        save={saveProps('process_events')}
+      />
+      <ResultsSection runId={runId} />
+      {pvdApplicable ? (
+        <PvdSection
+          synthesisMethod={synthesisMethod}
+          values={state.pvd}
+          onChange={setPvd}
+          disabled={creating}
+          showErrors={showErrors}
+          save={saveProps('pvd')}
+        />
+      ) : null}
 
       {mode === 'new' ? (
         <div className="flex justify-end">

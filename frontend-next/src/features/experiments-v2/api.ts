@@ -13,7 +13,21 @@ export type V2ExperimentListResponse = Schemas['V2ExperimentListResponse']
 export type V2ModulePayloadRead = Schemas['V2ModulePayloadRead']
 export type V2SetupReferenceRequest = Schemas['V2SetupReferenceRequest']
 
+// §7 表征 + 实测产物（走各自端点，非模块 payload；均以样品为关联主键）。
+export type SampleRead = Schemas['SampleRead']
+export type SampleListResponse = Schemas['SampleListResponse']
+export type SampleCreate = Schemas['SampleCreate']
+export type CharacterizationRecordCreate =
+  Schemas['CharacterizationRecordCreate']
+export type CharacterizationRecordRead = Schemas['CharacterizationRecordRead']
+export type CharacterizationRecordListResponse =
+  Schemas['CharacterizationRecordListResponse']
+export type MeasuredProductCreate = Schemas['MeasuredProductCreate']
+export type MeasuredProductRead = Schemas['MeasuredProductRead']
+export type MeasuredProductListResponse = Schemas['MeasuredProductListResponse']
+
 const BASE = '/api/v1/v2/experiments'
+const V2 = '/api/v1/v2'
 
 export function createRun(payload: V2ExperimentCreate, token: string) {
   return apiRequest<V2ExperimentRead>(BASE, {
@@ -78,6 +92,78 @@ export function setSetupReference(
   return apiRequest<V2ExperimentRead>(`${BASE}/${runId}/setup-reference`, {
     method: 'PUT',
     body: { setup_id: setupId, version } satisfies V2SetupReferenceRequest,
+    token,
+  })
+}
+
+// ── §7 样品（复用 v1 /samples 端点，表征/实测均需样品关联主键） ──
+export function listSamples(runId: string, token: string) {
+  return apiRequest<SampleListResponse>(
+    `/api/v1/samples?experiment_id=${encodeURIComponent(runId)}`,
+    { token },
+  )
+}
+
+export function createSample(
+  runId: string,
+  payload: SampleCreate,
+  token: string,
+) {
+  return apiRequest<SampleRead>(`/api/v1/experiments/${runId}/samples`, {
+    method: 'POST',
+    body: payload,
+    token,
+  })
+}
+
+// ── §7 表征记录（走 characterization-records 端点，FK→样品） ──
+export function listCharacterizationRecords(runId: string, token: string) {
+  return apiRequest<CharacterizationRecordListResponse>(
+    `${BASE}/${runId}/characterization-records`,
+    { token },
+  )
+}
+
+export function createCharacterizationRecord(
+  runId: string,
+  payload: CharacterizationRecordCreate,
+  token: string,
+) {
+  return apiRequest<CharacterizationRecordRead>(
+    `${BASE}/${runId}/characterization-records`,
+    { method: 'POST', body: payload, token },
+  )
+}
+
+export function deleteCharacterizationRecord(recordId: string, token: string) {
+  return apiRequest<void>(`${V2}/characterization-records/${recordId}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
+// ── §7 实测产物（走 measured-products 端点，FK→样品） ──
+export function listMeasuredProducts(sampleId: string, token: string) {
+  return apiRequest<MeasuredProductListResponse>(
+    `${V2}/samples/${sampleId}/measured-products`,
+    { token },
+  )
+}
+
+export function createMeasuredProduct(
+  sampleId: string,
+  payload: MeasuredProductCreate,
+  token: string,
+) {
+  return apiRequest<MeasuredProductRead>(
+    `${V2}/samples/${sampleId}/measured-products`,
+    { method: 'POST', body: payload, token },
+  )
+}
+
+export function deleteMeasuredProduct(productId: string, token: string) {
+  return apiRequest<void>(`${V2}/measured-products/${productId}`, {
+    method: 'DELETE',
     token,
   })
 }

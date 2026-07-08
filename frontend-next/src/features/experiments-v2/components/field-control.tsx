@@ -43,6 +43,7 @@ export function FieldControl({
   onChange,
   disabled,
   showError,
+  requiredOverride,
 }: {
   moduleKey: string
   field: FieldMetadata
@@ -53,10 +54,16 @@ export function FieldControl({
   disabled?: boolean
   /** 提交拦截后是否高亮缺失必填项。 */
   showError?: boolean
+  /**
+   * 有效必填的外部判定（跨模块/跨实体条件，如 §5 外场、§8 PVD 由 §1/§2 驱动）。
+   * 给定时优先于模块内 isEffectivelyRequired。
+   */
+  requiredOverride?: boolean
 }) {
   const { t } = useTranslation()
   const controlId = useId()
-  const required = isEffectivelyRequired(moduleKey, field, values)
+  const required =
+    requiredOverride ?? isEffectivelyRequired(moduleKey, field, values)
   const enumOptions = parseEnumOptions(field.options)
   const missing = Boolean(showError) && required && value.trim() === ''
   const placeholder = enumOptions

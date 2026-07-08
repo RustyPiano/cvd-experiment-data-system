@@ -1,4 +1,5 @@
-// v2 编辑实验页：拉取 run + §1–§4 模块 payload，还原表单状态，支持分模块保存。
+// v2 编辑实验页：拉取 run + §1–§6/§8 模块 payload，还原表单状态，支持分模块保存。
+// §7 表征/实测走各自端点，由 ResultsSection 自管拉取，不在此预取。
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { resolveErrorMessage } from '@/shared/api/http-error'
@@ -16,6 +17,9 @@ const LOADED_MODULE_KEYS = [
   'target_product',
   'precursors',
   'substrates',
+  'process_steps',
+  'process_events',
+  'pvd',
 ] as const
 
 export function ExperimentV2EditPage({ runId }: { runId: string }) {
