@@ -1,0 +1,188 @@
+from uuid import UUID
+
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.models.sample import Sample, SampleRole
+
+client = TestClient(app)
+
+
+def login(email: str, password: str = "Password123!") -> str:
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
+def auth_headers(email: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {login(email)}"}
+
+
+def test_v2_entity_versions_are_append_only_and_queryable(active_user) -> None:
+    headers = auth_headers(active_user.email)
+
+    create = client.post(
+        "/api/v1/v2/material-lots",
+        json={
+            "lot_category": "化学品",
+            "substance_name": "三氧化钼",
+            "chemical_formula": "MoO3",
+            "batch_number": "B202405",
+            "supplier": "阿拉丁",
+        },
+        headers=headers,
+    )
+    assert create.status_code == 201, create.text
+    entity_id = create.json()["id"]
+    assert create.json()["latest_version"]["version"] == 1
+
+    append = client.post(
+        f"/api/v1/v2/material-lots/{entity_id}/versions",
+        json={
+            "lot_category": "化学品",
+            "substance_name": "三氧化钼",
+            "chemical_formula": "MoO3",
+            "batch_number": "B202405",
+            "supplier": "Sigma",
+        },
+        headers=headers,
+    )
+    assert append.status_code == 201, append.text
+    assert append.json()["version"] == 2
+
+    versions = client.get(f"/api/v1/v2/material-lots/{entity_id}/versions", headers=headers)
+    assert versions.status_code == 200
+    assert [item["version"] for item in versions.json()["items"]] == [1, 2]
+
+
+def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
+    headers = auth_headers(active_user.email)
+    setup = client.post(
+        "/api/v1/v2/setups",
+        json={
+            "setup_code": "CVD-炉1",
+            "setup_name": "1号双温区管式炉",
+            "zone_count": 2,
+            "orientation": "水平",
+            "coordinate_system": "原点=温区2热电偶；下游为正",
+            "field_devices": "等离子",
+        },
+        headers=headers,
+    )
+    assert setup.status_code == 201, setup.text
+
+    run = client.post(
+        "/api/v1/v2/experiments",
+        json={
+            "run_code": "RUN-V2-API",
+            "started_at": "2026-07-08T09:30:00",
+            "synthesis_method": "APCVD",
+            "operator": "李俊杰",
+            "chemical_formula": "MoS2",
+        },
+        headers=headers,
+    )
+    assert run.status_code == 201, run.text
+    run_id = run.json()["id"]
+    assert run.json()["schema_version"] == "cvd_v2"
+
+    ref = client.put(
+        f"/api/v1/v2/experiments/{run_id}/setup-reference",
+        json={"setup_id": setup.json()["id"], "version": 1},
+        headers=headers,
+    )
+    assert ref.status_code == 200, ref.text
+    assert ref.json()["setup_ref_version"] == 1
+    assert ref.json()["setup_ref_snapshot_json"]["setup_code_snapshot"] == "CVD-炉1"
+
+    bad_step = client.put(
+        f"/api/v1/v2/experiments/{run_id}/modules/process_steps",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "stage_type": "反应生长",
+                        "temperature_program": "25->750",
+                        "gas_species": "Ar",
+                        "gas_flow_sccm": 80,
+                        "pressure_system": "常压",
+                    }
+                ]
+            }
+        },
+        headers=headers,
+    )
+    assert bad_step.status_code == 422
+    assert "field_params" in bad_step.text
+
+    good_step = client.put(
+        f"/api/v1/v2/experiments/{run_id}/modules/process_steps",
+        json={
+            "payload_json": {
+                "items": [
+                    {
+                        "stage_type": "反应生长",
+                        "temperature_program": "25->750",
+                        "gas_species": "Ar",
+                        "gas_flow_sccm": 80,
+                        "pressure_system": "常压",
+                        "field_params": "等离子 50W",
+                    }
+                ]
+            }
+        },
+        headers=headers,
+    )
+    assert good_step.status_code == 200, good_step.text
+    assert good_step.json()["schema_version"] == "cvd_v2"
+
+
+def test_v2_characterization_and_measured_product_crud(active_user, db_session) -> None:
+    headers = auth_headers(active_user.email)
+    run = client.post(
+        "/api/v1/v2/experiments",
+        json={
+            "run_code": "RUN-V2-RESULTS",
+            "started_at": "2026-07-08T09:30:00",
+            "synthesis_method": "APCVD",
+            "operator": "李俊杰",
+        },
+        headers=headers,
+    )
+    assert run.status_code == 201, run.text
+    run_id = run.json()["id"]
+    sample = Sample(
+        sample_code="RUN-V2-RESULTS-S1",
+        experiment_run_id=UUID(run_id),
+        role=SampleRole.PRODUCT,
+    )
+    db_session.add(sample)
+    db_session.commit()
+    db_session.refresh(sample)
+
+    record = client.post(
+        f"/api/v1/v2/experiments/{run_id}/characterization-records",
+        json={"sample_id": str(sample.id), "method_instrument": "Raman"},
+        headers=headers,
+    )
+    assert record.status_code == 201, record.text
+
+    product = client.post(
+        f"/api/v1/v2/samples/{sample.id}/measured-products",
+        json={
+            "characterization_record_id": record.json()["id"],
+            "observed_phenomena": ["不连续覆盖"],
+            "detected_phase_stacking": "2H-MoS2",
+        },
+        headers=headers,
+    )
+    assert product.status_code == 201, product.text
+    assert product.json()["observed_phenomena"] == ["不连续覆盖"]
+
+    patch = client.patch(
+        f"/api/v1/v2/measured-products/{product.json()['id']}",
+        json={"measured_layers_coverage": "1层；70%"},
+        headers=headers,
+    )
+    assert patch.status_code == 200, patch.text
+    assert patch.json()["measured_layers_coverage"] == "1层；70%"

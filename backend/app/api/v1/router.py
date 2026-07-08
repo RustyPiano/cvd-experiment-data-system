@@ -10,6 +10,7 @@ from app.api.v1.endpoints.imports import router as imports_router
 from app.api.v1.endpoints.recipes import router as recipes_router
 from app.api.v1.endpoints.samples import router as samples_router
 from app.api.v1.endpoints.setup_library import router as setup_library_router
+from app.api.v1.endpoints.v2 import router as v2_router
 from app.api.v1.endpoints.vocabularies import router as vocabularies_router
 
 api_v1_router = APIRouter()
@@ -24,3 +25,4 @@ api_v1_router.include_router(admin_dashboard_router)
 api_v1_router.include_router(vocabularies_router)
 api_v1_router.include_router(field_definitions_router)
 api_v1_router.include_router(imports_router)
+api_v1_router.include_router(v2_router)

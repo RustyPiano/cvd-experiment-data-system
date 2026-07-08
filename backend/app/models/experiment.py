@@ -65,6 +65,7 @@ class ExperimentRun(Base):
         nullable=True,
     )
     experiment_type: Mapped[str] = mapped_column(String(64))
+    schema_version: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     material_system: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     experiment_date: Mapped[date] = mapped_column(Date, index=True)
     objective: Mapped[str | None] = mapped_column(Text, nullable=True)

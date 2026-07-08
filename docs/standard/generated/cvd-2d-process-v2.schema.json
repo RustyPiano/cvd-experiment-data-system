@@ -1,0 +1,932 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "standard_id": "cvd-2d-process",
+  "title": "CVD-2D 工艺数据标准 v2 / CVD-2D Process Data Standard v2",
+  "version": "2.0.0",
+  "schema_version": "cvd_v2",
+  "module_payload_schema_version": "cvd_v2",
+  "modules": {
+    "basic_info": {
+      "additionalProperties": false,
+      "properties": {
+        "started_at": {
+          "title": "Started At"
+        },
+        "synthesis_method": {
+          "title": "Synthesis Method"
+        },
+        "operator": {
+          "title": "Operator"
+        },
+        "run_code": {
+          "title": "Run Code"
+        },
+        "ambient_temperature_C": {
+          "default": null,
+          "title": "Ambient Temperature C"
+        },
+        "ambient_humidity_percent": {
+          "default": null,
+          "title": "Ambient Humidity Percent"
+        },
+        "particle_count_per_m3": {
+          "default": null,
+          "title": "Particle Count Per M3"
+        },
+        "precheck_reminder": {
+          "default": null,
+          "title": "Precheck Reminder"
+        }
+      },
+      "required": [
+        "started_at",
+        "synthesis_method",
+        "operator",
+        "run_code"
+      ],
+      "title": "BasicInfoPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/basic_info.schema.json"
+    },
+    "target_product": {
+      "additionalProperties": false,
+      "properties": {
+        "chemical_formula": {
+          "title": "Chemical Formula"
+        },
+        "structure_type": {
+          "title": "Structure Type"
+        },
+        "components": {
+          "default": null,
+          "title": "Components"
+        },
+        "target_layer_count": {
+          "default": null,
+          "title": "Target Layer Count"
+        },
+        "bulk_space_group": {
+          "default": null,
+          "title": "Bulk Space Group"
+        },
+        "target_morphology": {
+          "default": null,
+          "title": "Target Morphology"
+        },
+        "target_performance": {
+          "default": null,
+          "title": "Target Performance"
+        },
+        "note": {
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "chemical_formula",
+        "structure_type"
+      ],
+      "title": "TargetProductPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/target_product.schema.json"
+    },
+    "equipment": {
+      "additionalProperties": false,
+      "properties": {
+        "setup_ref": {
+          "title": "Setup Ref"
+        },
+        "brand_model": {
+          "default": null,
+          "title": "Brand Model"
+        },
+        "wall_type": {
+          "default": null,
+          "title": "Wall Type"
+        },
+        "zone_count": {
+          "title": "Zone Count"
+        },
+        "orientation": {
+          "title": "Orientation"
+        },
+        "tube_material_shape": {
+          "default": null,
+          "title": "Tube Material Shape"
+        },
+        "tube_outer_diameter_wall_mm": {
+          "default": null,
+          "title": "Tube Outer Diameter Wall Mm"
+        },
+        "coordinate_system": {
+          "default": null,
+          "title": "Coordinate System"
+        },
+        "field_excitation": {
+          "default": null,
+          "title": "Field Excitation"
+        },
+        "setup_diagram": {
+          "default": null,
+          "title": "Setup Diagram"
+        },
+        "tube_boat_history": {
+          "default": null,
+          "title": "Tube Boat History"
+        }
+      },
+      "required": [
+        "setup_ref",
+        "zone_count",
+        "orientation"
+      ],
+      "title": "EquipmentPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/equipment.schema.json"
+    },
+    "precursors": {
+      "$defs": {
+        "PrecursorItemPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "name_formula": {
+              "title": "Name Formula"
+            },
+            "cas_inchi": {
+              "default": null,
+              "title": "Cas Inchi"
+            },
+            "phase_state": {
+              "title": "Phase State"
+            },
+            "appearance": {
+              "default": null,
+              "title": "Appearance"
+            },
+            "lot_ref": {
+              "default": null,
+              "title": "Lot Ref"
+            },
+            "role": {
+              "default": null,
+              "title": "Role"
+            },
+            "amount": {
+              "default": null,
+              "title": "Amount"
+            },
+            "treatment_steps": {
+              "default": null,
+              "title": "Treatment Steps"
+            },
+            "boat_crucible": {
+              "default": null,
+              "title": "Boat Crucible"
+            },
+            "source_zone_temperature": {
+              "default": null,
+              "title": "Source Zone Temperature"
+            },
+            "thermocouple_distance_mm": {
+              "default": null,
+              "title": "Thermocouple Distance Mm"
+            }
+          },
+          "required": [
+            "name_formula",
+            "phase_state"
+          ],
+          "title": "PrecursorItemPayload",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/PrecursorItemPayload"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "title": "PrecursorsPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/precursors.schema.json"
+    },
+    "substrates": {
+      "$defs": {
+        "SubstrateItemPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "material": {
+              "title": "Material"
+            },
+            "formula_orientation": {
+              "default": null,
+              "title": "Formula Orientation"
+            },
+            "oxide_thickness_nm": {
+              "default": null,
+              "title": "Oxide Thickness Nm"
+            },
+            "surface_roughness_nm": {
+              "default": null,
+              "title": "Surface Roughness Nm"
+            },
+            "size_placement": {
+              "default": null,
+              "title": "Size Placement"
+            },
+            "pretreatment_steps": {
+              "default": null,
+              "title": "Pretreatment Steps"
+            },
+            "exposure_interval_min": {
+              "default": null,
+              "title": "Exposure Interval Min"
+            },
+            "zone_thermocouple_distance_mm": {
+              "default": null,
+              "title": "Zone Thermocouple Distance Mm"
+            }
+          },
+          "required": [
+            "material"
+          ],
+          "title": "SubstrateItemPayload",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SubstrateItemPayload"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "title": "SubstratesPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/substrates.schema.json"
+    },
+    "process_steps": {
+      "$defs": {
+        "CoolingStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "降温",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "temperature_program": {
+              "title": "Temperature Program"
+            },
+            "measured_temperature": {
+              "default": null,
+              "title": "Measured Temperature"
+            },
+            "temperature_metrology": {
+              "default": null,
+              "title": "Temperature Metrology"
+            },
+            "cooling_params": {
+              "title": "Cooling Params"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            }
+          },
+          "required": [
+            "stage_type",
+            "temperature_program",
+            "cooling_params",
+            "gas_species",
+            "gas_flow_sccm"
+          ],
+          "title": "CoolingStepPayload",
+          "type": "object"
+        },
+        "EvacuationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "抽气",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            }
+          },
+          "required": [
+            "stage_type"
+          ],
+          "title": "EvacuationStepPayload",
+          "type": "object"
+        },
+        "GrowthStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "反应生长",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "temperature_program": {
+              "title": "Temperature Program"
+            },
+            "measured_temperature": {
+              "default": null,
+              "title": "Measured Temperature"
+            },
+            "temperature_metrology": {
+              "default": null,
+              "title": "Temperature Metrology"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            },
+            "field_params": {
+              "default": null,
+              "title": "Field Params"
+            }
+          },
+          "required": [
+            "stage_type",
+            "temperature_program",
+            "gas_species",
+            "gas_flow_sccm",
+            "pressure_system"
+          ],
+          "title": "GrowthStepPayload",
+          "type": "object"
+        },
+        "LeakCheckStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "漏检",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            }
+          },
+          "required": [
+            "stage_type"
+          ],
+          "title": "LeakCheckStepPayload",
+          "type": "object"
+        },
+        "PostAnnealStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "后退火",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "temperature_program": {
+              "title": "Temperature Program"
+            },
+            "measured_temperature": {
+              "default": null,
+              "title": "Measured Temperature"
+            },
+            "temperature_metrology": {
+              "default": null,
+              "title": "Temperature Metrology"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            },
+            "field_params": {
+              "default": null,
+              "title": "Field Params"
+            }
+          },
+          "required": [
+            "stage_type",
+            "temperature_program",
+            "gas_species",
+            "gas_flow_sccm"
+          ],
+          "title": "PostAnnealStepPayload",
+          "type": "object"
+        },
+        "PretreatmentStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "预处理",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "temperature_program": {
+              "title": "Temperature Program"
+            },
+            "measured_temperature": {
+              "default": null,
+              "title": "Measured Temperature"
+            },
+            "temperature_metrology": {
+              "default": null,
+              "title": "Temperature Metrology"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            },
+            "field_params": {
+              "default": null,
+              "title": "Field Params"
+            }
+          },
+          "required": [
+            "stage_type",
+            "temperature_program",
+            "gas_species",
+            "gas_flow_sccm"
+          ],
+          "title": "PretreatmentStepPayload",
+          "type": "object"
+        },
+        "PurgeStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "吹扫",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            }
+          },
+          "required": [
+            "stage_type",
+            "gas_species",
+            "gas_flow_sccm"
+          ],
+          "title": "PurgeStepPayload",
+          "type": "object"
+        },
+        "RampStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "升温",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "temperature_program": {
+              "title": "Temperature Program"
+            },
+            "measured_temperature": {
+              "default": null,
+              "title": "Measured Temperature"
+            },
+            "temperature_metrology": {
+              "default": null,
+              "title": "Temperature Metrology"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            }
+          },
+          "required": [
+            "stage_type",
+            "temperature_program",
+            "gas_species",
+            "gas_flow_sccm"
+          ],
+          "title": "RampStepPayload",
+          "type": "object"
+        },
+        "TemperatureStabilizationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "温度稳定",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "temperature_program": {
+              "title": "Temperature Program"
+            },
+            "measured_temperature": {
+              "default": null,
+              "title": "Measured Temperature"
+            },
+            "temperature_metrology": {
+              "default": null,
+              "title": "Temperature Metrology"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            }
+          },
+          "required": [
+            "stage_type",
+            "temperature_program",
+            "gas_species",
+            "gas_flow_sccm"
+          ],
+          "title": "TemperatureStabilizationStepPayload",
+          "type": "object"
+        },
+        "UnloadStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "卸样",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            }
+          },
+          "required": [
+            "stage_type"
+          ],
+          "title": "UnloadStepPayload",
+          "type": "object"
+        },
+        "VentStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "stage_type": {
+              "const": "放气",
+              "title": "Stage Type",
+              "type": "string"
+            },
+            "step_order_time": {
+              "default": null,
+              "title": "Step Order Time"
+            },
+            "duration_cycles": {
+              "default": null,
+              "title": "Duration Cycles"
+            },
+            "gas_species": {
+              "title": "Gas Species"
+            },
+            "gas_purity_impurities": {
+              "default": null,
+              "title": "Gas Purity Impurities"
+            },
+            "gas_flow_sccm": {
+              "title": "Gas Flow Sccm"
+            },
+            "pressure_system": {
+              "default": null,
+              "title": "Pressure System"
+            },
+            "base_pressure_leak": {
+              "default": null,
+              "title": "Base Pressure Leak"
+            }
+          },
+          "required": [
+            "stage_type",
+            "gas_species",
+            "gas_flow_sccm"
+          ],
+          "title": "VentStepPayload",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "升温": "#/$defs/RampStepPayload",
+                "卸样": "#/$defs/UnloadStepPayload",
+                "反应生长": "#/$defs/GrowthStepPayload",
+                "后退火": "#/$defs/PostAnnealStepPayload",
+                "吹扫": "#/$defs/PurgeStepPayload",
+                "抽气": "#/$defs/EvacuationStepPayload",
+                "放气": "#/$defs/VentStepPayload",
+                "温度稳定": "#/$defs/TemperatureStabilizationStepPayload",
+                "漏检": "#/$defs/LeakCheckStepPayload",
+                "降温": "#/$defs/CoolingStepPayload",
+                "预处理": "#/$defs/PretreatmentStepPayload"
+              },
+              "propertyName": "stage_type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/EvacuationStepPayload"
+              },
+              {
+                "$ref": "#/$defs/LeakCheckStepPayload"
+              },
+              {
+                "$ref": "#/$defs/PurgeStepPayload"
+              },
+              {
+                "$ref": "#/$defs/PretreatmentStepPayload"
+              },
+              {
+                "$ref": "#/$defs/RampStepPayload"
+              },
+              {
+                "$ref": "#/$defs/TemperatureStabilizationStepPayload"
+              },
+              {
+                "$ref": "#/$defs/GrowthStepPayload"
+              },
+              {
+                "$ref": "#/$defs/PostAnnealStepPayload"
+              },
+              {
+                "$ref": "#/$defs/CoolingStepPayload"
+              },
+              {
+                "$ref": "#/$defs/VentStepPayload"
+              },
+              {
+                "$ref": "#/$defs/UnloadStepPayload"
+              }
+            ]
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "title": "ProcessStepsPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/process_steps.schema.json"
+    },
+    "process_events": {
+      "$defs": {
+        "ProcessEventItemPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "event_part": {
+              "default": null,
+              "title": "Event Part"
+            },
+            "occurred_at": {
+              "default": null,
+              "title": "Occurred At"
+            },
+            "abort_reason": {
+              "default": null,
+              "title": "Abort Reason"
+            },
+            "description_action": {
+              "default": null,
+              "title": "Description Action"
+            }
+          },
+          "title": "ProcessEventItemPayload",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ProcessEventItemPayload"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "title": "ProcessEventsPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/process_events.schema.json"
+    },
+    "pvd": {
+      "additionalProperties": false,
+      "properties": {
+        "target_lot_ref": {
+          "default": null,
+          "title": "Target Lot Ref"
+        },
+        "target_substrate_distance_mm": {
+          "default": null,
+          "title": "Target Substrate Distance Mm"
+        },
+        "power_bias": {
+          "default": null,
+          "title": "Power Bias"
+        },
+        "plasma_gas_pressure": {
+          "default": null,
+          "title": "Plasma Gas Pressure"
+        },
+        "presputter_shutter": {
+          "default": null,
+          "title": "Presputter Shutter"
+        },
+        "deposition_rate_nm_s": {
+          "default": null,
+          "title": "Deposition Rate Nm S"
+        }
+      },
+      "title": "PvdPayload",
+      "type": "object",
+      "$id": "https://standard.cvd-2d.org/2.0.0/pvd.schema.json"
+    }
+  }
+}

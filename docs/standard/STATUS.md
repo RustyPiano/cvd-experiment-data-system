@@ -65,15 +65,16 @@
 | 07-08 | **四个架构空白补定（D9–D11）**：表复用策略(additive-only) · **123 字段全部补机器键 key**（API/payload 契约，v1 命名风格）· §5 动态表单映射落 YAML `stage_types` 节（11 阶段×6 参数组）· 词表复用 ControlledVocabulary 无 DB enum；护栏同步升级（key 必有/唯一/合法 + stage_types 自洽）。**空降 agent 按方案开工已无架构级歧义** | `4c93748` |
 | 07-08 | **D10 命名标准化二轮 + D12 国际化**：key 全词化 5 处、命名规则入 YAML meta；**123 字段全量补 `label_en`**（护栏强制）；D12 分层策略入方案（词表英文@P3 · i18next@P4 · 英文UI打磨不阻塞 v2.0）；P6 增 v1 退役清理择机项 | 本次 |
 | 07-08 | **P2 完成（v2 数据库，按预授权先行；Codex xhigh 初稿 + Fable 验收）**：新增实体三件套 `material_lots`/`setups`/`instruments` + 不可变 `*_versions` 表（(entity_id,version) 唯一，required 字段=类型列+attrs JSONB）；`experiment_runs` 仅加 4 个可空列（setup_ref/版本/快照/结果缺失位，D9 合规）；新增 `characterization_records`/`measured_products`（FK→samples）；`seed_from_field_source.py` 幂等（验收修正：二遍 +0/~0/-0）写 cvd_v2 字段字典 123 条+词表 189 条；Alembic `20260708_0032` 续链、SQLite 空库 migrate+seed 一键起；**pytest 300/300 · ruff/format 全绿** | 本次 |
+| 07-08 | **P3 后端完成（API+校验）**：新增生成器① `generate_v2_models.py` 生成 `schemas/generated/v2_module_payload.py`（stage_types 判别 union + 记录内条件 validator，Setup 外场跨实体条件留服务层）；生成器② `export_v2_schema.py` 输出 `cvd-2d-process-v2.schema.json` + `cvd-2d-field-dictionary-v2.json` 并进 generated-artifacts CI；新增 `/api/v1/v2` 实体库/实验/模块/表征/实测产物端点，run 级 `schema_version` 可空列 additive-only；新增 `check_r0.py`（PVD 排除）与化学式显示串默认规则纯函数（待明确#1）；**pytest 309/309 · ruff/format 全绿**。未改 `field-source.yaml` / xlsx；词表英文结构化待 P1.5 对齐后走 YAML 补丁 | 本次 |
 
 ## 6. 下一步 / 开放项
 0. **⏰ 最近待办（2026-07-08 当面问，问题全文见 xlsx `待明确清单` #5–10）**：
    - **问俊杰**：① §7『观察到的现象』粒度——7项多选 vs 只记生长/不生长（导师K75点名；可带折中案：一级『生长/未生长』必选＋二级细分可选）；② SEM覆盖率组里习惯叫法/量化方式；③ 堆垛类型可判粒度（2H/3R/AA/AB/扭转角→定文本还是下拉）；④ 前驱体『外观描述』词表（常见形态+潮解后外观）。
    - **回导师**：SEM占比=SEM视场内材料面积覆盖占比（已改名给定义）；必填/选填标识已加图例+字体强化，表单UI将用红星。
 1. **正式冻结**：标准头 `DRAFT`→`FROZEN` + STATUS 标记 + 打 `v2.0.0` git tag —— 导师书面评审已回改（v3.4），**与俊杰对齐上述 4 问后即可落锤**（=实现方案 P1.5）。
-1b. **实现推进**：按 `docs/v2-implementation-plan.md` 顺序执行；**P0、P1、P2 已完成（07-08；P2 按实现方案预授权例外先行）**；**P1.5 对齐+冻结**仍待外部当面对齐（即上面第 0/1 条，§7 词表与冻结仪式等对齐后落锤）；下一工程阶段为 **P3 API + 校验**，但涉及 §7 词表最终口径的实现仍须等 P1.5。
+1b. **实现推进**：按 `docs/v2-implementation-plan.md` 顺序执行；**P0、P1、P2 已完成（07-08；P2 按实现方案预授权例外先行）**；**P3 后端 API+校验已完成（未动待对齐 YAML 词表结构）**；**P1.5 对齐+冻结**仍待外部当面对齐（即上面第 0/1 条，§7 词表与冻结仪式等对齐后落锤）；下一工程阶段为 **P4 前端表单**，但 §7 词表最终口径仍须等 P1.5。
 2. **v1 → v2 逐字段迁移映射**：68 字段每个的去向（尤其 `quality_label`/`failure_modes`/`color_change` 的落点）。
-3. **词表归一到单一源**（YAML/CSV，xlsx 反向生成）；化学式/异质结**渲染规则**（显示串写法）。
+3. **词表归一到单一源**（YAML/CSV，xlsx 反向生成）；化学式/异质结**渲染规则**已落后端默认纯函数，仍待组内确认（待明确#1）。
 4. **v1 自由文本 Setup → 结构化重建策略**；化学式录入 UI（文本+元素校验）。
 5. 最终：**实现 cvd_v1 → cvd_v2**（迁移 + Pydantic/API + 前端表单 + 一致性/regen-drift 测试）。
 > 详见 xlsx `待明确清单` sheet 与标准 §11。
