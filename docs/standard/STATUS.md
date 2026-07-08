@@ -71,6 +71,8 @@
 | 07-08 | **P4 验收门回归测试**：完整 cvd_v2 炉次全流程（实体→引用→全模块含全部条件必填→样品→表征→实测→`check-r0` compliant）**首跑即过**，永久留 CI；**pytest 310/310** | `b0a5b3e` |
 | 07-08 | **P5 工具建设+硬化完成（未执行正式迁移）**：`v1-to-v2-mapping.yaml` 覆盖 68 字段（52 映射/12 丢弃/3 **待用户确认**（quality_label/failure_modes/color_change）/1 需人工（furnace_info→Setup 重建））；archive 表（`0034`）；`migrate_v1_to_v2`（dry-run 默认、`--execute`+`--i-have-backup` 双闸、先归档后覆盖、`--reconcile` 对账）；实体版本服务层必填校验；**pytest 319/319 · 双闸拒绝实测 · 未跑正式迁移** | `814725c` |
 | 07-08 | **代码精简审查完成（4 个 Fable 组并行，43 条发现，未执行修改）**：无结构性问题；死代码簇 14 处、迁移报告 mapped 计数与实际执行范围错位（★迁移前必修）、表单三重枚举等。**报告与执行批次（批1零风险/批2低风险/批3需走查）见 `docs/reviews/2026-07-08-simplify-review.md`** | 本次 |
+| 07-08 | **精简批1 执行**（零风险净赚）：死代码簇删除 + `del current_user`→`_current_user`×15 + 100上限/占位/冻结闸注释 + 迁移 mapped-vs-执行范围语义注释钉死。**门禁全绿：pytest 319 · vitest 117 · 生成物零漂移 · check_field_source 逐格一致** | `759a472` |
+| 07-08 | **精简批2 执行**（低风险直白化）：B4 生成器拼接残影→f-string(regen 同 commit) · B7/B8/B9 migrate 去重加载/拆形状嗅探/状态查表 · B10 formula 双键兜底删除(前后端) · C3 去绕道扫模块 · C9 AddSampleControls · C10 §7 标签走元数据(删12 locale 键) · C11 叶子自取 useAuth · D2 zodResolver→手写 · D3 去枚举 token 启发式→声明条件反查 · D4/D5 render_field_sheet 提取+req_fill 前缀函数。**门禁同上全绿** | `abd00f9` |
 
 ## 6. 下一步（按序执行；P0–P5 工具已全部完成，剩余步骤如下）
 1. **⏰ 与俊杰当面对齐（外部，待用户）**——问题全文见 xlsx `待明确清单` #5–10：
@@ -79,7 +81,7 @@
    - **顺带确认 3 个迁移语义映射**（`v1-to-v2-mapping.yaml` 标`待用户确认`）：color_change→现象"变色"；quality_label→客观词表草案映射；failure_modes 12值→7项词表映射。
 2. **俊杰答案落地**：改 `field-source.yaml` → 重跑 `build_field_tables.py`+`check_field_source.py`+`gen:fields`+生成器①② → §7 相关 UI 补丁（预计≤半天）。
 3. **P1.5 冻结仪式**：标准头 `DRAFT`→`FROZEN`、`field-source.yaml` meta.status→FROZEN → **push（累计 17+ commit，Actions 首绿）** → tag `v2.0.0`。
-4. **精简批次**（审查报告 `docs/reviews/2026-07-08-simplify-review.md`，43 条发现三批方案）：批1 零风险（死代码簇+注释钉死，~半小时）、批2 低风险直白化——**新会话可直接执行**；批3（表单三重枚举→表驱动）与下条同天。
+4. **精简批次**（审查报告 `docs/reviews/2026-07-08-simplify-review.md`，43 条发现三批方案）：**批1（`759a472`）+ 批2（`abd00f9`）已执行、门禁全绿**；**剩批3**（`experiment-v2-form.tsx` 三重模块枚举→表驱动 `MODULE_SPECS`，该文件无单测，须配合下条 UI 手工走查，建议与俊杰补丁同天）。
 5. **UI 手工走查**（P4 验收门收尾）：浏览器完整录入一条炉次（API 级已有永久回归测试 `test_v2_full_walkthrough` 兜底）。
 6. **P5 正式迁移（人工门）**：先复审映射（含审查报告 §4 两点：11 条被跳过条目、直拷 stage_type 词表风险）→ 生产库 pg_dump+文件卷备份+恢复演练 → `migrate_v1_to_v2 --execute --i-have-backup` → `--reconcile` 对账。
 7. **P6 切换**：v2 默认、v1 只读、删旧 `frontend/`、compose 更新；择机 v1 废弃列退役清理。

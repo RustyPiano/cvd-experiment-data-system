@@ -1,6 +1,6 @@
 # v2 代码精简审查报告（2026-07-08）
 
-> **性质**：只读审查，未动代码。**执行状态：批1/批2/批3 全部待执行**（见 §3 精简方案）。
+> **性质**：只读审查。**执行状态：批1（`759a472`）+ 批2（`abd00f9`）已执行、门禁全绿；批3 待执行**（需 UI 手工走查，见 §3 精简方案）。
 > **范围**：本迭代 16 个 commit（`e6f38a7..814725c`）的新增代码；v1 遗留代码不在范围。
 > **方法**：4 个 Fable 审查组并行（后端核心/命令与生成器/前端 experiments-v2/实体库与脚本），
 > 统一镜头：过度复杂/无需求防御/为测试牺牲可读性/可减分支抽象/无关改动；
@@ -15,8 +15,8 @@
 
 | 批 | 内容 | 风险 | 状态 |
 |---|---|---|---|
-| **批1 零风险净赚** | 死代码簇 14 处删除 + `del current_user`→`_current_user`×15 + 4 处注释（100上限/本征占位/experiment_type/stageTypes冻结闸）+ 映射语义注释钉死（YAML头+`_write_v2_payloads` docstring） | 无 | ⬜ 待执行 |
-| **批2 低风险直白化** | 启发式→声明条件反查 · zod resolver→手写 · §7标签改走元数据 · xlsx渲染器提取 `render_field_sheet` · migrate重复加载/形状嗅探/if-elif链 · 生成器拼接残影(需regen同commit) · formula双键兜底删除(前后端同commit) · results-section局部组件 · prop钻透 | 低 | ⬜ 待执行 |
+| **批1 零风险净赚** | 死代码簇 14 处删除 + `del current_user`→`_current_user`×15 + 4 处注释（100上限/本征占位/experiment_type/stageTypes冻结闸）+ 映射语义注释钉死（YAML头+`_write_v2_payloads` docstring） | 无 | ✅ 已执行 `759a472` |
+| **批2 低风险直白化** | 启发式→声明条件反查 · zod resolver→手写 · §7标签改走元数据 · xlsx渲染器提取 `render_field_sheet` · migrate重复加载/形状嗅探/if-elif链 · 生成器拼接残影(需regen同commit) · formula双键兜底删除(前后端同commit) · results-section局部组件 · prop钻透 | 低 | ✅ 已执行 `abd00f9` |
 | **批3 单独立项** | `experiment-v2-form.tsx` 三重模块枚举→表驱动 `MODULE_SPECS`（该文件无单测，**必须配合UI手工走查**，建议与俊杰补丁同天） | 中 | ⬜ 待执行 |
 
 **明确不做**：datetime 兜底链收敛、`list_runs` 100上限的行为修复（属行为变更→P6 前决策）、任何 v1 模块。
