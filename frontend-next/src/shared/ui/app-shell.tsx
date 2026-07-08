@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import {
   FlaskConical,
   Settings,
@@ -13,6 +15,11 @@ import {
   TestTube2,
 } from 'lucide-react'
 
+import {
+  ENTITY_KINDS,
+  entityConfigs,
+  entityRoutes,
+} from '@/features/entity-library/config'
 import { logout } from '@/features/auth/api'
 import { useAuth } from '@/features/auth/use-auth'
 import { useSessionRefresh } from '@/features/auth/use-session-refresh'
@@ -82,6 +89,14 @@ const adminConfigItems = [
   { to: '/vocabularies' as const, label: '受控词表', icon: Tag, match: '/vocabularies' },
 ]
 
+// 一等实体库（v2）导航项 —— 由 field-metadata 实体配置派生（单一源），文案走 i18n（D12）。
+const entityLibraryNavItems = ENTITY_KINDS.map((kind) => ({
+  to: entityRoutes[kind].list,
+  labelKey: `entityLibrary.nav.${entityConfigs[kind].i18nKey}` as const,
+  icon: entityConfigs[kind].icon,
+  match: entityRoutes[kind].list,
+}))
+
 // Single source of truth for the header page title — keep in sync with the
 // sidebar by deriving from the same nav config instead of a parallel switch.
 const navLabelLookup: { match: string; label: string }[] = [
@@ -89,6 +104,14 @@ const navLabelLookup: { match: string; label: string }[] = [
   adminDashboardItem,
   ...adminConfigItems,
 ]
+
+// 实体库路由的标题走 i18n（不进静态 navLabelLookup），命中则优先返回。
+function getEntityNavLabel(pathname: string, t: TFunction): string | null {
+  const item = entityLibraryNavItems.find((entry) =>
+    pathname.startsWith(entry.match),
+  )
+  return item ? t(item.labelKey) : null
+}
 
 function getPageTitle(pathname: string) {
   return navLabelLookup.find((item) => pathname.startsWith(item.match))?.label ?? ''
@@ -104,6 +127,7 @@ function SidebarBody({
   pathname: string
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
+  const { t } = useTranslation()
   const closeOnMobile = () => {
     if (isMobile) setOpenMobile(false)
   }
@@ -148,6 +172,31 @@ function SidebarBody({
         </SidebarGroupContent>
       </SidebarGroup>
 
+      <SidebarGroup>
+        <SidebarGroupLabel>{t('entityLibrary.nav.group')}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {entityLibraryNavItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(item.match)}
+                    tooltip={t(item.labelKey)}
+                  >
+                    <Link to={item.to} onClick={closeOnMobile}>
+                      <Icon />
+                      <span>{t(item.labelKey)}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
       {isAdmin && (
         <SidebarGroup>
           <SidebarGroupLabel>管理配置</SidebarGroupLabel>
@@ -182,6 +231,7 @@ type AppShellProps = {
 export function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
   const { clearSession, session } = useAuth()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const locationHref = useRouterState({ select: (s) => s.location.href })
@@ -315,7 +365,7 @@ export function AppShell({ children }: AppShellProps) {
           <SidebarTrigger className="-ml-1" />
           <div className="h-4 w-px bg-border shrink-0" />
           <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
-            {getPageTitle(pathname)}
+            {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname)}
           </nav>
           <div className="ml-auto">
             <ThemeToggle />
