@@ -8,7 +8,7 @@
 // 后重跑 gen:fields，本文件无需改动。
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trash2 } from 'lucide-react'
+import { Download, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 
@@ -17,9 +17,28 @@ import { useAuth } from '@/features/auth/use-auth'
 import type { V2EntityRead } from '@/features/entity-library/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
+import {
+  deleteExperimentFile,
+  downloadExperimentFile,
+  listExperimentFiles,
+  uploadExperimentFile,
+} from '@/features/samples/api'
+import type { FileAssetRead } from '@/shared/types/api'
+import { triggerBlobDownload } from '@/shared/lib/download'
 import {
   Select,
   SelectContent,
@@ -143,7 +162,13 @@ function AddSampleControls({
   )
 }
 
-export function ResultsSection({ runId }: { runId: string | undefined }) {
+export function ResultsSection({
+  runId,
+  readOnly = false,
+}: {
+  runId: string | undefined
+  readOnly?: boolean
+}) {
   const { t } = useTranslation()
 
   if (!runId) {
@@ -166,7 +191,7 @@ export function ResultsSection({ runId }: { runId: string | undefined }) {
       title={t('experimentsV2.sections.results.title')}
       subtitle={t('experimentsV2.sections.results.subtitle')}
     >
-      <ResultsBody runId={runId} />
+      <ResultsBody runId={runId} readOnly={readOnly} />
     </ModuleCard>
   )
 }
@@ -178,7 +203,7 @@ function useAuthGate(): { token: string; enabled: boolean } {
   return { token, enabled: session.isAuthenticated && !!token }
 }
 
-function ResultsBody({ runId }: { runId: string }) {
+function ResultsBody({ runId, readOnly }: { runId: string; readOnly: boolean }) {
   const { t } = useTranslation()
   const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
@@ -269,6 +294,7 @@ function ResultsBody({ runId }: { runId: string }) {
         runId={runId}
         samples={samples}
         defaultSampleId={activeSampleId}
+        readOnly={readOnly}
       />
 
       <Separator />
@@ -281,10 +307,12 @@ function CharacterizationRecords({
   runId,
   samples,
   defaultSampleId,
+  readOnly,
 }: {
   runId: string
   samples: SampleRead[]
   defaultSampleId: string
+  readOnly: boolean
 }) {
   const { t } = useTranslation()
   const { token, enabled } = useAuthGate()
@@ -357,31 +385,14 @@ function CharacterizationRecords({
       {records.length > 0 ? (
         <ul className="flex flex-col gap-2">
           {records.map((record) => (
-            <li
+            <CharacterizationRecordItem
               key={record.id}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-            >
-              <span className="text-foreground">
-                {record.method_instrument ||
-                  t('experimentsV2.sections.results.untitledRecord')}
-                {record.test_conditions ? (
-                  <span className="text-muted-foreground">
-                    {' '}
-                    · {record.test_conditions}
-                  </span>
-                ) : null}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('experimentsV2.form.removeItem')}
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(record.id)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </li>
+              runId={runId}
+              record={record}
+              readOnly={readOnly}
+              recordDeletePending={deleteMutation.isPending}
+              onDeleteRecord={() => deleteMutation.mutate(record.id)}
+            />
           ))}
         </ul>
       ) : (
@@ -474,12 +485,6 @@ function CharacterizationRecords({
           />
         </div>
 
-        <div className="sm:col-span-2">
-          <p className="text-xs text-muted-foreground">
-            {t('experimentsV2.sections.results.rawDataHint')}
-          </p>
-        </div>
-
         <div className="sm:col-span-2 flex justify-end">
           <Button
             type="button"
@@ -493,6 +498,193 @@ function CharacterizationRecords({
         </div>
       </div>
     </div>
+  )
+}
+
+function formatBytes(sizeBytes: number) {
+  if (sizeBytes < 1024) return `${sizeBytes} B`
+  if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KiB`
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+function CharacterizationRecordItem({
+  runId,
+  record,
+  readOnly,
+  recordDeletePending,
+  onDeleteRecord,
+}: {
+  runId: string
+  record: {
+    id: string
+    method_instrument: string | null
+    test_conditions: string | null
+  }
+  readOnly: boolean
+  recordDeletePending: boolean
+  onDeleteRecord: () => void
+}) {
+  const { t } = useTranslation()
+  const { token, enabled } = useAuthGate()
+  const queryClient = useQueryClient()
+  const method = record.method_instrument || ''
+  const queryKey = ['v2-characterization-files', record.id, token]
+  const filesQuery = useQuery({
+    queryKey,
+    queryFn: () =>
+      listExperimentFiles(token, { characterizationRecordId: record.id }),
+    enabled,
+  })
+  const invalidate = () => queryClient.invalidateQueries({ queryKey })
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) =>
+      uploadExperimentFile(token, runId, {
+        file,
+        method,
+        characterizationRecordId: record.id,
+      }),
+    onSuccess: () => void invalidate(),
+    onError: (error) =>
+      toast.error(
+        resolveErrorMessage(
+          error,
+          t('experimentsV2.sections.results.attachmentUploadError'),
+        ),
+      ),
+  })
+  const deleteMutation = useMutation({
+    mutationFn: (fileId: string) => deleteExperimentFile(token, fileId),
+    onSuccess: () => void invalidate(),
+    onError: (error) =>
+      toast.error(
+        resolveErrorMessage(
+          error,
+          t('experimentsV2.sections.results.attachmentDeleteError'),
+        ),
+      ),
+  })
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const handleDownload = async (file: FileAssetRead) => {
+    setDownloading(file.id)
+    try {
+      const payload = await downloadExperimentFile(token, file.id)
+      triggerBlobDownload(payload.blob, payload.filename || file.original_name)
+    } catch (error) {
+      toast.error(
+        resolveErrorMessage(
+          error,
+          t('experimentsV2.sections.results.attachmentDownloadError'),
+        ),
+      )
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  return (
+    <li className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-foreground">
+          {method || t('experimentsV2.sections.results.untitledRecord')}
+          {record.test_conditions ? (
+            <span className="text-muted-foreground">
+              {' '}
+              · {record.test_conditions}
+            </span>
+          ) : null}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t('experimentsV2.form.removeItem')}
+          disabled={recordDeletePending || readOnly}
+          onClick={onDeleteRecord}
+        >
+          <Trash2 />
+        </Button>
+      </div>
+
+      {(filesQuery.data?.items ?? []).map((file) => (
+        <div
+          key={file.id}
+          className="flex flex-wrap items-center gap-2 text-muted-foreground"
+        >
+          <span className="min-w-0 flex-1 truncate text-foreground">
+            {file.original_name}
+          </span>
+          <span>{formatBytes(file.size_bytes)}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={t(
+              'experimentsV2.sections.results.downloadAttachmentLabel',
+              { filename: file.original_name },
+            )}
+            disabled={downloading === file.id}
+            onClick={() => void handleDownload(file)}
+          >
+            <Download data-icon="inline-start" />
+            {t('experimentsV2.sections.results.downloadAttachment')}
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={t(
+                  'experimentsV2.sections.results.deleteAttachmentLabel',
+                  { filename: file.original_name },
+                )}
+                disabled={deleteMutation.isPending || readOnly}
+              >
+                <Trash2 data-icon="inline-start" />
+                {t('experimentsV2.sections.results.deleteAttachment')}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t('experimentsV2.sections.results.deleteAttachmentTitle')}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t(
+                    'experimentsV2.sections.results.deleteAttachmentDescription',
+                    { filename: file.original_name },
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>
+                  {t('experimentsV2.sections.results.cancelDeleteAttachment')}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteMutation.mutate(file.id)}
+                >
+                  {t('experimentsV2.sections.results.confirmDeleteAttachment')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ))}
+
+      <Input
+        type="file"
+        aria-label={t(
+          'experimentsV2.sections.results.uploadAttachmentLabel',
+          { method: method || t('experimentsV2.sections.results.untitledRecord') },
+        )}
+        disabled={readOnly || uploadMutation.isPending || !method}
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) uploadMutation.mutate(file)
+          event.target.value = ''
+        }}
+      />
+    </li>
   )
 }
 

@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.user import User, UserRole
+from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.sample_repository import SampleRepository
@@ -28,6 +29,11 @@ def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
         "id": str(file_asset.id),
         "experiment_run_id": str(file_asset.experiment_run_id),
         "sample_id": str(file_asset.sample_id) if file_asset.sample_id else None,
+        "characterization_record_id": (
+            str(file_asset.characterization_record_id)
+            if file_asset.characterization_record_id
+            else None
+        ),
         "uploaded_by_id": str(file_asset.uploaded_by_id),
         "deleted_by_id": str(file_asset.deleted_by_id) if file_asset.deleted_by_id else None,
         "original_name": file_asset.original_name,
@@ -69,6 +75,7 @@ class FileAssetService:
         current_user: User,
         experiment_id: UUID | None = None,
         sample_id: UUID | None = None,
+        characterization_record_id: UUID | None = None,
         method: str | None = None,
         file_category: str | None = None,
         asset_role: str | None = None,
@@ -77,6 +84,7 @@ class FileAssetService:
             current_user=current_user,
             experiment_id=experiment_id,
             sample_id=sample_id,
+            characterization_record_id=characterization_record_id,
             method=method,
             file_category=file_category,
             asset_role=asset_role,
@@ -97,15 +105,34 @@ class FileAssetService:
         upload: UploadFile,
         current_user: User,
         sample_id: UUID | None = None,
+        characterization_record_id: UUID | None = None,
         method: str | None = None,
         file_category: str | None = None,
         asset_role: str | None = None,
         note: str | None = None,
     ) -> FileAssetRead:
         resolved_asset_role = self._normalize_asset_role(asset_role)
+        if characterization_record_id is not None and resolved_asset_role == "setup_diagram":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Setup diagram cannot be linked to a characterization record",
+            )
         experiment = self._get_editable_owned_experiment(
             experiment_id, current_user, resolved_asset_role
         )
+        if characterization_record_id is not None:
+            record = self.db.get(CharacterizationRecord, characterization_record_id)
+            if record is None or record.experiment_run_id != experiment.id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Characterization record must belong to the same experiment",
+                )
+            if sample_id is not None and sample_id != record.sample_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Sample must match the characterization record",
+                )
+            sample_id = record.sample_id
         if sample_id is not None:
             sample = self.samples.get_by_id(sample_id)
             if sample is None or sample.experiment_run_id != experiment.id:
@@ -148,6 +175,7 @@ class FileAssetService:
             id=file_id,
             experiment_run_id=experiment.id,
             sample_id=sample_id,
+            characterization_record_id=characterization_record_id,
             uploaded_by_id=current_user.id,
             original_name=upload.filename or "upload.bin",
             storage_path=relative_path,

@@ -487,7 +487,7 @@ export function ExperimentV2Form({
       />
       </fieldset>
       <fieldset disabled={resultsReadOnly} className="contents">
-        <ResultsSection runId={runId} />
+        <ResultsSection runId={runId} readOnly={resultsReadOnly} />
       </fieldset>
       <fieldset disabled={processReadOnly} className="contents">
       {pvdApplicable ? (

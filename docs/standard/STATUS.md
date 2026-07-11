@@ -91,6 +91,7 @@
 | 07-11 | **单轨化批7完成（文档收尾）**：STATUS §0/§1/§6 重写为 v2 单轨现状（线上=切换前旧部署，批8 人工门待执行）；AGENTS.md 状态流表述对齐 v2 实际、删失效"设计语境"节（指向他人机器绝对路径且 PRODUCT/DESIGN 已归档）；CLAUDE.md 一句话现状更新；两份计划文档头部横幅更新（P5/P6 取代关系+批1–7 完成）；README 四个 v1 大章节（前端/后端能力、接口清单、行为边界）重写为 v2 现状。**线 A 至此只剩批8 生产切换（人工门）** | 本次 |
 | 07-11 | **收尾批 F2 完成（锁定语义甲落地）**：工艺/结果写守卫分域，locked 仅锁模块 payload、装置引用与 setup diagram，样品可继续增改，表征记录/实测产物可继续增改删，characterization file 可继续上传/软删除；invalid 仍全拒；六条结果 CRUD 全部接线 `refresh_result_missing_todo`；前端工艺/结果禁用边界与双语锁定横幅对齐。**pytest 106/106 · vitest 148/148 · ruff/tsc/eslint/字段源校验全绿** | 本次 |
 | 07-11 | **收尾批 F3 完成（优雅性清扫）**：写操作按炉次可见性统一分层（不可见 404，可见无写权 403）；`status` 边界收紧并重生成 OpenAPI；`v2_service.py` 拆为实体/炉次/结果三域；模块 upsert 与实体追加版本补轻量审计；样品码唯一冲突 rollback 后 409；dev 字段源绕过缓存；清理 draft-only/v1 语义残留命名与前端 status 手工重铸。**pytest 111/111 · vitest 148/148 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
+| 07-11 | **收尾批 F4 完成（表征文件证据链闭环）**：表征记录附件上传/按记录过滤/审计快照接线，跨炉次与样品不匹配拒绝；活跃附件阻止删表征记录，附件软删除后可删；前端每记录单文件上传、列表、下载与 AlertDialog 软删除，locked 可写、invalid 只读。**pytest 118/118 · vitest 153/153 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
 
 ## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
 

@@ -11,6 +11,7 @@ class FileAssetRead(BaseModel):
     id: UUID
     experiment_run_id: UUID
     sample_id: UUID | None
+    characterization_record_id: UUID | None
     uploaded_by_id: UUID
     deleted_by_id: UUID | None
     original_name: str

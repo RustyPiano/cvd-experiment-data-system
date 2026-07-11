@@ -623,6 +623,8 @@ export interface components {
             file: string;
             /** Sample Id */
             sample_id?: string | null;
+            /** Characterization Record Id */
+            characterization_record_id?: string | null;
             /** Method */
             method?: string | null;
             /** File Category */
@@ -749,6 +751,8 @@ export interface components {
             experiment_run_id: string;
             /** Sample Id */
             sample_id: string | null;
+            /** Characterization Record Id */
+            characterization_record_id: string | null;
             /**
              * Uploaded By Id
              * Format: uuid
@@ -1377,6 +1381,7 @@ export interface operations {
             query?: {
                 experiment_id?: string | null;
                 sample_id?: string | null;
+                characterization_record_id?: string | null;
                 method?: string | null;
                 file_category?: string | null;
                 asset_role?: string | null;

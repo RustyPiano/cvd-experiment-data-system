@@ -8,6 +8,7 @@ from app.models.sample import Sample
 from app.models.user import User, UserRole
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
+from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.v2_repository import V2ResultRepository
 from app.schemas.v2 import (
     CharacterizationRecordCreate,
@@ -31,6 +32,7 @@ class V2ResultsService:
         self.experiments = ExperimentRepository(db)
         self.entities = V2EntityService(db)
         self.results = V2ResultRepository(db)
+        self.files = FileAssetRepository(db)
 
     def list_characterization_records(
         self, run_id: UUID, current_user: User
@@ -93,6 +95,15 @@ class V2ResultsService:
         record = self._owned_characterization_record(record_id, current_user)
         run = self.experiments.get_by_id(record.experiment_run_id)
         self._ensure_results_editable(run)
+        # Keep characterization evidence explicit: attachments must be soft-deleted first.
+        if self.files.has_active_for_characterization_record(record.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Delete or otherwise handle active attachments before deleting the "
+                    "characterization record"
+                ),
+            )
         self.results.delete(record)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()

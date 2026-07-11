@@ -32,12 +32,24 @@ class FileAssetRepository:
         statement = select(FileAsset.id).where(FileAsset.sample_id == sample_id).limit(1)
         return self.db.scalar(statement) is not None
 
+    def has_active_for_characterization_record(self, record_id: UUID) -> bool:
+        statement = (
+            select(FileAsset.id)
+            .where(
+                FileAsset.characterization_record_id == record_id,
+                FileAsset.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        return self.db.scalar(statement) is not None
+
     def list_visible(
         self,
         *,
         current_user: User,
         experiment_id: UUID | None = None,
         sample_id: UUID | None = None,
+        characterization_record_id: UUID | None = None,
         method: str | None = None,
         file_category: str | None = None,
         asset_role: str | None = None,
@@ -62,6 +74,10 @@ class FileAssetRepository:
             statement = statement.where(FileAsset.experiment_run_id == experiment_id)
         if sample_id is not None:
             statement = statement.where(FileAsset.sample_id == sample_id)
+        if characterization_record_id is not None:
+            statement = statement.where(
+                FileAsset.characterization_record_id == characterization_record_id
+            )
         if method:
             statement = statement.where(FileAsset.method == method)
         if file_category:
