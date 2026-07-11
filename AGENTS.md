@@ -1,13 +1,13 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 字段 / 元数据设计的唯一真相指针。现状：线上 = v1；字段以 `docs/standard/字段草案-v3.xlsx` 为准；`docs/archive/` 为历史，勿当现状。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨**（2026-07-11 批1–7 完成；线上仍为切换前旧部署，批8 前**禁止 `deploy.sh`**）；字段单一源 = `docs/standard/field-source.yaml`（xlsx 为渲染产物）；`docs/archive/` 为历史，勿当现状。
 
 ## 项目概览
 
-CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、样品、表征文件与审计轨迹，支持后续结构化分析。
+CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉次、样品、表征与实测、审计轨迹，落实"最小可复现元数据标准"（R0）。
 - 前端：`frontend-next/`（React + TypeScript + Vite + TanStack Router + shadcn/ui + Tailwind v4）；旧 `frontend/` 已删除（2026-07-11，v2 单轨化批1）
-- 后端：FastAPI + SQLAlchemy 2.x + Alembic + PostgreSQL
-- 文件：本地文件系统（V1）+ metadata 入库
+- 后端：FastAPI + SQLAlchemy 2.x + Alembic（单一 initial）+ PostgreSQL
+- 文件：本地文件系统 + metadata 入库
 - 部署：生产用 `docker-compose.prod.yml`（后端 + frontend-next 容器 + 共享 1Panel PostgreSQL，1Panel/openresty 反代，域名 cvd.rustypiano.com）；本地 dev 用 `docker-compose.yml`（自带 postgres）
 
 ## 强制工具链（必须遵守）
@@ -47,8 +47,8 @@ CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、�
 ## 开发约定
 
 - 不重命名公共 API/字段，除非同步更新调用方与文档。
-- 新增字段必须同步补齐校验、审计与导出逻辑。
-- 状态流遵循：draft -> submitted -> locked -> invalid；locked 仅允许 clone。
+- **字段改动只改 `docs/standard/field-source.yaml`**，然后重跑生成器（后端 `generate_v2_models`/`export_v2_schema`、前端 `gen:fields`、xlsx `build_field_tables.py`）+ `check_field_source.py` 校验；生成物漂移 = CI 红。
+- 状态流：draft → submitted → locked（admin 可 unlock 回 submitted）；draft/submitted 可作废为 invalid（locked 不可作废）；submit/lock 过 R0 阻塞门；locked/invalid 拒绝一切写路径；每次转移写审计。clone 未实现（遇真实需求再做）。
 - 实验不做物理删除；文件删除走软删除标记。
 
 ## 安全与 PR
@@ -62,7 +62,3 @@ CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、�
 - `uv sync` 失败：重建虚拟环境（`rm -rf .venv && uv venv && uv sync`）。
 - `bun install` 失败：检查 Bun 版本与 lockfile 冲突后重装。
 - 迁移冲突：先核对 revision，再做 upgrade/downgrade，避免手改已发布迁移。
-
-## 设计语境 (Design Context)
-
-项目设计定义文件为 [PRODUCT.md](file:///Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/PRODUCT.md) 与 [DESIGN.md](file:///Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/DESIGN.md)。在进行任何 UI 修改、功能设计和交互式审查前，请务必阅读这两个文件以保持设计系统的风格一致。

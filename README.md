@@ -1,104 +1,27 @@
 # CVD 实验数据采集系统
 
-当前仓库已完成的能力分为两部分。
+CVD 二维材料课题组的实验数据采集系统（**v2 单轨**）：以"最小可复现元数据标准"（R0）为核心，记录炉次、样品、表征与实测、审计轨迹。
 
+> **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)**——全部背景、当前进度、已冻结决策、下一步的单一入口。字段单一源是 `docs/standard/field-source.yaml`，xlsx 与全部代码生成物都是它的渲染产物。
+>
 > **前端说明**：前端是 **`frontend-next/`**（Bun + Vite + React + TypeScript + **TanStack Router + shadcn/ui + Tailwind v4**），线上部署于 <https://cvd.rustypiano.com>。早期的 `frontend/`（Ant Design + React Router）已于 2026-07-11 删除（v2 单轨化批1，历史在 git）。
-> 管理后台是**无 `/admin` 前缀**的扁平路由（`/dashboard`、`/vocabularies`、`/fields`、`/recipes`、`/setup-library`），由 pathless `_admin` 布局做角色守卫。
 
-## 当前前端能力（frontend-next）
+## 系统能力（v2 单轨，2026-07-11 起）
 
-- Bun + Vite + React + TypeScript + TanStack Router + shadcn/ui + Tailwind v4
-- 运行时可配置 API 基址（`runtime-config.js` / `VITE_API_BASE_URL`），dev 下用 Vite 代理转发 `/api`
-- Bearer Token 登录、登出与本地会话持久化
-- 受保护路由与基础导航
-- `/login`
-- `/experiments`
-- `/experiments/new`
-- `/experiments/:id`
-- `/experiments/:id/files`
-- `/experiments/import`
-- `/samples/:id`
-- `/vocabularies`
-- `/fields`
-- `/recipes`
-- `/setup-library`
-- `/dashboard`
-- `/experiments/:id/edit` 已接通全部 V1 模块 key 的 Beta 编辑器
-- `basic_info / environment / precheck / precursors / substrates / furnace_program / gas_program / process_observation / characterization / result_summary`
-- 编辑器新增 Setup / Methods 区块；实验提交或锁定前必须完成 setup snapshot、methods、setup diagram 并确认
-- draft 自动保存、实验日期修正、区块级保存状态、固定操作区、带完整度评分的提交前验证汇总和 `submit` 提交闭环
-- 新建空白实验支持继承最近实验的环境和预检查默认值；新建页支持从 Recipe 创建实验
-- 编辑器支持温区/气体快捷模板、模块完成度指示和 clone 来源 Diff 视图
-- 实验列表支持 Dashboard 卡片、状态相关快捷操作、权限门禁和用户填写作废原因
-- `/experiments/:id` 已接通 `return-to-draft / lock / invalidate / clone`
-- 详情页已接通概览/参数/样品/文件/审计 Tabs、文件概览、审计轨迹、JSON/Excel 导出入口
-- 详情页支持将实验保存为 Recipe
-- 详情页已接通样品概览，并支持跳转样品详情
-- 文件页已接通文件列表、筛选、上传、下载、软删除，并支持 `asset_role=setup_diagram` 的 setup 示意图上传
-- 样品详情页已接通样品读取、draft 编辑、关联文件查看与下载
-- 受控词表后台已接通列表筛选、创建、编辑与启停用
-- 字段词典后台已接通 `/fields`，支持模块筛选、CRUD、受控词表关联与启停用
-- Recipe 后台已接通列表、创建、编辑与停用、重新激活
-- 管理员数据看板 `/dashboard` 已接通：顶部总记录/草稿/待审/已锁定/已作废/本周新增/缺 Setup 统计卡、最近 12 周录入趋势图、按成员的记录情况表（记录数、状态分布、缺 Setup、最近活动、停滞草稿告警），点击成员行可下钻到该成员的全部实验；管理后台经 pathless `_admin` 布局做角色守卫，非管理员会被重定向
-- 前端实现计划文档，见 [docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/superpowers/plans/2026-04-23-frontend-foundation-and-access-flow.md)
+前端路由（登录后）：
 
-当前前端尚未完成的部分：
+- `/experiments` 炉次列表（状态徽章、结果缺失标记）
+- `/experiments/new`、`/experiments/:runId/edit` 元数据驱动的炉次表单（§1–§8 模块、条件必填、复合输入、状态流转入口）
+- `/material-lots`、`/setups`、`/instruments` 一等实体库（锁版快照：实体+不可变版本，实验只引用不重录）
+- `/samples`、`/samples/:sampleId` 样品列表与详情（关联文件查看/下载）
 
-- 文件预览、批量上传和更细的元数据编辑
-- Recipe Diff、多实验任意对比和更细粒度的 Recipe 权限/版本治理
-- 更细的运行时性能优化
+后端域（FastAPI + SQLAlchemy 2.x + Alembic 单一 initial，14 表）：
 
-## 本轮交付质量状态
-
-> 注：以下为历史交付记录；其中涉及前端 UI 框架（Ant Design / vendor 拆包）与 `/admin/*` 路由的条目描述的是**已删除的遗留前端**（原 `frontend/`），不代表生产前端 `frontend-next` 的当前形态。
-
-- 2026-04-23 已完成一次 subagent 审核，并修正了首轮前端基础实现中的关键问题。
-- 登出现在会清空 TanStack Query 缓存，避免跨账号残留上一位用户的实验数据。
-- 实验详情页和编辑器壳层在请求失败时会显示错误态，不再返回空白页面。
-- 统一 API client 现在兼容 `204`、JSON 和纯文本错误响应，避免非 JSON 响应被误解析成 `SyntaxError`。
-- 实验列表、详情和新建页移除了 `Button` 内嵌 `Link` 的无效交互结构，并补上创建失败提示。
-- 当前实验编辑器现已覆盖全部 V1 模块 key、draft 自动保存、draft 实验日期修正、固定底部操作区、提交前验证完整度汇总和提交闭环；非 draft 实验会切换为只读。
-- 实验详情页现已按权限和状态显示 `return-to-draft / lock / invalidate / clone` 按钮；`locked` 实验仅允许派生草稿。
-- 实验详情页现在会按 Tabs 显示概览、只读模块参数、样品概览、文件概览和审计轨迹，并提供结构化 JSON / Excel 导出按钮。
-- 实验详情页现在会并行显示样品概览，并支持直接进入样品详情页。
-- 文件页现在支持按方法和文件类别筛选，并接通带鉴权的文件下载、draft 上传和软删除。
-- 文件上传表单会读取 `characterization_method` 词表与当前实验样品列表，支持可选 `sample_id` 关联。
-- Setup / Methods 现在作为实验级快照保存；提交和锁定会阻止缺失、未确认或缺 setup diagram 的实验进入下一状态。
-- JSON、Excel 和 analysis export 现在携带 setup snapshot 上下文，管理员看板可识别缺失或未确认 setup 的实验。
-- 样品详情页现在会读取样品本体、所属实验和关联文件；owner/admin 在 `draft` 下可直接编辑样品字段并保存。
-- 受控词表后台现在已接通 `/admin/vocabularies`，支持 admin 列表筛选、创建、编辑和启停用；非 admin 会隐藏侧栏入口并在直达路由时收到权限提示。
-- 字段词典后台已接通 `/admin/fields`，支持按模块筛选、CRUD、词表关联和启停用；非 admin 同样受限。
-- 编辑器 autosave 现在会先同步最新表单快照，再调度保存，避免连续编辑时遗漏后改动区块。
-- 当前模块 autosave 会保留后端 payload 中前端暂未建模的字段，避免最小表单覆盖掉已有结构化数据。
-- 编辑器保存失败或保存中离开页面时会提示；提交前会调用 `validate`，显示 `completion_score / blocking_count / warning_count` 和模块跳转按钮，有 `errors` 时阻止提交并展示逐项问题。
-- 生命周期按钮现在在状态切换请求进行中互斥禁用，避免同一实验被前端连续触发冲突动作。
-- 前端生产构建现在使用 Vite/Rolldown vendor 拆包，将 React、router/query、Ant Design、rc 依赖拆成独立 chunk，避免超过 500 kB 的 chunk size 警告。
-- 当前常规质量门禁：后端 `ruff check / ruff format --check / pytest` 通过（`149 passed`），前端 `lint / typecheck / test` 通过（`151 passed`）。
-
-## 当前后端能力
-
-- FastAPI 服务入口
-- `users` 用户模型
-- JWT 登录鉴权
-- `pwdlib + Argon2id` 密码哈希
-- 管理员初始化命令
-- `experiment_runs` 主表
-- 实验新建、列表、详情、更新
-- 实验 `submit / lock / invalidate / clone`
-- 审计日志写入与查询
-- 模块化 payload 保存、读取与复制
-- 样品主表、样品编号和样品 CRUD
-- 文件资产上传、下载、软删除与实验/样品关联
-- Setup / Methods 快照、只读种子模板、setup diagram 文件角色、确认审计与 clone 后重新确认
-- 实验级结构化 JSON 导出
-- 单实验 Excel 导出
-- 单实验 analysis-ready 归一化导出
-- 受控词表默认种子与最小管理 CRUD；MVP-0.2 必需 key 包括 `material_system / sample_env / precursor_method / substrate_type / substrate_brand / substrate_size / substrate_treatment_method / gas_label / characterization_method / quality_label`
-- 字段词典（`ExperimentFieldDefinition`）：定义每个实验模块字段的元数据（类型、单位、必填、可继承、关联词表），含种子数据 78 条，覆盖 9 个模块
-- Recipe CRUD、从 Recipe 创建实验、从实验保存为 Recipe（Recipe 管理页使用结构化表单编辑器替代原始 JSON）
-- 管理员数据看板聚合接口 `GET /api/v1/admin/dashboard/overview`：单次按 `owner_id` 分组聚合各状态计数、缺失或未确认 Setup / Methods 数、最近活动与停滞草稿数，并按周聚合录入趋势（PostgreSQL 与 SQLite 双方言、统一按 UTC 对齐周边界）；仅 `admin` 可访问。实验列表 `GET /api/v1/experiments` 新增 `owner_id` 过滤参数，支持看板下钻
-- Alembic 迁移 `20260423_0001` 到 `20260506_0014`
-- 前端联调 handoff 文档，见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
+- 炉次 + 状态机（draft → submitted → locked，admin 可 unlock；draft/submitted 可作废；submit/lock 过 **R0 阻塞门**，422 返回结构化缺失清单；每次转移写审计；锁定后无结果 → "结果缺失"待办）
+- 一等实体三件套 + 不可变版本表；引用时刻快照冻结
+- 模块 payload（由 `field-source.yaml` 生成的 Pydantic 判别模型校验，11 种过程步阶段类型）
+- 表征记录、实测产物、样品、文件资产（本地存储 + metadata 入库、软删除）
+- 单一源管线：YAML → Pydantic / JSON Schema / xlsx / 前端 TS 元数据四路生成器 + `check_field_source.py` 护栏（CI 强制零漂移）
 
 ## 环境准备
 
@@ -149,6 +72,8 @@ docker compose up --build
 - 如果当前 Docker Desktop 环境触发 `failed to dial gRPC`，可先分别执行 `docker build -f backend/Dockerfile -t cvd-backend .` 和 `docker build -f frontend-next/Dockerfile -t cvd-frontend .`，再执行 `docker compose up -d --no-build --force-recreate`。
 
 ## 生产部署
+
+> ⚠️ **批8 生产切换（人工门）完成前禁止运行 `deploy.sh`**：线上仍是 v2 单轨化之前的旧部署与旧库；schema 已重基线为单一 initial，旧库上启动自动迁移会崩溃循环。切换流程（停容器 → 重建数据库 → 部署 → 建管理员 → 线上冒烟）见 `docs/v2-single-track-plan.md` 批8。
 
 生产环境（hongkong 服务器，1Panel + openresty 管理）使用 **`docker-compose.prod.yml`**：仅后端 + 前端容器，数据库是**共享的 1Panel PostgreSQL**（经外部 `1panel-network` 访问，本 compose 不启动 postgres）。前端镜像为多阶段构建（`frontend-next/Dockerfile`：bun 构建 → nginx）。部署从 `main` 分支进行。
 
@@ -237,6 +162,13 @@ cd backend
 uv run python -m app.commands.create_admin --email admin@example.com --name Admin
 ```
 
+R0 合规检查：
+
+```bash
+cd backend
+uv run python -m app.commands.check_r0 --run-code RUN-2026-0001   # 或 --run-id <uuid>
+```
+
 ## 前端联调准备
 
 - 默认后端地址：`http://127.0.0.1:8000`
@@ -247,7 +179,7 @@ uv run python -m app.commands.create_admin --email admin@example.com --name Admi
 - Compose 运行时通过 `VITE_API_BASE_URL` 覆盖前端容器里的 `runtime-config.js`；默认值为 `/`
 - 如果前后端部署在不同域名或不同端口上，需要把 `VITE_API_BASE_URL` 和 `CORS_ALLOW_ORIGINS` 一起改成可访问地址
 - 本地 Vite 开发端口 `5173/4173` 已默认加入 `CORS_ALLOW_ORIGINS`
-- 详细联调约定见 [docs/frontend-backend-handoff.md](/Users/wangsiyuan/编程/小项目/CVD实验数据采集系统/docs/frontend-backend-handoff.md)
+- 后端 API 变更后：`cd frontend-next && bun run gen:api` 重新生成 OpenAPI 类型
 
 ## 质量命令
 
@@ -260,14 +192,24 @@ uv run ruff format --check .
 uv run pytest
 ```
 
-前端（生产前端 frontend-next）：
+前端（frontend-next）：
 
 ```bash
 cd frontend-next
+bun run gen:fields    # 字段元数据重生成（生成物漂移 = CI 红）
 bun run lint
 bun run typecheck
 bun run test
 bun run build
+```
+
+字段单一源（改 `docs/standard/field-source.yaml` 后必跑）：
+
+```bash
+python3 docs/standard/build_field_tables.py    # 重新生成 xlsx
+python3 docs/standard/check_field_source.py    # 逐格一致 + 结构护栏（CI 强制）
+cd backend && uv run python -m app.commands.generate_v2_models && uv run python -m app.commands.export_v2_schema
+cd ../frontend-next && bun run gen:fields
 ```
 
 完整回归建议按以下顺序执行：
@@ -284,6 +226,7 @@ bun run typecheck
 bun run test
 
 cd ..
+python3 docs/standard/check_field_source.py
 docker compose config
 docker compose up --build
 ```
@@ -295,108 +238,25 @@ docker compose up --build
 - `docker compose up --build` 失败：先运行 `docker compose config` 检查 `.env` 配置是否完整。
 - 数据库迁移异常：在 `backend/` 下先执行 `uv run alembic current`，确认 revision 后再决定 `upgrade` 或 `downgrade`。
 
-## 当前接口
+## 当前接口（v2，全部在 `/api/v1`；权威定义看运行中的 `/docs` 或 `docs/standard/generated/`）
 
-- 认证
-- `GET /health`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
-- `GET /api/v1/auth/me`
+- 认证：`POST /api/v1/auth/login | register | refresh | logout`、`GET /api/v1/auth/me`、`GET /health`
+- 一等实体（material-lots / setups / instruments 三套同构）：`GET|POST /api/v1/{kind}`、`GET /api/v1/{kind}/{id}`、`GET|POST /api/v1/{kind}/{id}/versions`（版本不可变，追加即锁版）
+- 炉次：`GET|POST /api/v1/experiments`、`GET /api/v1/experiments/{runId}`
+- 状态机：`POST /api/v1/experiments/{runId}/submit | lock | unlock | return-to-draft | invalidate`
+- 装置引用与模块：`PUT /api/v1/experiments/{runId}/setup-reference`、`PUT|GET /api/v1/experiments/{runId}/modules/{moduleKey}`
+- 表征记录 / 实测产物：挂样品与炉次的增删改查（`characterization-records`、`measured-products`）
+- 样品：`GET /api/v1/samples`、`POST /api/v1/experiments/{id}/samples`、`GET|PATCH /api/v1/samples/{id}`
+- 文件：`GET /api/v1/files`、`POST /api/v1/experiments/{id}/files`、`GET /api/v1/files/{id}`、`GET /api/v1/files/{id}/download`、`DELETE /api/v1/files/{id}`（软删除）
 
-- 实验
-- `GET /api/v1/experiments`
-- `POST /api/v1/experiments`
-- `GET /api/v1/experiments/{id}`
-- `PATCH /api/v1/experiments/{id}`
-- `POST /api/v1/experiments/{id}/submit`
-- `POST /api/v1/experiments/{id}/return-to-draft`
-- `POST /api/v1/experiments/{id}/lock`
-- `POST /api/v1/experiments/{id}/invalidate`
-- `POST /api/v1/experiments/{id}/clone`
-- `POST /api/v1/experiments/from-recipe`
-- `POST /api/v1/experiments/{id}/save-as-recipe`
-- `POST /api/v1/experiments/{id}/validate`
-- `GET /api/v1/experiments/{id}/export`
-- `GET /api/v1/experiments/{id}/export/json`
-- `GET /api/v1/experiments/{id}/export/excel`
-- `GET /api/v1/experiments/{id}/export/analysis`
-- `GET /api/v1/experiments/{id}/audit-events`
-- `GET /api/v1/experiments/{id}/modules`
-- `GET /api/v1/experiments/{id}/modules/{module_key}`
-- `PUT /api/v1/experiments/{id}/modules/{module_key}`
+## 当前行为边界（v2）
 
-- 样品
-- `GET /api/v1/samples`
-- `POST /api/v1/experiments/{id}/samples`
-- `GET /api/v1/samples/{id}`
-- `PATCH /api/v1/samples/{id}`
-
-- 文件
-- `GET /api/v1/files`
-- `POST /api/v1/experiments/{id}/files`
-- `GET /api/v1/files/{id}`
-- `GET /api/v1/files/{id}/download`
-- `DELETE /api/v1/files/{id}`
-
-- 词表
-- `GET /api/v1/vocabularies`
-- `GET /api/v1/admin/vocabularies`
-- `POST /api/v1/admin/vocabularies`
-- `PATCH /api/v1/admin/vocabularies/{id}`
-
-- 字段词典
-- `GET /api/v1/field-definitions`
-- `GET /api/v1/field-definitions/{id}`
-- `GET /api/v1/admin/field-definitions`
-- `POST /api/v1/admin/field-definitions`
-- `PATCH /api/v1/admin/field-definitions/{id}`
-- `POST /api/v1/admin/field-definitions/{id}/deactivate`
-- `POST /api/v1/admin/field-definitions/{id}/reactivate`
-
-- Recipe
-- `GET /api/v1/recipes`
-- `GET /api/v1/recipes/{id}`
-- `POST /api/v1/recipes`
-- `PATCH /api/v1/recipes/{id}`
-
-- 管理看板
-- `GET /api/v1/admin/dashboard/overview`（支持 `trend_weeks`、`stale_days` 查询参数，仅 `admin`）
-- `GET /api/v1/experiments?owner_id={user_id}`（按成员下钻；`admin` 可见任意成员全部状态记录）
-
-## 当前行为边界
-
-- `viewer` 只能查看 `submitted/locked` 实验，不能创建和克隆。
-- `logout` 在当前 Bearer Token 模式下用于显式结束客户端会话；实际失效方式是前端清除本地令牌，不引入服务端黑名单。
-- 访问令牌有效期 8 小时（`JWT_ACCESS_TOKEN_EXPIRE_MINUTES`，默认 `480`）。前端实现滑动会话：在令牌临近过期（剩余 < 5 分钟）或标签页重新聚焦且剩余 < 30 分钟时，静默调用 `POST /api/v1/auth/refresh` 用当前有效令牌换取新令牌。因此活跃使用期间不会掉线，只有真正闲置超过有效期才需重新登录；`refresh` 要求令牌仍然有效，已过期的令牌无法自助续期。
-- 当前密码哈希方案固定为 `Argon2id`；旧 `bcrypt` 哈希不再兼容。
-- 后端已开放本地前端开发所需 CORS，并暴露 `Content-Disposition` 供文件下载和导出读取文件名。
-- `member` 可以创建自己的草稿，查看自己的实验，以及查看其他人的 `submitted/locked` 实验。
-- 管理员看板 `GET /api/v1/admin/dashboard/overview` 的 `总记录` 含全部状态（含 `invalid`），等于卡片上 `草稿+待审+已锁定+已作废` 之和；成员表会列出所有在职 `admin/member` 账号（含 0 记录者），并额外纳入仍持有记录但已停用或被降级为 `viewer` 的账号（标注「已停用」），以保证按成员的记录数之和与总记录卡对账一致。周趋势统一按 UTC 周一为起点分桶，不受数据库会话时区影响。
-- `invalid` 实验默认从列表隐藏；显式传 `status=invalid` 才返回。
-- owner/admin 当前可以将自己的 `draft/submitted` 实验直接作废；`locked` 实验仅允许 clone。
-- `submitted` 实验现在支持显式退回 `draft`，并写入审计日志。
-- `PATCH /api/v1/experiments/{id}` 仅允许更新 `draft`；其中 `experiment_date` 可修正主记录日期，但不会重算或改写创建时生成的 `run_code`。
-- 模块 payload 当前支持 `basic_info`、`environment`、`precheck`、`precursors`、`substrates`、`furnace_program`、`gas_program`、`process_observation`、`characterization`、`result_summary`。
-- `clone` 权限规则：owner/admin 可从自己的 `submitted/locked` 实验发起，非 owner 只能从 `locked` 实验发起；新实验会回到 `draft`。
-- `clone` 会复制主实验参数、模块 payload 和样品，但不会复制 `summary_result`、作废原因、状态时间戳和已上传文件；新样品会按新实验编号重新分配 `sample_code`。
-- `precheck` 检查项统一为 `true/false/null` 三态，`null` 表示“未检查”；新建、无 payload 草稿和 clone 后默认未检查，风险说明常显并位于预检查区块最后。
-- `precursors` 使用 `items[].species` 表示“前驱体种类”，不再使用前驱体 `role/type`；空白/无 payload 草稿编辑器默认显示 2 条空前驱体。
-- `furnace_program` 使用 `zones[].temperature_program[]` 按温区独立记录温度节点；`placements[].precursor_index` 引用 `precursors.items[index]` 来记录前驱体放置位置和温区。前驱体种类、质量、批号等主信息只维护在 `precursors` 模块。旧 `furnace_program.precursors[]` 和旧 `steps[].temperatures_C` 仅作为历史 payload 读取兼容。
-- 提交前校验现在覆盖主字段、typed 模块 payload、前驱体、基底、炉温、气体、预检查、表征和文件关联：至少一个前驱体、前驱体种类、至少一个温区程序、每个温区至少两个温度节点、温区时间严格递增；如果填写了基底或气体程序，则要求角色、类型、时间段和流量等数据库关键字段合法；`seal_intact=false` 时必须填写 `risk_note`，`seal_intact=null` 不阻塞提交；`quality_label=unknown`、环境越界、污染项为“是”、缺少批号或文件未关联样品会返回 warning。校验响应包含 `completion_score`、`blocking_count` 和 `warning_count`，前端据此展示提交前完整度和跳转目标。
-- `substrates` 模块会同步生成或更新 `TOP/BOTTOM` 样品；移除某一基底角色时，未被文件或子样品引用的样品会标记 `deleted_at/deleted_by_id` 并从默认列表隐藏，而不是物理删除。
-- 如果后续重新添加已软删除的 `TOP/BOTTOM` 角色，后端会恢复保留的样品行并更新字段，避免唯一 `sample_code` 冲突。
-- 模块 payload 的非法对象形状会在后端转成 `422`，避免把脏 JSON 打成 `500`。
-- 手工样品创建当前支持 `top`、`bottom`、`product`、`control`；样品编号由后端根据实验 `run_code` 自动生成，例如 `S-2026-0001-TOP`、`S-2026-0001-PRODUCT-A`。
-- 文件资产当前采用本地文件系统存储，metadata 入库；上传只能写入 `draft` 实验，删除只做软删除标记并隐藏访问。
-- 上传文件时要求提供 `method`，支持 `file_category=raw|processed` 与可选 `note`；响应中会返回 `download_url`。
-- 上传大小当前默认限制为 `50 MiB`，可通过 `FILE_UPLOAD_MAX_BYTES` 调整。
-- 文件必须归属一个实验；可选关联一个样品，但 `sample_id` 必须属于同一实验。
-- 历史字段 `file_kind` 仅作为兼容别名接受输入，公开响应统一使用 `method`。
-- 同一实验内重复 `sha256` 文件会在 metadata 中标记重复来源。
-- 实验审计日志会记录 `upload_file` 和 `delete_file` 操作。
-- `GET /api/v1/experiments/{id}/export` 和 `/export/json` 当前返回结构化 JSON，包含实验主信息、模块 payload、样品（含软删除保留行）、未软删除文件、实验审计事件与计数摘要。
-- `GET /api/v1/experiments/{id}/export/excel` 返回 9 个 sheet 的 `.xlsx`：Basic Info、Environment & Precheck、Precursors、Substrates、Furnace Program、Gas Program、Characterization、Files、Audit。
-- `GET /api/v1/experiments/{id}/export/analysis` 返回面向 CSV/Parquet 后续转换的扁平行集合，包括实验、前驱体、基底、温区点、气体程序、气体段、气体组分、表征、样品和文件行。
-- 系统内置基础受控词表种子；管理员可通过 `/api/v1/admin/vocabularies` 做最小维护。前端当前文件上传下拉读取 `characterization_method`，词表后台的 key 筛选来自后端数据，不维护额外硬编码 key 列表。
+- 角色：`admin` 全量；`member` 建/改自己的炉次，可见他人 `submitted/locked`；`viewer` 只读 `submitted/locked`。
+- 状态机：`draft → submitted → locked`；`unlock` 仅 admin（回 `submitted`）；`submitted` 可退回 `draft`；`draft/submitted` 可作废为 `invalid`（必填原因），`locked` 不可作废；clone 未实现（遇真实需求再做）。
+- **R0 阻塞门**：`submit` 与 `lock` 都要求 16 项 R0 最小可复现集齐全（按相态/结构类型条件化，PVD 炉次豁免），缺失返回 422 + 结构化清单。
+- 每次状态转移写审计事件（before/after 状态）；`locked` 且无任何表征/实测 → 列表标记"结果缺失"待办（§4 结果留存合规规则）。
+- `locked/invalid` 炉次拒绝一切写路径：模块保存、装置引用、表征记录增改删、实测产物增改删（409）。
+- 一等实体版本表不可变；实验引用 `entity + version`，引用时刻快照冻结在炉次上；并发追加版本冲突返回 409。
+- 词表/字段：单一源 `field-source.yaml`；上传文件的 `method` 校验、下拉选项、条件必填全部由 YAML 派生，**改词表 = 改 YAML + 重跑生成器**，无 DB 词表。
+- 样品 `role`：`top / bottom / product / control`；`sample_code` 由后端按 `run_code` 自动生成；样品与文件删除均为软删除。
+- 文件上传：必须归属一个炉次，可选关联同炉次样品；默认大小上限 50 MiB（`FILE_UPLOAD_MAX_BYTES` 可调）；同炉次重复 `sha256` 会在 metadata 标记。

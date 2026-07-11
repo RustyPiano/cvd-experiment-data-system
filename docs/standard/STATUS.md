@@ -5,20 +5,22 @@
 
 ## 0. 一分钟速览（给接手的 Agent）
 - 这是一个 **CVD 二维材料实验数据采集系统**。
-- **线上运行 = v1**（`cvd_v1` / 68 字段），但 **2026-07-09 已定案：v1 试运行数据可弃、完全拆除 v1、v2 单轨化**——拆除+重基线计划见 **`docs/v2-single-track-plan.md`**（批0–批8，取代原 P5 迁移/P6 切换；**迁移全线作废**；**2026-07-11 经 5 组取证复评修订**——批2 补两层+三处红线切耦合、批3 扩范围、批6 换方案、新增批8 生产切换人工门，执行前以修订版为准）。v2 代码已开发完成（P0–P5 工具，见 §5）。
-- 当前阶段：两线并行——**线 A** 单轨化拆除**执行中**（批0 用户豁免（测试数据）、批1–6 已完成，下一步批7）；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
+- **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/v2-single-track-plan.md`**（批0–批8）。
+- ⚠️ **线上生产仍是切换前的旧部署（v1）——批8 生产切换（人工门，用户在场）未执行；在此之前禁止运行 `deploy.sh`**（旧库上启动自动迁移会崩溃循环；数据已确认可弃，切换 = 整库重建）。
+- 当前阶段：**线 A** 只剩批8；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
 - **导师书面评审已回**（2026-07-07，`FSS Re-副本字段草案-v3.xlsx`，标黄 9 处+红字 2 处）→ **v3.4 已回改 6 条**；剩 **4 个问题待与俊杰当面对齐**（见 §6 首条），对齐后即可正式冻结。
 - **不要擅自重开已定决策**（见 §4 冻结清单）。
-- **实现期已启动（2026-07-08）**：路线图与边界见 **`docs/v2-implementation-plan.md`**（P0–P6 阶段/验收门/D1–D8 技术决策/跑偏自检清单）——**写代码前先读它**。
-- 推荐读序：本文件 → `cvd-2d-process-data-standard-v2.0.md` → `字段草案-v3.xlsx` →（要背景细节再看）`metadata-v2-review-and-redesign.md` →（写代码）`../v2-implementation-plan.md`。
+- 工程历史与技术决策（D1–D12）见 `docs/v2-implementation-plan.md`（P0–P4 决策记录仍为有效依据；P5/P6 已由单轨化计划取代并执行完毕）。工作方式 = **codex-first**（实现委派 Codex CLI，Claude 规格/评审/门禁，见 `.claude/skills/codex-first`）。
+- 推荐读序：本文件 → `cvd-2d-process-data-standard-v2.0.md` → `字段草案-v3.xlsx` →（要背景细节再看）`metadata-v2-review-and-redesign.md` →（写代码）根 `AGENTS.md` + `../v2-single-track-plan.md` §5 后续项。
 
 ## 1. 系统现状
-- **线上运行 = v1**（schema `cvd_v1`，68 字段）；**生产数据未迁移**。
-- **v2 代码已在仓库**（2026-07-08 完成；2026-07-11 批2 起 v1 后端面已拆除）：实体三件套+锁版（Alembic **单一 initial `20260711_0001`**）、`/api/v1` 全套端点、生成器（seed 已随批2 删除，余①②④⑤）、`experiments`/`entity-library` 前端、`check_r0` 命令。**门禁：后端 pytest 103 · 前端 vitest 147 · ruff/tsc/eslint 全绿（本地）；commit 尚未 push**。
-- 工程约定见根 `AGENTS.md`；实现路线与红线见 `docs/v2-implementation-plan.md`。
+- **仓库 main = 纯 v2 单轨**；**线上生产 = 切换前旧部署（v1），待批8 整库重建切换**（数据已确认可弃，无迁移）。
+- **v2 单轨形态**：Alembic 单一 initial `20260711_0001`（14 表，SQLite/PG 双兼容）；`/api/v1` 全套端点——实体三件套锁版（material-lots/setups/instruments + versions）、炉次 CRUD + 状态机（submit/lock/unlock/invalidate/return-to-draft，R0 阻塞门 + 全转移审计 + 结果缺失待办）、模块 payload、表征/实测、样品、文件；生成器①②④⑤ + `condition-cases.json` 跨语言 fixture + `check_field_source` 四护栏；前端 `/experiments` 单轨 + 实体库三页。
+- **门禁：后端 pytest 103 · 前端 vitest 147 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
+- 工程约定见根 `AGENTS.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）
 1. **`field-source.yaml`** —— **字段单一权威源**（P1 起生效，实现方案 D1）：77 字段 + 46 实体字段 + 条件必填表达式 + R0 标记 + pending-alignment 标记。`字段草案-v3.xlsx` 是它的**渲染产物**（人读视图，4 个 sheet），由 `build_field_tables.py` 生成。导师批注原件在 `FSS Re-副本字段草案-v3.xlsx`（勿改，输入件）。
@@ -85,12 +87,13 @@
 | 07-11 | **批4 走查修复（3 个 E2E 发现）**：12 个复合输入按 YAML `input` 元数据渲染自由值+下拉并无损拼接/回读；`target_product.chemical_formula` 补录/清空同步 `material_system`；Select 空初值保持受控。补齐纯函数、双代表控件、受控值及后端更新/清空/旁路回归测试。 | 本次 |
 | 07-11 | **单轨化批5完成（Schema 重基线）**：34 段 Alembic 链 squash 为单一 initial，终态仅 14 表；炉次/样品模型与 API 删 v1 列，`schema_version` 非空，module 默认 `cvd_v2`，`basic_info.run_code` 双存保持原快照语义，`file_assets` 预埋表征 FK 与双向 ORM 关系；OpenAPI 与 samples UI 收敛。**pytest 86/86 · vitest 128/128 · alembic check/upgrade/downgrade · ruff/tsc/eslint 全绿** | 本次 |
 | 07-11 | **单轨化批6完成（API 收编 + 管线加固）**：全套 v2 端点 `/api/v1/v2/*` 收编为 `/api/v1/*`，OpenAPI/前端调用同步；后端生成模型改复用运行期 `condition_matches`，与前端共享 matcher 构成现实下限 2 份；新增 16 例跨语言 fixture；字段源校验补条件引用/op/in值/下拉 options 四护栏；3 个 `visibility_gated` 由 YAML 透传到前端并删除硬编码 Set。**pytest 103/103 · vitest 147/147 · 路由 path+method 冲突 0 · ruff/tsc/eslint/生成物漂移/字段源校验全绿** | 本次 |
+| 07-11 | **单轨化批7完成（文档收尾）**：STATUS §0/§1/§6 重写为 v2 单轨现状（线上=切换前旧部署，批8 人工门待执行）；AGENTS.md 状态流表述对齐 v2 实际、删失效"设计语境"节（指向他人机器绝对路径且 PRODUCT/DESIGN 已归档）；CLAUDE.md 一句话现状更新；两份计划文档头部横幅更新（P5/P6 取代关系+批1–7 完成）；README 四个 v1 大章节（前端/后端能力、接口清单、行为边界）重写为 v2 现状。**线 A 至此只剩批8 生产切换（人工门）** | 本次 |
 
 ## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
 
-**线 A：v1 单轨化拆除（工程线，已批准待执行，详见 `docs/v2-single-track-plan.md`）**
-1. 批0 备份留档（已豁免）→ 批1 删旧 `frontend/`（已完成）→ 批2 后端 v1 拆除（已完成）→ 批3 v2 状态机收编（已完成）→ 批4 前端收编（已完成，UI 手工走查修复已收尾）→ 批5 Schema 重基线（已完成）→ 批6 API 收编 `/api/v1/v2`→`/api/v1` + 管线加固（已完成）→ **批7 文档收尾** → **批8 生产切换（人工门，用户在场：停容器→重建库→部署→建管理员→线上冒烟）**。每批独立 commit、门禁全绿再进；**红线：批8 完成前禁止 `deploy.sh`**（中间态部署即断/崩）。
-2. 后续项（不阻塞）：表征文件上传功能（FK 已预埋）；`formula.ts` 双源留注释。
+**线 A：v1 单轨化拆除（批0 豁免、批1–7 已完成，只剩批8）**
+1. **批8 生产切换（人工门，用户在场）**：停容器 → drop 并重建生产库 → 部署（启动自动建纯 v2 schema）→ `create_admin` 建管理员 → 线上冒烟完整录入一条炉次（含 submit/lock/check-r0）。**红线：批8 完成前禁止 `deploy.sh`**。时机建议随 P1.5 push 之后（服务器 `git pull` 需要远端有代码）。
+2. 后续项（不阻塞）：表征文件上传功能（`file_assets.characterization_record_id` FK 已预埋）；`formula.ts` 双源留注释；locked 炉次 clone 遇真实需求再做。
 
 **线 B：标准冻结（外部线，不受线 A 影响）**
 1. **⏰ 与俊杰当面对齐（待用户）**——问题全文见 xlsx `待明确清单` #5–10：① §7『观察到的现象』粒度（折中案：一级『生长/未生长』必选＋二级细分可选）；② SEM覆盖率叫法/量化；③ 堆垛类型粒度；④ 外观描述词表。**回导师**：SEM占比=覆盖率（已改名）；必填标识已加图例+字体强化。（原第 3 项"3 个迁移语义映射确认"**已作废**——无迁移即无映射。）
