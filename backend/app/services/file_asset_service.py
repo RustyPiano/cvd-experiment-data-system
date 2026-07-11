@@ -102,8 +102,10 @@ class FileAssetService:
         asset_role: str | None = None,
         note: str | None = None,
     ) -> FileAssetRead:
-        experiment = self._get_editable_owned_experiment(experiment_id, current_user)
         resolved_asset_role = self._normalize_asset_role(asset_role)
+        experiment = self._get_editable_owned_experiment(
+            experiment_id, current_user, resolved_asset_role
+        )
         if sample_id is not None:
             sample = self.samples.get_by_id(sample_id)
             if sample is None or sample.experiment_run_id != experiment.id:
@@ -261,11 +263,13 @@ class FileAssetService:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
-        self._get_editable_owned_experiment(file_asset.experiment_run_id, current_user)
+        self._get_editable_owned_experiment(
+            file_asset.experiment_run_id, current_user, file_asset.asset_role
+        )
         return file_asset
 
     def _get_editable_owned_experiment(
-        self, experiment_id: UUID, current_user: User
+        self, experiment_id: UUID, current_user: User, asset_role: str
     ) -> ExperimentRun:
         experiment = self.experiments.get_by_id(experiment_id)
         if experiment is None:
@@ -278,7 +282,9 @@ class FileAssetService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
             )
-        if experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:
+        if experiment.status == ExperimentStatus.INVALID or (
+            experiment.status == ExperimentStatus.LOCKED and asset_role != "characterization_file"
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Locked or invalid experiments cannot be edited",

@@ -1,6 +1,9 @@
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.experiment import ExperimentRun, ExperimentStatus
 
 client = TestClient(app)
 
@@ -121,3 +124,33 @@ def test_create_product_samples_generates_incremental_codes(active_user) -> None
 
     assert first["sample_code"].endswith("-PRODUCT-A")
     assert second["sample_code"].endswith("-PRODUCT-B")
+
+
+def test_locked_samples_remain_editable_but_invalid_samples_do_not(active_user, db_session) -> None:
+    run = create_run(active_user.email)
+    experiment = db_session.get(ExperimentRun, UUID(run["id"]))
+    experiment.status = ExperimentStatus.LOCKED
+    db_session.commit()
+
+    sample = create_sample(run["id"], active_user.email)
+    update = client.patch(
+        f"/api/v1/samples/{sample['id']}",
+        json={"metadata_json": {"note": "added after lock"}},
+        headers=auth_headers(active_user.email),
+    )
+    assert update.status_code == 200, update.text
+
+    experiment.status = ExperimentStatus.INVALID
+    db_session.commit()
+    create = client.post(
+        f"/api/v1/experiments/{run['id']}/samples",
+        json={"role": "product"},
+        headers=auth_headers(active_user.email),
+    )
+    assert create.status_code == 409
+    update = client.patch(
+        f"/api/v1/samples/{sample['id']}",
+        json={"metadata_json": {}},
+        headers=auth_headers(active_user.email),
+    )
+    assert update.status_code == 409

@@ -215,10 +215,10 @@ class SampleService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
             )
-        if experiment.status != ExperimentStatus.DRAFT:
+        if experiment.status == ExperimentStatus.INVALID:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Only draft experiments can be updated",
+                detail="Invalid experiments cannot be edited",
             )
         return experiment
 

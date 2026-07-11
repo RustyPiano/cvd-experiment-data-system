@@ -89,6 +89,7 @@
 | 07-11 | **单轨化批5完成（Schema 重基线）**：34 段 Alembic 链 squash 为单一 initial，终态仅 14 表；炉次/样品模型与 API 删 v1 列，`schema_version` 非空，module 默认 `cvd_v2`，`basic_info.run_code` 双存保持原快照语义，`file_assets` 预埋表征 FK 与双向 ORM 关系；OpenAPI 与 samples UI 收敛。**pytest 86/86 · vitest 128/128 · alembic check/upgrade/downgrade · ruff/tsc/eslint 全绿** | 本次 |
 | 07-11 | **单轨化批6完成（API 收编 + 管线加固）**：全套 v2 端点 `/api/v1/v2/*` 收编为 `/api/v1/*`，OpenAPI/前端调用同步；后端生成模型改复用运行期 `condition_matches`，与前端共享 matcher 构成现实下限 2 份；新增 16 例跨语言 fixture；字段源校验补条件引用/op/in值/下拉 options 四护栏；3 个 `visibility_gated` 由 YAML 透传到前端并删除硬编码 Set。**pytest 103/103 · vitest 147/147 · 路由 path+method 冲突 0 · ruff/tsc/eslint/生成物漂移/字段源校验全绿** | 本次 |
 | 07-11 | **单轨化批7完成（文档收尾）**：STATUS §0/§1/§6 重写为 v2 单轨现状（线上=切换前旧部署，批8 人工门待执行）；AGENTS.md 状态流表述对齐 v2 实际、删失效"设计语境"节（指向他人机器绝对路径且 PRODUCT/DESIGN 已归档）；CLAUDE.md 一句话现状更新；两份计划文档头部横幅更新（P5/P6 取代关系+批1–7 完成）；README 四个 v1 大章节（前端/后端能力、接口清单、行为边界）重写为 v2 现状。**线 A 至此只剩批8 生产切换（人工门）** | 本次 |
+| 07-11 | **收尾批 F2 完成（锁定语义甲落地）**：工艺/结果写守卫分域，locked 仅锁模块 payload、装置引用与 setup diagram，样品可继续增改，表征记录/实测产物可继续增改删，characterization file 可继续上传/软删除；invalid 仍全拒；六条结果 CRUD 全部接线 `refresh_result_missing_todo`；前端工艺/结果禁用边界与双语锁定横幅对齐。**pytest 106/106 · vitest 148/148 · ruff/tsc/eslint/字段源校验全绿** | 本次 |
 
 ## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
 

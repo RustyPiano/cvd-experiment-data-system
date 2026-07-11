@@ -8,7 +8,10 @@ export function availableStatusActions(status: RunStatus, isAdmin: boolean): Sta
   return []
 }
 
-export const isRunReadOnly = (status: RunStatus) => status === 'locked' || status === 'invalid'
+export const isProcessReadOnly = (status: RunStatus) =>
+  status === 'locked' || status === 'invalid'
+
+export const isResultsReadOnly = (status: RunStatus) => status === 'invalid'
 
 export function statusBadgeVariant(status: RunStatus) {
   return ({ draft: 'secondary', submitted: 'outline', locked: 'default', invalid: 'destructive' } as const)[status]

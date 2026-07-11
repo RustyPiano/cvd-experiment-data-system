@@ -203,14 +203,16 @@ export function ExperimentV2Form({
   runId,
   initialState,
   runCode,
-  readOnly = false,
+  processReadOnly = false,
+  resultsReadOnly = false,
 }: {
   mode: 'new' | 'edit'
   runId?: string
   initialState: ExperimentV2FormState
   /** 编辑态展示的炉次编号。 */
   runCode?: string
-  readOnly?: boolean
+  processReadOnly?: boolean
+  resultsReadOnly?: boolean
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -392,7 +394,8 @@ export function ExperimentV2Form({
       : undefined
 
   return (
-    <fieldset disabled={readOnly} className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
+      <fieldset disabled={processReadOnly} className="contents">
       {mode === 'edit' && runCode ? (
         <p className="text-sm text-muted-foreground">
           {t('experimentsV2.form.editingRun', { runCode })}
@@ -482,7 +485,11 @@ export function ExperimentV2Form({
         showErrors={showErrors}
         save={saveProps('process_events')}
       />
-      <ResultsSection runId={runId} />
+      </fieldset>
+      <fieldset disabled={resultsReadOnly} className="contents">
+        <ResultsSection runId={runId} />
+      </fieldset>
+      <fieldset disabled={processReadOnly} className="contents">
       {pvdApplicable ? (
         <PvdSection
           synthesisMethod={synthesisMethod}
@@ -493,6 +500,7 @@ export function ExperimentV2Form({
           save={saveProps('pvd')}
         />
       ) : null}
+      </fieldset>
 
       {mode === 'new' ? (
         <div className="flex justify-end">
@@ -506,6 +514,6 @@ export function ExperimentV2Form({
           </Button>
         </div>
       ) : null}
-    </fieldset>
+    </div>
   )
 }

@@ -85,7 +85,7 @@ export const common = {
   // v2 experiment entry form (P4 §1–§4). Field labels come from field-metadata.
   experimentsV2: {
     status: { draft: 'Draft', submitted: 'Submitted', locked: 'Locked', invalid: 'Invalid', resultMissing: 'Results missing' },
-    banner: { locked: 'This run is locked. An administrator must unlock it before editing.', invalid: 'This run is invalid and cannot be edited.' },
+    banner: { locked: 'Process parameters are locked. Results can still be added.', invalid: 'This run is invalid and cannot be edited.' },
     actions: {
       submit: 'Submit experiment', lock: 'Lock experiment', unlock: 'Unlock experiment', returnToDraft: 'Return to draft', invalidate: 'Invalidate experiment',
       success: 'Status updated', error: 'Failed to update status', missingTitle: 'Complete these R0 fields first:',

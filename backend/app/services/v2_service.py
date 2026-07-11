@@ -347,7 +347,7 @@ class V2ExperimentService:
         current_user: User,
     ) -> V2ExperimentRead:
         run = self._get_owned_run(run_id, current_user)
-        self._ensure_editable(run)
+        self._ensure_process_editable(run)
         version = self.entities.get_version("setup", setup_id, setup_version)
         apply_setup_reference(run, version)
         self._save_v2_payload(
@@ -374,7 +374,7 @@ class V2ExperimentService:
         current_user: User,
     ) -> V2ModulePayloadRead:
         run = self._get_owned_run(run_id, current_user)
-        self._ensure_editable(run)
+        self._ensure_process_editable(run)
         try:
             validated = validate_v2_module_payload(module_key, payload.payload_json)
         # pydantic ValidationError is a subclass of ValueError, so this catches both.
@@ -418,7 +418,7 @@ class V2ExperimentService:
         current_user: User,
     ) -> CharacterizationRecordRead:
         run = self._get_owned_run(run_id, current_user)
-        self._ensure_editable(run)
+        self._ensure_results_editable(run)
         self._sample_for_run(payload.sample_id, run.id)
         instrument_snapshot = None
         if payload.instrument_id and payload.instrument_version:
@@ -438,6 +438,7 @@ class V2ExperimentService:
             attrs=payload.attrs,
         )
         saved = self.results.save_characterization_record(record)
+        refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return CharacterizationRecordRead.model_validate(saved)
 
@@ -448,17 +449,21 @@ class V2ExperimentService:
         current_user: User,
     ) -> CharacterizationRecordRead:
         record = self._owned_characterization_record(record_id, current_user)
-        self._ensure_editable(self.experiments.get_by_id(record.experiment_run_id))
+        run = self.experiments.get_by_id(record.experiment_run_id)
+        self._ensure_results_editable(run)
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(record, key, value)
         saved = self.results.save_characterization_record(record)
+        refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return CharacterizationRecordRead.model_validate(saved)
 
     def delete_characterization_record(self, record_id: UUID, current_user: User) -> None:
         record = self._owned_characterization_record(record_id, current_user)
-        self._ensure_editable(self.experiments.get_by_id(record.experiment_run_id))
+        run = self.experiments.get_by_id(record.experiment_run_id)
+        self._ensure_results_editable(run)
         self.results.delete(record)
+        refresh_result_missing_todo(self.db, run)
         self.db.commit()
 
     def list_measured_products(
@@ -478,7 +483,8 @@ class V2ExperimentService:
         current_user: User,
     ) -> MeasuredProductRead:
         sample = self._owned_sample(sample_id, current_user)
-        self._ensure_editable(self.experiments.get_by_id(sample.experiment_run_id))
+        run = self.experiments.get_by_id(sample.experiment_run_id)
+        self._ensure_results_editable(run)
         if payload.characterization_record_id:
             record = self.results.get_characterization_record(payload.characterization_record_id)
             if record is None or record.sample_id != sample.id:
@@ -488,6 +494,7 @@ class V2ExperimentService:
                 )
         product = MeasuredProduct(sample_id=sample.id, **payload.model_dump())
         saved = self.results.save_measured_product(product)
+        refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return MeasuredProductRead.model_validate(saved)
 
@@ -499,18 +506,22 @@ class V2ExperimentService:
     ) -> MeasuredProductRead:
         product = self._owned_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        self._ensure_editable(self.experiments.get_by_id(sample.experiment_run_id))
+        run = self.experiments.get_by_id(sample.experiment_run_id)
+        self._ensure_results_editable(run)
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(product, key, value)
         saved = self.results.save_measured_product(product)
+        refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return MeasuredProductRead.model_validate(saved)
 
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._owned_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        self._ensure_editable(self.experiments.get_by_id(sample.experiment_run_id))
+        run = self.experiments.get_by_id(sample.experiment_run_id)
+        self._ensure_results_editable(run)
         self.results.delete(product)
+        refresh_result_missing_todo(self.db, run)
         self.db.commit()
 
     def _save_v2_payload(
@@ -612,11 +623,18 @@ class V2ExperimentService:
             self.db.refresh(run)
         return self._run_read(run)
 
-    def _ensure_editable(self, run: ExperimentRun) -> None:
+    def _ensure_process_editable(self, run: ExperimentRun) -> None:
         if run.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Locked or invalid experiments cannot be edited",
+            )
+
+    def _ensure_results_editable(self, run: ExperimentRun) -> None:
+        if run.status == ExperimentStatus.INVALID:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Invalid experiments cannot be edited",
             )
 
     def _visible_sample(self, sample_id: UUID, current_user: User) -> Sample:

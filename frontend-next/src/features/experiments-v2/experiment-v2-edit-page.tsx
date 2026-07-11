@@ -23,7 +23,12 @@ import { getModuleOrNull, getRun, transitionRun } from './api'
 import type { V2ModulePayloadRead } from './api'
 import { ExperimentV2Form } from './experiment-v2-form'
 import { buildStateFromLoaded } from './form-state'
-import { availableStatusActions, isRunReadOnly, statusBannerKey } from './status-logic'
+import {
+  availableStatusActions,
+  isProcessReadOnly,
+  isResultsReadOnly,
+  statusBannerKey,
+} from './status-logic'
 import type { RunStatus, StatusAction } from './status-logic'
 
 const LOADED_MODULE_KEYS = [
@@ -108,7 +113,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               </Button>
             ))}
           </div>
-          {isRunReadOnly(data.run.status as RunStatus) ? (
+          {isProcessReadOnly(data.run.status as RunStatus) ? (
             <Alert><AlertDescription>{t(statusBannerKey(data.run.status as 'locked' | 'invalid'))}</AlertDescription></Alert>
           ) : null}
           {missing.length ? (
@@ -117,7 +122,14 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               <ul className="mt-2 list-disc pl-5">{missing.map((item) => <li key={`${item.module}.${item.key}`}>{item.label} ({item.module}.{item.key})</li>)}</ul>
             </AlertDescription></Alert>
           ) : null}
-          <ExperimentV2Form mode="edit" runId={runId} runCode={data.run.run_code} initialState={buildStateFromLoaded(data.run, data.modules)} readOnly={isRunReadOnly(data.run.status as RunStatus)} />
+          <ExperimentV2Form
+            mode="edit"
+            runId={runId}
+            runCode={data.run.run_code}
+            initialState={buildStateFromLoaded(data.run, data.modules)}
+            processReadOnly={isProcessReadOnly(data.run.status as RunStatus)}
+            resultsReadOnly={isResultsReadOnly(data.run.status as RunStatus)}
+          />
         </>
       )}
       <Dialog open={invalidating} onOpenChange={setInvalidating}>

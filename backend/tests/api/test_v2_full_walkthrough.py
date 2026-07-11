@@ -225,9 +225,36 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     report = reports[0]
     failed = [item for item in report["items"] if item["applicable"] and not item["passed"]]
     assert report["status"] == "compliant", f"R0 未通过项: {failed}"
+    assert (
+        client.delete(
+            f"/api/v1/measured-products/{product.json()['id']}", headers=headers
+        ).status_code
+        == 204
+    )
+    assert (
+        client.delete(
+            f"/api/v1/characterization-records/{record.json()['id']}", headers=headers
+        ).status_code
+        == 204
+    )
     submitted = client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers)
     assert submitted.status_code == 200, submitted.text
     locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
     assert locked.status_code == 200, locked.text
+    assert locked.json()["result_missing_todo"] is True
+    supplemented = client.post(
+        f"/api/v1/experiments/{run_id}/characterization-records",
+        json={
+            "sample_id": sample_id,
+            "instrument_id": instrument.json()["id"],
+            "instrument_version": 1,
+            "method_instrument": "Raman",
+            "test_conditions": "532nm / 1mW / 100×",
+        },
+        headers=headers,
+    )
+    assert supplemented.status_code == 201, supplemented.text
+    refreshed = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
+    assert refreshed.json()["result_missing_todo"] is False
     reports = build_r0_reports(db_session, run_code="RUN-V2-WALK")
     assert reports[0]["status"] == "compliant"

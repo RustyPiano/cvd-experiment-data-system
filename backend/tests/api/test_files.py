@@ -234,20 +234,75 @@ def test_delete_file_soft_deletes_metadata_and_hides_content(active_user) -> Non
     assert download_response.status_code == 404
 
 
-def test_upload_file_rejects_locked_experiment(active_user, db_session) -> None:
+def test_locked_experiment_allows_characterization_file_but_rejects_setup_diagram(
+    active_user, db_session
+) -> None:
     experiment_id = create_experiment(active_user.email, objective="Locked file upload")
+    setup_file = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"asset_role": "setup_diagram"},
+        files={"file": ("setup.png", b"diagram", "image/png")},
+    ).json()
     experiment = db_session.get(ExperimentRun, UUID(experiment_id))
     experiment.status = ExperimentStatus.LOCKED
     db_session.commit()
 
-    response = client.post(
+    characterization = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"method": "Raman"},
-        files={"file": ("locked.txt", b"blocked", "text/plain")},
+        data={"method": "Raman", "asset_role": "characterization_file"},
+        files={"file": ("locked.txt", b"allowed", "text/plain")},
+    )
+    assert characterization.status_code == 201, characterization.text
+    assert (
+        client.delete(
+            f"/api/v1/files/{characterization.json()['id']}",
+            headers=auth_headers(active_user.email),
+        ).status_code
+        == 204
     )
 
-    assert response.status_code == 409
+    setup_upload = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"asset_role": "setup_diagram"},
+        files={"file": ("locked-setup.png", b"blocked", "image/png")},
+    )
+    assert setup_upload.status_code == 409
+    assert (
+        client.delete(
+            f"/api/v1/files/{setup_file['id']}", headers=auth_headers(active_user.email)
+        ).status_code
+        == 409
+    )
+
+
+def test_invalid_experiment_rejects_characterization_file_writes(active_user, db_session) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Invalid file upload")
+    created = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"method": "Raman", "asset_role": "characterization_file"},
+        files={"file": ("before-invalid.txt", b"data", "text/plain")},
+    ).json()
+    experiment = db_session.get(ExperimentRun, UUID(experiment_id))
+    experiment.status = ExperimentStatus.INVALID
+    db_session.commit()
+
+    upload = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"method": "Raman", "asset_role": "characterization_file"},
+        files={"file": ("invalid.txt", b"blocked", "text/plain")},
+    )
+    assert upload.status_code == 409
+    assert (
+        client.delete(
+            f"/api/v1/files/{created['id']}", headers=auth_headers(active_user.email)
+        ).status_code
+        == 409
+    )
 
 
 def test_upload_file_allowed_on_submitted_experiment(active_user, db_session) -> None:

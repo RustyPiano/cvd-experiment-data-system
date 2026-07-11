@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { availableStatusActions, isRunReadOnly, statusBadgeVariant } from './status-logic'
+import {
+  availableStatusActions,
+  isProcessReadOnly,
+  isResultsReadOnly,
+  statusBadgeVariant,
+} from './status-logic'
 
 describe('v2 status logic', () => {
   it.each([
@@ -12,10 +17,16 @@ describe('v2 status logic', () => {
     expect(availableStatusActions(status, isAdmin)).toEqual(expected)
   })
 
-  it('locks form controls only in terminal states', () => {
-    expect(isRunReadOnly('locked')).toBe(true)
-    expect(isRunReadOnly('invalid')).toBe(true)
-    expect(isRunReadOnly('submitted')).toBe(false)
+  it('locks process controls for locked and invalid runs', () => {
+    expect(isProcessReadOnly('locked')).toBe(true)
+    expect(isProcessReadOnly('invalid')).toBe(true)
+    expect(isProcessReadOnly('submitted')).toBe(false)
+  })
+
+  it('keeps results editable when locked and locks them when invalid', () => {
+    expect(isResultsReadOnly('locked')).toBe(false)
+    expect(isResultsReadOnly('invalid')).toBe(true)
+    expect(isResultsReadOnly('submitted')).toBe(false)
   })
 
   it('maps every status to an existing badge variant', () => {

@@ -144,9 +144,94 @@ def test_non_owner_gets_403_before_state_guard(active_user, db_session) -> None:
     )
 
 
-def test_locked_run_rejects_result_writes(active_user, db_session) -> None:
+def test_locked_run_allows_result_writes_and_refreshes_todo(active_user) -> None:
     headers = _headers(active_user.email)
     run = _run(headers, "CVD-2026-9001")
+    run_id = run["id"]
+    sample = client.post(
+        f"/api/v1/experiments/{run_id}/samples", json={"role": "product"}, headers=headers
+    ).json()
+    assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers).status_code == 200
+    locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
+    assert locked.status_code == 200
+    assert locked.json()["result_missing_todo"] is True
+
+    record = client.post(
+        f"/api/v1/experiments/{run_id}/characterization-records",
+        json={"sample_id": sample["id"], "method_instrument": "Raman"},
+        headers=headers,
+    )
+    assert record.status_code == 201, record.text
+    assert (
+        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
+        is False
+    )
+    record_id = record.json()["id"]
+    assert (
+        client.patch(
+            f"/api/v1/characterization-records/{record_id}",
+            json={"method_instrument": "SEM"},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.delete(f"/api/v1/characterization-records/{record_id}", headers=headers).status_code
+        == 204
+    )
+    assert (
+        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
+        is True
+    )
+
+    product = client.post(
+        f"/api/v1/samples/{sample['id']}/measured-products",
+        json={"observed_phenomena": ["film"]},
+        headers=headers,
+    )
+    assert product.status_code == 201, product.text
+    assert (
+        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
+        is False
+    )
+    product_id = product.json()["id"]
+    assert (
+        client.patch(
+            f"/api/v1/measured-products/{product_id}",
+            json={"observed_phenomena": ["continuous film"]},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.delete(f"/api/v1/measured-products/{product_id}", headers=headers).status_code == 204
+    )
+    assert (
+        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
+        is True
+    )
+
+    assert (
+        client.put(
+            f"/api/v1/experiments/{run_id}/modules/basic_info",
+            json={"payload_json": {}},
+            headers=headers,
+        ).status_code
+        == 409
+    )
+    assert (
+        client.put(
+            f"/api/v1/experiments/{run_id}/setup-reference",
+            json={"setup_id": "00000000-0000-0000-0000-000000000001", "version": 1},
+            headers=headers,
+        ).status_code
+        == 409
+    )
+
+
+def test_invalid_run_rejects_process_and_result_writes(active_user) -> None:
+    headers = _headers(active_user.email)
+    run = _run(headers, "CVD-2026-9002")
     run_id = run["id"]
     sample = client.post(
         f"/api/v1/experiments/{run_id}/samples", json={"role": "product"}, headers=headers
@@ -161,18 +246,31 @@ def test_locked_run_rejects_result_writes(active_user, db_session) -> None:
         json={"observed_phenomena": ["film"]},
         headers=headers,
     ).json()
-    assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers).status_code == 200
-    assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers).status_code == 200
+    assert (
+        client.post(
+            f"/api/v1/experiments/{run_id}/invalidate",
+            json={"reason": "invalid data"},
+            headers=headers,
+        ).status_code
+        == 200
+    )
 
     requests = [
+        ("put", f"/api/v1/experiments/{run_id}/modules/basic_info", {"payload_json": {}}),
         (
-            "patch",
-            f"/api/v1/characterization-records/{record['id']}",
-            {"method_instrument": "SEM"},
+            "put",
+            f"/api/v1/experiments/{run_id}/setup-reference",
+            {"setup_id": "00000000-0000-0000-0000-000000000001", "version": 1},
         ),
+        (
+            "post",
+            f"/api/v1/experiments/{run_id}/characterization-records",
+            {"sample_id": sample["id"]},
+        ),
+        ("patch", f"/api/v1/characterization-records/{record['id']}", {}),
         ("delete", f"/api/v1/characterization-records/{record['id']}", None),
         ("post", f"/api/v1/samples/{sample['id']}/measured-products", {}),
-        ("patch", f"/api/v1/measured-products/{product['id']}", {"observed_phenomena": []}),
+        ("patch", f"/api/v1/measured-products/{product['id']}", {}),
         ("delete", f"/api/v1/measured-products/{product['id']}", None),
     ]
     for method, url, body in requests:
