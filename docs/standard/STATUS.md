@@ -1,13 +1,13 @@
 # 现状与真相指针（STATUS）— 任何新 session / Agent 先读我
 
 > 本文件是本仓库的**单一入口**：读完它 = 拿到全部背景 + 当前进度 + 下一步，**无需向用户重复交代**。
-> 任何文档与本文件冲突，**以本文件为准**。最后更新：2026-07-11。
+> 任何文档与本文件冲突，**以本文件为准**。最后更新：2026-07-12。
 
 ## 0. 一分钟速览（给接手的 Agent）
 - 这是一个 **CVD 二维材料实验数据采集系统**。
 - **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/v2-single-track-plan.md`**（批0–批8）。
 - ⚠️ **线上生产仍是切换前的旧部署（v1）——批8 生产切换（人工门，用户在场）未执行；在此之前禁止运行 `deploy.sh`**（旧库上启动自动迁移会崩溃循环；数据已确认可弃，切换 = 整库重建）。
-- 当前阶段：**线 A 收尾批 F1–F7 已全部完成**（保险/锁定语义甲/优雅性清扫/表征附件/测试补强/全栈冒烟+xhigh 复审/复审修复 5C+3P），剩：**用户在交互式 Codex 会话跑浏览器 E2E** → push + Actions 首绿 → **批8 生产切换（人工门）**；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
+- 当前阶段：**线 A 收尾批 F1–F8 已全部完成**（含浏览器 E2E 两发现修复），剩：push + Actions 首绿 → **批8 生产切换（人工门）**；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
@@ -19,8 +19,8 @@
 ## 1. 系统现状
 - **仓库 main = 纯 v2 单轨**；**线上生产 = 切换前旧部署（v1），待批8 整库重建切换**（数据已确认可弃，无迁移）。
 - **v2 单轨形态**：Alembic 单一 initial `20260711_0001`（14 表，SQLite/PG 双兼容）；`/api/v1` 全套端点——实体三件套锁版（material-lots/setups/instruments + versions）、炉次 CRUD + 状态机（submit/lock/unlock/invalidate/return-to-draft，R0 阻塞门 + 全转移审计 + 结果缺失待办）、模块 payload、表征/实测、样品、文件；生成器①②④⑤ + `condition-cases.json` 跨语言 fixture + `check_field_source` 四护栏；前端 `/experiments` 单轨 + 实体库三页。
-- **门禁：后端 pytest 122 · 前端 vitest 181 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
-- **F6 验证结论**：API 级全栈冒烟（真 uvicorn 空库单步建成→登录→建炉→R0 422 结构化清单→前端生产构建）通过；**Codex xhigh 全量 diff 复审**（批2–F5）产出 5 CONFIRMED + 3 PLAUSIBLE，已全部由 F7 修复；浏览器级 E2E 因 `codex exec` 无头会话无内置浏览器未跑成，**待用户在交互式 Codex 会话执行**（走查工单含全部步骤：复合输入回读/锁定补结果/表征附件/待办消除）。
+- **门禁：后端 pytest 124 · 前端 vitest 185 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
+- **F6–F8 验证结论**：API 级全栈冒烟通过；**Codex xhigh 全量 diff 复审**（批2–F5）的 5 CONFIRMED + 3 PLAUSIBLE 已由 F7 修复；交互式浏览器 E2E 发现的文件 SQLite 并发踩踏与实验日期跨日错位已由 F8 修复并补红绿回归。
 - 工程约定见根 `AGENTS.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）
@@ -95,12 +95,13 @@
 | 07-11 | **收尾批 F4 完成（表征文件证据链闭环）**：表征记录附件上传/按记录过滤/审计快照接线，跨炉次与样品不匹配拒绝；活跃附件阻止删表征记录，附件软删除后可删；前端每记录单文件上传、列表、下载与 AlertDialog 软删除，locked 可写、invalid 只读。**pytest 118/118 · vitest 153/153 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
 | 07-11 | **收尾批 F5 完成（测试补强）**：`results-section` 补建样、表征/实测 CRUD、表征关联、附件失败 detail 与 locked/invalid 行为级覆盖；12 个复合字段从生成元数据参数化全覆盖；审计 action actor/entity/action 断言补齐；F2 工艺/结果守卫矩阵逐格盘点无缺口。**pytest 118/118 · vitest 171/171 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
 | 07-11 | **收尾批 F7 完成（xhigh 复审修复）**：submit/lock 合并 R0+全量必填门（含条件/过程步/PVD 语义）；非属主编辑入口归零，样品详情对齐结果域；词表判型删启发式、仅依 `field.input`；恢复审计复合索引并精确锁定全表索引基线；unknown-op 双端非对称语义 fixture 定案；表征附件 method 由记录派生且冲突 422；initial 删 `file_assets.method` 默认。**pytest 122/122 · vitest 181/181 · initial upgrade · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
+| 07-12 | **收尾批 F8 完成（浏览器 E2E 两发现修复）**：仅内存 SQLite 保留 StaticPool，文件库恢复 QueuePool 并启用 WAL/5000ms busy timeout；`started_at` 按实验员本地墙钟保存 naive ISO，历史 Z 串继续按浏览器本地时区回读。并发鉴权读取 48/48 为 200，跨午夜两例无日期漂移。**pytest 124/124 · vitest 185/185 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
 
 ## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
 
-**线 A：v1 单轨化拆除（批0 豁免、批1–7 已完成）→ 收尾批 F1–F6 → 批8**
-1. **收尾批 F1–F6**（2026-07-11 评估后追加，详见单轨化计划 §6）：F1 保险（v1-final tag/deploy 哨兵/硬顺序）→ F2 锁定语义甲落地（守卫分域+待办刷新）→ F3 优雅性清扫（命名/403按可见性/status enum/v2_service 拆三/轻量审计/样品并发 409/dev 免缓存）→ F4 表征文件上传（证据链闭环）→ F5 测试补强（results-section/复合输入全覆盖）→ F6 全栈 E2E 复跑 + Codex 独立等价性复审 + 文档收口。
-2. **硬顺序**：push → Actions 首绿 → F6 通过 → **批8 生产切换（人工门，用户在场）**：停容器 → drop 并重建生产库 → 部署（启动自动建纯 v2 schema）→ `create_admin` → 线上冒烟（含 submit/lock/补结果/check-r0）。**红线：批8 完成前禁止 `deploy.sh`**（F1 起有脚本哨兵兜底）。
+**线 A：v1 单轨化拆除（批0 豁免、批1–7 已完成）→ 收尾批 F1–F8 已完成 → 批8**
+1. **收尾批 F1–F8**：F1–F7 完成保险、锁定语义、清扫、表征附件、测试补强、全栈验证与复审修复；F8 完成浏览器 E2E 两发现修复（SQLite 并发、墙钟日期）。
+2. **硬顺序**：push → Actions 首绿 → **批8 生产切换（人工门，用户在场）**：停容器 → drop 并重建生产库 → 部署（启动自动建纯 v2 schema）→ `create_admin` → 线上冒烟（含 submit/lock/补结果/check-r0）。**红线：批8 完成前禁止 `deploy.sh`**（F1 起有脚本哨兵兜底）。
 3. 后续项（不阻塞）：`formula.ts` 双源留注释；locked 炉次 clone 遇真实需求再做；xlsx 字节稳定性**明确不修**（CI 逐格比对不受影响）。
 
 **线 B：标准冻结（外部线，不受线 A 影响）**

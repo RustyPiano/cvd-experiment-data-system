@@ -4,12 +4,18 @@ export function toIsoDateTime(local: string): string {
   const trimmed = local.trim()
   if (trimmed === '') return trimmed
   const date = new Date(trimmed)
-  return Number.isNaN(date.getTime()) ? trimmed : date.toISOString()
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed) &&
+    !Number.isNaN(date.getTime())
+    ? `${trimmed}:00`
+    : trimmed
 }
 
 export function isoToDateTimeLocal(iso: string): string {
   const trimmed = iso.trim()
   if (trimmed === '') return trimmed
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(trimmed)) {
+    return trimmed.slice(0, 16)
+  }
   const date = new Date(trimmed)
   if (Number.isNaN(date.getTime())) {
     // 已经是 datetime-local 形状则原样返回，否则给空。

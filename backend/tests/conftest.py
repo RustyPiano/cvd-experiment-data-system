@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from alembic.config import Config
 from sqlalchemy import create_engine, event
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import close_all_sessions
 from sqlalchemy.pool import StaticPool
 
@@ -45,9 +46,12 @@ TEST_PASSWORD_HASH = (
 
 def _configure_test_engine(database_url: str):
     engine_kwargs: dict[str, object] = {"future": True}
+    sqlite_memory = False
     if database_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}
-        engine_kwargs["poolclass"] = StaticPool
+        sqlite_memory = make_url(database_url).database in (None, "", ":memory:")
+        if sqlite_memory:
+            engine_kwargs["poolclass"] = StaticPool
 
     test_engine = create_engine(database_url, **engine_kwargs)
 
@@ -58,6 +62,9 @@ def _configure_test_engine(database_url: str):
             del connection_record
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
+            if not sqlite_memory:
+                cursor.execute("PRAGMA busy_timeout=5000")
+                cursor.execute("PRAGMA journal_mode=WAL")
             cursor.close()
 
     db_session_module.engine = test_engine

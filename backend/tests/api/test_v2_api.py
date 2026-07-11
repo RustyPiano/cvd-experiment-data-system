@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.audit import AuditEvent
 from app.models.sample import Sample, SampleRole
+from app.repositories.experiment_repository import ExperimentRepository
 
 client = TestClient(app)
 
@@ -35,6 +36,28 @@ def login(email: str, password: str = "Password123!") -> str:
 
 def auth_headers(email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {login(email)}"}
+
+
+def test_naive_started_at_drives_local_experiment_and_run_code_date(
+    active_user, monkeypatch
+) -> None:
+    def next_run_code(_repository: ExperimentRepository, experiment_date) -> str:
+        return f"CVD-{experiment_date:%Y%m%d}-0001"
+
+    monkeypatch.setattr(ExperimentRepository, "next_run_code", next_run_code)
+    response = client.post(
+        "/api/v1/experiments",
+        json={
+            "started_at": "2026-07-12T00:05:00",
+            "synthesis_method": "APCVD",
+            "operator": "午夜实验员",
+        },
+        headers=auth_headers(active_user.email),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["experiment_date"] == "2026-07-12"
+    assert response.json()["run_code"] == "CVD-20260712-0001"
 
 
 def test_v2_entity_versions_are_append_only_queryable_and_audited(active_user, db_session) -> None:
