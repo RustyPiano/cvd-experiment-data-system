@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ExperimentNewPage } from '@/features/experiments/experiment-new-page'
+import { ExperimentV2NewPage } from '@/features/experiments-v2/experiment-v2-new-page'
 
 export const Route = createFileRoute('/_authed/experiments/new')({
-  component: ExperimentNewPage,
+  component: ExperimentV2NewPage,
 })

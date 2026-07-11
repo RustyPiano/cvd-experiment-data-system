@@ -94,6 +94,110 @@ function processStepsMissing(
     .some((step) => missingProcessStepKeys(step, setupSnapshot).length > 0)
 }
 
+type ModuleContext = {
+  mode: 'new' | 'edit'
+  state: ExperimentV2FormState
+  synthesisMethod: string
+  pvdApplicable: boolean
+  runCode?: string
+}
+
+type ModuleSpec = {
+  key: string
+  active: (context: ModuleContext) => boolean
+  missing: (context: ModuleContext) => boolean
+  payload?: (context: ModuleContext) => Record<string, unknown>
+}
+
+const MODULE_SPECS: ModuleSpec[] = [
+  {
+    key: 'basic_info',
+    active: () => true,
+    missing: ({ mode, state }) =>
+      mode === 'new'
+        ? ESSENTIAL_RUN_KEYS.some(
+            (key) => (state.basic_info[key] ?? '').trim() === '',
+          )
+        : missingRequiredKeys('basic_info', state.basic_info).length > 0,
+    payload: ({ state, runCode }) => {
+      const values = runCode
+        ? { ...state.basic_info, run_code: runCode }
+        : state.basic_info
+      const payload = buildFlatModulePayload('basic_info', values)
+      payload.started_at = toIsoDateTime(state.basic_info['started_at'] ?? '')
+      return payload
+    },
+  },
+  {
+    key: 'target_product',
+    active: ({ state }) => targetProductActive(state),
+    missing: ({ state }) =>
+      targetProductMissing(state.target_product, state.components),
+    payload: ({ state }) =>
+      buildTargetProductPayload(state.target_product, state.components),
+  },
+  {
+    key: 'equipment',
+    active: ({ state }) =>
+      Boolean(state.equipment.setupId && state.equipment.version != null),
+    missing: ({ state }) =>
+      !state.equipment.setupId || state.equipment.version == null,
+  },
+  {
+    key: 'precursors',
+    active: ({ state }) => state.precursors.some(itemHasAnyValue),
+    missing: ({ state }) => itemsMissing('precursors', state.precursors),
+    payload: ({ state }) =>
+      buildItemsModulePayload('precursors', state.precursors),
+  },
+  {
+    key: 'substrates',
+    active: ({ state }) => state.substrates.some(itemHasAnyValue),
+    missing: ({ state }) => itemsMissing('substrates', state.substrates),
+    payload: ({ state }) =>
+      buildItemsModulePayload('substrates', state.substrates),
+  },
+  {
+    key: 'process_steps',
+    active: ({ state }) => state.process_steps.some(isProcessStepActive),
+    missing: ({ state }) =>
+      processStepsMissing(state.process_steps, state.equipment.snapshot),
+    payload: ({ state }) => buildProcessStepsPayload(state.process_steps),
+  },
+  {
+    key: 'process_events',
+    active: ({ state }) => state.process_events.some(itemHasAnyValue),
+    missing: () => false,
+    payload: ({ state }) =>
+      buildItemsModulePayload('process_events', state.process_events),
+  },
+  {
+    key: 'pvd',
+    active: ({ state, pvdApplicable }) =>
+      pvdApplicable && itemHasAnyValue(state.pvd),
+    missing: ({ state, synthesisMethod }) =>
+      missingPvdKeys(state.pvd, synthesisMethod).length > 0,
+    payload: ({ state }) => buildFlatModulePayload('pvd', state.pvd),
+  },
+]
+
+function saveModuleSpec(
+  runId: string,
+  spec: ModuleSpec,
+  context: ModuleContext,
+  token: string,
+) {
+  if (spec.key === 'equipment') {
+    return setSetupReference(
+      runId,
+      context.state.equipment.setupId,
+      context.state.equipment.version as number,
+      token,
+    )
+  }
+  return upsertModule(runId, spec.key, spec.payload!(context), token)
+}
+
 export function ExperimentV2Form({
   mode,
   runId,
@@ -187,12 +291,6 @@ export function ExperimentV2Form({
   const synthesisMethod = state.basic_info['synthesis_method'] ?? ''
   const pvdApplicable = isPvdApplicable(synthesisMethod)
 
-  // ── payload 组装（键=字段 key，与后端契约对齐） ──
-  const buildBasicInfoPayload = () => {
-    const payload = buildFlatModulePayload('basic_info', state.basic_info)
-    payload.started_at = toIsoDateTime(state.basic_info['started_at'] ?? '')
-    return payload
-  }
   const buildRunCreatePayload = (): V2ExperimentCreate => ({
     started_at: toIsoDateTime(state.basic_info['started_at'] ?? ''),
     synthesis_method: (state.basic_info['synthesis_method'] ?? '').trim(),
@@ -202,93 +300,35 @@ export function ExperimentV2Form({
       (state.target_product['chemical_formula'] ?? '').trim() || undefined,
   })
 
-  const moduleMissing = (moduleKey: string): boolean => {
-    if (moduleKey === 'basic_info') {
-      return missingRequiredKeys('basic_info', state.basic_info).length > 0
-    }
-    if (moduleKey === 'target_product') {
-      return targetProductMissing(state.target_product, state.components)
-    }
-    if (moduleKey === 'precursors') {
-      return itemsMissing('precursors', state.precursors)
-    }
-    if (moduleKey === 'substrates') {
-      return itemsMissing('substrates', state.substrates)
-    }
-    if (moduleKey === 'process_steps') {
-      return processStepsMissing(state.process_steps, state.equipment.snapshot)
-    }
-    if (moduleKey === 'pvd') {
-      return missingPvdKeys(state.pvd, synthesisMethod).length > 0
-    }
-    return false
-  }
+  const moduleContext = (formMode: 'new' | 'edit', createdRunCode?: string) => ({
+    mode: formMode,
+    state,
+    synthesisMethod,
+    pvdApplicable,
+    runCode: createdRunCode,
+  })
 
   // ── 编辑态：分模块保存 ──
   const saveModule = async (moduleKey: string) => {
     if (!runId) return
-    if (moduleKey === 'equipment') {
-      if (!state.equipment.setupId || state.equipment.version == null) {
-        setShowErrors(true)
-        toast.error(t('experimentsV2.form.selectSetupFirst'))
-        return
-      }
-    } else if (moduleMissing(moduleKey)) {
+    const spec = MODULE_SPECS.find((item) => item.key === moduleKey)
+    if (!spec) return
+    const context = moduleContext('edit')
+    if (spec.missing(context)) {
       setShowErrors(true)
-      toast.error(t('experimentsV2.form.fixRequired'))
+      toast.error(
+        t(
+          moduleKey === 'equipment'
+            ? 'experimentsV2.form.selectSetupFirst'
+            : 'experimentsV2.form.fixRequired',
+        ),
+      )
       return
     }
 
     setSavingKey(moduleKey)
     try {
-      if (moduleKey === 'equipment') {
-        await setSetupReference(
-          runId,
-          state.equipment.setupId,
-          state.equipment.version as number,
-          token,
-        )
-      } else if (moduleKey === 'basic_info') {
-        await upsertModule(runId, 'basic_info', buildBasicInfoPayload(), token)
-      } else if (moduleKey === 'target_product') {
-        await upsertModule(
-          runId,
-          'target_product',
-          buildTargetProductPayload(state.target_product, state.components),
-          token,
-        )
-      } else if (moduleKey === 'process_steps') {
-        await upsertModule(
-          runId,
-          'process_steps',
-          buildProcessStepsPayload(state.process_steps),
-          token,
-        )
-      } else if (moduleKey === 'process_events') {
-        await upsertModule(
-          runId,
-          'process_events',
-          buildItemsModulePayload('process_events', state.process_events),
-          token,
-        )
-      } else if (moduleKey === 'pvd') {
-        await upsertModule(
-          runId,
-          'pvd',
-          buildFlatModulePayload('pvd', state.pvd),
-          token,
-        )
-      } else {
-        await upsertModule(
-          runId,
-          moduleKey,
-          buildItemsModulePayload(
-            moduleKey,
-            moduleKey === 'precursors' ? state.precursors : state.substrates,
-          ),
-          token,
-        )
-      }
+      await saveModuleSpec(runId, spec, context, token)
       setSavedKeys((prev) => new Set(prev).add(moduleKey))
       toast.success(t('experimentsV2.form.moduleSaveSuccess'))
     } catch (error) {
@@ -305,22 +345,10 @@ export function ExperimentV2Form({
 
   // ── 新建态：创建 run + 逐模块 upsert，然后跳转编辑页 ──
   const createAndSave = async () => {
-    const essentialsMissing = ESSENTIAL_RUN_KEYS.some(
-      (key) => (state.basic_info[key] ?? '').trim() === '',
+    const createContext = moduleContext('new')
+    const blocked = MODULE_SPECS.some(
+      (spec) => spec.active(createContext) && spec.missing(createContext),
     )
-    const blocked =
-      essentialsMissing ||
-      (targetProductActive(state) &&
-        targetProductMissing(state.target_product, state.components)) ||
-      (state.precursors.some(itemHasAnyValue) &&
-        itemsMissing('precursors', state.precursors)) ||
-      (state.substrates.some(itemHasAnyValue) &&
-        itemsMissing('substrates', state.substrates)) ||
-      (state.process_steps.some(isProcessStepActive) &&
-        processStepsMissing(state.process_steps, state.equipment.snapshot)) ||
-      (pvdApplicable &&
-        itemHasAnyValue(state.pvd) &&
-        missingPvdKeys(state.pvd, synthesisMethod).length > 0)
     if (blocked) {
       setShowErrors(true)
       toast.error(t('experimentsV2.form.fixRequired'))
@@ -333,77 +361,15 @@ export function ExperimentV2Form({
         buildRunCreatePayload(),
         token,
       )
-      // 用服务端分配的 run_code 回填后 upsert 完整 basic_info。
-      const basicInfo = {
-        ...state.basic_info,
-        run_code: created.run_code,
-        started_at: toIsoDateTime(state.basic_info['started_at'] ?? ''),
-      }
-      await upsertModule(
-        created.id,
-        'basic_info',
-        buildFlatModulePayload('basic_info', basicInfo),
-        token,
-      )
-      if (targetProductActive(state)) {
-        await upsertModule(
-          created.id,
-          'target_product',
-          buildTargetProductPayload(state.target_product, state.components),
-          token,
-        )
-      }
-      if (state.equipment.setupId && state.equipment.version != null) {
-        await setSetupReference(
-          created.id,
-          state.equipment.setupId,
-          state.equipment.version,
-          token,
-        )
-      }
-      if (state.precursors.some(itemHasAnyValue)) {
-        await upsertModule(
-          created.id,
-          'precursors',
-          buildItemsModulePayload('precursors', state.precursors),
-          token,
-        )
-      }
-      if (state.substrates.some(itemHasAnyValue)) {
-        await upsertModule(
-          created.id,
-          'substrates',
-          buildItemsModulePayload('substrates', state.substrates),
-          token,
-        )
-      }
-      if (state.process_steps.some(isProcessStepActive)) {
-        await upsertModule(
-          created.id,
-          'process_steps',
-          buildProcessStepsPayload(state.process_steps),
-          token,
-        )
-      }
-      if (state.process_events.some(itemHasAnyValue)) {
-        await upsertModule(
-          created.id,
-          'process_events',
-          buildItemsModulePayload('process_events', state.process_events),
-          token,
-        )
-      }
-      if (pvdApplicable && itemHasAnyValue(state.pvd)) {
-        await upsertModule(
-          created.id,
-          'pvd',
-          buildFlatModulePayload('pvd', state.pvd),
-          token,
-        )
+      const saveContext = moduleContext('new', created.run_code)
+      for (const spec of MODULE_SPECS) {
+        if (spec.active(saveContext)) {
+          await saveModuleSpec(created.id, spec, saveContext, token)
+        }
       }
       toast.success(t('experimentsV2.form.createSuccess'))
       await navigate({
-        to: '/experiments-v2/$runId/edit',
+        to: '/experiments/$runId/edit',
         params: { runId: created.id },
       })
     } catch (error) {

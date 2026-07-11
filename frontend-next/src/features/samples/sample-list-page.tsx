@@ -150,8 +150,8 @@ export function SampleListPage() {
                       <TableCell>
                         {sample.run_code ? (
                           <Link
-                            to="/experiments/$experimentId"
-                            params={{ experimentId: sample.experiment_run_id }}
+                            to="/experiments/$runId/edit"
+                            params={{ runId: sample.experiment_run_id }}
                             className="tabular-nums text-primary hover:underline"
                           >
                             {sample.run_code}

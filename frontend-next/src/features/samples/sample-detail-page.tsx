@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
-import { ArrowLeft, Download, FolderOpen } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/features/auth/use-auth'
@@ -423,20 +423,11 @@ export function SampleDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
               <Link
-                to="/experiments/$experimentId"
-                params={{ experimentId: sample.experiment_run_id }}
+                to="/experiments/$runId/edit"
+                params={{ runId: sample.experiment_run_id }}
               >
                 <ArrowLeft className="mr-1.5 size-4" />
                 返回实验
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link
-                to="/experiments/$experimentId/files"
-                params={{ experimentId: sample.experiment_run_id }}
-              >
-                <FolderOpen className="mr-1.5 size-4" />
-                管理实验文件
               </Link>
             </Button>
           </div>

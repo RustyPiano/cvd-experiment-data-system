@@ -45,7 +45,7 @@ export function ExperimentV2ListPage() {
         subtitle={t('experimentsV2.list.subtitle')}
         actions={
           <Button asChild>
-            <Link to="/experiments-v2/new">
+            <Link to="/experiments/new">
               <Plus className="size-4" />
               {t('experimentsV2.list.create')}
             </Link>
@@ -112,7 +112,7 @@ export function ExperimentV2ListPage() {
                       <TableCell>
                         <Button variant="outline" size="sm" asChild>
                           <Link
-                            to="/experiments-v2/$runId/edit"
+                            to="/experiments/$runId/edit"
                             params={{ runId: run.id }}
                           >
                             {t('experimentsV2.list.edit')}

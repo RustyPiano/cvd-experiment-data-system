@@ -8,11 +8,7 @@ import type { TFunction } from 'i18next'
 import {
   FlaskConical,
   FlaskRound,
-  Settings,
   LogOut,
-  LayoutDashboard,
-  ClipboardList,
-  Tag,
   TestTube2,
 } from 'lucide-react'
 
@@ -59,54 +55,19 @@ const roleLabels: Record<string, string> = {
 
 const navItems = [
   {
-    to: '/experiments' as const,
-    label: '实验记录',
-    icon: FlaskConical,
-    match: '/experiments',
-  },
-  {
     to: '/samples' as const,
     label: '样品',
     icon: TestTube2,
     match: '/samples',
   },
-  {
-    to: '/setup-library' as const,
-    label: 'Setup 库',
-    icon: Settings,
-    match: '/setup-library',
-  },
 ]
 
-// v2 实验录入（P4）导航项，文案走 i18n（D12）。additive-only，不改动 v1 实验导航。
-const v2ExperimentsNavItem = {
-  to: '/experiments-v2' as const,
+const experimentsNavItem = {
+  to: '/experiments' as const,
   labelKey: 'experimentsV2.nav' as const,
   icon: FlaskRound,
-  match: '/experiments-v2',
+  match: '/experiments',
 }
-
-const adminDashboardItem = {
-  to: '/dashboard' as const,
-  label: '数据看板',
-  icon: LayoutDashboard,
-  match: '/dashboard',
-}
-
-const adminConfigItems = [
-  {
-    to: '/fields' as const,
-    label: '字段词典',
-    icon: ClipboardList,
-    match: '/fields',
-  },
-  {
-    to: '/vocabularies' as const,
-    label: '受控词表',
-    icon: Tag,
-    match: '/vocabularies',
-  },
-]
 
 // 一等实体库（v2）导航项 —— 由 field-metadata 实体配置派生（单一源），文案走 i18n（D12）。
 const entityLibraryNavItems = ENTITY_KINDS.map((kind) => ({
@@ -118,16 +79,11 @@ const entityLibraryNavItems = ENTITY_KINDS.map((kind) => ({
 
 // Single source of truth for the header page title — keep in sync with the
 // sidebar by deriving from the same nav config instead of a parallel switch.
-const navLabelLookup: { match: string; label: string }[] = [
-  ...navItems,
-  adminDashboardItem,
-  ...adminConfigItems,
-]
+const navLabelLookup: { match: string; label: string }[] = [...navItems]
 
-// i18n 标题（不进静态 navLabelLookup），命中则优先返回。v2 实验须先于 v1 '/experiments' 匹配。
 function getEntityNavLabel(pathname: string, t: TFunction): string | null {
-  if (pathname.startsWith(v2ExperimentsNavItem.match)) {
-    return t(v2ExperimentsNavItem.labelKey)
+  if (pathname.startsWith(experimentsNavItem.match)) {
+    return t(experimentsNavItem.labelKey)
   }
   const item = entityLibraryNavItems.find((entry) =>
     pathname.startsWith(entry.match),
@@ -143,13 +99,7 @@ function getPageTitle(pathname: string) {
 
 // Nav body lives inside SidebarProvider so it can close the mobile drawer when a
 // link is tapped (default shadcn sidebar leaves the overlay open on selection).
-function SidebarBody({
-  isAdmin,
-  pathname,
-}: {
-  isAdmin: boolean
-  pathname: string
-}) {
+function SidebarBody({ pathname }: { pathname: string }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const { t } = useTranslation()
   const closeOnMobile = () => {
@@ -181,29 +131,15 @@ function SidebarBody({
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                isActive={pathname.startsWith(v2ExperimentsNavItem.match)}
-                tooltip={t(v2ExperimentsNavItem.labelKey)}
+                isActive={pathname.startsWith(experimentsNavItem.match)}
+                tooltip={t(experimentsNavItem.labelKey)}
               >
-                <Link to={v2ExperimentsNavItem.to} onClick={closeOnMobile}>
-                  <v2ExperimentsNavItem.icon />
-                  <span>{t(v2ExperimentsNavItem.labelKey)}</span>
+                <Link to={experimentsNavItem.to} onClick={closeOnMobile}>
+                  <experimentsNavItem.icon />
+                  <span>{t(experimentsNavItem.labelKey)}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {isAdmin && (
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith(adminDashboardItem.match)}
-                  tooltip={adminDashboardItem.label}
-                >
-                  <Link to={adminDashboardItem.to} onClick={closeOnMobile}>
-                    <adminDashboardItem.icon />
-                    <span>{adminDashboardItem.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
@@ -233,29 +169,6 @@ function SidebarBody({
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {isAdmin && (
-        <SidebarGroup>
-          <SidebarGroupLabel>管理配置</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {adminConfigItems.map((item) => (
-                <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith(item.match)}
-                    tooltip={item.label}
-                  >
-                    <Link to={item.to} onClick={closeOnMobile}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      )}
     </SidebarContent>
   )
 }
@@ -280,7 +193,6 @@ export function AppShell({ children }: AppShellProps) {
   useSessionRefresh()
 
   const currentRole = session.currentUser?.role
-  const isAdmin = currentRole === 'admin'
   const roleLabel = currentRole ? (roleLabels[currentRole] ?? '') : '未登录'
   const userInitial =
     session.currentUser?.name?.trim()?.[0]?.toUpperCase() ?? '?'
@@ -338,7 +250,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </SidebarHeader>
 
-        <SidebarBody isAdmin={isAdmin} pathname={pathname} />
+        <SidebarBody pathname={pathname} />
 
         <SidebarFooter className="px-2 py-3">
           <SidebarMenu>
