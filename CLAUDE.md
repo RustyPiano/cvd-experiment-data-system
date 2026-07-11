@@ -2,6 +2,6 @@
 
 > **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 它含**全部背景、当前进度、已冻结决策、下一步**；读完即可接手，**无需用户重复交代**。
 >
-> 一句话现状：**仓库已 v2 单轨（2026-07-11 批1–7 完成，v1 全拆、schema 重基线为单一 initial）；线上仍是切换前旧部署，批8 生产切换（人工门）前禁止 `deploy.sh`**（计划见 `docs/v2-single-track-plan.md`，剩余步骤见 STATUS §6）；标准经 3 轮评审 + 导师书面评审 freeze-ready，等俊杰对齐后冻结；**字段改动改单一源 `docs/standard/field-source.yaml`，再跑全部生成器（xlsx/Pydantic/JSON Schema/前端 TS）+ `check_field_source.py` 校验（CI 强制），别手改 xlsx 和任何生成物**；`docs/archive/` 里都是历史，别当真相。
+> 一句话现状：**仓库已 v2 单轨且收尾完毕（批1–7 + 收尾批 F1–F8，2026-07-12；含锁定语义甲、表征附件闭环、xhigh 复审修复）；线上仍是切换前旧部署——剩三步：浏览器 E2E 重跑（工单 `docs/e2e-walkthrough-checklist.md`）→ push+Actions 首绿 → 批8 生产切换（人工门），此前禁止 `deploy.sh`**（计划与执行记录见 `docs/v2-single-track-plan.md`，下一步见 STATUS §6）；标准经 3 轮评审 + 导师书面评审 freeze-ready，等俊杰对齐后冻结；**字段改动改单一源 `docs/standard/field-source.yaml`，再跑全部生成器（xlsx/Pydantic/JSON Schema/前端 TS）+ `check_field_source.py` 校验（CI 强制），别手改 xlsx 和任何生成物**；`docs/archive/` 里都是历史，别当真相。
 
 工程约定（工具链、开发流程、测试门禁、部署）见 [`AGENTS.md`](AGENTS.md)。

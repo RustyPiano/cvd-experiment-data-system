@@ -17,7 +17,7 @@ CVD 二维材料课题组的实验数据采集系统（**v2 单轨**）：以"�
 
 后端域（FastAPI + SQLAlchemy 2.x + Alembic 单一 initial，14 表）：
 
-- 炉次 + 状态机（draft → submitted → locked，admin 可 unlock；draft/submitted 可作废；submit/lock 过 **R0 阻塞门**，422 返回结构化缺失清单；每次转移写审计；锁定后无结果 → "结果缺失"待办）
+- 炉次 + 状态机（draft → submitted → locked，admin 可 unlock；draft/submitted 可作废；submit/lock 过**全量必填 + R0 阻塞门**，422 返回结构化缺失清单；每次转移写审计；**锁定 = 锁工艺、结果后补**——locked 仍可补样品/表征/实测/附件，无结果 → "结果缺失"待办，补录后自动消除）
 - 一等实体三件套 + 不可变版本表；引用时刻快照冻结
 - 模块 payload（由 `field-source.yaml` 生成的 Pydantic 判别模型校验，11 种过程步阶段类型）
 - 表征记录、实测产物、样品、文件资产（本地存储 + metadata 入库、软删除）
@@ -247,15 +247,16 @@ docker compose up --build
 - 装置引用与模块：`PUT /api/v1/experiments/{runId}/setup-reference`、`PUT|GET /api/v1/experiments/{runId}/modules/{moduleKey}`
 - 表征记录 / 实测产物：挂样品与炉次的增删改查（`characterization-records`、`measured-products`）
 - 样品：`GET /api/v1/samples`、`POST /api/v1/experiments/{id}/samples`、`GET|PATCH /api/v1/samples/{id}`
-- 文件：`GET /api/v1/files`、`POST /api/v1/experiments/{id}/files`、`GET /api/v1/files/{id}`、`GET /api/v1/files/{id}/download`、`DELETE /api/v1/files/{id}`（软删除）
+- 文件：`GET /api/v1/files`（支持按 `characterization_record_id` 过滤）、`POST /api/v1/experiments/{id}/files`（可挂表征记录，method 自动由记录派生）、`GET /api/v1/files/{id}`、`GET /api/v1/files/{id}/download`、`DELETE /api/v1/files/{id}`（软删除）
 
 ## 当前行为边界（v2）
 
 - 角色：`admin` 全量；`member` 建/改自己的炉次，可见他人 `submitted/locked`；`viewer` 只读 `submitted/locked`。
 - 状态机：`draft → submitted → locked`；`unlock` 仅 admin（回 `submitted`）；`submitted` 可退回 `draft`；`draft/submitted` 可作废为 `invalid`（必填原因），`locked` 不可作废；clone 未实现（遇真实需求再做）。
-- **R0 阻塞门**：`submit` 与 `lock` 都要求 16 项 R0 最小可复现集齐全（按相态/结构类型条件化，PVD 炉次豁免），缺失返回 422 + 结构化清单。
-- 每次状态转移写审计事件（before/after 状态）；`locked` 且无任何表征/实测 → 列表标记"结果缺失"待办（§4 结果留存合规规则）。
-- `locked/invalid` 炉次拒绝一切写路径：模块保存、装置引用、表征记录增改删、实测产物增改删（409）。
+- **提交/锁定阻塞门**：`submit` 与 `lock` 都要求**全量必填（含条件必填与过程步 required_extra）+ 16 项 R0 最小可复现集**齐全（按相态/结构类型条件化，PVD 炉次豁免），缺失返回 422 + 结构化清单（带 `requirement: required|r0` 标签）。
+- 每次状态转移写审计事件（before/after 状态；另有 upsert_module/实体版本追加/文件操作的轻量审计）；`locked` 且无任何表征/实测 → 列表标记"结果缺失"待办，补录结果后自动消除（§4 结果留存合规规则）。
+- **锁定语义 = 锁工艺、结果后补**：`locked` 下工艺域（模块保存、装置引用）拒绝（409），结果域（样品、表征记录、实测产物、表征附件）仍可写；`invalid` 拒绝一切写路径。
+- `started_at` = 实验员**本地墙钟时间**（不做时区换算），`experiment_date` 与 `run_code` 选日均取其日期部分。
 - 一等实体版本表不可变；实验引用 `entity + version`，引用时刻快照冻结在炉次上；并发追加版本冲突返回 409。
 - 词表/字段：单一源 `field-source.yaml`；上传文件的 `method` 校验、下拉选项、条件必填全部由 YAML 派生，**改词表 = 改 YAML + 重跑生成器**，无 DB 词表。
 - 样品 `role`：`top / bottom / product / control`；`sample_code` 由后端按 `run_code` 自动生成；样品与文件删除均为软删除。
