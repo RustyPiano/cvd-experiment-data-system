@@ -99,6 +99,14 @@ def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_ses
         "return_to_draft",
         "invalidate",
     ]
+    assert [event.actor_id for event in events] == [
+        active_user.id,
+        active_user.id,
+        admin_user.id,
+        active_user.id,
+        active_user.id,
+    ]
+    assert all(event.entity_id == UUID(run_id) for event in events)
     assert all(
         event.before_json.get("status") != event.after_json.get("status") for event in events
     )

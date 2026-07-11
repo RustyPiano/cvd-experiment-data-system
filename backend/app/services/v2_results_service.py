@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
@@ -104,6 +105,17 @@ class V2ResultsService:
                     "characterization record"
                 ),
             )
+        if self.db.scalar(
+            select(MeasuredProduct.id)
+            .where(MeasuredProduct.characterization_record_id == record.id)
+            .limit(1)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Delete linked measured products before deleting the characterization record"
+                ),
+            )
         self.results.delete(record)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
@@ -128,12 +140,7 @@ class V2ResultsService:
         run = self.experiments.get_by_id(sample.experiment_run_id)
         self._ensure_results_editable(run)
         if payload.characterization_record_id:
-            record = self.results.get_characterization_record(payload.characterization_record_id)
-            if record is None or record.sample_id != sample.id:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="characterization_record_id must belong to the sample",
-                )
+            self._ensure_record_belongs_to_sample(payload.characterization_record_id, sample.id)
         product = MeasuredProduct(sample_id=sample.id, **payload.model_dump())
         saved = self.results.save_measured_product(product)
         refresh_result_missing_todo(self.db, run)
@@ -150,12 +157,24 @@ class V2ResultsService:
         sample = self.db.get(Sample, product.sample_id)
         run = self.experiments.get_by_id(sample.experiment_run_id)
         self._ensure_results_editable(run)
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        changes = payload.model_dump(exclude_unset=True)
+        characterization_record_id = changes.get("characterization_record_id")
+        if characterization_record_id:
+            self._ensure_record_belongs_to_sample(characterization_record_id, sample.id)
+        for key, value in changes.items():
             setattr(product, key, value)
         saved = self.results.save_measured_product(product)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return MeasuredProductRead.model_validate(saved)
+
+    def _ensure_record_belongs_to_sample(self, record_id: UUID, sample_id: UUID) -> None:
+        record = self.results.get_characterization_record(record_id)
+        if record is None or record.sample_id != sample_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="characterization_record_id must belong to the sample",
+            )
 
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._owned_measured_product(product_id, current_user)

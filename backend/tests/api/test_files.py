@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.main import app
+from app.models.audit import AuditEvent
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.user import User, UserRole
 from app.services.file_storage_service import FileStorageService
@@ -51,7 +52,7 @@ def create_sample(experiment_id: str, email: str, *, role: str = "product") -> s
     return response.json()["id"]
 
 
-def test_upload_file_creates_metadata_and_supports_download(active_user) -> None:
+def test_upload_file_creates_metadata_and_supports_download(active_user, db_session) -> None:
     experiment_id = create_experiment(active_user.email)
 
     upload_response = client.post(
@@ -91,6 +92,10 @@ def test_upload_file_creates_metadata_and_supports_download(active_user) -> None
     assert download_response.status_code == 200
     assert download_response.content == b"peak=404"
     assert "raman.txt" in download_response.headers["content-disposition"]
+    event = db_session.query(AuditEvent).filter(AuditEvent.action == "upload_file").one()
+    assert event.actor_id == active_user.id
+    assert event.entity_id == UUID(experiment_id)
+    assert event.action == "upload_file"
 
 
 def test_upload_file_accepts_sample_link_only_within_same_experiment(
@@ -199,7 +204,7 @@ def test_upload_file_rejects_payloads_over_size_limit(active_user, monkeypatch) 
     assert response.json()["detail"] == "Uploaded file exceeds 4 bytes"
 
 
-def test_delete_file_soft_deletes_metadata_and_hides_content(active_user) -> None:
+def test_delete_file_soft_deletes_metadata_and_hides_content(active_user, db_session) -> None:
     experiment_id = create_experiment(active_user.email)
     upload_response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
@@ -233,6 +238,10 @@ def test_delete_file_soft_deletes_metadata_and_hides_content(active_user) -> Non
         headers=auth_headers(active_user.email),
     )
     assert download_response.status_code == 404
+    event = db_session.query(AuditEvent).filter(AuditEvent.action == "delete_file").one()
+    assert event.actor_id == active_user.id
+    assert event.entity_id == UUID(experiment_id)
+    assert event.action == "delete_file"
 
 
 def test_locked_experiment_allows_characterization_file_but_rejects_setup_diagram(

@@ -36,7 +36,6 @@ const DESCRIPTIVE_MARKERS = [
   '，',
   '如',
   '视',
-  '见',
   '建议',
   '标准',
   '每条',

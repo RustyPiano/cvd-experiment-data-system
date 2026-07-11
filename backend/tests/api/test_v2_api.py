@@ -307,3 +307,32 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
     )
     assert patch.status_code == 200, patch.text
     assert patch.json()["measured_layers_coverage"] == "1层；70%"
+
+    other_sample = Sample(
+        sample_code="RUN-V2-RESULTS-S2",
+        experiment_run_id=UUID(run_id),
+        role=SampleRole.CONTROL,
+    )
+    db_session.add(other_sample)
+    db_session.commit()
+    other_record = client.post(
+        f"/api/v1/experiments/{run_id}/characterization-records",
+        json={"sample_id": str(other_sample.id), "method_instrument": "SEM"},
+        headers=headers,
+    )
+    assert other_record.status_code == 201, other_record.text
+
+    cross_sample = client.patch(
+        f"/api/v1/measured-products/{product.json()['id']}",
+        json={"characterization_record_id": other_record.json()["id"]},
+        headers=headers,
+    )
+    assert cross_sample.status_code == 422
+    assert cross_sample.json()["detail"] == "characterization_record_id must belong to the sample"
+
+    referenced_delete = client.delete(
+        f"/api/v1/characterization-records/{record.json()['id']}",
+        headers=headers,
+    )
+    assert referenced_delete.status_code == 409
+    assert "measured product" in referenced_delete.json()["detail"].lower()

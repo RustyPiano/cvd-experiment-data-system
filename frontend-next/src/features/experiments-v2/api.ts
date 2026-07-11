@@ -20,10 +20,13 @@ export type SampleCreate = Schemas['SampleCreate']
 export type CharacterizationRecordCreate =
   Schemas['CharacterizationRecordCreate']
 export type CharacterizationRecordRead = Schemas['CharacterizationRecordRead']
+export type CharacterizationRecordUpdate =
+  Schemas['CharacterizationRecordUpdate']
 export type CharacterizationRecordListResponse =
   Schemas['CharacterizationRecordListResponse']
 export type MeasuredProductCreate = Schemas['MeasuredProductCreate']
 export type MeasuredProductRead = Schemas['MeasuredProductRead']
+export type MeasuredProductUpdate = Schemas['MeasuredProductUpdate']
 export type MeasuredProductListResponse = Schemas['MeasuredProductListResponse']
 
 const BASE = '/api/v1/experiments'
@@ -45,7 +48,12 @@ export function getRun(runId: string, token: string) {
   return apiRequest<V2ExperimentRead>(`${BASE}/${runId}`, { token })
 }
 
-export function transitionRun(runId: string, action: string, token: string, reason?: string) {
+export function transitionRun(
+  runId: string,
+  action: string,
+  token: string,
+  reason?: string,
+) {
   return apiRequest<V2ExperimentRead>(`${BASE}/${runId}/${action}`, {
     method: 'POST',
     body: reason === undefined ? undefined : { reason },
@@ -150,6 +158,17 @@ export function deleteCharacterizationRecord(recordId: string, token: string) {
   })
 }
 
+export function updateCharacterizationRecord(
+  recordId: string,
+  payload: CharacterizationRecordUpdate,
+  token: string,
+) {
+  return apiRequest<CharacterizationRecordRead>(
+    `${V2}/characterization-records/${recordId}`,
+    { method: 'PATCH', body: payload, token },
+  )
+}
+
 // ── §7 实测产物（走 measured-products 端点，FK→样品） ──
 export function listMeasuredProducts(sampleId: string, token: string) {
   return apiRequest<MeasuredProductListResponse>(
@@ -174,4 +193,19 @@ export function deleteMeasuredProduct(productId: string, token: string) {
     method: 'DELETE',
     token,
   })
+}
+
+export function updateMeasuredProduct(
+  productId: string,
+  payload: MeasuredProductUpdate,
+  token: string,
+) {
+  return apiRequest<MeasuredProductRead>(
+    `${V2}/measured-products/${productId}`,
+    {
+      method: 'PATCH',
+      body: payload,
+      token,
+    },
+  )
 }

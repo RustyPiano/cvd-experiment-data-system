@@ -8,7 +8,7 @@
 // 后重跑 gen:fields，本文件无需改动。
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, Trash2 } from 'lucide-react'
+import { Download, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 
@@ -46,7 +46,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { SampleCreate, SampleRead } from '../api'
+import type {
+  CharacterizationRecordRead,
+  MeasuredProductRead,
+  SampleCreate,
+  SampleRead,
+} from '../api'
 import {
   createCharacterizationRecord,
   createMeasuredProduct,
@@ -56,6 +61,8 @@ import {
   listCharacterizationRecords,
   listMeasuredProducts,
   listSamples,
+  updateCharacterizationRecord,
+  updateMeasuredProduct,
 } from '../api'
 import { getModuleFields, parseEnumOptions } from '../field-logic'
 import { FieldLabel } from './field-bits'
@@ -92,7 +99,9 @@ function sampleLabel(sample: SampleRead): string {
 
 /** 字段标签取自元数据（单一源），不进 locale。未知字段返回空串。 */
 function fieldLabel(moduleKey: string, key: string): string {
-  return getModuleFields(moduleKey).find((item) => item.key === key)?.labelZh ?? ''
+  return (
+    getModuleFields(moduleKey).find((item) => item.key === key)?.labelZh ?? ''
+  )
 }
 
 /** 加样品控件：空态（带标签 + outline 按钮）与非空态（内联 + ghost 按钮）共用。 */
@@ -102,18 +111,21 @@ function AddSampleControls({
   onRoleChange,
   onAdd,
   pending,
+  disabled,
 }: {
   layout: 'empty' | 'inline'
   newRole: SampleCreate['role']
   onRoleChange: (role: SampleCreate['role']) => void
   onAdd: () => void
   pending: boolean
+  disabled: boolean
 }) {
   const { t } = useTranslation()
   const roleSelect = (
     <Select
       value={newRole}
       onValueChange={(value) => onRoleChange(value as SampleCreate['role'])}
+      disabled={disabled}
     >
       <SelectTrigger className={layout === 'empty' ? 'w-48' : 'w-40'}>
         <SelectValue />
@@ -132,7 +144,7 @@ function AddSampleControls({
       type="button"
       variant={layout === 'empty' ? 'outline' : 'ghost'}
       size="sm"
-      disabled={pending}
+      disabled={pending || disabled}
       onClick={onAdd}
     >
       {t('experimentsV2.sections.results.addSample')}
@@ -203,7 +215,13 @@ function useAuthGate(): { token: string; enabled: boolean } {
   return { token, enabled: session.isAuthenticated && !!token }
 }
 
-function ResultsBody({ runId, readOnly }: { runId: string; readOnly: boolean }) {
+function ResultsBody({
+  runId,
+  readOnly,
+}: {
+  runId: string
+  readOnly: boolean
+}) {
   const { t } = useTranslation()
   const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
@@ -214,6 +232,12 @@ function ResultsBody({ runId, readOnly }: { runId: string; readOnly: boolean }) 
     enabled,
   })
   const samples = samplesQuery.data?.items ?? []
+  const recordsQuery = useQuery({
+    queryKey: ['v2-characterization', runId, token],
+    queryFn: () => listCharacterizationRecords(runId, token),
+    enabled,
+  })
+  const records = recordsQuery.data?.items ?? []
   const [selectedSampleId, setSelectedSampleId] = useState('')
   const activeSampleId =
     selectedSampleId || (samples.length > 0 ? samples[0].id : '')
@@ -247,6 +271,7 @@ function ResultsBody({ runId, readOnly }: { runId: string; readOnly: boolean }) 
           onRoleChange={setNewRole}
           onAdd={() => createSampleMutation.mutate()}
           pending={createSampleMutation.isPending}
+          disabled={readOnly}
         />
       </div>
     )
@@ -285,6 +310,7 @@ function ResultsBody({ runId, readOnly }: { runId: string; readOnly: boolean }) 
             onRoleChange={setNewRole}
             onAdd={() => createSampleMutation.mutate()}
             pending={createSampleMutation.isPending}
+            disabled={readOnly}
           />
         </div>
       </div>
@@ -298,7 +324,12 @@ function ResultsBody({ runId, readOnly }: { runId: string; readOnly: boolean }) 
       />
 
       <Separator />
-      <MeasuredProducts sampleId={activeSampleId} />
+      <MeasuredProducts
+        key={activeSampleId}
+        sampleId={activeSampleId}
+        records={records}
+        readOnly={readOnly}
+      />
     </div>
   )
 }
@@ -333,6 +364,7 @@ function CharacterizationRecords({
     version: number | null
   }>({ id: '', version: null })
   const [conditions, setConditions] = useState('')
+  const [editingId, setEditingId] = useState('')
   const effectiveSampleId = sampleId || defaultSampleId
 
   const invalidate = () =>
@@ -340,20 +372,30 @@ function CharacterizationRecords({
       queryKey: ['v2-characterization', runId, token],
     })
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: () =>
-      createCharacterizationRecord(
-        runId,
-        {
-          sample_id: effectiveSampleId,
-          instrument_id: instrument.id || null,
-          instrument_version: instrument.id ? instrument.version : null,
-          method_instrument: method || null,
-          test_conditions: conditions.trim() || null,
-        },
-        token,
-      ),
+      editingId
+        ? updateCharacterizationRecord(
+            editingId,
+            {
+              method_instrument: method || null,
+              test_conditions: conditions.trim() || null,
+            },
+            token,
+          )
+        : createCharacterizationRecord(
+            runId,
+            {
+              sample_id: effectiveSampleId,
+              instrument_id: instrument.id || null,
+              instrument_version: instrument.id ? instrument.version : null,
+              method_instrument: method || null,
+              test_conditions: conditions.trim() || null,
+            },
+            token,
+          ),
     onSuccess: () => {
+      setEditingId('')
       setMethod('')
       setInstrument({ id: '', version: null })
       setConditions('')
@@ -391,6 +433,11 @@ function CharacterizationRecords({
               record={record}
               readOnly={readOnly}
               recordDeletePending={deleteMutation.isPending}
+              onEditRecord={() => {
+                setEditingId(record.id)
+                setMethod(record.method_instrument ?? '')
+                setConditions(record.test_conditions ?? '')
+              }}
               onDeleteRecord={() => deleteMutation.mutate(record.id)}
             />
           ))}
@@ -412,6 +459,7 @@ function CharacterizationRecords({
           <Select
             value={effectiveSampleId || undefined}
             onValueChange={setSampleId}
+            disabled={readOnly || Boolean(editingId)}
           >
             <SelectTrigger className="w-full">
               <SelectValue
@@ -435,7 +483,7 @@ function CharacterizationRecords({
             required={false}
             r0={false}
           />
-          <Select value={method || undefined} onValueChange={setMethod}>
+          <Select value={method} onValueChange={setMethod} disabled={readOnly}>
             <SelectTrigger className="w-full">
               <SelectValue
                 placeholder={t('experimentsV2.form.selectPlaceholder')}
@@ -467,6 +515,7 @@ function CharacterizationRecords({
                 version: entity?.latest_version?.version ?? null,
               })
             }
+            disabled={readOnly || Boolean(editingId)}
           />
         </div>
 
@@ -482,6 +531,7 @@ function CharacterizationRecords({
             onChange={(event) => setConditions(event.target.value)}
             autoComplete="off"
             placeholder={t('experimentsV2.form.inputPlaceholder')}
+            disabled={readOnly}
           />
         </div>
 
@@ -490,10 +540,12 @@ function CharacterizationRecords({
             type="button"
             variant="outline"
             size="sm"
-            disabled={createMutation.isPending || !effectiveSampleId}
-            onClick={() => createMutation.mutate()}
+            disabled={saveMutation.isPending || !effectiveSampleId || readOnly}
+            onClick={() => saveMutation.mutate()}
           >
-            {t('experimentsV2.sections.results.addRecord')}
+            {editingId
+              ? t('actions.save')
+              : t('experimentsV2.sections.results.addRecord')}
           </Button>
         </div>
       </div>
@@ -512,6 +564,7 @@ function CharacterizationRecordItem({
   record,
   readOnly,
   recordDeletePending,
+  onEditRecord,
   onDeleteRecord,
 }: {
   runId: string
@@ -522,6 +575,7 @@ function CharacterizationRecordItem({
   }
   readOnly: boolean
   recordDeletePending: boolean
+  onEditRecord: () => void
   onDeleteRecord: () => void
 }) {
   const { t } = useTranslation()
@@ -593,16 +647,57 @@ function CharacterizationRecordItem({
             </span>
           ) : null}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t('experimentsV2.form.removeItem')}
-          disabled={recordDeletePending || readOnly}
-          onClick={onDeleteRecord}
-        >
-          <Trash2 />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t('experimentsV2.sections.results.editRecordLabel', {
+              method:
+                method || t('experimentsV2.sections.results.untitledRecord'),
+            })}
+            disabled={readOnly}
+            onClick={onEditRecord}
+          >
+            <Pencil />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={t(
+                  'experimentsV2.sections.results.deleteRecordLabel',
+                  {
+                    method:
+                      method ||
+                      t('experimentsV2.sections.results.untitledRecord'),
+                  },
+                )}
+                disabled={recordDeletePending || readOnly}
+              >
+                <Trash2 />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t('experimentsV2.sections.results.deleteRecordTitle')}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t('experimentsV2.sections.results.deleteRecordDescription')}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('actions.cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={onDeleteRecord}>
+                  {t('experimentsV2.sections.results.confirmDeleteRecord')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       {(filesQuery.data?.items ?? []).map((file) => (
@@ -673,10 +768,9 @@ function CharacterizationRecordItem({
 
       <Input
         type="file"
-        aria-label={t(
-          'experimentsV2.sections.results.uploadAttachmentLabel',
-          { method: method || t('experimentsV2.sections.results.untitledRecord') },
-        )}
+        aria-label={t('experimentsV2.sections.results.uploadAttachmentLabel', {
+          method: method || t('experimentsV2.sections.results.untitledRecord'),
+        })}
         disabled={readOnly || uploadMutation.isPending || !method}
         onChange={(event) => {
           const file = event.target.files?.[0]
@@ -688,7 +782,15 @@ function CharacterizationRecordItem({
   )
 }
 
-function MeasuredProducts({ sampleId }: { sampleId: string }) {
+function MeasuredProducts({
+  sampleId,
+  records,
+  readOnly,
+}: {
+  sampleId: string
+  records: CharacterizationRecordRead[]
+  readOnly: boolean
+}) {
   const { t } = useTranslation()
   const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
@@ -706,6 +808,8 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
   const [layersCoverage, setLayersCoverage] = useState('')
   const [domain, setDomain] = useState('')
   const [spectral, setSpectral] = useState('')
+  const [characterizationRecordId, setCharacterizationRecordId] = useState('')
+  const [editingId, setEditingId] = useState('')
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -717,11 +821,12 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
       checked ? [...prev, option] : prev.filter((item) => item !== option),
     )
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: () =>
-      createMeasuredProduct(
-        sampleId,
+      (editingId ? updateMeasuredProduct : createMeasuredProduct)(
+        editingId || sampleId,
         {
+          characterization_record_id: characterizationRecordId || null,
           observed_phenomena: selected.length > 0 ? selected : null,
           detected_phase_stacking: phaseStacking.trim() || null,
           measured_layers_coverage: layersCoverage.trim() || null,
@@ -733,6 +838,8 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
         token,
       ),
     onSuccess: () => {
+      setEditingId('')
+      setCharacterizationRecordId('')
       setSelected([])
       setPhaseStacking('')
       setLayersCoverage('')
@@ -764,6 +871,16 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
     return ''
   }
 
+  const editProduct = (product: MeasuredProductRead) => {
+    setEditingId(product.id)
+    setCharacterizationRecordId(product.characterization_record_id ?? '')
+    setSelected(product.observed_phenomena ?? [])
+    setPhaseStacking(product.detected_phase_stacking ?? '')
+    setLayersCoverage(product.measured_layers_coverage ?? '')
+    setDomain(product.domain_nucleation_continuity ?? '')
+    setSpectral(spectralNote(product.key_spectral_metrics))
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <h3 className="text-base font-semibold text-foreground">
@@ -783,16 +900,32 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
                   spectralNote(product.key_spectral_metrics) ||
                   t('experimentsV2.sections.results.untitledProduct')}
               </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t('experimentsV2.form.removeItem')}
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(product.id)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t(
+                    'experimentsV2.sections.results.editProductLabel',
+                  )}
+                  disabled={readOnly}
+                  onClick={() => editProduct(product)}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t(
+                    'experimentsV2.sections.results.deleteProductLabel',
+                  )}
+                  disabled={deleteMutation.isPending || readOnly}
+                  onClick={() => deleteMutation.mutate(product.id)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
             </li>
           ))}
         </ul>
@@ -803,6 +936,40 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
       )}
 
       <div className="flex flex-col gap-4 rounded-md border border-dashed border-border p-4">
+        <div className="flex flex-col gap-1.5">
+          <FieldLabel
+            labelZh={t('experimentsV2.sections.results.characterizationRecord')}
+            unit={null}
+            required={false}
+            r0={false}
+          />
+          <Select
+            value={characterizationRecordId}
+            onValueChange={setCharacterizationRecordId}
+            disabled={readOnly}
+          >
+            <SelectTrigger
+              className="w-full"
+              aria-label={t(
+                'experimentsV2.sections.results.characterizationRecord',
+              )}
+            >
+              <SelectValue
+                placeholder={t('experimentsV2.form.selectPlaceholder')}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {records
+                .filter((record) => record.sample_id === sampleId)
+                .map((record) => (
+                  <SelectItem key={record.id} value={record.id}>
+                    {record.method_instrument ||
+                      t('experimentsV2.sections.results.untitledRecord')}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex flex-col gap-2">
           <FieldLabel
             labelZh={fieldLabel('measured_products', 'observed_phenomena')}
@@ -818,6 +985,7 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
               >
                 <Checkbox
                   checked={selected.includes(option)}
+                  disabled={readOnly}
                   onCheckedChange={(checked) =>
                     togglePhenomenon(option, checked === true)
                   }
@@ -831,7 +999,10 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <FieldLabel
-              labelZh={fieldLabel('measured_products', 'detected_phase_stacking')}
+              labelZh={fieldLabel(
+                'measured_products',
+                'detected_phase_stacking',
+              )}
               unit={null}
               required={false}
               r0={false}
@@ -841,11 +1012,15 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
               onChange={(event) => setPhaseStacking(event.target.value)}
               autoComplete="off"
               placeholder={t('experimentsV2.form.inputPlaceholder')}
+              disabled={readOnly}
             />
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
-              labelZh={fieldLabel('measured_products', 'measured_layers_coverage')}
+              labelZh={fieldLabel(
+                'measured_products',
+                'measured_layers_coverage',
+              )}
               unit={null}
               required={false}
               r0={false}
@@ -855,11 +1030,15 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
               onChange={(event) => setLayersCoverage(event.target.value)}
               autoComplete="off"
               placeholder={t('experimentsV2.form.inputPlaceholder')}
+              disabled={readOnly}
             />
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
-              labelZh={fieldLabel('measured_products', 'domain_nucleation_continuity')}
+              labelZh={fieldLabel(
+                'measured_products',
+                'domain_nucleation_continuity',
+              )}
               unit={null}
               required={false}
               r0={false}
@@ -869,6 +1048,7 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
               onChange={(event) => setDomain(event.target.value)}
               autoComplete="off"
               placeholder={t('experimentsV2.form.inputPlaceholder')}
+              disabled={readOnly}
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -883,6 +1063,7 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
               onChange={(event) => setSpectral(event.target.value)}
               rows={2}
               placeholder={t('experimentsV2.form.inputPlaceholder')}
+              disabled={readOnly}
             />
           </div>
         </div>
@@ -892,10 +1073,12 @@ function MeasuredProducts({ sampleId }: { sampleId: string }) {
             type="button"
             variant="outline"
             size="sm"
-            disabled={createMutation.isPending || !sampleId}
-            onClick={() => createMutation.mutate()}
+            disabled={saveMutation.isPending || !sampleId || readOnly}
+            onClick={() => saveMutation.mutate()}
           >
-            {t('experimentsV2.sections.results.addProduct')}
+            {editingId
+              ? t('actions.save')
+              : t('experimentsV2.sections.results.addProduct')}
           </Button>
         </div>
       </div>

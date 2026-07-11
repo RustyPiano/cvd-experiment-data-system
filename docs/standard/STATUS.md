@@ -92,6 +92,7 @@
 | 07-11 | **收尾批 F2 完成（锁定语义甲落地）**：工艺/结果写守卫分域，locked 仅锁模块 payload、装置引用与 setup diagram，样品可继续增改，表征记录/实测产物可继续增改删，characterization file 可继续上传/软删除；invalid 仍全拒；六条结果 CRUD 全部接线 `refresh_result_missing_todo`；前端工艺/结果禁用边界与双语锁定横幅对齐。**pytest 106/106 · vitest 148/148 · ruff/tsc/eslint/字段源校验全绿** | 本次 |
 | 07-11 | **收尾批 F3 完成（优雅性清扫）**：写操作按炉次可见性统一分层（不可见 404，可见无写权 403）；`status` 边界收紧并重生成 OpenAPI；`v2_service.py` 拆为实体/炉次/结果三域；模块 upsert 与实体追加版本补轻量审计；样品码唯一冲突 rollback 后 409；dev 字段源绕过缓存；清理 draft-only/v1 语义残留命名与前端 status 手工重铸。**pytest 111/111 · vitest 148/148 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
 | 07-11 | **收尾批 F4 完成（表征文件证据链闭环）**：表征记录附件上传/按记录过滤/审计快照接线，跨炉次与样品不匹配拒绝；活跃附件阻止删表征记录，附件软删除后可删；前端每记录单文件上传、列表、下载与 AlertDialog 软删除，locked 可写、invalid 只读。**pytest 118/118 · vitest 153/153 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
+| 07-11 | **收尾批 F5 完成（测试补强）**：`results-section` 补建样、表征/实测 CRUD、表征关联、附件失败 detail 与 locked/invalid 行为级覆盖；12 个复合字段从生成元数据参数化全覆盖；审计 action actor/entity/action 断言补齐；F2 工艺/结果守卫矩阵逐格盘点无缺口。**pytest 118/118 · vitest 171/171 · ruff/format/tsc/eslint/字段源校验全绿** | 本次 |
 
 ## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
 
