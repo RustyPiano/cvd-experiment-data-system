@@ -124,12 +124,6 @@ class SampleService:
                 experiment_run_id=experiment.id,
                 parent_sample_id=payload.parent_sample_id,
                 role=payload.role.value,
-                substrate_type=payload.substrate_type,
-                brand=payload.brand,
-                size_mm=payload.size_mm,
-                treatment=payload.treatment,
-                position_mm=payload.position_mm,
-                storage_location=payload.storage_location,
                 metadata_json=payload.metadata_json,
             )
             try:
@@ -171,12 +165,6 @@ class SampleService:
 
         before = self._serialize_sample(sample)
         sample.parent_sample_id = payload.parent_sample_id
-        sample.substrate_type = payload.substrate_type
-        sample.brand = payload.brand
-        sample.size_mm = payload.size_mm
-        sample.treatment = payload.treatment
-        sample.position_mm = payload.position_mm
-        sample.storage_location = payload.storage_location
         sample.metadata_json = payload.metadata_json
         sample.deleted_at = None
         sample.deleted_by_id = None
@@ -261,12 +249,6 @@ class SampleService:
             "experiment_run_id": str(sample.experiment_run_id),
             "parent_sample_id": str(sample.parent_sample_id) if sample.parent_sample_id else None,
             "role": sample.role,
-            "substrate_type": sample.substrate_type,
-            "brand": sample.brand,
-            "size_mm": sample.size_mm,
-            "treatment": sample.treatment,
-            "position_mm": float(sample.position_mm) if sample.position_mm is not None else None,
-            "storage_location": sample.storage_location,
             "metadata_json": sample.metadata_json,
             "deleted_at": sample.deleted_at.isoformat() if sample.deleted_at else None,
             "deleted_by_id": str(sample.deleted_by_id) if sample.deleted_by_id else None,

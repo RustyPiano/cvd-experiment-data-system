@@ -1,5 +1,5 @@
 from app.models.audit import AuditEvent
-from app.models.experiment import ExperimentRun, ExperimentStatus, QualityLabel
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
 from app.models.sample import Sample, SampleRole
@@ -26,7 +26,6 @@ __all__ = [
     "MaterialLot",
     "MaterialLotVersion",
     "MeasuredProduct",
-    "QualityLabel",
     "Sample",
     "SampleRole",
     "Setup",

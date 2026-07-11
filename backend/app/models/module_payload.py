@@ -13,7 +13,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.experiment import ExperimentRun
 
-MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v1"
+MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
 
 
 json_payload_type = JSON().with_variant(JSONB(), "postgresql")

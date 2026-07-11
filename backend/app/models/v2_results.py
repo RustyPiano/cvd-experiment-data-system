@@ -13,6 +13,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.experiment import ExperimentRun
+    from app.models.file_asset import FileAsset
     from app.models.sample import Sample
     from app.models.v2_entities import Instrument
 
@@ -58,6 +59,7 @@ class CharacterizationRecord(Base):
     experiment_run: Mapped[ExperimentRun] = relationship("ExperimentRun")
     sample: Mapped[Sample] = relationship("Sample")
     instrument: Mapped[Instrument | None] = relationship("Instrument")
+    file_assets: Mapped[list[FileAsset]] = relationship(back_populates="characterization_record")
 
 
 class MeasuredProduct(Base):

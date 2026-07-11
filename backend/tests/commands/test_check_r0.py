@@ -25,14 +25,12 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
     run = ExperimentRun(
         run_code="RUN-R0-CVD",
         owner_id=active_user.id,
-        experiment_type="cvd_v2",
         schema_version="cvd_v2",
         experiment_date=date(2026, 7, 8),
     )
     pvd = ExperimentRun(
         run_code="RUN-R0-PVD",
         owner_id=active_user.id,
-        experiment_type="cvd_v2",
         schema_version="cvd_v2",
         experiment_date=date(2026, 7, 8),
     )

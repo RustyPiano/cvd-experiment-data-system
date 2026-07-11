@@ -12,7 +12,7 @@ def _run(db_session, active_user, *, status: ExperimentStatus) -> ExperimentRun:
     run = ExperimentRun(
         run_code=f"RUN-{status.value.upper()}",
         owner_id=active_user.id,
-        experiment_type="CVD",
+        schema_version="cvd_v2",
         experiment_date=date(2026, 7, 8),
         status=status,
     )

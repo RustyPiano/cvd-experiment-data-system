@@ -44,7 +44,12 @@ export function SampleListPage() {
   const [query, setQuery] = useState('')
 
   const samplesQuery = useQuery({
-    queryKey: ['samples', 'list', session.currentUser?.id ?? 'anonymous', roleFilter],
+    queryKey: [
+      'samples',
+      'list',
+      session.currentUser?.id ?? 'anonymous',
+      roleFilter,
+    ],
     queryFn: () => listSamples(session.accessToken!, roleFilter || null),
     enabled: session.isAuthenticated,
   })
@@ -130,8 +135,6 @@ export function SampleListPage() {
                     <TableHead>所属实验</TableHead>
                     <TableHead>材料体系</TableHead>
                     <TableHead>角色</TableHead>
-                    <TableHead>基底类型</TableHead>
-                    <TableHead>存放位置</TableHead>
                     <TableHead>更新时间</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -171,16 +174,6 @@ export function SampleListPage() {
                         <Badge variant="secondary">
                           {roleLabels[sample.role] ?? sample.role}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {sample.substrate_type || (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {sample.storage_location || (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
                       </TableCell>
                       <TableCell className="tabular-nums text-sm text-muted-foreground">
                         {dayjs(sample.updated_at).format('YYYY-MM-DD HH:mm')}

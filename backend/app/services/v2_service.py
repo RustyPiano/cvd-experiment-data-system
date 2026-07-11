@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.experiment import ExperimentRun, ExperimentStatus, QualityLabel
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.module_payload import ExperimentModulePayload
 from app.models.sample import Sample
 from app.models.user import User, UserRole
@@ -237,14 +237,11 @@ class V2ExperimentService:
         run = ExperimentRun(
             run_code=run_code,
             owner_id=current_user.id,
-            # v2 runs reuse the legacy experiment_type column to tag the schema version.
-            experiment_type=SCHEMA_VERSION,
             schema_version=SCHEMA_VERSION,
             material_system=payload.chemical_formula,
             experiment_date=payload.started_at.date(),
             objective=payload.objective,
             status=ExperimentStatus.DRAFT,
-            quality_label=QualityLabel.UNKNOWN,
         )
         self.db.add(run)
         try:
@@ -664,7 +661,6 @@ class V2ExperimentService:
             run_code=run.run_code,
             owner_id=run.owner_id,
             schema_version=run.schema_version,
-            experiment_type=run.experiment_type,
             material_system=run.material_system,
             experiment_date=run.experiment_date,
             objective=run.objective,

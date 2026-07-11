@@ -915,18 +915,6 @@ export interface components {
             role: components["schemas"]["SampleRole"];
             /** Parent Sample Id */
             parent_sample_id?: string | null;
-            /** Substrate Type */
-            substrate_type?: string | null;
-            /** Brand */
-            brand?: string | null;
-            /** Size Mm */
-            size_mm?: string | null;
-            /** Treatment */
-            treatment?: string | null;
-            /** Position Mm */
-            position_mm?: number | null;
-            /** Storage Location */
-            storage_location?: string | null;
             /** Metadata Json */
             metadata_json?: {
                 [key: string]: unknown;
@@ -961,18 +949,6 @@ export interface components {
             parent_sample_id: string | null;
             /** Role */
             role: string;
-            /** Substrate Type */
-            substrate_type: string | null;
-            /** Brand */
-            brand: string | null;
-            /** Size Mm */
-            size_mm: string | null;
-            /** Treatment */
-            treatment: string | null;
-            /** Position Mm */
-            position_mm: number | null;
-            /** Storage Location */
-            storage_location: string | null;
             /** Metadata Json */
             metadata_json: {
                 [key: string]: unknown;
@@ -1001,18 +977,6 @@ export interface components {
         SampleRole: "top" | "bottom" | "product" | "control";
         /** SampleUpdate */
         SampleUpdate: {
-            /** Substrate Type */
-            substrate_type?: string | null;
-            /** Brand */
-            brand?: string | null;
-            /** Size Mm */
-            size_mm?: string | null;
-            /** Treatment */
-            treatment?: string | null;
-            /** Position Mm */
-            position_mm?: number | null;
-            /** Storage Location */
-            storage_location?: string | null;
             /** Metadata Json */
             metadata_json?: {
                 [key: string]: unknown;
@@ -1148,8 +1112,6 @@ export interface components {
             owner_id: string;
             /** Schema Version */
             schema_version: string;
-            /** Experiment Type */
-            experiment_type: string;
             /** Material System */
             material_system: string | null;
             /**

@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Numeric, String, Text, Uuid, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,12 +46,6 @@ class Sample(Base):
         nullable=True,
     )
     role: Mapped[SampleRole] = mapped_column(String(32), index=True)
-    substrate_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    brand: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    size_mm: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    treatment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    position_mm: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
-    storage_location: Mapped[str | None] = mapped_column(String(128), nullable=True)
     metadata_json: Mapped[dict] = mapped_column(json_payload_type, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

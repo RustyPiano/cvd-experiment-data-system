@@ -10,22 +10,10 @@ from app.models.sample import SampleRole
 class SampleCreate(BaseModel):
     role: SampleRole
     parent_sample_id: UUID | None = None
-    substrate_type: str | None = Field(default=None, max_length=128)
-    brand: str | None = Field(default=None, max_length=128)
-    size_mm: str | None = Field(default=None, max_length=64)
-    treatment: str | None = None
-    position_mm: float | None = None
-    storage_location: str | None = Field(default=None, max_length=128)
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
 class SampleUpdate(BaseModel):
-    substrate_type: str | None = Field(default=None, max_length=128)
-    brand: str | None = Field(default=None, max_length=128)
-    size_mm: str | None = Field(default=None, max_length=64)
-    treatment: str | None = None
-    position_mm: float | None = None
-    storage_location: str | None = Field(default=None, max_length=128)
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -39,12 +27,6 @@ class SampleRead(BaseModel):
     material_system: str | None = None
     parent_sample_id: UUID | None
     role: str
-    substrate_type: str | None
-    brand: str | None
-    size_mm: str | None
-    treatment: str | None
-    position_mm: float | None
-    storage_location: str | None
     metadata_json: dict[str, Any]
     created_at: datetime
     updated_at: datetime

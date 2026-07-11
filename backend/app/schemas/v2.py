@@ -52,7 +52,6 @@ class V2ExperimentRead(BaseModel):
     run_code: str
     owner_id: UUID
     schema_version: str
-    experiment_type: str
     material_system: str | None
     experiment_date: date
     objective: str | None

@@ -35,10 +35,7 @@ class ExperimentRepository:
     def get_by_id(self, experiment_id: UUID) -> ExperimentRun | None:
         statement = (
             select(ExperimentRun)
-            .options(
-                selectinload(ExperimentRun.derived_from_run),
-                selectinload(ExperimentRun.owner),
-            )
+            .options(selectinload(ExperimentRun.owner))
             .where(ExperimentRun.id == experiment_id)
         )
         return self.db.scalar(statement)
@@ -72,7 +69,6 @@ class ExperimentRepository:
         schema_version: str | None = None,
     ) -> tuple[list[ExperimentRun], int]:
         statement = select(ExperimentRun).options(
-            selectinload(ExperimentRun.derived_from_run),
             selectinload(ExperimentRun.owner),
         )
 

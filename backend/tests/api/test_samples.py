@@ -51,7 +51,6 @@ def test_manual_sample_create_list_and_detail(active_user) -> None:
         active_user.email,
         {
             "role": "product",
-            "storage_location": "drawer-1",
             "metadata_json": {"quality": "good"},
         },
     )
@@ -69,6 +68,7 @@ def test_manual_sample_create_list_and_detail(active_user) -> None:
     assert list_response.json()["items"] == [detail_response.json()]
     assert detail_response.json()["run_code"] == run["run_code"]
     assert detail_response.json()["material_system"] == "WSe2"
+    assert "storage_location" not in detail_response.json()
 
 
 def test_patch_sample_updates_owned_draft_sample(active_user) -> None:
@@ -77,12 +77,11 @@ def test_patch_sample_updates_owned_draft_sample(active_user) -> None:
 
     response = client.patch(
         f"/api/v1/samples/{sample['id']}",
-        json={"storage_location": "drawer-2", "metadata_json": {"quality": "good"}},
+        json={"metadata_json": {"quality": "good"}},
         headers=auth_headers(active_user.email),
     )
 
     assert response.status_code == 200
-    assert response.json()["storage_location"] == "drawer-2"
     assert response.json()["metadata_json"] == {"quality": "good"}
 
 

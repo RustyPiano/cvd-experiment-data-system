@@ -26,7 +26,6 @@ import type {
   SampleUpdateRequest,
 } from '@/shared/types/api'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,12 +48,6 @@ import { Route } from '@/routes/_authed/samples/$sampleId'
 type SampleFieldKey = keyof SampleUpdateRequest
 
 type SampleFormState = {
-  substrateType: string
-  brand: string
-  sizeMm: string
-  treatment: string
-  positionMm: string
-  storageLocation: string
   metadataJson: string
 }
 
@@ -62,19 +55,8 @@ type SampleFormState = {
 
 function buildFormState(sample: SampleRead): SampleFormState {
   return {
-    substrateType: sample.substrate_type ?? '',
-    brand: sample.brand ?? '',
-    sizeMm: sample.size_mm ?? '',
-    treatment: sample.treatment ?? '',
-    positionMm: sample.position_mm === null ? '' : String(sample.position_mm),
-    storageLocation: sample.storage_location ?? '',
     metadataJson: JSON.stringify(sample.metadata_json ?? {}, null, 2),
   }
-}
-
-function toNullableString(value: string) {
-  const normalized = value.trim()
-  return normalized ? normalized : null
 }
 
 function validateMetadataJson(rawValue: string): string | null {
@@ -98,33 +80,6 @@ function buildSampleUpdatePayload(
   const payload: SampleUpdateRequest = {}
   const dirtyFieldSet = new Set(dirtyFields)
 
-  if (dirtyFieldSet.has('substrate_type')) {
-    payload.substrate_type = toNullableString(formState.substrateType)
-  }
-  if (dirtyFieldSet.has('brand')) {
-    payload.brand = toNullableString(formState.brand)
-  }
-  if (dirtyFieldSet.has('size_mm')) {
-    payload.size_mm = toNullableString(formState.sizeMm)
-  }
-  if (dirtyFieldSet.has('treatment')) {
-    payload.treatment = toNullableString(formState.treatment)
-  }
-  if (dirtyFieldSet.has('position_mm')) {
-    const trimmedPosition = formState.positionMm.trim()
-    if (!trimmedPosition) {
-      payload.position_mm = null
-    } else {
-      const parsedPosition = Number(trimmedPosition)
-      if (!Number.isFinite(parsedPosition)) {
-        throw new Error('相对温区位置必须是有限数字')
-      }
-      payload.position_mm = parsedPosition
-    }
-  }
-  if (dirtyFieldSet.has('storage_location')) {
-    payload.storage_location = toNullableString(formState.storageLocation)
-  }
   if (dirtyFieldSet.has('metadata_json')) {
     let parsedMetadata: Record<string, unknown>
     try {
@@ -418,7 +373,7 @@ export function SampleDetailPage() {
 
       <PageHeader
         title={`样品详情 · ${sample.sample_code}`}
-        subtitle="查看和编辑样品信息，浏览关联文件。仅草稿实验可编辑。"
+        subtitle="查看样品归属、元数据与关联文件。仅草稿实验可编辑。"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
@@ -496,111 +451,16 @@ export function SampleDetailPage() {
                 </Alert>
               ) : null}
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="substrate-type">基底类型</Label>
-                  <Input
-                    id="substrate-type"
-                    autoComplete="off"
-                    disabled={formDisabled}
-                    value={formState.substrateType}
-                    onChange={(e) =>
-                      updateFormState('substrate_type', (cur) => ({
-                        ...cur,
-                        substrateType: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="brand">品牌</Label>
-                  <Input
-                    id="brand"
-                    autoComplete="off"
-                    disabled={formDisabled}
-                    value={formState.brand}
-                    onChange={(e) =>
-                      updateFormState('brand', (cur) => ({
-                        ...cur,
-                        brand: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="size-mm">尺寸</Label>
-                  <Input
-                    id="size-mm"
-                    autoComplete="off"
-                    disabled={formDisabled}
-                    value={formState.sizeMm}
-                    onChange={(e) =>
-                      updateFormState('size_mm', (cur) => ({
-                        ...cur,
-                        sizeMm: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="position-mm">相对温区位置</Label>
-                  <Input
-                    id="position-mm"
-                    autoComplete="off"
-                    inputMode="decimal"
-                    placeholder="数字，可留空"
-                    disabled={formDisabled}
-                    value={formState.positionMm}
-                    onChange={(e) =>
-                      updateFormState('position_mm', (cur) => ({
-                        ...cur,
-                        positionMm: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <Label htmlFor="treatment">处理方式</Label>
-                  <Textarea
-                    id="treatment"
-                    autoComplete="off"
-                    rows={2}
-                    disabled={formDisabled}
-                    value={formState.treatment}
-                    onChange={(e) =>
-                      updateFormState('treatment', (cur) => ({
-                        ...cur,
-                        treatment: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="storage-location">存放位置</Label>
-                  <Input
-                    id="storage-location"
-                    autoComplete="off"
-                    disabled={formDisabled}
-                    value={formState.storageLocation}
-                    onChange={(e) =>
-                      updateFormState('storage_location', (cur) => ({
-                        ...cur,
-                        storageLocation: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5 sm:col-span-2">
                   <Label htmlFor="metadata-json">
                     元数据 JSON
                     {metadataJsonError ? (
-                      <span id="metadata-json-error" className="ml-2 text-xs text-destructive" role="alert">
+                      <span
+                        id="metadata-json-error"
+                        className="ml-2 text-xs text-destructive"
+                        role="alert"
+                      >
                         {metadataJsonError}
                       </span>
                     ) : null}
@@ -612,7 +472,9 @@ export function SampleDetailPage() {
                     disabled={formDisabled}
                     className={metadataJsonError ? 'border-destructive' : ''}
                     aria-invalid={metadataJsonError ? 'true' : undefined}
-                    aria-describedby={metadataJsonError ? 'metadata-json-error' : undefined}
+                    aria-describedby={
+                      metadataJsonError ? 'metadata-json-error' : undefined
+                    }
                     value={formState.metadataJson}
                     onChange={(e) =>
                       updateFormState('metadata_json', (cur) => ({

@@ -6,7 +6,7 @@
 ## 0. 一分钟速览（给接手的 Agent）
 - 这是一个 **CVD 二维材料实验数据采集系统**。
 - **线上运行 = v1**（`cvd_v1` / 68 字段），但 **2026-07-09 已定案：v1 试运行数据可弃、完全拆除 v1、v2 单轨化**——拆除+重基线计划见 **`docs/v2-single-track-plan.md`**（批0–批8，取代原 P5 迁移/P6 切换；**迁移全线作废**；**2026-07-11 经 5 组取证复评修订**——批2 补两层+三处红线切耦合、批3 扩范围、批6 换方案、新增批8 生产切换人工门，执行前以修订版为准）。v2 代码已开发完成（P0–P5 工具，见 §5）。
-- 当前阶段：两线并行——**线 A** 单轨化拆除**执行中**（批0 用户豁免（测试数据）、批1–4 已完成，批4 UI 手工走查修复已收尾，下一步批5）；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
+- 当前阶段：两线并行——**线 A** 单轨化拆除**执行中**（批0 用户豁免（测试数据）、批1–5 已完成，下一步批6）；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
@@ -17,7 +17,7 @@
 
 ## 1. 系统现状
 - **线上运行 = v1**（schema `cvd_v1`，68 字段）；**生产数据未迁移**。
-- **v2 代码已在仓库**（2026-07-08 完成；2026-07-11 批2 起 v1 后端面已拆除）：实体三件套+锁版（Alembic `0032–0034`）、`/api/v1/v2` 全套端点、生成器（seed 已随批2 删除，余①②④⑤）、`experiments`/`entity-library` 前端、`check_r0` 命令。**门禁：后端 pytest 81 · 前端 vitest 114 · CI 四 job 全绿（本地）；commit 尚未 push**。
+- **v2 代码已在仓库**（2026-07-08 完成；2026-07-11 批2 起 v1 后端面已拆除）：实体三件套+锁版（Alembic **单一 initial `20260711_0001`**）、`/api/v1/v2` 全套端点、生成器（seed 已随批2 删除，余①②④⑤）、`experiments`/`entity-library` 前端、`check_r0` 命令。**门禁：后端 pytest 86 · 前端 vitest 128 · ruff/tsc/eslint 全绿（本地）；commit 尚未 push**。
 - 工程约定见根 `AGENTS.md`；实现路线与红线见 `docs/v2-implementation-plan.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）
@@ -83,11 +83,12 @@
 | 07-11 | **单轨化批3完成（v2 状态机收编）**：新增 submit/lock/unlock/invalidate/return-to-draft 五端点，R0 服务门、全转移审计、结果缺失待办接线、五条锁定写守卫、读模型时间戳/待办字段；`list_runs` schema 过滤与 count 下推、实体版本冲突转 409；前端状态徽章/动作/缺失清单/终态只读体验与双语文案。**pytest 81/81 · vitest 124/124 · ruff/tsc/eslint/字段源校验全绿** | 本次 |
 | 07-11 | **单轨化批4完成（前端收编）**：删除五组 v1 feature（20,493 行）与对应路由（112 行），`experiments-v2` URL 收编为 `/experiments`、侧边栏单轨；OpenAPI 类型从当前后端全量重生成并清除 legacy 声明；`experiment-v2-form` 三重枚举收敛为 `MODULE_SPECS`，新增 12 条行为测试覆盖各模块 payload/setup-reference/失败路径。**pytest 81/81 · vitest 114/114 · tsc/eslint/字段源校验全绿；UI 手工走查待用户** | 本次 |
 | 07-11 | **批4 走查修复（3 个 E2E 发现）**：12 个复合输入按 YAML `input` 元数据渲染自由值+下拉并无损拼接/回读；`target_product.chemical_formula` 补录/清空同步 `material_system`；Select 空初值保持受控。补齐纯函数、双代表控件、受控值及后端更新/清空/旁路回归测试。 | 本次 |
+| 07-11 | **单轨化批5完成（Schema 重基线）**：34 段 Alembic 链 squash 为单一 initial，终态仅 14 表；炉次/样品模型与 API 删 v1 列，`schema_version` 非空，module 默认 `cvd_v2`，`basic_info.run_code` 双存保持原快照语义，`file_assets` 预埋表征 FK 与双向 ORM 关系；OpenAPI 与 samples UI 收敛。**pytest 86/86 · vitest 128/128 · alembic check/upgrade/downgrade · ruff/tsc/eslint 全绿** | 本次 |
 
 ## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
 
 **线 A：v1 单轨化拆除（工程线，已批准待执行，详见 `docs/v2-single-track-plan.md`）**
-1. 批0 备份留档（已豁免）→ 批1 删旧 `frontend/`（已完成）→ 批2 后端 v1 拆除（已完成）→ 批3 v2 状态机收编（已完成）→ 批4 前端收编（已完成，UI 手工走查修复已收尾）→ **批5 Schema 重基线**（squash 34 迁移、删 v1 列/表、file_assets 预埋表征 FK）→ 批6 API 收编 `/api/v1/v2`→`/api/v1` + 管线加固（解析器收敛至下限 2 份+跨语言 fixture+护栏补齐）→ 批7 文档收尾 → **批8 生产切换（人工门，用户在场：停容器→重建库→部署→建管理员→线上冒烟）**。每批独立 commit、门禁全绿再进；**红线：批8 完成前禁止 `deploy.sh`**（中间态部署即断/崩）。
+1. 批0 备份留档（已豁免）→ 批1 删旧 `frontend/`（已完成）→ 批2 后端 v1 拆除（已完成）→ 批3 v2 状态机收编（已完成）→ 批4 前端收编（已完成，UI 手工走查修复已收尾）→ 批5 Schema 重基线（已完成）→ **批6 API 收编 `/api/v1/v2`→`/api/v1` + 管线加固**（解析器收敛至下限 2 份+跨语言 fixture+护栏补齐）→ 批7 文档收尾 → **批8 生产切换（人工门，用户在场：停容器→重建库→部署→建管理员→线上冒烟）**。每批独立 commit、门禁全绿再进；**红线：批8 完成前禁止 `deploy.sh`**（中间态部署即断/崩）。
 2. 后续项（不阻塞）：表征文件上传功能（FK 已预埋）；`formula.ts` 双源留注释。
 
 **线 B：标准冻结（外部线，不受线 A 影响）**

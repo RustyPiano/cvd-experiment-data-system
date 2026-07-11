@@ -13,6 +13,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.experiment import ExperimentRun
     from app.models.sample import Sample
+    from app.models.v2_results import CharacterizationRecord
 
 
 json_payload_type = JSON().with_variant(JSONB(), "postgresql")
@@ -34,6 +35,12 @@ class FileAsset(Base):
     sample_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("samples.id"),
+        nullable=True,
+        index=True,
+    )
+    characterization_record_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("characterization_records.id"),
         nullable=True,
         index=True,
     )
@@ -74,3 +81,6 @@ class FileAsset(Base):
 
     experiment_run: Mapped[ExperimentRun] = relationship(back_populates="file_assets")
     sample: Mapped[Sample | None] = relationship(back_populates="file_assets")
+    characterization_record: Mapped[CharacterizationRecord | None] = relationship(
+        back_populates="file_assets"
+    )

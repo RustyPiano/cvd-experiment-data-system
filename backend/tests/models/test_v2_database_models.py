@@ -9,9 +9,10 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from app.models.experiment import ExperimentRun
+from app.models.file_asset import FileAsset
 from app.models.sample import Sample, SampleRole
 from app.models.v2_entities import MaterialLot, MaterialLotVersion, Setup, SetupVersion
-from app.models.v2_results import MeasuredProduct
+from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.services.v2_entity_snapshot_service import apply_setup_reference
 
 FIELD_SOURCE = Path(__file__).resolve().parents[3] / "docs" / "standard" / "field-source.yaml"
@@ -100,7 +101,7 @@ def test_measured_products_reference_samples(db_session, active_user) -> None:
     run = ExperimentRun(
         run_code="RUN-V2-RESULT",
         owner_id=active_user.id,
-        experiment_type="CVD",
+        schema_version="cvd_v2",
         experiment_date=date(2026, 7, 8),
     )
     db_session.add(run)
@@ -125,6 +126,11 @@ def test_measured_products_reference_samples(db_session, active_user) -> None:
     assert product.sample.sample_code == "S-V2-RESULT"
 
 
+def test_characterization_records_and_file_assets_have_optional_relationships() -> None:
+    assert CharacterizationRecord.file_assets.property.mapper.class_ is FileAsset
+    assert FileAsset.characterization_record.property.mapper.class_ is CharacterizationRecord
+
+
 def test_setup_reference_freezes_version_snapshot_on_experiment_run(
     db_session,
     active_user,
@@ -132,7 +138,7 @@ def test_setup_reference_freezes_version_snapshot_on_experiment_run(
     run = ExperimentRun(
         run_code="RUN-V2-SETUP",
         owner_id=active_user.id,
-        experiment_type="CVD",
+        schema_version="cvd_v2",
         experiment_date=date(2026, 7, 8),
     )
     setup = Setup()

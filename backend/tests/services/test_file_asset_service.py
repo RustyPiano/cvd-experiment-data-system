@@ -33,7 +33,7 @@ def create_draft_experiment(service: FileAssetService, owner_id) -> ExperimentRu
         ExperimentRun(
             run_code="CVD-2026-0001",
             owner_id=owner_id,
-            experiment_type="cvd_2zone",
+            schema_version="cvd_v2",
             material_system="MoS2",
             experiment_date=datetime(2026, 4, 23).date(),
             objective="File asset service tests",
