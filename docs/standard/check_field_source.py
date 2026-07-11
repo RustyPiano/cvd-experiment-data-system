@@ -64,6 +64,24 @@ stage_types = doc.get("stage_types", {})
 group_names = set((stage_types.get("groups") or {}).keys())
 
 seen_keys: dict[str, set] = {}
+all_fields = [*iter_fields("experiment_record"), *iter_fields("entities")]
+
+
+def field_scope(field):
+    return modules_map.get(field["module"]) or entity_keys.get(field["module"])
+
+
+def resolves_condition_field(raw_field):
+    if not isinstance(raw_field, str) or "." not in raw_field:
+        return False
+    module, label = raw_field.split(".", 1)
+    scope = modules_map.get(module) or entity_keys.get(module)
+    return bool(scope) and any(
+        field_scope(candidate) == scope and candidate["label"] == label
+        for candidate in all_fields
+    )
+
+
 for part, scope_of in (("experiment_record", lambda f: modules_map.get(f["module"])),
                        ("entities", lambda f: entity_keys.get(f["module"]))):
     for f in iter_fields(part):
@@ -74,8 +92,18 @@ for part, scope_of in (("experiment_record", lambda f: modules_map.get(f["module
             err(f"{where}: 未知必填级别 level={level!r}")
         if level in ("conditional_required", "conditional_recommended") and not req.get("condition"):
             err(f"{where}: 条件级别缺少 condition 表达式")
-        if req.get("condition") and not {"field", "op", "value"} <= set(req["condition"]):
+        condition = req.get("condition")
+        if condition and not {"field", "op", "value"} <= set(condition):
             err(f"{where}: condition 缺少 field/op/value")
+        elif condition:
+            if not resolves_condition_field(condition["field"]):
+                err(f"{where}: condition.field 无法解析: {condition['field']!r}")
+            if condition["op"] not in {"eq", "ne", "in"}:
+                err(f"{where}: condition.op 不支持: {condition['op']!r}")
+            if condition["op"] == "in" and not isinstance(condition["value"], list):
+                err(f"{where}: condition.op='in' 时 value 必须为 list")
+        if "下拉" in str(f.get("input") or "") and str(f.get("options") or "").strip() in {"", "—"}:
+            err(f"{where}: 下拉字段 options 必须非空且不能为 '—'")
         if f.get("status") == "pending-alignment" and not f.get("pending"):
             err(f"{where}: pending-alignment 缺少 pending 说明")
         # D10: 机器字段键——必有、合法、模块/实体内唯一

@@ -260,6 +260,8 @@ experiment_record:
       label: 组成明细(components)
       label_en: Composition details (components)
       key: components
+      ui:
+        visibility_gated: true
       meaning: 逐组分结构化（复合体系的权威数据源）
       input: 数组items[]
       options: 每条:化学式/角色(基体·掺杂剂·上层·下层·横向域)/浓度(at%)/层序(整数)
@@ -552,6 +554,8 @@ experiment_record:
       label: 外观描述
       label_en: Appearance at time of use
       key: appearance
+      ui:
+        visibility_gated: true
       meaning: 使用时外观/性状——溯源时判断是否潮解、变质（湿度隐变量的可观察代理）
       input: 下拉+其他
       options: 白色粉末/白色晶粒/淡黄色粉末/结块或潮解/变色/其他
@@ -706,6 +710,8 @@ experiment_record:
       label: 氧化层厚度
       label_en: Oxide layer thickness
       key: oxide_thickness_nm
+      ui:
+        visibility_gated: true
       meaning: SiO₂ 层厚度（决定光学判层数）
       input: 数值
       options: 写成 SiO₂/Si(285nm)

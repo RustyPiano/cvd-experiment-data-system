@@ -40,6 +40,7 @@ interface RawField {
   requirement: RawRequirement
   r0?: boolean
   group?: string
+  ui?: { visibility_gated?: boolean }
 }
 interface RawSection {
   title: string
@@ -80,6 +81,7 @@ interface FieldMetadata {
   }
   r0: boolean
   group: string | null
+  visibilityGated?: true
 }
 
 function toFieldMetadata(field: RawField): FieldMetadata {
@@ -101,6 +103,7 @@ function toFieldMetadata(field: RawField): FieldMetadata {
     requirement: { raw: req.raw, level: req.level, condition },
     r0: Boolean(field.r0),
     group: field.group ?? null,
+    ...(field.ui?.visibility_gated ? { visibilityGated: true as const } : {}),
   }
 }
 
@@ -194,6 +197,8 @@ export interface FieldMetadata {
   r0: boolean
   /** §5 过程步字段的参数组（stageGroups 的键）；其余字段为 null */
   group: string | null
+  /** 条件不成立时隐藏，而非仅切换必填状态 */
+  visibilityGated?: true
 }
 
 export interface StageType {
@@ -219,8 +224,7 @@ const content = [
   `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
   `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
   `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,
-  '',
-].join('\n\n')
+].join('\n\n') + '\n'
 
 await Bun.write(OUT, content)
 

@@ -227,7 +227,7 @@ export interface paths {
         patch: operations["update_sample_api_v1_samples__sample_id__patch"];
         trace?: never;
     };
-    "/api/v1/v2/material-lots": {
+    "/api/v1/material-lots": {
         parameters: {
             query?: never;
             header?: never;
@@ -235,17 +235,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Material Lots */
-        get: operations["list_material_lots_api_v1_v2_material_lots_get"];
+        get: operations["list_material_lots_api_v1_material_lots_get"];
         put?: never;
         /** Create Material Lot */
-        post: operations["create_material_lot_api_v1_v2_material_lots_post"];
+        post: operations["create_material_lot_api_v1_material_lots_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/material-lots/{entity_id}": {
+    "/api/v1/material-lots/{entity_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -253,7 +253,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Material Lot */
-        get: operations["get_material_lot_api_v1_v2_material_lots__entity_id__get"];
+        get: operations["get_material_lot_api_v1_material_lots__entity_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -262,7 +262,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/material-lots/{entity_id}/versions": {
+    "/api/v1/material-lots/{entity_id}/versions": {
         parameters: {
             query?: never;
             header?: never;
@@ -270,17 +270,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Material Lot Versions */
-        get: operations["list_material_lot_versions_api_v1_v2_material_lots__entity_id__versions_get"];
+        get: operations["list_material_lot_versions_api_v1_material_lots__entity_id__versions_get"];
         put?: never;
         /** Append Material Lot Version */
-        post: operations["append_material_lot_version_api_v1_v2_material_lots__entity_id__versions_post"];
+        post: operations["append_material_lot_version_api_v1_material_lots__entity_id__versions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/setups": {
+    "/api/v1/setups": {
         parameters: {
             query?: never;
             header?: never;
@@ -288,17 +288,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Setups */
-        get: operations["list_setups_api_v1_v2_setups_get"];
+        get: operations["list_setups_api_v1_setups_get"];
         put?: never;
         /** Create Setup */
-        post: operations["create_setup_api_v1_v2_setups_post"];
+        post: operations["create_setup_api_v1_setups_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/setups/{entity_id}": {
+    "/api/v1/setups/{entity_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -306,7 +306,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Setup */
-        get: operations["get_setup_api_v1_v2_setups__entity_id__get"];
+        get: operations["get_setup_api_v1_setups__entity_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -315,7 +315,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/setups/{entity_id}/versions": {
+    "/api/v1/setups/{entity_id}/versions": {
         parameters: {
             query?: never;
             header?: never;
@@ -323,17 +323,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Setup Versions */
-        get: operations["list_setup_versions_api_v1_v2_setups__entity_id__versions_get"];
+        get: operations["list_setup_versions_api_v1_setups__entity_id__versions_get"];
         put?: never;
         /** Append Setup Version */
-        post: operations["append_setup_version_api_v1_v2_setups__entity_id__versions_post"];
+        post: operations["append_setup_version_api_v1_setups__entity_id__versions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/instruments": {
+    "/api/v1/instruments": {
         parameters: {
             query?: never;
             header?: never;
@@ -341,17 +341,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Instruments */
-        get: operations["list_instruments_api_v1_v2_instruments_get"];
+        get: operations["list_instruments_api_v1_instruments_get"];
         put?: never;
         /** Create Instrument */
-        post: operations["create_instrument_api_v1_v2_instruments_post"];
+        post: operations["create_instrument_api_v1_instruments_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/instruments/{entity_id}": {
+    "/api/v1/instruments/{entity_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -359,7 +359,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Instrument */
-        get: operations["get_instrument_api_v1_v2_instruments__entity_id__get"];
+        get: operations["get_instrument_api_v1_instruments__entity_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -368,7 +368,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/instruments/{entity_id}/versions": {
+    "/api/v1/instruments/{entity_id}/versions": {
         parameters: {
             query?: never;
             header?: never;
@@ -376,17 +376,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Instrument Versions */
-        get: operations["list_instrument_versions_api_v1_v2_instruments__entity_id__versions_get"];
+        get: operations["list_instrument_versions_api_v1_instruments__entity_id__versions_get"];
         put?: never;
         /** Append Instrument Version */
-        post: operations["append_instrument_version_api_v1_v2_instruments__entity_id__versions_post"];
+        post: operations["append_instrument_version_api_v1_instruments__entity_id__versions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments": {
+    "/api/v1/experiments": {
         parameters: {
             query?: never;
             header?: never;
@@ -394,17 +394,17 @@ export interface paths {
             cookie?: never;
         };
         /** List V2 Experiments */
-        get: operations["list_v2_experiments_api_v1_v2_experiments_get"];
+        get: operations["list_v2_experiments_api_v1_experiments_get"];
         put?: never;
         /** Create V2 Experiment */
-        post: operations["create_v2_experiment_api_v1_v2_experiments_post"];
+        post: operations["create_v2_experiment_api_v1_experiments_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}": {
+    "/api/v1/experiments/{run_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -412,7 +412,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get V2 Experiment */
-        get: operations["get_v2_experiment_api_v1_v2_experiments__run_id__get"];
+        get: operations["get_v2_experiment_api_v1_experiments__run_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -421,7 +421,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/submit": {
+    "/api/v1/experiments/{run_id}/submit": {
         parameters: {
             query?: never;
             header?: never;
@@ -431,14 +431,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Submit V2 Experiment */
-        post: operations["submit_v2_experiment_api_v1_v2_experiments__run_id__submit_post"];
+        post: operations["submit_v2_experiment_api_v1_experiments__run_id__submit_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/lock": {
+    "/api/v1/experiments/{run_id}/lock": {
         parameters: {
             query?: never;
             header?: never;
@@ -448,14 +448,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Lock V2 Experiment */
-        post: operations["lock_v2_experiment_api_v1_v2_experiments__run_id__lock_post"];
+        post: operations["lock_v2_experiment_api_v1_experiments__run_id__lock_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/unlock": {
+    "/api/v1/experiments/{run_id}/unlock": {
         parameters: {
             query?: never;
             header?: never;
@@ -465,14 +465,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Unlock V2 Experiment */
-        post: operations["unlock_v2_experiment_api_v1_v2_experiments__run_id__unlock_post"];
+        post: operations["unlock_v2_experiment_api_v1_experiments__run_id__unlock_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/return-to-draft": {
+    "/api/v1/experiments/{run_id}/return-to-draft": {
         parameters: {
             query?: never;
             header?: never;
@@ -482,14 +482,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Return V2 Experiment To Draft */
-        post: operations["return_v2_experiment_to_draft_api_v1_v2_experiments__run_id__return_to_draft_post"];
+        post: operations["return_v2_experiment_to_draft_api_v1_experiments__run_id__return_to_draft_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/invalidate": {
+    "/api/v1/experiments/{run_id}/invalidate": {
         parameters: {
             query?: never;
             header?: never;
@@ -499,14 +499,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Invalidate V2 Experiment */
-        post: operations["invalidate_v2_experiment_api_v1_v2_experiments__run_id__invalidate_post"];
+        post: operations["invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/setup-reference": {
+    "/api/v1/experiments/{run_id}/setup-reference": {
         parameters: {
             query?: never;
             header?: never;
@@ -515,7 +515,7 @@ export interface paths {
         };
         get?: never;
         /** Set V2 Setup Reference */
-        put: operations["set_v2_setup_reference_api_v1_v2_experiments__run_id__setup_reference_put"];
+        put: operations["set_v2_setup_reference_api_v1_experiments__run_id__setup_reference_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -523,7 +523,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/modules/{module_key}": {
+    "/api/v1/experiments/{run_id}/modules/{module_key}": {
         parameters: {
             query?: never;
             header?: never;
@@ -531,9 +531,9 @@ export interface paths {
             cookie?: never;
         };
         /** Get V2 Module */
-        get: operations["get_v2_module_api_v1_v2_experiments__run_id__modules__module_key__get"];
+        get: operations["get_v2_module_api_v1_experiments__run_id__modules__module_key__get"];
         /** Upsert V2 Module */
-        put: operations["upsert_v2_module_api_v1_v2_experiments__run_id__modules__module_key__put"];
+        put: operations["upsert_v2_module_api_v1_experiments__run_id__modules__module_key__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -541,7 +541,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/experiments/{run_id}/characterization-records": {
+    "/api/v1/experiments/{run_id}/characterization-records": {
         parameters: {
             query?: never;
             header?: never;
@@ -549,17 +549,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Characterization Records */
-        get: operations["list_characterization_records_api_v1_v2_experiments__run_id__characterization_records_get"];
+        get: operations["list_characterization_records_api_v1_experiments__run_id__characterization_records_get"];
         put?: never;
         /** Create Characterization Record */
-        post: operations["create_characterization_record_api_v1_v2_experiments__run_id__characterization_records_post"];
+        post: operations["create_characterization_record_api_v1_experiments__run_id__characterization_records_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/characterization-records/{record_id}": {
+    "/api/v1/characterization-records/{record_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -570,14 +570,14 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Characterization Record */
-        delete: operations["delete_characterization_record_api_v1_v2_characterization_records__record_id__delete"];
+        delete: operations["delete_characterization_record_api_v1_characterization_records__record_id__delete"];
         options?: never;
         head?: never;
         /** Update Characterization Record */
-        patch: operations["update_characterization_record_api_v1_v2_characterization_records__record_id__patch"];
+        patch: operations["update_characterization_record_api_v1_characterization_records__record_id__patch"];
         trace?: never;
     };
-    "/api/v1/v2/samples/{sample_id}/measured-products": {
+    "/api/v1/samples/{sample_id}/measured-products": {
         parameters: {
             query?: never;
             header?: never;
@@ -585,17 +585,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Measured Products */
-        get: operations["list_measured_products_api_v1_v2_samples__sample_id__measured_products_get"];
+        get: operations["list_measured_products_api_v1_samples__sample_id__measured_products_get"];
         put?: never;
         /** Create Measured Product */
-        post: operations["create_measured_product_api_v1_v2_samples__sample_id__measured_products_post"];
+        post: operations["create_measured_product_api_v1_samples__sample_id__measured_products_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/v2/measured-products/{product_id}": {
+    "/api/v1/measured-products/{product_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -606,11 +606,11 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Measured Product */
-        delete: operations["delete_measured_product_api_v1_v2_measured_products__product_id__delete"];
+        delete: operations["delete_measured_product_api_v1_measured_products__product_id__delete"];
         options?: never;
         head?: never;
         /** Update Measured Product */
-        patch: operations["update_measured_product_api_v1_v2_measured_products__product_id__patch"];
+        patch: operations["update_measured_product_api_v1_measured_products__product_id__patch"];
         trace?: never;
     };
 }
@@ -1664,7 +1664,7 @@ export interface operations {
             };
         };
     };
-    list_material_lots_api_v1_v2_material_lots_get: {
+    list_material_lots_api_v1_material_lots_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1684,7 +1684,7 @@ export interface operations {
             };
         };
     };
-    create_material_lot_api_v1_v2_material_lots_post: {
+    create_material_lot_api_v1_material_lots_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1717,7 +1717,7 @@ export interface operations {
             };
         };
     };
-    get_material_lot_api_v1_v2_material_lots__entity_id__get: {
+    get_material_lot_api_v1_material_lots__entity_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1748,7 +1748,7 @@ export interface operations {
             };
         };
     };
-    list_material_lot_versions_api_v1_v2_material_lots__entity_id__versions_get: {
+    list_material_lot_versions_api_v1_material_lots__entity_id__versions_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1779,7 +1779,7 @@ export interface operations {
             };
         };
     };
-    append_material_lot_version_api_v1_v2_material_lots__entity_id__versions_post: {
+    append_material_lot_version_api_v1_material_lots__entity_id__versions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1814,7 +1814,7 @@ export interface operations {
             };
         };
     };
-    list_setups_api_v1_v2_setups_get: {
+    list_setups_api_v1_setups_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1834,7 +1834,7 @@ export interface operations {
             };
         };
     };
-    create_setup_api_v1_v2_setups_post: {
+    create_setup_api_v1_setups_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1867,7 +1867,7 @@ export interface operations {
             };
         };
     };
-    get_setup_api_v1_v2_setups__entity_id__get: {
+    get_setup_api_v1_setups__entity_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1898,7 +1898,7 @@ export interface operations {
             };
         };
     };
-    list_setup_versions_api_v1_v2_setups__entity_id__versions_get: {
+    list_setup_versions_api_v1_setups__entity_id__versions_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1929,7 +1929,7 @@ export interface operations {
             };
         };
     };
-    append_setup_version_api_v1_v2_setups__entity_id__versions_post: {
+    append_setup_version_api_v1_setups__entity_id__versions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1964,7 +1964,7 @@ export interface operations {
             };
         };
     };
-    list_instruments_api_v1_v2_instruments_get: {
+    list_instruments_api_v1_instruments_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1984,7 +1984,7 @@ export interface operations {
             };
         };
     };
-    create_instrument_api_v1_v2_instruments_post: {
+    create_instrument_api_v1_instruments_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2017,7 +2017,7 @@ export interface operations {
             };
         };
     };
-    get_instrument_api_v1_v2_instruments__entity_id__get: {
+    get_instrument_api_v1_instruments__entity_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2048,7 +2048,7 @@ export interface operations {
             };
         };
     };
-    list_instrument_versions_api_v1_v2_instruments__entity_id__versions_get: {
+    list_instrument_versions_api_v1_instruments__entity_id__versions_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2079,7 +2079,7 @@ export interface operations {
             };
         };
     };
-    append_instrument_version_api_v1_v2_instruments__entity_id__versions_post: {
+    append_instrument_version_api_v1_instruments__entity_id__versions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2114,7 +2114,7 @@ export interface operations {
             };
         };
     };
-    list_v2_experiments_api_v1_v2_experiments_get: {
+    list_v2_experiments_api_v1_experiments_get: {
         parameters: {
             query?: {
                 page?: number;
@@ -2146,7 +2146,7 @@ export interface operations {
             };
         };
     };
-    create_v2_experiment_api_v1_v2_experiments_post: {
+    create_v2_experiment_api_v1_experiments_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2179,7 +2179,7 @@ export interface operations {
             };
         };
     };
-    get_v2_experiment_api_v1_v2_experiments__run_id__get: {
+    get_v2_experiment_api_v1_experiments__run_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2210,7 +2210,7 @@ export interface operations {
             };
         };
     };
-    submit_v2_experiment_api_v1_v2_experiments__run_id__submit_post: {
+    submit_v2_experiment_api_v1_experiments__run_id__submit_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2241,7 +2241,7 @@ export interface operations {
             };
         };
     };
-    lock_v2_experiment_api_v1_v2_experiments__run_id__lock_post: {
+    lock_v2_experiment_api_v1_experiments__run_id__lock_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2272,7 +2272,7 @@ export interface operations {
             };
         };
     };
-    unlock_v2_experiment_api_v1_v2_experiments__run_id__unlock_post: {
+    unlock_v2_experiment_api_v1_experiments__run_id__unlock_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2303,7 +2303,7 @@ export interface operations {
             };
         };
     };
-    return_v2_experiment_to_draft_api_v1_v2_experiments__run_id__return_to_draft_post: {
+    return_v2_experiment_to_draft_api_v1_experiments__run_id__return_to_draft_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2334,7 +2334,7 @@ export interface operations {
             };
         };
     };
-    invalidate_v2_experiment_api_v1_v2_experiments__run_id__invalidate_post: {
+    invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2369,7 +2369,7 @@ export interface operations {
             };
         };
     };
-    set_v2_setup_reference_api_v1_v2_experiments__run_id__setup_reference_put: {
+    set_v2_setup_reference_api_v1_experiments__run_id__setup_reference_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -2404,7 +2404,7 @@ export interface operations {
             };
         };
     };
-    get_v2_module_api_v1_v2_experiments__run_id__modules__module_key__get: {
+    get_v2_module_api_v1_experiments__run_id__modules__module_key__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2436,7 +2436,7 @@ export interface operations {
             };
         };
     };
-    upsert_v2_module_api_v1_v2_experiments__run_id__modules__module_key__put: {
+    upsert_v2_module_api_v1_experiments__run_id__modules__module_key__put: {
         parameters: {
             query?: never;
             header?: never;
@@ -2472,7 +2472,7 @@ export interface operations {
             };
         };
     };
-    list_characterization_records_api_v1_v2_experiments__run_id__characterization_records_get: {
+    list_characterization_records_api_v1_experiments__run_id__characterization_records_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2503,7 +2503,7 @@ export interface operations {
             };
         };
     };
-    create_characterization_record_api_v1_v2_experiments__run_id__characterization_records_post: {
+    create_characterization_record_api_v1_experiments__run_id__characterization_records_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2538,7 +2538,7 @@ export interface operations {
             };
         };
     };
-    delete_characterization_record_api_v1_v2_characterization_records__record_id__delete: {
+    delete_characterization_record_api_v1_characterization_records__record_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -2567,7 +2567,7 @@ export interface operations {
             };
         };
     };
-    update_characterization_record_api_v1_v2_characterization_records__record_id__patch: {
+    update_characterization_record_api_v1_characterization_records__record_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -2602,7 +2602,7 @@ export interface operations {
             };
         };
     };
-    list_measured_products_api_v1_v2_samples__sample_id__measured_products_get: {
+    list_measured_products_api_v1_samples__sample_id__measured_products_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2633,7 +2633,7 @@ export interface operations {
             };
         };
     };
-    create_measured_product_api_v1_v2_samples__sample_id__measured_products_post: {
+    create_measured_product_api_v1_samples__sample_id__measured_products_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2668,7 +2668,7 @@ export interface operations {
             };
         };
     };
-    delete_measured_product_api_v1_v2_measured_products__product_id__delete: {
+    delete_measured_product_api_v1_measured_products__product_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -2697,7 +2697,7 @@ export interface operations {
             };
         };
     };
-    update_measured_product_api_v1_v2_measured_products__product_id__patch: {
+    update_measured_product_api_v1_measured_products__product_id__patch: {
         parameters: {
             query?: never;
             header?: never;

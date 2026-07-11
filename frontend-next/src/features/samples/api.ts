@@ -38,7 +38,7 @@ export function updateSample(
 }
 
 export function getExperiment(token: string, runId: string) {
-  return apiRequest<V2ExperimentRead>(`/api/v1/v2/experiments/${runId}`, { token })
+  return apiRequest<V2ExperimentRead>(`/api/v1/experiments/${runId}`, { token })
 }
 
 export function listExperimentFiles(

@@ -15,7 +15,7 @@ export type V2EntityVersionListResponse = Schemas['V2EntityVersionListResponse']
 export type EntityVersionPayload = Record<string, string>
 
 function basePath(kind: EntityKind): string {
-  return `/api/v1/v2/${entityConfigs[kind].apiPath}`
+  return `/api/v1/${entityConfigs[kind].apiPath}`
 }
 
 export function listEntities(kind: EntityKind, token: string) {

@@ -17,7 +17,7 @@ def _headers(email: str) -> dict[str, str]:
 
 def _run(headers: dict[str, str], code: str, method: str = "PVD-热蒸发") -> dict:
     response = client.post(
-        "/api/v1/v2/experiments",
+        "/api/v1/experiments",
         json={
             "run_code": code,
             "started_at": "2026-07-11T09:00:00",
@@ -37,45 +37,45 @@ def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_ses
     run_id = run["id"]
 
     assert (
-        client.post(f"/api/v1/v2/experiments/{run_id}/return-to-draft", headers=owner).status_code
+        client.post(f"/api/v1/experiments/{run_id}/return-to-draft", headers=owner).status_code
         == 409
     )
 
-    submitted = client.post(f"/api/v1/v2/experiments/{run_id}/submit", headers=owner)
+    submitted = client.post(f"/api/v1/experiments/{run_id}/submit", headers=owner)
     assert submitted.status_code == 200, submitted.text
     assert submitted.json()["status"] == "submitted"
     assert submitted.json()["submitted_at"] is not None
-    assert client.post(f"/api/v1/v2/experiments/{run_id}/submit", headers=owner).status_code == 409
-    assert client.post(f"/api/v1/v2/experiments/{run_id}/unlock", headers=admin).status_code == 409
+    assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=owner).status_code == 409
+    assert client.post(f"/api/v1/experiments/{run_id}/unlock", headers=admin).status_code == 409
 
-    locked = client.post(f"/api/v1/v2/experiments/{run_id}/lock", headers=owner)
+    locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=owner)
     assert locked.status_code == 200, locked.text
     assert locked.json()["status"] == "locked"
     assert locked.json()["result_missing_todo"] is True
-    assert client.post(f"/api/v1/v2/experiments/{run_id}/lock", headers=owner).status_code == 409
+    assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=owner).status_code == 409
     assert (
         client.post(
-            f"/api/v1/v2/experiments/{run_id}/invalidate",
+            f"/api/v1/experiments/{run_id}/invalidate",
             json={"reason": "locked"},
             headers=owner,
         ).status_code
         == 409
     )
 
-    assert client.post(f"/api/v1/v2/experiments/{run_id}/unlock", headers=owner).status_code == 403
-    unlocked = client.post(f"/api/v1/v2/experiments/{run_id}/unlock", headers=admin)
+    assert client.post(f"/api/v1/experiments/{run_id}/unlock", headers=owner).status_code == 403
+    unlocked = client.post(f"/api/v1/experiments/{run_id}/unlock", headers=admin)
     assert unlocked.status_code == 200, unlocked.text
     assert unlocked.json()["status"] == "submitted"
     assert unlocked.json()["locked_at"] is None
     assert unlocked.json()["result_missing_todo"] is False
 
-    draft = client.post(f"/api/v1/v2/experiments/{run_id}/return-to-draft", headers=owner)
+    draft = client.post(f"/api/v1/experiments/{run_id}/return-to-draft", headers=owner)
     assert draft.status_code == 200, draft.text
     assert draft.json()["status"] == "draft"
     assert draft.json()["submitted_at"] is None
 
     invalid = client.post(
-        f"/api/v1/v2/experiments/{run_id}/invalidate",
+        f"/api/v1/experiments/{run_id}/invalidate",
         json={"reason": "bad run"},
         headers=owner,
     )
@@ -83,7 +83,7 @@ def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_ses
     assert invalid.json()["status"] == "invalid"
     assert (
         client.post(
-            f"/api/v1/v2/experiments/{run_id}/invalidate",
+            f"/api/v1/experiments/{run_id}/invalidate",
             json={"reason": "again"},
             headers=owner,
         ).status_code
@@ -107,7 +107,7 @@ def test_r0_gate_returns_structured_missing_fields(active_user) -> None:
     headers = _headers(active_user.email)
     run = _run(headers, "STATE-R0", "APCVD")
 
-    response = client.post(f"/api/v1/v2/experiments/{run['id']}/submit", headers=headers)
+    response = client.post(f"/api/v1/experiments/{run['id']}/submit", headers=headers)
 
     assert response.status_code == 422
     missing = response.json()["detail"]["missing"]
@@ -131,12 +131,12 @@ def test_non_owner_gets_403_before_state_guard(active_user, db_session) -> None:
 
     for action in ("submit", "lock", "return-to-draft"):
         assert (
-            client.post(f"/api/v1/v2/experiments/{run['id']}/{action}", headers=headers).status_code
+            client.post(f"/api/v1/experiments/{run['id']}/{action}", headers=headers).status_code
             == 403
         )
     assert (
         client.post(
-            f"/api/v1/v2/experiments/{run['id']}/invalidate",
+            f"/api/v1/experiments/{run['id']}/invalidate",
             json={"reason": "no"},
             headers=headers,
         ).status_code
@@ -152,30 +152,28 @@ def test_locked_run_rejects_result_writes(active_user, db_session) -> None:
         f"/api/v1/experiments/{run_id}/samples", json={"role": "product"}, headers=headers
     ).json()
     record = client.post(
-        f"/api/v1/v2/experiments/{run_id}/characterization-records",
+        f"/api/v1/experiments/{run_id}/characterization-records",
         json={"sample_id": sample["id"], "method_instrument": "Raman"},
         headers=headers,
     ).json()
     product = client.post(
-        f"/api/v1/v2/samples/{sample['id']}/measured-products",
+        f"/api/v1/samples/{sample['id']}/measured-products",
         json={"observed_phenomena": ["film"]},
         headers=headers,
     ).json()
-    assert (
-        client.post(f"/api/v1/v2/experiments/{run_id}/submit", headers=headers).status_code == 200
-    )
-    assert client.post(f"/api/v1/v2/experiments/{run_id}/lock", headers=headers).status_code == 200
+    assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers).status_code == 200
+    assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers).status_code == 200
 
     requests = [
         (
             "patch",
-            f"/api/v1/v2/characterization-records/{record['id']}",
+            f"/api/v1/characterization-records/{record['id']}",
             {"method_instrument": "SEM"},
         ),
-        ("delete", f"/api/v1/v2/characterization-records/{record['id']}", None),
-        ("post", f"/api/v1/v2/samples/{sample['id']}/measured-products", {}),
-        ("patch", f"/api/v1/v2/measured-products/{product['id']}", {"observed_phenomena": []}),
-        ("delete", f"/api/v1/v2/measured-products/{product['id']}", None),
+        ("delete", f"/api/v1/characterization-records/{record['id']}", None),
+        ("post", f"/api/v1/samples/{sample['id']}/measured-products", {}),
+        ("patch", f"/api/v1/measured-products/{product['id']}", {"observed_phenomena": []}),
+        ("delete", f"/api/v1/measured-products/{product['id']}", None),
     ]
     for method, url, body in requests:
         response = client.request(method, url, json=body, headers=headers)

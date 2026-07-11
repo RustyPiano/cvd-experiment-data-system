@@ -135,6 +135,16 @@ describe('衬底材料 = SiO₂/Si → 氧化层厚度 (oxide thickness)', () =>
   })
 })
 
+describe('visibility metadata', () => {
+  it.each([
+    ['target_product', 'components'],
+    ['precursors', 'appearance'],
+    ['substrates', 'oxide_thickness_nm'],
+  ])('marks %s.%s as visibility gated', (moduleKey, key) => {
+    expect(field(moduleKey, key).visibilityGated).toBe(true)
+  })
+})
+
 describe('parseComponentRoles', () => {
   it('extracts role enum from the components options string', () => {
     const components = field('target_product', 'components')

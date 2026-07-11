@@ -71,25 +71,12 @@ export function isConditionSatisfied(
   return matchesCondition(condition, driver)
 }
 
-/**
- * 可见性受条件门控的字段键：仅在条件成立时显示。
- *  - components：结构类型≠本征 才显示编辑器；
- *  - appearance：相态=固 才显示（推荐项）；
- *  - oxide_thickness_nm：衬底材料=SiO₂/Si 才显示（并必填）。
- * 注意 amount（用量）不在此列——它恒显示，仅红星随相态动态出现。
- */
-const VISIBILITY_GATED_KEYS = new Set([
-  'components',
-  'appearance',
-  'oxide_thickness_nm',
-])
-
 export function isFieldVisible(
   moduleKey: string,
   field: FieldMetadata,
   values: ModuleValues,
 ): boolean {
-  if (!VISIBILITY_GATED_KEYS.has(field.key)) return true
+  if (!field.visibilityGated) return true
   const condition = field.requirement.condition
   if (!condition) return true
   return isConditionSatisfied(condition, values, moduleKey)

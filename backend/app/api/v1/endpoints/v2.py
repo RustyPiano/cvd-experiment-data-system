@@ -33,7 +33,7 @@ from app.schemas.v2 import (
 )
 from app.services.v2_service import V2EntityService, V2ExperimentService
 
-router = APIRouter(prefix="/api/v1/v2", tags=["v2"])
+router = APIRouter(prefix="/api/v1", tags=["v2"])
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 

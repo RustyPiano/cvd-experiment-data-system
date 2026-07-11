@@ -26,8 +26,8 @@ export type MeasuredProductCreate = Schemas['MeasuredProductCreate']
 export type MeasuredProductRead = Schemas['MeasuredProductRead']
 export type MeasuredProductListResponse = Schemas['MeasuredProductListResponse']
 
-const BASE = '/api/v1/v2/experiments'
-const V2 = '/api/v1/v2'
+const BASE = '/api/v1/experiments'
+const V2 = '/api/v1'
 
 export function createRun(payload: V2ExperimentCreate, token: string) {
   return apiRequest<V2ExperimentRead>(BASE, {

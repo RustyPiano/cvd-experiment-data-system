@@ -8,6 +8,16 @@ from app.models.sample import Sample, SampleRole
 client = TestClient(app)
 
 
+def test_v2_routes_are_collected_under_api_v1() -> None:
+    paths = app.openapi()["paths"]
+
+    assert "/api/v1/experiments" in paths
+    assert "/api/v1/experiments/{run_id}/characterization-records" in paths
+    assert "/api/v1/samples/{sample_id}/measured-products" in paths
+    legacy_prefix = "/api/v1/" + "v2/"
+    assert not any(path.startswith(legacy_prefix) for path in paths)
+
+
 def login(email: str, password: str = "Password123!") -> str:
     response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200
@@ -22,7 +32,7 @@ def test_v2_entity_versions_are_append_only_and_queryable(active_user) -> None:
     headers = auth_headers(active_user.email)
 
     create = client.post(
-        "/api/v1/v2/material-lots",
+        "/api/v1/material-lots",
         json={
             "lot_category": "化学品",
             "substance_name": "三氧化钼",
@@ -37,7 +47,7 @@ def test_v2_entity_versions_are_append_only_and_queryable(active_user) -> None:
     assert create.json()["latest_version"]["version"] == 1
 
     append = client.post(
-        f"/api/v1/v2/material-lots/{entity_id}/versions",
+        f"/api/v1/material-lots/{entity_id}/versions",
         json={
             "lot_category": "化学品",
             "substance_name": "三氧化钼",
@@ -50,7 +60,7 @@ def test_v2_entity_versions_are_append_only_and_queryable(active_user) -> None:
     assert append.status_code == 201, append.text
     assert append.json()["version"] == 2
 
-    versions = client.get(f"/api/v1/v2/material-lots/{entity_id}/versions", headers=headers)
+    versions = client.get(f"/api/v1/material-lots/{entity_id}/versions", headers=headers)
     assert versions.status_code == 200
     assert [item["version"] for item in versions.json()["items"]] == [1, 2]
 
@@ -59,7 +69,7 @@ def test_v2_entity_create_reports_all_missing_required_fields(active_user) -> No
     headers = auth_headers(active_user.email)
 
     response = client.post(
-        "/api/v1/v2/material-lots",
+        "/api/v1/material-lots",
         json={"lot_category": "化学品"},
         headers=headers,
     )
@@ -76,7 +86,7 @@ def test_v2_entity_create_reports_all_missing_required_fields(active_user) -> No
 def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     headers = auth_headers(active_user.email)
     setup = client.post(
-        "/api/v1/v2/setups",
+        "/api/v1/setups",
         json={
             "setup_code": "CVD-炉1",
             "setup_name": "1号双温区管式炉",
@@ -90,7 +100,7 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     assert setup.status_code == 201, setup.text
 
     run = client.post(
-        "/api/v1/v2/experiments",
+        "/api/v1/experiments",
         json={
             "run_code": "RUN-V2-API",
             "started_at": "2026-07-08T09:30:00",
@@ -105,7 +115,7 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     assert run.json()["schema_version"] == "cvd_v2"
 
     ref = client.put(
-        f"/api/v1/v2/experiments/{run_id}/setup-reference",
+        f"/api/v1/experiments/{run_id}/setup-reference",
         json={"setup_id": setup.json()["id"], "version": 1},
         headers=headers,
     )
@@ -114,7 +124,7 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     assert ref.json()["setup_ref_snapshot_json"]["setup_code_snapshot"] == "CVD-炉1"
 
     bad_step = client.put(
-        f"/api/v1/v2/experiments/{run_id}/modules/process_steps",
+        f"/api/v1/experiments/{run_id}/modules/process_steps",
         json={
             "payload_json": {
                 "items": [
@@ -134,7 +144,7 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     assert "field_params" in bad_step.text
 
     good_step = client.put(
-        f"/api/v1/v2/experiments/{run_id}/modules/process_steps",
+        f"/api/v1/experiments/{run_id}/modules/process_steps",
         json={
             "payload_json": {
                 "items": [
@@ -157,7 +167,7 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
 
 def _create_run(headers: dict[str, str], run_code: str, formula: str = "MoS2") -> str:
     response = client.post(
-        "/api/v1/v2/experiments",
+        "/api/v1/experiments",
         json={
             "run_code": run_code,
             "started_at": "2026-07-11T09:30:00",
@@ -176,13 +186,13 @@ def test_target_product_upsert_updates_run_material_system(active_user) -> None:
     run_id = _create_run(headers, "RUN-MATERIAL-UPDATE")
 
     response = client.put(
-        f"/api/v1/v2/experiments/{run_id}/modules/target_product",
+        f"/api/v1/experiments/{run_id}/modules/target_product",
         json={"payload_json": {"chemical_formula": "WS2/MoS2", "structure_type": "本征"}},
         headers=headers,
     )
 
     assert response.status_code == 200, response.text
-    run = client.get(f"/api/v1/v2/experiments/{run_id}", headers=headers)
+    run = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
     assert run.json()["material_system"] == "WS2/MoS2"
 
 
@@ -191,13 +201,13 @@ def test_target_product_upsert_clears_run_material_system(active_user) -> None:
     run_id = _create_run(headers, "RUN-MATERIAL-CLEAR")
 
     response = client.put(
-        f"/api/v1/v2/experiments/{run_id}/modules/target_product",
+        f"/api/v1/experiments/{run_id}/modules/target_product",
         json={"payload_json": {"chemical_formula": "", "structure_type": "本征"}},
         headers=headers,
     )
 
     assert response.status_code == 200, response.text
-    run = client.get(f"/api/v1/v2/experiments/{run_id}", headers=headers)
+    run = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
     assert run.json()["material_system"] is None
 
 
@@ -206,7 +216,7 @@ def test_other_module_upsert_preserves_run_material_system(active_user) -> None:
     run_id = _create_run(headers, "RUN-MATERIAL-UNCHANGED", "WSe2")
 
     response = client.put(
-        f"/api/v1/v2/experiments/{run_id}/modules/basic_info",
+        f"/api/v1/experiments/{run_id}/modules/basic_info",
         json={
             "payload_json": {
                 "started_at": "2026-07-11T09:30:00",
@@ -219,14 +229,14 @@ def test_other_module_upsert_preserves_run_material_system(active_user) -> None:
     )
 
     assert response.status_code == 200, response.text
-    run = client.get(f"/api/v1/v2/experiments/{run_id}", headers=headers)
+    run = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
     assert run.json()["material_system"] == "WSe2"
 
 
 def test_v2_characterization_and_measured_product_crud(active_user, db_session) -> None:
     headers = auth_headers(active_user.email)
     run = client.post(
-        "/api/v1/v2/experiments",
+        "/api/v1/experiments",
         json={
             "run_code": "RUN-V2-RESULTS",
             "started_at": "2026-07-08T09:30:00",
@@ -247,14 +257,14 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
     db_session.refresh(sample)
 
     record = client.post(
-        f"/api/v1/v2/experiments/{run_id}/characterization-records",
+        f"/api/v1/experiments/{run_id}/characterization-records",
         json={"sample_id": str(sample.id), "method_instrument": "Raman"},
         headers=headers,
     )
     assert record.status_code == 201, record.text
 
     product = client.post(
-        f"/api/v1/v2/samples/{sample.id}/measured-products",
+        f"/api/v1/samples/{sample.id}/measured-products",
         json={
             "characterization_record_id": record.json()["id"],
             "observed_phenomena": ["不连续覆盖"],
@@ -266,7 +276,7 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
     assert product.json()["observed_phenomena"] == ["不连续覆盖"]
 
     patch = client.patch(
-        f"/api/v1/v2/measured-products/{product.json()['id']}",
+        f"/api/v1/measured-products/{product.json()['id']}",
         json={"measured_layers_coverage": "1层；70%"},
         headers=headers,
     )

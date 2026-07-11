@@ -77,28 +77,13 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "from pydantic import BaseModel, ConfigDict, Field, model_validator",
         "",
+        "from app.services.v2_field_source import condition_matches as _matches",
+        "",
         f'V2_MODULE_PAYLOAD_SCHEMA_VERSION = "{SCHEMA_VERSION}"',
         "",
         "",
         "def _missing(value: Any) -> bool:",
         '    return value is None or value == "" or value == [] or value == {}',
-        "",
-        "",
-        "def _matches(value: Any, op: str, expected: Any) -> bool:",
-        "    if isinstance(value, list):",
-        '        if op == "eq":',
-        "            return expected in value",
-        '        if op == "ne":',
-        "            return expected not in value",
-        '        if op == "in":',
-        "            return any(item in set(expected or []) for item in value)",
-        '    if op == "eq":',
-        "        return value == expected",
-        '    if op == "ne":',
-        "        return value != expected",
-        '    if op == "in":',
-        "        return value in set(expected or [])",
-        '    raise ValueError(f"Unsupported condition op: {op}")',
         "",
         "",
         "class V2PayloadBase(BaseModel):",
@@ -287,10 +272,13 @@ def _render_condition_validator(
         expected = condition["value"]
         checks.extend(
             [
+                f"{indent}    if (",
                 (
-                    f"{indent}    if _matches(self.{local_key}, {op!r}, "
-                    f"{expected!r}) and _missing(self.{field['key']}):"
+                    f"{indent}        _matches({{'op': {op!r}, 'value': {expected!r}}}, "
+                    f"self.{local_key})"
                 ),
+                f"{indent}        and _missing(self.{field['key']})",
+                f"{indent}    ):",
                 f'{indent}        raise ValueError("{field["key"]} is conditionally required")',
             ]
         )

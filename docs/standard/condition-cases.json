@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {"name": "scalar eq match", "condition": {"field": "Test.driver", "op": "eq", "value": "solid"}, "driver": "solid", "expected": true},
+    {"name": "scalar eq miss", "condition": {"field": "Test.driver", "op": "eq", "value": "solid"}, "driver": "gas", "expected": false},
+    {"name": "scalar ne match", "condition": {"field": "Test.driver", "op": "ne", "value": "gas"}, "driver": "solid", "expected": true},
+    {"name": "scalar ne miss", "condition": {"field": "Test.driver", "op": "ne", "value": "gas"}, "driver": "gas", "expected": false},
+    {"name": "scalar in match", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": "PVD", "expected": true},
+    {"name": "scalar in miss", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": "PLD", "expected": false},
+    {"name": "list eq match", "condition": {"field": "Test.driver", "op": "eq", "value": "solid"}, "driver": ["solid", "liquid"], "expected": true},
+    {"name": "list eq miss", "condition": {"field": "Test.driver", "op": "eq", "value": "solid"}, "driver": ["gas", "liquid"], "expected": false},
+    {"name": "list ne match", "condition": {"field": "Test.driver", "op": "ne", "value": "gas"}, "driver": ["solid", "liquid"], "expected": true},
+    {"name": "list ne miss", "condition": {"field": "Test.driver", "op": "ne", "value": "gas"}, "driver": ["solid", "gas"], "expected": false},
+    {"name": "list in intersection", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": ["PLD", "PVD"], "expected": true},
+    {"name": "list in disjoint", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": ["PLD", "MBE"], "expected": false},
+    {"name": "null eq null", "condition": {"field": "Test.driver", "op": "eq", "value": null}, "driver": null, "expected": true},
+    {"name": "empty list in", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": [], "expected": false},
+    {"name": "unknown op", "condition": {"field": "Test.driver", "op": "contains", "value": "solid"}, "driver": "solid", "expect_error": true},
+    {"name": "unresolvable reference", "condition": {"field": "Missing.driver", "op": "eq", "value": "solid"}, "driver": "solid", "expected": false, "unresolvable": true}
+  ]
+}

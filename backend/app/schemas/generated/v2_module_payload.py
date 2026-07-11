@@ -6,28 +6,13 @@ from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.services.v2_field_source import condition_matches as _matches
+
 V2_MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
 
 
 def _missing(value: Any) -> bool:
     return value is None or value == "" or value == [] or value == {}
-
-
-def _matches(value: Any, op: str, expected: Any) -> bool:
-    if isinstance(value, list):
-        if op == "eq":
-            return expected in value
-        if op == "ne":
-            return expected not in value
-        if op == "in":
-            return any(item in set(expected or []) for item in value)
-    if op == "eq":
-        return value == expected
-    if op == "ne":
-        return value != expected
-    if op == "in":
-        return value in set(expected or [])
-    raise ValueError(f"Unsupported condition op: {op}")
 
 
 class V2PayloadBase(BaseModel):
@@ -59,7 +44,10 @@ class TargetProductPayload(V2PayloadBase):
 
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
-        if _matches(self.structure_type, 'ne', '本征') and _missing(self.components):
+        if (
+            _matches({'op': 'ne', 'value': '本征'}, self.structure_type)
+            and _missing(self.components)
+        ):
             raise ValueError("components is conditionally required")
         return self
 
@@ -95,7 +83,10 @@ class PrecursorItemPayload(V2PayloadBase):
 
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
-        if _matches(self.phase_state, 'ne', '气') and _missing(self.amount):
+        if (
+            _matches({'op': 'ne', 'value': '气'}, self.phase_state)
+            and _missing(self.amount)
+        ):
             raise ValueError("amount is conditionally required")
         return self
 
@@ -117,7 +108,10 @@ class SubstrateItemPayload(V2PayloadBase):
 
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
-        if _matches(self.material, 'eq', 'SiO₂/Si') and _missing(self.oxide_thickness_nm):
+        if (
+            _matches({'op': 'eq', 'value': 'SiO₂/Si'}, self.material)
+            and _missing(self.oxide_thickness_nm)
+        ):
             raise ValueError("oxide_thickness_nm is conditionally required")
         return self
 

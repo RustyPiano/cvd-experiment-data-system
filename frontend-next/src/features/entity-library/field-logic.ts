@@ -97,20 +97,32 @@ export function resolveConditionKey(
 
 export function matchesCondition(
   condition: FieldCondition,
-  value: string | undefined,
+  value: unknown,
 ): boolean {
-  const current = value == null ? '' : String(value)
+  if (Array.isArray(value)) {
+    switch (condition.op) {
+      case 'eq':
+        return value.includes(condition.value)
+      case 'ne':
+        return !value.includes(condition.value)
+      case 'in':
+        return Array.isArray(condition.value)
+          ? value.some((item) => condition.value.includes(item))
+          : false
+    }
+  }
   switch (condition.op) {
     case 'eq':
-      return current === condition.value
+      return value === condition.value
     case 'ne':
-      return current !== condition.value
+      return value !== condition.value
     case 'in':
       return Array.isArray(condition.value)
-        ? condition.value.includes(current)
-        : current === condition.value
+        ? condition.value.some((item) => item === value)
+        : false
     default:
-      return true
+      console.error(`Unsupported condition op: ${condition.op}`)
+      return false
   }
 }
 
@@ -118,7 +130,7 @@ export function matchesCondition(
  * 字段是否应显示：
  *  1) 子类前缀（▸衬底·/▸气瓶·）→ 需驱动字段（批次类别）取值等于该子类；
  *  2) 元数据显式条件（requirement.condition）→ 需条件成立。
- * 二者皆满足（或不适用）才显示。跨实体无法解析的引用按「显示」兜底。
+ * 二者皆满足（或不适用）才显示。无法解析的引用按「条件不成立」兜底。
  */
 export function isFieldVisible(
   kind: EntityKind,
@@ -134,7 +146,7 @@ export function isFieldVisible(
   const condition = field.requirement.condition
   if (condition) {
     const refKey = resolveConditionKey(kind, condition.field)
-    if (refKey && !matchesCondition(condition, values[refKey])) return false
+    if (!refKey || !matchesCondition(condition, values[refKey])) return false
   }
 
   return true

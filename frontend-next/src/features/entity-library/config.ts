@@ -10,7 +10,7 @@ export type EntityKind = (typeof ENTITY_KINDS)[number]
 
 export interface EntityKindConfig {
   kind: EntityKind
-  /** REST 复数路径段：/api/v1/v2/{apiPath} 与前端路由 /{apiPath} 共用 */
+  /** REST 复数路径段：/api/v1/{apiPath} 与前端路由 /{apiPath} 共用 */
   apiPath: 'material-lots' | 'setups' | 'instruments'
   /** locales common.entityLibrary 下的键，用于 t(`entityLibrary.${i18nKey}.…`) */
   i18nKey: 'materialLot' | 'setup' | 'instrument'

@@ -133,6 +133,13 @@ def condition_local_key(
 def condition_matches(condition: dict[str, Any], value: Any) -> bool:
     op = condition.get("op")
     expected = condition.get("value")
+    if isinstance(value, list):
+        if op == "eq":
+            return expected in value
+        if op == "ne":
+            return expected not in value
+        if op == "in":
+            return any(item in set(expected or []) for item in value)
     if op == "eq":
         return value == expected
     if op == "ne":

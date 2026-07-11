@@ -20,7 +20,7 @@ def auth_headers(email: str) -> dict[str, str]:
 
 def create_run(email: str, *, formula: str = "MoS2") -> dict:
     response = client.post(
-        "/api/v1/v2/experiments",
+        "/api/v1/experiments",
         json={
             "started_at": "2026-04-23T10:00:00+08:00",
             "synthesis_method": "CVD",

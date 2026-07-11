@@ -46,6 +46,8 @@ export interface FieldMetadata {
   r0: boolean
   /** §5 过程步字段的参数组（stageGroups 的键）；其余字段为 null */
   group: string | null
+  /** 条件不成立时隐藏，而非仅切换必填状态 */
+  visibilityGated?: true
 }
 
 export interface StageType {
@@ -237,6 +239,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: null,
+      visibilityGated: true,
     },
     {
       key: 'target_layer_count',
@@ -545,6 +548,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: null,
+      visibilityGated: true,
     },
     {
       key: 'lot_ref',
@@ -705,6 +709,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: null,
+      visibilityGated: true,
     },
     {
       key: 'surface_roughness_nm',

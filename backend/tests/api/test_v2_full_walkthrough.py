@@ -23,7 +23,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     headers = _auth_headers(active_user.email)
 
     lot = client.post(
-        "/api/v1/v2/material-lots",
+        "/api/v1/material-lots",
         json={
             "lot_category": "化学品",
             "substance_name": "三氧化钼",
@@ -37,7 +37,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     assert lot.status_code == 201, lot.text
 
     setup = client.post(
-        "/api/v1/v2/setups",
+        "/api/v1/setups",
         json={
             "setup_code": "CVD-炉1",
             "setup_name": "1号双温区管式炉",
@@ -52,14 +52,14 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     assert setup.status_code == 201, setup.text
 
     instrument = client.post(
-        "/api/v1/v2/instruments",
+        "/api/v1/instruments",
         json={"instrument_code": "RAMAN-1", "name_type": "Raman", "vendor": "Horiba"},
         headers=headers,
     )
     assert instrument.status_code == 201, instrument.text
 
     run = client.post(
-        "/api/v1/v2/experiments",
+        "/api/v1/experiments",
         json={
             "run_code": "RUN-V2-WALK",
             "started_at": "2026-07-08T09:30:00",
@@ -73,7 +73,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     run_id = run.json()["id"]
 
     ref = client.put(
-        f"/api/v1/v2/experiments/{run_id}/setup-reference",
+        f"/api/v1/experiments/{run_id}/setup-reference",
         json={"setup_id": setup.json()["id"], "version": 1},
         headers=headers,
     )
@@ -81,7 +81,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
 
     def upsert(module: str, payload: dict) -> None:
         response = client.put(
-            f"/api/v1/v2/experiments/{run_id}/modules/{module}",
+            f"/api/v1/experiments/{run_id}/modules/{module}",
             json={"payload_json": payload},
             headers=headers,
         )
@@ -196,7 +196,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     sample_id = sample.json()["id"]
 
     record = client.post(
-        f"/api/v1/v2/experiments/{run_id}/characterization-records",
+        f"/api/v1/experiments/{run_id}/characterization-records",
         json={
             "sample_id": sample_id,
             "instrument_id": instrument.json()["id"],
@@ -209,7 +209,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     assert record.status_code == 201, record.text
 
     product = client.post(
-        f"/api/v1/v2/samples/{sample_id}/measured-products",
+        f"/api/v1/samples/{sample_id}/measured-products",
         json={
             "characterization_record_id": record.json()["id"],
             "observed_phenomena": ["不连续覆盖", "厚层区域"],
@@ -225,9 +225,9 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     report = reports[0]
     failed = [item for item in report["items"] if item["applicable"] and not item["passed"]]
     assert report["status"] == "compliant", f"R0 未通过项: {failed}"
-    submitted = client.post(f"/api/v1/v2/experiments/{run_id}/submit", headers=headers)
+    submitted = client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers)
     assert submitted.status_code == 200, submitted.text
-    locked = client.post(f"/api/v1/v2/experiments/{run_id}/lock", headers=headers)
+    locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
     assert locked.status_code == 200, locked.text
     reports = build_r0_reports(db_session, run_code="RUN-V2-WALK")
     assert reports[0]["status"] == "compliant"
