@@ -158,7 +158,19 @@
 
 ## 5. 后续项（不阻塞单轨化，单独立项）
 
-- **表征文件上传功能**（端点 + results-section 上传 UI；FK 已在批5 预埋）——标准要求"表征附谱图"，v2.0 上线前应补，但不塞进重基线节奏。
 - `formula.ts` 118 元素表双源：文件头已声明同步义务，规则不变不动；若再改一次化学式规则，改为生成器吐。
-- locked 炉次 clone、`results-section.tsx`（712 行）拆分、组件层行为测试补强：遇真实需求再做。
+- locked 炉次 clone：遇真实需求再做。
 - 词表运行期热更新（不改代码改词表）：当前 YAML+git 治理对冻结标准是**正确模型**；若冻结后出现高频词表变更需求，再评估 DB 化，勿提前。
+- xlsx 重生成的 zip 元数据级 diff：**明确不修**（openpyxl 确定性输出成本高，CI 逐格比对不受影响）。
+
+## 6. 收尾批 F1–F6（2026-07-11 批7 后评估追加；F2 方案甲已拍板）
+
+> 来源：批7 完成后的客观评价（6 个真问题 + 优雅性清单）。执行方式沿用：每批独立 commit、门禁全绿再进、codex-first。
+
+- **F1 · 保险与硬顺序**（10 分钟，Claude 直做）：`git tag v1-final 47ce09a`（逃生舱）；`deploy.sh` 加 schema 哨兵（库内 `alembic_version` 在本仓库迁移链中不存在 → 拒绝部署并提示批8，`SKIP_SCHEMA_GUARD=1` 应急旁路）；硬顺序落盘：push → Actions 首绿 → F6 → 批8。
+- **F2 · 锁定语义甲落地**（~0.5 天）：守卫分域——`_ensure_editable` 拆为工艺域（locked/invalid 拒：模块 payload、装置引用）与结果域（仅 invalid 拒：表征记录、实测产物、表征附件上传）；`refresh_result_missing_todo` 在结果域每次变更后刷新（locked 补结果 → 待办自动消除）；前端锁定横幅与禁用范围同步分域；测试矩阵更新 + walkthrough 扩展（lock → 补表征 → 待办清除）。
+- **F3 · 优雅性清扫**（~0.5–1 天）：v1 残留命名对齐（`_get_owned_draft_file` 等）；写操作 403/404 按可见性分层（不可见→404，可见非属主→403）；`status` 边界改 Literal/enum → openapi 重生成 → 前端删手工重铸；**`v2_service.py`（687 行）拆三**（实体域/炉次+状态机/结果域，赶在 F4 加功能前）；轻量审计扩面（upsert_module/实体版本追加，只记 who/when/module_key 或版本号）；`sample_code` 并发 IntegrityError→409；dev 环境禁用 field-source lru_cache。
+- **F4 · 表征文件上传**（~0.5–1 天）：上传端点挂 `characterization_record_id`（FK 批5 已预埋）+ results-section 上传/列表/下载 UI + 审计沿用 + 权限遵循 F2 锁定语义。证据链（表征附谱图）闭环。
+- **F5 · 测试补强**（~0.5 天）：results-section 行为级测试（含 F4 新功能）；复合输入 12 字段参数化全覆盖；状态机审计断言与 F2 守卫粒度正负例。
+- **F6 · 全栈验证收口**（~0.5 天）：本地 compose 全栈 + 浏览器 E2E 复跑全链路（新前缀/新 schema/复合输入/结果补录/表征附件/状态链）；Codex xhigh 对批2–F5 累计 diff 独立等价性复审；STATUS/计划文档收口。
+- 依赖：F1 随时；F3 在 F4 前；F5 依赖 F2/F4；F6 收口后才可批8。

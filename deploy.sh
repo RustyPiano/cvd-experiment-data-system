@@ -37,6 +37,22 @@ echo "[2/4] 拉取最新代码..."
 git pull --ff-only
 echo
 
+# Schema 哨兵：v2 单轨重基线后，旧库上的 alembic_version 在新迁移链中不存在，
+# 直接部署会让后端启动迁移崩溃循环。库版本必须存在于当前代码迁移链，否则按批8 整库重建。
+if [ "${SKIP_SCHEMA_GUARD:-0}" != "1" ]; then
+    PG_CONTAINER="${PG_CONTAINER:-1Panel-postgresql-4ljp}"
+    POSTGRES_USER="${POSTGRES_USER:-user_GztwJM}"
+    POSTGRES_DB="${POSTGRES_DB:-cvd}"
+    DB_REV=$( (docker exec "$PG_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+        -tAc "SELECT version_num FROM alembic_version" 2>/dev/null || true) | tr -d '[:space:]')
+    if [ -n "$DB_REV" ] && ! grep -rq "$DB_REV" backend/alembic/versions/; then
+        echo -e "${RED}[中止] 数据库迁移版本 ${DB_REV} 不在当前代码迁移链中（schema 已重基线）。${NC}" >&2
+        echo "  直接部署会崩溃循环。请按 docs/v2-single-track-plan.md 批8 执行整库重建切换。" >&2
+        echo "  确认自担风险可用 SKIP_SCHEMA_GUARD=1 ./deploy.sh 跳过本检查。" >&2
+        exit 1
+    fi
+fi
+
 echo "[3/4] 构建并启动容器（后端启动时自动执行 alembic 迁移）..."
 $COMPOSE up -d --build
 echo
