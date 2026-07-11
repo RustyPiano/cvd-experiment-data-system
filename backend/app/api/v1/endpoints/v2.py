@@ -31,7 +31,9 @@ from app.schemas.v2 import (
     V2ModulePayloadUpsert,
     V2SetupReferenceRequest,
 )
-from app.services.v2_service import V2EntityService, V2ExperimentService
+from app.services.v2_entity_service import V2EntityService
+from app.services.v2_experiment_service import V2ExperimentService
+from app.services.v2_results_service import V2ResultsService
 
 router = APIRouter(prefix="/api/v1", tags=["v2"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -77,9 +79,9 @@ def append_material_lot_version(
     entity_id: UUID,
     payload: V2EntityVersionPayload,
     db: DbSession,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> V2EntityVersionRead:
-    return V2EntityService(db).append_version("material_lot", entity_id, payload)
+    return V2EntityService(db).append_version("material_lot", entity_id, payload, current_user)
 
 
 @router.get("/setups", response_model=V2EntityListResponse)
@@ -117,9 +119,9 @@ def append_setup_version(
     entity_id: UUID,
     payload: V2EntityVersionPayload,
     db: DbSession,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> V2EntityVersionRead:
-    return V2EntityService(db).append_version("setup", entity_id, payload)
+    return V2EntityService(db).append_version("setup", entity_id, payload, current_user)
 
 
 @router.get("/instruments", response_model=V2EntityListResponse)
@@ -157,9 +159,9 @@ def append_instrument_version(
     entity_id: UUID,
     payload: V2EntityVersionPayload,
     db: DbSession,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> V2EntityVersionRead:
-    return V2EntityService(db).append_version("instrument", entity_id, payload)
+    return V2EntityService(db).append_version("instrument", entity_id, payload, current_user)
 
 
 @router.post("/experiments", response_model=V2ExperimentRead, status_code=status.HTTP_201_CREATED)
@@ -259,7 +261,7 @@ def get_v2_module(
 def list_characterization_records(
     run_id: UUID, db: DbSession, current_user: CurrentUser
 ) -> CharacterizationRecordListResponse:
-    return V2ExperimentService(db).list_characterization_records(run_id, current_user)
+    return V2ResultsService(db).list_characterization_records(run_id, current_user)
 
 
 @router.post(
@@ -273,7 +275,7 @@ def create_characterization_record(
     db: DbSession,
     current_user: CurrentUser,
 ) -> CharacterizationRecordRead:
-    return V2ExperimentService(db).create_characterization_record(run_id, payload, current_user)
+    return V2ResultsService(db).create_characterization_record(run_id, payload, current_user)
 
 
 @router.patch(
@@ -286,14 +288,14 @@ def update_characterization_record(
     db: DbSession,
     current_user: CurrentUser,
 ) -> CharacterizationRecordRead:
-    return V2ExperimentService(db).update_characterization_record(record_id, payload, current_user)
+    return V2ResultsService(db).update_characterization_record(record_id, payload, current_user)
 
 
 @router.delete("/characterization-records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_characterization_record(
     record_id: UUID, db: DbSession, current_user: CurrentUser
 ) -> None:
-    V2ExperimentService(db).delete_characterization_record(record_id, current_user)
+    V2ResultsService(db).delete_characterization_record(record_id, current_user)
 
 
 @router.get(
@@ -303,7 +305,7 @@ def delete_characterization_record(
 def list_measured_products(
     sample_id: UUID, db: DbSession, current_user: CurrentUser
 ) -> MeasuredProductListResponse:
-    return V2ExperimentService(db).list_measured_products(sample_id, current_user)
+    return V2ResultsService(db).list_measured_products(sample_id, current_user)
 
 
 @router.post(
@@ -317,7 +319,7 @@ def create_measured_product(
     db: DbSession,
     current_user: CurrentUser,
 ) -> MeasuredProductRead:
-    return V2ExperimentService(db).create_measured_product(sample_id, payload, current_user)
+    return V2ResultsService(db).create_measured_product(sample_id, payload, current_user)
 
 
 @router.patch("/measured-products/{product_id}", response_model=MeasuredProductRead)
@@ -327,9 +329,9 @@ def update_measured_product(
     db: DbSession,
     current_user: CurrentUser,
 ) -> MeasuredProductRead:
-    return V2ExperimentService(db).update_measured_product(product_id, payload, current_user)
+    return V2ResultsService(db).update_measured_product(product_id, payload, current_user)
 
 
 @router.delete("/measured-products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_measured_product(product_id: UUID, db: DbSession, current_user: CurrentUser) -> None:
-    V2ExperimentService(db).delete_measured_product(product_id, current_user)
+    V2ResultsService(db).delete_measured_product(product_id, current_user)

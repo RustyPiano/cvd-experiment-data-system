@@ -1,6 +1,5 @@
 import { apiDownload, apiRequest } from '@/shared/api/client'
 import type {
-  ExperimentStatus,
   FileAssetListResponse,
   SampleListResponse,
   SampleRead,
@@ -8,10 +7,7 @@ import type {
 } from '@/shared/types/api'
 import type { components } from '@/shared/types/openapi'
 
-type V2ExperimentRead = Omit<
-  components['schemas']['V2ExperimentRead'],
-  'status'
-> & { status: ExperimentStatus }
+type V2ExperimentRead = components['schemas']['V2ExperimentRead']
 
 /** Lists all samples visible to the current user (across experiments). */
 export function listSamples(token: string, role?: string | null) {

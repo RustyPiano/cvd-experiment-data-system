@@ -6,6 +6,8 @@ from typing import Any
 
 import yaml
 
+from app.core.config import get_settings
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_FIELD_SOURCE = REPO_ROOT / "docs" / "standard" / "field-source.yaml"
 SCHEMA_VERSION = "cvd_v2"
@@ -25,8 +27,16 @@ PVD_METHODS = {"PVD-磁控溅射", "PVD-热蒸发", "PLD"}
 
 
 @lru_cache(maxsize=4)
-def load_field_source(path: str = str(DEFAULT_FIELD_SOURCE)) -> dict[str, Any]:
+def _load_field_source_cached(path: str) -> dict[str, Any]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+
+
+def load_field_source(path: str = str(DEFAULT_FIELD_SOURCE)) -> dict[str, Any]:
+    settings = get_settings()
+    # Dev reloads field metadata on every request so YAML edits appear without a restart.
+    if settings.app_debug or settings.app_env.lower() in {"dev", "development"}:
+        return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return _load_field_source_cached(path)
 
 
 def experiment_fields(doc: dict[str, Any] | None = None) -> list[dict[str, Any]]:

@@ -104,7 +104,7 @@ export function setSetupReference(
   })
 }
 
-// ── §7 样品（复用 v1 /samples 端点，表征/实测均需样品关联主键） ──
+// ── §7 样品（表征/实测均需样品关联主键） ──
 export function listSamples(runId: string, token: string) {
   return apiRequest<SampleListResponse>(
     `/api/v1/samples?experiment_id=${encodeURIComponent(runId)}`,

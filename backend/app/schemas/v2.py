@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -55,7 +55,7 @@ class V2ExperimentRead(BaseModel):
     material_system: str | None
     experiment_date: date
     objective: str | None
-    status: str
+    status: Literal["draft", "submitted", "locked", "invalid"]
     result_missing_todo: bool | None
     submitted_at: datetime | None
     locked_at: datetime | None

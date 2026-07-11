@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.main import app
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.user import User, UserRole
 from app.services.file_storage_service import FileStorageService
 
 client = TestClient(app)
@@ -276,6 +277,39 @@ def test_locked_experiment_allows_characterization_file_but_rejects_setup_diagra
         ).status_code
         == 409
     )
+
+
+def test_file_write_permissions_follow_run_visibility(active_user, db_session) -> None:
+    experiment_id = create_experiment(active_user.email)
+    other = User(
+        email="file-other@example.com",
+        name="File Other",
+        password_hash=active_user.password_hash,
+        role=UserRole.MEMBER,
+        is_active=True,
+    )
+    db_session.add(other)
+    db_session.commit()
+    headers = auth_headers(other.email)
+
+    hidden = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=headers,
+        data={"method": "Raman"},
+        files={"file": ("hidden.txt", b"hidden", "text/plain")},
+    )
+    assert hidden.status_code == 404
+
+    experiment = db_session.get(ExperimentRun, UUID(experiment_id))
+    experiment.status = ExperimentStatus.SUBMITTED
+    db_session.commit()
+    visible = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=headers,
+        data={"method": "Raman"},
+        files={"file": ("visible.txt", b"visible", "text/plain")},
+    )
+    assert visible.status_code == 403
 
 
 def test_invalid_experiment_rejects_characterization_file_writes(active_user, db_session) -> None:

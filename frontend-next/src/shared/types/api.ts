@@ -4,7 +4,7 @@ import type { components } from './openapi'
 type Schemas = components['schemas']
 
 export type UserRole = 'admin' | 'member'
-export type ExperimentStatus = 'draft' | 'submitted' | 'locked' | 'invalid'
+export type ExperimentStatus = Schemas['V2ExperimentRead']['status']
 
 export type UserRead = Omit<Schemas['UserRead'], 'role'> & { role: UserRole }
 export type TokenResponse = Omit<Schemas['TokenResponse'], 'user'> & {

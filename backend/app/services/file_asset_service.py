@@ -188,7 +188,7 @@ class FileAssetService:
         return to_file_asset_read_model(saved)
 
     def delete_file(self, file_id: UUID, current_user: User) -> None:
-        file_asset = self._get_owned_draft_file(file_id, current_user)
+        file_asset = self._get_editable_owned_file(file_id, current_user)
         before = serialize_file_asset(file_asset)
         file_asset.deleted_at = datetime.now(UTC)
         file_asset.deleted_by_id = current_user.id
@@ -259,7 +259,7 @@ class FileAssetService:
         self._assert_experiment_visible(file_asset.experiment_run_id, current_user)
         return file_asset
 
-    def _get_owned_draft_file(self, file_id: UUID, current_user: User) -> FileAsset:
+    def _get_editable_owned_file(self, file_id: UUID, current_user: User) -> FileAsset:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
@@ -271,7 +271,7 @@ class FileAssetService:
     def _get_editable_owned_experiment(
         self, experiment_id: UUID, current_user: User, asset_role: str
     ) -> ExperimentRun:
-        experiment = self.experiments.get_by_id(experiment_id)
+        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
         if experiment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -292,22 +292,12 @@ class FileAssetService:
         return experiment
 
     def _assert_experiment_visible(self, experiment_id: UUID, current_user: User) -> None:
-        experiment = self.experiments.get_by_id(experiment_id)
+        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
         if experiment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Experiment not found",
             )
-        if current_user.role == UserRole.ADMIN:
-            return
-        if current_user.role == UserRole.MEMBER:
-            if experiment.owner_id == current_user.id:
-                return
-            if experiment.status in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
-                return
-        elif experiment.status in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
-            return
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     def to_read_model(self, file_asset: FileAsset) -> FileAssetRead:
         return to_file_asset_read_model(file_asset)

@@ -29,7 +29,7 @@ import {
   isResultsReadOnly,
   statusBannerKey,
 } from './status-logic'
-import type { RunStatus, StatusAction } from './status-logic'
+import type { StatusAction } from './status-logic'
 
 const LOADED_MODULE_KEYS = [
   'basic_info',
@@ -107,14 +107,14 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
-            {availableStatusActions(data.run.status as RunStatus, session.currentUser?.role === 'admin').map((action) => (
+            {availableStatusActions(data.run.status, session.currentUser?.role === 'admin').map((action) => (
               <Button key={action} variant={action === 'invalidate' ? 'destructive' : 'outline'} disabled={mutation.isPending} onClick={() => act(action)}>
                 {t(`experimentsV2.actions.${action}`)}
               </Button>
             ))}
           </div>
-          {isProcessReadOnly(data.run.status as RunStatus) ? (
-            <Alert><AlertDescription>{t(statusBannerKey(data.run.status as 'locked' | 'invalid'))}</AlertDescription></Alert>
+          {isProcessReadOnly(data.run.status) ? (
+            <Alert><AlertDescription>{t(statusBannerKey(data.run.status))}</AlertDescription></Alert>
           ) : null}
           {missing.length ? (
             <Alert variant="destructive"><AlertDescription>
@@ -127,8 +127,8 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             runId={runId}
             runCode={data.run.run_code}
             initialState={buildStateFromLoaded(data.run, data.modules)}
-            processReadOnly={isProcessReadOnly(data.run.status as RunStatus)}
-            resultsReadOnly={isResultsReadOnly(data.run.status as RunStatus)}
+            processReadOnly={isProcessReadOnly(data.run.status)}
+            resultsReadOnly={isResultsReadOnly(data.run.status)}
           />
         </>
       )}

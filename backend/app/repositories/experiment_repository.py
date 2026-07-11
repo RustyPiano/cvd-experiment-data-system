@@ -16,6 +16,15 @@ SORTABLE_EXPERIMENT_COLUMNS = {
 }
 
 
+def _visibility_clause(current_user: User):
+    if current_user.role == UserRole.ADMIN:
+        return None
+    return or_(
+        ExperimentRun.owner_id == current_user.id,
+        ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED]),
+    )
+
+
 class ExperimentRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -38,6 +47,25 @@ class ExperimentRepository:
             .options(selectinload(ExperimentRun.owner))
             .where(ExperimentRun.id == experiment_id)
         )
+        return self.db.scalar(statement)
+
+    def get_visible_by_id(
+        self,
+        experiment_id: UUID,
+        *,
+        current_user: User,
+        schema_version: str | None = None,
+    ) -> ExperimentRun | None:
+        statement = (
+            select(ExperimentRun)
+            .options(selectinload(ExperimentRun.owner))
+            .where(ExperimentRun.id == experiment_id)
+        )
+        visibility = _visibility_clause(current_user)
+        if visibility is not None:
+            statement = statement.where(visibility)
+        if schema_version is not None:
+            statement = statement.where(ExperimentRun.schema_version == schema_version)
         return self.db.scalar(statement)
 
     def next_run_code(self, experiment_date: date) -> str:
@@ -78,20 +106,15 @@ class ExperimentRepository:
         if schema_version is not None:
             statement = statement.where(ExperimentRun.schema_version == schema_version)
 
-        if current_user.role == UserRole.ADMIN:
+        visibility = _visibility_clause(current_user)
+        if visibility is None:
             if mine:
                 statement = statement.where(ExperimentRun.owner_id == current_user.id)
         else:
-            visible_statuses = [ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED]
             if mine:
                 statement = statement.where(ExperimentRun.owner_id == current_user.id)
             else:
-                statement = statement.where(
-                    or_(
-                        ExperimentRun.owner_id == current_user.id,
-                        ExperimentRun.status.in_(visible_statuses),
-                    )
-                )
+                statement = statement.where(visibility)
 
         if status_filters is not None:
             statement = statement.where(ExperimentRun.status.in_(status_filters))

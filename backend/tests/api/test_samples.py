@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.user import User, UserRole
 
 client = TestClient(app)
 
@@ -154,3 +155,34 @@ def test_locked_samples_remain_editable_but_invalid_samples_do_not(active_user, 
         headers=auth_headers(active_user.email),
     )
     assert update.status_code == 409
+
+
+def test_sample_write_permissions_follow_run_visibility(active_user, db_session) -> None:
+    run = create_run(active_user.email)
+    other = User(
+        email="sample-other@example.com",
+        name="Sample Other",
+        password_hash=active_user.password_hash,
+        role=UserRole.MEMBER,
+        is_active=True,
+    )
+    db_session.add(other)
+    db_session.commit()
+    headers = auth_headers(other.email)
+
+    hidden = client.post(
+        f"/api/v1/experiments/{run['id']}/samples",
+        json={"role": "product"},
+        headers=headers,
+    )
+    assert hidden.status_code == 404
+
+    experiment = db_session.get(ExperimentRun, UUID(run["id"]))
+    experiment.status = ExperimentStatus.SUBMITTED
+    db_session.commit()
+    visible = client.post(
+        f"/api/v1/experiments/{run['id']}/samples",
+        json={"role": "product"},
+        headers=headers,
+    )
+    assert visible.status_code == 403

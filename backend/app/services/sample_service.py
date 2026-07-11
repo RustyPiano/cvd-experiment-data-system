@@ -51,10 +51,10 @@ class SampleService:
         payload: SampleCreate,
         current_user: User,
     ) -> SampleRead:
-        experiment = self._get_owned_draft_experiment(experiment_id, current_user)
+        experiment = self._get_editable_owned_experiment(experiment_id, current_user)
         restored = self._restore_soft_deleted_role_sample(experiment=experiment, payload=payload)
         if restored is None:
-            created = self._create_sample_with_retry(experiment=experiment, payload=payload)
+            created = self._create_sample(experiment=experiment, payload=payload)
             action = "create"
             before = None
         else:
@@ -77,7 +77,7 @@ class SampleService:
         payload: SampleUpdate,
         current_user: User,
     ) -> SampleRead:
-        sample = self._get_owned_draft_sample(sample_id, current_user)
+        sample = self._get_editable_owned_sample(sample_id, current_user)
         before = self._serialize_sample(sample)
         updates = payload.model_dump(exclude_unset=True)
         for field, value in updates.items():
@@ -94,7 +94,7 @@ class SampleService:
         self.db.commit()
         return SampleRead.model_validate(saved)
 
-    def _create_sample_with_retry(
+    def _create_sample(
         self,
         *,
         experiment: ExperimentRun,
@@ -108,35 +108,29 @@ class SampleService:
                     detail="Parent sample must belong to the same experiment",
                 )
 
-        attempts = 0
-        while True:
-            attempts += 1
-            sample_count = self.samples.count_by_experiment_and_role(experiment.id, payload.role)
-            sequence = sample_count + 1
-            if payload.role in {SampleRole.TOP, SampleRole.BOTTOM} and sample_count > 0:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Sample role already exists for experiment",
-                )
-
-            sample = Sample(
-                sample_code=self._build_sample_code(experiment.run_code, payload.role, sequence),
-                experiment_run_id=experiment.id,
-                parent_sample_id=payload.parent_sample_id,
-                role=payload.role.value,
-                metadata_json=payload.metadata_json,
+        sample_count = self.samples.count_by_experiment_and_role(experiment.id, payload.role)
+        sequence = sample_count + 1
+        if payload.role in {SampleRole.TOP, SampleRole.BOTTOM} and sample_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Sample role already exists for experiment",
             )
-            try:
-                return self.samples.create(sample)
-            except IntegrityError as exc:
-                self.db.rollback()
-                if "sample_code" not in str(exc).lower():
-                    raise
-                if attempts >= 3:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail="Failed to allocate sample code",
-                    ) from exc
+
+        sample = Sample(
+            sample_code=self._build_sample_code(experiment.run_code, payload.role, sequence),
+            experiment_run_id=experiment.id,
+            parent_sample_id=payload.parent_sample_id,
+            role=payload.role.value,
+            metadata_json=payload.metadata_json,
+        )
+        try:
+            return self.samples.create(sample)
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Sample code already exists",
+            ) from exc
 
     def _restore_soft_deleted_role_sample(
         self,
@@ -196,15 +190,17 @@ class SampleService:
         self._assert_experiment_visible(sample.experiment_run_id, current_user)
         return sample
 
-    def _get_owned_draft_sample(self, sample_id: UUID, current_user: User) -> Sample:
+    def _get_editable_owned_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self.samples.get_by_id(sample_id)
         if sample is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
-        self._get_owned_draft_experiment(sample.experiment_run_id, current_user)
+        self._get_editable_owned_experiment(sample.experiment_run_id, current_user)
         return sample
 
-    def _get_owned_draft_experiment(self, experiment_id: UUID, current_user: User) -> ExperimentRun:
-        experiment = self.experiments.get_by_id(experiment_id)
+    def _get_editable_owned_experiment(
+        self, experiment_id: UUID, current_user: User
+    ) -> ExperimentRun:
+        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
         if experiment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -223,22 +219,12 @@ class SampleService:
         return experiment
 
     def _assert_experiment_visible(self, experiment_id: UUID, current_user: User) -> None:
-        experiment = self.experiments.get_by_id(experiment_id)
+        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
         if experiment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Experiment not found",
             )
-        if current_user.role == UserRole.ADMIN:
-            return
-        if current_user.role == UserRole.MEMBER:
-            if experiment.owner_id == current_user.id:
-                return
-            if experiment.status in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
-                return
-        elif experiment.status in {ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED}:
-            return
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
 
     def _serialize_sample(self, sample: Sample | None) -> dict | None:
         if sample is None:

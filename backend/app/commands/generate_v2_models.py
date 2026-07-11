@@ -201,7 +201,7 @@ def _render_process_step_models(
             "    items: list[ProcessStepPayload] = Field(default_factory=list)",
             "",
             "    # Cross-entity condition 装置Setup.外场装置≠无 for field_params is enforced",
-            "    # in V2ExperimentService; generated module models see only one payload.",
+            "    # in v2_experiment_service; generated module models see only one payload.",
             "",
         ]
     )

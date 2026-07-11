@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from app.models.experiment import ExperimentRun
 from app.services.v2_field_source import (
@@ -39,7 +39,11 @@ def missing_r0_fields(run: ExperimentRun) -> list[dict[str, str]]:
     ]
 
 
-def _report(run: ExperimentRun, status: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+def _report(
+    run: ExperimentRun,
+    status: Literal["excluded_pvd", "compliant", "non_compliant"],
+    items: list[dict[str, Any]],
+) -> dict[str, Any]:
     return {
         "run_id": str(run.id),
         "run_code": run.run_code,

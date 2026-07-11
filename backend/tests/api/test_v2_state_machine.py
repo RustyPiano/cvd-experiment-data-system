@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.audit import AuditEvent
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.user import User, UserRole
 
 client = TestClient(app)
@@ -115,7 +116,9 @@ def test_r0_gate_returns_structured_missing_fields(active_user) -> None:
     assert {"key", "label", "module"} <= missing[0].keys()
 
 
-def test_non_owner_gets_403_before_state_guard(active_user, db_session) -> None:
+def test_write_permissions_hide_invisible_runs_and_forbid_visible_runs(
+    active_user, db_session
+) -> None:
     owner = _headers(active_user.email)
     other = User(
         email="other@example.com",
@@ -129,10 +132,10 @@ def test_non_owner_gets_403_before_state_guard(active_user, db_session) -> None:
     run = _run(owner, "STATE-OWNER")
     headers = _headers(other.email)
 
-    for action in ("submit", "lock", "return-to-draft"):
+    for action in ("submit", "lock", "unlock", "return-to-draft"):
         assert (
             client.post(f"/api/v1/experiments/{run['id']}/{action}", headers=headers).status_code
-            == 403
+            == 404
         )
     assert (
         client.post(
@@ -140,7 +143,19 @@ def test_non_owner_gets_403_before_state_guard(active_user, db_session) -> None:
             json={"reason": "no"},
             headers=headers,
         ).status_code
+        == 404
+    )
+
+    experiment = db_session.get(ExperimentRun, UUID(run["id"]))
+    experiment.status = ExperimentStatus.SUBMITTED
+    db_session.commit()
+
+    assert (
+        client.post(f"/api/v1/experiments/{run['id']}/return-to-draft", headers=headers).status_code
         == 403
+    )
+    assert (
+        client.post(f"/api/v1/experiments/{run['id']}/unlock", headers=headers).status_code == 403
     )
 
 

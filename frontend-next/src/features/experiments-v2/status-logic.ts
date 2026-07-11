@@ -1,4 +1,6 @@
-export type RunStatus = 'draft' | 'submitted' | 'locked' | 'invalid'
+import type { ExperimentStatus } from '@/shared/types/api'
+
+export type RunStatus = ExperimentStatus
 export type StatusAction = 'submit' | 'lock' | 'unlock' | 'returnToDraft' | 'invalidate'
 
 export function availableStatusActions(status: RunStatus, isAdmin: boolean): StatusAction[] {

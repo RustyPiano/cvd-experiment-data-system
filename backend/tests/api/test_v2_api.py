@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.audit import AuditEvent
 from app.models.sample import Sample, SampleRole
 
 client = TestClient(app)
@@ -18,6 +19,14 @@ def test_v2_routes_are_collected_under_api_v1() -> None:
     assert not any(path.startswith(legacy_prefix) for path in paths)
 
 
+def test_v2_experiment_status_openapi_is_closed_enum() -> None:
+    status_schema = app.openapi()["components"]["schemas"]["V2ExperimentRead"]["properties"][
+        "status"
+    ]
+
+    assert status_schema["enum"] == ["draft", "submitted", "locked", "invalid"]
+
+
 def login(email: str, password: str = "Password123!") -> str:
     response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200
@@ -28,7 +37,7 @@ def auth_headers(email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {login(email)}"}
 
 
-def test_v2_entity_versions_are_append_only_and_queryable(active_user) -> None:
+def test_v2_entity_versions_are_append_only_queryable_and_audited(active_user, db_session) -> None:
     headers = auth_headers(active_user.email)
 
     create = client.post(
@@ -63,6 +72,15 @@ def test_v2_entity_versions_are_append_only_and_queryable(active_user) -> None:
     versions = client.get(f"/api/v1/material-lots/{entity_id}/versions", headers=headers)
     assert versions.status_code == 200
     assert [item["version"] for item in versions.json()["items"]] == [1, 2]
+    event = db_session.query(AuditEvent).filter(AuditEvent.action == "append_entity_version").one()
+    assert event.actor_id == active_user.id
+    assert event.entity_id == UUID(entity_id)
+    assert event.before_json is None
+    assert event.after_json == {
+        "kind": "material_lot",
+        "entity_id": entity_id,
+        "version": 2,
+    }
 
 
 def test_v2_entity_create_reports_all_missing_required_fields(active_user) -> None:
@@ -181,7 +199,9 @@ def _create_run(headers: dict[str, str], run_code: str, formula: str = "MoS2") -
     return response.json()["id"]
 
 
-def test_target_product_upsert_updates_run_material_system(active_user) -> None:
+def test_target_product_upsert_updates_run_material_system_and_audits_key(
+    active_user, db_session
+) -> None:
     headers = auth_headers(active_user.email)
     run_id = _create_run(headers, "RUN-MATERIAL-UPDATE")
 
@@ -194,6 +214,11 @@ def test_target_product_upsert_updates_run_material_system(active_user) -> None:
     assert response.status_code == 200, response.text
     run = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
     assert run.json()["material_system"] == "WS2/MoS2"
+    event = db_session.query(AuditEvent).filter(AuditEvent.action == "upsert_module").one()
+    assert event.actor_id == active_user.id
+    assert event.entity_id == UUID(run_id)
+    assert event.before_json is None
+    assert event.after_json == {"module_key": "target_product"}
 
 
 def test_target_product_upsert_clears_run_material_system(active_user) -> None:

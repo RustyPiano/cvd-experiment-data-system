@@ -1121,8 +1121,11 @@ export interface components {
             experiment_date: string;
             /** Objective */
             objective: string | null;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "submitted" | "locked" | "invalid";
             /** Result Missing Todo */
             result_missing_todo: boolean | null;
             /** Submitted At */
