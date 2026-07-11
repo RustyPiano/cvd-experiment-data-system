@@ -82,6 +82,14 @@ export const common = {
       submitError: 'Failed to save',
     },
   },
+  samples: {
+    detail: {
+      subtitle:
+        'View sample ownership, metadata, and related files. Results remain editable until the experiment is invalidated.',
+      readOnly:
+        'This sample is read-only because the experiment is invalid or you do not have edit permission.',
+    },
+  },
   // v2 experiment entry form (P4 §1–§4). Field labels come from field-metadata.
   experimentsV2: {
     status: {
@@ -103,7 +111,8 @@ export const common = {
       invalidate: 'Invalidate experiment',
       success: 'Status updated',
       error: 'Failed to update status',
-      missingTitle: 'Complete these R0 fields first:',
+      missingTitle: 'Complete these fields first:',
+      requirement: { required: 'Required', r0: 'R0' },
       invalidateTitle: 'Invalidate experiment',
       invalidateDescription: 'Enter the reason for invalidation.',
       reason: 'Invalidation reason',

@@ -120,6 +120,7 @@ class FileAssetService:
         experiment = self._get_editable_owned_experiment(
             experiment_id, current_user, resolved_asset_role
         )
+        record_method: str | None = None
         if characterization_record_id is not None:
             record = self.db.get(CharacterizationRecord, characterization_record_id)
             if record is None or record.experiment_run_id != experiment.id:
@@ -133,6 +134,7 @@ class FileAssetService:
                     detail="Sample must match the characterization record",
                 )
             sample_id = record.sample_id
+            record_method = self._normalize_method(record.method_instrument)
         if sample_id is not None:
             sample = self.samples.get_by_id(sample_id)
             if sample is None or sample.experiment_run_id != experiment.id:
@@ -146,16 +148,24 @@ class FileAssetService:
                 detail="Setup diagram cannot be linked to a sample",
             )
 
-        content = self._read_upload_content(upload)
         if resolved_asset_role == "setup_diagram":
             resolved_method = "setup_diagram"
         else:
             resolved_method = self._normalize_method(method)
+            if characterization_record_id is not None:
+                if resolved_method is None:
+                    resolved_method = record_method
+                elif resolved_method != record_method:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail="File method must match the characterization record",
+                    )
             if resolved_method is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="File method is required",
                 )
+        content = self._read_upload_content(upload)
         resolved_category = self._normalize_file_category(file_category)
         file_id = uuid4()
         relative_path, sha256 = self.storage.persist(

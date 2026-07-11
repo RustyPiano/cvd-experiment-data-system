@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { entities } from '@/shared/generated/field-metadata'
+import { entities, experimentModules } from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
   SYSTEM_FIELD_KEYS,
@@ -17,34 +17,41 @@ function field(kind: 'material_lot' | 'setup' | 'instrument', key: string) {
 }
 
 describe('parseEnumOptions', () => {
-  it('splits a clean slash-separated enum', () => {
-    expect(parseEnumOptions('化学品/衬底/气瓶')).toEqual([
-      '化学品',
-      '衬底',
-      '气瓶',
-    ])
+  it('parses every generated dropdown or multi-select field', () => {
+    const fields = [
+      ...Object.values(experimentModules).flat(),
+      ...Object.values(entities).flat(),
+    ].filter((item) => /(下拉|多选)/.test(item.input))
+
+    expect(fields.length).toBeGreaterThan(0)
+    for (const item of fields) {
+      expect(
+        parseEnumOptions(item.input, item.options),
+        item.key,
+      ).not.toBeNull()
+      expect(
+        parseEnumOptions(item.input, item.options)?.length,
+        item.key,
+      ).toBeGreaterThan(0)
+    }
   })
 
-  it('prefers "·" so SiO₂/Si stays intact', () => {
-    expect(
-      parseEnumOptions('SiO₂/Si·蓝宝石·石英·云母·Cu箔·Au箔·h-BN·其他'),
-    ).toEqual([
-      'SiO₂/Si',
-      '蓝宝石',
-      '石英',
-      '云母',
-      'Cu箔',
-      'Au箔',
-      'h-BN',
-      '其他',
-    ])
+  it.each([
+    ['target_morphology', '纳米片(flake)'],
+    ['appearance', '结块或潮解'],
+    ['material', '蓝宝石(Al₂O₃)'],
+    ['event_part', '其他（可加）'],
+  ])('keeps the real %s option %s', (key, option) => {
+    const item = Object.values(experimentModules)
+      .flat()
+      .find((candidate) => candidate.key === key)!
+    expect(parseEnumOptions(item.input, item.options)).toContain(option)
   })
 
-  it('treats descriptive hint strings as free text (not an enum)', () => {
-    expect(parseEnumOptions('受控+其他')).toBeNull()
-    expect(parseEnumOptions('x50严谨；目数可接受')).toBeNull()
-    expect(parseEnumOptions('CAS')).toBeNull()
-    expect(parseEnumOptions(null)).toBeNull()
+  it('treats non-enum input as free text regardless of option prose', () => {
+    expect(parseEnumOptions('文本', '化学品/衬底/气瓶')).toBeNull()
+    expect(parseEnumOptions('文本', '受控+其他')).toBeNull()
+    expect(parseEnumOptions('下拉', null)).toBeNull()
   })
 })
 

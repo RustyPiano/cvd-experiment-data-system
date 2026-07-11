@@ -124,6 +124,83 @@ def test_r0_gate_returns_structured_missing_fields(active_user) -> None:
     assert {"key", "label", "module"} <= missing[0].keys()
 
 
+def test_submit_rejects_missing_non_r0_required_fields(active_user) -> None:
+    headers = _headers(active_user.email)
+
+    for code, target_product, precursor, expected_key in (
+        (
+            "STATE-REQUIRED-STRUCTURE",
+            {
+                "chemical_formula": "WS2/MoS2",
+                "structure_type": None,
+                "components": [{"formula": "WS2", "role": "上层"}],
+            },
+            {"name_formula": "MoO3", "phase_state": "固", "amount": 20},
+            "structure_type",
+        ),
+        (
+            "STATE-REQUIRED-PHASE",
+            {"chemical_formula": "MoS2", "structure_type": "本征"},
+            {"name_formula": "MoO3", "phase_state": None, "amount": 20},
+            "phase_state",
+        ),
+    ):
+        setup = client.post(
+            "/api/v1/setups",
+            json={
+                "setup_code": f"SETUP-{code}",
+                "setup_name": code,
+                "zone_count": 1,
+                "orientation": "水平",
+                "coordinate_system": "上游负/下游正",
+                "field_devices": "无",
+            },
+            headers=headers,
+        )
+        assert setup.status_code == 201, setup.text
+        run = _run(headers, code, "APCVD")
+        run_id = run["id"]
+        assert (
+            client.put(
+                f"/api/v1/experiments/{run_id}/setup-reference",
+                json={"setup_id": setup.json()["id"], "version": 1},
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        payloads = {
+            "target_product": target_product,
+            "precursors": {"items": [precursor]},
+            "substrates": {"items": [{"material": "蓝宝石"}]},
+            "process_steps": {
+                "items": [
+                    {
+                        "stage_type": "反应生长",
+                        "temperature_program": "750 C",
+                        "gas_species": "Ar",
+                        "gas_flow_sccm": 80,
+                        "pressure_system": "常压",
+                    }
+                ]
+            },
+        }
+        for module, payload in payloads.items():
+            response = client.put(
+                f"/api/v1/experiments/{run_id}/modules/{module}",
+                json={"payload_json": payload},
+                headers=headers,
+            )
+            assert response.status_code == 200, response.text
+
+        response = client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers)
+
+        assert response.status_code == 422, response.text
+        missing = response.json()["detail"]["missing"]
+        assert next(item for item in missing if item["key"] == expected_key)["requirement"] == (
+            "required"
+        )
+
+
 def test_write_permissions_hide_invisible_runs_and_forbid_visible_runs(
     active_user, db_session
 ) -> None:

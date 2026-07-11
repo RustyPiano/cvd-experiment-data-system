@@ -13,7 +13,7 @@ interface ConditionCase {
   condition: FieldCondition
   driver: unknown
   expected?: boolean
-  expect_error?: boolean
+  frontend?: { expected: false; logs: 'console.error' }
   unresolvable?: boolean
 }
 
@@ -43,14 +43,24 @@ describe('shared condition cases', () => {
           r0: false,
           group: null,
         } satisfies FieldMetadata
-        expect(isConditionSatisfied(testCase.condition, {}, 'target_product')).toBe(false)
+        expect(
+          isConditionSatisfied(testCase.condition, {}, 'target_product'),
+        ).toBe(false)
         expect(isFieldVisible('material_lot', field, {})).toBe(false)
         return
       }
 
-      if (testCase.expect_error) {
-        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-        expect(matchesCondition(testCase.condition, testCase.driver)).toBe(false)
+      if (testCase.frontend) {
+        expect(testCase.frontend).toEqual({
+          expected: false,
+          logs: 'console.error',
+        })
+        const error = vi
+          .spyOn(console, 'error')
+          .mockImplementation(() => undefined)
+        expect(matchesCondition(testCase.condition, testCase.driver)).toBe(
+          testCase.frontend.expected,
+        )
         expect(error).toHaveBeenCalledOnce()
         error.mockRestore()
         return

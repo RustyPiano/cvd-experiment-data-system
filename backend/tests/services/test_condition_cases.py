@@ -26,8 +26,12 @@ def test_condition_cases(case: dict) -> None:
         assert (local_key is not None and condition_matches(condition, case["driver"])) is case[
             "expected"
         ]
-    elif case.get("expect_error"):
-        with pytest.raises(ValueError, match="Unsupported condition op"):
+    elif backend := case.get("backend"):
+        assert backend == {
+            "raises": "ValueError",
+            "message": "Unsupported condition op",
+        }
+        with pytest.raises(ValueError, match=backend["message"]):
             condition_matches(condition, case["driver"])
     else:
         assert condition_matches(condition, case["driver"]) is case["expected"]

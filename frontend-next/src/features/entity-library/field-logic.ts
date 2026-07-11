@@ -1,6 +1,10 @@
 // 一等实体表单的「元数据驱动」纯逻辑：可选项解析、条件显隐、有效必填、默认值。
 // 全部只读消费 field-metadata（生成物），不含 React/网络，便于 vitest 单测。
 import { entities } from '@/shared/generated/field-metadata'
+import {
+  isCompositeInput,
+  parseCompositeOptions,
+} from '@/shared/composite-field'
 import type {
   FieldCondition,
   FieldMetadata,
@@ -21,37 +25,19 @@ export function getEntityFields(kind: EntityKind): FieldMetadata[] {
   return entities[kind].filter((field) => !SYSTEM_FIELD_KEYS.has(field.key))
 }
 
-/**
- * 把 options 字符串解析为「干净枚举」token 列表；否则返回 null（当作占位提示，走文本框）。
- * 分隔符优先 '·'（形如 'SiO₂/Si·蓝宝石·…'，避免误切 'SiO₂/Si' 里的 '/'），否则 '/'。
- * 含描述性标点的一律判为非枚举（如 '受控+其他'、'x50严谨；目数可接受'、'如激光波长/…'）。
- */
-const DESCRIPTIVE_MARKERS = [
-  '；',
-  ';',
-  '或',
-  '+',
-  '（',
-  '(',
-  '，',
-  '如',
-  '视',
-  '建议',
-  '标准',
-  '每条',
-  '≥',
-]
-
-export function parseEnumOptions(options: string | null): string[] | null {
-  if (!options) return null
-  if (DESCRIPTIVE_MARKERS.some((marker) => options.includes(marker)))
-    return null
+/** 只由字段声明的 input 形态决定是否解析枚举。 */
+export function parseEnumOptions(
+  input: string,
+  options: string | null,
+): string[] | null {
+  if (!/(下拉|多选)/.test(input) || !options) return null
+  if (isCompositeInput(input)) return parseCompositeOptions(options)
   const separator = options.includes('·') ? '·' : '/'
   const tokens = options
     .split(separator)
     .map((token) => token.trim())
     .filter(Boolean)
-  return tokens.length >= 2 ? tokens : null
+  return tokens.length ? tokens : null
 }
 
 /**

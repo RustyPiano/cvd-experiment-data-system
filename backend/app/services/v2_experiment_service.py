@@ -29,7 +29,7 @@ from app.services.v2_field_source import (
     missing,
     stage_types_with_group,
 )
-from app.services.v2_r0_service import missing_r0_fields
+from app.services.v2_r0_service import missing_r0_fields, missing_required_fields
 from app.services.v2_result_status_service import refresh_result_missing_todo
 
 
@@ -279,7 +279,14 @@ class V2ExperimentService:
             )
 
     def _require_r0(self, run: ExperimentRun) -> None:
-        missing_fields = missing_r0_fields(run)
+        r0_fields = [{**item, "requirement": "r0"} for item in missing_r0_fields(run)]
+        r0_keys = {item["key"] for item in r0_fields}
+        required_fields = [
+            {**item, "requirement": "required"}
+            for item in missing_required_fields(run)
+            if item["key"] not in r0_keys
+        ]
+        missing_fields = [*r0_fields, *required_fields]
         if missing_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

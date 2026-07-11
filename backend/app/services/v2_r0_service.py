@@ -8,6 +8,7 @@ from app.services.v2_field_source import (
     SCHEMA_VERSION,
     condition_local_key,
     condition_matches,
+    entity_fields,
     experiment_fields,
     load_field_source,
     missing,
@@ -37,6 +38,83 @@ def missing_r0_fields(run: ExperimentRun) -> list[dict[str, str]]:
         for item in build_run_report(run)["items"]
         if item["applicable"] and not item["passed"]
     ]
+
+
+def missing_required_fields(run: ExperimentRun) -> list[dict[str, str]]:
+    doc = load_field_source()
+    payloads = {item.module_key: item.payload_json for item in run.module_payloads}
+    if (payloads.get("basic_info") or {}).get("synthesis_method") in PVD_METHODS:
+        return []
+
+    stage_types = {item["name"]: item for item in doc["stage_types"]["types"]}
+    missing_items: list[dict[str, str]] = []
+    for field in experiment_fields(doc):
+        level = field["requirement"]["level"]
+        if level not in {"required", "conditional_required"}:
+            continue
+        module_key = module_key_for_field(field, doc)
+        records = _records(run, payloads, module_key)
+        for record in records:
+            required = level == "required"
+            if module_key == "process_steps":
+                stage = stage_types.get(record.get("stage_type"), {})
+                field_group = field.get("group", "common")
+                if field_group != "common" and field_group not in stage.get("shows", []):
+                    continue
+                required = field["key"] in stage.get("required_extra", []) or required
+            condition = field["requirement"].get("condition")
+            if level == "conditional_required" and condition:
+                value, resolved = _condition_value(field, condition, record, payloads, run, doc)
+                required = resolved and condition_matches(condition, value)
+            if required and missing(record.get(field["key"])):
+                missing_items.append(
+                    {"key": field["key"], "label": field["label"], "module": module_key}
+                )
+                break
+    return missing_items
+
+
+def _condition_value(
+    field: dict[str, Any],
+    condition: dict[str, Any],
+    record: dict[str, Any],
+    payloads: dict[str, dict[str, Any]],
+    run: ExperimentRun,
+    doc: dict[str, Any],
+) -> tuple[Any, bool]:
+    local_key = condition_local_key(field, condition, doc)
+    if local_key is not None:
+        return record.get(local_key), True
+
+    condition_module, _, condition_label = str(condition.get("field") or "").partition(".")
+    module_key = doc["modules"].get(condition_module)
+    if module_key:
+        driver = next(
+            (
+                item
+                for item in experiment_fields(doc)
+                if module_key_for_field(item, doc) == module_key
+                and item["label"] == condition_label
+            ),
+            None,
+        )
+        if driver:
+            records = _records(run, payloads, module_key)
+            return records[0].get(driver["key"]), True
+
+    if doc["entity_keys"].get(condition_module) == "setup":
+        attrs = (run.setup_ref_snapshot_json or {}).get("attrs_snapshot") or {}
+        driver = next(
+            (
+                item
+                for item in entity_fields(doc)
+                if module_key_for_field(item, doc) == "setup" and item["label"] == condition_label
+            ),
+            None,
+        )
+        if driver and driver["key"] in attrs:
+            return attrs[driver["key"]], True
+    return None, False
 
 
 def _report(

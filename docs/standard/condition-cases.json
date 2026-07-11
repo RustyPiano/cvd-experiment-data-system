@@ -1,4 +1,5 @@
 {
+  "comment": "Unknown operators are intentionally asymmetric: backend raises to expose invalid configuration; frontend logs and returns false so rendering stays safe.",
   "cases": [
     {"name": "scalar eq match", "condition": {"field": "Test.driver", "op": "eq", "value": "solid"}, "driver": "solid", "expected": true},
     {"name": "scalar eq miss", "condition": {"field": "Test.driver", "op": "eq", "value": "solid"}, "driver": "gas", "expected": false},
@@ -14,7 +15,7 @@
     {"name": "list in disjoint", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": ["PLD", "MBE"], "expected": false},
     {"name": "null eq null", "condition": {"field": "Test.driver", "op": "eq", "value": null}, "driver": null, "expected": true},
     {"name": "empty list in", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": [], "expected": false},
-    {"name": "unknown op", "condition": {"field": "Test.driver", "op": "contains", "value": "solid"}, "driver": "solid", "expect_error": true},
+    {"name": "unknown op", "condition": {"field": "Test.driver", "op": "contains", "value": "solid"}, "driver": "solid", "backend": {"raises": "ValueError", "message": "Unsupported condition op"}, "frontend": {"expected": false, "logs": "console.error"}},
     {"name": "unresolvable reference", "condition": {"field": "Missing.driver", "op": "eq", "value": "solid"}, "driver": "solid", "expected": false, "unresolvable": true}
   ]
 }

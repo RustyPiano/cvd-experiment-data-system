@@ -81,14 +81,14 @@ function characterizationMethods(): string[] {
   const field = getModuleFields('characterization').find(
     (item) => item.key === 'method_instrument',
   )
-  return parseEnumOptions(field?.options ?? null) ?? []
+  return field ? (parseEnumOptions(field.input, field.options) ?? []) : []
 }
 
 function observedPhenomenaOptions(): string[] {
   const field = getModuleFields('measured_products').find(
     (item) => item.key === 'observed_phenomena',
   )
-  return parseEnumOptions(field?.options ?? null) ?? []
+  return field ? (parseEnumOptions(field.input, field.options) ?? []) : []
 }
 
 function sampleLabel(sample: SampleRead): string {

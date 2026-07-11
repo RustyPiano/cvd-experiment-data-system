@@ -179,7 +179,7 @@ function EntityFieldControl({
 }) {
   const { t } = useTranslation()
   const required = isEffectivelyRequired(kind, field, values)
-  const enumOptions = parseEnumOptions(field.options)
+  const enumOptions = parseEnumOptions(field.input, field.options)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))

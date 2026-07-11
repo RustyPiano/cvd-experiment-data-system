@@ -81,6 +81,12 @@ export const common = {
       submitError: '保存失败',
     },
   },
+  samples: {
+    detail: {
+      subtitle: '查看样品归属、元数据与关联文件。实验作废前可补录结果。',
+      readOnly: '当前样品为只读（实验已作废或您没有编辑权限）。',
+    },
+  },
   // v2 实验录入表单（P4 §1–§4）。字段标签走 field-metadata，此处只放 UI chrome。
   experimentsV2: {
     status: {
@@ -102,7 +108,8 @@ export const common = {
       invalidate: '作废实验',
       success: '状态已更新',
       error: '状态更新失败',
-      missingTitle: '请先补齐以下 R0 字段：',
+      missingTitle: '请先补齐以下字段：',
+      requirement: { required: '必填', r0: 'R0' },
       invalidateTitle: '作废实验',
       invalidateDescription: '请输入作废原因。',
       reason: '作废原因',

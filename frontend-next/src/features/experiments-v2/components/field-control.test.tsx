@@ -132,7 +132,8 @@ describe('FieldControl composite inputs', () => {
       const input = field.input
       if (!isCompositeInput(input)) throw new Error('not composite')
       const options =
-        parseEnumOptions(field.options) ?? parseCompositeOptions(field.options)
+        parseEnumOptions(field.input, field.options) ??
+        parseCompositeOptions(field.options)
       const option = options[0]
       const free = '12.5'
       const combined = formatCompositeValue(input, free, option)

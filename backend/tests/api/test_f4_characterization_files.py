@@ -61,10 +61,7 @@ def upload_record_file(
     sample_id: str | None = None,
     asset_role: str | None = None,
 ):
-    data = {
-        "characterization_record_id": record_id,
-        "method": "Raman",
-    }
+    data = {"characterization_record_id": record_id}
     if sample_id is not None:
         data["sample_id"] = sample_id
     if asset_role is not None:

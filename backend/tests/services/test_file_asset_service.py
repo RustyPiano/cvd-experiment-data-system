@@ -2,9 +2,11 @@ from datetime import datetime
 from io import BytesIO
 
 import pytest
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 
 from app.models.experiment import ExperimentRun
+from app.models.sample import Sample, SampleRole
+from app.models.v2_results import CharacterizationRecord
 from app.services.file_asset_service import FileAssetService
 from app.services.file_storage_service import FileStorageService
 from app.services.v2_field_source import field_option_values
@@ -42,6 +44,74 @@ def create_draft_experiment(service: FileAssetService, owner_id) -> ExperimentRu
     service.db.commit()
     service.db.refresh(experiment)
     return experiment
+
+
+def create_characterization_record(
+    service: FileAssetService, experiment: ExperimentRun
+) -> CharacterizationRecord:
+    sample = Sample(
+        sample_code=f"{experiment.run_code}-S1",
+        experiment_run_id=experiment.id,
+        role=SampleRole.PRODUCT,
+    )
+    service.db.add(sample)
+    service.db.flush()
+    record = CharacterizationRecord(
+        experiment_run_id=experiment.id,
+        sample_id=sample.id,
+        method_instrument="Raman",
+    )
+    service.db.add(record)
+    service.db.commit()
+    return record
+
+
+def test_characterization_upload_derives_omitted_method(active_user, db_session) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+    record = create_characterization_record(service, experiment)
+
+    created = service.upload_file(
+        experiment_id=experiment.id,
+        characterization_record_id=record.id,
+        upload=build_upload("derived.txt", b"payload"),
+        current_user=active_user,
+    )
+
+    assert created.method == "Raman"
+
+
+def test_characterization_upload_rejects_mismatched_method(active_user, db_session) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+    record = create_characterization_record(service, experiment)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.upload_file(
+            experiment_id=experiment.id,
+            characterization_record_id=record.id,
+            method="SEM",
+            upload=build_upload("mismatch.txt", b"payload"),
+            current_user=active_user,
+        )
+
+    assert exc_info.value.status_code == 422
+
+
+def test_characterization_upload_accepts_matching_method(active_user, db_session) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+    record = create_characterization_record(service, experiment)
+
+    created = service.upload_file(
+        experiment_id=experiment.id,
+        characterization_record_id=record.id,
+        method="Raman",
+        upload=build_upload("matching.txt", b"payload"),
+        current_user=active_user,
+    )
+
+    assert created.method == "Raman"
 
 
 def test_upload_file_cleans_up_disk_when_audit_fails(active_user, db_session, monkeypatch) -> None:

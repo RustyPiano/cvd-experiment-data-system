@@ -116,6 +116,11 @@ def upgrade() -> None:
     op.create_index("ix_audit_events_actor_id", "audit_events", ["actor_id"])
     op.create_index("ix_audit_events_entity_id", "audit_events", ["entity_id"])
     op.create_index("ix_audit_events_entity_type", "audit_events", ["entity_type"])
+    op.create_index(
+        "ix_audit_events_entity_type_entity_id",
+        "audit_events",
+        ["entity_type", "entity_id"],
+    )
 
     op.create_table(
         "experiment_module_payloads",
@@ -303,7 +308,7 @@ def upgrade() -> None:
         sa.Column("content_type", sa.String(length=255), nullable=True),
         sa.Column("size_bytes", sa.Integer(), nullable=False),
         sa.Column("sha256", sa.String(length=64), nullable=False),
-        sa.Column("method", sa.String(length=64), nullable=False, server_default="Other"),
+        sa.Column("method", sa.String(length=64), nullable=False),
         sa.Column("file_category", sa.String(length=32), nullable=False, server_default="raw"),
         sa.Column(
             "asset_role",

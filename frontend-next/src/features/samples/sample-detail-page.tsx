@@ -4,8 +4,10 @@ import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { ArrowLeft, Download } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 
 import { useAuth } from '@/features/auth/use-auth'
+import { isResultsReadOnly } from '@/features/experiments-v2/status-logic'
 import {
   downloadExperimentFile,
   getExperiment,
@@ -112,6 +114,7 @@ function formatBytes(sizeBytes: number) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function SampleDetailPage() {
+  const { t } = useTranslation()
   const { sampleId } = Route.useParams()
   const queryClient = useQueryClient()
   const { session } = useAuth()
@@ -167,12 +170,14 @@ export function SampleDetailPage() {
     ? validateMetadataJson(formState.metadataJson)
     : null
 
-  const canEdit =
+  const canWrite =
     currentUser !== null &&
     experimentQuery.data !== undefined &&
-    experimentQuery.data.status === 'draft' &&
     (currentUser.role === 'admin' ||
       currentUser.id === experimentQuery.data.owner_id)
+  const canEdit =
+    experimentQuery.data !== undefined &&
+    !isResultsReadOnly(experimentQuery.data.status, canWrite)
 
   const hasDirtyFields =
     draftFormState !== null &&
@@ -373,7 +378,7 @@ export function SampleDetailPage() {
 
       <PageHeader
         title={`样品详情 · ${sample.sample_code}`}
-        subtitle="查看样品归属、元数据与关联文件。仅草稿实验可编辑。"
+        subtitle={t('samples.detail.subtitle')}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
@@ -446,7 +451,7 @@ export function SampleDetailPage() {
               {!canEdit ? (
                 <Alert>
                   <AlertDescription>
-                    当前样品来自非 draft 实验，暂不可编辑。
+                    {t('samples.detail.readOnly')}
                   </AlertDescription>
                 </Alert>
               ) : null}
