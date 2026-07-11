@@ -35,6 +35,8 @@ export interface FieldMetadata {
   key: string
   labelZh: string
   labelEn: string
+  /** 字段输入形态（原样透传自 field-source.yaml） */
+  input: string
   /** 单位（xlsx 占位符 "—" 归一为 null） */
   unit: string | null
   /** 原始可选项字符串（未拆结构化词表，P3 才做） */
@@ -67,6 +69,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'started_at',
       labelZh: '实验时间',
       labelEn: 'Experiment start time',
+      input: '日期时间',
       unit: null,
       options: null,
       requirement: {
@@ -81,6 +84,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'synthesis_method',
       labelZh: '合成方法',
       labelEn: 'Synthesis method',
+      input: '下拉+其他',
       unit: null,
       options:
         'CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD/其他',
@@ -96,6 +100,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'operator',
       labelZh: '实验人',
       labelEn: 'Operator',
+      input: '下拉+其他',
       unit: null,
       options: '课题组成员',
       requirement: {
@@ -110,6 +115,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'run_code',
       labelZh: '样品/实验编号',
       labelEn: 'Run / sample code',
+      input: '文本',
       unit: null,
       options: '建议含日期',
       requirement: {
@@ -124,6 +130,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'ambient_temperature_C',
       labelZh: '环境温度',
       labelEn: 'Ambient temperature',
+      input: '数值',
       unit: '℃',
       options: null,
       requirement: {
@@ -138,6 +145,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'ambient_humidity_percent',
       labelZh: '环境湿度',
       labelEn: 'Ambient relative humidity',
+      input: '数值',
       unit: '%RH',
       options: null,
       requirement: {
@@ -152,6 +160,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'particle_count_per_m3',
       labelZh: '悬浮粒子浓度',
       labelEn: 'Airborne particle concentration',
+      input: '数值',
       unit: '个/m³',
       options: null,
       requirement: {
@@ -166,6 +175,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'precheck_reminder',
       labelZh: '实验前预检查',
       labelEn: 'Pre-run checklist reminder',
+      input: '提示',
       unit: null,
       options: null,
       requirement: {
@@ -182,6 +192,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'chemical_formula',
       labelZh: '化学体系/化学式',
       labelEn: 'Chemical system / formula',
+      input: '文本',
       unit: null,
       options: '标准写法（渲染规则）',
       requirement: {
@@ -196,6 +207,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'structure_type',
       labelZh: '结构类型',
       labelEn: 'Structure type',
+      input: '下拉+多选',
       unit: null,
       options: '本征/掺杂/合金/垂直异质结/横向异质结/其他',
       requirement: {
@@ -210,6 +222,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'components',
       labelZh: '组成明细(components)',
       labelEn: 'Composition details (components)',
+      input: '数组items[]',
       unit: null,
       options:
         '每条:化学式/角色(基体·掺杂剂·上层·下层·横向域)/浓度(at%)/层序(整数)',
@@ -229,6 +242,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'target_layer_count',
       labelZh: '目标层数',
       labelEn: 'Target layer count',
+      input: '数值',
       unit: '层',
       options: null,
       requirement: {
@@ -243,6 +257,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'bulk_space_group',
       labelZh: '体相空间群',
       labelEn: 'Bulk space group',
+      input: '下拉+文本',
       unit: null,
       options: '空间群号(1–230)+单层结构说明；未指定',
       requirement: {
@@ -257,6 +272,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'target_morphology',
       labelZh: '样品形态',
       labelEn: 'Target morphology',
+      input: '下拉+其他',
       unit: null,
       options: '连续膜/纳米片(flake)/纳米带/纳米管/纳米棒/纳米颗粒/其他',
       requirement: {
@@ -271,6 +287,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'target_performance',
       labelZh: '目标性能',
       labelEn: 'Target performance',
+      input: '自由+数值',
       unit: '视性能',
       options: '示例：光学属性-高荧光量子效率 / 电属性-高迁移率',
       requirement: {
@@ -285,6 +302,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'note',
       labelZh: '备注',
       labelEn: 'Notes',
+      input: '自由',
       unit: null,
       options: null,
       requirement: {
@@ -301,6 +319,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'setup_ref',
       labelZh: '装置（引用）',
       labelEn: 'Setup (reference)',
+      input: '引用',
       unit: null,
       options: '装置库',
       requirement: {
@@ -315,6 +334,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'brand_model',
       labelZh: '品牌/型号',
       labelEn: 'Brand / model',
+      input: '下拉+其他',
       unit: null,
       options: '受控+其他',
       requirement: {
@@ -329,6 +349,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'wall_type',
       labelZh: '壁型',
       labelEn: 'Wall type (hot/cold)',
+      input: '下拉',
       unit: null,
       options: '热壁/冷壁',
       requirement: {
@@ -343,6 +364,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'zone_count',
       labelZh: '温区数',
       labelEn: 'Number of heating zones',
+      input: '数值',
       unit: '个',
       options: '1/2/3…',
       requirement: {
@@ -357,6 +379,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'orientation',
       labelZh: '炉体方向',
       labelEn: 'Furnace orientation',
+      input: '下拉',
       unit: null,
       options: '水平/垂直',
       requirement: {
@@ -371,6 +394,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'tube_material_shape',
       labelZh: '管材质/形状',
       labelEn: 'Tube material / cross-section',
+      input: '下拉+其他',
       unit: null,
       options: '石英/刚玉；圆/方/矩',
       requirement: {
@@ -385,6 +409,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'tube_outer_diameter_wall_mm',
       labelZh: '管外径/壁厚',
       labelEn: 'Tube outer diameter / wall thickness',
+      input: '下拉+数值',
       unit: 'mm',
       options: '1″/2″/4″/自定义 + 壁厚',
       requirement: {
@@ -399,6 +424,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'coordinate_system',
       labelZh: '坐标系',
       labelEn: 'Coordinate system',
+      input: '固定定义',
       unit: null,
       options: '上游为负 / 下游为正，原点固定',
       requirement: {
@@ -413,6 +439,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'field_excitation',
       labelZh: '外场激励',
       labelEn: 'External field excitation',
+      input: '多选+展开',
       unit: null,
       options: '无/等离子/光/电',
       requirement: {
@@ -427,6 +454,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'setup_diagram',
       labelZh: '装置示意图/描述',
       labelEn: 'Setup diagram / description',
+      input: '附件+自由',
       unit: null,
       options: null,
       requirement: {
@@ -441,6 +469,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'tube_boat_history',
       labelZh: '炉管/舟履历',
       labelEn: 'Tube / boat usage history',
+      input: '数值×2',
       unit: '次',
       options: '重置次数 + 重置后使用次数',
       requirement: {
@@ -457,6 +486,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'name_formula',
       labelZh: '名称/化学式',
       labelEn: 'Name / formula',
+      input: '下拉+其他',
       unit: null,
       options: '受控+其他',
       requirement: {
@@ -471,6 +501,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'cas_inchi',
       labelZh: 'CAS/InChI',
       labelEn: 'CAS / InChI',
+      input: '文本',
       unit: null,
       options: 'CAS 或 InChI',
       requirement: {
@@ -485,6 +516,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'phase_state',
       labelZh: '相态',
       labelEn: 'Phase state',
+      input: '下拉',
       unit: null,
       options: '固/气/液',
       requirement: {
@@ -499,6 +531,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'appearance',
       labelZh: '外观描述',
       labelEn: 'Appearance at time of use',
+      input: '下拉+其他',
       unit: null,
       options: '白色粉末/白色晶粒/淡黄色粉末/结块或潮解/变色/其他',
       requirement: {
@@ -517,6 +550,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'lot_ref',
       labelZh: '物料批次（引用）',
       labelEn: 'Material lot (reference)',
+      input: '引用',
       unit: null,
       options: '批次库',
       requirement: {
@@ -531,6 +565,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'role',
       labelZh: '角色（role）',
       labelEn: 'Role',
+      input: '下拉',
       unit: null,
       options: '主源/辅助剂/掺杂源/其他',
       requirement: {
@@ -545,6 +580,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'amount',
       labelZh: '用量',
       labelEn: 'Amount loaded',
+      input: '数值',
       unit: 'mg(固)/µL(液)',
       options: null,
       requirement: {
@@ -563,6 +599,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'treatment_steps',
       labelZh: '处理方式',
       labelEn: 'Pre-loading treatment',
+      input: '下拉+其他',
       unit: '见展开',
       options: '直接加载/熔融凝固/压片/旋涂/退火/研磨/其他',
       requirement: {
@@ -577,6 +614,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'boat_crucible',
       labelZh: '舟/坩埚',
       labelEn: 'Boat / crucible',
+      input: '下拉+数值',
       unit: 'mm',
       options: '石英舟/陶瓷(刚玉)舟/其他；长×宽×高（直径）',
       requirement: {
@@ -591,6 +629,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'source_zone_temperature',
       labelZh: '所在温区/源温',
       labelEn: 'Source zone / temperature',
+      input: '下拉+数值',
       unit: '℃',
       options: '温区1…',
       requirement: {
@@ -605,6 +644,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'thermocouple_distance_mm',
       labelZh: '距热电偶距离',
       labelEn: 'Distance to thermocouple',
+      input: '数值',
       unit: 'mm',
       options: null,
       requirement: {
@@ -621,6 +661,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'material',
       labelZh: '衬底材料',
       labelEn: 'Substrate material',
+      input: '下拉+其他',
       unit: null,
       options: 'SiO₂/Si·蓝宝石(Al₂O₃)·石英·云母·Cu箔·Au箔·h-BN·其他',
       requirement: {
@@ -635,6 +676,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'formula_orientation',
       labelZh: '化学式/取向',
       labelEn: 'Formula / orientation',
+      input: '文本',
       unit: null,
       options: '标准写法（如 x面向x轴偏X°）',
       requirement: {
@@ -649,6 +691,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'oxide_thickness_nm',
       labelZh: '氧化层厚度',
       labelEn: 'Oxide layer thickness',
+      input: '数值',
       unit: 'nm',
       options: '写成 SiO₂/Si(285nm)',
       requirement: {
@@ -667,6 +710,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'surface_roughness_nm',
       labelZh: '表面粗糙度',
       labelEn: 'Surface roughness',
+      input: '数值',
       unit: 'nm',
       options: null,
       requirement: {
@@ -681,6 +725,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'size_placement',
       labelZh: '尺寸/朝向',
       labelEn: 'Size / placement',
+      input: '数值+下拉',
       unit: 'mm',
       options: '长×宽×厚；正放/倒扣/倾角/竖放',
       requirement: {
@@ -695,6 +740,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'pretreatment_steps',
       labelZh: '预处理（有序步骤）',
       labelEn: 'Pretreatment steps (ordered)',
+      input: '下拉+其他',
       unit: '见展开',
       options: '清洗/退火/等离子/亲水化/其他',
       requirement: {
@@ -709,6 +755,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'exposure_interval_min',
       labelZh: '处理到装炉间隔/暴露环境',
       labelEn: 'Interval to loading / exposure environment',
+      input: '数值',
       unit: 'min',
       options: null,
       requirement: {
@@ -723,6 +770,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'zone_thermocouple_distance_mm',
       labelZh: '所在温区/距热电偶距离',
       labelEn: 'Zone / distance to thermocouple',
+      input: '下拉+数值',
       unit: 'mm',
       options: '温区2…',
       requirement: {
@@ -739,6 +787,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'stage_type',
       labelZh: '阶段类型',
       labelEn: 'Stage type',
+      input: '下拉+其他',
       unit: null,
       options:
         '抽气/漏检/吹扫/预处理/升温/温度稳定/反应生长/后退火/降温/放气/卸样',
@@ -754,6 +803,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'step_order_time',
       labelZh: '步序/起止时刻',
       labelEn: 'Step order / start–end time',
+      input: '数值+时间',
       unit: 'datetime',
       options: null,
       requirement: {
@@ -768,6 +818,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'temperature_program',
       labelZh: '设定温度程序',
       labelEn: 'Temperature program (setpoint)',
+      input: '数组',
       unit: '℃·℃/min·min',
       options: null,
       requirement: {
@@ -782,6 +833,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'measured_temperature',
       labelZh: '实测温度',
       labelEn: 'Measured temperature',
+      input: '数组(时序)',
       unit: '℃ 随时间',
       options: null,
       requirement: {
@@ -796,6 +848,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'temperature_metrology',
       labelZh: '测温设备/不确定度',
       labelEn: 'Temperature metrology / uncertainty',
+      input: '引用+数值',
       unit: '℃',
       options: '热电偶/高温计；来源：仪器/校准/重复性/估计',
       requirement: {
@@ -810,6 +863,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'cooling_params',
       labelZh: '降温方式/开盖温度/速率',
       labelEn: 'Cooling method / lid-open temperature / rate',
+      input: '下拉+数值',
       unit: '℃·℃/min',
       options: '随炉冷却/开盖冷却/移炉快速冷却；开盖温度；降温速率',
       requirement: {
@@ -828,6 +882,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'gas_species',
       labelZh: '气体组分',
       labelEn: 'Gas species',
+      input: '下拉(多条)',
       unit: null,
       options: 'Ar/N₂/H₂/O₂/CH₄/其他',
       requirement: {
@@ -842,6 +897,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'gas_purity_impurities',
       labelZh: '纯度/浓度/水氧',
       labelEn: 'Purity / concentration / H₂O·O₂ impurities',
+      input: '数值',
       unit: 'N·%·ppm',
       options: null,
       requirement: {
@@ -856,6 +912,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'gas_flow_sccm',
       labelZh: '流量/来源',
       labelEn: 'Flow rate / flow source',
+      input: '数值+下拉',
       unit: 'sccm',
       options: 'MFC/转子',
       requirement: {
@@ -870,6 +927,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'pressure_system',
       labelZh: '压力体系/工作压力',
       labelEn: 'Pressure regime / working pressure',
+      input: '下拉+数值',
       unit: 'Pa',
       options: '常压(APCVD)/低压(LPCVD)/超高真空',
       requirement: {
@@ -888,6 +946,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'base_pressure_leak',
       labelZh: '本底压力/漏率',
       labelEn: 'Base pressure / leak rate',
+      input: '数值',
       unit: 'Pa·Pa·L/s',
       options: null,
       requirement: {
@@ -902,6 +961,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'duration_cycles',
       labelZh: '时长/循环次数',
       labelEn: 'Duration / cycle count',
+      input: '数值',
       unit: 'min·次',
       options: null,
       requirement: {
@@ -916,6 +976,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'field_params',
       labelZh: '外场参数',
       labelEn: 'External field parameters',
+      input: '数值',
       unit: 'V·nm·W…',
       options: '电场强度；光场:中心波长/线宽/功率密度/光斑大小',
       requirement: {
@@ -936,6 +997,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'event_part',
       labelZh: '事件/部位',
       labelEn: 'Event / affected part',
+      input: '下拉+其他',
       unit: null,
       options:
         '供电/供水/供气中断·管路堵塞·压力突变·信号异常·人工干预·其他（可加）',
@@ -951,6 +1013,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'occurred_at',
       labelZh: '发生时刻',
       labelEn: 'Time of occurrence',
+      input: '时间',
       unit: null,
       options: null,
       requirement: {
@@ -965,6 +1028,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'abort_reason',
       labelZh: '中止原因',
       labelEn: 'Abort reason',
+      input: '下拉',
       unit: null,
       options: '设备报警/人工停止/计划结束',
       requirement: {
@@ -979,6 +1043,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'description_action',
       labelZh: '描述/措施/附件',
       labelEn: 'Description / action / attachments',
+      input: '自由+附件',
       unit: null,
       options: null,
       requirement: {
@@ -995,6 +1060,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'method_instrument',
       labelZh: '表征类型/仪器',
       labelEn: 'Method / instrument',
+      input: '下拉+其他',
       unit: null,
       options: '光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他',
       requirement: {
@@ -1009,6 +1075,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'test_conditions',
       labelZh: '测试条件',
       labelEn: 'Test conditions',
+      input: '文本/自由',
       unit: '视仪器',
       options: null,
       requirement: {
@@ -1023,6 +1090,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'raw_data',
       labelZh: '原始数据',
       labelEn: 'Raw data files',
+      input: '附件',
       unit: null,
       options: null,
       requirement: {
@@ -1039,6 +1107,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'observed_phenomena',
       labelZh: '观察到的现象',
       labelEn: 'Observed phenomena',
+      input: '下拉+多选',
       unit: null,
       options: '无生长/不连续覆盖/厚层区域/可见颗粒沾污/衬底破损/变色/其他',
       requirement: {
@@ -1053,6 +1122,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'detected_phase_stacking',
       labelZh: '检出相/多型/堆垛',
       labelEn: 'Detected phase / polytype / stacking',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1067,6 +1137,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'measured_layers_coverage',
       labelZh: '实测层数/覆盖率',
       labelEn: 'Measured layer count / coverage',
+      input: '数值',
       unit: '层·%',
       options: null,
       requirement: {
@@ -1081,6 +1152,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'domain_nucleation_continuity',
       labelZh: '畴尺寸/成核密度/连续性',
       labelEn: 'Domain size / nucleation density / continuity',
+      input: '数值',
       unit: 'μm·cm⁻²·(连续/孤立)',
       options: null,
       requirement: {
@@ -1095,6 +1167,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'key_spectral_metrics',
       labelZh: '关键谱学指标',
       labelEn: 'Key spectroscopic metrics',
+      input: '数值',
       unit: 'cm⁻¹·eV·nm·%…',
       options: null,
       requirement: {
@@ -1111,6 +1184,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'target_lot_ref',
       labelZh: '靶材（批次）',
       labelEn: 'Target (lot reference)',
+      input: '引用',
       unit: null,
       options: '批次库',
       requirement: {
@@ -1129,6 +1203,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'target_substrate_distance_mm',
       labelZh: '靶基距',
       labelEn: 'Target–substrate distance',
+      input: '数值',
       unit: 'mm',
       options: null,
       requirement: {
@@ -1147,6 +1222,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'power_bias',
       labelZh: '功率/偏压',
       labelEn: 'Power / bias',
+      input: '数值',
       unit: 'W·V',
       options: 'DC/RF',
       requirement: {
@@ -1165,6 +1241,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'plasma_gas_pressure',
       labelZh: '等离子气氛/工作气压',
       labelEn: 'Plasma atmosphere / working pressure',
+      input: '下拉+数值',
       unit: 'Pa',
       options: 'Ar / Ar+N₂…',
       requirement: {
@@ -1183,6 +1260,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'presputter_shutter',
       labelZh: '预溅射/挡板时序',
       labelEn: 'Pre-sputtering / shutter timing',
+      input: '数值',
       unit: 'min·s',
       options: null,
       requirement: {
@@ -1201,6 +1279,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'deposition_rate_nm_s',
       labelZh: '沉积速率',
       labelEn: 'Deposition rate',
+      input: '数值',
       unit: 'nm/s',
       options: null,
       requirement: {
@@ -1225,6 +1304,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'lot_category',
       labelZh: '批次类别',
       labelEn: 'Lot category',
+      input: '下拉',
       unit: null,
       options: '化学品/衬底/气瓶',
       requirement: {
@@ -1239,6 +1319,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'version',
       labelZh: '版本号',
       labelEn: 'Version number',
+      input: '数值',
       unit: null,
       options: null,
       requirement: {
@@ -1253,6 +1334,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'substance_name',
       labelZh: '物质名称',
       labelEn: 'Substance name',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1267,6 +1349,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'chemical_formula',
       labelZh: '化学式',
       labelEn: 'Chemical formula',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1281,6 +1364,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'cas_number',
       labelZh: 'CAS号',
       labelEn: 'CAS number',
+      input: '文本',
       unit: null,
       options: 'CAS',
       requirement: {
@@ -1295,6 +1379,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'inchikey_cid',
       labelZh: 'InChIKey/PubChem CID',
       labelEn: 'InChIKey / PubChem CID',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1309,6 +1394,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'supplier',
       labelZh: '供应商',
       labelEn: 'Supplier',
+      input: '下拉+其他(可扩展)',
       unit: null,
       options: '受控+其他',
       requirement: {
@@ -1323,6 +1409,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'catalog_number',
       labelZh: '货号',
       labelEn: 'Catalog number',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1337,6 +1424,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'batch_number',
       labelZh: '批号',
       labelEn: 'Batch number',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1351,6 +1439,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'purity',
       labelZh: '纯度',
       labelEn: 'Purity',
+      input: '数值',
       unit: '%',
       options: '%或N值',
       requirement: {
@@ -1365,6 +1454,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'particle_size_d50_um',
       labelZh: '粒径(x50/D50)',
       labelEn: 'Particle size (x50/D50)',
+      input: '数值',
       unit: 'µm',
       options: 'x50严谨；目数可接受',
       requirement: {
@@ -1379,6 +1469,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'form_appearance',
       labelZh: '形态/性状',
       labelEn: 'Form / appearance',
+      input: '下拉+其他',
       unit: null,
       options: '粉末/颗粒/块/箔/靶/其他',
       requirement: {
@@ -1393,6 +1484,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'opened_date',
       labelZh: '开封日期',
       labelEn: 'Date opened',
+      input: '日期',
       unit: null,
       options: null,
       requirement: {
@@ -1407,6 +1499,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'storage_method',
       labelZh: '存储方式',
       labelEn: 'Storage method',
+      input: '下拉+其他',
       unit: null,
       options: '干燥器/手套箱/常温避光/冷藏/其他',
       requirement: {
@@ -1421,6 +1514,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'coa_attachment',
       labelZh: '证书附件(CoA)',
       labelEn: 'Certificate of analysis (CoA)',
+      input: '附件',
       unit: null,
       options: null,
       requirement: {
@@ -1435,6 +1529,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'substrate_material',
       labelZh: '▸衬底·材料',
       labelEn: 'Substrate · material',
+      input: '下拉',
       unit: null,
       options: 'SiO₂/Si·蓝宝石·石英·云母·Cu箔·Au箔·h-BN·其他',
       requirement: {
@@ -1453,6 +1548,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'substrate_oxide_thickness_nm',
       labelZh: '▸衬底·氧化层厚度',
       labelEn: 'Substrate · oxide thickness',
+      input: '数值',
       unit: 'nm',
       options: null,
       requirement: {
@@ -1471,6 +1567,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'substrate_orientation_polish',
       labelZh: '▸衬底·晶向/抛光',
       labelEn: 'Substrate · orientation / polish',
+      input: '文本+下拉',
       unit: null,
       options: '晶向；单面抛/双面抛',
       requirement: {
@@ -1485,6 +1582,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'substrate_size_spec',
       labelZh: '▸衬底·尺寸规格',
       labelEn: 'Substrate · size specification',
+      input: '文本',
       unit: 'mm',
       options: '长×宽×厚',
       requirement: {
@@ -1499,6 +1597,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'gas_purity_grade',
       labelZh: '▸气瓶·纯度等级',
       labelEn: 'Gas cylinder · purity grade',
+      input: '下拉',
       unit: null,
       options: '6N/5N/4N/工业级/其他',
       requirement: {
@@ -1517,6 +1616,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'gas_cylinder_number',
       labelZh: '▸气瓶·气瓶编号',
       labelEn: 'Gas cylinder · cylinder number',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1533,6 +1633,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'setup_code',
       labelZh: '装置编号',
       labelEn: 'Setup code',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1547,6 +1648,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'setup_name',
       labelZh: '装置名称',
       labelEn: 'Setup name',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1561,6 +1663,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'version',
       labelZh: '版本号',
       labelEn: 'Version number',
+      input: '数值',
       unit: null,
       options: null,
       requirement: {
@@ -1575,6 +1678,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'brand_model',
       labelZh: '品牌/型号',
       labelEn: 'Brand / model',
+      input: '下拉+其他',
       unit: null,
       options: '受控+其他',
       requirement: {
@@ -1589,6 +1693,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'wall_type',
       labelZh: '壁型',
       labelEn: 'Wall type',
+      input: '下拉',
       unit: null,
       options: '热壁/冷壁',
       requirement: {
@@ -1603,6 +1708,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'zone_count',
       labelZh: '温区数',
       labelEn: 'Number of heating zones',
+      input: '数值',
       unit: '个',
       options: null,
       requirement: {
@@ -1617,6 +1723,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'orientation',
       labelZh: '炉体方向',
       labelEn: 'Furnace orientation',
+      input: '下拉',
       unit: null,
       options: '水平/垂直',
       requirement: {
@@ -1631,6 +1738,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'tube_material_shape',
       labelZh: '管材质/形状',
       labelEn: 'Tube material / cross-section',
+      input: '下拉+其他',
       unit: null,
       options: '石英/刚玉；圆/方/矩',
       requirement: {
@@ -1645,6 +1753,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'tube_outer_diameter_wall_mm',
       labelZh: '管外径/壁厚(→内径)',
       labelEn: 'Tube outer diameter / wall thickness (→ inner diameter)',
+      input: '下拉+数值',
       unit: 'mm',
       options: '1″/2″/4″/自定义 + 壁厚',
       requirement: {
@@ -1659,6 +1768,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'heated_zone_length_mm',
       labelZh: '加热区长度',
       labelEn: 'Heated zone length',
+      input: '数值',
       unit: 'mm',
       options: null,
       requirement: {
@@ -1673,6 +1783,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'coordinate_system',
       labelZh: '坐标系定义',
       labelEn: 'Coordinate system definition',
+      input: '固定定义',
       unit: null,
       options: '原点+轴向',
       requirement: {
@@ -1687,6 +1798,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'pump_model_base_pressure',
       labelZh: '泵型号/极限压力',
       labelEn: 'Pump model / ultimate pressure',
+      input: '文本+数值',
       unit: 'Pa',
       options: null,
       requirement: {
@@ -1701,6 +1813,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'mfc_config',
       labelZh: 'MFC配置',
       labelEn: 'MFC configuration',
+      input: '数组',
       unit: null,
       options: '通道/气体/量程(sccm)/校准日期',
       requirement: {
@@ -1715,6 +1828,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'instrument_pid',
       labelZh: '仪器PID',
       labelEn: 'Instrument PID',
+      input: '文本',
       unit: null,
       options: 'PIDINST/PID',
       requirement: {
@@ -1729,6 +1843,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'field_devices',
       labelZh: '外场装置',
       labelEn: 'External field devices',
+      input: '多选+描述',
       unit: null,
       options: '无/光/电/等离子',
       requirement: {
@@ -1743,6 +1858,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'setup_diagram',
       labelZh: '装置示意图/描述',
       labelEn: 'Setup diagram / description',
+      input: '附件+自由',
       unit: null,
       options: null,
       requirement: {
@@ -1759,6 +1875,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'instrument_code',
       labelZh: '仪器编号',
       labelEn: 'Instrument code',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1773,6 +1890,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'name_type',
       labelZh: '仪器名称/类型',
       labelEn: 'Name / type',
+      input: '下拉+其他',
       unit: null,
       options: '光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他',
       requirement: {
@@ -1787,6 +1905,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'vendor',
       labelZh: '厂商(vendor)',
       labelEn: 'Vendor',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1801,6 +1920,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'model',
       labelZh: '型号(model)',
       labelEn: 'Model',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1815,6 +1935,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'serial_number',
       labelZh: '序列号(serial)',
       labelEn: 'Serial number',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1829,6 +1950,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'pid',
       labelZh: 'PID(持久标识)',
       labelEn: 'Persistent identifier (PID)',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1843,6 +1965,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'location',
       labelZh: '所在实验室/位置',
       labelEn: 'Laboratory / location',
+      input: '文本',
       unit: null,
       options: null,
       requirement: {
@@ -1857,6 +1980,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'fixed_config',
       labelZh: '关键固定配置',
       labelEn: 'Key fixed configuration',
+      input: '自由',
       unit: '视仪器',
       options: '如激光波长/物镜/探测器',
       requirement: {
@@ -1871,6 +1995,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'last_calibration',
       labelZh: '最近校准/维护',
       labelEn: 'Last calibration / maintenance',
+      input: '日期',
       unit: null,
       options: null,
       requirement: {

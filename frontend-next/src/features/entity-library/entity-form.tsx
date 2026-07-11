@@ -1,6 +1,6 @@
 // 一等实体的动态表单（纯展示；数据获取/提交由页面注入 onSubmit）。
 // 字段清单、显隐、必填、选项均由 field-metadata 驱动；UI 文案全部走 i18n（D12）。
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import type { Control, FieldError, Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,11 @@ import { Loader2 } from 'lucide-react'
 
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import { RequiredMark } from '@/shared/ui/required-mark'
+import {
+  isCompositeInput,
+  parseCompositeOptions,
+} from '@/shared/composite-field'
+import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -175,6 +180,11 @@ function EntityFieldControl({
   const { t } = useTranslation()
   const required = isEffectivelyRequired(kind, field, values)
   const enumOptions = parseEnumOptions(field.options)
+  const compositeInput = isCompositeInput(field.input) ? field.input : null
+  const compositeOptions = compositeInput
+    ? (enumOptions ?? parseCompositeOptions(field.options))
+    : []
+  const controlId = useId()
   const useTextarea = TEXTAREA_KEYS.has(field.key)
   const placeholder = enumOptions
     ? t('entityLibrary.form.selectPlaceholder')
@@ -195,9 +205,22 @@ function EntityFieldControl({
             ) : null}
             {required ? <RequiredMark /> : null}
           </FormLabel>
-          {enumOptions ? (
+          {compositeInput ? (
+            <CompositeFieldControl
+              input={compositeInput}
+              value={rhf.value ?? ''}
+              options={compositeOptions}
+              onChange={rhf.onChange}
+              inputId={controlId}
+              selectId={`${controlId}-option`}
+              selectLabel={`${field.labelZh}选项`}
+              disabled={disabled}
+              freePlaceholder={t('entityLibrary.form.inputPlaceholder')}
+              selectPlaceholder={t('entityLibrary.form.selectPlaceholder')}
+            />
+          ) : enumOptions ? (
             <Select
-              value={rhf.value || undefined}
+              value={rhf.value ?? ''}
               onValueChange={rhf.onChange}
               disabled={disabled}
             >

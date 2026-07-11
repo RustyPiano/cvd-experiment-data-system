@@ -388,6 +388,8 @@ class V2ExperimentService:
             ) from exc
         if module_key == "process_steps":
             self._validate_external_field_requirement(run, validated)
+        if module_key == "target_product":
+            run.material_system = validated.get("chemical_formula") or None
         saved = self._save_v2_payload(run.id, module_key, validated)
         self.db.commit()
         return self._module_read(saved)

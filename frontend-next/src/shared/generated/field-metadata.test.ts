@@ -99,4 +99,25 @@ describe('generated field-metadata', () => {
     )
     expect(total).toBe(46)
   })
+
+  it('carries input types for all 12 composite fields', () => {
+    const compositeInputs = new Set([
+      '数值+下拉',
+      '下拉+数值',
+      '文本+下拉',
+      '下拉+文本',
+    ])
+    const compositeFields = [
+      ...Object.values(experimentModules),
+      ...Object.values(entities),
+    ]
+      .flat()
+      .filter((field) => compositeInputs.has(field.input))
+
+    expect(compositeFields).toHaveLength(12)
+    expect(compositeFields.map((field) => field.key)).toContain('gas_flow_sccm')
+    expect(compositeFields.map((field) => field.key)).toContain(
+      'pressure_system',
+    )
+  })
 })

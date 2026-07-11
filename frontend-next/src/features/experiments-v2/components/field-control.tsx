@@ -13,6 +13,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import {
+  isCompositeInput,
+  parseCompositeOptions,
+} from '@/shared/composite-field'
+import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
 import type { ModuleValues } from '../field-logic'
 import { isEffectivelyRequired, parseEnumOptions } from '../field-logic'
 import { FieldLabel } from './field-bits'
@@ -65,6 +70,10 @@ export function FieldControl({
   const required =
     requiredOverride ?? isEffectivelyRequired(moduleKey, field, values)
   const enumOptions = parseEnumOptions(field.options)
+  const compositeInput = isCompositeInput(field.input) ? field.input : null
+  const compositeOptions = compositeInput
+    ? (enumOptions ?? parseCompositeOptions(field.options))
+    : []
   const missing = Boolean(showError) && required && value.trim() === ''
   const placeholder = enumOptions
     ? t('experimentsV2.form.selectPlaceholder')
@@ -79,7 +88,21 @@ export function FieldControl({
         required={required}
         r0={field.r0}
       />
-      {FORMULA_KEYS.has(field.key) ? (
+      {compositeInput ? (
+        <CompositeFieldControl
+          input={compositeInput}
+          value={value ?? ''}
+          options={compositeOptions}
+          onChange={onChange}
+          inputId={controlId}
+          selectId={`${controlId}-option`}
+          selectLabel={`${field.labelZh}选项`}
+          disabled={disabled}
+          invalid={missing}
+          freePlaceholder={t('experimentsV2.form.inputPlaceholder')}
+          selectPlaceholder={t('experimentsV2.form.selectPlaceholder')}
+        />
+      ) : FORMULA_KEYS.has(field.key) ? (
         <FormulaInput
           id={controlId}
           value={value}
@@ -89,7 +112,7 @@ export function FieldControl({
         />
       ) : enumOptions ? (
         <Select
-          value={value || undefined}
+          value={value ?? ''}
           onValueChange={onChange}
           disabled={disabled}
         >

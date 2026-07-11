@@ -34,6 +34,7 @@ interface RawField {
   label: string
   label_en: string
   key: string
+  input: string
   unit?: string
   options?: string
   requirement: RawRequirement
@@ -69,6 +70,7 @@ interface FieldMetadata {
   key: string
   labelZh: string
   labelEn: string
+  input: string
   unit: string | null
   options: string | null
   requirement: {
@@ -93,6 +95,7 @@ function toFieldMetadata(field: RawField): FieldMetadata {
     key: field.key,
     labelZh: field.label,
     labelEn: field.label_en,
+    input: field.input,
     unit: dashToNull(field.unit),
     options: dashToNull(field.options),
     requirement: { raw: req.raw, level: req.level, condition },
@@ -180,6 +183,8 @@ export interface FieldMetadata {
   key: string
   labelZh: string
   labelEn: string
+  /** 字段输入形态（原样透传自 field-source.yaml） */
+  input: string
   /** 单位（xlsx 占位符 "—" 归一为 null） */
   unit: string | null
   /** 原始可选项字符串（未拆结构化词表，P3 才做） */

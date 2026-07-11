@@ -155,6 +155,74 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     assert good_step.json()["schema_version"] == "cvd_v2"
 
 
+def _create_run(headers: dict[str, str], run_code: str, formula: str = "MoS2") -> str:
+    response = client.post(
+        "/api/v1/v2/experiments",
+        json={
+            "run_code": run_code,
+            "started_at": "2026-07-11T09:30:00",
+            "synthesis_method": "APCVD",
+            "operator": "李俊杰",
+            "chemical_formula": formula,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+def test_target_product_upsert_updates_run_material_system(active_user) -> None:
+    headers = auth_headers(active_user.email)
+    run_id = _create_run(headers, "RUN-MATERIAL-UPDATE")
+
+    response = client.put(
+        f"/api/v1/v2/experiments/{run_id}/modules/target_product",
+        json={"payload_json": {"chemical_formula": "WS2/MoS2", "structure_type": "本征"}},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    run = client.get(f"/api/v1/v2/experiments/{run_id}", headers=headers)
+    assert run.json()["material_system"] == "WS2/MoS2"
+
+
+def test_target_product_upsert_clears_run_material_system(active_user) -> None:
+    headers = auth_headers(active_user.email)
+    run_id = _create_run(headers, "RUN-MATERIAL-CLEAR")
+
+    response = client.put(
+        f"/api/v1/v2/experiments/{run_id}/modules/target_product",
+        json={"payload_json": {"chemical_formula": "", "structure_type": "本征"}},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    run = client.get(f"/api/v1/v2/experiments/{run_id}", headers=headers)
+    assert run.json()["material_system"] is None
+
+
+def test_other_module_upsert_preserves_run_material_system(active_user) -> None:
+    headers = auth_headers(active_user.email)
+    run_id = _create_run(headers, "RUN-MATERIAL-UNCHANGED", "WSe2")
+
+    response = client.put(
+        f"/api/v1/v2/experiments/{run_id}/modules/basic_info",
+        json={
+            "payload_json": {
+                "started_at": "2026-07-11T09:30:00",
+                "synthesis_method": "LPCVD",
+                "operator": "李俊杰",
+                "run_code": "RUN-MATERIAL-UNCHANGED",
+            }
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    run = client.get(f"/api/v1/v2/experiments/{run_id}", headers=headers)
+    assert run.json()["material_system"] == "WSe2"
+
+
 def test_v2_characterization_and_measured_product_crud(active_user, db_session) -> None:
     headers = auth_headers(active_user.email)
     run = client.post(
