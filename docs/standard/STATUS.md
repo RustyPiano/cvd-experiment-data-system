@@ -7,7 +7,7 @@
 - 这是一个 **CVD 二维材料实验数据采集系统**。
 - **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/v2-single-track-plan.md`**（批0–批8）。
 - ⚠️ **线上生产仍是切换前的旧部署（v1）——批8 生产切换（人工门，用户在场）未执行；在此之前禁止运行 `deploy.sh`**（旧库上启动自动迁移会崩溃循环；数据已确认可弃，切换 = 整库重建）。
-- 当前阶段：**线 A** 只剩批8；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
+- 当前阶段：**线 A 收尾批 F1–F7 已全部完成**（保险/锁定语义甲/优雅性清扫/表征附件/测试补强/全栈冒烟+xhigh 复审/复审修复 5C+3P），剩：**用户在交互式 Codex 会话跑浏览器 E2E** → push + Actions 首绿 → **批8 生产切换（人工门）**；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
@@ -19,7 +19,8 @@
 ## 1. 系统现状
 - **仓库 main = 纯 v2 单轨**；**线上生产 = 切换前旧部署（v1），待批8 整库重建切换**（数据已确认可弃，无迁移）。
 - **v2 单轨形态**：Alembic 单一 initial `20260711_0001`（14 表，SQLite/PG 双兼容）；`/api/v1` 全套端点——实体三件套锁版（material-lots/setups/instruments + versions）、炉次 CRUD + 状态机（submit/lock/unlock/invalidate/return-to-draft，R0 阻塞门 + 全转移审计 + 结果缺失待办）、模块 payload、表征/实测、样品、文件；生成器①②④⑤ + `condition-cases.json` 跨语言 fixture + `check_field_source` 四护栏；前端 `/experiments` 单轨 + 实体库三页。
-- **门禁：后端 pytest 103 · 前端 vitest 147 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
+- **门禁：后端 pytest 122 · 前端 vitest 181 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
+- **F6 验证结论**：API 级全栈冒烟（真 uvicorn 空库单步建成→登录→建炉→R0 422 结构化清单→前端生产构建）通过；**Codex xhigh 全量 diff 复审**（批2–F5）产出 5 CONFIRMED + 3 PLAUSIBLE，已全部由 F7 修复；浏览器级 E2E 因 `codex exec` 无头会话无内置浏览器未跑成，**待用户在交互式 Codex 会话执行**（走查工单含全部步骤：复合输入回读/锁定补结果/表征附件/待办消除）。
 - 工程约定见根 `AGENTS.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）

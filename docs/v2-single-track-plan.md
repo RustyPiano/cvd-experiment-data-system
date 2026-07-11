@@ -173,4 +173,6 @@
 - **F4 · 表征文件上传**（~0.5–1 天）：上传端点挂 `characterization_record_id`（FK 批5 已预埋）+ results-section 上传/列表/下载 UI + 审计沿用 + 权限遵循 F2 锁定语义。证据链（表征附谱图）闭环。
 - **F5 · 测试补强**（~0.5 天）：results-section 行为级测试（含 F4 新功能）；复合输入 12 字段参数化全覆盖；状态机审计断言与 F2 守卫粒度正负例。
 - **F6 · 全栈验证收口**（~0.5 天）：本地 compose 全栈 + 浏览器 E2E 复跑全链路（新前缀/新 schema/复合输入/结果补录/表征附件/状态链）；Codex xhigh 对批2–F5 累计 diff 独立等价性复审；STATUS/计划文档收口。
-- 依赖：F1 随时；F3 在 F4 前；F5 依赖 F2/F4；F6 收口后才可批8。
+- **F7 · xhigh 复审修复**（执行中追加）：F6② 复审产出 5 CONFIRMED（submit/lock 缺全量必填校验、非属主假编辑入口、样品详情 draft-only 残留、词表启发式仍误杀 4 下拉、squash 丢审计复合索引）+ 3 PLAUSIBLE（unknown-op 非对称定案入 fixture、附件 method 由记录派生、initial 删 method server_default）——全部修复并带测试。
+- 依赖：F1 随时；F3 在 F4 前；F5 依赖 F2/F4；F6+F7 收口后才可批8。
+- **执行结果（2026-07-11/12）**：F1–F7 全部完成。F6①浏览器 E2E 因 `codex exec` 无头会话无内置浏览器改为：API 级全栈冒烟（通过）+ 浏览器走查移交用户交互式 Codex 会话执行；F6② xhigh 复审完成，发现全部由 F7 修复。终值门禁：**pytest 122 · vitest 181 · 全 lint/生成物/字段源绿**。
