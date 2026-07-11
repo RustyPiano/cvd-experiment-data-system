@@ -5,7 +5,7 @@
 ## 项目概览
 
 CVD 实验数据采集系统（V1）用于二维材料课题组记录实验、样品、表征文件与审计轨迹，支持后续结构化分析。
-- 前端：生产前端 `frontend-next/`（React + TypeScript + Vite + TanStack Router + shadcn/ui + Tailwind v4）；旧 `frontend/`（Ant Design + React Router）为**遗留，正在退役**
+- 前端：`frontend-next/`（React + TypeScript + Vite + TanStack Router + shadcn/ui + Tailwind v4）；旧 `frontend/` 已删除（2026-07-11，v2 单轨化批1）
 - 后端：FastAPI + SQLAlchemy 2.x + Alembic + PostgreSQL
 - 文件：本地文件系统（V1）+ metadata 入库
 - 部署：生产用 `docker-compose.prod.yml`（后端 + frontend-next 容器 + 共享 1Panel PostgreSQL，1Panel/openresty 反代，域名 cvd.rustypiano.com）；本地 dev 用 `docker-compose.yml`（自带 postgres）

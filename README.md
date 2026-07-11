@@ -2,9 +2,8 @@
 
 当前仓库已完成的能力分为两部分。
 
-> **前端说明（重要）**：生产前端是 **`frontend-next/`**（Bun + Vite + React + TypeScript + **TanStack Router + shadcn/ui + Tailwind v4**），线上部署于 <https://cvd.rustypiano.com>。
-> 早期的 `frontend/`（Ant Design + React Router）为**遗留前端，正在退役**，仅保留作历史参考。
-> `frontend-next` 的管理后台是**无 `/admin` 前缀**的扁平路由（`/dashboard`、`/vocabularies`、`/fields`、`/recipes`、`/setup-library`），由 pathless `_admin` 布局做角色守卫；旧 `frontend/` 才是 `/admin/*`。
+> **前端说明**：前端是 **`frontend-next/`**（Bun + Vite + React + TypeScript + **TanStack Router + shadcn/ui + Tailwind v4**），线上部署于 <https://cvd.rustypiano.com>。早期的 `frontend/`（Ant Design + React Router）已于 2026-07-11 删除（v2 单轨化批1，历史在 git）。
+> 管理后台是**无 `/admin` 前缀**的扁平路由（`/dashboard`、`/vocabularies`、`/fields`、`/recipes`、`/setup-library`），由 pathless `_admin` 布局做角色守卫。
 
 ## 当前前端能力（frontend-next）
 
@@ -51,7 +50,7 @@
 
 ## 本轮交付质量状态
 
-> 注：以下为历史交付记录；其中涉及前端 UI 框架（Ant Design / vendor 拆包）与 `/admin/*` 路由的条目描述的是**遗留前端 `frontend/`**，不代表生产前端 `frontend-next` 的当前形态。
+> 注：以下为历史交付记录；其中涉及前端 UI 框架（Ant Design / vendor 拆包）与 `/admin/*` 路由的条目描述的是**已删除的遗留前端**（原 `frontend/`），不代表生产前端 `frontend-next` 的当前形态。
 
 - 2026-04-23 已完成一次 subagent 审核，并修正了首轮前端基础实现中的关键问题。
 - 登出现在会清空 TanStack Query 缓存，避免跨账号残留上一位用户的实验数据。
@@ -129,8 +128,6 @@ bun install
 bun run dev   # 生产前端，默认 http://localhost:3000（Vite 代理 /api → 后端）
 ```
 
-> 旧前端 `frontend/`（Ant Design，遗留）如需运行：`cd ../frontend && bun install && bun run dev --port 5173`。
-
 ## Docker Compose 本地开发
 
 ```bash
@@ -140,16 +137,16 @@ docker compose config
 docker compose up --build
 ```
 
-> 注：dev compose 的 `frontend` 服务构建的是**遗留前端 `frontend/`**（端口 5173）。开发**生产前端 frontend-next** 请用上文 `cd frontend-next && bun run dev`（端口 3000）。
+> 注：dev compose 的 `frontend` 服务构建的是 **`frontend-next`**（nginx，端口默认 80，`FRONTEND_PORT` 可覆盖）。日常前端开发用上文 `cd frontend-next && bun run dev`（端口 3000，热更新）更方便。
 
 开发模式默认入口：
 
-- 前端（遗留 `frontend/`）：`http://localhost:5173`
+- 前端（frontend-next 容器）：`http://localhost:${FRONTEND_PORT:-80}`
 - 后端 OpenAPI：`http://localhost:8000/docs`
 - 健康检查：`http://localhost:8000/health`
 - Compose 会在 backend 容器启动时自动执行 `uv run alembic upgrade head`。
 - 首次启动后需要进入 backend 容器或本地 `backend/` 目录运行用户创建命令。
-- 如果当前 Docker Desktop 环境触发 `failed to dial gRPC`，可先分别执行 `docker build -f backend/Dockerfile -t cvd-backend .` 和 `docker build -f frontend/Dockerfile -t cvd-frontend .`，再执行 `docker compose up -d --no-build --force-recreate`。
+- 如果当前 Docker Desktop 环境触发 `failed to dial gRPC`，可先分别执行 `docker build -f backend/Dockerfile -t cvd-backend .` 和 `docker build -f frontend-next/Dockerfile -t cvd-frontend .`，再执行 `docker compose up -d --no-build --force-recreate`。
 
 ## 生产部署
 
@@ -244,7 +241,7 @@ uv run python -m app.commands.create_admin --email admin@example.com --name Admi
 
 - 默认后端地址：`http://127.0.0.1:8000`
 - OpenAPI 文档：`http://127.0.0.1:8000/docs`
-- 运行时配置文件：`frontend-next/public/runtime-config.js`（生产前端；旧 `frontend/public/runtime-config.js` 为遗留），默认不覆盖 `VITE_API_BASE_URL`
+- 运行时配置文件：`frontend-next/public/runtime-config.js`，默认不覆盖 `VITE_API_BASE_URL`
 - frontend-next 本地 dev（端口 `3000`）通过 Vite 代理把 `/api` 转发到后端，无需 CORS
 - 生产前端容器内置 nginx 同源反代 `/api/*`、`/health`、`/docs` 和 `/openapi.json` 到后端容器
 - Compose 运行时通过 `VITE_API_BASE_URL` 覆盖前端容器里的 `runtime-config.js`；默认值为 `/`
@@ -281,7 +278,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pytest
 
-cd ../frontend
+cd ../frontend-next
 bun run lint
 bun run typecheck
 bun run test
@@ -294,7 +291,7 @@ docker compose up --build
 ## 常见故障
 
 - `uv sync` 失败：删除 `backend/.venv` 后重新执行 `uv venv && uv sync`。
-- `bun install` 失败：检查 Bun 版本与 `frontend/bun.lock` 是否一致，再重装依赖。
+- `bun install` 失败：检查 Bun 版本与 `frontend-next/bun.lock` 是否一致，再重装依赖。
 - `docker compose up --build` 失败：先运行 `docker compose config` 检查 `.env` 配置是否完整。
 - 数据库迁移异常：在 `backend/` 下先执行 `uv run alembic current`，确认 revision 后再决定 `upgrade` 或 `downgrade`。
 
