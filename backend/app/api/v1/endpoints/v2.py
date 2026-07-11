@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -26,6 +26,7 @@ from app.schemas.v2 import (
     V2ExperimentCreate,
     V2ExperimentListResponse,
     V2ExperimentRead,
+    V2InvalidateRequest,
     V2ModulePayloadRead,
     V2ModulePayloadUpsert,
     V2SetupReferenceRequest,
@@ -171,13 +172,51 @@ def create_v2_experiment(
 
 
 @router.get("/experiments", response_model=V2ExperimentListResponse)
-def list_v2_experiments(db: DbSession, current_user: CurrentUser) -> V2ExperimentListResponse:
-    return V2ExperimentService(db).list_runs(current_user)
+def list_v2_experiments(
+    db: DbSession,
+    current_user: CurrentUser,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> V2ExperimentListResponse:
+    return V2ExperimentService(db).list_runs(current_user, page=page, page_size=page_size)
 
 
 @router.get("/experiments/{run_id}", response_model=V2ExperimentRead)
 def get_v2_experiment(run_id: UUID, db: DbSession, current_user: CurrentUser) -> V2ExperimentRead:
     return V2ExperimentService(db).get_run(run_id, current_user)
+
+
+@router.post("/experiments/{run_id}/submit", response_model=V2ExperimentRead)
+def submit_v2_experiment(
+    run_id: UUID, db: DbSession, current_user: CurrentUser
+) -> V2ExperimentRead:
+    return V2ExperimentService(db).submit(run_id, current_user)
+
+
+@router.post("/experiments/{run_id}/lock", response_model=V2ExperimentRead)
+def lock_v2_experiment(run_id: UUID, db: DbSession, current_user: CurrentUser) -> V2ExperimentRead:
+    return V2ExperimentService(db).lock(run_id, current_user)
+
+
+@router.post("/experiments/{run_id}/unlock", response_model=V2ExperimentRead)
+def unlock_v2_experiment(
+    run_id: UUID, db: DbSession, current_user: CurrentUser
+) -> V2ExperimentRead:
+    return V2ExperimentService(db).unlock(run_id, current_user)
+
+
+@router.post("/experiments/{run_id}/return-to-draft", response_model=V2ExperimentRead)
+def return_v2_experiment_to_draft(
+    run_id: UUID, db: DbSession, current_user: CurrentUser
+) -> V2ExperimentRead:
+    return V2ExperimentService(db).return_to_draft(run_id, current_user)
+
+
+@router.post("/experiments/{run_id}/invalidate", response_model=V2ExperimentRead)
+def invalidate_v2_experiment(
+    run_id: UUID, payload: V2InvalidateRequest, db: DbSession, current_user: CurrentUser
+) -> V2ExperimentRead:
+    return V2ExperimentService(db).invalidate(run_id, payload.reason, current_user)
 
 
 @router.put("/experiments/{run_id}/setup-reference", response_model=V2ExperimentRead)

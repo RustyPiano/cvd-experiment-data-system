@@ -57,6 +57,9 @@ class V2ExperimentRead(BaseModel):
     experiment_date: date
     objective: str | None
     status: str
+    result_missing_todo: bool | None
+    submitted_at: datetime | None
+    locked_at: datetime | None
     setup_ref: UUID | None
     setup_ref_version: int | None
     setup_ref_snapshot_json: dict[str, Any] | None
@@ -67,6 +70,10 @@ class V2ExperimentRead(BaseModel):
 class V2ExperimentListResponse(BaseModel):
     items: list[V2ExperimentRead]
     total: int
+
+
+class V2InvalidateRequest(BaseModel):
+    reason: str = Field(min_length=1)
 
 
 class V2ModulePayloadUpsert(BaseModel):

@@ -12,6 +12,7 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { useAuth } from '@/features/auth/use-auth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
@@ -22,6 +23,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { listRuns } from './api'
+import { statusBadgeVariant, statusLabelKey } from './status-logic'
+import type { RunStatus } from './status-logic'
 
 export function ExperimentV2ListPage() {
   const { t } = useTranslation()
@@ -96,7 +99,16 @@ export function ExperimentV2ListPage() {
                       <TableCell>
                         {dayjs(run.experiment_date).format('YYYY-MM-DD')}
                       </TableCell>
-                      <TableCell>{run.status}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant={statusBadgeVariant(run.status as RunStatus)}>
+                            {t(statusLabelKey(run.status as RunStatus))}
+                          </Badge>
+                          {run.result_missing_todo ? (
+                            <Badge variant="destructive">{t('experimentsV2.status.resultMissing')}</Badge>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Button variant="outline" size="sm" asChild>
                           <Link

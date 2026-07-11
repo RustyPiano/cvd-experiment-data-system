@@ -3491,6 +3491,12 @@ export interface components {
             objective: string | null;
             /** Status */
             status: string;
+            /** Result Missing Todo */
+            result_missing_todo: boolean | null;
+            /** Submitted At */
+            submitted_at: string | null;
+            /** Locked At */
+            locked_at: string | null;
             /** Setup Ref */
             setup_ref: string | null;
             /** Setup Ref Version */

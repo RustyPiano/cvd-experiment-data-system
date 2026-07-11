@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -45,6 +46,7 @@ from app.schemas.v2 import (
     V2ModulePayloadRead,
     V2ModulePayloadUpsert,
 )
+from app.services.audit_service import AuditService
 from app.services.v2_entity_snapshot_service import (
     apply_setup_reference,
     instrument_version_snapshot,
@@ -58,6 +60,8 @@ from app.services.v2_field_source import (
     missing,
     stage_types_with_group,
 )
+from app.services.v2_r0_service import missing_r0_fields
+from app.services.v2_result_status_service import refresh_result_missing_todo
 
 
 @dataclass(frozen=True)
@@ -129,8 +133,14 @@ class V2EntityService:
         if repo.get_entity(entity_id) is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
         version = self._build_version(kind, entity_id, repo.next_version(entity_id), payload)
-        repo.save_version(version)
-        self.db.commit()
+        try:
+            repo.save_version(version)
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Version already exists"
+            ) from exc
         return self._version_read(kind, version)
 
     def get_version(self, kind: str, entity_id: UUID, version: int) -> Any:
@@ -220,6 +230,7 @@ class V2ExperimentService:
         self.module_payloads = ModulePayloadRepository(db)
         self.entities = V2EntityService(db)
         self.results = V2ResultRepository(db)
+        self.audit = AuditService(db)
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
         run_code = payload.run_code or self.experiments.next_run_code(payload.started_at.date())
@@ -265,24 +276,71 @@ class V2ExperimentService:
         self.db.refresh(run)
         return self._run_read(run)
 
-    def list_runs(self, current_user: User) -> V2ExperimentListResponse:
-        # Borrows v1 pagination: fetches the first 100 visible runs, then filters to v2
-        # in memory. v2 runs beyond the first 100 are silently truncated — acceptable for
-        # now; a repository-level schema_version filter is deferred to P6 (behaviour change).
-        items, _ = self.experiments.list_visible(
+    def list_runs(
+        self, current_user: User, *, page: int = 1, page_size: int = 20
+    ) -> V2ExperimentListResponse:
+        runs, total = self.experiments.list_visible(
             current_user=current_user,
             status_filters=None,
-            page=1,
-            page_size=100,
+            page=page,
+            page_size=page_size,
+            schema_version=SCHEMA_VERSION,
         )
-        runs = [item for item in items if item.schema_version == SCHEMA_VERSION]
         return V2ExperimentListResponse(
             items=[self._run_read(item) for item in runs],
-            total=len(runs),
+            total=total,
         )
 
     def get_run(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
         return self._run_read(self._get_visible_run(run_id, current_user))
+
+    def submit(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
+        run = self._get_owned_run(run_id, current_user)
+        self._require_status(run, ExperimentStatus.DRAFT)
+        self._require_r0(run)
+        run.submitted_at = datetime.now(UTC)
+        return self._transition(run, ExperimentStatus.SUBMITTED, "submit", current_user)
+
+    def lock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
+        run = self._get_owned_run(run_id, current_user)
+        self._require_status(run, ExperimentStatus.SUBMITTED)
+        self._require_r0(run)
+        run.locked_at = datetime.now(UTC)
+        self._transition(run, ExperimentStatus.LOCKED, "lock", current_user, commit=False)
+        refresh_result_missing_todo(self.db, run)
+        self.db.commit()
+        self.db.refresh(run)
+        return self._run_read(run)
+
+    def unlock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
+        if current_user.role != UserRole.ADMIN:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
+        run = self._get_owned_run(run_id, current_user)
+        self._require_status(run, ExperimentStatus.LOCKED)
+        run.locked_at = None
+        self._transition(run, ExperimentStatus.SUBMITTED, "unlock", current_user, commit=False)
+        refresh_result_missing_todo(self.db, run)
+        self.db.commit()
+        self.db.refresh(run)
+        return self._run_read(run)
+
+    def return_to_draft(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
+        run = self._get_owned_run(run_id, current_user)
+        self._require_status(run, ExperimentStatus.SUBMITTED)
+        run.submitted_at = None
+        run.locked_at = None
+        return self._transition(run, ExperimentStatus.DRAFT, "return_to_draft", current_user)
+
+    def invalidate(self, run_id: UUID, reason: str, current_user: User) -> V2ExperimentRead:
+        run = self._get_owned_run(run_id, current_user)
+        if run.status in {ExperimentStatus.INVALID, ExperimentStatus.LOCKED}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Experiment cannot be invalidated"
+            )
+        run.invalid_reason = reason
+        return self._transition(
+            run, ExperimentStatus.INVALID, "invalidate", current_user, reason=reason
+        )
 
     def set_setup_reference(
         self,
@@ -391,6 +449,7 @@ class V2ExperimentService:
         current_user: User,
     ) -> CharacterizationRecordRead:
         record = self._owned_characterization_record(record_id, current_user)
+        self._ensure_editable(self.experiments.get_by_id(record.experiment_run_id))
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(record, key, value)
         saved = self.results.save_characterization_record(record)
@@ -399,6 +458,7 @@ class V2ExperimentService:
 
     def delete_characterization_record(self, record_id: UUID, current_user: User) -> None:
         record = self._owned_characterization_record(record_id, current_user)
+        self._ensure_editable(self.experiments.get_by_id(record.experiment_run_id))
         self.results.delete(record)
         self.db.commit()
 
@@ -419,6 +479,7 @@ class V2ExperimentService:
         current_user: User,
     ) -> MeasuredProductRead:
         sample = self._owned_sample(sample_id, current_user)
+        self._ensure_editable(self.experiments.get_by_id(sample.experiment_run_id))
         if payload.characterization_record_id:
             record = self.results.get_characterization_record(payload.characterization_record_id)
             if record is None or record.sample_id != sample.id:
@@ -438,6 +499,8 @@ class V2ExperimentService:
         current_user: User,
     ) -> MeasuredProductRead:
         product = self._owned_measured_product(product_id, current_user)
+        sample = self.db.get(Sample, product.sample_id)
+        self._ensure_editable(self.experiments.get_by_id(sample.experiment_run_id))
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(product, key, value)
         saved = self.results.save_measured_product(product)
@@ -446,6 +509,8 @@ class V2ExperimentService:
 
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._owned_measured_product(product_id, current_user)
+        sample = self.db.get(Sample, product.sample_id)
+        self._ensure_editable(self.experiments.get_by_id(sample.experiment_run_id))
         self.results.delete(product)
         self.db.commit()
 
@@ -496,13 +561,57 @@ class V2ExperimentService:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experiment not found")
 
     def _get_owned_run(self, run_id: UUID, current_user: User) -> ExperimentRun:
-        run = self._get_visible_run(run_id, current_user)
+        run = self.experiments.get_by_id(run_id)
+        if run is None or run.schema_version != SCHEMA_VERSION:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Experiment not found"
+            )
         if current_user.role != UserRole.ADMIN and run.owner_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
             )
         return run
+
+    def _require_status(self, run: ExperimentRun, expected: ExperimentStatus) -> None:
+        if run.status != expected:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=f"Experiment must be {expected.value}"
+            )
+
+    def _require_r0(self, run: ExperimentRun) -> None:
+        missing_fields = missing_r0_fields(run)
+        if missing_fields:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"missing": missing_fields},
+            )
+
+    def _transition(
+        self,
+        run: ExperimentRun,
+        target: ExperimentStatus,
+        action: str,
+        actor: User,
+        *,
+        reason: str | None = None,
+        commit: bool = True,
+    ) -> V2ExperimentRead:
+        before = {"status": run.status.value}
+        run.status = target
+        self.audit.record_event(
+            actor=actor,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action=action,
+            before_json=before,
+            after_json={"status": target.value},
+            reason=reason,
+        )
+        if commit:
+            self.db.commit()
+            self.db.refresh(run)
+        return self._run_read(run)
 
     def _ensure_editable(self, run: ExperimentRun) -> None:
         if run.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:
@@ -558,6 +667,9 @@ class V2ExperimentService:
             experiment_date=run.experiment_date,
             objective=run.objective,
             status=run.status.value,
+            result_missing_todo=run.result_missing_todo,
+            submitted_at=run.submitted_at,
+            locked_at=run.locked_at,
             setup_ref=run.setup_ref,
             setup_ref_version=run.setup_ref_version,
             setup_ref_snapshot_json=run.setup_ref_snapshot_json,

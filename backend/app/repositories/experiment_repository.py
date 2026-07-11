@@ -69,6 +69,7 @@ class ExperimentRepository:
         page_size: int = 20,
         sort_by: str = "updated_at",
         sort_order: str = "desc",
+        schema_version: str | None = None,
     ) -> tuple[list[ExperimentRun], int]:
         statement = select(ExperimentRun).options(
             selectinload(ExperimentRun.derived_from_run),
@@ -77,6 +78,9 @@ class ExperimentRepository:
 
         if status_filters is None:
             statement = statement.where(ExperimentRun.status != ExperimentStatus.INVALID)
+
+        if schema_version is not None:
+            statement = statement.where(ExperimentRun.schema_version == schema_version)
 
         if current_user.role == UserRole.ADMIN:
             if mine:

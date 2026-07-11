@@ -99,12 +99,14 @@ export function ExperimentV2Form({
   runId,
   initialState,
   runCode,
+  readOnly = false,
 }: {
   mode: 'new' | 'edit'
   runId?: string
   initialState: ExperimentV2FormState
   /** 编辑态展示的炉次编号。 */
   runCode?: string
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -424,7 +426,7 @@ export function ExperimentV2Form({
       : undefined
 
   return (
-    <div className="flex flex-col gap-6">
+    <fieldset disabled={readOnly} className="flex flex-col gap-6">
       {mode === 'edit' && runCode ? (
         <p className="text-sm text-muted-foreground">
           {t('experimentsV2.form.editingRun', { runCode })}
@@ -538,6 +540,6 @@ export function ExperimentV2Form({
           </Button>
         </div>
       ) : null}
-    </div>
+    </fieldset>
   )
 }

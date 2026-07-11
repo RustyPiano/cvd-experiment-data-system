@@ -45,6 +45,14 @@ export function getRun(runId: string, token: string) {
   return apiRequest<V2ExperimentRead>(`${BASE}/${runId}`, { token })
 }
 
+export function transitionRun(runId: string, action: string, token: string, reason?: string) {
+  return apiRequest<V2ExperimentRead>(`${BASE}/${runId}/${action}`, {
+    method: 'POST',
+    body: reason === undefined ? undefined : { reason },
+    token,
+  })
+}
+
 /** 逐模块 payload upsert（PUT /experiments/{run}/modules/{module}）。 */
 export function upsertModule(
   runId: string,

@@ -225,3 +225,9 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     report = reports[0]
     failed = [item for item in report["items"] if item["applicable"] and not item["passed"]]
     assert report["status"] == "compliant", f"R0 未通过项: {failed}"
+    submitted = client.post(f"/api/v1/v2/experiments/{run_id}/submit", headers=headers)
+    assert submitted.status_code == 200, submitted.text
+    locked = client.post(f"/api/v1/v2/experiments/{run_id}/lock", headers=headers)
+    assert locked.status_code == 200, locked.text
+    reports = build_r0_reports(db_session, run_code="RUN-V2-WALK")
+    assert reports[0]["status"] == "compliant"

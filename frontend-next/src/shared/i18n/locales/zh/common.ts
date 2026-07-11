@@ -83,6 +83,13 @@ export const common = {
   },
   // v2 实验录入表单（P4 §1–§4）。字段标签走 field-metadata，此处只放 UI chrome。
   experimentsV2: {
+    status: { draft: '草稿', submitted: '已提交', locked: '已锁定', invalid: '已作废', resultMissing: '结果缺失' },
+    banner: { locked: '该炉次已锁定，仅管理员解锁后可编辑。', invalid: '该炉次已作废，不可编辑。' },
+    actions: {
+      submit: '提交实验', lock: '锁定实验', unlock: '解锁实验', returnToDraft: '退回草稿', invalidate: '作废实验',
+      success: '状态已更新', error: '状态更新失败', missingTitle: '请先补齐以下 R0 字段：',
+      invalidateTitle: '作废实验', invalidateDescription: '请输入作废原因。', reason: '作废原因',
+    },
     nav: 'v2 实验录入',
     r0: {
       badge: 'R0',
