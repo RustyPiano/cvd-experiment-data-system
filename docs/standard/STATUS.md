@@ -6,7 +6,7 @@
 ## 0. 一分钟速览（给接手的 Agent）
 - 这是一个 **CVD 二维材料实验数据采集系统**。
 - **线上运行 = v1**（`cvd_v1` / 68 字段），但 **2026-07-09 已定案：v1 试运行数据可弃、完全拆除 v1、v2 单轨化**——拆除+重基线计划见 **`docs/v2-single-track-plan.md`**（批0–批8，取代原 P5 迁移/P6 切换；**迁移全线作废**；**2026-07-11 经 5 组取证复评修订**——批2 补两层+三处红线切耦合、批3 扩范围、批6 换方案、新增批8 生产切换人工门，执行前以修订版为准）。v2 代码已开发完成（P0–P5 工具，见 §5）。
-- 当前阶段：两线并行——**线 A** 单轨化拆除**执行中**（批0 用户豁免（测试数据）、批1 已完成，进行到批2）；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
+- 当前阶段：两线并行——**线 A** 单轨化拆除**执行中**（批0 用户豁免（测试数据）、批1–2 已完成，下一步批3）；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
@@ -17,7 +17,7 @@
 
 ## 1. 系统现状
 - **线上运行 = v1**（schema `cvd_v1`，68 字段）；**生产数据未迁移**。
-- **v2 代码已在仓库**（2026-07-08 完成）：实体三件套+锁版（Alembic `0032–0034`，additive-only 不碰 v1 语义）、`/api/v1/v2` 全套端点、生成器①–⑤、`experiments-v2`/`entity-library` 前端、`check_r0`/`migrate_v1_to_v2` 命令。**门禁：后端 pytest 319 · 前端 vitest 117 · CI 四 job 全绿（本地）；commit 尚未 push**。
+- **v2 代码已在仓库**（2026-07-08 完成；2026-07-11 批2 起 v1 后端面已拆除）：实体三件套+锁版（Alembic `0032–0034`）、`/api/v1/v2` 全套端点、生成器（seed 已随批2 删除，余①②④⑤）、`experiments-v2`/`entity-library` 前端、`check_r0` 命令。**门禁：后端 pytest 77 · 前端 vitest 117 · CI 四 job 全绿（本地）；commit 尚未 push**。
 - 工程约定见根 `AGENTS.md`；实现路线与红线见 `docs/v2-implementation-plan.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）
@@ -79,11 +79,12 @@
 | 07-09 | **v1 单轨化决策 + v2 架构评审（5 组 Fable 探查/评审并行）**：用户确认 **v1 试运行数据可弃、不为兼容妥协** → 定案完全拆除 v1（当前仓库内、不新开项目、v2 不重写）。评审结论：v2 骨架正确无过度工程（单一源管线 A-、锁版快照正确、元数据驱动表单为真）；发现 2 个产品缺口（**v2 无 submit/lock 状态机**、`refresh_result_missing_todo` 零调用者悬空；表征记录挂不了文件）+ 管线软肋（条件表达式解析器 4 份已漂移、失败静默；DB 词表孤儿双源"改了没用"）。**完整计划落 `docs/v2-single-track-plan.md`（批0–批7，取代 P5/P6）**；P5 迁移全线作废、俊杰 3 个迁移映射问题作废 | 本次 |
 | 07-11 | **单轨化计划深入复评 + 修订（5 组并行取证，逐断言 file:line 验证）**：批2"models 层零 import"**被证伪**（`normalize_module_payload`←`clone_for_run`、`ExperimentRepository` setup join、`file_asset_service` 词表校验三处红线硬依赖）+ 漏列 schemas/repositories 两层与 4 聚合器；批3 实际范围扩大（锁定守卫缺 5 条写路径、v2 零 audit、v1 行为表钉入计划）；发现**缺生产切换批**（容器启动即 `alembic upgrade`，squash 后老库部署即崩）→ **新增批8 人工门** + 红线"批8 前禁 deploy"；批6 否决"生成 TS matcher"（过度工程）改为后端 import 收敛+前端手工对齐+跨语言 fixture；批5 地基确认干净（待删表零入度 FK、裸 Uuid 列、SQLite 兼容要求）。修订版计划为准。**随后用户拍板两项**：放弃 submit 版本快照、P1.5 冻结范围排除 UI 呈现属性（均入 §4 冻结清单） | 本次 |
 | 07-11 | **单轨化开工**：批0 用户豁免（确认全部为测试数据，无需备份）；**批1 完成**——删除遗留前端 `frontend/`（31.9k 行），README 9 处引用清理（含 :143/:147 "dev compose 构建旧前端"过时错话修正、回归清单 `cd ../frontend`→`frontend-next`）、AGENTS.md 去退役表述；门禁：compose config OK、残留引用仅存 untracked 历史规划稿。工作模式：**codex-first**（实现委派 Codex CLI，Claude 规格/评审/门禁，技能落 `.claude/skills/codex-first`） | 本次 |
+| 07-11 | **单轨化批2完成（后端 v1 面拆除）**：删除 v1 endpoints/services/schemas/repositories/commands/models、迁移映射与 v1 生成物；四处保留路径切耦合；文件上传词表校验改读 `field-source.yaml`；samples 测试改由 v2 建炉次；样品详情最小补丁改读 v2 炉次且不再跨引 v1 experiments API；CI 生成物 job 仅保留 v2 导出与漂移检查。**pytest 77/77（含 full walkthrough）· vitest 117/117 · ruff/tsc/eslint/字段源校验全绿** | 本次 |
 
 ## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
 
 **线 A：v1 单轨化拆除（工程线，已批准待执行，详见 `docs/v2-single-track-plan.md`）**
-1. 批0 备份留档（pg_dump 一次性人工门，数据已确认可弃）→ 批1 删旧 `frontend/` → 批2 后端 v1 拆除（含迁移机器、DB 词表 admin 面、seed）→ 批3 **v2 状态机收编**（submit/lock/unlock + `refresh_result_missing_todo` 接线 + `list_runs` 分页下推）→ 批4 前端收编（删 v1 页面、路由改名、**含精简批3 MODULE_SPECS**、UI 手工走查）→ 批5 Schema 重基线（squash 34 迁移、删 v1 列/表、file_assets 预埋表征 FK）→ 批6 API 收编 `/api/v1/v2`→`/api/v1` + 管线加固（解析器收敛至下限 2 份+跨语言 fixture+护栏补齐）→ 批7 文档收尾 → **批8 生产切换（人工门，用户在场：停容器→重建库→部署→建管理员→线上冒烟）**。每批独立 commit、门禁全绿再进；**红线：批8 完成前禁止 `deploy.sh`**（中间态部署即断/崩）。
+1. 批0 备份留档（已豁免）→ 批1 删旧 `frontend/`（已完成）→ 批2 后端 v1 拆除（已完成）→ **批3 v2 状态机收编**（submit/lock/unlock + `refresh_result_missing_todo` 接线 + `list_runs` 分页下推）→ 批4 前端收编（删 v1 页面、路由改名、**含精简批3 MODULE_SPECS**、UI 手工走查）→ 批5 Schema 重基线（squash 34 迁移、删 v1 列/表、file_assets 预埋表征 FK）→ 批6 API 收编 `/api/v1/v2`→`/api/v1` + 管线加固（解析器收敛至下限 2 份+跨语言 fixture+护栏补齐）→ 批7 文档收尾 → **批8 生产切换（人工门，用户在场：停容器→重建库→部署→建管理员→线上冒烟）**。每批独立 commit、门禁全绿再进；**红线：批8 完成前禁止 `deploy.sh`**（中间态部署即断/崩）。
 2. 后续项（不阻塞）：表征文件上传功能（FK 已预埋）；`formula.ts` 双源留注释。
 
 **线 B：标准冻结（外部线，不受线 A 影响）**

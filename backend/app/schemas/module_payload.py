@@ -12,8 +12,6 @@ from pydantic import (
     field_validator,
 )
 
-from app.models.module_payload import ExperimentModuleKey
-
 
 class ModulePayloadBase(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -198,16 +196,16 @@ class ResultSummaryPayload(ModulePayloadBase):
 
 
 MODULE_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
-    ExperimentModuleKey.BASIC_INFO.value: BasicInfoPayload,
-    ExperimentModuleKey.ENVIRONMENT.value: EnvironmentPayload,
-    ExperimentModuleKey.PRECHECK.value: PrecheckPayload,
-    ExperimentModuleKey.PRECURSORS.value: PrecursorsPayload,
-    ExperimentModuleKey.SUBSTRATES.value: SubstratesPayload,
-    ExperimentModuleKey.FURNACE_PROGRAM.value: FurnaceProgramPayload,
-    ExperimentModuleKey.GAS_PROGRAM.value: GasProgramPayload,
-    ExperimentModuleKey.PROCESS_OBSERVATION.value: ProcessObservationPayload,
-    ExperimentModuleKey.CHARACTERIZATION.value: CharacterizationPayload,
-    ExperimentModuleKey.RESULT_SUMMARY.value: ResultSummaryPayload,
+    "basic_info": BasicInfoPayload,
+    "environment": EnvironmentPayload,
+    "precheck": PrecheckPayload,
+    "precursors": PrecursorsPayload,
+    "substrates": SubstratesPayload,
+    "furnace_program": FurnaceProgramPayload,
+    "gas_program": GasProgramPayload,
+    "process_observation": ProcessObservationPayload,
+    "characterization": CharacterizationPayload,
+    "result_summary": ResultSummaryPayload,
 }
 
 
@@ -216,11 +214,11 @@ def validate_module_payload(module_key: str, payload_json: dict[str, Any]) -> di
     if model is None:
         return payload_json
     validated = model.model_validate(payload_json)
-    if module_key == ExperimentModuleKey.BASIC_INFO.value:
+    if module_key == "basic_info":
         return validated.model_dump(mode="json", exclude_unset=True)
 
     dumped = validated.model_dump(mode="json", exclude_none=False)
-    if module_key == ExperimentModuleKey.SUBSTRATES.value:
+    if module_key == "substrates":
         _drop_unset_substrate_batch_numbers(payload_json, dumped)
     return dumped
 

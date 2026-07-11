@@ -1,9 +1,17 @@
-import { apiRequest } from '@/shared/api/client'
+import { apiDownload, apiRequest } from '@/shared/api/client'
 import type {
+  ExperimentStatus,
+  FileAssetListResponse,
   SampleListResponse,
   SampleRead,
   SampleUpdateRequest,
 } from '@/shared/types/api'
+import type { components } from '@/shared/types/openapi'
+
+type V2ExperimentRead = Omit<
+  components['schemas']['V2ExperimentRead'],
+  'status'
+> & { status: ExperimentStatus }
 
 /** Lists all samples visible to the current user (across experiments). */
 export function listSamples(token: string, role?: string | null) {
@@ -27,4 +35,23 @@ export function updateSample(
     body: payload,
     token,
   })
+}
+
+export function getExperiment(token: string, runId: string) {
+  return apiRequest<V2ExperimentRead>(`/api/v1/v2/experiments/${runId}`, { token })
+}
+
+export function listExperimentFiles(
+  token: string,
+  filters: { experimentId: string; sampleId: string },
+) {
+  const query = new URLSearchParams({
+    experiment_id: filters.experimentId,
+    sample_id: filters.sampleId,
+  })
+  return apiRequest<FileAssetListResponse>(`/api/v1/files?${query}`, { token })
+}
+
+export function downloadExperimentFile(token: string, fileId: string) {
+  return apiDownload(`/api/v1/files/${fileId}/download`, { token })
 }

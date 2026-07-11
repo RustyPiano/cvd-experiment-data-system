@@ -1,11 +1,12 @@
 from pathlib import Path
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.main import app
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.services.file_storage_service import FileStorageService
-from tests.helpers.setup_methods import create_confirmed_setup_methods
 
 client = TestClient(app)
 
@@ -25,11 +26,12 @@ def auth_headers(email: str) -> dict[str, str]:
 
 def create_experiment(email: str, *, objective: str = "File asset flow") -> str:
     response = client.post(
-        "/api/v1/experiments",
+        "/api/v1/v2/experiments",
         json={
-            "experiment_type": "cvd_2zone",
-            "material_system": "MoS2",
-            "experiment_date": "2026-04-23",
+            "started_at": "2026-04-23T10:00:00+08:00",
+            "synthesis_method": "CVD",
+            "operator": email,
+            "chemical_formula": "MoS2",
             "objective": objective,
         },
         headers=auth_headers(email),
@@ -159,7 +161,7 @@ def test_upload_file_rejects_unknown_method(active_user) -> None:
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"method": "XRD"},
+        data={"method": "unknown"},
         files={"file": ("raman.txt", b"peak=404", "text/plain")},
     )
 
@@ -173,12 +175,12 @@ def test_upload_file_accepts_legacy_file_kind_alias(active_user) -> None:
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"file_kind": "OM"},
+        data={"file_kind": "Raman"},
         files={"file": ("legacy.txt", b"legacy", "text/plain")},
     )
 
     assert response.status_code == 201
-    assert response.json()["method"] == "OM"
+    assert response.json()["method"] == "Raman"
 
 
 def test_upload_file_rejects_payloads_over_size_limit(active_user, monkeypatch) -> None:
@@ -188,7 +190,7 @@ def test_upload_file_rejects_payloads_over_size_limit(active_user, monkeypatch) 
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"method": "OM"},
+        data={"method": "Raman"},
         files={"file": ("oversized.txt", b"12345", "text/plain")},
     )
 
@@ -201,7 +203,7 @@ def test_delete_file_soft_deletes_metadata_and_hides_content(active_user) -> Non
     upload_response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"method": "OM"},
+        data={"method": "Raman"},
         files={"file": ("xrd.csv", b"2theta,intensity\n10,20", "text/csv")},
     )
     file_id = upload_response.json()["id"]
@@ -232,162 +234,40 @@ def test_delete_file_soft_deletes_metadata_and_hides_content(active_user) -> Non
     assert download_response.status_code == 404
 
 
-def test_upload_file_rejects_locked_experiment(active_user) -> None:
+def test_upload_file_rejects_locked_experiment(active_user, db_session) -> None:
     experiment_id = create_experiment(active_user.email, objective="Locked file upload")
-
-    submit_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/submit",
-        headers=auth_headers(active_user.email),
-    )
-    assert submit_response.status_code == 422
-
-    patch_response = client.patch(
-        f"/api/v1/experiments/{experiment_id}",
-        json={"objective": "Locked file upload updated"},
-        headers=auth_headers(active_user.email),
-    )
-    assert patch_response.status_code == 200
-
-    client.put(
-        f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
-        headers=auth_headers(active_user.email),
-    )
-    client.put(
-        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
-        json={
-            "payload_json": {
-                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "placements": [],
-                "zones": [
-                    {
-                        "zone_key": "zone_1",
-                        "temperature_program": [
-                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
-                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
-                        ],
-                        "note": "",
-                    },
-                ],
-            }
-        },
-        headers=auth_headers(active_user.email),
-    )
-    client.put(
-        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
-        json={
-            "payload_json": {
-                "segments": [
-                    {
-                        "stage": "growth",
-                        "start_min": 0,
-                        "end_min": 45,
-                        "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
-                        "flow_sccm": 80,
-                    }
-                ]
-            }
-        },
-        headers=auth_headers(active_user.email),
-    )
-    create_confirmed_setup_methods(
-        client,
-        experiment_id=experiment_id,
-        headers=auth_headers(active_user.email),
-    )
-
-    submit_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/submit",
-        headers=auth_headers(active_user.email),
-    )
-    assert submit_response.status_code == 200
-
-    lock_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/lock",
-        headers=auth_headers(active_user.email),
-    )
-    assert lock_response.status_code == 200
+    experiment = db_session.get(ExperimentRun, UUID(experiment_id))
+    experiment.status = ExperimentStatus.LOCKED
+    db_session.commit()
 
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"method": "OM"},
+        data={"method": "Raman"},
         files={"file": ("locked.txt", b"blocked", "text/plain")},
     )
 
     assert response.status_code == 409
 
 
-def test_upload_file_allowed_on_submitted_experiment(active_user) -> None:
+def test_upload_file_allowed_on_submitted_experiment(active_user, db_session) -> None:
     # Characterization files can be attached to a submitted (still-editable)
     # experiment, not only to drafts.
     experiment_id = create_experiment(active_user.email, objective="Submitted file upload")
 
-    client.put(
-        f"/api/v1/experiments/{experiment_id}/modules/precursors",
-        json={"payload_json": {"items": [{"species": "MoO3", "method": "powder"}]}},
-        headers=auth_headers(active_user.email),
-    )
-    client.put(
-        f"/api/v1/experiments/{experiment_id}/modules/furnace_program",
-        json={
-            "payload_json": {
-                "furnace_info": {"zones_count": 1, "initial_temperatures_C": {"zone_1": 25}},
-                "placements": [],
-                "zones": [
-                    {
-                        "zone_key": "zone_1",
-                        "temperature_program": [
-                            {"node_index": 1, "time_min": 0, "temperature_C": 25, "note": ""},
-                            {"node_index": 2, "time_min": 30, "temperature_C": 750, "note": ""},
-                        ],
-                        "note": "",
-                    },
-                ],
-            }
-        },
-        headers=auth_headers(active_user.email),
-    )
-    client.put(
-        f"/api/v1/experiments/{experiment_id}/modules/gas_program",
-        json={
-            "payload_json": {
-                "segments": [
-                    {
-                        "stage": "growth",
-                        "start_min": 0,
-                        "end_min": 45,
-                        "gas": "Ar",
-                        "components": [{"name": "Ar", "fraction": 1, "flow_sccm": 80}],
-                        "flow_sccm": 80,
-                    }
-                ]
-            }
-        },
-        headers=auth_headers(active_user.email),
-    )
-    create_confirmed_setup_methods(
-        client,
-        experiment_id=experiment_id,
-        headers=auth_headers(active_user.email),
-    )
-
-    submit_response = client.post(
-        f"/api/v1/experiments/{experiment_id}/submit",
-        headers=auth_headers(active_user.email),
-    )
-    assert submit_response.status_code == 200
+    experiment = db_session.get(ExperimentRun, UUID(experiment_id))
+    experiment.status = ExperimentStatus.SUBMITTED
+    db_session.commit()
 
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"method": "OM", "asset_role": "characterization_file"},
+        data={"method": "Raman", "asset_role": "characterization_file"},
         files={"file": ("om.txt", b"image-bytes", "text/plain")},
     )
 
     assert response.status_code == 201
-    assert response.json()["method"] == "OM"
+    assert response.json()["method"] == "Raman"
 
 
 def test_deleted_file_keeps_storage_blob_for_soft_delete(active_user) -> None:
@@ -396,7 +276,7 @@ def test_deleted_file_keeps_storage_blob_for_soft_delete(active_user) -> None:
     upload_response = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=auth_headers(active_user.email),
-        data={"method": "OM"},
+        data={"method": "Raman"},
         files={"file": ("cleanup.bin", b"12345", "application/octet-stream")},
     )
     assert upload_response.status_code == 201

@@ -7,11 +7,12 @@ import { toast } from 'sonner'
 
 import { useAuth } from '@/features/auth/use-auth'
 import {
-  getExperiment,
-  listExperimentFiles,
   downloadExperimentFile,
-} from '@/features/experiments/api'
-import { getSample, updateSample } from './api'
+  getExperiment,
+  getSample,
+  listExperimentFiles,
+  updateSample,
+} from './api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { triggerBlobDownload } from '@/shared/lib/download'
 import { PageHeader } from '@/shared/ui/page-header'

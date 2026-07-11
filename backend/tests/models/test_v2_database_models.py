@@ -9,7 +9,6 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from app.models.experiment import ExperimentRun
-from app.models.module_payload import ExperimentModuleKey
 from app.models.sample import Sample, SampleRole
 from app.models.v2_entities import MaterialLot, MaterialLotVersion, Setup, SetupVersion
 from app.models.v2_results import MeasuredProduct
@@ -95,20 +94,6 @@ def test_entity_versions_are_unique_per_entity_and_keep_optional_fields_in_attrs
     )
     with pytest.raises(IntegrityError):
         db_session.commit()
-
-
-def test_v2_module_keys_are_supported_without_removing_v1_keys() -> None:
-    assert {
-        "basic_info",
-        "target_product",
-        "equipment",
-        "precursors",
-        "substrates",
-        "process_steps",
-        "process_events",
-        "pvd",
-    }.issubset({key.value for key in ExperimentModuleKey})
-    assert ExperimentModuleKey.FURNACE_PROGRAM.value == "furnace_program"
 
 
 def test_measured_products_reference_samples(db_session, active_user) -> None:

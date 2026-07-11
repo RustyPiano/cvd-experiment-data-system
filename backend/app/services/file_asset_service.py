@@ -15,11 +15,10 @@ from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.sample_repository import SampleRepository
-from app.repositories.setup_methods_repository import SetupMethodsRepository
-from app.repositories.vocabulary_repository import VocabularyRepository
 from app.schemas.file_asset import FileAssetListResponse, FileAssetRead
 from app.services.audit_service import AuditService
 from app.services.file_storage_service import FileStorageService
+from app.services.v2_field_source import field_option_values
 
 
 def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
@@ -61,8 +60,6 @@ class FileAssetService:
         self.experiments = ExperimentRepository(db)
         self.samples = SampleRepository(db)
         self.files = FileAssetRepository(db)
-        self.setup_methods = SetupMethodsRepository(db)
-        self.vocabularies = VocabularyRepository(db)
         self.audit = AuditService(db)
         self.storage = FileStorageService()
 
@@ -190,11 +187,6 @@ class FileAssetService:
 
     def delete_file(self, file_id: UUID, current_user: User) -> None:
         file_asset = self._get_owned_draft_file(file_id, current_user)
-        if self.setup_methods.get_by_diagram_file_asset(file_asset.id) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Setup diagram is referenced by setup methods",
-            )
         before = serialize_file_asset(file_asset)
         file_asset.deleted_at = datetime.now(UTC)
         file_asset.deleted_by_id = current_user.id
@@ -318,7 +310,7 @@ class FileAssetService:
         normalized = (method or "").strip()
         if not normalized:
             return None
-        if self.vocabularies.get_active_by_key_value("characterization_method", normalized) is None:
+        if normalized not in field_option_values("method_instrument"):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid file method",

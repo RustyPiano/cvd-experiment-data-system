@@ -122,14 +122,6 @@ jobs:
         working-directory: backend
         run: uv sync --frozen
 
-      - name: Migrate SQLite database
-        working-directory: backend
-        run: uv run alembic upgrade head
-
-      - name: Regenerate committed spec artifacts
-        working-directory: backend
-        run: uv run python -m app.commands.generate_spec
-
       - name: Regenerate committed v2 schema artifacts
         working-directory: backend
         run: uv run python -m app.commands.export_v2_schema

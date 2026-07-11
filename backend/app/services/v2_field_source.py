@@ -41,6 +41,22 @@ def entity_fields(doc: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     return [field for section in source["entities"]["sections"] for field in section["fields"]]
 
 
+def field_option_values(field_key: str, doc: dict[str, Any] | None = None) -> set[str]:
+    source = doc or load_field_source()
+    field = next(
+        (
+            item
+            for item in [*experiment_fields(source), *entity_fields(source)]
+            if item["key"] == field_key
+        ),
+        None,
+    )
+    if field is None:
+        # 快速失败：键名拼错/YAML 改名时立刻暴露，而不是静默空集导致所有值被拒
+        raise ValueError(f"field-source.yaml 中不存在字段 key: {field_key}")
+    return {value.strip() for value in str(field.get("options") or "").split("/") if value.strip()}
+
+
 def module_key_for_field(field: dict[str, Any], doc: dict[str, Any] | None = None) -> str:
     source = doc or load_field_source()
     module = field["module"]

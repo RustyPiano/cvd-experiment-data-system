@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -9,11 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
-from app.models.module_payload import ExperimentModuleKey, normalize_module_payload
 from app.models.sample import Sample, SampleRole
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
-from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.sample_repository import SampleRepository
 from app.schemas.sample import SampleCreate, SampleListResponse, SampleRead, SampleUpdate
 from app.services.audit_service import AuditService
@@ -23,7 +19,6 @@ class SampleService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.experiments = ExperimentRepository(db)
-        self.files = FileAssetRepository(db)
         self.samples = SampleRepository(db)
         self.audit = AuditService(db)
 
@@ -98,161 +93,6 @@ class SampleService:
         )
         self.db.commit()
         return SampleRead.model_validate(saved)
-
-    def sync_substrate_samples(
-        self,
-        *,
-        experiment: ExperimentRun,
-        current_user: User,
-        substrates_payload: dict,
-    ) -> list[Sample]:
-        normalized_payload = normalize_module_payload(
-            ExperimentModuleKey.SUBSTRATES.value,
-            substrates_payload,
-        )
-        items = normalized_payload.get("items")
-        if not isinstance(items, list):
-            return []
-
-        synced_samples: list[Sample] = []
-        desired_roles: set[SampleRole] = set()
-        role_map = {
-            "top": SampleRole.TOP,
-            "bottom": SampleRole.BOTTOM,
-        }
-        existing_by_role = {
-            SampleRole(sample.role): sample
-            for sample in self.samples.list_by_experiment_and_roles(
-                experiment.id,
-                {SampleRole.TOP, SampleRole.BOTTOM},
-                include_deleted=True,
-            )
-        }
-        for item in items:
-            if not isinstance(item, dict):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="Each substrate item must be an object",
-                )
-            role_value = item.get("role")
-            if role_value not in role_map:
-                continue
-
-            role = role_map[role_value]
-            if role in desired_roles:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="Duplicate substrate role in payload",
-                )
-            desired_roles.add(role)
-            existing = existing_by_role.get(role)
-            before = self._serialize_sample(existing)
-            metadata = dict(existing.metadata_json) if existing is not None else {}
-            metadata.update(
-                {
-                    "source_module": "substrates",
-                    "source_role": role_value,
-                    "batch_no": item.get("batch_no"),
-                    "treatment_params": item.get("treatment_params"),
-                }
-            )
-            target = existing or Sample(
-                sample_code=self._build_sample_code(experiment.run_code, role, 1),
-                experiment_run_id=experiment.id,
-                role=role.value,
-            )
-            target.substrate_type = item.get("type")
-            target.brand = item.get("brand")
-            target.size_mm = item.get("size_mm")
-            target.treatment = item.get("treatment_method")
-            target.position_mm = self._normalize_position(item.get("position_mm"))
-            target.metadata_json = metadata
-            target.deleted_at = None
-            target.deleted_by_id = None
-
-            saved = self.samples.save(target) if existing else self.samples.create(target)
-            synced_samples.append(saved)
-            self.audit.record_event(
-                actor=current_user,
-                entity_type="sample",
-                entity_id=saved.id,
-                action="update" if existing else "create",
-                before_json=before,
-                after_json=self._serialize_sample(saved),
-                reason="substrates_sync",
-            )
-
-        for role, sample in existing_by_role.items():
-            if role in desired_roles:
-                continue
-            if sample.deleted_at is not None:
-                continue
-            if self.files.exists_for_sample(sample.id) or self.samples.exists_children(sample.id):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="Cannot remove substrate sample while dependent records exist",
-                )
-            before = self._serialize_sample(sample)
-            sample.deleted_at = datetime.now(UTC)
-            sample.deleted_by_id = current_user.id
-            saved = self.samples.save(sample)
-            self.audit.record_event(
-                actor=current_user,
-                entity_type="sample",
-                entity_id=saved.id,
-                action="soft_delete",
-                before_json=before,
-                after_json=self._serialize_sample(saved),
-                reason="substrates_sync_removed",
-            )
-
-        return synced_samples
-
-    def clone_samples(
-        self,
-        *,
-        source_experiment: ExperimentRun,
-        target_experiment: ExperimentRun,
-        current_user: User,
-    ) -> list[Sample]:
-        cloned_samples: list[Sample] = []
-        role_counts: dict[SampleRole, int] = {}
-        cloneable_roles = {SampleRole.TOP, SampleRole.BOTTOM}
-        for sample in self.samples.list_by_experiment(source_experiment.id):
-            role = SampleRole(sample.role)
-            if role not in cloneable_roles:
-                continue
-            role_counts[role] = role_counts.get(role, 0) + 1
-            clone = Sample(
-                sample_code=self._build_sample_code(
-                    target_experiment.run_code,
-                    role,
-                    role_counts[role],
-                ),
-                experiment_run_id=target_experiment.id,
-                parent_sample_id=None,
-                role=sample.role,
-                substrate_type=sample.substrate_type,
-                brand=sample.brand,
-                size_mm=sample.size_mm,
-                treatment=sample.treatment,
-                position_mm=sample.position_mm,
-                storage_location=None,
-                metadata_json=dict(sample.metadata_json),
-            )
-            saved = self.samples.create(clone)
-            cloned_samples.append(saved)
-            self.audit.record_event(
-                actor=current_user,
-                entity_type="sample",
-                entity_id=saved.id,
-                action="create",
-                before_json=None,
-                after_json=self._serialize_sample(saved),
-                reason=f"cloned_from:{sample.id}",
-            )
-
-        return cloned_samples
 
     def _create_sample_with_retry(
         self,
@@ -432,26 +272,3 @@ class SampleService:
             "deleted_by_id": str(sample.deleted_by_id) if sample.deleted_by_id else None,
             "is_deleted": sample.deleted_at is not None,
         }
-
-    def _normalize_position(self, value: object) -> float | None:
-        if value is None:
-            return None
-        if isinstance(value, int | float) and not isinstance(value, bool):
-            return float(value)
-        if isinstance(value, Decimal):
-            return float(value)
-        if isinstance(value, str):
-            normalized = value.strip()
-            if not normalized:
-                return None
-            try:
-                return float(normalized)
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="Substrate position_mm must be numeric",
-                ) from exc
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Substrate position_mm must be numeric",
-        )

@@ -7,10 +7,25 @@ from fastapi import UploadFile
 from app.models.experiment import ExperimentRun
 from app.services.file_asset_service import FileAssetService
 from app.services.file_storage_service import FileStorageService
+from app.services.v2_field_source import field_option_values
 
 
 def build_upload(filename: str, content: bytes) -> UploadFile:
     return UploadFile(file=BytesIO(content), filename=filename)
+
+
+def test_characterization_methods_come_from_field_source() -> None:
+    assert field_option_values("method_instrument") == {
+        "光镜",
+        "SEM",
+        "Raman",
+        "低波数Raman",
+        "PL",
+        "AFM",
+        "XRD",
+        "TEM",
+        "其他",
+    }
 
 
 def create_draft_experiment(service: FileAssetService, owner_id) -> ExperimentRun:
@@ -43,7 +58,7 @@ def test_upload_file_cleans_up_disk_when_audit_fails(active_user, db_session, mo
             experiment_id=experiment.id,
             upload=build_upload("audit-fail.txt", b"payload"),
             current_user=active_user,
-            method="OM",
+            method="Raman",
         )
 
     db_session.rollback()
@@ -61,7 +76,7 @@ def test_delete_file_keeps_disk_content_when_commit_fails(
         experiment_id=experiment.id,
         upload=build_upload("delete-fail.txt", b"payload"),
         current_user=active_user,
-        method="OM",
+        method="Raman",
     )
     stored_path = service.storage.resolve(created.storage_path)
     assert stored_path.exists()
