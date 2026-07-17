@@ -7,7 +7,7 @@
 | 类别 | 文档 | 作用 |
 |---|---|---|
 | 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 当前代码、生产状态、已定决策和下一步 |
-| 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 2026-07-16 已确认、待实施的炉次优先工作流与双语文案设计 |
+| 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 2026-07-16 已确认的炉次优先工作流；阶段 1–3 已完成，待全流程 E2E 验收 |
 | 标准 | [`standard/cvd-2d-process-data-standard-v2.0.md`](standard/cvd-2d-process-data-standard-v2.0.md) | CVD-2D 元数据规则书 |
 | 字段 | [`standard/field-source.yaml`](standard/field-source.yaml) | 字段、词表和必填规则的唯一机器源 |
 | 字段表 | [`standard/字段草案-v3.xlsx`](standard/字段草案-v3.xlsx) | 由字段单一源生成的人读表格 |
