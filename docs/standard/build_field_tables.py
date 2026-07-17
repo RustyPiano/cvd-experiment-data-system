@@ -6,11 +6,11 @@
 # 然后运行：
 #     python3 docs/standard/build_field_tables.py [可选:输出路径]
 #     python3 docs/standard/check_field_source.py   # 校验 xlsx 与 YAML 一致（CI 强制）
-# 依赖：openpyxl、pyyaml（pip install --break-system-packages openpyxl pyyaml）
+# 依赖由项目 UV 环境管理，禁止使用 pip 单独安装。
 #
 # 四个 sheet：字段草案（实验记录 77 字段/9 模块）、一等实体字段表（MaterialLot/
 # 装置Setup/表征仪器）、v2→v3变更说明、待明确清单。
-# 全流程背景与进度见 docs/standard/STATUS.md；阶段边界见 docs/v2-implementation-plan.md。
+# 全流程背景与进度见 docs/standard/STATUS.md；技术决策见 docs/engineering/v2-implementation-plan.md。
 # ============================================================================
 import os
 import sys

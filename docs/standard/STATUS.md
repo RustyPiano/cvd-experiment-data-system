@@ -1,30 +1,31 @@
 # 现状与真相指针（STATUS）— 任何新 session / Agent 先读我
 
 > 本文件是本仓库的**单一入口**：读完它 = 拿到全部背景 + 当前进度 + 下一步，**无需向用户重复交代**。
-> 任何文档与本文件冲突，**以本文件为准**。最后更新：2026-07-12。
+> 任何文档与本文件冲突，**以本文件为准**。最后更新：2026-07-16。
 
 ## 0. 一分钟速览（给接手的 Agent）
 - 这是一个 **CVD 二维材料实验数据采集系统**。
-- **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/v2-single-track-plan.md`**（批0–批8）。
+- **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/engineering/v2-single-track-plan.md`**（批0–批8）。
 - ⚠️ **线上生产仍是切换前的旧部署（v1）——批8 生产切换（人工门，用户在场）未执行；在此之前禁止运行 `deploy.sh`**（旧库上启动自动迁移会崩溃循环；数据已确认可弃，切换 = 整库重建）。
-- 当前阶段：**线 A 收尾批 F1–F8 已全部完成**（含浏览器 E2E 两发现修复），剩三步：**① 重跑浏览器 E2E**（用户在交互式 Codex 会话执行，走查工单已固化 `docs/e2e-walkthrough-checklist.md`；上次被 F8 已修的并发问题阻断在步骤 4–9）→ **② push + Actions 首绿** → **③ 批8 生产切换（人工门）**；**线 B** 等俊杰对齐 4 问 → P1.5 冻结（互不阻塞，见 §6）。
+- 当前阶段：**收尾批 F1–F9 已完成，F9 大批改动仍在工作区未提交**。2026-07-16 用户逐项确认新的**炉次优先工作流与全量双语文案重构**，规格见 `docs/product/run-first-workflow-and-copy-design.md`，尚未实施。发布顺序已改为：先固化 F9 基线 → 实施产品重构 → 全量门禁与新版 E2E → push + Actions 首绿 → 批8生产切换。**线 B** 仍等俊杰对齐 4 问后冻结标准。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
-- **导师书面评审已回**（2026-07-07，`FSS Re-副本字段草案-v3.xlsx`，标黄 9 处+红字 2 处）→ **v3.4 已回改 6 条**；剩 **4 个问题待与俊杰当面对齐**（见 §6 首条），对齐后即可正式冻结。
-- **不要擅自重开已定决策**（见 §4 冻结清单）。
-- 工程历史与技术决策（D1–D12）见 `docs/v2-implementation-plan.md`（P0–P4 决策记录仍为有效依据；P5/P6 已由单轨化计划取代并执行完毕）。工作方式 = **codex-first**（实现委派 Codex CLI，Claude 规格/评审/门禁，见 `.claude/skills/codex-first`）。
-- 推荐读序：本文件 → `cvd-2d-process-data-standard-v2.0.md` → `字段草案-v3.xlsx` →（要背景细节再看）`metadata-v2-review-and-redesign.md` →（写代码）根 `AGENTS.md` + `../v2-single-track-plan.md` §5 后续项。
+- **导师书面评审已回**（2026-07-07，`docs/research/FSS Re-副本字段草案-v3.xlsx`，标黄 9 处+红字 2 处）→ **v3.4 已回改 6 条**；剩 **4 个问题待与俊杰当面对齐**（见 §6 首条），对齐后即可正式冻结。
+- **不要擅自重开已定决策**（见 §4）；2026-07-16 产品重构决策是用户明确确认的最新覆盖项。
+- 工程历史与技术决策（D1–D12）见 `docs/engineering/v2-implementation-plan.md`；生产切换见 `docs/engineering/v2-single-track-plan.md`。不再使用 Superpowers 文档流程。
+- 推荐读序：本文件 → `docs/README.md` → `docs/product/run-first-workflow-and-copy-design.md` → `cvd-2d-process-data-standard-v2.0.md` → `字段草案-v3.xlsx` →（要背景细节再看）`metadata-v2-review-and-redesign.md` →（写代码）根 `AGENTS.md`。
 
 ## 1. 系统现状
 - **仓库 main = 纯 v2 单轨**；**线上生产 = 切换前旧部署（v1），待批8 整库重建切换**（数据已确认可弃，无迁移）。
 - **v2 单轨形态**：Alembic 单一 initial `20260711_0001`（14 表，SQLite/PG 双兼容）；`/api/v1` 全套端点——实体三件套锁版（material-lots/setups/instruments + versions）、炉次 CRUD + 状态机（submit/lock/unlock/invalidate/return-to-draft，R0 阻塞门 + 全转移审计 + 结果缺失待办）、模块 payload、表征/实测、样品、文件；生成器①②④⑤ + `condition-cases.json` 跨语言 fixture + `check_field_source` 四护栏；前端 `/experiments` 单轨 + 实体库三页。
-- **门禁：后端 pytest 124 · 前端 vitest 185 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
-- **F6–F8 验证结论**：API 级全栈冒烟通过；**Codex xhigh 全量 diff 复审**（批2–F5）的 5 CONFIRMED + 3 PLAUSIBLE 已由 F7 修复；交互式浏览器 E2E 发现的文件 SQLite 并发踩踏与实验日期跨日错位已由 F8 修复并补红绿回归。
+- **已确认但未实施的产品目标**：炉次为主入口；draft→locked 两步；衬底锁定时生成样品；表征与测量结果合并录入；成员可为全组 locked 炉次补结果；基础资料就地新增；暂时隐藏 PVD；完整双语；增加筛选、审计查看和 JSON/CSV 导出。当前代码仍是上一行描述，禁止把目标误报为现状。
+- **门禁：后端 pytest 146 · 前端 vitest 210 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
+- **F6–F9 验证结论**：API 级全栈冒烟通过；**Codex xhigh 全量 diff 复审**（批2–F5）的 5 CONFIRMED + 3 PLAUSIBLE 已由 F7 修复；交互式浏览器 E2E 发现的文件 SQLite 并发踩踏与实验日期跨日错位已由 F8 修复并补红绿回归；F9 完成最终正确性、审计与工程防护收尾。
 - 工程约定见根 `AGENTS.md`。
 
 ## 2. 真相三件套（+ 字段表怎么改）
-1. **`field-source.yaml`** —— **字段单一权威源**（P1 起生效，实现方案 D1）：77 字段 + 46 实体字段 + 条件必填表达式 + R0 标记 + pending-alignment 标记。`字段草案-v3.xlsx` 是它的**渲染产物**（人读视图，4 个 sheet），由 `build_field_tables.py` 生成。导师批注原件在 `FSS Re-副本字段草案-v3.xlsx`（勿改，输入件）。
+1. **`field-source.yaml`** —— **字段单一权威源**（P1 起生效，实现方案 D1）：77 字段 + 46 实体字段 + 条件必填表达式 + R0 标记 + pending-alignment 标记。`字段草案-v3.xlsx` 是它的**渲染产物**（人读视图，4 个 sheet），由 `build_field_tables.py` 生成。导师批注原件在 `docs/research/FSS Re-副本字段草案-v3.xlsx`（勿改，输入件）。
    - ⚠️ **改字段只改 `field-source.yaml`**：改完 `python3 docs/standard/build_field_tables.py` 重新生成 xlsx，再 `python3 docs/standard/check_field_source.py` 校验（CI 强制逐格一致，防手改/防漂移）。
 2. **`cvd-2d-process-data-standard-v2.0.md`** —— 人读规范 / 规则书（原则·五判据·数据模型·词表·结果哲学·合规）；**字段级明细以 xlsx 为准**。
 3. **`metadata-v2-review-and-redesign.md`** —— 设计依据 / 国际对标（NOMAD/GEMD/ESCALATE/2DCC/NeXus/CHMO）+ 隐变量文献。
@@ -50,6 +51,7 @@
 - **v2 单轨后放弃"submit 创建版本快照"语义**（2026-07-11 拍板）：`experiment_versions` 随 v1 拆除，不另建 v2 实验级快照——实体锁版快照+状态流转审计留痕已覆盖；未来有真需求再单独立项。
 - **P1.5 冻结范围 = 字段语义层**（字段集合/必填与条件/词表/R0 标记；2026-07-11 拍板）：**UI 呈现属性（如"条件不满足时隐藏 vs 仅红星"）不在冻结范围**，可经单一源管线继续演进（见单轨化计划批6）。
 - **锁定语义 = 锁工艺、结果后补**（2026-07-11 拍板，方案甲）：locked 炉次**工艺域**（模块 payload、装置引用、状态元数据）只读，**结果域**（表征记录、实测产物、表征附件）可继续写入；"结果缺失"待办随结果写入自动刷新消除。invalid 炉次一切写路径均拒。落地见单轨化计划收尾批 F2。
+- **炉次优先产品重构**（2026-07-16 用户逐项确认，待实施）：炉次为默认入口；状态简化为 draft→locked；衬底自动生成样品；结果一次录入但底层保留分表；全组成员可为 locked 炉次补结果；基础资料就地新增；PVD 暂不开放；中文 canonical 值不迁移、补全英文显示；增加筛选、审计时间线和 JSON/多表 CSV 导出。该决策覆盖旧的 submitted 产品语义和当前结果区交互，但不改变字段科学语义与“锁工艺、结果后补”原则。
 
 ## 5. 进展日志（决策 + commit + 评审）
 | 日期 | 事项 | commit |
@@ -64,7 +66,7 @@
 | 07-06 | 一等实体三张字段表 + 纳入合规 + AP/LP 校验敲定 | `8838160` |
 | 07-06 | **Fable 三轮 8.5/10「可冻结」** → 冻结前收尾 B1-B4（实体版本号/§2只读投影/用量含液态/气瓶纯度分工） | `1a6e708` |
 | 07-07/08 | **导师书面评审回件**（标黄9+红字2）→ **v3.4 回改 6 条**：目标性能补示例 · §3新增『外观描述』(潮解溯源) · 外场参数→条件必填(Setup有外场) · 检出相增堆垛 · PL峰宽+SEM占比改名覆盖率 · 图例行+必填字体强化；观察现象粒度留待俊杰 | `048f57b` |
-| 07-08 | **实现期启动**：v1 代码库全量摸底（4份字段拷贝/无CI/双前端等）→ 定稿 `docs/v2-implementation-plan.md`（D1单一YAML源+五路生成器 · P0–P6 阶段与验收门） | `c13dc5e` |
+| 07-08 | **实现期启动**：v1 代码库全量摸底（4份字段拷贝/无CI/双前端等）→ 定稿 `docs/engineering/v2-implementation-plan.md`（D1单一YAML源+五路生成器 · P0–P6 阶段与验收门） | `c13dc5e` |
 | 07-08 | **P0 工程底线完成，门禁全绿**（Codex xhigh 初稿 + 本机验证收尾）：GitHub Actions 三 job（backend ruff+format+pytest / frontend tsc+eslint+vitest / generated-artifacts regen漂移检查）；`generated/` 从迁移种子库**真正重新生成**修复 `test_t5_5`（归档副本带⚠️横幅，拷贝恢复不成立）；ruff format 一次性拉平14文件；lint 零 warning 门禁；去重 router-plugin devDep。**pytest 287/287 · vitest 31/31 · tsc/eslint/ruff 全绿** | `f80808a` |
 | 07-08 | **P1 完成（字段单一源）**：新增 **`field-source.yaml`**（77字段+46实体字段+条件必填表达式+R0×16+pending×4，由旧 ROWS 机械转换）；`build_field_tables.py` 改造为纯渲染器；新增 `check_field_source.py`（YAML↔xlsx **逐格一致** + 结构约束 + R0 计数护栏）并进 CI（第4个 job）；**验收门通过：YAML 渲染与 v3.4 现版字段级 diff = 空**。五路生成器分期决策记入实现方案 §7。CLAUDE/AGENTS/STATUS 入口同步改为"改字段=改 YAML" | `af42197` |
 | 07-08 | **实现计划定稿 v1.1**：方案新增 §4b（P1.5–P6 逐阶段工作分解+验收清单）、P5 硬性备份门、P1.5 push/CI首绿门、P2 命名锚定、预授权例外（P1.5 拖延>2天 P2 可先行）、4 周目标周历 | `7704971` |
@@ -80,7 +82,7 @@
 | 07-08 | **精简批1 执行**（零风险净赚）：死代码簇删除 + `del current_user`→`_current_user`×15 + 100上限/占位/冻结闸注释 + 迁移 mapped-vs-执行范围语义注释钉死。**门禁全绿：pytest 319 · vitest 117 · 生成物零漂移 · check_field_source 逐格一致** | `759a472` |
 | 07-08 | **精简批2 执行**（低风险直白化）：B4 生成器拼接残影→f-string(regen 同 commit) · B7/B8/B9 migrate 去重加载/拆形状嗅探/状态查表 · B10 formula 双键兜底删除(前后端) · C3 去绕道扫模块 · C9 AddSampleControls · C10 §7 标签走元数据(删12 locale 键) · C11 叶子自取 useAuth · D2 zodResolver→手写 · D3 去枚举 token 启发式→声明条件反查 · D4/D5 render_field_sheet 提取+req_fill 前缀函数。**门禁同上全绿** | `abd00f9` |
 | 07-08 | **批1+批2 Codex xhigh 独立复审**：10 项非机械重构逐条判等价，**零行为变更**（无 confirmed/plausible 发现，各带 file:line 证据）；Codex 未跑门禁（沙箱只读），门禁本机已绿。结论落 `docs/reviews/2026-07-08-simplify-review.md` 头 | 复审 |
-| 07-09 | **v1 单轨化决策 + v2 架构评审（5 组 Fable 探查/评审并行）**：用户确认 **v1 试运行数据可弃、不为兼容妥协** → 定案完全拆除 v1（当前仓库内、不新开项目、v2 不重写）。评审结论：v2 骨架正确无过度工程（单一源管线 A-、锁版快照正确、元数据驱动表单为真）；发现 2 个产品缺口（**v2 无 submit/lock 状态机**、`refresh_result_missing_todo` 零调用者悬空；表征记录挂不了文件）+ 管线软肋（条件表达式解析器 4 份已漂移、失败静默；DB 词表孤儿双源"改了没用"）。**完整计划落 `docs/v2-single-track-plan.md`（批0–批7，取代 P5/P6）**；P5 迁移全线作废、俊杰 3 个迁移映射问题作废 | `27bb653` |
+| 07-09 | **v1 单轨化决策 + v2 架构评审（5 组 Fable 探查/评审并行）**：用户确认 **v1 试运行数据可弃、不为兼容妥协** → 定案完全拆除 v1（当前仓库内、不新开项目、v2 不重写）。评审结论：v2 骨架正确无过度工程（单一源管线 A-、锁版快照正确、元数据驱动表单为真）；发现 2 个产品缺口（**v2 无 submit/lock 状态机**、`refresh_result_missing_todo` 零调用者悬空；表征记录挂不了文件）+ 管线软肋（条件表达式解析器 4 份已漂移、失败静默；DB 词表孤儿双源"改了没用"）。**完整计划落 `docs/engineering/v2-single-track-plan.md`（批0–批7，取代 P5/P6）**；P5 迁移全线作废、俊杰 3 个迁移映射问题作废 | `27bb653` |
 | 07-11 | **单轨化计划深入复评 + 修订（5 组并行取证，逐断言 file:line 验证）**：批2"models 层零 import"**被证伪**（`normalize_module_payload`←`clone_for_run`、`ExperimentRepository` setup join、`file_asset_service` 词表校验三处红线硬依赖）+ 漏列 schemas/repositories 两层与 4 聚合器；批3 实际范围扩大（锁定守卫缺 5 条写路径、v2 零 audit、v1 行为表钉入计划）；发现**缺生产切换批**（容器启动即 `alembic upgrade`，squash 后老库部署即崩）→ **新增批8 人工门** + 红线"批8 前禁 deploy"；批6 否决"生成 TS matcher"（过度工程）改为后端 import 收敛+前端手工对齐+跨语言 fixture；批5 地基确认干净（待删表零入度 FK、裸 Uuid 列、SQLite 兼容要求）。修订版计划为准。**随后用户拍板两项**：放弃 submit 版本快照、P1.5 冻结范围排除 UI 呈现属性（均入 §4 冻结清单） | `47ce09a` |
 | 07-11 | **单轨化开工**：批0 用户豁免（确认全部为测试数据，无需备份）；**批1 完成**——删除遗留前端 `frontend/`（31.9k 行），README 9 处引用清理（含 :143/:147 "dev compose 构建旧前端"过时错话修正、回归清单 `cd ../frontend`→`frontend-next`）、AGENTS.md 去退役表述；门禁：compose config OK、残留引用仅存 untracked 历史规划稿。工作模式：**codex-first**（实现委派 Codex CLI，Claude 规格/评审/门禁，技能落 `.claude/skills/codex-first`） | `73c0236` |
 | 07-11 | **单轨化批2完成（后端 v1 面拆除）**：删除 v1 endpoints/services/schemas/repositories/commands/models、迁移映射与 v1 生成物；四处保留路径切耦合；文件上传词表校验改读 `field-source.yaml`；samples 测试改由 v2 建炉次；样品详情最小补丁改读 v2 炉次且不再跨引 v1 experiments API；CI 生成物 job 仅保留 v2 导出与漂移检查。**pytest 77/77（含 full walkthrough）· vitest 117/117 · ruff/tsc/eslint/字段源校验全绿** | `0d755a3` |
@@ -95,26 +97,32 @@
 | 07-11 | **收尾批 F3 完成（优雅性清扫）**：写操作按炉次可见性统一分层（不可见 404，可见无写权 403）；`status` 边界收紧并重生成 OpenAPI；`v2_service.py` 拆为实体/炉次/结果三域；模块 upsert 与实体追加版本补轻量审计；样品码唯一冲突 rollback 后 409；dev 字段源绕过缓存；清理 draft-only/v1 语义残留命名与前端 status 手工重铸。**pytest 111/111 · vitest 148/148 · ruff/format/tsc/eslint/字段源校验全绿** | `8614344` |
 | 07-11 | **收尾批 F4 完成（表征文件证据链闭环）**：表征记录附件上传/按记录过滤/审计快照接线，跨炉次与样品不匹配拒绝；活跃附件阻止删表征记录，附件软删除后可删；前端每记录单文件上传、列表、下载与 AlertDialog 软删除，locked 可写、invalid 只读。**pytest 118/118 · vitest 153/153 · ruff/format/tsc/eslint/字段源校验全绿** | `5a9a9ae` |
 | 07-11 | **收尾批 F5 完成（测试补强）**：`results-section` 补建样、表征/实测 CRUD、表征关联、附件失败 detail 与 locked/invalid 行为级覆盖；12 个复合字段从生成元数据参数化全覆盖；审计 action actor/entity/action 断言补齐；F2 工艺/结果守卫矩阵逐格盘点无缺口。**pytest 118/118 · vitest 171/171 · ruff/format/tsc/eslint/字段源校验全绿** | `e67d7a0` |
-| 07-11 | **收尾批 F6 完成（全栈验证）**：API 级真服务冒烟通过（空库单步建成→登录→建炉→R0 422 结构化清单→前端生产构建）；**Codex xhigh 全量 diff 复审**（批2–F5）产出 5 CONFIRMED + 3 PLAUSIBLE（全部转 F7 修复）；浏览器 E2E 因 codex exec 无头会话无内置浏览器，移交用户交互式会话（走查工单固化至 `docs/e2e-walkthrough-checklist.md`） | `45c0f3e` |
+| 07-11 | **收尾批 F6 完成（全栈验证）**：API 级真服务冒烟通过（空库单步建成→登录→建炉→R0 422 结构化清单→前端生产构建）；**Codex xhigh 全量 diff 复审**（批2–F5）产出 5 CONFIRMED + 3 PLAUSIBLE（全部转 F7 修复）；浏览器 E2E 因 codex exec 无头会话无内置浏览器，移交用户交互式会话（走查工单固化至 `docs/operations/e2e-walkthrough-checklist.md`） | `45c0f3e` |
 | 07-11 | **收尾批 F7 完成（xhigh 复审修复）**：submit/lock 合并 R0+全量必填门（含条件/过程步/PVD 语义）；非属主编辑入口归零，样品详情对齐结果域；词表判型删启发式、仅依 `field.input`；恢复审计复合索引并精确锁定全表索引基线；unknown-op 双端非对称语义 fixture 定案；表征附件 method 由记录派生且冲突 422；initial 删 `file_assets.method` 默认。**pytest 122/122 · vitest 181/181 · initial upgrade · ruff/format/tsc/eslint/字段源校验全绿** | `41c0f2d` |
 | 07-12 | **收尾批 F8 完成（浏览器 E2E 两发现修复）**：仅内存 SQLite 保留 StaticPool，文件库恢复 QueuePool 并启用 WAL/5000ms busy timeout；`started_at` 按实验员本地墙钟保存 naive ISO，历史 Z 串继续按浏览器本地时区回读。并发鉴权读取 48/48 为 200，跨午夜两例无日期漂移。**pytest 124/124 · vitest 185/185 · ruff/format/tsc/eslint/字段源校验全绿** | `ff00f2e` |
+| 07-12 | **收尾批 F9 完成（全库深审 → 五单全修 A1/A2/B/C/D）**：浏览器 E2E 重跑业务链路 16 项全通、唯一 FAIL 为控制台 Select 受控警告——四处 `value={X\|\|undefined}` 改既有 `\|\| ''` 约定并红绿回归（先行修复）；随后 5 路并行深审（后端/前端实验域/前端基建/文案 i18n/单一源管线），全部发现分五单修复。**A1 后端正确性**：run_code 格式门 `^CVD-\d{4}-\d{4}$`（乱格式建样永久 500 根除）+ 发号改当年 max+1 并撞号重试（行数计数死锁根除）；实体载荷数值/长度校验（SQLite 静默脏数据 vs PG 500 分叉堵死）；仪器引用成对且须存在否则 422；表征 method 过词表 + 附件 method/file_kind 级联同步；basic_info 回写 `experiment_date`、payload run_code 强制真身（创建后冻结）；R0 setup_ref 只认 run 列；登录邮箱大小写不敏感；`invalid_reason` 入读模型；422 统一 `detail.missing`/`detail.invalid`（pydantic 原文不再透出）；pyyaml 显式声明 + alembic↔models 零差测试。**A2**：审计补齐（结果域 CRUD/实体创建/建炉/装置引用，删除带前快照）；守卫收敛 `experiment_guards.py`（visible/owned + 工艺/结果/文件三种锁定策略具名，四服务去重）；「无」独占校验前移实体侧；Integer 拒非整 float；属主可见自身 invalid 炉次；后端死方法清理。**B 前端实验域**：模块保存成功回写 Query 缓存 + 表单 `key={runId}`（30s staleTime 下的数据回退路径根除）；列表分页 50/页+总数（20 条静默截断根除）；接入 RouteLeaveGuard；创建部分失败仍导航编辑页（孤儿 run 复建根除）；并发保存 Set+修订戳；非属主只读横幅；结果域拆 fieldset 一刀切（只读态下载/切样品可用）；表征/实测编辑加取消与指示、产物删除加确认、四查询补加载/错误态；编辑态 run_code 只读；表征记录随样品过滤并标注归属；`detail.invalid` 按字段标签中文渲染；a11y label/aria-describedby 补齐。**C 基建与文案**：storage 事件跨标签登出/登录同步（登出被刷新复活根除）；http-error 后端 detail 全量中文映射（29 静态串+3 类动态+字节转 MB+按状态兜底，结构化 422 直透表单层）；实体页 queryKey 去 token；登录/注册页已登录重定向；登出 401 豁免全局过期事件；实体详情按条件过滤不适用字段+历史版本编辑提示；错误态不再叠加空态；样品两页整页 i18n+角色统一 `roles.*`（「基底」两套译名/虚构存放位置列/「自动生成」错误空态根除）；自动保存不再禁用输入打断录入；StatusTag 复用状态键、未知状态不再伪装草稿；登录/注册/外壳/路由边界/离开守卫文案全部入 locales（zh/en 键镜像）；术语统一（炉次/装置/基础库/en Invalidated/全站「你」）；作废框写明后果+补取消键，解锁加确认框；必填缺失清单显示区块名不再暴露内部 key；新增 CJK 硬编码防回归扫描测试（AST 级）。**D 工程防护+死代码**：`deploy.sh` 哨兵 fail-closed（读不到 DB revision 即中止）；CI drift 补未跟踪文件门 + pip 钉主版本；`check_field_source` 补三护栏——`ne` 驱动须 required（`field_devices` 具名跨实体豁免+依据注释）/条件值∈驱动词表（`/`与`·`双分隔）/key 唯一性独立于 label_en；删 charts 等零引用死代码 65 文件 + 11 个独占依赖（prod build 通过）。**pytest 146/146 · vitest 210/210 · ruff/format/tsc/eslint/build/字段源校验全绿**（Codex gpt-5.6-sol 五单初稿 + Fable 深审/裁决/验收；Fable 另补 file_kind 级联缺口） | 未提交 |
+| 07-16 | **炉次优先产品重构逐项确认**：炉次主线、两步状态、衬底生成样品、统一结果录入、基础资料就地新增、CVD-only UI、边做边记、locked 跨成员补结果、完整双语、筛选/审计/导出均获用户确认；规格落 `docs/product/run-first-workflow-and-copy-design.md`。文档改按 standard/product/engineering/operations/reviews/archive 分层，不再使用 Superpowers 文档流程。 | `149a48a` + 本次整理 |
 
-## 6. 下一步（两条线并行；⚠️ 2026-07-09 起 P5/P6 已由 **`docs/v2-single-track-plan.md`** 取代）
+## 6. 下一步
 
-**线 A：v1 单轨化拆除（批0 豁免、批1–7 已完成）→ 收尾批 F1–F8 已完成 → E2E 重跑 → 批8**
-1. **收尾批 F1–F8**：F1–F7 完成保险、锁定语义、清扫、表征附件、测试补强、全栈验证与复审修复；F8 完成浏览器 E2E 两发现修复（SQLite 并发、墙钟日期）。
-2. **硬顺序**：**重跑浏览器 E2E**（用户交互式 Codex 会话，工单 `docs/e2e-walkthrough-checklist.md`；上次因 SQLite 并发阻断在步骤 4–9，F8 已修因）→ push → Actions 首绿 → **批8 生产切换（人工门，用户在场）**：停容器 → drop 并重建生产库 → 部署（启动自动建纯 v2 schema）→ `create_admin` → 线上冒烟（含 submit/lock/补结果/check-r0）。**红线：批8 完成前禁止 `deploy.sh`**（F1 起有脚本哨兵兜底）。
-3. 后续项（不阻塞）：`formula.ts` 双源留注释；locked 炉次 clone 遇真实需求再做；xlsx 字节稳定性**明确不修**（CI 逐格比对不受影响）。
+**线 A：炉次优先产品重构 → 发布 → 批8**
 
-**线 B：标准冻结（外部线，不受线 A 影响）**
-1. **⏰ 与俊杰当面对齐（待用户）**——问题全文见 xlsx `待明确清单` #5–10：① §7『观察到的现象』粒度（折中案：一级『生长/未生长』必选＋二级细分可选）；② SEM覆盖率叫法/量化；③ 堆垛类型粒度；④ 外观描述词表。**回导师**：SEM占比=覆盖率（已改名）；必填标识已加图例+字体强化。（原第 3 项"3 个迁移语义映射确认"**已作废**——无迁移即无映射。）
-2. **俊杰答案落地**：改 `field-source.yaml` → 重跑全部生成器+校验 → §7 相关 UI 补丁（≤半天）。
-3. **P1.5 冻结仪式**：标准头 `DRAFT`→`FROZEN`、YAML meta.status→FROZEN → **push（Actions 首绿）** → tag `v2.0.0`。冻结范围 = 字段语义层，**不含 UI 呈现属性**（§4，2026-07-11 拍板）。
+1. **先固化基线**：核对并独立提交尚在工作区的 F9 改动，避免与新产品重构混成一个不可审查的大提交。
+2. **按已确认产品规格实施**（`docs/product/run-first-workflow-and-copy-design.md`）：状态流简化与衬底生成样品；统一结果录入和跨成员协作；基础资料就地新增；CVD-only UI；筛选、审计时间线、JSON/多表 CSV 导出；全量中英文文案与字段展示清理。
+3. **验收**：后端、前端、生成物和字段源全门禁 → 更新 `docs/operations/e2e-walkthrough-checklist.md` → 浏览器 E2E 复验完整新流程与控制台零警告。
+4. **发布硬顺序**：push → GitHub Actions 首绿 → 设置 required checks → **批8生产切换（人工门，用户在场）**：停容器 → 重建生产库 → 部署 → `create_admin` → 线上冒烟。**批8完成前禁止运行 `deploy.sh`**。
 
-> 悬而未决小项：化学式渲染规则组内确认（待明确#1）。（原 ② submit 快照、③ UI 属性冻结时序两项已于 2026-07-11 拍板入 §4；原 `list_runs` 100 条上限项已并入线 A 批3。）
+**线 B：标准冻结（外部线，不阻塞线 A 的非语义 UI 与工作流实现）**
+
+1. **与俊杰当面对齐**：①观察到的现象粒度；②SEM覆盖率叫法和量化；③堆垛类型粒度；④外观描述词表。
+2. 答案落地到 `field-source.yaml`，重跑全部生成器和校验。
+3. 标准头 `DRAFT`→`FROZEN`、YAML `meta.status`→`FROZEN`，Actions 首绿后打 `v2.0.0` tag。
+
+**明确延后**：实验模板和 clone、PVD、分析仪表盘、批量导入、JWT 服务端吊销、xlsx 字节级稳定性。化学式渲染规则仍待组内确认。
 
 ## 7. 已归档、别当真相的（在 `docs/archive/`，均带⚠️横幅）
 v1 文字标准三件套、旧字段表(v1/v2)、v1 自动生成产物(`generated/`)、旧顶层设计(DESIGN/PRODUCT/v1设计/Agent brief)、汇报PPT/系统介绍/组会大纲、progress-report。**仅供追溯，不代表现状。**
 
 ## 8. 研究素材（仍有用，但不是"真相/规范"）
-`元数据国际对标表.xlsx`、`别人平台的元数据字段表-NOMAD与催化.xlsx`、`材料基因工程数据标准学习笔记.docx`、`材料数据库与ELN元数据设计-五个代表性工作调研.docx`、`CVD元数据V2-会议纪要与设计原则-v1/v2.docx`。
+
+统一存放在 `docs/research/`：导师批注原件、国际对标表、会议纪要和材料数据标准调研附件。

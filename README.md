@@ -3,6 +3,7 @@
 CVD 二维材料课题组的实验数据采集系统（**v2 单轨**）：以"最小可复现元数据标准"（R0）为核心，记录炉次、样品、表征与实测、审计轨迹。
 
 > **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)**——全部背景、当前进度、已冻结决策、下一步的单一入口。字段单一源是 `docs/standard/field-source.yaml`，xlsx 与全部代码生成物都是它的渲染产物。
+> 文档分类见 [`docs/README.md`](docs/README.md)。2026-07-16 已确认的炉次优先工作流与文案重构见 [`docs/product/run-first-workflow-and-copy-design.md`](docs/product/run-first-workflow-and-copy-design.md)，当前尚未实施；下列能力描述仍以现有代码为准。
 >
 > **前端说明**：前端是 **`frontend-next/`**（Bun + Vite + React + TypeScript + **TanStack Router + shadcn/ui + Tailwind v4**），线上部署于 <https://cvd.rustypiano.com>。早期的 `frontend/`（Ant Design + React Router）已于 2026-07-11 删除（v2 单轨化批1，历史在 git）。
 
@@ -73,7 +74,7 @@ docker compose up --build
 
 ## 生产部署
 
-> ⚠️ **批8 生产切换（人工门）完成前禁止运行 `deploy.sh`**：线上仍是 v2 单轨化之前的旧部署与旧库；schema 已重基线为单一 initial，旧库上启动自动迁移会崩溃循环。切换流程（停容器 → 重建数据库 → 部署 → 建管理员 → 线上冒烟）见 `docs/v2-single-track-plan.md` 批8。
+> ⚠️ **批8 生产切换（人工门）完成前禁止运行 `deploy.sh`**：线上仍是 v2 单轨化之前的旧部署与旧库；schema 已重基线为单一 initial，旧库上启动自动迁移会崩溃循环。切换流程（停容器 → 重建数据库 → 部署 → 建管理员 → 线上冒烟）见 [`docs/engineering/v2-single-track-plan.md`](docs/engineering/v2-single-track-plan.md) 批8。
 
 生产环境（hongkong 服务器，1Panel + openresty 管理）使用 **`docker-compose.prod.yml`**：仅后端 + 前端容器，数据库是**共享的 1Panel PostgreSQL**（经外部 `1panel-network` 访问，本 compose 不启动 postgres）。前端镜像为多阶段构建（`frontend-next/Dockerfile`：bun 构建 → nginx）。部署从 `main` 分支进行。
 
