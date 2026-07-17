@@ -7,7 +7,7 @@
 | 类别 | 文档 | 作用 |
 |---|---|---|
 | 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 当前代码、生产状态、已定决策和下一步 |
-| 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 2026-07-16 已确认的炉次优先工作流；阶段 1–3 已完成，待全流程 E2E 验收 |
+| 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 2026-07-16 已确认的炉次优先工作流；阶段 1–4 与浏览器 E2E 已完成 |
 | 标准 | [`standard/cvd-2d-process-data-standard-v2.0.md`](standard/cvd-2d-process-data-standard-v2.0.md) | CVD-2D 元数据规则书 |
 | 字段 | [`standard/field-source.yaml`](standard/field-source.yaml) | 字段、词表和必填规则的唯一机器源 |
 | 字段表 | [`standard/字段草案-v3.xlsx`](standard/字段草案-v3.xlsx) | 由字段单一源生成的人读表格 |
@@ -16,6 +16,7 @@
 | 生产切换 | [`engineering/v2-single-track-plan.md`](engineering/v2-single-track-plan.md) | v1 拆除记录与待执行的批8人工切换 |
 | 技术决策 | [`engineering/v2-implementation-plan.md`](engineering/v2-implementation-plan.md) | P0–P4 与 D1–D12 的历史技术决策 |
 | 操作检查 | [`operations/e2e-walkthrough-checklist.md`](operations/e2e-walkthrough-checklist.md) | 浏览器端到端走查工单 |
+| 验收报告 | [`operations/e2e-run-first-report-2026-07-17.md`](operations/e2e-run-first-report-2026-07-17.md) | 炉次优先主线的浏览器 E2E 结果、问题修复与证据索引 |
 | 评审 | [`reviews/2026-07-08-simplify-review.md`](reviews/2026-07-08-simplify-review.md) | 代码精简评审与执行记录 |
 
 ## 目录约定

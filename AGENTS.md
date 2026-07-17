@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨，F1–F9 基线已提交；2026-07-16 确认的炉次优先产品重构正按阶段实施；线上仍为切换前旧部署，批8 前禁止 `deploy.sh`**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨，炉次优先产品重构阶段 1–4 与浏览器 E2E 已完成并通过分阶段独立复审，当前只待最终全库复核；线上仍为切换前旧部署，批8 前禁止 `deploy.sh`**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
 
 ## 项目概览
 
@@ -22,7 +22,7 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 
 - **`docs/standard/STATUS.md`（先读：现状与真相指针；含全部背景+进度+已冻结决策+下一步）**
 - `docs/README.md`（文档分类与入口）
-- `docs/product/run-first-workflow-and-copy-design.md`（2026-07-16 已确认的产品工作流；阶段 1–3 已完成，待全流程 E2E 验收）
+- `docs/product/run-first-workflow-and-copy-design.md`（2026-07-16 已确认的产品工作流；阶段 1–4 与浏览器 E2E 已完成）
 - **维护约定**：完成实质改动后，回写 `STATUS.md`（进展日志 + 最后更新日期）；**字段改动改单一源 `docs/standard/field-source.yaml`**，再 `python3 docs/standard/build_field_tables.py` 重新生成 + `python3 docs/standard/check_field_source.py` 校验（CI 强制），勿手改二进制 xlsx、勿改回脚本内嵌数据。
 - `docs/standard/字段草案-v3.xlsx`（现行字段表）
 - `docs/standard/metadata-v2-review-and-redesign.md`（设计理由与国际对标）
@@ -51,7 +51,7 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 - 不重命名公共 API/字段，除非同步更新调用方与文档。
 - **字段改动只改 `docs/standard/field-source.yaml`**，然后重跑生成器（后端 `generate_v2_models`/`export_v2_schema`、前端 `gen:fields`、xlsx `build_field_tables.py`）+ `check_field_source.py` 校验；生成物漂移 = CI 红。
 - **当前代码**状态流：draft → locked（admin 可 unlock 回 draft）；draft 可作废为 invalid；lock 过必填门并在同一事务中按衬底生成 growth 样品；locked 锁工艺但允许全组成员补结果，invalid 全部只读；每次转移写审计。
-- **产品重构进度**：阶段 1–3 已完成并分别通过独立 Agent 复审；除两步状态、样品生成与统一结果录入外，已完成全量双语、炉次筛选、操作记录和 JSON/多表 CSV ZIP 导出。当前只待更新 E2E 清单、浏览器验收和最终全量复核。
+- **产品重构进度**：阶段 1–4 已完成并分别通过独立 Agent 复审；两步状态、样品生成、统一结果录入、全量双语、检索、审计、导出和真实浏览器 E2E 均已验收。当前只待最终全库复核。
 - 实验不做物理删除；文件删除走软删除标记。
 
 ## 安全与 PR
