@@ -7,7 +7,7 @@
 - 这是一个 **CVD 二维材料实验数据采集系统**。
 - **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/engineering/v2-single-track-plan.md`**（批0–批8）。
 - ⚠️ **线上生产仍是切换前的旧部署（v1）——批8 生产切换（人工门，用户在场）未执行；在此之前禁止运行 `deploy.sh`**（旧库上启动自动迁移会崩溃循环；数据已确认可弃，切换 = 整库重建）。
-- 当前阶段：**收尾批 F1–F9 基线已于 `52bc560` 提交，并经独立 Agent 复审与全门禁验收**。2026-07-16 用户逐项确认新的**炉次优先工作流与全量双语文案重构**，规格见 `docs/product/run-first-workflow-and-copy-design.md`；**阶段 1 已完成并通过独立 Agent 复审，下一步实施阶段 2 的统一结果录入、结构化样品详情、基础资料就地新增与 CVD-only UI**。发布顺序：产品重构 → 全量门禁与新版 E2E → push + Actions 首绿 → 批8生产切换。**线 B** 仍等俊杰对齐 4 问后冻结标准。
+- 当前阶段：**收尾批 F1–F9 基线已于 `52bc560` 提交，并经独立 Agent 复审与全门禁验收**。2026-07-16 用户逐项确认新的**炉次优先工作流与全量双语文案重构**，规格见 `docs/product/run-first-workflow-and-copy-design.md`；**阶段 1–2 已完成并分别通过独立 Agent 复审，下一步实施阶段 3 的全量双语、炉次筛选、操作记录和 JSON/CSV ZIP 导出**。发布顺序：产品重构 → 全量门禁与新版 E2E → push + Actions 首绿 → 批8生产切换。**线 B** 仍等俊杰对齐 4 问后冻结标准。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
@@ -19,8 +19,8 @@
 ## 1. 系统现状
 - **仓库 main = 纯 v2 单轨**；**线上生产 = 切换前旧部署（v1），待批8 整库重建切换**（数据已确认可弃，无迁移）。
 - **v2 单轨形态**：Alembic 单一 initial `20260711_0001`（14 表，SQLite/PG 双兼容）；`/api/v1` 全套端点——实体三件套锁版（material-lots/setups/instruments + versions）、炉次 CRUD + `draft → locked` 状态机（管理员可解锁，draft 可作废，锁定前必填门 + 全转移审计 + 结果待补/暂未表征）、锁定时按衬底原子生成样品、模块 payload、表征/实测、样品、文件；locked 炉次全组可见且可协作补结果；生成器①②④⑤ + `condition-cases.json` 跨语言 fixture + `check_field_source` 四护栏；前端 `/experiments` 单轨 + 实体库三页。
-- **产品重构实施进度**：阶段 1 已落地——两步状态、衬底锁定生成样品、growth/derived/control 谱系、全组 locked 炉次协作补结果、“暂未表征”标记。待实施：统一结果录入、结构化样品详情、基础资料就地新增、暂时隐藏 PVD、完整双语、筛选、审计查看和 JSON/CSV 导出。
-- **门禁：后端 pytest 155 · 前端 vitest 210 · ruff/format/tsc/eslint/build/生成物/字段源全绿（本地）；全部 commit 未 push（push 时机见 §6）**。
+- **产品重构实施进度**：阶段 1–2 已落地——两步状态、衬底锁定生成样品、growth/derived/control 谱系、全组 locked 炉次协作补结果、“暂未表征”标记；统一的直接观察/表征结果组合读写、首次附件自动上传、受控观察词表、结构化样品来源与谱系、基础资料就地新增以及前端隐藏 PVD/PLD。待实施：完整双语、筛选、审计查看和 JSON/CSV 导出。
+- **门禁：后端 pytest 159 · 前端 vitest 204 · ruff/format/tsc/eslint/build/生成物/字段源全绿（本地）；全部 commit 未 push（push 时机见 §6）**。
 - **F6–F9 验证结论**：API 级全栈冒烟通过；**Codex xhigh 全量 diff 复审**（批2–F5）的 5 CONFIRMED + 3 PLAUSIBLE 已由 F7 修复；交互式浏览器 E2E 发现的文件 SQLite 并发踩踏与实验日期跨日错位已由 F8 修复并补红绿回归；F9 完成最终正确性、审计与工程防护收尾。
 - 工程约定见根 `AGENTS.md`。
 
@@ -51,7 +51,7 @@
 - **v2 单轨后放弃"submit 创建版本快照"语义**（2026-07-11 拍板）：`experiment_versions` 随 v1 拆除，不另建 v2 实验级快照——实体锁版快照+状态流转审计留痕已覆盖；未来有真需求再单独立项。
 - **P1.5 冻结范围 = 字段语义层**（字段集合/必填与条件/词表/R0 标记；2026-07-11 拍板）：**UI 呈现属性（如"条件不满足时隐藏 vs 仅红星"）不在冻结范围**，可经单一源管线继续演进（见单轨化计划批6）。
 - **锁定语义 = 锁工艺、结果后补**（2026-07-11 拍板，方案甲）：locked 炉次**工艺域**（模块 payload、装置引用、状态元数据）只读，**结果域**（表征记录、实测产物、表征附件）可继续写入；“结果待补”提醒随结果写入自动刷新消除。invalid 炉次一切写路径均拒。落地见单轨化计划收尾批 F2。
-- **炉次优先产品重构**（2026-07-16 用户逐项确认，阶段 1 已实施）：炉次为默认入口；状态简化为 draft→locked；衬底自动生成样品；结果一次录入但底层保留分表；全组成员可为 locked 炉次补结果；基础资料就地新增；PVD 暂不开放；中文 canonical 值不迁移、补全英文显示；增加筛选、审计时间线和 JSON/多表 CSV 导出。该决策覆盖旧的 submitted 产品语义和当前结果区交互，但不改变字段科学语义与“锁工艺、结果后补”原则。
+- **炉次优先产品重构**（2026-07-16 用户逐项确认，阶段 1–2 已实施）：炉次为默认入口；状态简化为 draft→locked；衬底自动生成样品；结果一次录入但底层保留分表；全组成员可为 locked 炉次补结果；基础资料就地新增；PVD 暂不开放；中文 canonical 值不迁移、补全英文显示；增加筛选、审计时间线和 JSON/多表 CSV 导出。该决策覆盖旧的 submitted 产品语义和当前结果区交互，但不改变字段科学语义与“锁工艺、结果后补”原则。
 
 ## 5. 进展日志（决策 + commit + 评审）
 | 日期 | 事项 | commit |
@@ -104,6 +104,7 @@
 | 07-16 | **炉次优先产品重构逐项确认**：炉次主线、两步状态、衬底生成样品、统一结果录入、基础资料就地新增、CVD-only UI、边做边记、locked 跨成员补结果、完整双语、筛选/审计/导出均获用户确认；规格落 `docs/product/run-first-workflow-and-copy-design.md`。文档改按 standard/product/engineering/operations/reviews/archive 分层，不再使用 Superpowers 文档流程。 | `149a48a`, `7dd057a` |
 | 07-17 | **产品重构阶段 0 完成**：F9 工作区经独立 Agent 全量审核，修复 PostgreSQL 数值边界、炉次号耗尽、跨标签换号缓存、部署指引断链和 CI 工具链问题；复审通过。门禁：pytest 147、vitest 210、ruff/format/tsc/eslint/build、生成物与字段源校验全绿。 | `52bc560` |
 | 07-17 | **产品重构阶段 1 完成**：状态流收敛为 `draft → locked`；锁定与按衬底生成 growth 样品同事务，具备稳定来源标识、快照、编号、幂等与证据链保护；样品类型收敛为 growth/derived/control；全组成员可为 locked 炉次补结果和附件；增加“暂未表征”确认及结果待补自动刷新。独立 Agent 复审通过。**pytest 155 · vitest 210 · ruff/format/tsc/eslint/build/生成物/字段源校验全绿**。 | `fbdfcbe` |
+| 07-17 | **产品重构阶段 2 完成**：新增统一结果 DTO/端点与事务服务，直接观察与表征结果使用同一界面，支持一次选择附件、组合编辑、回滚、关联结果/附件冲突保护与客观观察词表校验；样品详情改为结构化来源与谱系，不暴露 metadata JSON 或内部标识；实验页可就地新增并自动选中基础资料；前端隐藏 PVD/PLD 与 PVD 专用区，后端兼容保留。独立 Agent 复审通过。**pytest 159 · vitest 204 · ruff/format/tsc/eslint/build/生成物/字段源校验全绿**。 | `e968a2c` |
 
 ## 6. 下一步
 
@@ -111,9 +112,10 @@
 
 1. **阶段 0 已完成**：F9 基线已独立复审、全门禁验收并提交（`52bc560`）。
 2. **阶段 1 已完成**：状态流简化、锁定时样品生成、跨成员结果权限、“暂未表征”标记与后端数据结构均已落地，并通过独立 Agent 审核。
-3. **当前执行阶段 2**：统一结果录入、结构化样品详情、基础资料就地新增和 CVD-only UI；完成后再次独立 Agent 审核。后续再实施全量双语、筛选、审计和导出。总规格见 `docs/product/run-first-workflow-and-copy-design.md`。
-4. **验收**：后端、前端、生成物和字段源全门禁 → 更新 `docs/operations/e2e-walkthrough-checklist.md` → 浏览器 E2E 复验完整新流程与控制台零警告。
-5. **发布硬顺序**：push → GitHub Actions 首绿 → 设置 required checks → **批8生产切换（人工门，用户在场）**：停容器 → 重建生产库 → 部署 → `create_admin` → 线上冒烟。**批8完成前禁止运行 `deploy.sh`**。
+3. **阶段 2 已完成**：统一结果录入、结构化样品详情、基础资料就地新增和 CVD-only UI 已落地，并通过独立 Agent 审核。
+4. **当前执行阶段 3**：全量双语、炉次筛选、操作记录和 JSON/CSV ZIP 导出；完成后再次独立 Agent 审核。总规格见 `docs/product/run-first-workflow-and-copy-design.md`。
+5. **验收**：后端、前端、生成物和字段源全门禁 → 更新 `docs/operations/e2e-walkthrough-checklist.md` → 浏览器 E2E 复验完整新流程与控制台零警告。
+6. **发布硬顺序**：push → GitHub Actions 首绿 → 设置 required checks → **批8生产切换（人工门，用户在场）**：停容器 → 重建生产库 → 部署 → `create_admin` → 线上冒烟。**批8完成前禁止运行 `deploy.sh`**。
 
 **线 B：标准冻结（外部线，不阻塞线 A 的非语义 UI 与工作流实现）**
 
