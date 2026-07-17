@@ -95,6 +95,18 @@ class V2ResultsService:
             before_json=None,
             after_json=self._measured_product_snapshot(saved),
         )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="create_result",
+            before_json=None,
+            after_json={
+                "result_id": str(saved.id),
+                "sample_code": sample.sample_code,
+                "kind": payload.kind,
+            },
+        )
         self._clear_not_characterized(run, current_user)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
@@ -158,6 +170,18 @@ class V2ResultsService:
             before_json=product_before,
             after_json=self._measured_product_snapshot(saved),
         )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="update_result",
+            before_json=None,
+            after_json={
+                "result_id": str(saved.id),
+                "sample_code": sample.sample_code,
+                "kind": payload.kind,
+            },
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return self._result_read(saved)
@@ -213,6 +237,18 @@ class V2ResultsService:
                 before_json=record_before,
                 after_json=None,
             )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="delete_result",
+            before_json={
+                "result_id": str(product.id),
+                "sample_code": sample.sample_code,
+                "kind": "characterization" if record else "direct_observation",
+            },
+            after_json=None,
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
 
@@ -279,6 +315,19 @@ class V2ResultsService:
             before_json=None,
             after_json=self._characterization_snapshot(saved),
         )
+        sample = self.db.get(Sample, saved.sample_id)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="create_result",
+            before_json=None,
+            after_json={
+                "sample_code": sample.sample_code,
+                "kind": "characterization",
+                "method": saved.method_instrument,
+            },
+        )
         self._clear_not_characterized(run, current_user)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
@@ -315,6 +364,19 @@ class V2ResultsService:
             action="update",
             before_json=before,
             after_json=self._characterization_snapshot(saved),
+        )
+        sample = self.db.get(Sample, saved.sample_id)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="update_result",
+            before_json=None,
+            after_json={
+                "sample_code": sample.sample_code,
+                "kind": "characterization",
+                "method": saved.method_instrument,
+            },
         )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
@@ -354,6 +416,19 @@ class V2ResultsService:
             before_json=before,
             after_json=None,
         )
+        sample = self.db.get(Sample, record.sample_id)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="delete_result",
+            before_json={
+                "sample_code": sample.sample_code,
+                "kind": "characterization",
+                "method": before["method_instrument"],
+            },
+            after_json=None,
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
 
@@ -389,6 +464,19 @@ class V2ResultsService:
             before_json=None,
             after_json=self._measured_product_snapshot(saved),
         )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="create_result",
+            before_json=None,
+            after_json={
+                "sample_code": sample.sample_code,
+                "kind": (
+                    "characterization" if saved.characterization_record_id else "direct_observation"
+                ),
+            },
+        )
         self._clear_not_characterized(run, current_user)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
@@ -421,6 +509,19 @@ class V2ResultsService:
             action="update",
             before_json=before,
             after_json=self._measured_product_snapshot(saved),
+        )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="update_result",
+            before_json=None,
+            after_json={
+                "sample_code": sample.sample_code,
+                "kind": (
+                    "characterization" if saved.characterization_record_id else "direct_observation"
+                ),
+            },
         )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
@@ -537,6 +638,21 @@ class V2ResultsService:
             before_json=before,
             after_json=None,
         )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="delete_result",
+            before_json={
+                "sample_code": sample.sample_code,
+                "kind": (
+                    "characterization"
+                    if product.characterization_record_id
+                    else "direct_observation"
+                ),
+            },
+            after_json=None,
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
 
@@ -606,5 +722,4 @@ class V2ResultsService:
                 "not_characterized_by_id": None,
                 "not_characterized_at": None,
             },
-            reason="result_added",
         )

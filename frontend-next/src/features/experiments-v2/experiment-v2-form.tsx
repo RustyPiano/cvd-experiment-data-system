@@ -40,6 +40,7 @@ import { EquipmentSection } from './components/equipment-section'
 import { RepeatableItemsSection } from './components/repeatable-items-section'
 import { ProcessStepsSection } from './components/process-steps-section'
 import { ResultsSection } from './components/results-section'
+import { localizedFieldLabel } from '@/shared/field-i18n'
 
 const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method', 'operator']
 
@@ -210,7 +211,7 @@ export function ExperimentV2Form({
   processReadOnly?: boolean
   resultsReadOnly?: boolean
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const navigate = useNavigate()
   const { session } = useAuth()
   const token = session.accessToken || ''
@@ -342,6 +343,9 @@ export function ExperimentV2Form({
                 }
             : cached,
       )
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-run-audit', runId],
+      })
       if ((revisions.current[moduleKey] ?? 0) === revision) {
         setDirtyKeys((prev) => {
           const next = new Set(prev)
@@ -361,13 +365,13 @@ export function ExperimentV2Form({
             )?.detail?.invalid
           : undefined
       const labels = invalid
-        ?.map(
-          ({ key }) =>
-            MODULE_SPECS.flatMap(({ key: module }) =>
-              getModuleFields(module),
-            ).find((field) => field.key === key)?.labelZh,
+        ?.map(({ key }) =>
+          MODULE_SPECS.flatMap(({ key: module }) =>
+            getModuleFields(module),
+          ).find((field) => field.key === key),
         )
-        .filter((label): label is string => Boolean(label))
+        .filter((field) => field != null)
+        .map((field) => localizedFieldLabel(field, i18n.language))
       const message = labels?.length
         ? t('experimentsV2.form.invalidFields', { fields: labels.join('、') })
         : resolveErrorMessage(error, t('experimentsV2.form.saveError'))

@@ -37,6 +37,7 @@ import {
 } from '@/features/samples/api'
 import type { FileAssetRead } from '@/shared/types/api'
 import { triggerBlobDownload } from '@/shared/lib/download'
+import { localizedFieldLabel, localizedOption } from '@/shared/field-i18n'
 import type {
   SampleCreate,
   SampleRead,
@@ -64,16 +65,13 @@ function fieldOptions(moduleKey: string, key: string): string[] {
   return field ? (parseEnumOptions(field.input, field.options) ?? []) : []
 }
 
-function fieldLabel(moduleKey: string, key: string): string {
-  return (
-    getModuleFields(moduleKey).find((item) => item.key === key)?.labelZh ?? ''
-  )
+function fieldLabel(moduleKey: string, key: string, language: string): string {
+  const field = getModuleFields(moduleKey).find((item) => item.key === key)
+  return field ? localizedFieldLabel(field, language) : ''
 }
 
-function sampleLabel(sample: SampleRead): string {
-  return sample.sample_code
-    ? `${sample.sample_code} · ${sample.role}`
-    : sample.role
+function sampleLabel(sample: SampleRead, roleLabel: string): string {
+  return sample.sample_code ? `${sample.sample_code} · ${roleLabel}` : roleLabel
 }
 
 function spectralNote(value: unknown): string {
@@ -200,7 +198,14 @@ function ResultsBody({
             <SelectContent>
               {samples.map((sample) => (
                 <SelectItem key={sample.id} value={sample.id}>
-                  {sampleLabel(sample)}
+                  {sampleLabel(
+                    sample,
+                    sample.role === 'growth'
+                      ? t('experimentsV2.sections.results.roles.growth')
+                      : sample.role === 'derived'
+                        ? t('experimentsV2.sections.results.roles.derived')
+                        : t('experimentsV2.sections.results.roles.control'),
+                  )}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -272,7 +277,7 @@ function SampleResults({
   sampleId: string
   readOnly: boolean
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
   const methods = useMemo(
@@ -313,6 +318,7 @@ function SampleResults({
         queryKey: ['v2-experiment', runId, token],
       }),
       queryClient.invalidateQueries({ queryKey: ['v2-experiment-list'] }),
+      queryClient.invalidateQueries({ queryKey: ['v2-run-audit', runId] }),
     ])
 
   const reset = () => {
@@ -532,7 +538,7 @@ function SampleResults({
                 <SelectContent>
                   {methods.map((option) => (
                     <SelectItem key={option} value={option}>
-                      {option}
+                      {localizedOption(option, i18n.language)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -562,7 +568,11 @@ function SampleResults({
             <div className="flex flex-col gap-1.5">
               <FieldLabel
                 htmlFor="result-conditions"
-                labelZh={fieldLabel('characterization', 'test_conditions')}
+                labelZh={fieldLabel(
+                  'characterization',
+                  'test_conditions',
+                  i18n.language,
+                )}
                 unit={null}
                 required={false}
                 r0={false}
@@ -579,7 +589,11 @@ function SampleResults({
 
         <div className="sm:col-span-2 flex flex-col gap-2">
           <FieldLabel
-            labelZh={fieldLabel('measured_products', 'observed_phenomena')}
+            labelZh={fieldLabel(
+              'measured_products',
+              'observed_phenomena',
+              i18n.language,
+            )}
             unit={null}
             required={kind === 'direct_observation'}
             r0={false}
@@ -597,7 +611,7 @@ function SampleResults({
                   }
                   disabled={readOnly}
                 />
-                {option}
+                {localizedOption(option, i18n.language)}
               </label>
             ))}
           </div>
@@ -607,7 +621,11 @@ function SampleResults({
           <>
             <ResultTextField
               id="result-phase"
-              label={fieldLabel('measured_products', 'detected_phase_stacking')}
+              label={fieldLabel(
+                'measured_products',
+                'detected_phase_stacking',
+                i18n.language,
+              )}
               value={phaseStacking}
               onChange={setPhaseStacking}
               disabled={readOnly}
@@ -617,6 +635,7 @@ function SampleResults({
               label={fieldLabel(
                 'measured_products',
                 'measured_layers_coverage',
+                i18n.language,
               )}
               value={layersCoverage}
               onChange={setLayersCoverage}
@@ -627,6 +646,7 @@ function SampleResults({
               label={fieldLabel(
                 'measured_products',
                 'domain_nucleation_continuity',
+                i18n.language,
               )}
               value={domain}
               onChange={setDomain}
@@ -634,7 +654,11 @@ function SampleResults({
             />
             <ResultTextField
               id="result-spectral"
-              label={fieldLabel('measured_products', 'key_spectral_metrics')}
+              label={fieldLabel(
+                'measured_products',
+                'key_spectral_metrics',
+                i18n.language,
+              )}
               value={spectral}
               onChange={setSpectral}
               disabled={readOnly}
@@ -643,9 +667,7 @@ function SampleResults({
               <div className="sm:col-span-2 flex flex-col gap-1.5">
                 <FieldLabel
                   htmlFor="result-attachments"
-                  labelZh={t(
-                    'experimentsV2.sections.results.newAttachments',
-                  )}
+                  labelZh={t('experimentsV2.sections.results.newAttachments')}
                   unit={null}
                   required={false}
                   r0={false}
@@ -741,13 +763,14 @@ function ResultCard({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const title =
     result.kind === 'characterization'
-      ? result.method_instrument ||
+      ? localizedOption(result.method_instrument || '', i18n.language) ||
         t('experimentsV2.sections.results.characterizationResult')
-      : (result.observed_phenomena ?? []).join('、') ||
-        t('experimentsV2.sections.results.directObservation')
+      : (result.observed_phenomena ?? [])
+          .map((value) => localizedOption(value, i18n.language))
+          .join(' · ') || t('experimentsV2.sections.results.directObservation')
   return (
     <li className="flex flex-col gap-3 rounded-md border border-border p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
@@ -816,11 +839,13 @@ function ResultCard({
 }
 
 function ResultSummary({ result }: { result: V2ResultRead }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const values = [
     {
       label: t('experimentsV2.sections.results.observedPhenomena'),
-      value: (result.observed_phenomena ?? []).join(' · '),
+      value: (result.observed_phenomena ?? [])
+        .map((value) => localizedOption(value, i18n.language))
+        .join(' · '),
     },
     {
       label: t('experimentsV2.sections.results.detectedPhaseStacking'),
@@ -874,7 +899,11 @@ function ResultAttachments({
       listExperimentFiles(token, { characterizationRecordId: recordId }),
     enabled,
   })
-  const invalidate = () => queryClient.invalidateQueries({ queryKey })
+  const invalidate = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey }),
+      queryClient.invalidateQueries({ queryKey: ['v2-run-audit', runId] }),
+    ])
   const uploadMutation = useMutation({
     mutationFn: (file: File) =>
       uploadExperimentFile(token, runId, {
@@ -981,9 +1010,7 @@ function ResultAttachments({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>
-                  {t(
-                    'experimentsV2.sections.results.cancelDeleteAttachment',
-                  )}
+                  {t('experimentsV2.sections.results.cancelDeleteAttachment')}
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => deleteMutation.mutate(file.id)}

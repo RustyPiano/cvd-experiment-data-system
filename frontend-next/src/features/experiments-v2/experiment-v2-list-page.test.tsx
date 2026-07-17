@@ -8,7 +8,10 @@ import { I18nextProvider } from 'react-i18next'
 import i18n from '@/shared/i18n'
 import { ExperimentV2ListPage } from './experiment-v2-list-page'
 
-const api = vi.hoisted(() => ({ listRuns: vi.fn() }))
+const api = vi.hoisted(() => ({
+  listRuns: vi.fn(),
+  downloadRunsExport: vi.fn(),
+}))
 vi.mock('./api', () => api)
 vi.mock('@/features/auth/use-auth', () => ({
   useAuth: () => ({ session: { accessToken: 'token', isAuthenticated: true } }),
@@ -28,6 +31,7 @@ describe('ExperimentV2ListPage pagination', () => {
           run_code: 'CVD-2026-0001',
           material_system: 'MoS2',
           experiment_date: '2026-07-12',
+          operator: 'Alice',
           status: 'draft',
           result_missing_todo: false,
         },
@@ -59,6 +63,41 @@ describe('ExperimentV2ListPage pagination', () => {
       expect(api.listRuns).toHaveBeenLastCalledWith('token', {
         page: 2,
         pageSize: 50,
+        filters: {},
+      }),
+    )
+  })
+
+  it('applies visible filters to the list request', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const user = userEvent.setup()
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <ExperimentV2ListPage />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    )
+
+    await screen.findByText(/75 total/)
+    await user.type(screen.getByLabelText('Run code or material'), '3201')
+    await user.type(screen.getByLabelText('Operator'), 'Alice')
+    await user.click(screen.getByRole('button', { name: 'Filter' }))
+
+    await waitFor(() =>
+      expect(api.listRuns).toHaveBeenLastCalledWith('token', {
+        page: 1,
+        pageSize: 50,
+        filters: {
+          query: '3201',
+          materialSystem: '',
+          operator: 'Alice',
+          dateFrom: '',
+          dateTo: '',
+          statuses: [],
+        },
       }),
     )
   })

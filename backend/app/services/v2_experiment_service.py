@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -22,6 +22,8 @@ from app.schemas.v2 import (
     V2ExperimentRead,
     V2ModulePayloadRead,
     V2ModulePayloadUpsert,
+    V2RunAuditEventListResponse,
+    V2RunAuditEventRead,
 )
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
@@ -115,11 +117,26 @@ class V2ExperimentService:
         return self._run_read(run)
 
     def list_runs(
-        self, current_user: User, *, page: int = 1, page_size: int = 20
+        self,
+        current_user: User,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        query_text: str | None = None,
+        material_system: str | None = None,
+        operator: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        status_filters: list[ExperimentStatus] | None = None,
     ) -> V2ExperimentListResponse:
         runs, total = self.experiments.list_visible(
             current_user=current_user,
-            status_filters=None,
+            status_filters=status_filters,
+            material_system=material_system,
+            query_text=query_text,
+            operator=operator,
+            date_from=date_from,
+            date_to=date_to,
             page=page,
             page_size=page_size,
             schema_version=SCHEMA_VERSION,
@@ -134,6 +151,34 @@ class V2ExperimentService:
             get_visible_experiment(
                 self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
             )
+        )
+
+    def list_audit_events(self, run_id: UUID, current_user: User) -> V2RunAuditEventListResponse:
+        run = get_visible_experiment(
+            self.experiments,
+            run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
+        events = self.audit.list_events(
+            entity_type="experiment_run",
+            entity_id=run.id,
+        ).items
+        actor_names: dict[UUID, str] = {}
+        for actor_id in {event.actor_id for event in events}:
+            actor = self.db.get(User, actor_id)
+            actor_names[actor_id] = actor.name if actor else "Unknown user"
+        return V2RunAuditEventListResponse(
+            items=[
+                V2RunAuditEventRead(
+                    actor_name=actor_names[event.actor_id],
+                    action=event.action,
+                    reason=event.reason,
+                    created_at=event.created_at,
+                )
+                for event in events
+            ],
+            total=len(events),
         )
 
     def lock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
@@ -507,10 +552,15 @@ class V2ExperimentService:
         return self._run_read(run)
 
     def _run_read(self, run: ExperimentRun) -> V2ExperimentRead:
+        basic_info = next(
+            (item.payload_json for item in run.module_payloads if item.module_key == "basic_info"),
+            {},
+        )
         return V2ExperimentRead(
             id=run.id,
             run_code=run.run_code,
             owner_id=run.owner_id,
+            operator=basic_info.get("operator") or run.owner_name,
             schema_version=run.schema_version,
             material_system=run.material_system,
             experiment_date=run.experiment_date,

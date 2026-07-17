@@ -10,6 +10,11 @@ import type { EquipmentRef, ModuleSaveProps } from '../form-types'
 import { FieldLabel } from './field-bits'
 import { EntityReferenceSelect } from './entity-reference-select'
 import { ModuleCard } from './module-card'
+import {
+  localizedFieldLabel,
+  localizedOption,
+  localizedUnit,
+} from '@/shared/field-i18n'
 
 // 只读投影字段（取被引用 Setup 版本的注册字段），键 → setup 实体字段 labelZh。
 const PROJECTION_KEYS = [
@@ -22,9 +27,9 @@ const PROJECTION_KEYS = [
   'tube_material_shape',
 ] as const
 
-function setupLabel(key: string): string {
+function setupLabel(key: string, language: string): string {
   const field = entities['setup']?.find((item) => item.key === key)
-  return field?.labelZh ?? key
+  return field ? localizedFieldLabel(field, language) : key
 }
 
 export function EquipmentSection({
@@ -40,7 +45,7 @@ export function EquipmentSection({
   showErrors?: boolean
   save?: ModuleSaveProps
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const setupRefField = getModuleFields('equipment').find(
     (field) => field.key === 'setup_ref',
   )
@@ -60,8 +65,8 @@ export function EquipmentSection({
       <div className="flex max-w-md flex-col gap-1.5">
         {setupRefField ? (
           <FieldLabel
-            labelZh={setupRefField.labelZh}
-            unit={setupRefField.unit}
+            labelZh={localizedFieldLabel(setupRefField, i18n.language)}
+            unit={localizedUnit(setupRefField.unit, i18n.language)}
             required
             r0={setupRefField.r0}
           />
@@ -93,9 +98,11 @@ export function EquipmentSection({
               return (
                 <div key={key} className="flex flex-col">
                   <dt className="text-xs text-muted-foreground">
-                    {setupLabel(key)}
+                    {setupLabel(key, i18n.language)}
                   </dt>
-                  <dd className="text-sm text-foreground">{value}</dd>
+                  <dd className="text-sm text-foreground">
+                    {localizedOption(value, i18n.language)}
+                  </dd>
                 </div>
               )
             })}

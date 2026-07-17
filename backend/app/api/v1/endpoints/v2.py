@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db.session import get_db
+from app.models.experiment import ExperimentStatus
 from app.models.user import User
 from app.schemas.v2 import (
     CharacterizationRecordCreate,
@@ -33,10 +35,12 @@ from app.schemas.v2 import (
     V2ResultListResponse,
     V2ResultRead,
     V2ResultWrite,
+    V2RunAuditEventListResponse,
     V2SetupReferenceRequest,
 )
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_experiment_service import V2ExperimentService
+from app.services.v2_reporting_service import V2ReportingService
 from app.services.v2_results_service import V2ResultsService
 
 router = APIRouter(prefix="/api/v1", tags=["v2"])
@@ -183,13 +187,82 @@ def list_v2_experiments(
     current_user: CurrentUser,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    query: str | None = Query(default=None, max_length=200),
+    material_system: str | None = Query(default=None, max_length=100),
+    operator: str | None = Query(default=None, max_length=120),
+    date_from: date | None = None,
+    date_to: date | None = None,
+    status_filter: Annotated[list[ExperimentStatus] | None, Query(alias="status")] = None,
 ) -> V2ExperimentListResponse:
-    return V2ExperimentService(db).list_runs(current_user, page=page, page_size=page_size)
+    return V2ExperimentService(db).list_runs(
+        current_user,
+        page=page,
+        page_size=page_size,
+        query_text=query,
+        material_system=material_system,
+        operator=operator,
+        date_from=date_from,
+        date_to=date_to,
+        status_filters=status_filter,
+    )
 
 
 @router.get("/experiments/{run_id}", response_model=V2ExperimentRead)
 def get_v2_experiment(run_id: UUID, db: DbSession, current_user: CurrentUser) -> V2ExperimentRead:
     return V2ExperimentService(db).get_run(run_id, current_user)
+
+
+@router.get(
+    "/experiments/{run_id}/audit-events",
+    response_model=V2RunAuditEventListResponse,
+)
+def list_run_audit_events(
+    run_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> V2RunAuditEventListResponse:
+    return V2ExperimentService(db).list_audit_events(run_id, current_user)
+
+
+@router.get("/experiments/{run_id}/export")
+def export_run_json(
+    run_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> Response:
+    content, filename = V2ReportingService(db).export_run_json(run_id, current_user)
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/exports/runs")
+def export_runs_zip(
+    db: DbSession,
+    current_user: CurrentUser,
+    query: str | None = Query(default=None, max_length=200),
+    material_system: str | None = Query(default=None, max_length=100),
+    operator: str | None = Query(default=None, max_length=120),
+    date_from: date | None = None,
+    date_to: date | None = None,
+    status_filter: Annotated[list[ExperimentStatus] | None, Query(alias="status")] = None,
+) -> Response:
+    content, filename = V2ReportingService(db).export_runs_zip(
+        current_user,
+        query_text=query,
+        material_system=material_system,
+        operator=operator,
+        date_from=date_from,
+        date_to=date_to,
+        status_filters=status_filter,
+    )
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/experiments/{run_id}/lock", response_model=V2ExperimentRead)

@@ -47,8 +47,8 @@
       "module": "基本信息",
       "module_key": "basic_info",
       "key": "run_code",
-      "label": "样品/实验编号",
-      "label_en": "Run / sample code",
+      "label": "炉次编号",
+      "label_en": "Run code",
       "r0": true,
       "condition": null,
       "requirement": "required",
@@ -138,8 +138,8 @@
       "module": "目标产物",
       "module_key": "target_product",
       "key": "components",
-      "label": "组成明细(components)",
-      "label_en": "Composition details (components)",
+      "label": "组成明细",
+      "label_en": "Composition details",
       "r0": false,
       "condition": {
         "field": "目标产物.结构类型",
@@ -199,7 +199,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
-      "unit": "视性能",
+      "unit": null,
       "options": "示例：光学属性-高荧光量子效率 / 电属性-高迁移率"
     },
     {
@@ -467,7 +467,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
-      "unit": "见展开",
+      "unit": null,
       "options": "直接加载/熔融凝固/压片/旋涂/退火/研磨/其他"
     },
     {
@@ -588,7 +588,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
-      "unit": "见展开",
+      "unit": null,
       "options": "清洗/退火/等离子/亲水化/其他"
     },
     {
@@ -873,7 +873,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
-      "unit": "视仪器",
+      "unit": null,
       "options": null
     },
     {
@@ -1674,7 +1674,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
-      "unit": "视仪器",
+      "unit": null,
       "options": "如激光波长/物镜/探测器"
     },
     {

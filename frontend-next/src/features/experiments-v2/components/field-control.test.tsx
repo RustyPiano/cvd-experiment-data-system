@@ -16,6 +16,7 @@ import { parseEnumOptions } from '../field-logic'
 import { EntityForm } from '@/features/entity-library/entity-form'
 import type { EntityKind } from '@/features/entity-library/config'
 import { FieldControl } from './field-control'
+import { localizedFieldLabel } from '@/shared/field-i18n'
 
 function renderControl(
   moduleKey: string,
@@ -105,7 +106,7 @@ function renderCompositeCase(
     </I18nextProvider>,
   )
   const combobox = screen.getByRole('combobox', {
-    name: `${testCase.field.labelZh}选项`,
+    name: `${localizedFieldLabel(testCase.field, 'zh')}选项`,
   })
   return {
     ...view,

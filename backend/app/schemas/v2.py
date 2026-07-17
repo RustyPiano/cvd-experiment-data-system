@@ -55,6 +55,7 @@ class V2ExperimentRead(BaseModel):
     id: UUID
     run_code: str
     owner_id: UUID
+    operator: str | None
     schema_version: str
     material_system: str | None
     experiment_date: date
@@ -74,6 +75,18 @@ class V2ExperimentRead(BaseModel):
 
 class V2ExperimentListResponse(BaseModel):
     items: list[V2ExperimentRead]
+    total: int
+
+
+class V2RunAuditEventRead(BaseModel):
+    actor_name: str
+    action: str
+    reason: str | None
+    created_at: datetime
+
+
+class V2RunAuditEventListResponse(BaseModel):
+    items: list[V2RunAuditEventRead]
     total: int
 
 

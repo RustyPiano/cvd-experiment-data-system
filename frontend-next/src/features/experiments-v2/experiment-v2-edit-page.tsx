@@ -2,11 +2,13 @@
 // §7 表征/实测走各自端点，由 ResultsSection 自管拉取，不在此预取。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { HttpError, resolveErrorMessage } from '@/shared/api/http-error'
 import { LoadingState } from '@/shared/ui/loading-state'
 import { PageHeader } from '@/shared/ui/page-header'
+import { triggerBlobDownload } from '@/shared/lib/download'
 import { useAuth } from '@/features/auth/use-auth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -20,14 +22,18 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  downloadRunExport,
   getModuleOrNull,
   getRun,
   setNotCharacterized,
   transitionRun,
 } from './api'
 import type { V2ModulePayloadRead } from './api'
+import { RunAuditSection } from './components/run-audit-section'
 import { ExperimentV2Form } from './experiment-v2-form'
 import { buildStateFromLoaded } from './form-state'
+import { getModuleFields } from './field-logic'
+import { localizedFieldLabel } from '@/shared/field-i18n'
 import {
   availableStatusActions,
   isProcessReadOnly,
@@ -58,7 +64,7 @@ const MODULE_TITLE_KEYS = {
 } as const
 
 export function ExperimentV2EditPage({ runId }: { runId: string }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const { session } = useAuth()
   const token = session.accessToken || ''
   const queryClient = useQueryClient()
@@ -110,6 +116,9 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       void queryClient.invalidateQueries({
         queryKey: ['v2-experiment-list'],
       })
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-run-audit', runId],
+      })
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) => {
@@ -135,11 +144,28 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       void queryClient.invalidateQueries({
         queryKey: ['v2-experiment-list'],
       })
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-run-audit', runId],
+      })
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) =>
       toast.error(
         resolveErrorMessage(mutationError, t('experimentsV2.actions.error')),
+      ),
+  })
+  const exportMutation = useMutation({
+    mutationFn: () => downloadRunExport(runId, token),
+    onSuccess: ({ blob, filename }) => {
+      triggerBlobDownload(
+        blob,
+        filename ?? `${data?.run.run_code ?? 'run'}.json`,
+      )
+      toast.success(t('experimentsV2.export.success'))
+    },
+    onError: (downloadError) =>
+      toast.error(
+        resolveErrorMessage(downloadError, t('experimentsV2.export.error')),
       ),
   })
   const act = (action: StatusAction) => {
@@ -160,6 +186,17 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       <PageHeader
         title={t('experimentsV2.edit.title')}
         subtitle={t('experimentsV2.edit.subtitle')}
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!data || exportMutation.isPending}
+            onClick={() => exportMutation.mutate()}
+          >
+            <Download className="size-4" />
+            {t('experimentsV2.export.run')}
+          </Button>
+        }
       />
       {isError ? (
         <Alert variant="destructive">
@@ -230,7 +267,15 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                 <ul className="mt-2 list-disc pl-5">
                   {missing.map((item) => (
                     <li key={`${item.module}.${item.key}`}>
-                      {item.label}（
+                      {(() => {
+                        const field = getModuleFields(item.module).find(
+                          (candidate) => candidate.key === item.key,
+                        )
+                        return field
+                          ? localizedFieldLabel(field, i18n.language)
+                          : item.label
+                      })()}
+                      （
                       {t(
                         `experimentsV2.sections.${MODULE_TITLE_KEYS[item.module as keyof typeof MODULE_TITLE_KEYS] ?? 'unknown'}.title`,
                       )}
@@ -250,6 +295,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
             resultsReadOnly={isResultsReadOnly(data.run.status, canEditResults)}
           />
+          <RunAuditSection runId={runId} token={token} />
         </>
       )}
       <Dialog open={invalidating} onOpenChange={setInvalidating}>

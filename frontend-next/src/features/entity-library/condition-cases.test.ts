@@ -42,6 +42,10 @@ describe('shared condition cases', () => {
           },
           r0: false,
           group: null,
+          placeholderZh: '请输入',
+          placeholderEn: 'Enter a value',
+          helpZh: null,
+          helpEn: null,
         } satisfies FieldMetadata
         expect(
           isConditionSatisfied(testCase.condition, {}, 'target_product'),

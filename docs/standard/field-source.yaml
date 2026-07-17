@@ -5,13 +5,18 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.4
+  version: v3.5
   status: DRAFT
-  updated: '2026-07-08'
+  updated: '2026-07-17'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → python3 docs/standard/build_field_tables.py 重新生成 xlsx → python3 docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿 v1 风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走变更流程；v1→v2 对应关系统一在 P5 mapping，不靠同名。
-  i18n: 国际化（D12）：字段层双语=label(中文,权威)+label_en(英文)全量必填；词表英文随 P3 结构化补齐；前端 P4 起 i18next 架构就绪（zh 默认）；xlsx 人读视图保持中文。
+  i18n: 国际化（D12）：字段 label/placeholder/help 与可选词表均提供中英文展示；提交值与存储值保持中文规范值；xlsx 人读视图保持中文。
+field_ui_defaults:
+  input_placeholder: 请输入
+  input_placeholder_en: Enter a value
+  select_placeholder: 请选择
+  select_placeholder_en: Select an option
 modules:
   基本信息: basic_info
   目标产物: target_product
@@ -32,6 +37,137 @@ entity_keys:
   MaterialLot: material_lot
   装置Setup: setup
   表征仪器: instrument
+option_labels_en:
+  盐辅助CVD: Salt-assisted CVD
+  PVD-磁控溅射: PVD — magnetron sputtering
+  PVD-热蒸发: PVD — thermal evaporation
+  其他: Other
+  其他（可加）: Other
+  课题组成员: Research group member
+  本征: Intrinsic
+  掺杂: Doped
+  合金: Alloy
+  垂直异质结: Vertical heterostructure
+  横向异质结: Lateral heterostructure
+  未指定: Not specified
+  连续膜: Continuous film
+  纳米片(flake): Nanoflake
+  纳米带: Nanoribbon
+  纳米管: Nanotube
+  纳米棒: Nanorod
+  纳米颗粒: Nanoparticle
+  受控+其他: Controlled value or other
+  热壁: Hot-wall
+  冷壁: Cold-wall
+  水平: Horizontal
+  垂直: Vertical
+  石英: Quartz
+  刚玉；圆: Alumina; round
+  方: Square
+  矩: Rectangular
+  自定义: Custom
+  无: None
+  等离子: Plasma
+  光: Light
+  电: Electric field
+  固: Solid
+  气: Gas
+  液: Liquid
+  白色粉末: White powder
+  白色晶粒: White crystals
+  淡黄色粉末: Pale-yellow powder
+  结块或潮解: Caked or deliquescent
+  变色: Discolored
+  主源: Main precursor
+  辅助剂: Additive
+  掺杂源: Dopant source
+  直接加载: Load directly
+  熔融凝固: Melt and solidify
+  压片: Pelletize
+  旋涂: Spin coat
+  退火: Anneal
+  研磨: Grind
+  石英舟: Quartz boat
+  陶瓷(刚玉)舟: Alumina boat
+  蓝宝石(Al₂O₃): Sapphire (Al₂O₃)
+  蓝宝石: Sapphire
+  云母: Mica
+  Cu箔: Cu foil
+  Au箔: Au foil
+  正放: Face up
+  倒扣: Face down
+  倾角: Tilted
+  竖放: Vertical
+  清洗: Clean
+  亲水化: Hydrophilic treatment
+  温区1…: Zone 1
+  温区2…: Zone 2
+  抽气: Pump down
+  漏检: Leak check
+  吹扫: Purge
+  预处理: Pretreatment
+  升温: Heat up
+  温度稳定: Temperature stabilization
+  反应生长: Growth
+  后退火: Post-anneal
+  降温: Cool down
+  放气: Vent
+  卸样: Unload
+  随炉冷却: Furnace cooling
+  开盖冷却: Open-lid cooling
+  移炉快速冷却: Rapid cooling by moving furnace
+  常压(APCVD): Atmospheric pressure (APCVD)
+  低压(LPCVD): Low pressure (LPCVD)
+  超高真空: Ultra-high vacuum
+  转子: Rotameter
+  供电/供水/供气中断: Power / water / gas interruption
+  管路堵塞: Line blockage
+  压力突变: Sudden pressure change
+  信号异常: Signal anomaly
+  人工干预: Manual intervention
+  设备报警: Equipment alarm
+  人工停止: Manually stopped
+  计划结束: Planned completion
+  光镜: Optical microscopy
+  低波数Raman: Low-frequency Raman
+  无生长: No growth
+  不连续覆盖: Discontinuous coverage
+  厚层区域: Thick-layer regions
+  可见颗粒沾污: Visible particulate contamination
+  衬底破损: Substrate damage
+  化学品: Chemical
+  衬底: Substrate
+  气瓶: Gas cylinder
+  粉末: Powder
+  颗粒: Granules
+  块: Bulk solid
+  箔: Foil
+  靶: Target
+  干燥器: Desiccator
+  手套箱: Glovebox
+  常温避光: Room temperature away from light
+  冷藏: Refrigerated
+  单面抛: Single-side polished
+  双面抛: Double-side polished
+  工业级: Industrial grade
+  基体: Matrix
+  掺杂剂: Dopant
+  上层: Top layer
+  下层: Bottom layer
+  横向域: Lateral domain
+unit_labels_en:
+  mg(固)/µL(液): mg (solid) / µL (liquid)
+  ℃: °C
+  ℃ 随时间: °C over time
+  ℃·℃/min: °C · °C/min
+  ℃·℃/min·min: °C · °C/min · min
+  个: count
+  个/m³: count/m³
+  层: layers
+  层·%: layers · %
+  次: cycles
+  min·次: min · cycles
+  μm·cm⁻²·(连续/孤立): μm · cm⁻² · (continuous/isolated)
 stage_types:
   note: §5 动态表单的权威映射（D11）：阶段类型 → 显示哪些参数组；common 组恒显。P3 的 discriminated union 与 P4 的表单显隐都从这里生成，禁止在代码里散写。初版由标准§5语义推导，如与实际操作不符改此处即可。
   groups:
@@ -155,9 +291,13 @@ experiment_record:
       note: ''
       r0: true
     - module: 基本信息
-      label: 样品/实验编号
-      label_en: Run / sample code
+      label: 炉次编号
+      label_en: Run code
       key: run_code
+      placeholder: CVD-YYYY-NNNN
+      placeholder_en: CVD-YYYY-NNNN
+      help: 可按建议格式填写，并确保组内唯一。
+      help_en: Use the suggested format and keep the code unique within the group.
       meaning: 本条记录的唯一编号
       input: 文本
       options: 建议含日期
@@ -165,7 +305,7 @@ experiment_record:
       requirement:
         raw: 必填
         level: required
-      example: CVD-20260620-03
+      example: CVD-2026-0003
       source: 建议
       note: ''
       r0: true
@@ -231,6 +371,8 @@ experiment_record:
       label: 化学体系/化学式
       label_en: Chemical system / formula
       key: chemical_formula
+      placeholder: 例如 MoS₂
+      placeholder_en: e.g. MoS₂
       meaning: 规范显示串；复合体系须与组成明细一致、以组成明细为准（可自动生成）
       input: 文本
       options: 标准写法（渲染规则）
@@ -257,8 +399,8 @@ experiment_record:
       source: 复审
       note: 判别器；决定组成明细是否必填
     - module: 目标产物
-      label: 组成明细(components)
-      label_en: Composition details (components)
+      label: 组成明细
+      label_en: Composition details
       key: components
       ui:
         visibility_gated: true
@@ -325,7 +467,7 @@ experiment_record:
       meaning: 应用导向的目标性能（写清想要什么性能 + 打算用什么方法/判据衡量）
       input: 自由+数值
       options: 示例：光学属性-高荧光量子效率 / 电属性-高迁移率
-      unit: 视性能
+      unit: —
       requirement:
         raw: 选填
         level: optional
@@ -626,7 +768,7 @@ experiment_record:
       meaning: 投料前处理（可多步，选了再展开参数）
       input: 下拉+其他
       options: 直接加载/熔融凝固/压片/旋涂/退火/研磨/其他
-      unit: 见展开
+      unit: —
       requirement:
         raw: 推荐
         level: recommended
@@ -761,7 +903,7 @@ experiment_record:
       meaning: 预处理步骤序列（记顺序，展开参数）
       input: 下拉+其他
       options: 清洗/退火/等离子/亲水化/其他
-      unit: 见展开
+      unit: —
       requirement:
         raw: 推荐
         level: recommended
@@ -1091,7 +1233,7 @@ experiment_record:
       meaning: 该表征的测试参数
       input: 文本/自由
       options: —
-      unit: 视仪器
+      unit: —
       requirement:
         raw: 推荐
         level: recommended
@@ -1942,7 +2084,7 @@ entities:
       meaning: 随仪器固定的参数（可变测试条件在实验§7填）
       input: 自由
       options: 如激光波长/物镜/探测器
-      unit: 视仪器
+      unit: —
       requirement:
         raw: 选填
         level: optional

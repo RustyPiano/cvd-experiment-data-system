@@ -218,7 +218,6 @@ class FileAssetService:
                 action="upload_file",
                 before_json=None,
                 after_json=serialize_file_asset(saved),
-                reason=str(saved.id),
             )
             self.db.commit()
         except Exception:
@@ -248,7 +247,6 @@ class FileAssetService:
             action="delete_file",
             before_json=before,
             after_json=serialize_file_asset(saved),
-            reason=str(saved.id),
         )
         try:
             self.db.commit()

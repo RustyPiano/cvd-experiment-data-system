@@ -72,6 +72,15 @@ modules_map = doc.get("modules", {})
 entity_keys = doc.get("entity_keys", {})
 stage_types = doc.get("stage_types", {})
 group_names = set((stage_types.get("groups") or {}).keys())
+ui_defaults = doc.get("field_ui_defaults") or {}
+for key in (
+    "input_placeholder",
+    "input_placeholder_en",
+    "select_placeholder",
+    "select_placeholder_en",
+):
+    if not str(ui_defaults.get(key) or "").strip():
+        err(f"field_ui_defaults.{key} 缺失或为空")
 # 条件驱动字段原则上必须有 options；确需自由值驱动时在此显式列出。
 CONDITION_OPTIONS_WHITELIST: set[str] = set()
 # field_devices 跨实体驱动 process_steps.field_params，空值不走生成校验器；
@@ -171,6 +180,14 @@ for part, scope_of in (
         # D12: 字段层双语——英文名全量必填
         if not str(f.get("label_en") or "").strip():
             err(f"{where}: 缺少 label_en（国际化 D12 要求全量双语）")
+        if bool(str(f.get("placeholder") or "").strip()) != bool(
+            str(f.get("placeholder_en") or "").strip()
+        ):
+            err(f"{where}: placeholder / placeholder_en 必须成对填写")
+        if bool(str(f.get("help") or "").strip()) != bool(
+            str(f.get("help_en") or "").strip()
+        ):
+            err(f"{where}: help / help_en 必须成对填写")
         if scope:
             if key in seen_keys.setdefault(scope, set()):
                 err(f"{where}: key {key!r} 在 {scope} 内重复")

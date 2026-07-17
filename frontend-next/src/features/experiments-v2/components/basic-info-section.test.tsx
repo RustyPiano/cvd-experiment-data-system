@@ -27,18 +27,14 @@ describe('BasicInfoSection run code', () => {
 
   it('disables run_code after creation and explains why', () => {
     renderSection(true)
-    const input = screen.getByLabelText(
-      /\u6837\u54c1\/\u5b9e\u9a8c\u7f16\u53f7/,
-    )
+    const input = screen.getByLabelText(/\u7089\u6b21\u7f16\u53f7/)
     expect(input).toBeDisabled()
     expect(input).toHaveAttribute('title', '编号创建后不可修改')
   })
 
   it('keeps new run_code editable with the backend format pattern', () => {
     renderSection(false)
-    const input = screen.getByLabelText(
-      /\u6837\u54c1\/\u5b9e\u9a8c\u7f16\u53f7/,
-    )
+    const input = screen.getByLabelText(/\u7089\u6b21\u7f16\u53f7/)
     expect(input).toBeEnabled()
     expect(input).toHaveAttribute('pattern', '^CVD-\\d{4}-\\d{4}$')
   })

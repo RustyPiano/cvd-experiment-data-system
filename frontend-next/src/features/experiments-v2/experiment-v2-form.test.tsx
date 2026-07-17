@@ -18,7 +18,10 @@ const api = vi.hoisted(() => ({
 }))
 const navigate = vi.hoisted(() => vi.fn())
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
-const queryClient = vi.hoisted(() => ({ setQueryData: vi.fn() }))
+const queryClient = vi.hoisted(() => ({
+  setQueryData: vi.fn(),
+  invalidateQueries: vi.fn(),
+}))
 const guard = vi.hoisted(() => ({ when: false }))
 
 vi.mock('./api', () => api)

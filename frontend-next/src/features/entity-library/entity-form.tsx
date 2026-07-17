@@ -7,6 +7,13 @@ import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
+import {
+  localizedFieldHelp,
+  localizedFieldLabel,
+  localizedFieldPlaceholder,
+  localizedOption,
+  localizedUnit,
+} from '@/shared/field-i18n'
 import { RequiredMark } from '@/shared/ui/required-mark'
 import {
   isCompositeInput,
@@ -178,9 +185,7 @@ function EntityFieldControl({
   disabled: boolean
 }) {
   const { i18n, t } = useTranslation()
-  const label = i18n.language.startsWith('en')
-    ? field.labelEn || field.labelZh
-    : field.labelZh
+  const label = localizedFieldLabel(field, i18n.language)
   const required = isEffectivelyRequired(kind, field, values)
   const enumOptions = parseEnumOptions(field.input, field.options)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
@@ -189,9 +194,8 @@ function EntityFieldControl({
     : []
   const controlId = useId()
   const useTextarea = TEXTAREA_KEYS.has(field.key)
-  const placeholder = enumOptions
-    ? t('entityLibrary.form.selectPlaceholder')
-    : (field.options ?? t('entityLibrary.form.inputPlaceholder'))
+  const placeholder = localizedFieldPlaceholder(field, i18n.language)
+  const fieldHelp = localizedFieldHelp(field, i18n.language)
 
   return (
     <FormField
@@ -201,9 +205,9 @@ function EntityFieldControl({
         <FormItem className={useTextarea ? 'sm:col-span-2' : undefined}>
           <FormLabel>
             <span>{label}</span>
-            {field.unit ? (
+            {localizedUnit(field.unit, i18n.language) ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">
-                （{field.unit}）
+                （{localizedUnit(field.unit, i18n.language)}）
               </span>
             ) : null}
             {required ? <RequiredMark /> : null}
@@ -220,6 +224,7 @@ function EntityFieldControl({
               disabled={disabled}
               freePlaceholder={t('entityLibrary.form.inputPlaceholder')}
               selectPlaceholder={t('entityLibrary.form.selectPlaceholder')}
+              optionLabel={(option) => localizedOption(option, i18n.language)}
             />
           ) : enumOptions ? (
             <Select
@@ -235,7 +240,7 @@ function EntityFieldControl({
               <SelectContent>
                 {enumOptions.map((option) => (
                   <SelectItem key={option} value={option}>
-                    {option}
+                    {localizedOption(option, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -259,6 +264,9 @@ function EntityFieldControl({
               )}
             </FormControl>
           )}
+          {fieldHelp ? (
+            <p className="text-xs text-muted-foreground">{fieldHelp}</p>
+          ) : null}
           <FormMessage />
         </FormItem>
       )}

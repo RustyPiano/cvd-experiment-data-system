@@ -25,6 +25,7 @@ export function CompositeFieldControl({
   invalid,
   freePlaceholder,
   selectPlaceholder,
+  optionLabel = (option) => option,
 }: {
   input: CompositeInput
   value: string
@@ -37,6 +38,7 @@ export function CompositeFieldControl({
   invalid?: boolean
   freePlaceholder: string
   selectPlaceholder: string
+  optionLabel?: (option: string) => string
 }) {
   const { freeValue, option } = parseCompositeValue(input, value, options)
   const freeFirst = input.startsWith('数值') || input.startsWith('文本')
@@ -74,7 +76,7 @@ export function CompositeFieldControl({
         <SelectGroup>
           {options.map((item) => (
             <SelectItem key={item} value={item}>
-              {item}
+              {optionLabel(item)}
             </SelectItem>
           ))}
         </SelectGroup>

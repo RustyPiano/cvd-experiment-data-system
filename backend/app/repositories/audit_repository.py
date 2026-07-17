@@ -19,7 +19,7 @@ class AuditRepository:
         statement = (
             select(AuditEvent)
             .where(AuditEvent.entity_type == entity_type, AuditEvent.entity_id == entity_id)
-            .order_by(AuditEvent.created_at.asc())
+            .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
         )
         return list(self.db.scalars(statement).all())
 
@@ -31,5 +31,9 @@ class AuditRepository:
             and_(AuditEvent.entity_type == entity_type, AuditEvent.entity_id == entity_id)
             for entity_type, entity_id in refs
         ]
-        statement = select(AuditEvent).where(or_(*conditions)).order_by(AuditEvent.created_at.asc())
+        statement = (
+            select(AuditEvent)
+            .where(or_(*conditions))
+            .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
+        )
         return list(self.db.scalars(statement).all())

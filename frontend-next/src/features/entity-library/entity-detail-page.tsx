@@ -28,6 +28,11 @@ import { entityConfigs, entityRoutes } from './config'
 import { appendEntityVersion, getEntity, listEntityVersions } from './api'
 import { getEntityFields, isFieldVisible } from './field-logic'
 import { EntityForm } from './entity-form'
+import {
+  localizedFieldLabel,
+  localizedOption,
+  localizedUnit,
+} from '@/shared/field-i18n'
 
 export function EntityDetailPage({
   kind,
@@ -183,31 +188,34 @@ export function EntityDetailPage({
           </CardHeader>
           <CardContent>
             <dl className="flex flex-col divide-y border-t text-sm">
-              {fields.filter((field) =>
-                isFieldVisible(kind, field, visibilityValues),
-              ).map((field) => {
-                const raw = activeData[field.key]
-                const value = raw == null || raw === '' ? '' : String(raw)
-                const label = i18n.language.startsWith('en')
-                  ? field.labelEn || field.labelZh
-                  : field.labelZh
-                return (
-                  <div
-                    key={field.key}
-                    className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-4"
-                  >
-                    <dt className="shrink-0 text-muted-foreground sm:w-48">
-                      {label}
-                      {field.unit ? (
-                        <span className="ml-1 text-xs">（{field.unit}）</span>
-                      ) : null}
-                    </dt>
-                    <dd className="min-w-0 flex-1 whitespace-pre-wrap text-foreground">
-                      {value || t('entityLibrary.detail.emptyValue')}
-                    </dd>
-                  </div>
+              {fields
+                .filter((field) =>
+                  isFieldVisible(kind, field, visibilityValues),
                 )
-              })}
+                .map((field) => {
+                  const raw = activeData[field.key]
+                  const value = raw == null || raw === '' ? '' : String(raw)
+                  const label = localizedFieldLabel(field, i18n.language)
+                  const unit = localizedUnit(field.unit, i18n.language)
+                  return (
+                    <div
+                      key={field.key}
+                      className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-4"
+                    >
+                      <dt className="shrink-0 text-muted-foreground sm:w-48">
+                        {label}
+                        {unit ? (
+                          <span className="ml-1 text-xs">（{unit}）</span>
+                        ) : null}
+                      </dt>
+                      <dd className="min-w-0 flex-1 whitespace-pre-wrap text-foreground">
+                        {value
+                          ? localizedOption(value, i18n.language)
+                          : t('entityLibrary.detail.emptyValue')}
+                      </dd>
+                    </div>
+                  )
+                })}
             </dl>
           </CardContent>
         </Card>

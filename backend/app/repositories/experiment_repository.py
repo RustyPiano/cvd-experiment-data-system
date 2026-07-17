@@ -1,10 +1,11 @@
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.module_payload import ExperimentModulePayload
 from app.models.user import User, UserRole
 
 SORTABLE_EXPERIMENT_COLUMNS = {
@@ -44,7 +45,10 @@ class ExperimentRepository:
     def get_by_id(self, experiment_id: UUID) -> ExperimentRun | None:
         statement = (
             select(ExperimentRun)
-            .options(selectinload(ExperimentRun.owner))
+            .options(
+                selectinload(ExperimentRun.owner),
+                selectinload(ExperimentRun.module_payloads),
+            )
             .where(ExperimentRun.id == experiment_id)
         )
         return self.db.scalar(statement)
@@ -58,7 +62,10 @@ class ExperimentRepository:
     ) -> ExperimentRun | None:
         statement = (
             select(ExperimentRun)
-            .options(selectinload(ExperimentRun.owner))
+            .options(
+                selectinload(ExperimentRun.owner),
+                selectinload(ExperimentRun.module_payloads),
+            )
             .where(ExperimentRun.id == experiment_id)
         )
         visibility = _visibility_clause(current_user)
@@ -94,7 +101,10 @@ class ExperimentRepository:
         status_filters: list[ExperimentStatus] | None = None,
         material_system: str | None = None,
         query_text: str | None = None,
+        operator: str | None = None,
         owner_id: UUID | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "updated_at",
@@ -103,6 +113,7 @@ class ExperimentRepository:
     ) -> tuple[list[ExperimentRun], int]:
         statement = select(ExperimentRun).options(
             selectinload(ExperimentRun.owner),
+            selectinload(ExperimentRun.module_payloads),
         )
 
         if schema_version is not None:
@@ -121,8 +132,29 @@ class ExperimentRepository:
         if status_filters is not None:
             statement = statement.where(ExperimentRun.status.in_(status_filters))
 
-        if material_system:
-            statement = statement.where(ExperimentRun.material_system == material_system)
+        if material_system and material_system.strip():
+            statement = statement.where(
+                ExperimentRun.material_system.ilike(f"%{material_system.strip()}%")
+            )
+
+        if operator and operator.strip():
+            operator_pattern = f"%{operator.strip()}%"
+            statement = statement.where(
+                exists(
+                    select(ExperimentModulePayload.id).where(
+                        ExperimentModulePayload.experiment_run_id == ExperimentRun.id,
+                        ExperimentModulePayload.module_key == "basic_info",
+                        ExperimentModulePayload.payload_json["operator"]
+                        .as_string()
+                        .ilike(operator_pattern),
+                    )
+                )
+            )
+
+        if date_from is not None:
+            statement = statement.where(ExperimentRun.experiment_date >= date_from)
+        if date_to is not None:
+            statement = statement.where(ExperimentRun.experiment_date <= date_to)
 
         if owner_id is not None:
             statement = statement.where(ExperimentRun.owner_id == owner_id)

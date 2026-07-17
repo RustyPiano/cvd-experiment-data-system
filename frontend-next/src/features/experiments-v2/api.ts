@@ -1,7 +1,7 @@
 // v2 实验 API（P3 端点，契约见 backend/app/api/v1/endpoints/v2.py）。
 // 类型走 OpenAPI 生成物的逃生舱别名。实体库列表（setups / material_lots）复用
 // entity-library 的 listEntities，不重复实现。
-import { apiRequest } from '@/shared/api/client'
+import { apiDownload, apiRequest } from '@/shared/api/client'
 import { HttpError } from '@/shared/api/http-error'
 import type { components } from '@/shared/types/openapi'
 
@@ -32,6 +32,18 @@ export type V2ResultWrite = Schemas['V2ResultWrite']
 export type V2ResultRead = Schemas['V2ResultRead']
 export type V2ResultListResponse = Schemas['V2ResultListResponse']
 
+export type RunFilters = {
+  query?: string
+  materialSystem?: string
+  operator?: string
+  dateFrom?: string
+  dateTo?: string
+  statuses?: V2ExperimentRead['status'][]
+}
+
+export type V2RunAuditEventRead = Schemas['V2RunAuditEventRead']
+export type V2RunAuditEventListResponse = Schemas['V2RunAuditEventListResponse']
+
 const BASE = '/api/v1/experiments'
 const V2 = '/api/v1'
 
@@ -45,17 +57,52 @@ export function createRun(payload: V2ExperimentCreate, token: string) {
 
 export function listRuns(
   token: string,
-  { page, pageSize }: { page: number; pageSize: number },
+  {
+    page,
+    pageSize,
+    filters = {},
+  }: { page: number; pageSize: number; filters?: RunFilters },
 ) {
-  const query = new URLSearchParams({
+  const queryParams = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   })
-  return apiRequest<V2ExperimentListResponse>(`${BASE}?${query}`, { token })
+  appendRunFilters(queryParams, filters)
+  return apiRequest<V2ExperimentListResponse>(`${BASE}?${queryParams}`, {
+    token,
+  })
+}
+
+function appendRunFilters(query: URLSearchParams, filters: RunFilters) {
+  if (filters.query?.trim()) query.set('query', filters.query.trim())
+  if (filters.materialSystem?.trim())
+    query.set('material_system', filters.materialSystem.trim())
+  if (filters.operator?.trim()) query.set('operator', filters.operator.trim())
+  if (filters.dateFrom) query.set('date_from', filters.dateFrom)
+  if (filters.dateTo) query.set('date_to', filters.dateTo)
+  for (const status of filters.statuses ?? []) query.append('status', status)
 }
 
 export function getRun(runId: string, token: string) {
   return apiRequest<V2ExperimentRead>(`${BASE}/${runId}`, { token })
+}
+
+export function listRunAuditEvents(runId: string, token: string) {
+  return apiRequest<V2RunAuditEventListResponse>(
+    `${BASE}/${runId}/audit-events`,
+    { token },
+  )
+}
+
+export function downloadRunExport(runId: string, token: string) {
+  return apiDownload(`${BASE}/${runId}/export`, { token })
+}
+
+export function downloadRunsExport(filters: RunFilters, token: string) {
+  const query = new URLSearchParams()
+  appendRunFilters(query, filters)
+  const suffix = query.size ? `?${query}` : ''
+  return apiDownload(`${V2}/exports/runs${suffix}`, { token })
 }
 
 export function transitionRun(

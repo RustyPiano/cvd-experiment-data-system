@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { localizedFieldLabel, localizedOption } from '@/shared/field-i18n'
 
 const routeApi = getRouteApi('/_authed/samples/$sampleId')
 
@@ -95,9 +96,7 @@ export function SampleDetailPage() {
     return getModuleFields('substrates')
       .map((field) => ({
         key: field.key,
-        label: i18n.language.startsWith('en')
-          ? field.labelEn || field.labelZh
-          : field.labelZh,
+        label: localizedFieldLabel(field, i18n.language),
         value: snapshot[field.key],
       }))
       .filter(({ value }) => value != null && value !== '')
@@ -242,7 +241,10 @@ export function SampleDetailPage() {
                 <DetailRow
                   key={row.key}
                   label={row.label}
-                  value={displayValue(row.value)}
+                  value={localizedOption(
+                    displayValue(row.value),
+                    i18n.language,
+                  )}
                 />
               ))}
             </dl>

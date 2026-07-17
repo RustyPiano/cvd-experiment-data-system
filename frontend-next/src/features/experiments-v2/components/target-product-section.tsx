@@ -15,6 +15,7 @@ import { FieldControl } from './field-control'
 import { FieldLabel } from './field-bits'
 import { ComponentsEditor } from './components-editor'
 import { ModuleCard } from './module-card'
+import { localizedFieldLabel, localizedUnit } from '@/shared/field-i18n'
 
 export function TargetProductSection({
   values,
@@ -33,7 +34,7 @@ export function TargetProductSection({
   showErrors?: boolean
   save?: ModuleSaveProps
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const fields = getModuleFields('target_product')
   const componentsField = fields.find((field) => field.key === 'components')
   const structureType = values['structure_type'] ?? ''
@@ -88,8 +89,8 @@ export function TargetProductSection({
       {showComponents && componentsField ? (
         <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
           <FieldLabel
-            labelZh={componentsField.labelZh}
-            unit={componentsField.unit}
+            labelZh={localizedFieldLabel(componentsField, i18n.language)}
+            unit={localizedUnit(componentsField.unit, i18n.language)}
             required={componentsRequired}
             r0={componentsField.r0}
           />

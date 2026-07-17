@@ -39,8 +39,8 @@ describe('EntityForm — "改动即新版本" semantics prompt', () => {
     const banner = screen.getByTestId('new-version-banner')
     // interpolated target version + the "old references unaffected" promise
     expect(banner).toHaveTextContent('v3')
-    expect(banner).toHaveTextContent('旧版本')
-    expect(banner).toHaveTextContent('引用不受影响')
+    expect(banner).toHaveTextContent('历史版本')
+    expect(banner).toHaveTextContent('炉次不会改变')
   })
 })
 

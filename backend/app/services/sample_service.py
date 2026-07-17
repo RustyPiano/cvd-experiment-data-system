@@ -93,6 +93,14 @@ class SampleService:
             before_json=None,
             after_json=self._serialize_sample(created),
         )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=experiment.id,
+            action="create_sample",
+            before_json=None,
+            after_json={"sample_code": created.sample_code, "role": created.role},
+        )
         self.db.commit()
         return SampleRead.model_validate(created)
 
@@ -114,6 +122,14 @@ class SampleService:
             action="update",
             before_json=before,
             after_json=self._serialize_sample(saved),
+        )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=sample.experiment_run_id,
+            action="update_sample",
+            before_json={"sample_code": before["sample_code"]},
+            after_json={"sample_code": saved.sample_code},
         )
         self.db.commit()
         return SampleRead.model_validate(saved)

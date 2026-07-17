@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -33,6 +34,7 @@ class AuditService:
                 before_json=before_json,
                 after_json=after_json,
                 reason=reason,
+                created_at=datetime.now(UTC),
             )
         )
 

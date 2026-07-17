@@ -18,6 +18,7 @@ import { FieldControl } from './field-control'
 import { FieldLabel } from './field-bits'
 import { EntityReferenceSelect } from './entity-reference-select'
 import { ModuleCard } from './module-card'
+import { localizedFieldLabel, localizedUnit } from '@/shared/field-i18n'
 
 // 引用型字段键 → 被引用实体种类。
 const REFERENCE_FIELD_KINDS: Record<string, EntityKind> = {
@@ -51,7 +52,7 @@ export function RepeatableItemsSection({
   showErrors?: boolean
   save?: ModuleSaveProps
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const fields = getModuleFields(moduleKey)
 
   const setItemValue = (itemIndex: number, key: string, value: string) => {
@@ -113,8 +114,8 @@ export function RepeatableItemsSection({
                     return (
                       <div key={field.key} className="flex flex-col gap-1.5">
                         <FieldLabel
-                          labelZh={field.labelZh}
-                          unit={field.unit}
+                          labelZh={localizedFieldLabel(field, i18n.language)}
+                          unit={localizedUnit(field.unit, i18n.language)}
                           required={isEffectivelyRequired(
                             moduleKey,
                             field,

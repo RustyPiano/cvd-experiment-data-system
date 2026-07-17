@@ -14,6 +14,7 @@ import {
 import type { ComponentRow } from '../field-logic'
 import { emptyComponentRow, getComponentRoleOptions } from '../field-logic'
 import { FormulaInput } from './formula-input'
+import { localizedOption } from '@/shared/field-i18n'
 
 export function ComponentsEditor({
   rows,
@@ -27,7 +28,7 @@ export function ComponentsEditor({
   /** 上层判定「结构类型≠本征但组分为空」时置真，高亮缺失。 */
   showError?: boolean
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const roleOptions = getComponentRoleOptions()
 
   const updateRow = (index: number, patch: Partial<ComponentRow>) => {
@@ -86,7 +87,7 @@ export function ComponentsEditor({
               <SelectContent>
                 {roleOptions.map((option) => (
                   <SelectItem key={option} value={option}>
-                    {option}
+                    {localizedOption(option, i18n.language)}
                   </SelectItem>
                 ))}
               </SelectContent>

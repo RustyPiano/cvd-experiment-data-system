@@ -3,6 +3,13 @@
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
+import {
+  localizedFieldHelp,
+  localizedFieldLabel,
+  localizedFieldPlaceholder,
+  localizedOption,
+  localizedUnit,
+} from '@/shared/field-i18n'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -73,7 +80,7 @@ export function FieldControl({
   pattern?: string
   hiddenOptions?: readonly string[]
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const controlId = useId()
   const required =
     requiredOverride ?? isEffectivelyRequired(moduleKey, field, values)
@@ -86,16 +93,16 @@ export function FieldControl({
     : []
   const missing = Boolean(showError) && required && value.trim() === ''
   const errorId = `${controlId}-error`
-  const placeholder = enumOptions
-    ? t('experimentsV2.form.selectPlaceholder')
-    : (field.options ?? t('experimentsV2.form.inputPlaceholder'))
+  const label = localizedFieldLabel(field, i18n.language)
+  const placeholder = localizedFieldPlaceholder(field, i18n.language)
+  const fieldHelp = localizedFieldHelp(field, i18n.language)
 
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel
         htmlFor={controlId}
-        labelZh={field.labelZh}
-        unit={field.unit}
+        labelZh={label}
+        unit={localizedUnit(field.unit, i18n.language)}
         required={required}
         r0={field.r0}
       />
@@ -107,11 +114,12 @@ export function FieldControl({
           onChange={onChange}
           inputId={controlId}
           selectId={`${controlId}-option`}
-          selectLabel={`${field.labelZh}选项`}
+          selectLabel={t('experimentsV2.form.fieldOptions', { label })}
           disabled={disabled || readOnly}
           invalid={missing}
           freePlaceholder={t('experimentsV2.form.inputPlaceholder')}
           selectPlaceholder={t('experimentsV2.form.selectPlaceholder')}
+          optionLabel={(option) => localizedOption(option, i18n.language)}
         />
       ) : FORMULA_KEYS.has(field.key) ? (
         <FormulaInput
@@ -138,7 +146,7 @@ export function FieldControl({
           <SelectContent>
             {enumOptions.map((option) => (
               <SelectItem key={option} value={option}>
-                {option}
+                {localizedOption(option, i18n.language)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -186,7 +194,9 @@ export function FieldControl({
           {t('validation.required')}
         </p>
       ) : null}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint || fieldHelp ? (
+        <p className="text-xs text-muted-foreground">{hint || fieldHelp}</p>
+      ) : null}
     </div>
   )
 }

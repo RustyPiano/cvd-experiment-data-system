@@ -40,6 +40,10 @@ interface RawField {
   requirement: RawRequirement
   r0?: boolean
   group?: string
+  placeholder?: string
+  placeholder_en?: string
+  help?: string
+  help_en?: string
   ui?: { visibility_gated?: boolean }
 }
 interface RawSection {
@@ -55,6 +59,14 @@ interface RawDoc {
   meta: { version: string; status: string }
   modules: Record<string, string>
   entity_keys: Record<string, string>
+  option_labels_en: Record<string, string>
+  unit_labels_en: Record<string, string>
+  field_ui_defaults: {
+    input_placeholder: string
+    input_placeholder_en: string
+    select_placeholder: string
+    select_placeholder_en: string
+  }
   stage_types: {
     groups: Record<string, string>
     types: RawStageType[]
@@ -81,10 +93,17 @@ interface FieldMetadata {
   }
   r0: boolean
   group: string | null
+  placeholderZh: string
+  placeholderEn: string
+  helpZh: string | null
+  helpEn: string | null
   visibilityGated?: true
 }
 
-function toFieldMetadata(field: RawField): FieldMetadata {
+function toFieldMetadata(
+  field: RawField,
+  defaults: RawDoc['field_ui_defaults'],
+): FieldMetadata {
   const req = field.requirement
   const condition = req.condition
     ? {
@@ -103,6 +122,18 @@ function toFieldMetadata(field: RawField): FieldMetadata {
     requirement: { raw: req.raw, level: req.level, condition },
     r0: Boolean(field.r0),
     group: field.group ?? null,
+    placeholderZh:
+      field.placeholder ??
+      (field.input.includes('下拉')
+        ? defaults.select_placeholder
+        : defaults.input_placeholder),
+    placeholderEn:
+      field.placeholder_en ??
+      (field.input.includes('下拉')
+        ? defaults.select_placeholder_en
+        : defaults.input_placeholder_en),
+    helpZh: dashToNull(field.help),
+    helpEn: dashToNull(field.help_en),
     ...(field.ui?.visibility_gated ? { visibilityGated: true as const } : {}),
   }
 }
@@ -110,6 +141,7 @@ function toFieldMetadata(field: RawField): FieldMetadata {
 function groupByModule(
   sections: RawSection[],
   moduleMap: Record<string, string>,
+  defaults: RawDoc['field_ui_defaults'],
 ): Record<string, FieldMetadata[]> {
   const out: Record<string, FieldMetadata[]> = {}
   for (const section of sections) {
@@ -120,7 +152,7 @@ function groupByModule(
           `模块 ${field.module} 未在 modules/entity_keys 映射中登记（字段 ${field.key}）`,
         )
       }
-      ;(out[key] ??= []).push(toFieldMetadata(field))
+      ;(out[key] ??= []).push(toFieldMetadata(field, defaults))
     }
   }
   return out
@@ -128,6 +160,7 @@ function groupByModule(
 
 interface StageType {
   name: string
+  labelEn: string
   shows: string[]
   requiredExtra?: string[]
 }
@@ -143,11 +176,20 @@ const meta = {
 const experimentModules = groupByModule(
   doc.experiment_record.sections,
   doc.modules,
+  doc.field_ui_defaults,
 )
-const entities = groupByModule(doc.entities.sections, doc.entity_keys)
+const entities = groupByModule(
+  doc.entities.sections,
+  doc.entity_keys,
+  doc.field_ui_defaults,
+)
 const stageGroups = doc.stage_types.groups
 const stageTypes: StageType[] = doc.stage_types.types.map((type) => {
-  const out: StageType = { name: type.name, shows: type.shows ?? [] }
+  const out: StageType = {
+    name: type.name,
+    labelEn: doc.option_labels_en[type.name] ?? type.name,
+    shows: type.shows ?? [],
+  }
   if (type.required_extra && type.required_extra.length > 0) {
     out.requiredExtra = type.required_extra
   }
@@ -197,12 +239,20 @@ export interface FieldMetadata {
   r0: boolean
   /** §5 过程步字段的参数组（stageGroups 的键）；其余字段为 null */
   group: string | null
+  /** 表单占位符中文/英文展示；不作为提交值 */
+  placeholderZh: string
+  placeholderEn: string
+  /** 可选的字段级帮助文本，两种语言须成对 */
+  helpZh: string | null
+  helpEn: string | null
   /** 条件不成立时隐藏，而非仅切换必填状态 */
   visibilityGated?: true
 }
 
 export interface StageType {
   name: string
+  /** 英文显示名；提交值仍使用 name 的中文规范值 */
+  labelEn: string
   /** 该阶段显示哪些参数组（stageGroups 的键；common 恒显） */
   shows: string[]
   /** 该阶段额外强制必填的字段键 */
@@ -216,15 +266,18 @@ const BANNER = `// AUTO-GENERATED — 请勿手改。
 // 重新生成: bun run gen:fields（CI 有 drift 门禁）
 `
 
-const content = [
-  BANNER,
-  TYPES,
-  `export const fieldMetadataMeta: FieldMetadataMeta = ${JSON.stringify(meta, null, 2)}`,
-  `/** §1–§8 实验记录字段，按模块键分组（basic_info / target_product / … / pvd） */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
-  `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
-  `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
-  `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,
-].join('\n\n') + '\n'
+const content =
+  [
+    BANNER,
+    TYPES,
+    `export const fieldMetadataMeta: FieldMetadataMeta = ${JSON.stringify(meta, null, 2)}`,
+    `/** §1–§8 实验记录字段，按模块键分组（basic_info / target_product / … / pvd） */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
+    `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
+    `/** 规范选项值 → 英文显示名；提交与存储始终保留规范值 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(doc.option_labels_en, null, 2)}`,
+    `/** 规范单位 → 英文显示名 */\nexport const unitLabelsEn: Record<string, string> = ${JSON.stringify(doc.unit_labels_en, null, 2)}`,
+    `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
+    `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,
+  ].join('\n\n') + '\n'
 
 await Bun.write(OUT, content)
 

@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export function ModuleCard({
-  index,
   title,
   subtitle,
   children,
@@ -32,11 +31,6 @@ export function ModuleCard({
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-baseline gap-2">
-          {index ? (
-            <span className="rounded bg-primary-soft px-1.5 py-0.5 text-xs font-semibold text-primary">
-              {index}
-            </span>
-          ) : null}
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         </div>
         {subtitle ? (

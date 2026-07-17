@@ -59,7 +59,9 @@ it('creates a reference in place and selects it immediately', async () => {
     </I18nextProvider>,
   )
 
-  await user.click(await screen.findByRole('button', { name: /Add Setup/i }))
+  await user.click(
+    await screen.findByRole('button', { name: /Add Experimental setup/i }),
+  )
   await user.click(
     screen.getByRole('button', { name: 'Save inline reference' }),
   )
