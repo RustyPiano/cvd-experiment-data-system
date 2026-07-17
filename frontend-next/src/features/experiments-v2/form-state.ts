@@ -9,9 +9,11 @@ import {
 } from './field-logic'
 import type { ExperimentV2FormState } from './form-types'
 
-export function buildEmptyState(): ExperimentV2FormState {
+export function buildEmptyState(operator = ''): ExperimentV2FormState {
+  const basicInfo = emptyModuleValues('basic_info')
+  basicInfo['operator'] = operator
   return {
-    basic_info: emptyModuleValues('basic_info'),
+    basic_info: basicInfo,
     target_product: emptyModuleValues('target_product'),
     components: [],
     equipment: { setupId: '', version: null, snapshot: null },

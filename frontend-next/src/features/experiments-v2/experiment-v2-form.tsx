@@ -1,7 +1,5 @@
-// v2 实验录入表单编排：持有整表状态，渲染 §1–§4 模块区块 + §5–§8 占位。
-//  - 新建态：一个「创建并保存草稿」按钮 = 创建 run(schema_version=cvd_v2) + 逐模块 upsert，
-//    随后跳转编辑页。
-//  - 编辑态：每个模块区块带「保存本模块」按钮（草稿可分模块保存）。
+// 炉次表单编排：新建态只收集开始记录所需的三项基本信息；
+// 创建后进入详情页，再按节保存完整工艺。
 // 保存前用与后端同判据的必填校验拦截，避免直接把 422 抛给用户。payload 键=字段 key。
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -291,9 +289,6 @@ export function ExperimentV2Form({
     started_at: toIsoDateTime(state.basic_info['started_at'] ?? ''),
     synthesis_method: (state.basic_info['synthesis_method'] ?? '').trim(),
     operator: (state.basic_info['operator'] ?? '').trim(),
-    run_code: (state.basic_info['run_code'] ?? '').trim() || undefined,
-    chemical_formula:
-      (state.target_product['chemical_formula'] ?? '').trim() || undefined,
   })
 
   const moduleContext = (
@@ -386,12 +381,9 @@ export function ExperimentV2Form({
     }
   }
 
-  // ── 新建态：创建 run + 逐模块 upsert，然后跳转编辑页 ──
+  // ── 新建态：只创建基本记录；其余工艺在详情页分节保存 ──
   const createAndSave = async () => {
-    const createContext = moduleContext('new')
-    const blocked = MODULE_SPECS.some(
-      (spec) => spec.active(createContext) && spec.missing(createContext),
-    )
+    const blocked = MODULE_SPECS[0].missing(moduleContext('new'))
     if (blocked) {
       setShowErrors(true)
       toast.error(t('experimentsV2.form.fixRequired'))
@@ -404,17 +396,7 @@ export function ExperimentV2Form({
         buildRunCreatePayload(),
         token,
       )
-      const saveContext = moduleContext('new', created.run_code)
-      try {
-        for (const spec of MODULE_SPECS) {
-          if (spec.active(saveContext)) {
-            await saveModuleSpec(created.id, spec, saveContext, token)
-          }
-        }
-        toast.success(t('experimentsV2.form.createSuccess'))
-      } catch {
-        toast.error(t('experimentsV2.form.partialCreateError'))
-      }
+      toast.success(t('experimentsV2.form.createSuccess'))
       await navigate({
         to: '/experiments/$runId/edit',
         params: { runId: created.id },
@@ -450,9 +432,11 @@ export function ExperimentV2Form({
             {t('experimentsV2.form.editingRun', { runCode })}
           </p>
         ) : null}
-        <p className="text-xs text-muted-foreground">
-          {t('experimentsV2.form.requiredHint')}
-        </p>
+        {mode === 'edit' ? (
+          <p className="text-xs text-muted-foreground">
+            {t('experimentsV2.form.requiredHint')}
+          </p>
+        ) : null}
 
         <BasicInfoSection
           values={state.basic_info}
@@ -462,81 +446,86 @@ export function ExperimentV2Form({
           save={saveProps('basic_info')}
           editMode={mode === 'edit'}
         />
-        <TargetProductSection
-          values={state.target_product}
-          onChange={setTargetProduct}
-          components={state.components}
-          onComponentsChange={setComponents}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('target_product')}
-        />
-        <EquipmentSection
-          equipment={state.equipment}
-          onSelectSetup={selectSetup}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('equipment')}
-        />
-        <RepeatableItemsSection
-          moduleKey="precursors"
-          index="§3"
-          title={t('experimentsV2.sections.precursors.title')}
-          subtitle={t('experimentsV2.sections.precursors.subtitle')}
-          addLabel={t('experimentsV2.sections.precursors.add')}
-          emptyHint={t('experimentsV2.sections.precursors.empty')}
-          itemLabel={(position) =>
-            t('experimentsV2.sections.precursors.item', { position })
-          }
-          items={state.precursors}
-          onItemsChange={setPrecursors}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('precursors')}
-        />
-        <RepeatableItemsSection
-          moduleKey="substrates"
-          index="§4"
-          title={t('experimentsV2.sections.substrates.title')}
-          subtitle={t('experimentsV2.sections.substrates.subtitle')}
-          addLabel={t('experimentsV2.sections.substrates.add')}
-          emptyHint={t('experimentsV2.sections.substrates.empty')}
-          itemLabel={(position) =>
-            t('experimentsV2.sections.substrates.item', { position })
-          }
-          items={state.substrates}
-          onItemsChange={setSubstrates}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('substrates')}
-        />
-
-        <ProcessStepsSection
-          steps={state.process_steps}
-          setupSnapshot={state.equipment.snapshot}
-          onStepsChange={setProcessSteps}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('process_steps')}
-        />
-        <RepeatableItemsSection
-          moduleKey="process_events"
-          index="§6"
-          title={t('experimentsV2.sections.processEvents.title')}
-          subtitle={t('experimentsV2.sections.processEvents.subtitle')}
-          addLabel={t('experimentsV2.sections.processEvents.add')}
-          emptyHint={t('experimentsV2.sections.processEvents.empty')}
-          itemLabel={(position) =>
-            t('experimentsV2.sections.processEvents.item', { position })
-          }
-          items={state.process_events}
-          onItemsChange={setProcessEvents}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('process_events')}
-        />
+        {mode === 'edit' ? (
+          <>
+            <TargetProductSection
+              values={state.target_product}
+              onChange={setTargetProduct}
+              components={state.components}
+              onComponentsChange={setComponents}
+              disabled={creating}
+              showErrors={showErrors}
+              save={saveProps('target_product')}
+            />
+            <EquipmentSection
+              equipment={state.equipment}
+              onSelectSetup={selectSetup}
+              disabled={creating}
+              showErrors={showErrors}
+              save={saveProps('equipment')}
+            />
+            <RepeatableItemsSection
+              moduleKey="precursors"
+              index="§3"
+              title={t('experimentsV2.sections.precursors.title')}
+              subtitle={t('experimentsV2.sections.precursors.subtitle')}
+              addLabel={t('experimentsV2.sections.precursors.add')}
+              emptyHint={t('experimentsV2.sections.precursors.empty')}
+              itemLabel={(position) =>
+                t('experimentsV2.sections.precursors.item', { position })
+              }
+              items={state.precursors}
+              onItemsChange={setPrecursors}
+              disabled={creating}
+              showErrors={showErrors}
+              save={saveProps('precursors')}
+            />
+            <RepeatableItemsSection
+              moduleKey="substrates"
+              index="§4"
+              title={t('experimentsV2.sections.substrates.title')}
+              subtitle={t('experimentsV2.sections.substrates.subtitle')}
+              addLabel={t('experimentsV2.sections.substrates.add')}
+              emptyHint={t('experimentsV2.sections.substrates.empty')}
+              itemLabel={(position) =>
+                t('experimentsV2.sections.substrates.item', { position })
+              }
+              items={state.substrates}
+              onItemsChange={setSubstrates}
+              disabled={creating}
+              showErrors={showErrors}
+              save={saveProps('substrates')}
+            />
+            <ProcessStepsSection
+              steps={state.process_steps}
+              setupSnapshot={state.equipment.snapshot}
+              onStepsChange={setProcessSteps}
+              disabled={creating}
+              showErrors={showErrors}
+              save={saveProps('process_steps')}
+            />
+            <RepeatableItemsSection
+              moduleKey="process_events"
+              index="§6"
+              title={t('experimentsV2.sections.processEvents.title')}
+              subtitle={t('experimentsV2.sections.processEvents.subtitle')}
+              addLabel={t('experimentsV2.sections.processEvents.add')}
+              emptyHint={t('experimentsV2.sections.processEvents.empty')}
+              itemLabel={(position) =>
+                t('experimentsV2.sections.processEvents.item', { position })
+              }
+              items={state.process_events}
+              onItemsChange={setProcessEvents}
+              disabled={creating}
+              showErrors={showErrors}
+              save={saveProps('process_events')}
+            />
+          </>
+        ) : null}
       </fieldset>
-      <ResultsSection runId={runId} readOnly={resultsReadOnly} />
+      {mode === 'edit' ? (
+        <ResultsSection runId={runId} readOnly={resultsReadOnly} />
+      ) : null}
 
       {mode === 'new' ? (
         <div className="flex justify-end">

@@ -40,6 +40,14 @@ export function parseEnumOptions(
   return tokens.length ? tokens : null
 }
 
+export function isSelectWithOtherInput(input: string): boolean {
+  return /下拉\+其他/.test(input)
+}
+
+export function isOtherOptionMarker(option: string): boolean {
+  return option === '受控+其他' || option === '其他'
+}
+
 /**
  * 子类分组编码在 labelZh 前缀 "▸<类别>·<字段>"（如 "▸衬底·材料"、"▸气瓶·纯度等级"）。
  * 返回类别名（衬底 / 气瓶 …）或 null。

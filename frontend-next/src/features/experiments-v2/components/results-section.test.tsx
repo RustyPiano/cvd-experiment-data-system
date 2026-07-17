@@ -351,6 +351,18 @@ describe('characterization result attachments', () => {
     )
   })
 
+  it('localizes a canonical method in the attachment control', async () => {
+    resultsApi.listResults.mockResolvedValueOnce({
+      items: [{ ...characterizationResult, method_instrument: '光镜' }],
+      total: 1,
+    })
+    renderResults()
+
+    expect(
+      await screen.findByLabelText('Upload attachment for Optical microscopy'),
+    ).toBeInTheDocument()
+  })
+
   it('confirms before soft-deleting an attachment', async () => {
     const user = userEvent.setup()
     renderResults()

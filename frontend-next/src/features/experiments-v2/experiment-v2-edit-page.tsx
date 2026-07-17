@@ -39,6 +39,7 @@ import {
   isProcessReadOnly,
   isResultsReadOnly,
   statusBannerKey,
+  statusTransitionInvalidationKeys,
 } from './status-logic'
 import type { StatusAction } from './status-logic'
 
@@ -113,12 +114,9 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         ['v2-experiment', runId, token],
         (cached: typeof data) => (cached ? { ...cached, run } : cached),
       )
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-experiment-list'],
-      })
-      void queryClient.invalidateQueries({
-        queryKey: ['v2-run-audit', runId],
-      })
+      for (const queryKey of statusTransitionInvalidationKeys(runId, token)) {
+        void queryClient.invalidateQueries({ queryKey })
+      }
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) => {

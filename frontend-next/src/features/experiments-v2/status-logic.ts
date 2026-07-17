@@ -46,3 +46,12 @@ export const statusBannerKey = (status: 'locked' | 'invalid') =>
       invalid: 'experimentsV2.banner.invalid',
     }) as const
   )[status]
+
+export const statusTransitionInvalidationKeys = (
+  runId: string,
+  token: string,
+) => [
+  ['v2-experiment-list'],
+  ['v2-samples', runId, token],
+  ['v2-run-audit', runId],
+]

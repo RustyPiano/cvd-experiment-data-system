@@ -889,7 +889,8 @@ function ResultAttachments({
   method: string
   readOnly: boolean
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const methodLabel = localizedOption(method, i18n.language)
   const { token, enabled } = useAuthGate()
   const queryClient = useQueryClient()
   const queryKey = ['v2-characterization-files', recordId, token]
@@ -1025,7 +1026,7 @@ function ResultAttachments({
       <Input
         type="file"
         aria-label={t('experimentsV2.sections.results.uploadAttachmentLabel', {
-          method,
+          method: methodLabel,
         })}
         disabled={readOnly || uploadMutation.isPending || !method}
         onChange={(event) => {

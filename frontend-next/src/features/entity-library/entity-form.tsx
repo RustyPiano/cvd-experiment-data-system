@@ -20,6 +20,7 @@ import {
   parseCompositeOptions,
 } from '@/shared/composite-field'
 import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
+import { SelectWithOtherControl } from '@/shared/ui/select-with-other-control'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -46,6 +48,8 @@ import {
   getEntityFields,
   isEffectivelyRequired,
   isFieldVisible,
+  isOtherOptionMarker,
+  isSelectWithOtherInput,
   parseEnumOptions,
 } from './field-logic'
 import type { EntityFormValues } from './field-logic'
@@ -187,7 +191,10 @@ function EntityFieldControl({
   const { i18n, t } = useTranslation()
   const label = localizedFieldLabel(field, i18n.language)
   const required = isEffectivelyRequired(kind, field, values)
-  const enumOptions = parseEnumOptions(field.input, field.options)
+  const allowsOther = isSelectWithOtherInput(field.input)
+  const enumOptions = parseEnumOptions(field.input, field.options)?.filter(
+    (option) => !allowsOther || !isOtherOptionMarker(option),
+  )
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))
@@ -196,14 +203,17 @@ function EntityFieldControl({
   const useTextarea = TEXTAREA_KEYS.has(field.key)
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
   const fieldHelp = localizedFieldHelp(field, i18n.language)
+  const customControl = Boolean(compositeInput || (enumOptions && allowsOther))
+  const helpId = `${controlId}-help`
+  const messageId = `${controlId}-message`
 
   return (
     <FormField
       control={control}
       name={field.key}
-      render={({ field: rhf }) => (
+      render={({ field: rhf, fieldState }) => (
         <FormItem className={useTextarea ? 'sm:col-span-2' : undefined}>
-          <FormLabel>
+          <FormLabel {...(customControl ? { htmlFor: controlId } : {})}>
             <span>{label}</span>
             {localizedUnit(field.unit, i18n.language) ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">
@@ -225,6 +235,29 @@ function EntityFieldControl({
               freePlaceholder={t('entityLibrary.form.inputPlaceholder')}
               selectPlaceholder={t('entityLibrary.form.selectPlaceholder')}
               optionLabel={(option) => localizedOption(option, i18n.language)}
+            />
+          ) : enumOptions && allowsOther ? (
+            <SelectWithOtherControl
+              value={rhf.value ?? ''}
+              options={enumOptions}
+              onChange={rhf.onChange}
+              disabled={disabled}
+              selectId={controlId}
+              invalid={fieldState.invalid}
+              ariaDescribedBy={
+                [fieldHelp ? helpId : null, fieldState.invalid ? messageId : null]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              placeholder={placeholder}
+              otherLabel={t('entityLibrary.form.otherOption')}
+              otherInputLabel={t('entityLibrary.form.otherInputLabel', {
+                label,
+              })}
+              otherPlaceholder={t('entityLibrary.form.otherPlaceholder')}
+              optionLabel={(option) =>
+                localizedOption(option, i18n.language)
+              }
             />
           ) : enumOptions ? (
             <Select
@@ -265,9 +298,14 @@ function EntityFieldControl({
             </FormControl>
           )}
           {fieldHelp ? (
-            <p className="text-xs text-muted-foreground">{fieldHelp}</p>
+            <FormDescription
+              {...(customControl ? { id: helpId } : {})}
+              className="text-xs"
+            >
+              {fieldHelp}
+            </FormDescription>
           ) : null}
-          <FormMessage />
+          <FormMessage {...(customControl ? { id: messageId } : {})} />
         </FormItem>
       )}
     />

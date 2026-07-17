@@ -259,7 +259,7 @@ describe('ExperimentV2Form module saves', () => {
 })
 
 describe('ExperimentV2Form create and save', () => {
-  it('creates the run, saves every active module, then navigates to edit', async () => {
+  it('creates a minimal run with an automatic code, then navigates to edit', async () => {
     renderForm('new')
 
     fireEvent.click(
@@ -270,34 +270,15 @@ describe('ExperimentV2Form create and save', () => {
 
     await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1))
     expect(api.createRun).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
+        started_at: expect.stringMatching(/^2026-07-11T/),
         synthesis_method: 'APCVD',
         operator: 'operator-1',
-        run_code: 'RUN-DRAFT',
-        chemical_formula: 'MoS2',
-      }),
+      },
       'token',
     )
-    expect(api.setSetupReference).toHaveBeenCalledWith(
-      'run-created',
-      'setup-1',
-      2,
-      'token',
-    )
-    expect(api.upsertModule.mock.calls.map((call) => call[1])).toEqual([
-      'basic_info',
-      'target_product',
-      'precursors',
-      'substrates',
-      'process_steps',
-      'process_events',
-    ])
-    expect(api.upsertModule).toHaveBeenCalledWith(
-      'run-created',
-      'basic_info',
-      expect.objectContaining({ run_code: 'RUN-001' }),
-      'token',
-    )
+    expect(api.setSetupReference).not.toHaveBeenCalled()
+    expect(api.upsertModule).not.toHaveBeenCalled()
     expect(navigate).toHaveBeenCalledWith({
       to: '/experiments/$runId/edit',
       params: { runId: 'run-created' },
@@ -322,34 +303,4 @@ describe('ExperimentV2Form create and save', () => {
     expect(navigate).not.toHaveBeenCalled()
   })
 
-  it('navigates to the created run after a partial module save failure', async () => {
-    api.upsertModule.mockImplementation(
-      async (_runId: string, moduleKey: string) => {
-        if (moduleKey === 'target_product')
-          throw new Error('module save failed')
-        return {}
-      },
-    )
-    renderForm('new')
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: i18n.t('experimentsV2.form.createAction'),
-      }),
-    )
-
-    await waitFor(() => expect(navigate).toHaveBeenCalled())
-    expect(api.upsertModule.mock.calls.map((call) => call[1])).toEqual([
-      'basic_info',
-      'target_product',
-    ])
-    expect(api.setSetupReference).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith(
-      i18n.t('experimentsV2.form.partialCreateError'),
-    )
-    expect(navigate).toHaveBeenCalledWith({
-      to: '/experiments/$runId/edit',
-      params: { runId: 'run-created' },
-    })
-  })
 })

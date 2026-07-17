@@ -4,6 +4,7 @@ import {
   isProcessReadOnly,
   isResultsReadOnly,
   statusBadgeVariant,
+  statusTransitionInvalidationKeys,
 } from './status-logic'
 
 describe('v2 status logic', () => {
@@ -46,5 +47,13 @@ describe('v2 status logic', () => {
     expect(['secondary', 'default', 'destructive']).toEqual(
       (['draft', 'locked', 'invalid'] as const).map(statusBadgeVariant),
     )
+  })
+
+  it('refreshes generated samples after a status transition', () => {
+    expect(statusTransitionInvalidationKeys('run-1', 'token')).toContainEqual([
+      'v2-samples',
+      'run-1',
+      'token',
+    ])
   })
 })

@@ -47,6 +47,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/shared/ui/theme-toggle'
+import { LanguageToggle } from '@/shared/ui/language-toggle'
 
 const navItems = [
   {
@@ -306,7 +307,8 @@ export function AppShell({ children }: AppShellProps) {
           <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
             {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname, t)}
           </nav>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            <LanguageToggle />
             <ThemeToggle />
           </div>
         </header>

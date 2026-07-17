@@ -62,3 +62,13 @@ describe('EntityForm — required markers (导师 B93 明显标识)', () => {
     expect(screen.getByText('批次类别')).toBeInTheDocument()
   })
 })
+
+describe('EntityForm — select with other accessibility', () => {
+  it('associates the field label with the custom select trigger', () => {
+    renderForm({ kind: 'setup' })
+
+    expect(
+      screen.getByRole('combobox', { name: '品牌/型号' }),
+    ).toBeInTheDocument()
+  })
+})

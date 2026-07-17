@@ -25,6 +25,11 @@ import {
   parseCompositeOptions,
 } from '@/shared/composite-field'
 import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
+import { SelectWithOtherControl } from '@/shared/ui/select-with-other-control'
+import {
+  isOtherOptionMarker,
+  isSelectWithOtherInput,
+} from '@/features/entity-library/field-logic'
 import type { ModuleValues } from '../field-logic'
 import { isEffectivelyRequired, parseEnumOptions } from '../field-logic'
 import { FieldLabel } from './field-bits'
@@ -84,9 +89,13 @@ export function FieldControl({
   const controlId = useId()
   const required =
     requiredOverride ?? isEffectivelyRequired(moduleKey, field, values)
-  const enumOptions = parseEnumOptions(field.input, field.options)?.filter(
-    (option) => !hiddenOptions?.includes(option),
+  const allowsOther = isSelectWithOtherInput(field.input)
+  const parsedEnumOptions = parseEnumOptions(field.input, field.options)?.filter(
+    (option) =>
+      !hiddenOptions?.includes(option) &&
+      (!allowsOther || !isOtherOptionMarker(option)),
   )
+  const enumOptions = parsedEnumOptions
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))
@@ -128,6 +137,21 @@ export function FieldControl({
           onChange={onChange}
           disabled={disabled || readOnly}
           placeholder={placeholder}
+        />
+      ) : enumOptions && allowsOther ? (
+        <SelectWithOtherControl
+          value={value ?? ''}
+          options={enumOptions}
+          onChange={onChange}
+          disabled={disabled || readOnly}
+          selectId={controlId}
+          invalid={missing}
+          ariaDescribedBy={missing ? errorId : undefined}
+          placeholder={placeholder}
+          otherLabel={t('experimentsV2.form.otherOption')}
+          otherInputLabel={t('experimentsV2.form.otherInputLabel', { label })}
+          otherPlaceholder={t('experimentsV2.form.otherPlaceholder')}
+          optionLabel={(option) => localizedOption(option, i18n.language)}
         />
       ) : enumOptions ? (
         <Select

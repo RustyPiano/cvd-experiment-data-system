@@ -166,3 +166,27 @@ describe('FieldControl composite inputs', () => {
     },
   )
 })
+
+describe('FieldControl dropdown with other value', () => {
+  it('does not submit the vocabulary note and accepts a free-text value', async () => {
+    await i18n.changeLanguage('zh')
+    const field = experimentModules.precursors.find(
+      (item) => item.key === 'name_formula',
+    )!
+    const view = renderControl('precursors', field)
+
+    await view.user.click(
+      screen.getByRole('combobox', { name: /名称\/化学式/ }),
+    )
+    expect(
+      screen.queryByRole('option', { name: '受控+其他' }),
+    ).not.toBeInTheDocument()
+    await view.user.click(screen.getByRole('option', { name: '其他' }))
+    await view.user.type(
+      screen.getByRole('textbox', { name: '名称/化学式的其他内容' }),
+      'MoO3',
+    )
+
+    expect(view.onChange).toHaveBeenLastCalledWith('MoO3')
+  })
+})

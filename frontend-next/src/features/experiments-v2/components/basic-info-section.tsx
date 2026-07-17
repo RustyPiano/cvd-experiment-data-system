@@ -11,6 +11,8 @@ import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
 import { ModuleCard } from './module-card'
 
+const NEW_RUN_FIELDS = new Set(['started_at', 'synthesis_method', 'operator'])
+
 function unsupportedSynthesisMethods(field: FieldMetadata) {
   if (field.key !== 'synthesis_method') return undefined
   return parseEnumOptions(field.input, field.options)?.filter(
@@ -49,6 +51,7 @@ export function BasicInfoSection({
       <div className="grid gap-4 sm:grid-cols-2">
         {fields
           .filter((field) => isFieldVisible('basic_info', field, values))
+          .filter((field) => editMode || NEW_RUN_FIELDS.has(field.key))
           .map((field) => (
             <FieldControl
               key={field.key}
@@ -58,19 +61,10 @@ export function BasicInfoSection({
               value={values[field.key] ?? ''}
               onChange={(value) => onChange(field.key, value)}
               disabled={disabled}
-              readOnly={editMode && field.key === 'run_code'}
+              readOnly={field.key === 'run_code'}
               hint={
                 field.key === 'run_code'
-                  ? t(
-                      editMode
-                        ? 'experimentsV2.form.runCodeLocked'
-                        : 'experimentsV2.form.runCodePattern',
-                    )
-                  : undefined
-              }
-              pattern={
-                field.key === 'run_code' && !editMode
-                  ? '^CVD-\\d{4}-\\d{4}$'
+                  ? t('experimentsV2.form.runCodeLocked')
                   : undefined
               }
               hiddenOptions={unsupportedSynthesisMethods(field)}

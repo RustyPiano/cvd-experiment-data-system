@@ -7,6 +7,8 @@ import {
   getEntityFields,
   isEffectivelyRequired,
   isFieldVisible,
+  isOtherOptionMarker,
+  isSelectWithOtherInput,
   parseEnumOptions,
   resolveConditionKey,
 } from './field-logic'
@@ -52,6 +54,14 @@ describe('parseEnumOptions', () => {
     expect(parseEnumOptions('文本', '化学品/衬底/气瓶')).toBeNull()
     expect(parseEnumOptions('文本', '受控+其他')).toBeNull()
     expect(parseEnumOptions('下拉', null)).toBeNull()
+  })
+
+  it('recognizes select-with-other metadata markers', () => {
+    expect(isSelectWithOtherInput('下拉+其他')).toBe(true)
+    expect(isSelectWithOtherInput('下拉')).toBe(false)
+    expect(isOtherOptionMarker('受控+其他')).toBe(true)
+    expect(isOtherOptionMarker('其他')).toBe(true)
+    expect(isOtherOptionMarker('CVD')).toBe(false)
   })
 })
 
