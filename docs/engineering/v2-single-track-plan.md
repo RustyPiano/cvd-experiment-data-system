@@ -5,6 +5,7 @@
 > 三组独立架构评审（后端 / 前端 / 单一源管线，2026-07-09）+ 两组 v1/v2 耦合探查结论。
 > **2026-07-11 修订（5 组并行取证复评，逐断言 file:line 验证）**：批2 原"models 层零 import"断言被证伪→补 schemas/repositories 两层+三处红线切耦合+前端最小补丁；批3 扩范围（守卫缺 5 路径+审计/再校验+快照语义决策）；批6 换更省方案（反对生成 TS matcher）；**新增批8 生产切换**（原 P6 人工门找回，容器启动即 `alembic upgrade head`，squash 后老库部署即崩）。
 > 状态：**批0 豁免（测试数据）；批1–7 已执行完毕（2026-07-11，含批4 走查修复）；仅剩批8 生产切换（人工门，用户在场）**。最后更新：2026-07-11。
+> **现行性提示**：批1–7章节保留的是当时的实施计划与执行依据，其中旧 `submitted` 状态和旧端点仅用于历史追溯；当前产品逻辑是 `draft → locked`，以 [`../standard/STATUS.md`](../standard/STATUS.md) 和 [`../product/run-first-workflow-and-copy-design.md`](../product/run-first-workflow-and-copy-design.md) 为准。本文件当前仍具约束力的部分是批8生产切换。
 
 ## 0. 决策与边界
 
