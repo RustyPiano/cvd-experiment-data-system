@@ -53,25 +53,32 @@ export function ComponentsEditor({
           className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[2fr_1.4fr_1fr_1fr_auto]"
         >
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor={`component-${index}-formula`}
+              className="text-xs font-medium text-muted-foreground"
+            >
               {t('experimentsV2.components.formula')}
-            </span>
+            </label>
             <FormulaInput
+              id={`component-${index}-formula`}
               value={row.formula}
               onChange={(value) => updateRow(index, { formula: value })}
               disabled={disabled}
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor={`component-${index}-role`}
+              className="text-xs font-medium text-muted-foreground"
+            >
               {t('experimentsV2.components.role')}
-            </span>
+            </label>
             <Select
-              value={row.role || undefined}
+              value={row.role || ''}
               onValueChange={(value) => updateRow(index, { role: value })}
               disabled={disabled}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id={`component-${index}-role`} className="w-full">
                 <SelectValue
                   placeholder={t('experimentsV2.form.selectPlaceholder')}
                 />
@@ -86,10 +93,14 @@ export function ComponentsEditor({
             </Select>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor={`component-${index}-concentration`}
+              className="text-xs font-medium text-muted-foreground"
+            >
               {t('experimentsV2.components.concentration')}
-            </span>
+            </label>
             <Input
+              id={`component-${index}-concentration`}
               inputMode="decimal"
               value={row.concentration_at_percent}
               onChange={(event) =>
@@ -102,10 +113,14 @@ export function ComponentsEditor({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor={`component-${index}-layer-order`}
+              className="text-xs font-medium text-muted-foreground"
+            >
               {t('experimentsV2.components.layerOrder')}
-            </span>
+            </label>
             <Input
+              id={`component-${index}-layer-order`}
               inputMode="numeric"
               value={row.layer_order}
               onChange={(event) =>

@@ -48,15 +48,10 @@ import {
 } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/shared/ui/theme-toggle'
 
-const roleLabels: Record<string, string> = {
-  admin: '管理员',
-  member: '成员',
-}
-
 const navItems = [
   {
     to: '/samples' as const,
-    label: '样品',
+    labelKey: 'samples.list.title' as const,
     icon: TestTube2,
     match: '/samples',
   },
@@ -79,8 +74,6 @@ const entityLibraryNavItems = ENTITY_KINDS.map((kind) => ({
 
 // Single source of truth for the header page title — keep in sync with the
 // sidebar by deriving from the same nav config instead of a parallel switch.
-const navLabelLookup: { match: string; label: string }[] = [...navItems]
-
 function getEntityNavLabel(pathname: string, t: TFunction): string | null {
   if (pathname.startsWith(experimentsNavItem.match)) {
     return t(experimentsNavItem.labelKey)
@@ -91,10 +84,9 @@ function getEntityNavLabel(pathname: string, t: TFunction): string | null {
   return item ? t(item.labelKey) : null
 }
 
-function getPageTitle(pathname: string) {
-  return (
-    navLabelLookup.find((item) => pathname.startsWith(item.match))?.label ?? ''
-  )
+function getPageTitle(pathname: string, t: TFunction) {
+  const item = navItems.find((entry) => pathname.startsWith(entry.match))
+  return item ? t(item.labelKey) : ''
 }
 
 // Nav body lives inside SidebarProvider so it can close the mobile drawer when a
@@ -118,11 +110,11 @@ function SidebarBody({ pathname }: { pathname: string }) {
                   <SidebarMenuButton
                     asChild
                     isActive={pathname.startsWith(item.match)}
-                    tooltip={item.label}
+                    tooltip={t(item.labelKey)}
                   >
                     <Link to={item.to} onClick={closeOnMobile}>
                       <Icon />
-                      <span>{item.label}</span>
+                      <span>{t(item.labelKey)}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -193,7 +185,9 @@ export function AppShell({ children }: AppShellProps) {
   useSessionRefresh()
 
   const currentRole = session.currentUser?.role
-  const roleLabel = currentRole ? (roleLabels[currentRole] ?? '') : '未登录'
+  const roleLabel = currentRole
+    ? t(`appShell.roles.${currentRole}`)
+    : t('appShell.signedOut')
   const userInitial =
     session.currentUser?.name?.trim()?.[0]?.toUpperCase() ?? '?'
 
@@ -202,7 +196,7 @@ export function AppShell({ children }: AppShellProps) {
     const handleUnauthorized = () => {
       queryClient.clear()
       clearSession()
-      toast.error('登录会话已过期，请重新登录')
+      toast.error(t('errors.details.sessionExpired'))
       const current = locationHrefRef.current
       void navigate({
         to: '/login',
@@ -216,7 +210,7 @@ export function AppShell({ children }: AppShellProps) {
     return () => {
       window.removeEventListener(API_UNAUTHORIZED_EVENT, handleUnauthorized)
     }
-  }, [clearSession, navigate, queryClient])
+  }, [clearSession, navigate, queryClient, t])
 
   const handleLogout = async () => {
     try {
@@ -244,7 +238,7 @@ export function AppShell({ children }: AppShellProps) {
                 CVD Lab
               </span>
               <span className="text-[11px] text-muted-foreground">
-                实验数据采集系统
+                {t('auth.brand.subtitle')}
               </span>
             </div>
           </div>
@@ -268,7 +262,7 @@ export function AppShell({ children }: AppShellProps) {
                     </Avatar>
                     <div className="flex flex-col text-left leading-tight">
                       <span className="truncate text-sm font-semibold">
-                        {session.currentUser?.name ?? '未登录'}
+                        {session.currentUser?.name ?? t('appShell.signedOut')}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {roleLabel}
@@ -295,7 +289,7 @@ export function AppShell({ children }: AppShellProps) {
                     className="text-destructive focus:text-destructive"
                   >
                     <LogOut className="mr-2 size-4" />
-                    退出登录
+                    {t('appShell.logout')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -310,7 +304,7 @@ export function AppShell({ children }: AppShellProps) {
           <SidebarTrigger className="-ml-1" />
           <div className="h-4 w-px bg-border shrink-0" />
           <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
-            {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname)}
+            {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname, t)}
           </nav>
           <div className="ml-auto">
             <ThemeToggle />

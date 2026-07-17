@@ -70,16 +70,21 @@ class ExperimentRepository:
 
     def next_run_code(self, experiment_date: date) -> str:
         year = experiment_date.year
-        statement = (
-            select(func.count())
-            .select_from(ExperimentRun)
-            .where(
-                ExperimentRun.experiment_date >= date(year, 1, 1),
-                ExperimentRun.experiment_date <= date(year, 12, 31),
-            )
+        prefix = f"CVD-{year}-"
+        codes = self.db.scalars(
+            select(ExperimentRun.run_code).where(ExperimentRun.run_code.like(f"{prefix}%"))
         )
-        count = self.db.scalar(statement) or 0
-        return f"CVD-{year}-{count + 1:04d}"
+        suffixes = [
+            int(suffix)
+            for code in codes
+            if code.startswith(prefix)
+            and len(suffix := code.removeprefix(prefix)) == 4
+            and suffix.isdigit()
+        ]
+        sequence = max(suffixes, default=0) + 1
+        if sequence > 9999:
+            raise ValueError(f"Run code sequence exhausted for {year}")
+        return f"{prefix}{sequence:04d}"
 
     def list_visible(
         self,
@@ -99,9 +104,6 @@ class ExperimentRepository:
         statement = select(ExperimentRun).options(
             selectinload(ExperimentRun.owner),
         )
-
-        if status_filters is None:
-            statement = statement.where(ExperimentRun.status != ExperimentStatus.INVALID)
 
         if schema_version is not None:
             statement = statement.where(ExperimentRun.schema_version == schema_version)

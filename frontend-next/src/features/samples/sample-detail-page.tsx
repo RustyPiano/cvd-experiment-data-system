@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { getRouteApi, Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { ArrowLeft, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import i18n from '@/shared/i18n'
 
 import { useAuth } from '@/features/auth/use-auth'
 import { isResultsReadOnly } from '@/features/experiments-v2/status-logic'
@@ -43,7 +44,7 @@ import {
 } from '@/components/ui/table'
 
 // ─── Route (imported by route file) ──────────────────────────────────────────
-import { Route } from '@/routes/_authed/samples/$sampleId'
+const routeApi = getRouteApi('/_authed/samples/$sampleId')
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,11 +68,11 @@ function validateMetadataJson(rawValue: string): string | null {
   try {
     const parsed = JSON.parse(normalized)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return '元数据 JSON 必须是对象'
+      return i18n.t('samples.validation.metadataObject')
     }
     return null
   } catch {
-    return '元数据 JSON 格式无效'
+    return i18n.t('samples.validation.metadataInvalid')
   }
 }
 
@@ -90,14 +91,14 @@ function buildSampleUpdatePayload(
         unknown
       >
     } catch {
-      throw new Error('元数据 JSON 格式无效')
+      throw new Error(i18n.t('samples.validation.metadataInvalid'))
     }
     if (
       parsedMetadata === null ||
       Array.isArray(parsedMetadata) ||
       typeof parsedMetadata !== 'object'
     ) {
-      throw new Error('元数据 JSON 必须是对象')
+      throw new Error(i18n.t('samples.validation.metadataObject'))
     }
     payload.metadata_json = parsedMetadata
   }
@@ -115,7 +116,7 @@ function formatBytes(sizeBytes: number) {
 
 export function SampleDetailPage() {
   const { t } = useTranslation()
-  const { sampleId } = Route.useParams()
+  const { sampleId } = routeApi.useParams()
   const queryClient = useQueryClient()
   const { session } = useAuth()
   const currentUser = session.currentUser
@@ -187,10 +188,10 @@ export function SampleDetailPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!draftFormState || draftFormState.revision !== sampleRevision) {
-        throw new Error('样品表单暂不可用')
+        throw new Error(i18n.t('samples.detail.formUnavailable'))
       }
       setSaveStatus('saving')
-      return updateSample(
+      const savedSample = await updateSample(
         session.accessToken!,
         sampleId,
         buildSampleUpdatePayload(
@@ -198,13 +199,21 @@ export function SampleDetailPage() {
           draftFormState.dirtyFields,
         ),
       )
+      return { savedSample, savingDraft: draftFormState }
     },
-    onSuccess: async (savedSample) => {
+    onSuccess: async ({ savedSample, savingDraft }) => {
       setSaveStatus('saved')
       if (saveTriggerRef.current === 'manual') {
-        toast.success('样品保存成功')
+        toast.success(t('samples.detail.saveSuccess'))
       }
-      setDraftFormState(null)
+      setDraftFormState((current) =>
+        current === savingDraft || !current
+          ? null
+          : {
+              ...current,
+              revision: `${savedSample.id}:${savedSample.updated_at}`,
+            },
+      )
       queryClient.setQueryData(
         ['samples', 'detail', viewerKey, sampleId],
         savedSample,
@@ -230,14 +239,17 @@ export function SampleDetailPage() {
     },
     onError: (error) => {
       setSaveStatus('error')
-      toast.error(resolveErrorMessage(error, '样品保存失败'))
+      toast.error(resolveErrorMessage(error, t('samples.detail.saveError')))
     },
     onSettled: () => {
       saveTriggerRef.current = null
     },
   })
 
-  const formDisabled = !canEdit || saveMutation.isPending
+  const saveMutateRef = useRef(saveMutation.mutate)
+  saveMutateRef.current = saveMutation.mutate
+
+  const formDisabled = !canEdit
 
   const handleDownload = async (file: FileAssetRead) => {
     setDownloadFileId(file.id)
@@ -248,7 +260,7 @@ export function SampleDetailPage() {
       )
       triggerBlobDownload(payload.blob, payload.filename || file.original_name)
     } catch (error) {
-      toast.error(resolveErrorMessage(error, '文件下载失败'))
+      toast.error(resolveErrorMessage(error, t('samples.detail.downloadError')))
     } finally {
       setDownloadFileId(null)
     }
@@ -295,7 +307,7 @@ export function SampleDetailPage() {
     if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = window.setTimeout(() => {
       saveTriggerRef.current = 'auto'
-      saveMutation.mutate()
+      saveMutateRef.current()
     }, 900)
     return () => {
       if (autosaveTimerRef.current) {
@@ -303,7 +315,7 @@ export function SampleDetailPage() {
         autosaveTimerRef.current = null
       }
     }
-  }, [canEdit, hasDirtyFields, metadataJsonError, saveMutation])
+  }, [canEdit, hasDirtyFields, metadataJsonError, saveMutation.isPending])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -313,23 +325,12 @@ export function SampleDetailPage() {
     }
   }, [])
 
-  // beforeunload guard
-  useEffect(() => {
-    if (!hasDirtyFields && !saveMutation.isPending) return
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasDirtyFields, saveMutation.isPending])
-
   // ─── Loading / error states ────────────────────────────────────────────────
 
   if (sampleQuery.isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="样品详情" />
+        <PageHeader title={t('samples.detail.title')} />
         <LoadingState />
       </div>
     )
@@ -339,20 +340,23 @@ export function SampleDetailPage() {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
-          title="样品详情"
-          subtitle="无法加载样品详情，请检查网络连接或当前账号权限。"
+          title={t('samples.detail.title')}
+          subtitle={t('samples.detail.loadErrorSubtitle')}
           actions={
             <Button variant="outline" size="sm" asChild>
               <Link to="/experiments">
                 <ArrowLeft className="mr-1.5 size-4" />
-                返回列表
+                {t('samples.actions.backToList')}
               </Link>
             </Button>
           }
         />
         <Alert variant="destructive">
           <AlertDescription>
-            {resolveErrorMessage(sampleQuery.error, '样品详情加载失败')}
+            {resolveErrorMessage(
+              sampleQuery.error,
+              t('samples.detail.loadError'),
+            )}
           </AlertDescription>
         </Alert>
       </div>
@@ -362,7 +366,9 @@ export function SampleDetailPage() {
   if (!sampleQuery.data) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>样品详情暂不可用</AlertDescription>
+        <AlertDescription>
+          {t('samples.detail.unavailable')}
+        </AlertDescription>
       </Alert>
     )
   }
@@ -372,12 +378,12 @@ export function SampleDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <RouteLeaveGuard
-        when={hasDirtyFields && !saveMutation.isPending}
-        message="样品信息尚未保存，确认离开吗？"
+        when={hasDirtyFields || saveMutation.isPending}
+        message={t('samples.detail.leaveWarning')}
       />
 
       <PageHeader
-        title={`样品详情 · ${sample.sample_code}`}
+        title={t('samples.detail.titleWithCode', { code: sample.sample_code })}
         subtitle={t('samples.detail.subtitle')}
         actions={
           <div className="flex flex-wrap gap-2">
@@ -387,7 +393,7 @@ export function SampleDetailPage() {
                 params={{ runId: sample.experiment_run_id }}
               >
                 <ArrowLeft className="mr-1.5 size-4" />
-                返回实验
+                {t('samples.actions.backToRun')}
               </Link>
             </Button>
           </div>
@@ -397,12 +403,12 @@ export function SampleDetailPage() {
       {/* Status bar */}
       {canEdit && saveStatus === 'saving' ? (
         <Alert>
-          <AlertDescription>正在自动保存...</AlertDescription>
+          <AlertDescription>{t('samples.detail.autoSaving')}</AlertDescription>
         </Alert>
       ) : null}
       {canEdit && saveStatus === 'saved' && !hasDirtyFields ? (
         <Alert>
-          <AlertDescription>已自动保存</AlertDescription>
+          <AlertDescription>{t('samples.detail.autoSaved')}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -414,19 +420,23 @@ export function SampleDetailPage() {
               {sample.sample_code}
             </code>
             <Badge className="bg-primary-soft text-accent-foreground border-transparent">
-              {sample.role}
+              {t(`experimentsV2.sections.results.roles.${sample.role}`, {
+                defaultValue: sample.role,
+              })}
             </Badge>
             {experimentQuery.data ? (
               <StatusTag status={experimentQuery.data.status} />
             ) : null}
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            实验编号：
+            {t('samples.detail.runCode')}
             {experimentQuery.data?.run_code ?? sample.experiment_run_id}
           </p>
           {sample.parent_sample_id ? (
             <p className="mt-1 text-sm text-muted-foreground">
-              父样品：{sample.parent_sample_id}
+              {t('samples.detail.parentSample', {
+                id: sample.parent_sample_id,
+              })}
             </p>
           ) : null}
         </CardContent>
@@ -435,7 +445,9 @@ export function SampleDetailPage() {
       {/* Edit form card */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">样品信息</CardTitle>
+          <CardTitle className="text-base">
+            {t('samples.detail.sampleInfo')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {experimentQuery.isLoading ? (
@@ -443,7 +455,10 @@ export function SampleDetailPage() {
           ) : experimentQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>
-                {resolveErrorMessage(experimentQuery.error, '关联实验加载失败')}
+                {resolveErrorMessage(
+                  experimentQuery.error,
+                  t('samples.detail.runLoadError'),
+                )}
               </AlertDescription>
             </Alert>
           ) : formState ? (
@@ -459,7 +474,7 @@ export function SampleDetailPage() {
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="metadata-json">
-                    元数据 JSON
+                    {t('samples.detail.metadataJson')}
                     {metadataJsonError ? (
                       <span
                         id="metadata-json-error"
@@ -509,11 +524,15 @@ export function SampleDetailPage() {
                       saveMutation.mutate()
                     }}
                   >
-                    {saveMutation.isPending ? '保存中…' : '保存样品'}
+                    {saveMutation.isPending
+                      ? t('samples.detail.saving')
+                      : t('samples.detail.save')}
                   </Button>
                   {!saveMutation.isPending ? (
                     <p className="text-sm text-muted-foreground">
-                      {hasDirtyFields ? '有未保存的修改' : '修改后自动保存'}
+                      {hasDirtyFields
+                        ? t('samples.detail.unsavedChanges')
+                        : t('samples.detail.autosaveHint')}
                     </p>
                   ) : null}
                 </div>
@@ -526,7 +545,9 @@ export function SampleDetailPage() {
       {/* Files card */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">关联文件</CardTitle>
+          <CardTitle className="text-base">
+            {t('samples.detail.files.title')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {filesQuery.isLoading ? (
@@ -534,23 +555,26 @@ export function SampleDetailPage() {
           ) : filesQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>
-                {resolveErrorMessage(filesQuery.error, '样品文件加载失败')}
+                {resolveErrorMessage(
+                  filesQuery.error,
+                  t('samples.detail.files.loadError'),
+                )}
               </AlertDescription>
             </Alert>
           ) : fileRows.length === 0 ? (
-            <EmptyState description="当前样品还没有关联文件。上传文件时选择该样品后会显示在这里。" />
+            <EmptyState description={t('samples.detail.files.empty')} />
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>文件名</TableHead>
-                    <TableHead>方法</TableHead>
-                    <TableHead>类别</TableHead>
-                    <TableHead>大小</TableHead>
-                    <TableHead>上传时间</TableHead>
-                    <TableHead>备注</TableHead>
-                    <TableHead>操作</TableHead>
+                    <TableHead>{t('samples.detail.files.name')}</TableHead>
+                    <TableHead>{t('samples.detail.files.method')}</TableHead>
+                    <TableHead>{t('samples.detail.files.category')}</TableHead>
+                    <TableHead>{t('samples.detail.files.size')}</TableHead>
+                    <TableHead>{t('samples.detail.files.uploadedAt')}</TableHead>
+                    <TableHead>{t('samples.detail.files.note')}</TableHead>
+                    <TableHead>{t('samples.detail.files.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -567,17 +591,23 @@ export function SampleDetailPage() {
                       <TableCell className="tabular-nums text-sm text-muted-foreground">
                         {dayjs(file.created_at).format('YYYY-MM-DD HH:mm')}
                       </TableCell>
-                      <TableCell>{file.note || '无'}</TableCell>
+                      <TableCell>
+                        {file.note || t('samples.common.none')}
+                      </TableCell>
                       <TableCell>
                         <Button
                           variant="outline"
                           size="sm"
                           disabled={downloadFileId === file.id}
                           onClick={() => void handleDownload(file)}
-                          aria-label={`下载 ${file.original_name}`}
+                          aria-label={t('samples.detail.files.downloadLabel', {
+                            filename: file.original_name,
+                          })}
                         >
                           <Download className="mr-1.5 size-3.5" />
-                          {downloadFileId === file.id ? '下载中…' : '下载'}
+                          {downloadFileId === file.id
+                            ? t('samples.detail.files.downloading')
+                            : t('samples.detail.files.download')}
                         </Button>
                       </TableCell>
                     </TableRow>

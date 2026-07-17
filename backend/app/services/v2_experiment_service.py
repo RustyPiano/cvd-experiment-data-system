@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,11 @@ from app.schemas.v2 import (
     V2ModulePayloadUpsert,
 )
 from app.services.audit_service import AuditService
+from app.services.experiment_guards import (
+    ensure_process_editable,
+    get_owned_experiment,
+    get_visible_experiment,
+)
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import apply_setup_reference
 from app.services.v2_field_source import (
@@ -42,25 +48,37 @@ class V2ExperimentService:
         self.audit = AuditService(db)
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
-        run_code = payload.run_code or self.experiments.next_run_code(payload.started_at.date())
-        run = ExperimentRun(
-            run_code=run_code,
-            owner_id=current_user.id,
-            schema_version=SCHEMA_VERSION,
-            material_system=payload.chemical_formula,
-            experiment_date=payload.started_at.date(),
-            objective=payload.objective,
-            status=ExperimentStatus.DRAFT,
-        )
-        self.db.add(run)
-        try:
-            self.db.flush()
-        except IntegrityError as exc:
-            self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Run code already exists",
-            ) from exc
+        attempts = 1 if payload.run_code else 4
+        for attempt in range(attempts):
+            try:
+                run_code = payload.run_code or self.experiments.next_run_code(
+                    payload.started_at.date()
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=str(exc),
+                ) from exc
+            run = ExperimentRun(
+                run_code=run_code,
+                owner_id=current_user.id,
+                schema_version=SCHEMA_VERSION,
+                material_system=payload.chemical_formula,
+                experiment_date=payload.started_at.date(),
+                objective=payload.objective,
+                status=ExperimentStatus.DRAFT,
+            )
+            self.db.add(run)
+            try:
+                self.db.flush()
+                break
+            except IntegrityError as exc:
+                self.db.rollback()
+                if attempt == attempts - 1:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Run code already exists",
+                    ) from exc
         self._save_v2_payload(
             run.id,
             "basic_info",
@@ -78,6 +96,14 @@ class V2ExperimentService:
                 # structure_type defaults to "本征" here; the user refines it in the form later.
                 {"chemical_formula": payload.chemical_formula, "structure_type": "本征"},
             )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="create",
+            before_json=None,
+            after_json={"run_code": run.run_code, "status": run.status.value},
+        )
         self.db.commit()
         self.db.refresh(run)
         return self._run_read(run)
@@ -98,17 +124,25 @@ class V2ExperimentService:
         )
 
     def get_run(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        return self._run_read(self._get_visible_run(run_id, current_user))
+        return self._run_read(
+            get_visible_experiment(
+                self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+            )
+        )
 
     def submit(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        run = self._get_owned_run(run_id, current_user)
+        run = get_owned_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
         self._require_status(run, ExperimentStatus.DRAFT)
         self._require_r0(run)
         run.submitted_at = datetime.now(UTC)
         return self._transition(run, ExperimentStatus.SUBMITTED, "submit", current_user)
 
     def lock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        run = self._get_owned_run(run_id, current_user)
+        run = get_owned_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
         self._require_status(run, ExperimentStatus.SUBMITTED)
         self._require_r0(run)
         run.locked_at = datetime.now(UTC)
@@ -119,7 +153,9 @@ class V2ExperimentService:
         return self._run_read(run)
 
     def unlock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        run = self._get_visible_run(run_id, current_user)
+        run = get_visible_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
         if current_user.role != UserRole.ADMIN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
         self._require_status(run, ExperimentStatus.LOCKED)
@@ -131,14 +167,18 @@ class V2ExperimentService:
         return self._run_read(run)
 
     def return_to_draft(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        run = self._get_owned_run(run_id, current_user)
+        run = get_owned_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
         self._require_status(run, ExperimentStatus.SUBMITTED)
         run.submitted_at = None
         run.locked_at = None
         return self._transition(run, ExperimentStatus.DRAFT, "return_to_draft", current_user)
 
     def invalidate(self, run_id: UUID, reason: str, current_user: User) -> V2ExperimentRead:
-        run = self._get_owned_run(run_id, current_user)
+        run = get_owned_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
         if run.status in {ExperimentStatus.INVALID, ExperimentStatus.LOCKED}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Experiment cannot be invalidated"
@@ -155,8 +195,14 @@ class V2ExperimentService:
         setup_version: int,
         current_user: User,
     ) -> V2ExperimentRead:
-        run = self._get_owned_run(run_id, current_user)
-        self._ensure_process_editable(run)
+        run = get_owned_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
+        ensure_process_editable(run)
+        before = {
+            "setup_ref": str(run.setup_ref) if run.setup_ref else None,
+            "setup_ref_version": run.setup_ref_version,
+        }
         version = self.entities.get_version("setup", setup_id, setup_version)
         apply_setup_reference(run, version)
         self._save_v2_payload(
@@ -171,6 +217,17 @@ class V2ExperimentService:
                 "coordinate_system": version.coordinate_system,
             },
         )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="set_setup_reference",
+            before_json=before,
+            after_json={
+                "setup_ref": str(run.setup_ref),
+                "setup_ref_version": run.setup_ref_version,
+            },
+        )
         self.db.commit()
         self.db.refresh(run)
         return self._run_read(run)
@@ -182,19 +239,53 @@ class V2ExperimentService:
         payload: V2ModulePayloadUpsert,
         current_user: User,
     ) -> V2ModulePayloadRead:
-        run = self._get_owned_run(run_id, current_user)
-        self._ensure_process_editable(run)
+        run = get_owned_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
+        ensure_process_editable(run)
         try:
             validated = validate_v2_module_payload(module_key, payload.payload_json)
-        # pydantic ValidationError is a subclass of ValueError, so this catches both.
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": self._validation_errors(exc)},
+            ) from exc
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=str(exc),
+                detail={"invalid": [{"key": module_key, "reason": "value"}]},
             ) from exc
+        if module_key == "basic_info":
+            validated["run_code"] = run.run_code
+            started_at = validated["started_at"]
+            if not isinstance(started_at, str):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "started_at", "reason": "type"}]},
+                )
+            try:
+                run.experiment_date = datetime.fromisoformat(
+                    started_at.replace("Z", "+00:00")
+                ).date()
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "started_at", "reason": "value"}]},
+                ) from exc
         if module_key == "process_steps":
             self._validate_external_field_requirement(run, validated)
         if module_key == "target_product":
+            chemical_formula = validated.get("chemical_formula")
+            if chemical_formula is not None and not isinstance(chemical_formula, str):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "chemical_formula", "reason": "type"}]},
+                )
+            if len(chemical_formula or "") > 64:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "chemical_formula", "reason": "length"}]},
+                )
             run.material_system = validated.get("chemical_formula") or None
         saved = self._save_v2_payload(run.id, module_key, validated)
         # Audit only the module key: payload snapshots are too noisy for routine upserts.
@@ -210,7 +301,9 @@ class V2ExperimentService:
         return self._module_read(saved)
 
     def get_module(self, run_id: UUID, module_key: str, current_user: User) -> V2ModulePayloadRead:
-        run = self._get_visible_run(run_id, current_user)
+        run = get_visible_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
         payload = self.module_payloads.get_by_run_and_key(run.id, module_key)
         if payload is None or payload.schema_version != SCHEMA_VERSION:
             raise HTTPException(
@@ -240,6 +333,11 @@ class V2ExperimentService:
         snapshot = run.setup_ref_snapshot_json or {}
         attrs = snapshot.get("attrs_snapshot") or {}
         field_devices = attrs.get("field_devices")
+        if isinstance(field_devices, list) and "无" in field_devices and field_devices != ["无"]:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="无 must be the only external field device selection",
+            )
         if missing(field_devices) or field_devices == "无" or field_devices == ["无"]:
             return
         external_stage_types = stage_types_with_group("external_field")
@@ -251,26 +349,6 @@ class V2ExperimentService:
                         "field_params is required when referenced setup has external field devices"
                     ),
                 )
-
-    def _get_visible_run(self, run_id: UUID, current_user: User) -> ExperimentRun:
-        run = self.experiments.get_visible_by_id(
-            run_id, current_user=current_user, schema_version=SCHEMA_VERSION
-        )
-        if run is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Experiment not found",
-            )
-        return run
-
-    def _get_owned_run(self, run_id: UUID, current_user: User) -> ExperimentRun:
-        run = self._get_visible_run(run_id, current_user)
-        if current_user.role != UserRole.ADMIN and run.owner_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
-        return run
 
     def _require_status(self, run: ExperimentRun, expected: ExperimentStatus) -> None:
         if run.status != expected:
@@ -319,13 +397,6 @@ class V2ExperimentService:
             self.db.refresh(run)
         return self._run_read(run)
 
-    def _ensure_process_editable(self, run: ExperimentRun) -> None:
-        if run.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Locked or invalid experiments cannot be edited",
-            )
-
     def _run_read(self, run: ExperimentRun) -> V2ExperimentRead:
         return V2ExperimentRead(
             id=run.id,
@@ -336,6 +407,7 @@ class V2ExperimentService:
             experiment_date=run.experiment_date,
             objective=run.objective,
             status=run.status.value,
+            invalid_reason=run.invalid_reason,
             result_missing_todo=run.result_missing_todo,
             submitted_at=run.submitted_at,
             locked_at=run.locked_at,
@@ -356,3 +428,20 @@ class V2ExperimentService:
             created_at=payload.created_at,
             updated_at=payload.updated_at,
         )
+
+    @staticmethod
+    def _validation_errors(exc: ValidationError) -> list[dict[str, str]]:
+        invalid = []
+        for error in exc.errors():
+            error_type = str(error["type"])
+            reason = (
+                "length"
+                if any(token in error_type for token in ("length", "too_long", "too_short"))
+                else "type"
+                if "type" in error_type or "parsing" in error_type
+                else "value"
+            )
+            loc = error.get("loc") or ("payload",)
+            key = next((str(part) for part in reversed(loc) if isinstance(part, str)), "payload")
+            invalid.append({"key": key, "reason": reason})
+        return invalid

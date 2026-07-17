@@ -1,9 +1,12 @@
 import { useMutation } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod/v4'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
+import i18n from '@/shared/i18n'
 
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -21,22 +24,30 @@ import { createSessionSnapshot } from './auth-store'
 import { register } from './api'
 import { useAuth } from './use-auth'
 
-const registerSchema = z
-  .object({
-    name: z.string().trim().min(1, '请输入姓名'),
-    email: z.email('请输入有效邮箱地址'),
-    password: z.string().min(8, '密码至少 8 位'),
-    password_confirmation: z.string().min(8, '请再次输入至少 8 位密码'),
-    invite_code: z.string().trim().min(1, '请输入邀请码'),
-  })
-  .refine((values) => values.password === values.password_confirmation, {
-    message: '两次输入的密码不一致',
-    path: ['password_confirmation'],
-  })
+const createRegisterSchema = () =>
+  z
+    .object({
+    name: z.string().trim().min(1, i18n.t('auth.validation.nameRequired')),
+    email: z.email(i18n.t('auth.validation.email')),
+    password: z.string().min(8, i18n.t('auth.validation.passwordLength')),
+    password_confirmation: z
+      .string()
+      .min(8, i18n.t('auth.validation.confirmPasswordLength')),
+    invite_code: z
+      .string()
+      .trim()
+      .min(1, i18n.t('auth.validation.inviteCodeRequired')),
+    })
+    .refine((values) => values.password === values.password_confirmation, {
+      message: i18n.t('auth.validation.passwordMismatch'),
+      path: ['password_confirmation'],
+    })
 
-type RegisterFormValues = z.infer<typeof registerSchema>
+type RegisterFormValues = z.infer<ReturnType<typeof createRegisterSchema>>
 
 export function RegisterForm() {
+  const { i18n: i18nInstance, t } = useTranslation()
+  const registerSchema = useMemo(createRegisterSchema, [i18nInstance.language])
   const navigate = useNavigate()
   const { setSession } = useAuth()
 
@@ -60,12 +71,12 @@ export function RegisterForm() {
     if (!response) return
 
     setSession(createSessionSnapshot(response.access_token, response.user))
-    toast.success('注册成功，欢迎加入！')
+    toast.success(t('auth.register.success'))
     await navigate({ to: '/experiments', replace: true })
   })
 
   const errorMessage = registerMutation.error
-    ? resolveErrorMessage(registerMutation.error, '注册失败')
+    ? resolveErrorMessage(registerMutation.error, t('auth.register.error'))
     : null
 
   return (
@@ -86,12 +97,12 @@ export function RegisterForm() {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>姓名</FormLabel>
+              <FormLabel>{t('auth.fields.name')}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
                   autoComplete="name"
-                  placeholder="请输入姓名"
+                  placeholder={t('auth.placeholders.name')}
                 />
               </FormControl>
               <FormMessage />
@@ -104,7 +115,7 @@ export function RegisterForm() {
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>邮箱</FormLabel>
+              <FormLabel>{t('auth.fields.email')}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
@@ -123,13 +134,13 @@ export function RegisterForm() {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>密码</FormLabel>
+              <FormLabel>{t('auth.fields.password')}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
                   type="password"
                   autoComplete="new-password"
-                  placeholder="至少 8 位"
+                  placeholder={t('auth.placeholders.newPassword')}
                 />
               </FormControl>
               <FormMessage />
@@ -142,13 +153,13 @@ export function RegisterForm() {
           name="password_confirmation"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>确认密码</FormLabel>
+              <FormLabel>{t('auth.fields.confirmPassword')}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
                   type="password"
                   autoComplete="new-password"
-                  placeholder="再次输入密码"
+                  placeholder={t('auth.placeholders.confirmPassword')}
                 />
               </FormControl>
               <FormMessage />
@@ -161,13 +172,13 @@ export function RegisterForm() {
           name="invite_code"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>邀请码</FormLabel>
+              <FormLabel>{t('auth.fields.inviteCode')}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
                   type="password"
                   autoComplete="off"
-                  placeholder="请输入内部邀请码"
+                  placeholder={t('auth.placeholders.inviteCode')}
                 />
               </FormControl>
               <FormMessage />
@@ -179,9 +190,11 @@ export function RegisterForm() {
           type="submit"
           className="w-full"
           disabled={registerMutation.isPending}
-          aria-label="注册并登录"
+          aria-label={t('auth.register.submit')}
         >
-          {registerMutation.isPending ? '注册中…' : '注册并登录'}
+          {registerMutation.isPending
+            ? t('auth.register.submitting')
+            : t('auth.register.submit')}
         </Button>
       </form>
     </Form>

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import Integer, String
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -60,12 +62,16 @@ ENTITY_CONFIGS = {
     ),
 }
 
+INTEGER_MIN = -(2**31)
+INTEGER_MAX = 2**31 - 1
+
 
 class V2EntityService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.doc = load_field_source()
         self.fields = entity_fields_by_key(self.doc)
+        self.audit = AuditService(db)
 
     def list_entities(self, kind: str) -> V2EntityListResponse:
         repo = self._repo(kind)
@@ -75,11 +81,21 @@ class V2EntityService:
         ]
         return V2EntityListResponse(items=items, total=len(items))
 
-    def create_entity(self, kind: str, payload: V2EntityVersionPayload) -> V2EntityRead:
+    def create_entity(
+        self, kind: str, payload: V2EntityVersionPayload, current_user: User
+    ) -> V2EntityRead:
         repo = self._repo(kind)
         entity = repo.create_entity()
         version = self._build_version(kind, entity.id, 1, payload)
         repo.save_version(version)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type=kind,
+            entity_id=entity.id,
+            action="create",
+            before_json=None,
+            after_json={"kind": kind, "entity_id": str(entity.id), "version": 1},
+        )
         self.db.commit()
         return self._entity_read(kind, entity, version)
 
@@ -157,6 +173,49 @@ class V2EntityService:
                 detail=f"Unknown {kind} field keys: {', '.join(unknown)}",
             )
         self._validate_entity_payload(kind, data)
+        fields = {field["key"]: field for field in self.fields[kind]}
+        for key, value in data.items():
+            if missing(value):
+                continue
+            if str(fields[key].get("input") or "").strip() == "数值":
+                try:
+                    column_type = (
+                        config.version_model.__table__.columns[key].type
+                        if key in config.columns
+                        else None
+                    )
+                    if isinstance(column_type, Integer):
+                        if isinstance(value, bool):
+                            raise ValueError
+                        if isinstance(value, float) and not value.is_integer():
+                            raise ValueError
+                        converted = int(value)
+                        if not INTEGER_MIN <= converted <= INTEGER_MAX:
+                            raise ValueError
+                        data[key] = converted
+                    else:
+                        if isinstance(value, bool):
+                            raise ValueError
+                        converted = float(value)
+                        if not isfinite(converted):
+                            raise ValueError
+                        data[key] = converted
+                except (TypeError, ValueError) as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": key, "reason": "type"}]},
+                    ) from exc
+            if key in config.columns:
+                column_type = config.version_model.__table__.columns[key].type
+                if (
+                    isinstance(column_type, String)
+                    and column_type.length is not None
+                    and len(str(data[key])) > column_type.length
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": key, "reason": "length"}]},
+                    )
         column_values = {key: data[key] for key in config.columns}
         attrs = {key: value for key, value in data.items() if key not in config.columns}
         return config.version_model(
@@ -167,6 +226,17 @@ class V2EntityService:
         )
 
     def _validate_entity_payload(self, kind: str, data: dict[str, Any]) -> None:
+        field_devices = data.get("field_devices")
+        if (
+            kind == "setup"
+            and isinstance(field_devices, list)
+            and "无" in field_devices
+            and len(field_devices) > 1
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "field_devices", "reason": "value"}]},
+            )
         missing_fields: list[str] = []
         for field in self.fields[kind]:
             key = field["key"]
@@ -186,7 +256,7 @@ class V2EntityService:
         if missing_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={"missing_fields": missing_fields},
+                detail={"missing": missing_fields},
             )
 
     def _entity_read(self, kind: str, entity: Any, latest_version: Any | None) -> V2EntityRead:

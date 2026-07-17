@@ -1,4 +1,5 @@
 import { useBlocker } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,9 +20,10 @@ export function RouteLeaveGuard({
   message,
   when,
 }: {
-  message: string
+  message?: string
   when: boolean
 }) {
+  const { t } = useTranslation()
   const blocker = useBlocker({
     shouldBlockFn: () => when,
     enableBeforeUnload: when,
@@ -36,18 +38,23 @@ export function RouteLeaveGuard({
     <AlertDialog open>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>离开确认</AlertDialogTitle>
-          <AlertDialogDescription>{message}</AlertDialogDescription>
+          <AlertDialogTitle>{t('routeLeave.title')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {message ?? t('routeLeave.defaultMessage')}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel aria-label="留下" onClick={() => blocker.reset()}>
-            留下
+          <AlertDialogCancel
+            aria-label={t('routeLeave.stay')}
+            onClick={() => blocker.reset()}
+          >
+            {t('routeLeave.stay')}
           </AlertDialogCancel>
           <AlertDialogAction
-            aria-label="离开"
+            aria-label={t('routeLeave.leave')}
             onClick={() => blocker.proceed()}
           >
-            离开
+            {t('routeLeave.leave')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,9 +1,12 @@
 import { useMutation } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod/v4'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
+import i18n from '@/shared/i18n'
 
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -21,18 +24,21 @@ import { createSessionSnapshot } from './auth-store'
 import { login } from './api'
 import { useAuth } from './use-auth'
 
-const loginSchema = z.object({
-  email: z.email('请输入有效邮箱地址'),
-  password: z.string().min(1, '请输入密码'),
-})
+const createLoginSchema = () =>
+  z.object({
+    email: z.email(i18n.t('auth.validation.email')),
+    password: z.string().min(1, i18n.t('auth.validation.passwordRequired')),
+  })
 
-type LoginFormValues = z.infer<typeof loginSchema>
+type LoginFormValues = z.infer<ReturnType<typeof createLoginSchema>>
 
 type LoginFormProps = {
   redirect?: string
 }
 
 export function LoginForm({ redirect }: LoginFormProps) {
+  const { i18n: i18nInstance, t } = useTranslation()
+  const loginSchema = useMemo(createLoginSchema, [i18nInstance.language])
   const navigate = useNavigate()
   const { setSession } = useAuth()
 
@@ -47,7 +53,7 @@ export function LoginForm({ redirect }: LoginFormProps) {
     try {
       const response = await loginMutation.mutateAsync(values)
       setSession(createSessionSnapshot(response.access_token, response.user))
-      toast.success('登录成功')
+      toast.success(t('auth.login.success'))
       await navigate({ to: redirect ?? '/experiments', replace: true })
     } catch {
       // error rendered inline
@@ -55,7 +61,7 @@ export function LoginForm({ redirect }: LoginFormProps) {
   })
 
   const errorMessage = loginMutation.error
-    ? resolveErrorMessage(loginMutation.error, '登录失败')
+    ? resolveErrorMessage(loginMutation.error, t('auth.login.error'))
     : null
 
   return (
@@ -76,7 +82,7 @@ export function LoginForm({ redirect }: LoginFormProps) {
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>邮箱</FormLabel>
+              <FormLabel>{t('auth.fields.email')}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
@@ -95,13 +101,13 @@ export function LoginForm({ redirect }: LoginFormProps) {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>密码</FormLabel>
+              <FormLabel>{t('auth.fields.password')}</FormLabel>
               <FormControl>
                 <Input
                   {...field}
                   type="password"
                   autoComplete="current-password"
-                  placeholder="请输入密码"
+                  placeholder={t('auth.placeholders.password')}
                 />
               </FormControl>
               <FormMessage />
@@ -113,9 +119,11 @@ export function LoginForm({ redirect }: LoginFormProps) {
           type="submit"
           className="w-full"
           disabled={loginMutation.isPending}
-          aria-label="登录"
+          aria-label={t('auth.login.submit')}
         >
-          {loginMutation.isPending ? '登录中…' : '登录'}
+          {loginMutation.isPending
+            ? t('auth.login.submitting')
+            : t('auth.login.submit')}
         </Button>
       </form>
     </Form>

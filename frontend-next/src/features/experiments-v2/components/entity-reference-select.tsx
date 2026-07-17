@@ -33,11 +33,13 @@ export function EntityReferenceSelect({
   value,
   onChange,
   disabled,
+  triggerId,
 }: {
   kind: EntityKind
   value: string
   onChange: (entityId: string, entity: V2EntityRead | null) => void
   disabled?: boolean
+  triggerId?: string
 }) {
   const { t } = useTranslation()
   const { session } = useAuth()
@@ -65,13 +67,13 @@ export function EntityReferenceSelect({
 
   return (
     <Select
-      value={value || undefined}
+      value={value || ''}
       onValueChange={(id) =>
         onChange(id, entities.find((entity) => entity.id === id) ?? null)
       }
       disabled={disabled || isLoading}
     >
-      <SelectTrigger className="w-full">
+      <SelectTrigger id={triggerId} className="w-full">
         <SelectValue placeholder={t('experimentsV2.reference.placeholder')} />
       </SelectTrigger>
       <SelectContent>

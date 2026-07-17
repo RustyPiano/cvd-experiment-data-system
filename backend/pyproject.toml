@@ -6,11 +6,12 @@ requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.16.0,<2.0.0",
   "fastapi[standard]>=0.115.0,<1.0.0",
-  "openpyxl>=3.1.5,<4.0.0",
+  "openpyxl>=3.1.5,<4.0.0", # docs/standard spreadsheet rendering scripts
   "psycopg[binary]>=3.2.0,<4.0.0",
   "pwdlib[argon2]>=0.3.0,<1.0.0",
   "pydantic-settings>=2.8.0,<3.0.0",
   "python-jose[cryptography]>=3.4.0,<4.0.0",
+  "pyyaml>=6.0.0,<7.0.0",
   "sqlalchemy>=2.0.40,<3.0.0",
 ]
 

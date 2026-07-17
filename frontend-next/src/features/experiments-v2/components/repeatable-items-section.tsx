@@ -11,6 +11,7 @@ import {
   emptyModuleValues,
   getModuleFields,
   isFieldVisible,
+  isEffectivelyRequired,
 } from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
@@ -107,7 +108,11 @@ export function RepeatableItemsSection({
                         <FieldLabel
                           labelZh={field.labelZh}
                           unit={field.unit}
-                          required={false}
+                          required={isEffectivelyRequired(
+                            moduleKey,
+                            field,
+                            item,
+                          )}
                           r0={field.r0}
                         />
                         <EntityReferenceSelect

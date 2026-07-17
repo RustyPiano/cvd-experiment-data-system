@@ -1,12 +1,12 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.file_asset import FileAsset
 from app.models.sample import Sample
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.file_asset_repository import FileAssetRepository
@@ -21,9 +21,15 @@ from app.schemas.v2 import (
     MeasuredProductRead,
     MeasuredProductUpdate,
 )
+from app.services.audit_service import AuditService
+from app.services.experiment_guards import (
+    ensure_results_editable,
+    get_owned_experiment,
+    get_visible_experiment,
+)
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import instrument_version_snapshot
-from app.services.v2_field_source import SCHEMA_VERSION
+from app.services.v2_field_source import SCHEMA_VERSION, field_option_values
 from app.services.v2_result_status_service import refresh_result_missing_todo
 
 
@@ -34,11 +40,14 @@ class V2ResultsService:
         self.entities = V2EntityService(db)
         self.results = V2ResultRepository(db)
         self.files = FileAssetRepository(db)
+        self.audit = AuditService(db)
 
     def list_characterization_records(
         self, run_id: UUID, current_user: User
     ) -> CharacterizationRecordListResponse:
-        run = self._get_visible_run(run_id, current_user)
+        run = get_visible_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
         items = self.results.list_characterization_records(run.id)
         return CharacterizationRecordListResponse(
             items=[CharacterizationRecordRead.model_validate(item) for item in items],
@@ -51,14 +60,30 @@ class V2ResultsService:
         payload: CharacterizationRecordCreate,
         current_user: User,
     ) -> CharacterizationRecordRead:
-        run = self._get_owned_run(run_id, current_user)
-        self._ensure_results_editable(run)
+        run = get_owned_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
+        ensure_results_editable(run)
         self._sample_for_run(payload.sample_id, run.id)
-        instrument_snapshot = None
-        if payload.instrument_id and payload.instrument_version:
-            version = self.entities.get_version(
-                "instrument", payload.instrument_id, payload.instrument_version
+        method = self._validate_method(payload.method_instrument)
+        if (payload.instrument_id is None) != (payload.instrument_version is None):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="instrument_id and instrument_version must be provided together",
             )
+        instrument_snapshot = None
+        if payload.instrument_id is not None:
+            try:
+                version = self.entities.get_version(
+                    "instrument", payload.instrument_id, payload.instrument_version
+                )
+            except HTTPException as exc:
+                if exc.status_code != status.HTTP_404_NOT_FOUND:
+                    raise
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Referenced instrument version does not exist",
+                ) from exc
             instrument_snapshot = instrument_version_snapshot(version)
         record = CharacterizationRecord(
             experiment_run_id=run.id,
@@ -66,12 +91,20 @@ class V2ResultsService:
             instrument_id=payload.instrument_id,
             instrument_version=payload.instrument_version,
             instrument_snapshot_json=instrument_snapshot,
-            method_instrument=payload.method_instrument,
+            method_instrument=method,
             test_conditions=payload.test_conditions,
             raw_data=payload.raw_data,
             attrs=payload.attrs,
         )
         saved = self.results.save_characterization_record(record)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="characterization_record",
+            entity_id=saved.id,
+            action="create",
+            before_json=None,
+            after_json=self._characterization_snapshot(saved),
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return CharacterizationRecordRead.model_validate(saved)
@@ -84,10 +117,30 @@ class V2ResultsService:
     ) -> CharacterizationRecordRead:
         record = self._owned_characterization_record(record_id, current_user)
         run = self.experiments.get_by_id(record.experiment_run_id)
-        self._ensure_results_editable(run)
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        ensure_results_editable(run)
+        before = self._characterization_snapshot(record)
+        changes = payload.model_dump(exclude_unset=True)
+        if "method_instrument" in changes:
+            changes["method_instrument"] = self._validate_method(changes["method_instrument"])
+            self.db.execute(
+                update(FileAsset)
+                .where(FileAsset.characterization_record_id == record.id)
+                .values(
+                    method=changes["method_instrument"],
+                    file_kind=changes["method_instrument"],
+                )
+            )
+        for key, value in changes.items():
             setattr(record, key, value)
         saved = self.results.save_characterization_record(record)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="characterization_record",
+            entity_id=saved.id,
+            action="update",
+            before_json=before,
+            after_json=self._characterization_snapshot(saved),
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return CharacterizationRecordRead.model_validate(saved)
@@ -95,7 +148,7 @@ class V2ResultsService:
     def delete_characterization_record(self, record_id: UUID, current_user: User) -> None:
         record = self._owned_characterization_record(record_id, current_user)
         run = self.experiments.get_by_id(record.experiment_run_id)
-        self._ensure_results_editable(run)
+        ensure_results_editable(run)
         # Keep characterization evidence explicit: attachments must be soft-deleted first.
         if self.files.has_active_for_characterization_record(record.id):
             raise HTTPException(
@@ -116,7 +169,16 @@ class V2ResultsService:
                     "Delete linked measured products before deleting the characterization record"
                 ),
             )
+        before = self._characterization_snapshot(record)
         self.results.delete(record)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="characterization_record",
+            entity_id=record.id,
+            action="delete",
+            before_json=before,
+            after_json=None,
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
 
@@ -138,11 +200,19 @@ class V2ResultsService:
     ) -> MeasuredProductRead:
         sample = self._owned_sample(sample_id, current_user)
         run = self.experiments.get_by_id(sample.experiment_run_id)
-        self._ensure_results_editable(run)
+        ensure_results_editable(run)
         if payload.characterization_record_id:
             self._ensure_record_belongs_to_sample(payload.characterization_record_id, sample.id)
         product = MeasuredProduct(sample_id=sample.id, **payload.model_dump())
         saved = self.results.save_measured_product(product)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="measured_product",
+            entity_id=saved.id,
+            action="create",
+            before_json=None,
+            after_json=self._measured_product_snapshot(saved),
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return MeasuredProductRead.model_validate(saved)
@@ -156,7 +226,8 @@ class V2ResultsService:
         product = self._owned_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
         run = self.experiments.get_by_id(sample.experiment_run_id)
-        self._ensure_results_editable(run)
+        ensure_results_editable(run)
+        before = self._measured_product_snapshot(product)
         changes = payload.model_dump(exclude_unset=True)
         characterization_record_id = changes.get("characterization_record_id")
         if characterization_record_id:
@@ -164,6 +235,14 @@ class V2ResultsService:
         for key, value in changes.items():
             setattr(product, key, value)
         saved = self.results.save_measured_product(product)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="measured_product",
+            entity_id=saved.id,
+            action="update",
+            before_json=before,
+            after_json=self._measured_product_snapshot(saved),
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return MeasuredProductRead.model_validate(saved)
@@ -176,54 +255,64 @@ class V2ResultsService:
                 detail="characterization_record_id must belong to the sample",
             )
 
+    @staticmethod
+    def _validate_method(method: str | None) -> str:
+        normalized = (method or "").strip()
+        if not normalized or normalized not in field_option_values("method_instrument"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid method_instrument",
+            )
+        return normalized
+
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._owned_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
         run = self.experiments.get_by_id(sample.experiment_run_id)
-        self._ensure_results_editable(run)
+        ensure_results_editable(run)
+        before = self._measured_product_snapshot(product)
         self.results.delete(product)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="measured_product",
+            entity_id=product.id,
+            action="delete",
+            before_json=before,
+            after_json=None,
+        )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
 
-    def _get_visible_run(self, run_id: UUID, current_user: User) -> ExperimentRun:
-        run = self.experiments.get_visible_by_id(
-            run_id, current_user=current_user, schema_version=SCHEMA_VERSION
-        )
-        if run is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Experiment not found",
-            )
-        return run
+    @staticmethod
+    def _characterization_snapshot(record: CharacterizationRecord) -> dict:
+        return CharacterizationRecordRead.model_validate(record).model_dump(mode="json")
 
-    def _get_owned_run(self, run_id: UUID, current_user: User) -> ExperimentRun:
-        run = self._get_visible_run(run_id, current_user)
-        if current_user.role != UserRole.ADMIN and run.owner_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
-        return run
-
-    def _ensure_results_editable(self, run: ExperimentRun) -> None:
-        if run.status == ExperimentStatus.INVALID:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Invalid experiments cannot be edited",
-            )
+    @staticmethod
+    def _measured_product_snapshot(product: MeasuredProduct) -> dict:
+        return MeasuredProductRead.model_validate(product).model_dump(mode="json")
 
     def _visible_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self.db.get(Sample, sample_id)
         if sample is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
-        self._get_visible_run(sample.experiment_run_id, current_user)
+        get_visible_experiment(
+            self.experiments,
+            sample.experiment_run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
         return sample
 
     def _owned_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self.db.get(Sample, sample_id)
         if sample is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
-        self._get_owned_run(sample.experiment_run_id, current_user)
+        get_owned_experiment(
+            self.experiments,
+            sample.experiment_run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
         return sample
 
     def _sample_for_run(self, sample_id: UUID, run_id: UUID) -> Sample:
@@ -238,7 +327,12 @@ class V2ResultsService:
         record = self.results.get_characterization_record(record_id)
         if record is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Record not found")
-        self._get_owned_run(record.experiment_run_id, current_user)
+        get_owned_experiment(
+            self.experiments,
+            record.experiment_run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
         return record
 
     def _owned_measured_product(self, product_id: UUID, current_user: User) -> MeasuredProduct:

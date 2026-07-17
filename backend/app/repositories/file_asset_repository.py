@@ -28,10 +28,6 @@ class FileAssetRepository:
         statement = select(FileAsset).where(FileAsset.id == file_id)
         return self.db.scalar(statement)
 
-    def exists_for_sample(self, sample_id: UUID) -> bool:
-        statement = select(FileAsset.id).where(FileAsset.sample_id == sample_id).limit(1)
-        return self.db.scalar(statement) is not None
-
     def has_active_for_characterization_record(self, record_id: UUID) -> bool:
         statement = (
             select(FileAsset.id)
@@ -86,21 +82,6 @@ class FileAssetRepository:
             statement = statement.where(FileAsset.asset_role == asset_role)
 
         statement = statement.order_by(FileAsset.created_at.desc(), FileAsset.original_name.asc())
-        return list(self.db.scalars(statement).all())
-
-    def list_by_experiment(
-        self,
-        experiment_id: UUID,
-        *,
-        include_deleted: bool = False,
-    ) -> list[FileAsset]:
-        statement = (
-            select(FileAsset)
-            .where(FileAsset.experiment_run_id == experiment_id)
-            .order_by(FileAsset.created_at.asc(), FileAsset.original_name.asc())
-        )
-        if not include_deleted:
-            statement = statement.where(FileAsset.deleted_at.is_(None))
         return list(self.db.scalars(statement).all())
 
     def find_active_duplicate(self, experiment_id: UUID, sha256: str) -> FileAsset | None:

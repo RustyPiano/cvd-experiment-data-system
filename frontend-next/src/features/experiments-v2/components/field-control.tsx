@@ -49,6 +49,9 @@ export function FieldControl({
   disabled,
   showError,
   requiredOverride,
+  readOnly,
+  hint,
+  pattern,
 }: {
   moduleKey: string
   field: FieldMetadata
@@ -64,6 +67,9 @@ export function FieldControl({
    * 给定时优先于模块内 isEffectivelyRequired。
    */
   requiredOverride?: boolean
+  readOnly?: boolean
+  hint?: string
+  pattern?: string
 }) {
   const { t } = useTranslation()
   const controlId = useId()
@@ -75,6 +81,7 @@ export function FieldControl({
     ? (enumOptions ?? parseCompositeOptions(field.options))
     : []
   const missing = Boolean(showError) && required && value.trim() === ''
+  const errorId = `${controlId}-error`
   const placeholder = enumOptions
     ? t('experimentsV2.form.selectPlaceholder')
     : (field.options ?? t('experimentsV2.form.inputPlaceholder'))
@@ -97,7 +104,7 @@ export function FieldControl({
           inputId={controlId}
           selectId={`${controlId}-option`}
           selectLabel={`${field.labelZh}选项`}
-          disabled={disabled}
+          disabled={disabled || readOnly}
           invalid={missing}
           freePlaceholder={t('experimentsV2.form.inputPlaceholder')}
           selectPlaceholder={t('experimentsV2.form.selectPlaceholder')}
@@ -107,7 +114,7 @@ export function FieldControl({
           id={controlId}
           value={value}
           onChange={onChange}
-          disabled={disabled}
+          disabled={disabled || readOnly}
           placeholder={placeholder}
         />
       ) : enumOptions ? (
@@ -119,6 +126,7 @@ export function FieldControl({
           <SelectTrigger
             id={controlId}
             aria-invalid={missing}
+            aria-describedby={missing ? errorId : undefined}
             className={cn('w-full', missing && 'border-destructive')}
           >
             <SelectValue placeholder={placeholder} />
@@ -139,6 +147,7 @@ export function FieldControl({
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled}
           aria-invalid={missing}
+          aria-describedby={missing ? errorId : undefined}
           className={cn('w-full', missing && 'border-destructive')}
         />
       ) : TEXTAREA_KEYS.has(field.key) ? (
@@ -150,6 +159,7 @@ export function FieldControl({
           rows={2}
           placeholder={placeholder}
           aria-invalid={missing}
+          aria-describedby={missing ? errorId : undefined}
           className={cn(missing && 'border-destructive')}
         />
       ) : (
@@ -157,16 +167,22 @@ export function FieldControl({
           id={controlId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          disabled={disabled}
+          disabled={disabled || readOnly}
+          title={hint}
+          pattern={pattern}
           autoComplete="off"
           placeholder={placeholder}
           aria-invalid={missing}
+          aria-describedby={missing ? errorId : undefined}
           className={cn(missing && 'border-destructive')}
         />
       )}
       {missing ? (
-        <p className="text-xs text-destructive">{t('validation.required')}</p>
+        <p id={errorId} className="text-xs text-destructive">
+          {t('validation.required')}
+        </p>
       ) : null}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }

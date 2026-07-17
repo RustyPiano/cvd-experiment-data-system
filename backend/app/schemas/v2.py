@@ -40,8 +40,12 @@ class V2ExperimentCreate(BaseModel):
     started_at: datetime
     synthesis_method: str = Field(min_length=1)
     operator: str = Field(min_length=1)
-    run_code: str | None = Field(default=None, max_length=32)
-    chemical_formula: str | None = None
+    run_code: str | None = Field(
+        default=None,
+        max_length=32,
+        pattern=r"^CVD-\d{4}-\d{4}$",
+    )
+    chemical_formula: str | None = Field(default=None, max_length=64)
     objective: str | None = None
 
 
@@ -56,6 +60,7 @@ class V2ExperimentRead(BaseModel):
     experiment_date: date
     objective: str | None
     status: Literal["draft", "submitted", "locked", "invalid"]
+    invalid_reason: str | None
     result_missing_todo: bool | None
     submitted_at: datetime | None
     locked_at: datetime | None
@@ -98,14 +103,14 @@ class CharacterizationRecordCreate(BaseModel):
     sample_id: UUID
     instrument_id: UUID | None = None
     instrument_version: int | None = None
-    method_instrument: str | None = None
+    method_instrument: str = Field(min_length=1, max_length=128)
     test_conditions: str | None = None
     raw_data: dict[str, Any] | None = None
     attrs: dict[str, Any] = Field(default_factory=dict)
 
 
 class CharacterizationRecordUpdate(BaseModel):
-    method_instrument: str | None = None
+    method_instrument: str | None = Field(default=None, min_length=1, max_length=128)
     test_conditions: str | None = None
     raw_data: dict[str, Any] | None = None
     attrs: dict[str, Any] | None = None

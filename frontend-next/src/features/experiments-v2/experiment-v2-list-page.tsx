@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
 
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { EmptyState } from '@/shared/ui/empty-state'
@@ -29,13 +30,17 @@ export function ExperimentV2ListPage() {
   const { t } = useTranslation()
   const { session } = useAuth()
   const token = session.accessToken || ''
+  const [page, setPage] = useState(1)
+  const pageSize = 50
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['v2-experiment-list', token],
-    queryFn: () => listRuns(token),
+    queryKey: ['v2-experiment-list', token, page],
+    queryFn: () => listRuns(token, { page, pageSize }),
     enabled: session.isAuthenticated && !!token,
   })
   const runs = data?.items ?? []
+  const total = data?.total ?? 0
+  const hasNext = page * pageSize < total
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,7 +109,9 @@ export function ExperimentV2ListPage() {
                             {t(statusLabelKey(run.status))}
                           </Badge>
                           {run.result_missing_todo ? (
-                            <Badge variant="destructive">{t('experimentsV2.status.resultMissing')}</Badge>
+                            <Badge variant="destructive">
+                              {t('experimentsV2.status.resultMissing')}
+                            </Badge>
                           ) : null}
                         </div>
                       </TableCell>
@@ -122,6 +129,32 @@ export function ExperimentV2ListPage() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">
+                  {t('experimentsV2.list.total', { total })} ·{' '}
+                  {t('experimentsV2.list.page', { page })}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page === 1 || isLoading}
+                    onClick={() => setPage((current) => current - 1)}
+                  >
+                    {t('experimentsV2.list.previous')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!hasNext || isLoading}
+                    onClick={() => setPage((current) => current + 1)}
+                  >
+                    {t('experimentsV2.list.next')}
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>

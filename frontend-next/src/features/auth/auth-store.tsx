@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 
 import {
   readJsonStorage,
@@ -59,6 +59,18 @@ function restoreSessionSnapshot() {
   )
 }
 
+function parseStoredSession(rawValue: string | null) {
+  if (!rawValue) return defaultSession
+  try {
+    const storedSession = JSON.parse(rawValue) as StoredSession
+    return storedSession.accessToken && storedSession.currentUser
+      ? createSessionSnapshot(storedSession.accessToken, storedSession.currentUser)
+      : defaultSession
+  } catch {
+    return defaultSession
+  }
+}
+
 function persistSession(snapshot: SessionSnapshot) {
   if (!snapshot.accessToken || !snapshot.currentUser) {
     removeStorageItem(SESSION_STORAGE_KEY)
@@ -75,9 +87,11 @@ const AuthContext = createContext<AuthContextValue>(defaultContextValue)
 export function AuthProvider({
   children,
   value,
+  onStorageSessionChange,
 }: {
   children: ReactNode
   value?: Pick<AuthContextValue, 'session'>
+  onStorageSessionChange?: (session: SessionSnapshot) => void
 }) {
   const [session, setSessionState] = useState(restoreSessionSnapshot)
 
@@ -90,6 +104,18 @@ export function AuthProvider({
     removeStorageItem(SESSION_STORAGE_KEY)
     setSessionState(defaultSession)
   }
+
+  useEffect(() => {
+    const syncSession = (event: StorageEvent) => {
+      if (event.key === SESSION_STORAGE_KEY) {
+        const nextSession = parseStoredSession(event.newValue)
+        setSessionState(nextSession)
+        onStorageSessionChange?.(nextSession)
+      }
+    }
+    window.addEventListener('storage', syncSession)
+    return () => window.removeEventListener('storage', syncSession)
+  }, [onStorageSessionChange])
 
   const contextValue: AuthContextValue = value
     ? { ...defaultContextValue, ...value }

@@ -134,7 +134,7 @@ export function ProcessStepsSection({
                     setStepValue(stepIndex, STAGE_TYPE_KEY, value)
                   }
                   disabled={disabled}
-                  showError={showErrors}
+                  showError={showErrors && Boolean(stageType)}
                   requiredOverride
                 />
               ) : null}

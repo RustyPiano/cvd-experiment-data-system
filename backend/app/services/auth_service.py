@@ -19,7 +19,7 @@ class AuthService:
         self.users = UserRepository(db)
 
     def login(self, email: str, password: str) -> TokenResponse:
-        user = self.users.get_by_email(email)
+        user = self.users.get_by_email_case_insensitive(email)
         if user is None or not verify_password(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

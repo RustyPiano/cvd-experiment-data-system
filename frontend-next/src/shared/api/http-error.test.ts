@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { HttpError, resolveErrorMessage } from "./http-error";
+import { afterEach, describe, expect, it } from 'vitest'
+
+import i18n from '@/shared/i18n'
+import { HttpError, resolveErrorMessage } from './http-error'
+
+afterEach(async () => {
+  await i18n.changeLanguage('zh')
+})
 
 describe("resolveErrorMessage", () => {
   it("resolves HTTP 403 status code to friendly Chinese error", () => {
@@ -32,6 +38,49 @@ describe("resolveErrorMessage", () => {
     expect(resolveErrorMessage(errorDetail, "默认错误")).toBe("密码错误");
     expect(resolveErrorMessage(errorNoDetail, "默认错误")).toBe("默认错误");
   });
+
+  it('translates known backend details and hides unknown English 4xx details', () => {
+    expect(
+      resolveErrorMessage(
+        new HttpError(409, 'Run code already exists', null),
+        '默认错误',
+      ),
+    ).toBe('炉次编号已存在')
+    expect(
+      resolveErrorMessage(
+        new HttpError(400, 'Unexpected internal wording', null),
+        '默认错误',
+      ),
+    ).toBe('请求无效，请检查输入')
+  })
+
+  it('keeps structured validation details on the form fallback path', () => {
+    expect(
+      resolveErrorMessage(
+        new HttpError(422, null, { detail: { missing: ['run_code'] } }),
+        '请补齐字段',
+      ),
+    ).toBe('请补齐字段')
+  })
+
+  it('renders byte-limit details in MB', () => {
+    expect(
+      resolveErrorMessage(
+        new HttpError(413, 'Uploaded file exceeds 10485760 bytes', null),
+        '上传失败',
+      ),
+    ).toBe('上传文件不能超过 10 MB')
+  })
+
+  it('uses the active locale for shared error messages', async () => {
+    await i18n.changeLanguage('en')
+    expect(
+      resolveErrorMessage(
+        new HttpError(403, 'Insufficient permissions', null),
+        'Failed',
+      ),
+    ).toBe('You do not have permission to perform this action')
+  })
 
   it("resolves network errors to friendly Chinese error", () => {
     const fetchErr = new Error("Failed to fetch");

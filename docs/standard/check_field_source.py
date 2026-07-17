@@ -23,8 +23,14 @@ COMMITTED = os.path.join(BASE, "字段草案-v3.xlsx")
 RENDERER = os.path.join(BASE, "build_field_tables.py")
 
 KNOWN_LEVELS = {
-    "required", "recommended", "optional", "definition", "none", "mixed",
-    "conditional_required", "conditional_recommended",
+    "required",
+    "recommended",
+    "optional",
+    "definition",
+    "none",
+    "mixed",
+    "conditional_required",
+    "conditional_recommended",
 }
 EXPECTED_FIELDS = 77
 EXPECTED_ENTITY_FIELDS = 46
@@ -41,17 +47,21 @@ def err(msg: str) -> None:
 with open(SRC, encoding="utf-8") as fh:
     doc = yaml.safe_load(fh)
 
+
 def iter_fields(part):
     for sec in doc[part]["sections"]:
         for f in sec["fields"]:
             yield f
+
 
 n_fields = sum(1 for _ in iter_fields("experiment_record"))
 n_entity = sum(1 for _ in iter_fields("entities"))
 n_r0 = sum(1 for f in iter_fields("experiment_record") if f.get("r0"))
 
 if n_fields != EXPECTED_FIELDS:
-    err(f"实验记录字段数 {n_fields} ≠ 预期 {EXPECTED_FIELDS}（若为有意增删，请同步更新本脚本预期值并在 changelog 记录）")
+    err(
+        f"实验记录字段数 {n_fields} ≠ 预期 {EXPECTED_FIELDS}（若为有意增删，请同步更新本脚本预期值并在 changelog 记录）"
+    )
 if n_entity != EXPECTED_ENTITY_FIELDS:
     err(f"一等实体字段数 {n_entity} ≠ 预期 {EXPECTED_ENTITY_FIELDS}（同上）")
 if n_r0 != EXPECTED_R0:
@@ -62,6 +72,11 @@ modules_map = doc.get("modules", {})
 entity_keys = doc.get("entity_keys", {})
 stage_types = doc.get("stage_types", {})
 group_names = set((stage_types.get("groups") or {}).keys())
+# 条件驱动字段原则上必须有 options；确需自由值驱动时在此显式列出。
+CONDITION_OPTIONS_WHITELIST: set[str] = set()
+# field_devices 跨实体驱动 process_steps.field_params，空值不走生成校验器；
+# v2_experiment_service._validate_external_field_requirement 与前端均将 missing 判为不必填，实体服务另有“无”独占校验。
+NE_DRIVER_OPTIONAL_ALLOWLIST = {"field_devices"}
 
 seen_keys: dict[str, set] = {}
 all_fields = [*iter_fields("experiment_record"), *iter_fields("entities")]
@@ -71,37 +86,77 @@ def field_scope(field):
     return modules_map.get(field["module"]) or entity_keys.get(field["module"])
 
 
-def resolves_condition_field(raw_field):
+def resolve_condition_field(raw_field):
     if not isinstance(raw_field, str) or "." not in raw_field:
-        return False
+        return None
     module, label = raw_field.split(".", 1)
     scope = modules_map.get(module) or entity_keys.get(module)
-    return bool(scope) and any(
-        field_scope(candidate) == scope and candidate["label"] == label
-        for candidate in all_fields
+    if not scope:
+        return None
+    return next(
+        (
+            candidate
+            for candidate in all_fields
+            if field_scope(candidate) == scope and candidate["label"] == label
+        ),
+        None,
     )
 
 
-for part, scope_of in (("experiment_record", lambda f: modules_map.get(f["module"])),
-                       ("entities", lambda f: entity_keys.get(f["module"]))):
+for part, scope_of in (
+    ("experiment_record", lambda f: modules_map.get(f["module"])),
+    ("entities", lambda f: entity_keys.get(f["module"])),
+):
     for f in iter_fields(part):
         where = f"{f['module']}/{f['label']}"
         req = f.get("requirement") or {}
         level = req.get("level")
         if level not in KNOWN_LEVELS:
             err(f"{where}: 未知必填级别 level={level!r}")
-        if level in ("conditional_required", "conditional_recommended") and not req.get("condition"):
+        if level in ("conditional_required", "conditional_recommended") and not req.get(
+            "condition"
+        ):
             err(f"{where}: 条件级别缺少 condition 表达式")
         condition = req.get("condition")
         if condition and not {"field", "op", "value"} <= set(condition):
             err(f"{where}: condition 缺少 field/op/value")
         elif condition:
-            if not resolves_condition_field(condition["field"]):
+            driver = resolve_condition_field(condition["field"])
+            if not driver:
                 err(f"{where}: condition.field 无法解析: {condition['field']!r}")
             if condition["op"] not in {"eq", "ne", "in"}:
                 err(f"{where}: condition.op 不支持: {condition['op']!r}")
             if condition["op"] == "in" and not isinstance(condition["value"], list):
                 err(f"{where}: condition.op='in' 时 value 必须为 list")
+            if driver:
+                # ne 对空值的前后端语义可能分叉，除具名跨实体例外外，驱动字段必须必填。
+                if (
+                    condition["op"] == "ne"
+                    and driver["key"] not in NE_DRIVER_OPTIONAL_ALLOWLIST
+                    and driver["requirement"]["level"] != "required"
+                ):
+                    err(
+                        f"{where}: condition.op='ne' 的驱动字段 {condition['field']!r} 必须为 required"
+                    )
+                raw_options = str(driver.get("options") or "").strip()
+                if raw_options in {"", "—"}:
+                    if condition["field"] not in CONDITION_OPTIONS_WHITELIST:
+                        err(
+                            f"{where}: condition 驱动字段 {condition['field']!r} 无 options 且未列入白名单"
+                        )
+                else:
+                    separator = "·" if "·" in raw_options else "/"
+                    options = {
+                        item.strip() for item in raw_options.split(separator) if item.strip()
+                    }
+                    values = (
+                        condition["value"]
+                        if isinstance(condition["value"], list)
+                        else [condition["value"]]
+                    )
+                    unknown = [value for value in values if value not in options]
+                    if unknown:
+                        err(f"{where}: condition 值 {unknown!r} 不在驱动字段 options 词表内")
         if "下拉" in str(f.get("input") or "") and str(f.get("options") or "").strip() in {"", "—"}:
             err(f"{where}: 下拉字段 options 必须非空且不能为 '—'")
         if f.get("status") == "pending-alignment" and not f.get("pending"):
@@ -116,7 +171,7 @@ for part, scope_of in (("experiment_record", lambda f: modules_map.get(f["module
         # D12: 字段层双语——英文名全量必填
         if not str(f.get("label_en") or "").strip():
             err(f"{where}: 缺少 label_en（国际化 D12 要求全量双语）")
-        elif scope:
+        if scope:
             if key in seen_keys.setdefault(scope, set()):
                 err(f"{where}: key {key!r} 在 {scope} 内重复")
             seen_keys[scope].add(key)
@@ -126,7 +181,11 @@ for part, scope_of in (("experiment_record", lambda f: modules_map.get(f["module
                 err(f"{where}: process_steps 字段缺少合法 group（现值 {f.get('group')!r}）")
 
 # D11: stage_types 自洽——shows ⊆ 组名；required_extra ⊆ §5 字段键
-ps_keys = {f["key"] for f in iter_fields("experiment_record") if modules_map.get(f["module"]) == "process_steps"}
+ps_keys = {
+    f["key"]
+    for f in iter_fields("experiment_record")
+    if modules_map.get(f["module"]) == "process_steps"
+}
 for t in stage_types.get("types", []):
     bad = set(t.get("shows", [])) - group_names
     if bad:
@@ -143,9 +202,7 @@ if not os.path.exists(COMMITTED):
 else:
     with tempfile.TemporaryDirectory() as td:
         regen = os.path.join(td, "regen.xlsx")
-        proc = subprocess.run(
-            [sys.executable, RENDERER, regen], capture_output=True, text=True
-        )
+        proc = subprocess.run([sys.executable, RENDERER, regen], capture_output=True, text=True)
         if proc.returncode != 0:
             err(f"渲染器运行失败：{proc.stderr.strip()[:500]}")
         else:
@@ -176,7 +233,11 @@ if errors:
     print("❌ field-source 校验失败：")
     for e in errors:
         print("  -", e)
-    print("修复方式：改 field-source.yaml → python3 docs/standard/build_field_tables.py → 重新提交 xlsx。")
+    print(
+        "修复方式：改 field-source.yaml → python3 docs/standard/build_field_tables.py → 重新提交 xlsx。"
+    )
     sys.exit(1)
 
-print(f"✅ field-source 校验通过：字段 {n_fields} · 实体字段 {n_entity} · R0 {n_r0} · xlsx 与 YAML 渲染逐格一致")
+print(
+    f"✅ field-source 校验通过：字段 {n_fields} · 实体字段 {n_entity} · R0 {n_r0} · xlsx 与 YAML 渲染逐格一致"
+)

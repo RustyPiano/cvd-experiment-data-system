@@ -1,14 +1,22 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { FlaskConical } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { RegisterForm } from '@/features/auth/register-form'
+import { getStoredSession } from '@/features/auth/session'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export const Route = createFileRoute('/register')({
+  beforeLoad: () => {
+    if (getStoredSession().isAuthenticated) {
+      throw redirect({ to: '/experiments' })
+    }
+  },
   component: RegisterPage,
 })
 
 function RegisterPage() {
+  const { t } = useTranslation()
   return (
     <div className="flex min-h-svh items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
@@ -24,28 +32,28 @@ function RegisterPage() {
                   CVD Lab
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  实验数据采集系统
+                  {t('auth.brand.subtitle')}
                 </span>
               </div>
             </div>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                邀请码注册
+                {t('auth.register.title')}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                使用课题组内部邀请码创建账号。
+                {t('auth.register.subtitle')}
               </p>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <RegisterForm />
             <p className="text-center text-sm text-muted-foreground">
-              已有账号？{' '}
+              {t('auth.register.hasAccount')}{' '}
               <Link
                 to="/login"
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                返回登录
+                {t('auth.register.loginLink')}
               </Link>
             </p>
           </CardContent>

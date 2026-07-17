@@ -12,12 +12,14 @@ export function BasicInfoSection({
   disabled,
   showErrors,
   save,
+  editMode = false,
 }: {
   values: ModuleValues
   onChange: (key: string, value: string) => void
   disabled?: boolean
   showErrors?: boolean
   save?: ModuleSaveProps
+  editMode?: boolean
 }) {
   const { t } = useTranslation()
   const fields = getModuleFields('basic_info')
@@ -44,6 +46,21 @@ export function BasicInfoSection({
               value={values[field.key] ?? ''}
               onChange={(value) => onChange(field.key, value)}
               disabled={disabled}
+              readOnly={editMode && field.key === 'run_code'}
+              hint={
+                field.key === 'run_code'
+                  ? t(
+                      editMode
+                        ? 'experimentsV2.form.runCodeLocked'
+                        : 'experimentsV2.form.runCodePattern',
+                    )
+                  : undefined
+              }
+              pattern={
+                field.key === 'run_code' && !editMode
+                  ? '^CVD-\\d{4}-\\d{4}$'
+                  : undefined
+              }
               showError={showErrors}
             />
           ))}

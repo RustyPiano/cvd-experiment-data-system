@@ -65,7 +65,7 @@ def missing_required_fields(run: ExperimentRun) -> list[dict[str, str]]:
             condition = field["requirement"].get("condition")
             if level == "conditional_required" and condition:
                 value, resolved = _condition_value(field, condition, record, payloads, run, doc)
-                required = resolved and condition_matches(condition, value)
+                required = required or (resolved and condition_matches(condition, value))
             if required and missing(record.get(field["key"])):
                 missing_items.append(
                     {"key": field["key"], "label": field["label"], "module": module_key}
@@ -152,7 +152,7 @@ def _check_field(
     passed = any(not missing(record.get(field["key"])) for record in applicable_records)
     snapshots = run.setup_ref_snapshot_json or {}
     if field["key"] == "setup_ref":
-        passed = bool(run.setup_ref or passed)
+        passed = bool(run.setup_ref)
     elif field["key"] == "zone_count":
         passed = bool(snapshots.get("zone_count_snapshot") or passed)
     elif field["key"] == "orientation":

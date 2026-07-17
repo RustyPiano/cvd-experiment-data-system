@@ -48,14 +48,15 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
   const queryClient = useQueryClient()
   const { session } = useAuth()
   const token = session.accessToken || ''
+  const viewerKey = session.currentUser?.id ?? 'anonymous'
   const config = entityConfigs[kind]
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
 
   const [createOpen, setCreateOpen] = useState(false)
 
   const queryKey = ['v2-entity', kind]
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: [...queryKey, token],
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: [...queryKey, viewerKey],
     queryFn: () => listEntities(kind, token),
     enabled: session.isAuthenticated && !!token,
   })
@@ -95,8 +96,13 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
 
       {isError ? (
         <Alert variant="destructive">
-          <AlertDescription>
-            {resolveErrorMessage(error, t('entityLibrary.list.loadError'))}
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>
+              {resolveErrorMessage(error, t('entityLibrary.list.loadError'))}
+            </span>
+            <Button size="sm" variant="outline" onClick={() => refetch()}>
+              {t('entityLibrary.actions.retry')}
+            </Button>
           </AlertDescription>
         </Alert>
       ) : null}
@@ -105,7 +111,7 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
         <CardContent>
           {isLoading ? (
             <LoadingState />
-          ) : entities.length === 0 ? (
+          ) : isError ? null : entities.length === 0 ? (
             <EmptyState description={t('entityLibrary.list.empty')} />
           ) : (
             <div className="overflow-x-auto">

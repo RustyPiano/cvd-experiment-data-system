@@ -45,7 +45,7 @@ class Sample(Base):
         ForeignKey("samples.id"),
         nullable=True,
     )
-    role: Mapped[SampleRole] = mapped_column(String(32), index=True)
+    role: Mapped[str] = mapped_column(String(32), index=True)
     metadata_json: Mapped[dict] = mapped_column(json_payload_type, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

@@ -19,7 +19,7 @@
      data-open/closed → Dialog/Popover/Select/DropdownMenu/Sheet/Tooltip
                         enter+exit animations
    (data-disabled / data-placeholder / data-selected / data-inset are left as
-   Tailwind's bare `[data-…]` form — radix/cmdk/shadcn DO set those as real
+   Tailwind's bare `[data-…]` form — radix/shadcn DO set those as real
    bare attributes, so they already resolve.) */
 @custom-variant data-active (&[data-state="active"]);
 @custom-variant data-checked (&[data-state="checked"]);

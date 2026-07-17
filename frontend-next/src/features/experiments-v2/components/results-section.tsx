@@ -31,6 +31,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
+import { LoadingState } from '@/shared/ui/loading-state'
 import {
   deleteExperimentFile,
   downloadExperimentFile,
@@ -127,7 +128,10 @@ function AddSampleControls({
       onValueChange={(value) => onRoleChange(value as SampleCreate['role'])}
       disabled={disabled}
     >
-      <SelectTrigger className={layout === 'empty' ? 'w-48' : 'w-40'}>
+      <SelectTrigger
+        id="results-new-sample-role"
+        className={layout === 'empty' ? 'w-48' : 'w-40'}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -162,6 +166,7 @@ function AddSampleControls({
     <div className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <FieldLabel
+          htmlFor="results-new-sample-role"
           labelZh={t('experimentsV2.sections.results.sampleRole')}
           unit={null}
           required={false}
@@ -259,6 +264,16 @@ function ResultsBody({
       ),
   })
 
+  if (samplesQuery.isLoading) return <LoadingState />
+  if (samplesQuery.isError) {
+    return (
+      <QueryError
+        message={t('experimentsV2.sections.results.samplesLoadError')}
+        onRetry={() => void samplesQuery.refetch()}
+      />
+    )
+  }
+
   if (samples.length === 0) {
     return (
       <div className="flex flex-col gap-3">
@@ -281,6 +296,7 @@ function ResultsBody({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
         <FieldLabel
+          htmlFor="results-active-sample"
           labelZh={t('experimentsV2.sections.results.sample')}
           unit={null}
           required={false}
@@ -288,10 +304,10 @@ function ResultsBody({
         />
         <div className="flex flex-wrap items-center gap-3">
           <Select
-            value={activeSampleId || undefined}
+            value={activeSampleId || ''}
             onValueChange={setSelectedSampleId}
           >
-            <SelectTrigger className="w-64">
+            <SelectTrigger id="results-active-sample" className="w-64">
               <SelectValue
                 placeholder={t('experimentsV2.form.selectPlaceholder')}
               />
@@ -320,6 +336,10 @@ function ResultsBody({
         runId={runId}
         samples={samples}
         defaultSampleId={activeSampleId}
+        records={records}
+        isLoading={recordsQuery.isLoading}
+        isError={recordsQuery.isError}
+        onRetry={() => void recordsQuery.refetch()}
         readOnly={readOnly}
       />
 
@@ -334,28 +354,47 @@ function ResultsBody({
   )
 }
 
+function QueryError({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col items-start gap-2 text-sm text-destructive">
+      <p>{message}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        {t('experimentsV2.sections.results.retry')}
+      </Button>
+    </div>
+  )
+}
+
 function CharacterizationRecords({
   runId,
   samples,
   defaultSampleId,
+  records,
+  isLoading,
+  isError,
+  onRetry,
   readOnly,
 }: {
   runId: string
   samples: SampleRead[]
   defaultSampleId: string
+  records: CharacterizationRecordRead[]
+  isLoading: boolean
+  isError: boolean
+  onRetry: () => void
   readOnly: boolean
 }) {
   const { t } = useTranslation()
-  const { token, enabled } = useAuthGate()
+  const { token } = useAuthGate()
   const queryClient = useQueryClient()
   const methods = useMemo(characterizationMethods, [])
-
-  const recordsQuery = useQuery({
-    queryKey: ['v2-characterization', runId, token],
-    queryFn: () => listCharacterizationRecords(runId, token),
-    enabled,
-  })
-  const records = recordsQuery.data?.items ?? []
 
   const [sampleId, setSampleId] = useState('')
   const [method, setMethod] = useState('')
@@ -395,12 +434,19 @@ function CharacterizationRecords({
             token,
           ),
     onSuccess: () => {
+      const updated = Boolean(editingId)
       setEditingId('')
       setMethod('')
       setInstrument({ id: '', version: null })
       setConditions('')
       void invalidate()
-      toast.success(t('experimentsV2.sections.results.recordAdded'))
+      toast.success(
+        t(
+          updated
+            ? 'experimentsV2.sections.results.recordUpdated'
+            : 'experimentsV2.sections.results.recordAdded',
+        ),
+      )
     },
     onError: (error) =>
       toast.error(
@@ -411,12 +457,32 @@ function CharacterizationRecords({
   const deleteMutation = useMutation({
     mutationFn: (recordId: string) =>
       deleteCharacterizationRecord(recordId, token),
-    onSuccess: () => void invalidate(),
+    onSuccess: (_data, deletedId) => {
+      if (editingId === deletedId) {
+        setEditingId('')
+        setSampleId('')
+        setMethod('')
+        setInstrument({ id: '', version: null })
+        setConditions('')
+      }
+      void invalidate()
+    },
     onError: (error) =>
       toast.error(
         resolveErrorMessage(error, t('experimentsV2.form.saveError')),
       ),
   })
+
+  const visibleRecords = records.filter(
+    (record) => record.sample_id === defaultSampleId,
+  )
+  const cancelEdit = () => {
+    setEditingId('')
+    setSampleId('')
+    setMethod('')
+    setInstrument({ id: '', version: null })
+    setConditions('')
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -424,17 +490,30 @@ function CharacterizationRecords({
         {t('experimentsV2.sections.results.characterization')}
       </h3>
 
-      {records.length > 0 ? (
+      {isLoading ? <LoadingState /> : null}
+      {isError ? (
+        <QueryError
+          message={t('experimentsV2.sections.results.recordsLoadError')}
+          onRetry={onRetry}
+        />
+      ) : null}
+
+      {!isLoading && !isError && visibleRecords.length > 0 ? (
         <ul className="flex flex-col gap-2">
-          {records.map((record) => (
+          {visibleRecords.map((record) => (
             <CharacterizationRecordItem
               key={record.id}
               runId={runId}
               record={record}
+              sampleCode={
+                samples.find((sample) => sample.id === record.sample_id)
+                  ?.sample_code ?? ''
+              }
               readOnly={readOnly}
               recordDeletePending={deleteMutation.isPending}
               onEditRecord={() => {
                 setEditingId(record.id)
+                setSampleId(record.sample_id)
                 setMethod(record.method_instrument ?? '')
                 setConditions(record.test_conditions ?? '')
               }}
@@ -442,26 +521,32 @@ function CharacterizationRecords({
             />
           ))}
         </ul>
-      ) : (
+      ) : !isLoading && !isError ? (
         <p className="text-sm text-muted-foreground">
           {t('experimentsV2.sections.results.noRecords')}
         </p>
-      )}
+      ) : null}
 
       <div className="grid gap-4 rounded-md border border-dashed border-border p-4 sm:grid-cols-2">
+        {editingId ? (
+          <p className="sm:col-span-2 text-sm font-medium text-primary">
+            {t('experimentsV2.sections.results.editing')}
+          </p>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <FieldLabel
+            htmlFor="characterization-sample"
             labelZh={t('experimentsV2.sections.results.sample')}
             unit={null}
             required
             r0={false}
           />
           <Select
-            value={effectiveSampleId || undefined}
+            value={effectiveSampleId || ''}
             onValueChange={setSampleId}
             disabled={readOnly || Boolean(editingId)}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="characterization-sample" className="w-full">
               <SelectValue
                 placeholder={t('experimentsV2.form.selectPlaceholder')}
               />
@@ -478,13 +563,14 @@ function CharacterizationRecords({
 
         <div className="flex flex-col gap-1.5">
           <FieldLabel
+            htmlFor="characterization-method"
             labelZh={t('experimentsV2.sections.results.method')}
             unit={null}
             required={false}
             r0={false}
           />
           <Select value={method} onValueChange={setMethod} disabled={readOnly}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="characterization-method" className="w-full">
               <SelectValue
                 placeholder={t('experimentsV2.form.selectPlaceholder')}
               />
@@ -501,12 +587,14 @@ function CharacterizationRecords({
 
         <div className="flex flex-col gap-1.5">
           <FieldLabel
+            htmlFor="characterization-instrument"
             labelZh={t('experimentsV2.sections.results.instrument')}
             unit={null}
             required={false}
             r0={false}
           />
           <EntityReferenceSelect
+            triggerId="characterization-instrument"
             kind="instrument"
             value={instrument.id}
             onChange={(id, entity: V2EntityRead | null) =>
@@ -521,12 +609,14 @@ function CharacterizationRecords({
 
         <div className="flex flex-col gap-1.5">
           <FieldLabel
+            htmlFor="characterization-conditions"
             labelZh={fieldLabel('characterization', 'test_conditions')}
             unit={null}
             required={false}
             r0={false}
           />
           <Input
+            id="characterization-conditions"
             value={conditions}
             onChange={(event) => setConditions(event.target.value)}
             autoComplete="off"
@@ -535,7 +625,17 @@ function CharacterizationRecords({
           />
         </div>
 
-        <div className="sm:col-span-2 flex justify-end">
+        <div className="sm:col-span-2 flex justify-end gap-2">
+          {editingId ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={cancelEdit}
+            >
+              {t('actions.cancel')}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -562,6 +662,7 @@ function formatBytes(sizeBytes: number) {
 function CharacterizationRecordItem({
   runId,
   record,
+  sampleCode,
   readOnly,
   recordDeletePending,
   onEditRecord,
@@ -570,9 +671,11 @@ function CharacterizationRecordItem({
   runId: string
   record: {
     id: string
+    sample_id: string
     method_instrument: string | null
     test_conditions: string | null
   }
+  sampleCode: string
   readOnly: boolean
   recordDeletePending: boolean
   onEditRecord: () => void
@@ -640,6 +743,9 @@ function CharacterizationRecordItem({
       <div className="flex items-center justify-between gap-3">
         <span className="text-foreground">
           {method || t('experimentsV2.sections.results.untitledRecord')}
+          {sampleCode ? (
+            <span className="text-muted-foreground"> · {sampleCode}</span>
+          ) : null}
           {record.test_conditions ? (
             <span className="text-muted-foreground">
               {' '}
@@ -700,71 +806,82 @@ function CharacterizationRecordItem({
         </div>
       </div>
 
-      {(filesQuery.data?.items ?? []).map((file) => (
-        <div
-          key={file.id}
-          className="flex flex-wrap items-center gap-2 text-muted-foreground"
-        >
-          <span className="min-w-0 flex-1 truncate text-foreground">
-            {file.original_name}
-          </span>
-          <span>{formatBytes(file.size_bytes)}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-label={t(
-              'experimentsV2.sections.results.downloadAttachmentLabel',
-              { filename: file.original_name },
-            )}
-            disabled={downloading === file.id}
-            onClick={() => void handleDownload(file)}
+      {filesQuery.isLoading ? <LoadingState /> : null}
+      {filesQuery.isError ? (
+        <QueryError
+          message={t('experimentsV2.sections.results.filesLoadError')}
+          onRetry={() => void filesQuery.refetch()}
+        />
+      ) : null}
+      {!filesQuery.isLoading &&
+        !filesQuery.isError &&
+        (filesQuery.data?.items ?? []).map((file) => (
+          <div
+            key={file.id}
+            className="flex flex-wrap items-center gap-2 text-muted-foreground"
           >
-            <Download data-icon="inline-start" />
-            {t('experimentsV2.sections.results.downloadAttachment')}
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={t(
-                  'experimentsV2.sections.results.deleteAttachmentLabel',
-                  { filename: file.original_name },
-                )}
-                disabled={deleteMutation.isPending || readOnly}
-              >
-                <Trash2 data-icon="inline-start" />
-                {t('experimentsV2.sections.results.deleteAttachment')}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {t('experimentsV2.sections.results.deleteAttachmentTitle')}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t(
-                    'experimentsV2.sections.results.deleteAttachmentDescription',
+            <span className="min-w-0 flex-1 truncate text-foreground">
+              {file.original_name}
+            </span>
+            <span>{formatBytes(file.size_bytes)}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={t(
+                'experimentsV2.sections.results.downloadAttachmentLabel',
+                { filename: file.original_name },
+              )}
+              disabled={downloading === file.id}
+              onClick={() => void handleDownload(file)}
+            >
+              <Download data-icon="inline-start" />
+              {t('experimentsV2.sections.results.downloadAttachment')}
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t(
+                    'experimentsV2.sections.results.deleteAttachmentLabel',
                     { filename: file.original_name },
                   )}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>
-                  {t('experimentsV2.sections.results.cancelDeleteAttachment')}
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => deleteMutation.mutate(file.id)}
+                  disabled={deleteMutation.isPending || readOnly}
                 >
-                  {t('experimentsV2.sections.results.confirmDeleteAttachment')}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      ))}
+                  <Trash2 data-icon="inline-start" />
+                  {t('experimentsV2.sections.results.deleteAttachment')}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {t('experimentsV2.sections.results.deleteAttachmentTitle')}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t(
+                      'experimentsV2.sections.results.deleteAttachmentDescription',
+                      { filename: file.original_name },
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>
+                    {t('experimentsV2.sections.results.cancelDeleteAttachment')}
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteMutation.mutate(file.id)}
+                  >
+                    {t(
+                      'experimentsV2.sections.results.confirmDeleteAttachment',
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ))}
 
       <Input
         type="file"
@@ -838,6 +955,7 @@ function MeasuredProducts({
         token,
       ),
     onSuccess: () => {
+      const updated = Boolean(editingId)
       setEditingId('')
       setCharacterizationRecordId('')
       setSelected([])
@@ -846,7 +964,13 @@ function MeasuredProducts({
       setDomain('')
       setSpectral('')
       void invalidate()
-      toast.success(t('experimentsV2.sections.results.productAdded'))
+      toast.success(
+        t(
+          updated
+            ? 'experimentsV2.sections.results.productUpdated'
+            : 'experimentsV2.sections.results.productAdded',
+        ),
+      )
     },
     onError: (error) =>
       toast.error(
@@ -856,7 +980,18 @@ function MeasuredProducts({
 
   const deleteMutation = useMutation({
     mutationFn: (productId: string) => deleteMeasuredProduct(productId, token),
-    onSuccess: () => void invalidate(),
+    onSuccess: (_data, deletedId) => {
+      if (editingId === deletedId) {
+        setEditingId('')
+        setCharacterizationRecordId('')
+        setSelected([])
+        setPhaseStacking('')
+        setLayersCoverage('')
+        setDomain('')
+        setSpectral('')
+      }
+      void invalidate()
+    },
     onError: (error) =>
       toast.error(
         resolveErrorMessage(error, t('experimentsV2.form.saveError')),
@@ -880,6 +1015,15 @@ function MeasuredProducts({
     setDomain(product.domain_nucleation_continuity ?? '')
     setSpectral(spectralNote(product.key_spectral_metrics))
   }
+  const cancelEdit = () => {
+    setEditingId('')
+    setCharacterizationRecordId('')
+    setSelected([])
+    setPhaseStacking('')
+    setLayersCoverage('')
+    setDomain('')
+    setSpectral('')
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -887,7 +1031,17 @@ function MeasuredProducts({
         {t('experimentsV2.sections.results.measured')}
       </h3>
 
-      {products.length > 0 ? (
+      {productsQuery.isLoading ? <LoadingState /> : null}
+      {productsQuery.isError ? (
+        <QueryError
+          message={t('experimentsV2.sections.results.productsLoadError')}
+          onRetry={() => void productsQuery.refetch()}
+        />
+      ) : null}
+
+      {!productsQuery.isLoading &&
+      !productsQuery.isError &&
+      products.length > 0 ? (
         <ul className="flex flex-col gap-2">
           {products.map((product) => (
             <li
@@ -913,31 +1067,64 @@ function MeasuredProducts({
                 >
                   <Pencil className="size-4" />
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t(
-                    'experimentsV2.sections.results.deleteProductLabel',
-                  )}
-                  disabled={deleteMutation.isPending || readOnly}
-                  onClick={() => deleteMutation.mutate(product.id)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t(
+                        'experimentsV2.sections.results.deleteProductLabel',
+                      )}
+                      disabled={deleteMutation.isPending || readOnly}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {t('experimentsV2.sections.results.deleteProductTitle')}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t(
+                          'experimentsV2.sections.results.deleteProductDescription',
+                        )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>
+                        {t('actions.cancel')}
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteMutation.mutate(product.id)}
+                      >
+                        {t(
+                          'experimentsV2.sections.results.confirmDeleteProduct',
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </li>
           ))}
         </ul>
-      ) : (
+      ) : !productsQuery.isLoading && !productsQuery.isError ? (
         <p className="text-sm text-muted-foreground">
           {t('experimentsV2.sections.results.noProducts')}
         </p>
-      )}
+      ) : null}
 
       <div className="flex flex-col gap-4 rounded-md border border-dashed border-border p-4">
+        {editingId ? (
+          <p className="text-sm font-medium text-primary">
+            {t('experimentsV2.sections.results.editing')}
+          </p>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <FieldLabel
+            htmlFor="measured-characterization-record"
             labelZh={t('experimentsV2.sections.results.characterizationRecord')}
             unit={null}
             required={false}
@@ -949,6 +1136,7 @@ function MeasuredProducts({
             disabled={readOnly}
           >
             <SelectTrigger
+              id="measured-characterization-record"
               className="w-full"
               aria-label={t(
                 'experimentsV2.sections.results.characterizationRecord',
@@ -972,18 +1160,20 @@ function MeasuredProducts({
         </div>
         <div className="flex flex-col gap-2">
           <FieldLabel
+            htmlFor={phenomena.length ? 'measured-phenomenon-0' : undefined}
             labelZh={fieldLabel('measured_products', 'observed_phenomena')}
             unit={null}
             required={false}
             r0={false}
           />
           <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {phenomena.map((option) => (
+            {phenomena.map((option, index) => (
               <label
                 key={option}
                 className="flex items-center gap-2 text-sm text-foreground"
               >
                 <Checkbox
+                  id={`measured-phenomenon-${index}`}
                   checked={selected.includes(option)}
                   disabled={readOnly}
                   onCheckedChange={(checked) =>
@@ -999,6 +1189,7 @@ function MeasuredProducts({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <FieldLabel
+              htmlFor="measured-phase-stacking"
               labelZh={fieldLabel(
                 'measured_products',
                 'detected_phase_stacking',
@@ -1008,6 +1199,7 @@ function MeasuredProducts({
               r0={false}
             />
             <Input
+              id="measured-phase-stacking"
               value={phaseStacking}
               onChange={(event) => setPhaseStacking(event.target.value)}
               autoComplete="off"
@@ -1017,6 +1209,7 @@ function MeasuredProducts({
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
+              htmlFor="measured-layers-coverage"
               labelZh={fieldLabel(
                 'measured_products',
                 'measured_layers_coverage',
@@ -1026,6 +1219,7 @@ function MeasuredProducts({
               r0={false}
             />
             <Input
+              id="measured-layers-coverage"
               value={layersCoverage}
               onChange={(event) => setLayersCoverage(event.target.value)}
               autoComplete="off"
@@ -1035,6 +1229,7 @@ function MeasuredProducts({
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
+              htmlFor="measured-domain"
               labelZh={fieldLabel(
                 'measured_products',
                 'domain_nucleation_continuity',
@@ -1044,6 +1239,7 @@ function MeasuredProducts({
               r0={false}
             />
             <Input
+              id="measured-domain"
               value={domain}
               onChange={(event) => setDomain(event.target.value)}
               autoComplete="off"
@@ -1053,12 +1249,14 @@ function MeasuredProducts({
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel
+              htmlFor="measured-spectral"
               labelZh={fieldLabel('measured_products', 'key_spectral_metrics')}
               unit={null}
               required={false}
               r0={false}
             />
             <Textarea
+              id="measured-spectral"
               value={spectral}
               onChange={(event) => setSpectral(event.target.value)}
               rows={2}
@@ -1068,7 +1266,17 @@ function MeasuredProducts({
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {editingId ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={cancelEdit}
+            >
+              {t('actions.cancel')}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"

@@ -16,7 +16,6 @@ import {
   isPvdApplicable,
   isPvdFieldRequired,
   missingProcessStepKeys,
-  pvdMethods,
   visibleGroupsForStage,
 } from './field-logic'
 
@@ -164,12 +163,9 @@ describe('§5 payload 键集对齐 discriminated union（同 stage_types 源）'
 
 describe('§8 PVD 显隐判别（§1 合成方法驱动）', () => {
   it('仅 PVD 体系合成方法适用', () => {
-    for (const method of pvdMethods()) {
-      expect(isPvdApplicable(method)).toBe(true)
-    }
-    expect(pvdMethods()).toEqual(
-      expect.arrayContaining(['PVD-磁控溅射', 'PVD-热蒸发', 'PLD']),
-    )
+    expect(isPvdApplicable('PVD-磁控溅射')).toBe(true)
+    expect(isPvdApplicable('PVD-热蒸发')).toBe(true)
+    expect(isPvdApplicable('PLD')).toBe(true)
     expect(isPvdApplicable('CVD')).toBe(false)
     expect(isPvdApplicable('')).toBe(false)
   })

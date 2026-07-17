@@ -6,13 +6,18 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.experiment import ExperimentRun
 from app.models.sample import Sample, SampleRole
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.sample_repository import SampleRepository
 from app.schemas.sample import SampleCreate, SampleListResponse, SampleRead, SampleUpdate
 from app.services.audit_service import AuditService
+from app.services.experiment_guards import (
+    ensure_results_editable,
+    get_owned_experiment,
+    get_visible_experiment,
+)
 
 
 class SampleService:
@@ -51,7 +56,8 @@ class SampleService:
         payload: SampleCreate,
         current_user: User,
     ) -> SampleRead:
-        experiment = self._get_editable_owned_experiment(experiment_id, current_user)
+        experiment = get_owned_experiment(self.experiments, experiment_id, current_user)
+        ensure_results_editable(experiment)
         restored = self._restore_soft_deleted_role_sample(experiment=experiment, payload=payload)
         if restored is None:
             created = self._create_sample(experiment=experiment, payload=payload)
@@ -187,44 +193,16 @@ class SampleService:
         sample = self.samples.get_by_id(sample_id)
         if sample is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
-        self._assert_experiment_visible(sample.experiment_run_id, current_user)
+        get_visible_experiment(self.experiments, sample.experiment_run_id, current_user)
         return sample
 
     def _get_editable_owned_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self.samples.get_by_id(sample_id)
         if sample is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
-        self._get_editable_owned_experiment(sample.experiment_run_id, current_user)
+        experiment = get_owned_experiment(self.experiments, sample.experiment_run_id, current_user)
+        ensure_results_editable(experiment)
         return sample
-
-    def _get_editable_owned_experiment(
-        self, experiment_id: UUID, current_user: User
-    ) -> ExperimentRun:
-        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
-        if experiment is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Experiment not found",
-            )
-        if current_user.role != UserRole.ADMIN and experiment.owner_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
-        if experiment.status == ExperimentStatus.INVALID:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Invalid experiments cannot be edited",
-            )
-        return experiment
-
-    def _assert_experiment_visible(self, experiment_id: UUID, current_user: User) -> None:
-        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
-        if experiment is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Experiment not found",
-            )
 
     def _serialize_sample(self, sample: Sample | None) -> dict | None:
         if sample is None:

@@ -41,12 +41,26 @@ const LOADED_MODULE_KEYS = [
   'pvd',
 ] as const
 
+const MODULE_TITLE_KEYS = {
+  basic_info: 'basicInfo',
+  target_product: 'targetProduct',
+  equipment: 'equipment',
+  precursors: 'precursors',
+  substrates: 'substrates',
+  process_steps: 'processSteps',
+  process_events: 'processEvents',
+  characterization: 'results',
+  measured_products: 'results',
+  pvd: 'pvd',
+} as const
+
 export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const { t } = useTranslation()
   const { session } = useAuth()
   const token = session.accessToken || ''
   const queryClient = useQueryClient()
   const [invalidating, setInvalidating] = useState(false)
+  const [unlocking, setUnlocking] = useState(false)
   const [reason, setReason] = useState('')
   const [missing, setMissing] = useState<
     Array<{
@@ -87,13 +101,15 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         token,
         invalidReason,
       ),
-    onSuccess: async () => {
+    onSuccess: (run) => {
       setInvalidating(false)
+      setUnlocking(false)
       setReason('')
       setMissing([])
-      await queryClient.invalidateQueries({
-        queryKey: ['v2-experiment', runId, token],
-      })
+      queryClient.setQueryData(
+        ['v2-experiment', runId, token],
+        (cached: typeof data) => (cached ? { ...cached, run } : cached),
+      )
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) => {
@@ -110,6 +126,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   })
   const act = (action: StatusAction) => {
     if (action === 'invalidate') setInvalidating(true)
+    else if (action === 'unlock') setUnlocking(true)
     else mutation.mutate({ action })
   }
   const isAdmin = session.currentUser?.role === 'admin'
@@ -155,6 +172,15 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               </AlertDescription>
             </Alert>
           ) : null}
+          {!canWrite &&
+          data.run.status !== 'locked' &&
+          data.run.status !== 'invalid' ? (
+            <Alert>
+              <AlertDescription>
+                {t('experimentsV2.banner.notOwner')}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {missing.length ? (
             <Alert variant="destructive">
               <AlertDescription>
@@ -162,10 +188,10 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                 <ul className="mt-2 list-disc pl-5">
                   {missing.map((item) => (
                     <li key={`${item.module}.${item.key}`}>
-                      {item.label} ({item.module}.{item.key}) ·{' '}
+                      {item.label}（
                       {t(
-                        `experimentsV2.actions.requirement.${item.requirement}`,
-                      )}
+                        `experimentsV2.sections.${MODULE_TITLE_KEYS[item.module as keyof typeof MODULE_TITLE_KEYS] ?? 'unknown'}.title`,
+                      )}）
                     </li>
                   ))}
                 </ul>
@@ -173,6 +199,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             </Alert>
           ) : null}
           <ExperimentV2Form
+            key={runId}
             mode="edit"
             runId={runId}
             runCode={data.run.run_code}
@@ -199,6 +226,13 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
           />
           <DialogFooter>
             <Button
+              variant="outline"
+              disabled={mutation.isPending}
+              onClick={() => setInvalidating(false)}
+            >
+              {t('actions.cancel')}
+            </Button>
+            <Button
               variant="destructive"
               disabled={!reason.trim() || mutation.isPending}
               onClick={() =>
@@ -206,6 +240,33 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               }
             >
               {t('experimentsV2.actions.invalidate')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={unlocking} onOpenChange={setUnlocking}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t('experimentsV2.actions.unlockTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('experimentsV2.actions.unlockDescription')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={mutation.isPending}
+              onClick={() => setUnlocking(false)}
+            >
+              {t('actions.cancel')}
+            </Button>
+            <Button
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate({ action: 'unlock' })}
+            >
+              {t('experimentsV2.actions.unlock')}
             </Button>
           </DialogFooter>
         </DialogContent>

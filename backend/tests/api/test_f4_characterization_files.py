@@ -1,4 +1,5 @@
 from uuid import UUID
+from zlib import crc32
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,7 +23,7 @@ def create_run(email: str, code: str) -> str:
     response = client.post(
         "/api/v1/experiments",
         json={
-            "run_code": code,
+            "run_code": f"CVD-2026-{crc32(code.encode()) % 10000:04d}",
             "started_at": "2026-07-11T09:30:00",
             "synthesis_method": "APCVD",
             "operator": email,

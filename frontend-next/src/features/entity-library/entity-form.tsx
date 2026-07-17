@@ -177,7 +177,10 @@ function EntityFieldControl({
   control: Control<EntityFormValues>
   disabled: boolean
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const label = i18n.language.startsWith('en')
+    ? field.labelEn || field.labelZh
+    : field.labelZh
   const required = isEffectivelyRequired(kind, field, values)
   const enumOptions = parseEnumOptions(field.input, field.options)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
@@ -197,7 +200,7 @@ function EntityFieldControl({
       render={({ field: rhf }) => (
         <FormItem className={useTextarea ? 'sm:col-span-2' : undefined}>
           <FormLabel>
-            <span>{field.labelZh}</span>
+            <span>{label}</span>
             {field.unit ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">
                 （{field.unit}）
@@ -213,7 +216,7 @@ function EntityFieldControl({
               onChange={rhf.onChange}
               inputId={controlId}
               selectId={`${controlId}-option`}
-              selectLabel={`${field.labelZh}选项`}
+              selectLabel={t('entityLibrary.form.fieldOptions', { label })}
               disabled={disabled}
               freePlaceholder={t('entityLibrary.form.inputPlaceholder')}
               selectPlaceholder={t('entityLibrary.form.selectPlaceholder')}

@@ -26,7 +26,7 @@ import {
 import type { EntityKind } from './config'
 import { entityConfigs, entityRoutes } from './config'
 import { appendEntityVersion, getEntity, listEntityVersions } from './api'
-import { getEntityFields } from './field-logic'
+import { getEntityFields, isFieldVisible } from './field-logic'
 import { EntityForm } from './entity-form'
 
 export function EntityDetailPage({
@@ -36,10 +36,11 @@ export function EntityDetailPage({
   kind: EntityKind
   entityId: string
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const queryClient = useQueryClient()
   const { session } = useAuth()
   const token = session.accessToken || ''
+  const viewerKey = session.currentUser?.id ?? 'anonymous'
   const config = entityConfigs[kind]
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
   const fields = getEntityFields(kind)
@@ -50,13 +51,13 @@ export function EntityDetailPage({
   const entityKey = ['v2-entity', kind, entityId]
 
   const entityQuery = useQuery({
-    queryKey: [...entityKey, token],
+    queryKey: [...entityKey, viewerKey],
     queryFn: () => getEntity(kind, entityId, token),
     enabled: session.isAuthenticated && !!token,
   })
 
   const versionsQuery = useQuery({
-    queryKey: [...entityKey, 'versions', token],
+    queryKey: [...entityKey, 'versions', viewerKey],
     queryFn: () => listEntityVersions(kind, entityId, token),
     enabled: session.isAuthenticated && !!token,
   })
@@ -119,6 +120,12 @@ export function EntityDetailPage({
     (activeVersion?.data?.[config.primaryKey] as string | undefined) ||
     entity.id.slice(0, 8)
   const activeData = activeVersion?.data ?? {}
+  const visibilityValues = Object.fromEntries(
+    Object.entries(activeData).map(([key, value]) => [
+      key,
+      value == null ? '' : String(value),
+    ]),
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -176,16 +183,21 @@ export function EntityDetailPage({
           </CardHeader>
           <CardContent>
             <dl className="flex flex-col divide-y border-t text-sm">
-              {fields.map((field) => {
+              {fields.filter((field) =>
+                isFieldVisible(kind, field, visibilityValues),
+              ).map((field) => {
                 const raw = activeData[field.key]
                 const value = raw == null || raw === '' ? '' : String(raw)
+                const label = i18n.language.startsWith('en')
+                  ? field.labelEn || field.labelZh
+                  : field.labelZh
                 return (
                   <div
                     key={field.key}
                     className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-4"
                   >
                     <dt className="shrink-0 text-muted-foreground sm:w-48">
-                      {field.labelZh}
+                      {label}
                       {field.unit ? (
                         <span className="ml-1 text-xs">（{field.unit}）</span>
                       ) : null}
@@ -266,6 +278,13 @@ export function EntityDetailPage({
               })}
             </DialogDescription>
           </DialogHeader>
+          {isHistorical ? (
+            <Alert className="mt-4">
+              <AlertDescription>
+                {t('entityLibrary.form.historicalVersionPrefill')}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <div className="-mx-6 max-h-[65vh] overflow-y-auto px-6 py-2">
             {editOpen ? (
               <EntityForm

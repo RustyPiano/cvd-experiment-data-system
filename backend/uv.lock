@@ -340,6 +340,7 @@ dependencies = [
     { name = "pwdlib", extra = ["argon2"] },
     { name = "pydantic-settings" },
     { name = "python-jose", extra = ["cryptography"] },
+    { name = "pyyaml" },
     { name = "sqlalchemy" },
 ]
 
@@ -361,6 +362,7 @@ requires-dist = [
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0,<1.0.0" },
     { name = "pydantic-settings", specifier = ">=2.8.0,<3.0.0" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.4.0,<4.0.0" },
+    { name = "pyyaml", specifier = ">=6.0.0,<7.0.0" },
     { name = "sqlalchemy", specifier = ">=2.0.40,<3.0.0" },
 ]
 

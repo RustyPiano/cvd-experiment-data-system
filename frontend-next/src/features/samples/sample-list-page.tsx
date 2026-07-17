@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 import { listSamples } from './api'
 import { useAuth } from '@/features/auth/use-auth'
@@ -11,6 +12,7 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,22 +25,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const roleLabels: Record<string, string> = {
-  top: '上基底',
-  bottom: '下基底',
-  product: '产物',
-  control: '对照',
-}
-
-const roleFilters = [
-  { value: '', label: '全部' },
-  { value: 'top', label: '上基底' },
-  { value: 'bottom', label: '下基底' },
-  { value: 'product', label: '产物' },
-  { value: 'control', label: '对照' },
-]
+const roleFilters = ['', 'top', 'bottom', 'product', 'control'] as const
 
 export function SampleListPage() {
+  const { t } = useTranslation()
   const { session } = useAuth()
   const [roleFilter, setRoleFilter] = useState('')
   const [query, setQuery] = useState('')
@@ -69,14 +59,22 @@ export function SampleListPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="样品"
-        subtitle="查看全部可见样品及其所属实验、角色与存放位置。"
+        title={t('samples.list.title')}
+        subtitle={t('samples.list.subtitle')}
       />
 
       {samplesQuery.isError && (
         <Alert variant="destructive">
-          <AlertDescription>
-            {resolveErrorMessage(samplesQuery.error, '样品列表加载失败')}
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>
+              {resolveErrorMessage(
+                samplesQuery.error,
+                t('samples.list.loadError'),
+              )}
+            </span>
+            <Button size="sm" variant="outline" onClick={() => samplesQuery.refetch()}>
+              {t('samples.actions.retry')}
+            </Button>
           </AlertDescription>
         </Alert>
       )}
@@ -86,27 +84,31 @@ export function SampleListPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Input
               autoComplete="off"
-              placeholder="搜索样品编号 / 实验编号 / 材料体系"
+              placeholder={t('samples.list.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="w-72"
-              aria-label="样品搜索"
+              aria-label={t('samples.list.searchLabel')}
             />
             <div className="flex items-center gap-1.5">
-              <span className="text-sm text-muted-foreground">角色：</span>
-              {roleFilters.map((option) => (
+              <span className="text-sm text-muted-foreground">
+                {t('samples.list.roleFilter')}
+              </span>
+              {roleFilters.map((role) => (
                 <button
-                  key={option.value || 'all'}
+                  key={role || 'all'}
                   type="button"
-                  onClick={() => setRoleFilter(option.value)}
+                  onClick={() => setRoleFilter(role)}
                   className={cn(
                     'rounded-md px-2.5 py-1 text-sm transition-colors',
-                    roleFilter === option.value
+                    roleFilter === role
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:bg-accent',
                   )}
                 >
-                  {option.label}
+                  {role
+                    ? t(`experimentsV2.sections.results.roles.${role}`)
+                    : t('samples.list.allRoles')}
                 </button>
               ))}
             </div>
@@ -118,12 +120,12 @@ export function SampleListPage() {
                 <Skeleton key={i} className="h-12 w-full rounded-md" />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : samplesQuery.isError ? null : filtered.length === 0 ? (
             <EmptyState
               description={
                 items.length === 0
-                  ? '还没有样品。样品会在实验的基底/产物中自动生成。'
-                  : '没有符合条件的样品。'
+                  ? t('samples.list.empty')
+                  : t('samples.list.noMatches')
               }
             />
           ) : (
@@ -131,11 +133,11 @@ export function SampleListPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>样品编号</TableHead>
-                    <TableHead>所属实验</TableHead>
-                    <TableHead>材料体系</TableHead>
-                    <TableHead>角色</TableHead>
-                    <TableHead>更新时间</TableHead>
+                    <TableHead>{t('samples.list.columns.code')}</TableHead>
+                    <TableHead>{t('samples.list.columns.run')}</TableHead>
+                    <TableHead>{t('samples.list.columns.material')}</TableHead>
+                    <TableHead>{t('samples.list.columns.role')}</TableHead>
+                    <TableHead>{t('samples.list.columns.updatedAt')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -166,13 +168,16 @@ export function SampleListPage() {
                       <TableCell>
                         {sample.material_system || (
                           <span className="text-muted-foreground text-sm">
-                            未填写
+                            {t('samples.common.notProvided')}
                           </span>
                         )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">
-                          {roleLabels[sample.role] ?? sample.role}
+                          {t(
+                            `experimentsV2.sections.results.roles.${sample.role}`,
+                            { defaultValue: sample.role },
+                          )}
                         </Badge>
                       </TableCell>
                       <TableCell className="tabular-nums text-sm text-muted-foreground">

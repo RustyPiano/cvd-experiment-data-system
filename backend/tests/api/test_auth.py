@@ -154,6 +154,16 @@ def test_login_returns_access_token_for_valid_credentials(active_user, db_sessio
     assert updated_user.password_hash.startswith("$argon2id$")
 
 
+def test_login_email_is_case_insensitive(active_user) -> None:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": active_user.email.upper(), "password": "Password123!"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user"]["email"] == active_user.email
+
+
 def test_login_rejects_legacy_bcrypt_hash(active_user, db_session) -> None:
     active_user.password_hash = "$2b$12$7a/xl.p986hByjdM6mJSuOLYQiXeAHBHghoy4b7pyMweQl0muAY1m"
     db_session.add(active_user)

@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { FlaskConical } from 'lucide-react'
 import { z } from 'zod/v4'
+import { useTranslation } from 'react-i18next'
 
 import { LoginForm } from '@/features/auth/login-form'
+import { getStoredSession } from '@/features/auth/session'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 const loginSearchSchema = z.object({
@@ -11,11 +13,17 @@ const loginSearchSchema = z.object({
 
 export const Route = createFileRoute('/login')({
   validateSearch: loginSearchSchema,
+  beforeLoad: () => {
+    if (getStoredSession().isAuthenticated) {
+      throw redirect({ to: '/experiments' })
+    }
+  },
   component: LoginPage,
 })
 
 function LoginPage() {
-  const { redirect } = Route.useSearch()
+  const { t } = useTranslation()
+  const { redirect: redirectTo } = Route.useSearch()
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-background p-4">
@@ -32,28 +40,28 @@ function LoginPage() {
                   CVD Lab
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  实验数据采集系统
+                  {t('auth.brand.subtitle')}
                 </span>
               </div>
             </div>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                登录
+                {t('auth.login.title')}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                使用账号登录，或通过内部邀请码注册。
+                {t('auth.login.subtitle')}
               </p>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <LoginForm redirect={redirect} />
+            <LoginForm redirect={redirectTo} />
             <p className="text-center text-sm text-muted-foreground">
-              没有账号？{' '}
+              {t('auth.login.noAccount')}{' '}
               <Link
                 to="/register"
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                使用邀请码注册
+                {t('auth.login.registerLink')}
               </Link>
             </p>
           </CardContent>

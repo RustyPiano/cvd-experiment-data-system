@@ -61,7 +61,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     run = client.post(
         "/api/v1/experiments",
         json={
-            "run_code": "RUN-V2-WALK",
+            "run_code": "CVD-2026-0200",
             "started_at": "2026-07-08T09:30:00",
             "synthesis_method": "APCVD",
             "operator": "李俊杰",
@@ -93,7 +93,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
             "started_at": "2026-07-08T09:30:00",
             "synthesis_method": "APCVD",
             "operator": "李俊杰",
-            "run_code": "RUN-V2-WALK",
+            "run_code": "CVD-2026-0200",
             "ambient_temperature_C": 25,
             "ambient_humidity_percent": 45,
         },
@@ -220,7 +220,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     )
     assert product.status_code == 201, product.text
 
-    reports = build_r0_reports(db_session, run_code="RUN-V2-WALK")
+    reports = build_r0_reports(db_session, run_code="CVD-2026-0200")
     assert len(reports) == 1, reports
     report = reports[0]
     failed = [item for item in report["items"] if item["applicable"] and not item["passed"]]
@@ -256,5 +256,5 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     assert supplemented.status_code == 201, supplemented.text
     refreshed = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
     assert refreshed.json()["result_missing_todo"] is False
-    reports = build_r0_reports(db_session, run_code="RUN-V2-WALK")
+    reports = build_r0_reports(db_session, run_code="CVD-2026-0200")
     assert reports[0]["status"] == "compliant"

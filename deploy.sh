@@ -45,9 +45,14 @@ if [ "${SKIP_SCHEMA_GUARD:-0}" != "1" ]; then
     POSTGRES_DB="${POSTGRES_DB:-cvd}"
     DB_REV=$( (docker exec "$PG_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
         -tAc "SELECT version_num FROM alembic_version" 2>/dev/null || true) | tr -d '[:space:]')
-    if [ -n "$DB_REV" ] && ! grep -rq "$DB_REV" backend/alembic/versions/; then
+    if [ -z "$DB_REV" ]; then
+        echo -e "${RED}[中止] 无法读取数据库 alembic 版本（容器名/凭据可能不对），拒绝继续。${NC}" >&2
+        echo "  确认自担风险可用 SKIP_SCHEMA_GUARD=1 ./deploy.sh 跳过本检查。" >&2
+        exit 1
+    fi
+    if ! grep -rq "$DB_REV" backend/alembic/versions/; then
         echo -e "${RED}[中止] 数据库迁移版本 ${DB_REV} 不在当前代码迁移链中（schema 已重基线）。${NC}" >&2
-        echo "  直接部署会崩溃循环。请按 docs/v2-single-track-plan.md 批8 执行整库重建切换。" >&2
+        echo "  直接部署会崩溃循环。请按 docs/engineering/v2-single-track-plan.md 批8 执行整库重建切换。" >&2
         echo "  确认自担风险可用 SKIP_SCHEMA_GUARD=1 ./deploy.sh 跳过本检查。" >&2
         exit 1
     fi

@@ -6,6 +6,7 @@ export const API_UNAUTHORIZED_EVENT = 'cvd.api.unauthorized'
 type ApiRequestOptions = Omit<RequestInit, 'body'> & {
   body?: BodyInit | Record<string, unknown> | null
   token?: string | null
+  suppressUnauthorizedEvent?: boolean
 }
 
 type ApiDownloadOptions = Omit<RequestInit, 'body'> & {
@@ -106,13 +107,16 @@ function dispatchUnauthorizedIfNeeded(
 async function throwHttpErrorFromResponse(
   response: Response,
   token: string | null | undefined,
+  suppressUnauthorizedEvent = false,
 ) {
   const responseText = await response.text()
   const payload = parsePayload(
     responseText,
     response.headers.get('Content-Type'),
   )
-  dispatchUnauthorizedIfNeeded(response.status, token)
+  if (!suppressUnauthorizedEvent) {
+    dispatchUnauthorizedIfNeeded(response.status, token)
+  }
   throw new HttpError(response.status, resolveDetail(payload), payload)
 }
 
@@ -134,7 +138,7 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},
 ) {
-  const { body, headers, token, ...rest } = options
+  const { body, headers, token, suppressUnauthorizedEvent, ...rest } = options
   const normalizedBody = normalizeBody(body)
   const requestHeaders = createRequestHeaders(headers, token)
 
@@ -158,7 +162,7 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    await throwHttpErrorFromResponse(response, token)
+    await throwHttpErrorFromResponse(response, token, suppressUnauthorizedEvent)
   }
 
   const responseText = await response.text()

@@ -1,4 +1,5 @@
 from uuid import UUID
+from zlib import crc32
 
 from fastapi.testclient import TestClient
 
@@ -20,7 +21,7 @@ def _run(headers: dict[str, str], code: str, method: str = "PVD-热蒸发") -> d
     response = client.post(
         "/api/v1/experiments",
         json={
-            "run_code": code,
+            "run_code": f"CVD-2026-{crc32(code.encode()) % 10000:04d}",
             "started_at": "2026-07-11T09:00:00",
             "synthesis_method": method,
             "operator": "tester",
@@ -93,6 +94,7 @@ def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_ses
 
     events = db_session.query(AuditEvent).filter(AuditEvent.entity_id == UUID(run_id)).all()
     assert [event.action for event in events] == [
+        "create",
         "submit",
         "lock",
         "unlock",
@@ -102,13 +104,14 @@ def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_ses
     assert [event.actor_id for event in events] == [
         active_user.id,
         active_user.id,
+        active_user.id,
         admin_user.id,
         active_user.id,
         active_user.id,
     ]
     assert all(event.entity_id == UUID(run_id) for event in events)
     assert all(
-        event.before_json.get("status") != event.after_json.get("status") for event in events
+        event.before_json.get("status") != event.after_json.get("status") for event in events[1:]
     )
 
 
@@ -365,7 +368,7 @@ def test_invalid_run_rejects_process_and_result_writes(active_user) -> None:
         (
             "post",
             f"/api/v1/experiments/{run_id}/characterization-records",
-            {"sample_id": sample["id"]},
+            {"sample_id": sample["id"], "method_instrument": "Raman"},
         ),
         ("patch", f"/api/v1/characterization-records/{record['id']}", {}),
         ("delete", f"/api/v1/characterization-records/{record['id']}", None),

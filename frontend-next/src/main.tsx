@@ -34,6 +34,11 @@ const router = createRouter({
   defaultErrorComponent: RootErrorComponent,
 })
 
+function syncStoredSession() {
+  queryClient.clear()
+  void router.invalidate()
+}
+
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router
@@ -53,7 +58,7 @@ if (!rootElement.innerHTML) {
           enableSystem={false}
           disableTransitionOnChange
         >
-          <AuthProvider>
+          <AuthProvider onStorageSessionChange={syncStoredSession}>
             <RouterProvider router={router} />
           </AuthProvider>
         </ThemeProvider>

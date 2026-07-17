@@ -30,22 +30,6 @@ class FileStorageService:
         absolute_path.write_bytes(content)
         return str(relative_path), hashlib.sha256(content).hexdigest()
 
-    def copy_between_experiments(
-        self,
-        *,
-        source_storage_path: str,
-        target_experiment_run_code: str,
-        target_file_id: UUID,
-        original_name: str,
-    ) -> tuple[str, str]:
-        content = self.resolve(source_storage_path).read_bytes()
-        return self.persist(
-            experiment_run_code=target_experiment_run_code,
-            file_id=target_file_id,
-            original_name=original_name,
-            content=content,
-        )
-
     def resolve(self, storage_path: str) -> Path:
         candidate = Path(storage_path)
         if candidate.is_absolute():

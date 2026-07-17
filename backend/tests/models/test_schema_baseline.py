@@ -1,4 +1,8 @@
+from alembic.autogenerate import compare_metadata
+from alembic.migration import MigrationContext
 from sqlalchemy import inspect
+
+from app.db.base import Base
 
 EXPECTED_TABLES = {
     "audit_events",
@@ -146,3 +150,12 @@ def test_initial_migration_builds_only_the_v2_schema(db_session) -> None:
             for index in inspector.get_indexes(table)
         }
         assert actual == expected, table
+
+
+def test_initial_migration_matches_model_metadata(db_session) -> None:
+    context = MigrationContext.configure(db_session.connection())
+
+    differences = compare_metadata(context, Base.metadata)
+    structural = [difference for difference in differences if difference[0] != "modify_type"]
+
+    assert structural == []

@@ -1,6 +1,7 @@
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { Link, useRouter } from '@tanstack/react-router'
 import { FileQuestion, Home, RotateCcw, TriangleAlert } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { Button } from '@/components/ui/button'
@@ -33,16 +34,17 @@ function CenteredBoundary({
 }
 
 export function RootNotFound() {
+  const { t } = useTranslation()
   return (
     <CenteredBoundary
       icon={<FileQuestion className="size-7" />}
-      title="页面不存在"
-      description="你访问的地址不存在或已被移动。请检查链接，或返回实验记录列表。"
+      title={t('routeBoundaries.notFound.title')}
+      description={t('routeBoundaries.notFound.description')}
       actions={
         <Button asChild>
           <Link to="/experiments">
             <Home className="size-4" />
-            返回实验记录
+            {t('routeBoundaries.backToRuns')}
           </Link>
         </Button>
       }
@@ -51,13 +53,17 @@ export function RootNotFound() {
 }
 
 export function RootErrorComponent({ error, reset }: ErrorComponentProps) {
+  const { t } = useTranslation()
   const router = useRouter()
 
   return (
     <CenteredBoundary
       icon={<TriangleAlert className="size-7 text-destructive" />}
-      title="页面出错了"
-      description={resolveErrorMessage(error, '页面渲染时发生未知错误，请重试或返回首页。')}
+      title={t('routeBoundaries.error.title')}
+      description={resolveErrorMessage(
+        error,
+        t('routeBoundaries.error.description'),
+      )}
       actions={
         <>
           <Button
@@ -68,12 +74,12 @@ export function RootErrorComponent({ error, reset }: ErrorComponentProps) {
             }}
           >
             <RotateCcw className="size-4" />
-            重试
+            {t('routeBoundaries.retry')}
           </Button>
           <Button asChild>
             <Link to="/experiments">
               <Home className="size-4" />
-              返回实验记录
+              {t('routeBoundaries.backToRuns')}
             </Link>
           </Button>
         </>

@@ -240,7 +240,9 @@ describe('results behavior', () => {
     const controls = within(section)
 
     await user.click(
-      controls.getByRole('combobox', { name: 'Characterization record' }),
+      controls.getByRole('combobox', {
+        name: 'Linked characterization record',
+      }),
     )
     await user.click(screen.getByRole('option', { name: 'Raman' }))
     await user.click(controls.getAllByRole('checkbox')[0])
@@ -287,12 +289,38 @@ describe('results behavior', () => {
     await user.click(
       screen.getByRole('button', { name: 'Delete measured product' }),
     )
+    expect(resultsApi.deleteMeasuredProduct).not.toHaveBeenCalled()
+    await user.click(
+      screen.getByRole('button', { name: 'Confirm delete measured product' }),
+    )
     await waitFor(() =>
       expect(resultsApi.deleteMeasuredProduct).toHaveBeenCalledWith(
         'product-1',
         'token',
       ),
     )
+  })
+
+  it('keeps downloads enabled while read-only and disables result creation', async () => {
+    renderResults(true)
+
+    expect(
+      (await screen.findAllByRole('combobox', { name: 'Sample' }))[0],
+    ).toBeEnabled()
+    expect(
+      await screen.findByRole('button', { name: 'Download evidence.csv' }),
+    ).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Add sample' })).toBeDisabled()
+  })
+
+  it('shows a sample load error instead of the no-samples empty state', async () => {
+    resultsApi.listSamples.mockRejectedValueOnce(new Error('network down'))
+    renderResults()
+
+    expect(
+      await screen.findByText('Failed to load samples'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/no samples yet/i)).not.toBeInTheDocument()
   })
 })
 
@@ -350,7 +378,7 @@ describe('characterization attachments', () => {
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        'Spectrum format is not supported',
+        'The input is invalid. Check it and try again.',
       ),
     )
   })

@@ -53,9 +53,9 @@ def list_material_lots(db: DbSession, _current_user: CurrentUser) -> V2EntityLis
 def create_material_lot(
     payload: V2EntityVersionPayload,
     db: DbSession,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> V2EntityRead:
-    return V2EntityService(db).create_entity("material_lot", payload)
+    return V2EntityService(db).create_entity("material_lot", payload, current_user)
 
 
 @router.get("/material-lots/{entity_id}", response_model=V2EntityRead)
@@ -93,9 +93,9 @@ def list_setups(db: DbSession, _current_user: CurrentUser) -> V2EntityListRespon
 def create_setup(
     payload: V2EntityVersionPayload,
     db: DbSession,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> V2EntityRead:
-    return V2EntityService(db).create_entity("setup", payload)
+    return V2EntityService(db).create_entity("setup", payload, current_user)
 
 
 @router.get("/setups/{entity_id}", response_model=V2EntityRead)
@@ -133,9 +133,9 @@ def list_instruments(db: DbSession, _current_user: CurrentUser) -> V2EntityListR
 def create_instrument(
     payload: V2EntityVersionPayload,
     db: DbSession,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> V2EntityRead:
-    return V2EntityService(db).create_entity("instrument", payload)
+    return V2EntityService(db).create_entity("instrument", payload, current_user)
 
 
 @router.get("/instruments/{entity_id}", response_model=V2EntityRead)

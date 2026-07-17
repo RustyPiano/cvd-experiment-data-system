@@ -438,13 +438,6 @@ function pvdCondition(): FieldCondition | null {
   return field?.requirement.condition ?? null
 }
 
-/** PVD 段适用的合成方法清单（从字段条件读取，供 §1 无值时兜底/展示）。 */
-export function pvdMethods(): string[] {
-  const condition = pvdCondition()
-  if (!condition) return []
-  return Array.isArray(condition.value) ? condition.value : [condition.value]
-}
-
 /** §1 合成方法是否属 PVD 体系（决定 §8 整段显隐）。 */
 export function isPvdApplicable(synthesisMethod: string): boolean {
   const method = (synthesisMethod ?? '').trim()

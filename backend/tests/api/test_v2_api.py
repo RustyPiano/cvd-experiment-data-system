@@ -42,7 +42,7 @@ def test_naive_started_at_drives_local_experiment_and_run_code_date(
     active_user, monkeypatch
 ) -> None:
     def next_run_code(_repository: ExperimentRepository, experiment_date) -> str:
-        return f"CVD-{experiment_date:%Y%m%d}-0001"
+        return f"CVD-{experiment_date:%Y}-0001"
 
     monkeypatch.setattr(ExperimentRepository, "next_run_code", next_run_code)
     response = client.post(
@@ -57,7 +57,7 @@ def test_naive_started_at_drives_local_experiment_and_run_code_date(
 
     assert response.status_code == 201, response.text
     assert response.json()["experiment_date"] == "2026-07-12"
-    assert response.json()["run_code"] == "CVD-20260712-0001"
+    assert response.json()["run_code"] == "CVD-2026-0001"
 
 
 def test_v2_entity_versions_are_append_only_queryable_and_audited(active_user, db_session) -> None:
@@ -117,7 +117,7 @@ def test_v2_entity_create_reports_all_missing_required_fields(active_user) -> No
 
     assert response.status_code == 422
     detail = response.json()["detail"]
-    assert detail["missing_fields"] == [
+    assert detail["missing"] == [
         "substance_name",
         "chemical_formula",
         "batch_number",
@@ -143,7 +143,7 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
     run = client.post(
         "/api/v1/experiments",
         json={
-            "run_code": "RUN-V2-API",
+            "run_code": "CVD-2026-0100",
             "started_at": "2026-07-08T09:30:00",
             "synthesis_method": "APCVD",
             "operator": "李俊杰",
@@ -226,7 +226,7 @@ def test_target_product_upsert_updates_run_material_system_and_audits_key(
     active_user, db_session
 ) -> None:
     headers = auth_headers(active_user.email)
-    run_id = _create_run(headers, "RUN-MATERIAL-UPDATE")
+    run_id = _create_run(headers, "CVD-2026-0101")
 
     response = client.put(
         f"/api/v1/experiments/{run_id}/modules/target_product",
@@ -246,7 +246,7 @@ def test_target_product_upsert_updates_run_material_system_and_audits_key(
 
 def test_target_product_upsert_clears_run_material_system(active_user) -> None:
     headers = auth_headers(active_user.email)
-    run_id = _create_run(headers, "RUN-MATERIAL-CLEAR")
+    run_id = _create_run(headers, "CVD-2026-0102")
 
     response = client.put(
         f"/api/v1/experiments/{run_id}/modules/target_product",
@@ -261,7 +261,7 @@ def test_target_product_upsert_clears_run_material_system(active_user) -> None:
 
 def test_other_module_upsert_preserves_run_material_system(active_user) -> None:
     headers = auth_headers(active_user.email)
-    run_id = _create_run(headers, "RUN-MATERIAL-UNCHANGED", "WSe2")
+    run_id = _create_run(headers, "CVD-2026-0103", "WSe2")
 
     response = client.put(
         f"/api/v1/experiments/{run_id}/modules/basic_info",
@@ -270,7 +270,7 @@ def test_other_module_upsert_preserves_run_material_system(active_user) -> None:
                 "started_at": "2026-07-11T09:30:00",
                 "synthesis_method": "LPCVD",
                 "operator": "李俊杰",
-                "run_code": "RUN-MATERIAL-UNCHANGED",
+                "run_code": "CVD-2026-0103",
             }
         },
         headers=headers,
@@ -286,7 +286,7 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
     run = client.post(
         "/api/v1/experiments",
         json={
-            "run_code": "RUN-V2-RESULTS",
+            "run_code": "CVD-2026-0104",
             "started_at": "2026-07-08T09:30:00",
             "synthesis_method": "APCVD",
             "operator": "李俊杰",

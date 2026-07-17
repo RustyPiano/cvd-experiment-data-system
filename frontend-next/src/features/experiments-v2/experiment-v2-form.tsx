@@ -3,13 +3,15 @@
 //    随后跳转编辑页。
 //  - 编辑态：每个模块区块带「保存本模块」按钮（草稿可分模块保存）。
 // 提交前用与后端同判据的必填校验拦截，避免直接把 422 抛给用户。payload 键=字段 key。
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 
-import { resolveErrorMessage } from '@/shared/api/http-error'
+import { HttpError, resolveErrorMessage } from '@/shared/api/http-error'
+import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
 import { useAuth } from '@/features/auth/use-auth'
 import type { V2EntityRead } from '@/features/entity-library/api'
 import { Button } from '@/components/ui/button'
@@ -43,6 +45,13 @@ import { PvdSection } from './components/pvd-section'
 import { ResultsSection } from './components/results-section'
 
 const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method', 'operator']
+
+export function shouldBlockExperimentLeave(
+  dirtyCount: number,
+  submitting: boolean,
+): boolean {
+  return dirtyCount > 0 && !submitting
+}
 
 function targetProductActive(state: ExperimentV2FormState): boolean {
   const hasFlat = Object.entries(state.target_product).some(
@@ -218,17 +227,22 @@ export function ExperimentV2Form({
   const navigate = useNavigate()
   const { session } = useAuth()
   const token = session.accessToken || ''
+  const queryClient = useQueryClient()
 
   const [state, setState] = useState<ExperimentV2FormState>(initialState)
   const [showErrors, setShowErrors] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(new Set())
   const [savedKeys, setSavedKeys] = useState<ReadonlySet<string>>(new Set())
+  const [dirtyKeys, setDirtyKeys] = useState<ReadonlySet<string>>(new Set())
+  const revisions = useRef<Record<string, number>>({})
   const [moduleErrors, setModuleErrors] = useState<
     Record<string, string | null>
   >({})
 
   const markDirty = (moduleKey: string) => {
+    revisions.current[moduleKey] = (revisions.current[moduleKey] ?? 0) + 1
+    setDirtyKeys((prev) => new Set(prev).add(moduleKey))
     setSavedKeys((prev) => {
       if (!prev.has(moduleKey)) return prev
       const next = new Set(prev)
@@ -302,7 +316,10 @@ export function ExperimentV2Form({
       (state.target_product['chemical_formula'] ?? '').trim() || undefined,
   })
 
-  const moduleContext = (formMode: 'new' | 'edit', createdRunCode?: string) => ({
+  const moduleContext = (
+    formMode: 'new' | 'edit',
+    createdRunCode?: string,
+  ) => ({
     mode: formMode,
     state,
     synthesisMethod,
@@ -328,20 +345,63 @@ export function ExperimentV2Form({
       return
     }
 
-    setSavingKey(moduleKey)
+    const revision = revisions.current[moduleKey] ?? 0
+    setSavingKeys((prev) => new Set(prev).add(moduleKey))
     try {
-      await saveModuleSpec(runId, spec, context, token)
-      setSavedKeys((prev) => new Set(prev).add(moduleKey))
+      const response = await saveModuleSpec(runId, spec, context, token)
+      queryClient.setQueryData(
+        ['v2-experiment', runId, token],
+        (
+          cached:
+            | { run: V2ExperimentRead; modules: Record<string, unknown> }
+            | undefined,
+        ) =>
+          cached
+            ? spec.key === 'equipment'
+              ? { ...cached, run: response as V2ExperimentRead }
+              : {
+                  ...cached,
+                  modules: { ...cached.modules, [moduleKey]: response },
+                }
+            : cached,
+      )
+      if ((revisions.current[moduleKey] ?? 0) === revision) {
+        setDirtyKeys((prev) => {
+          const next = new Set(prev)
+          next.delete(moduleKey)
+          return next
+        })
+        setSavedKeys((prev) => new Set(prev).add(moduleKey))
+      }
       toast.success(t('experimentsV2.form.moduleSaveSuccess'))
     } catch (error) {
-      const message = resolveErrorMessage(
-        error,
-        t('experimentsV2.form.saveError'),
-      )
+      const invalid =
+        error instanceof HttpError && error.status === 422
+          ? (
+              error.payload as {
+                detail?: { invalid?: Array<{ key: string; reason: string }> }
+              }
+            )?.detail?.invalid
+          : undefined
+      const labels = invalid
+        ?.map(
+          ({ key }) =>
+            MODULE_SPECS.flatMap(({ key: module }) =>
+              getModuleFields(module),
+            ).find((field) => field.key === key)?.labelZh,
+        )
+        .filter((label): label is string => Boolean(label))
+      const message = labels?.length
+        ? t('experimentsV2.form.invalidFields', { fields: labels.join('、') })
+        : resolveErrorMessage(error, t('experimentsV2.form.saveError'))
       setModuleErrors((prev) => ({ ...prev, [moduleKey]: message }))
       toast.error(message)
     } finally {
-      setSavingKey(null)
+      setSavingKeys((prev) => {
+        const next = new Set(prev)
+        next.delete(moduleKey)
+        return next
+      })
     }
   }
 
@@ -364,12 +424,16 @@ export function ExperimentV2Form({
         token,
       )
       const saveContext = moduleContext('new', created.run_code)
-      for (const spec of MODULE_SPECS) {
-        if (spec.active(saveContext)) {
-          await saveModuleSpec(created.id, spec, saveContext, token)
+      try {
+        for (const spec of MODULE_SPECS) {
+          if (spec.active(saveContext)) {
+            await saveModuleSpec(created.id, spec, saveContext, token)
+          }
         }
+        toast.success(t('experimentsV2.form.createSuccess'))
+      } catch {
+        toast.error(t('experimentsV2.form.partialCreateError'))
       }
-      toast.success(t('experimentsV2.form.createSuccess'))
       await navigate({
         to: '/experiments/$runId/edit',
         params: { runId: created.id },
@@ -387,7 +451,7 @@ export function ExperimentV2Form({
     mode === 'edit'
       ? {
           onSave: () => void saveModule(moduleKey),
-          saving: savingKey === moduleKey,
+          saving: savingKeys.has(moduleKey),
           saved: savedKeys.has(moduleKey),
           error: moduleErrors[moduleKey] ?? null,
         }
@@ -395,111 +459,114 @@ export function ExperimentV2Form({
 
   return (
     <div className="flex flex-col gap-6">
+      <RouteLeaveGuard
+        when={shouldBlockExperimentLeave(dirtyKeys.size, creating)}
+        message={t('experimentsV2.form.leaveWarning')}
+      />
       <fieldset disabled={processReadOnly} className="contents">
-      {mode === 'edit' && runCode ? (
-        <p className="text-sm text-muted-foreground">
-          {t('experimentsV2.form.editingRun', { runCode })}
+        {mode === 'edit' && runCode ? (
+          <p className="text-sm text-muted-foreground">
+            {t('experimentsV2.form.editingRun', { runCode })}
+          </p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          {t('experimentsV2.form.requiredHint')}
         </p>
-      ) : null}
-      <p className="text-xs text-muted-foreground">
-        {t('experimentsV2.form.requiredHint')}
-      </p>
 
-      <BasicInfoSection
-        values={state.basic_info}
-        onChange={setBasicInfo}
-        disabled={creating}
-        showErrors={showErrors}
-        save={saveProps('basic_info')}
-      />
-      <TargetProductSection
-        values={state.target_product}
-        onChange={setTargetProduct}
-        components={state.components}
-        onComponentsChange={setComponents}
-        disabled={creating}
-        showErrors={showErrors}
-        save={saveProps('target_product')}
-      />
-      <EquipmentSection
-        equipment={state.equipment}
-        onSelectSetup={selectSetup}
-        disabled={creating}
-        showErrors={showErrors}
-        save={saveProps('equipment')}
-      />
-      <RepeatableItemsSection
-        moduleKey="precursors"
-        index="§3"
-        title={t('experimentsV2.sections.precursors.title')}
-        subtitle={t('experimentsV2.sections.precursors.subtitle')}
-        addLabel={t('experimentsV2.sections.precursors.add')}
-        emptyHint={t('experimentsV2.sections.precursors.empty')}
-        itemLabel={(position) =>
-          t('experimentsV2.sections.precursors.item', { position })
-        }
-        items={state.precursors}
-        onItemsChange={setPrecursors}
-        disabled={creating}
-        showErrors={showErrors}
-        save={saveProps('precursors')}
-      />
-      <RepeatableItemsSection
-        moduleKey="substrates"
-        index="§4"
-        title={t('experimentsV2.sections.substrates.title')}
-        subtitle={t('experimentsV2.sections.substrates.subtitle')}
-        addLabel={t('experimentsV2.sections.substrates.add')}
-        emptyHint={t('experimentsV2.sections.substrates.empty')}
-        itemLabel={(position) =>
-          t('experimentsV2.sections.substrates.item', { position })
-        }
-        items={state.substrates}
-        onItemsChange={setSubstrates}
-        disabled={creating}
-        showErrors={showErrors}
-        save={saveProps('substrates')}
-      />
-
-      <ProcessStepsSection
-        steps={state.process_steps}
-        setupSnapshot={state.equipment.snapshot}
-        onStepsChange={setProcessSteps}
-        disabled={creating}
-        showErrors={showErrors}
-        save={saveProps('process_steps')}
-      />
-      <RepeatableItemsSection
-        moduleKey="process_events"
-        index="§6"
-        title={t('experimentsV2.sections.processEvents.title')}
-        subtitle={t('experimentsV2.sections.processEvents.subtitle')}
-        addLabel={t('experimentsV2.sections.processEvents.add')}
-        emptyHint={t('experimentsV2.sections.processEvents.empty')}
-        itemLabel={(position) =>
-          t('experimentsV2.sections.processEvents.item', { position })
-        }
-        items={state.process_events}
-        onItemsChange={setProcessEvents}
-        disabled={creating}
-        showErrors={showErrors}
-        save={saveProps('process_events')}
-      />
-      </fieldset>
-      <fieldset disabled={resultsReadOnly} className="contents">
-        <ResultsSection runId={runId} readOnly={resultsReadOnly} />
-      </fieldset>
-      <fieldset disabled={processReadOnly} className="contents">
-      {pvdApplicable ? (
-        <PvdSection
-          synthesisMethod={synthesisMethod}
-          values={state.pvd}
-          onChange={setPvd}
+        <BasicInfoSection
+          values={state.basic_info}
+          onChange={setBasicInfo}
           disabled={creating}
           showErrors={showErrors}
-          save={saveProps('pvd')}
+          save={saveProps('basic_info')}
+          editMode={mode === 'edit'}
         />
-      ) : null}
+        <TargetProductSection
+          values={state.target_product}
+          onChange={setTargetProduct}
+          components={state.components}
+          onComponentsChange={setComponents}
+          disabled={creating}
+          showErrors={showErrors}
+          save={saveProps('target_product')}
+        />
+        <EquipmentSection
+          equipment={state.equipment}
+          onSelectSetup={selectSetup}
+          disabled={creating}
+          showErrors={showErrors}
+          save={saveProps('equipment')}
+        />
+        <RepeatableItemsSection
+          moduleKey="precursors"
+          index="§3"
+          title={t('experimentsV2.sections.precursors.title')}
+          subtitle={t('experimentsV2.sections.precursors.subtitle')}
+          addLabel={t('experimentsV2.sections.precursors.add')}
+          emptyHint={t('experimentsV2.sections.precursors.empty')}
+          itemLabel={(position) =>
+            t('experimentsV2.sections.precursors.item', { position })
+          }
+          items={state.precursors}
+          onItemsChange={setPrecursors}
+          disabled={creating}
+          showErrors={showErrors}
+          save={saveProps('precursors')}
+        />
+        <RepeatableItemsSection
+          moduleKey="substrates"
+          index="§4"
+          title={t('experimentsV2.sections.substrates.title')}
+          subtitle={t('experimentsV2.sections.substrates.subtitle')}
+          addLabel={t('experimentsV2.sections.substrates.add')}
+          emptyHint={t('experimentsV2.sections.substrates.empty')}
+          itemLabel={(position) =>
+            t('experimentsV2.sections.substrates.item', { position })
+          }
+          items={state.substrates}
+          onItemsChange={setSubstrates}
+          disabled={creating}
+          showErrors={showErrors}
+          save={saveProps('substrates')}
+        />
+
+        <ProcessStepsSection
+          steps={state.process_steps}
+          setupSnapshot={state.equipment.snapshot}
+          onStepsChange={setProcessSteps}
+          disabled={creating}
+          showErrors={showErrors}
+          save={saveProps('process_steps')}
+        />
+        <RepeatableItemsSection
+          moduleKey="process_events"
+          index="§6"
+          title={t('experimentsV2.sections.processEvents.title')}
+          subtitle={t('experimentsV2.sections.processEvents.subtitle')}
+          addLabel={t('experimentsV2.sections.processEvents.add')}
+          emptyHint={t('experimentsV2.sections.processEvents.empty')}
+          itemLabel={(position) =>
+            t('experimentsV2.sections.processEvents.item', { position })
+          }
+          items={state.process_events}
+          onItemsChange={setProcessEvents}
+          disabled={creating}
+          showErrors={showErrors}
+          save={saveProps('process_events')}
+        />
+      </fieldset>
+      <ResultsSection runId={runId} readOnly={resultsReadOnly} />
+      <fieldset disabled={processReadOnly} className="contents">
+        {pvdApplicable ? (
+          <PvdSection
+            synthesisMethod={synthesisMethod}
+            values={state.pvd}
+            onChange={setPvd}
+            disabled={creating}
+            showErrors={showErrors}
+            save={saveProps('pvd')}
+          />
+        ) : null}
       </fieldset>
 
       {mode === 'new' ? (

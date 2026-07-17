@@ -9,15 +9,19 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.sample_repository import SampleRepository
 from app.schemas.file_asset import FileAssetListResponse, FileAssetRead
 from app.services.audit_service import AuditService
+from app.services.experiment_guards import (
+    ensure_files_editable,
+    get_owned_experiment,
+    get_visible_experiment,
+)
 from app.services.file_storage_service import FileStorageService
 from app.services.v2_field_source import field_option_values
 
@@ -117,9 +121,8 @@ class FileAssetService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Setup diagram cannot be linked to a characterization record",
             )
-        experiment = self._get_editable_owned_experiment(
-            experiment_id, current_user, resolved_asset_role
-        )
+        experiment = get_owned_experiment(self.experiments, experiment_id, current_user)
+        ensure_files_editable(experiment, resolved_asset_role)
         record_method: str | None = None
         if characterization_record_id is not None:
             record = self.db.get(CharacterizationRecord, characterization_record_id)
@@ -294,48 +297,18 @@ class FileAssetService:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
-        self._assert_experiment_visible(file_asset.experiment_run_id, current_user)
+        get_visible_experiment(self.experiments, file_asset.experiment_run_id, current_user)
         return file_asset
 
     def _get_editable_owned_file(self, file_id: UUID, current_user: User) -> FileAsset:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
-        self._get_editable_owned_experiment(
-            file_asset.experiment_run_id, current_user, file_asset.asset_role
+        experiment = get_owned_experiment(
+            self.experiments, file_asset.experiment_run_id, current_user
         )
+        ensure_files_editable(experiment, file_asset.asset_role)
         return file_asset
-
-    def _get_editable_owned_experiment(
-        self, experiment_id: UUID, current_user: User, asset_role: str
-    ) -> ExperimentRun:
-        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
-        if experiment is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Experiment not found",
-            )
-        if current_user.role != UserRole.ADMIN and experiment.owner_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
-        if experiment.status == ExperimentStatus.INVALID or (
-            experiment.status == ExperimentStatus.LOCKED and asset_role != "characterization_file"
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Locked or invalid experiments cannot be edited",
-            )
-        return experiment
-
-    def _assert_experiment_visible(self, experiment_id: UUID, current_user: User) -> None:
-        experiment = self.experiments.get_visible_by_id(experiment_id, current_user=current_user)
-        if experiment is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Experiment not found",
-            )
 
     def to_read_model(self, file_asset: FileAsset) -> FileAssetRead:
         return to_file_asset_read_model(file_asset)

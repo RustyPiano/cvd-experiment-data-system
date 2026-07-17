@@ -40,8 +40,15 @@ export function createRun(payload: V2ExperimentCreate, token: string) {
   })
 }
 
-export function listRuns(token: string) {
-  return apiRequest<V2ExperimentListResponse>(BASE, { token })
+export function listRuns(
+  token: string,
+  { page, pageSize }: { page: number; pageSize: number },
+) {
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
+  return apiRequest<V2ExperimentListResponse>(`${BASE}?${query}`, { token })
 }
 
 export function getRun(runId: string, token: string) {

@@ -65,7 +65,9 @@ jobs:
         run: bun run gen:fields
 
       - name: Check field metadata drift
-        run: git diff --exit-code -- frontend-next/src/shared/generated
+        run: |
+          git diff --exit-code -- frontend-next/src/shared/generated
+          test -z "$(git status --porcelain -- frontend-next/src/shared/generated)"
 
       - name: Typecheck
         working-directory: frontend-next
@@ -89,11 +91,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: astral-sh/setup-uv@v5
+
       - name: Install dependencies
-        run: pip install openpyxl pyyaml
+        run: uv sync --project backend --frozen
 
       - name: Check field-source consistency (YAML ↔ xlsx 逐格一致)
-        run: python3 docs/standard/check_field_source.py
+        run: uv run --project backend python docs/standard/check_field_source.py
 
   generated-artifacts:
     name: Generated artifacts
@@ -127,4 +131,6 @@ jobs:
         run: uv run python -m app.commands.export_v2_schema
 
       - name: Check generated artifact drift
-        run: git diff --exit-code -- docs/standard/generated
+        run: |
+          git diff --exit-code -- docs/standard/generated
+          test -z "$(git status --porcelain -- docs/standard/generated)"

@@ -41,5 +41,6 @@ export function logout(token: string | null) {
   return apiRequest<void>('/api/v1/auth/logout', {
     method: 'POST',
     token,
+    suppressUnauthorizedEvent: true,
   })
 }
