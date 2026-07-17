@@ -5,6 +5,7 @@ import i18n from '@/shared/i18n'
 import { SampleDetailPage } from './sample-detail-page'
 
 let sampleData: Record<string, unknown> = {}
+let fileData: Record<string, unknown>[] = []
 const parentSampleData = {
   id: 'parent-sample-1',
   sample_code: 'CVD-2026-0001-S01',
@@ -47,7 +48,7 @@ vi.mock('@tanstack/react-query', () => ({
     }
     if (queryKey[1] === 'files') {
       return {
-        data: { items: [] },
+        data: { items: fileData },
         isLoading: false,
         isError: false,
       }
@@ -69,6 +70,7 @@ vi.mock('@tanstack/react-query', () => ({
 
 beforeEach(async () => {
   await i18n.changeLanguage('zh')
+  fileData = []
   sampleData = {
     id: 'sample-1',
     experiment_run_id: 'run-1',
@@ -128,5 +130,34 @@ describe('structured sample provenance', () => {
     expect(
       screen.getByText('该样品没有衬底来源或父样品记录。'),
     ).toBeInTheDocument()
+  })
+
+  it('localizes array values, methods, and file categories in English', async () => {
+    await i18n.changeLanguage('en')
+    sampleData = {
+      ...sampleData,
+      source_substrate_snapshot_json: {
+        material: 'SiO₂/Si',
+        pretreatment_steps: ['清洗', '退火'],
+      },
+    }
+    fileData = [
+      {
+        id: 'file-1',
+        original_name: 'optical.png',
+        method: '光镜',
+        file_category: 'raw',
+        size_bytes: 512,
+        created_at: '2026-07-17T12:00:00Z',
+        note: null,
+      },
+    ]
+
+    render(<SampleDetailPage />)
+
+    expect(screen.getByText('Clean · Anneal')).toBeInTheDocument()
+    expect(screen.getByText('Optical microscopy')).toBeInTheDocument()
+    expect(screen.getByText('Raw')).toBeInTheDocument()
+    expect(screen.queryByText('光镜')).not.toBeInTheDocument()
   })
 })

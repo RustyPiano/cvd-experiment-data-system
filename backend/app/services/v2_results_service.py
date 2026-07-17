@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.models.experiment import ExperimentRun
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample
 from app.models.user import User
@@ -59,7 +60,7 @@ class V2ResultsService:
         current_user: User,
     ) -> V2ResultRead:
         sample = self._visible_sample(sample_id, current_user)
-        run = self.experiments.get_by_id(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
 
@@ -120,7 +121,7 @@ class V2ResultsService:
     ) -> V2ResultRead:
         product = self._visible_measured_product(result_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self.experiments.get_by_id(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
         record = (
@@ -189,7 +190,7 @@ class V2ResultsService:
     def delete_result(self, result_id: UUID, current_user: User) -> None:
         product = self._visible_measured_product(result_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self.experiments.get_by_id(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id)
         ensure_results_editable(run)
         record = (
             self.results.get_characterization_record(product.characterization_record_id)
@@ -273,6 +274,7 @@ class V2ResultsService:
         run = get_visible_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
+        run = self._locked_run(run.id)
         ensure_results_editable(run)
         self._sample_for_run(payload.sample_id, run.id)
         method = self._validate_method(payload.method_instrument)
@@ -340,7 +342,7 @@ class V2ResultsService:
         current_user: User,
     ) -> CharacterizationRecordRead:
         record = self._visible_characterization_record(record_id, current_user)
-        run = self.experiments.get_by_id(record.experiment_run_id)
+        run = self._locked_run(record.experiment_run_id)
         ensure_results_editable(run)
         before = self._characterization_snapshot(record)
         changes = payload.model_dump(exclude_unset=True)
@@ -384,7 +386,7 @@ class V2ResultsService:
 
     def delete_characterization_record(self, record_id: UUID, current_user: User) -> None:
         record = self._visible_characterization_record(record_id, current_user)
-        run = self.experiments.get_by_id(record.experiment_run_id)
+        run = self._locked_run(record.experiment_run_id)
         ensure_results_editable(run)
         # Keep characterization evidence explicit: attachments must be soft-deleted first.
         if self.files.has_active_for_characterization_record(record.id):
@@ -449,7 +451,7 @@ class V2ResultsService:
         current_user: User,
     ) -> MeasuredProductRead:
         sample = self._visible_sample(sample_id, current_user)
-        run = self.experiments.get_by_id(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
         if payload.characterization_record_id:
@@ -490,7 +492,7 @@ class V2ResultsService:
     ) -> MeasuredProductRead:
         product = self._visible_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self.experiments.get_by_id(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id)
         ensure_results_editable(run)
         before = self._measured_product_snapshot(product)
         changes = payload.model_dump(exclude_unset=True)
@@ -626,7 +628,7 @@ class V2ResultsService:
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._visible_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self.experiments.get_by_id(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id)
         ensure_results_editable(run)
         before = self._measured_product_snapshot(product)
         self.results.delete(product)
@@ -675,6 +677,15 @@ class V2ResultsService:
             schema_version=SCHEMA_VERSION,
         )
         return sample
+
+    def _locked_run(self, run_id: UUID) -> ExperimentRun:
+        run = self.experiments.get_by_id_for_update(run_id)
+        if run is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Experiment not found",
+            )
+        return run
 
     def _sample_for_run(self, sample_id: UUID, run_id: UUID) -> Sample:
         sample = self.db.get(Sample, sample_id)

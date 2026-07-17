@@ -12,7 +12,7 @@ export type V2EntityVersionRead = Schemas['V2EntityVersionRead']
 export type V2EntityVersionListResponse = Schemas['V2EntityVersionListResponse']
 
 /** 一次录入的字段值（键为字段 key）。后端 V2EntityVersionPayload = freeform dict。 */
-export type EntityVersionPayload = Record<string, string>
+export type EntityVersionPayload = Record<string, string | string[]>
 
 function basePath(kind: EntityKind): string {
   return `/api/v1/${entityConfigs[kind].apiPath}`

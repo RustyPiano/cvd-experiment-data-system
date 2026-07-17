@@ -291,6 +291,10 @@ export const common = {
         name: '文件名',
         method: '方法',
         category: '类别',
+        categories: {
+          raw: '原始文件',
+          processed: '处理后文件',
+        },
         size: '大小',
         uploadedAt: '上传时间',
         note: '备注',

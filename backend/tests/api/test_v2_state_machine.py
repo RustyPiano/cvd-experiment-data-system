@@ -2,11 +2,14 @@ from uuid import UUID
 from zlib import crc32
 
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 from app.main import app
 from app.models.audit import AuditEvent
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.user import User, UserRole
+from app.repositories.experiment_repository import ExperimentRepository
+from app.services.sample_service import SampleService
 
 client = TestClient(app)
 
@@ -114,6 +117,62 @@ def test_lock_gate_returns_structured_missing_fields(active_user) -> None:
     missing = response.json()["detail"]["missing"]
     assert missing
     assert {"key", "label", "module"} <= missing[0].keys()
+
+
+def test_lock_translates_concurrent_sample_conflict_to_409(active_user, monkeypatch) -> None:
+    headers = _headers(active_user.email)
+    run = _lockable_run(headers, "STATE-LOCK-RACE")
+
+    def raise_integrity_error(*args, **kwargs):
+        del args, kwargs
+        raise IntegrityError("INSERT", {}, RuntimeError("concurrent growth sample"))
+
+    monkeypatch.setattr(SampleService, "sync_growth_samples", raise_integrity_error)
+
+    response = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers)
+
+    assert response.status_code == 409, response.text
+    assert "concurrently" in response.json()["detail"]
+    refreshed = client.get(f"/api/v1/experiments/{run['id']}", headers=headers).json()
+    assert refreshed["status"] == "draft"
+
+
+def test_process_writes_recheck_status_after_acquiring_run_lock(active_user, monkeypatch) -> None:
+    headers = _headers(active_user.email)
+    run = _run(headers, "STATE-PROCESS-RACE")
+    original_lock = ExperimentRepository.get_by_id_for_update
+    locked_run_ids: list[UUID] = []
+
+    def return_concurrently_locked(repository, run_id):
+        locked = original_lock(repository, run_id)
+        assert locked is not None
+        locked.status = ExperimentStatus.LOCKED
+        locked_run_ids.append(run_id)
+        return locked
+
+    monkeypatch.setattr(
+        ExperimentRepository,
+        "get_by_id_for_update",
+        return_concurrently_locked,
+    )
+
+    module_response = client.put(
+        f"/api/v1/experiments/{run['id']}/modules/basic_info",
+        json={"payload_json": {}},
+        headers=headers,
+    )
+    setup_response = client.put(
+        f"/api/v1/experiments/{run['id']}/setup-reference",
+        json={
+            "setup_id": "00000000-0000-0000-0000-000000000001",
+            "version": 1,
+        },
+        headers=headers,
+    )
+
+    assert module_response.status_code == 409, module_response.text
+    assert setup_response.status_code == 409, setup_response.text
+    assert locked_run_ids == [UUID(run["id"]), UUID(run["id"])]
 
 
 def test_lock_rejects_missing_non_r0_required_fields(active_user) -> None:
@@ -299,7 +358,16 @@ def test_other_member_can_write_locked_results_and_files(active_user, db_session
 
 def test_not_characterized_marker_clears_todo_and_new_result_clears_marker(
     active_user,
+    monkeypatch,
 ) -> None:
+    locked_run_ids: list[UUID] = []
+    original_lock = ExperimentRepository.get_by_id_for_update
+
+    def tracked_lock(repository, run_id):
+        locked_run_ids.append(run_id)
+        return original_lock(repository, run_id)
+
+    monkeypatch.setattr(ExperimentRepository, "get_by_id_for_update", tracked_lock)
     headers = _headers(active_user.email)
     run = _lockable_run(headers, "STATE-NOT-CHAR")
     run_id = run["id"]
@@ -336,6 +404,7 @@ def test_not_characterized_marker_clears_todo_and_new_result_clears_marker(
         ).status_code
         == 409
     )
+    assert locked_run_ids.count(UUID(run_id)) >= 4
 
 
 def test_invalid_run_rejects_process_and_result_writes(active_user) -> None:

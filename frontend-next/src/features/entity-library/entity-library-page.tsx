@@ -35,7 +35,7 @@ import {
 import type { EntityKind } from './config'
 import { entityConfigs, entityRoutes } from './config'
 import { createEntity, listEntities } from './api'
-import type { V2EntityRead } from './api'
+import type { EntityVersionPayload, V2EntityRead } from './api'
 import { EntityForm } from './entity-form'
 
 function displayValue(entity: V2EntityRead, key: string): string {
@@ -62,7 +62,7 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
   })
 
   const createMutation = useMutation({
-    mutationFn: (payload: Record<string, string>) =>
+    mutationFn: (payload: EntityVersionPayload) =>
       createEntity(kind, payload, token),
     onSuccess: async () => {
       toast.success(t('entityLibrary.form.createSuccess'))

@@ -33,7 +33,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { localizedFieldLabel, localizedOption } from '@/shared/field-i18n'
+import {
+  localizedFieldLabel,
+  localizedOption,
+  localizedValue,
+} from '@/shared/field-i18n'
 
 const routeApi = getRouteApi('/_authed/samples/$sampleId')
 
@@ -43,15 +47,15 @@ function formatBytes(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`
 }
 
-function displayValue(value: unknown): string {
+function displayValue(value: unknown, language: string): string {
   if (value == null || value === '') return '—'
-  if (Array.isArray(value)) return value.map(String).join('、')
+  if (Array.isArray(value)) return localizedValue(value, language)
   if (typeof value === 'object') {
     return Object.entries(value)
-      .map(([key, item]) => `${key}: ${String(item)}`)
+      .map(([key, item]) => `${key}: ${localizedValue(item, language)}`)
       .join('；')
   }
-  return String(value)
+  return localizedValue(value, language)
 }
 
 export function SampleDetailPage() {
@@ -241,10 +245,7 @@ export function SampleDetailPage() {
                 <DetailRow
                   key={row.key}
                   label={row.label}
-                  value={localizedOption(
-                    displayValue(row.value),
-                    i18n.language,
-                  )}
+                  value={displayValue(row.value, i18n.language)}
                 />
               ))}
             </dl>
@@ -296,8 +297,18 @@ export function SampleDetailPage() {
                       <TableCell className="font-medium">
                         {file.original_name}
                       </TableCell>
-                      <TableCell>{file.method ?? '—'}</TableCell>
-                      <TableCell>{file.file_category}</TableCell>
+                      <TableCell>
+                        {file.method
+                          ? localizedOption(file.method, i18n.language)
+                          : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {file.file_category === 'raw'
+                          ? t('samples.detail.files.categories.raw')
+                          : file.file_category === 'processed'
+                            ? t('samples.detail.files.categories.processed')
+                            : file.file_category}
+                      </TableCell>
                       <TableCell>{formatBytes(file.size_bytes)}</TableCell>
                       <TableCell>
                         {dayjs(file.created_at).format('YYYY-MM-DD HH:mm')}

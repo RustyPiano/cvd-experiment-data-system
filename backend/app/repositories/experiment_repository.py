@@ -53,6 +53,20 @@ class ExperimentRepository:
         )
         return self.db.scalar(statement)
 
+    def get_by_id_for_update(self, experiment_id: UUID) -> ExperimentRun | None:
+        """Lock a run row for a state/result write and refresh any stale identity-map value."""
+        statement = (
+            select(ExperimentRun)
+            .options(
+                selectinload(ExperimentRun.owner),
+                selectinload(ExperimentRun.module_payloads),
+            )
+            .where(ExperimentRun.id == experiment_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return self.db.scalar(statement)
+
     def get_visible_by_id(
         self,
         experiment_id: UUID,

@@ -320,6 +320,10 @@ export const common = {
         name: 'Filename',
         method: 'Method',
         category: 'Category',
+        categories: {
+          raw: 'Raw',
+          processed: 'Processed',
+        },
         size: 'Size',
         uploadedAt: 'Uploaded at',
         note: 'Note',

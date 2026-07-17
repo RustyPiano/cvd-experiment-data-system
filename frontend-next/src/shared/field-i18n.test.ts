@@ -15,6 +15,7 @@ import {
   localizedFieldPlaceholder,
   localizedOption,
   localizedUnit,
+  localizedValue,
 } from './field-i18n'
 
 const CJK = /[\u3400-\u9fff]/
@@ -59,6 +60,12 @@ describe('field display localization', () => {
     const prefixed = fields.find((field) => field.labelZh.startsWith('▸'))
     expect(prefixed).toBeDefined()
     expect(localizedFieldLabel(prefixed!, 'zh')).not.toContain('▸')
+  })
+
+  it('localizes every member of a multi-select array independently', () => {
+    expect(localizedValue(['光', '电'], 'en')).toBe(
+      'Light · Electric field',
+    )
   })
 
   it('provides independent bilingual placeholders and paired help text', () => {

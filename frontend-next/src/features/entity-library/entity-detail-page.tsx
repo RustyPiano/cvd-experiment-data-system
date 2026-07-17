@@ -26,12 +26,13 @@ import {
 import type { EntityKind } from './config'
 import { entityConfigs, entityRoutes } from './config'
 import { appendEntityVersion, getEntity, listEntityVersions } from './api'
+import type { EntityVersionPayload } from './api'
 import { getEntityFields, isFieldVisible } from './field-logic'
 import { EntityForm } from './entity-form'
 import {
   localizedFieldLabel,
-  localizedOption,
   localizedUnit,
+  localizedValue,
 } from '@/shared/field-i18n'
 
 export function EntityDetailPage({
@@ -84,7 +85,7 @@ export function EntityDetailPage({
     activeVersion != null && activeVersion.version !== latestVersion
 
   const appendMutation = useMutation({
-    mutationFn: (payload: Record<string, string>) =>
+    mutationFn: (payload: EntityVersionPayload) =>
       appendEntityVersion(kind, entityId, payload, token),
     onSuccess: async (created) => {
       toast.success(
@@ -194,7 +195,7 @@ export function EntityDetailPage({
                 )
                 .map((field) => {
                   const raw = activeData[field.key]
-                  const value = raw == null || raw === '' ? '' : String(raw)
+                  const value = localizedValue(raw, i18n.language)
                   const label = localizedFieldLabel(field, i18n.language)
                   const unit = localizedUnit(field.unit, i18n.language)
                   return (
@@ -209,9 +210,7 @@ export function EntityDetailPage({
                         ) : null}
                       </dt>
                       <dd className="min-w-0 flex-1 whitespace-pre-wrap text-foreground">
-                        {value
-                          ? localizedOption(value, i18n.language)
-                          : t('entityLibrary.detail.emptyValue')}
+                        {value || t('entityLibrary.detail.emptyValue')}
                       </dd>
                     </div>
                   )

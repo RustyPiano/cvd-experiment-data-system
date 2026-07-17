@@ -3,10 +3,12 @@ import { entities, experimentModules } from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
   SYSTEM_FIELD_KEYS,
+  buildDefaultValues,
   buildSubmitPayload,
   getEntityFields,
   isEffectivelyRequired,
   isFieldVisible,
+  isNoneOption,
   isOtherOptionMarker,
   isSelectWithOtherInput,
   parseEnumOptions,
@@ -62,6 +64,7 @@ describe('parseEnumOptions', () => {
     expect(isOtherOptionMarker('受控+其他')).toBe(true)
     expect(isOtherOptionMarker('其他')).toBe(true)
     expect(isOtherOptionMarker('CVD')).toBe(false)
+    expect(isNoneOption('无')).toBe(true)
   })
 })
 
@@ -247,5 +250,17 @@ describe('buildSubmitPayload', () => {
     expect(payload.substance_name).toBe('MoO₃')
     expect(payload.substrate_material).toBe('SiO₂/Si')
     expect(payload).not.toHaveProperty('gas_purity_grade')
+  })
+
+  it('preserves multi-select values as canonical arrays across edit and submit', () => {
+    const defaults = buildDefaultValues('setup', {
+      field_devices: ['光', '电'],
+    })
+    expect(defaults.field_devices).toEqual(['光', '电'])
+
+    const payload = buildSubmitPayload('setup', {
+      field_devices: [' 光 ', '电', '光'],
+    })
+    expect(payload.field_devices).toEqual(['光', '电'])
   })
 })

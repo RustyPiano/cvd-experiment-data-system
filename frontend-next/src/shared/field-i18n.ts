@@ -23,6 +23,17 @@ export function localizedOption(value: string, language: string): string {
   return isEnglish(language) ? (optionLabelsEn[value] ?? value) : value
 }
 
+/** Localize scalar or multi-select values without collapsing arrays before lookup. */
+export function localizedValue(value: unknown, language: string): string {
+  if (value == null || value === '') return ''
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => localizedOption(String(item), language))
+      .join(' · ')
+  }
+  return localizedOption(String(value), language)
+}
+
 export function localizedUnit(
   unit: string | null,
   language: string,

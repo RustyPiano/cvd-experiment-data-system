@@ -11,8 +11,9 @@ import type {
 } from '@/shared/generated/field-metadata'
 import type { EntityKind } from './config'
 
-/** 表单值统一以字符串承载（后端 V2EntityVersionPayload 为 freeform，接受任意值）。 */
-export type EntityFormValues = Record<string, string>
+export type EntityFieldValue = string | string[]
+export type EntityFormValues = Record<string, EntityFieldValue>
+export type EntityVersionPayload = Record<string, EntityFieldValue>
 
 /**
  * 版本号由后端版本表自增分配（V2EntityVersionRead.version），不是用户录入项，
@@ -44,8 +45,16 @@ export function isSelectWithOtherInput(input: string): boolean {
   return /下拉\+其他/.test(input)
 }
 
+export function isMultiSelectInput(input: string): boolean {
+  return /多选/.test(input)
+}
+
 export function isOtherOptionMarker(option: string): boolean {
   return option === '受控+其他' || option === '其他'
+}
+
+export function isNoneOption(option: string): boolean {
+  return option === '无'
 }
 
 /**
@@ -164,7 +173,7 @@ export function isEffectivelyRequired(
   return false
 }
 
-/** 建立表单默认值：所有可编辑字段键均置为字符串（create 空串；newVersion 取旧版本快照）。 */
+/** 建立表单默认值：多选保留数组，其余字段使用字符串。 */
 export function buildDefaultValues(
   kind: EntityKind,
   source?: Record<string, unknown> | null,
@@ -172,7 +181,15 @@ export function buildDefaultValues(
   const values: EntityFormValues = {}
   for (const field of getEntityFields(kind)) {
     const raw = source?.[field.key]
-    values[field.key] = raw == null ? '' : String(raw)
+    if (isMultiSelectInput(field.input)) {
+      values[field.key] = Array.isArray(raw)
+        ? raw.map(String).filter(Boolean)
+        : raw == null || raw === ''
+          ? []
+          : [String(raw)]
+    } else {
+      values[field.key] = raw == null ? '' : String(raw)
+    }
   }
   return values
 }
@@ -184,12 +201,18 @@ export function buildDefaultValues(
 export function buildSubmitPayload(
   kind: EntityKind,
   values: EntityFormValues,
-): Record<string, string> {
-  const payload: Record<string, string> = {}
+): EntityVersionPayload {
+  const payload: EntityVersionPayload = {}
   for (const field of getEntityFields(kind)) {
     if (!isFieldVisible(kind, field, values)) continue
-    const value = (values[field.key] ?? '').trim()
-    if (value) payload[field.key] = value
+    const value = values[field.key]
+    if (Array.isArray(value)) {
+      const normalized = [...new Set(value.map((item) => item.trim()).filter(Boolean))]
+      if (normalized.length > 0) payload[field.key] = normalized
+      continue
+    }
+    const normalized = (value ?? '').trim()
+    if (normalized) payload[field.key] = normalized
   }
   return payload
 }

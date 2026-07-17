@@ -185,13 +185,21 @@ class V2ExperimentService:
         run = get_owned_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
+        run = self._locked_run(run.id)
         self._require_status(run, ExperimentStatus.DRAFT)
         self._require_r0(run)
-        self.samples.sync_growth_samples(run, self._substrate_items(run.id), current_user)
-        run.locked_at = datetime.now(UTC)
-        self._transition(run, ExperimentStatus.LOCKED, "lock", current_user, commit=False)
-        refresh_result_missing_todo(self.db, run)
-        self.db.commit()
+        try:
+            self.samples.sync_growth_samples(run, self._substrate_items(run.id), current_user)
+            run.locked_at = datetime.now(UTC)
+            self._transition(run, ExperimentStatus.LOCKED, "lock", current_user, commit=False)
+            refresh_result_missing_todo(self.db, run)
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Run was locked concurrently; reload and retry",
+            ) from exc
         self.db.refresh(run)
         return self._run_read(run)
 
@@ -201,6 +209,7 @@ class V2ExperimentService:
         )
         if current_user.role != UserRole.ADMIN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
+        run = self._locked_run(run.id)
         self._require_status(run, ExperimentStatus.LOCKED)
         run.locked_at = None
         self._transition(run, ExperimentStatus.DRAFT, "unlock", current_user, commit=False)
@@ -213,6 +222,7 @@ class V2ExperimentService:
         run = get_owned_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
+        run = self._locked_run(run.id)
         if run.status in {ExperimentStatus.INVALID, ExperimentStatus.LOCKED}:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Experiment cannot be invalidated"
@@ -232,6 +242,7 @@ class V2ExperimentService:
         run = get_owned_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
+        run = self._locked_run(run.id)
         ensure_process_editable(run)
         before = {
             "setup_ref": str(run.setup_ref) if run.setup_ref else None,
@@ -276,6 +287,7 @@ class V2ExperimentService:
         run = get_owned_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
+        run = self._locked_run(run.id)
         ensure_process_editable(run)
         try:
             payload_json = deepcopy(payload.payload_json)
@@ -365,6 +377,7 @@ class V2ExperimentService:
         run = get_visible_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
+        run = self._locked_run(run.id)
         self._require_status(run, ExperimentStatus.LOCKED)
         if (
             confirmed
@@ -410,6 +423,15 @@ class V2ExperimentService:
         self.db.commit()
         self.db.refresh(run)
         return self._run_read(run)
+
+    def _locked_run(self, run_id: UUID) -> ExperimentRun:
+        run = self.experiments.get_by_id_for_update(run_id)
+        if run is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Experiment not found",
+            )
+        return run
 
     def _save_v2_payload(
         self, run_id: UUID, module_key: str, payload_json: dict[str, Any]

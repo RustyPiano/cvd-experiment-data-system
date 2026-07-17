@@ -23,6 +23,7 @@ import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
 import { SelectWithOtherControl } from '@/shared/ui/select-with-other-control'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -48,11 +49,13 @@ import {
   getEntityFields,
   isEffectivelyRequired,
   isFieldVisible,
+  isMultiSelectInput,
+  isNoneOption,
   isOtherOptionMarker,
   isSelectWithOtherInput,
   parseEnumOptions,
 } from './field-logic'
-import type { EntityFormValues } from './field-logic'
+import type { EntityFormValues, EntityVersionPayload } from './field-logic'
 
 // 长文本字段用多行输入并跨两列（示意图/配置/坐标系描述）。
 const TEXTAREA_KEYS = new Set([
@@ -72,7 +75,7 @@ type EntityFormProps = {
   /** newVersion 模式下的旧版本数据快照，用于预填。 */
   defaultData?: Record<string, unknown> | null
   submitting: boolean
-  onSubmit: (payload: Record<string, string>) => void
+  onSubmit: (payload: EntityVersionPayload) => void
   onCancel: () => void
 }
 
@@ -97,7 +100,11 @@ export function EntityForm({
       const required =
         isFieldVisible(kind, field, values) &&
         isEffectivelyRequired(kind, field, values)
-      if (required && (values[field.key] ?? '').trim() === '') {
+      const value = values[field.key]
+      const empty = Array.isArray(value)
+        ? value.length === 0
+        : (value ?? '').trim() === ''
+      if (required && empty) {
         errors[field.key] = {
           type: 'required',
           message: t('validation.required'),
@@ -192,6 +199,7 @@ function EntityFieldControl({
   const label = localizedFieldLabel(field, i18n.language)
   const required = isEffectivelyRequired(kind, field, values)
   const allowsOther = isSelectWithOtherInput(field.input)
+  const multiSelect = isMultiSelectInput(field.input)
   const enumOptions = parseEnumOptions(field.input, field.options)?.filter(
     (option) => !allowsOther || !isOtherOptionMarker(option),
   )
@@ -203,7 +211,10 @@ function EntityFieldControl({
   const useTextarea = TEXTAREA_KEYS.has(field.key)
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
   const fieldHelp = localizedFieldHelp(field, i18n.language)
-  const customControl = Boolean(compositeInput || (enumOptions && allowsOther))
+  const customControl = Boolean(
+    compositeInput || (enumOptions && (allowsOther || multiSelect)),
+  )
+  const labelId = `${controlId}-label`
   const helpId = `${controlId}-help`
   const messageId = `${controlId}-message`
 
@@ -213,7 +224,13 @@ function EntityFieldControl({
       name={field.key}
       render={({ field: rhf, fieldState }) => (
         <FormItem className={useTextarea ? 'sm:col-span-2' : undefined}>
-          <FormLabel {...(customControl ? { htmlFor: controlId } : {})}>
+          <FormLabel
+            {...(multiSelect
+              ? { id: labelId }
+              : customControl
+                ? { htmlFor: controlId }
+                : {})}
+          >
             <span>{label}</span>
             {localizedUnit(field.unit, i18n.language) ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">
@@ -222,10 +239,56 @@ function EntityFieldControl({
             ) : null}
             {required ? <RequiredMark /> : null}
           </FormLabel>
-          {compositeInput ? (
+          {enumOptions && multiSelect ? (
+            <div
+              id={controlId}
+              role="group"
+              aria-labelledby={labelId}
+              aria-describedby={
+                [fieldHelp ? helpId : null, fieldState.invalid ? messageId : null]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              aria-invalid={fieldState.invalid || undefined}
+              className="grid gap-2 rounded-md border border-input px-3 py-2 sm:grid-cols-2"
+            >
+              {enumOptions.map((option) => {
+                const selected = Array.isArray(rhf.value) ? rhf.value : []
+                return (
+                  <label
+                    key={option}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={selected.includes(option)}
+                      disabled={disabled}
+                      onCheckedChange={(checked) => {
+                        if (!checked) {
+                          rhf.onChange(selected.filter((item) => item !== option))
+                          return
+                        }
+                        rhf.onChange(
+                          isNoneOption(option)
+                            ? [option]
+                            : [
+                                ...selected.filter(
+                                  (item) =>
+                                    !isNoneOption(item) && item !== option,
+                                ),
+                                option,
+                              ],
+                        )
+                      }}
+                    />
+                    <span>{localizedOption(option, i18n.language)}</span>
+                  </label>
+                )
+              })}
+            </div>
+          ) : compositeInput ? (
             <CompositeFieldControl
               input={compositeInput}
-              value={rhf.value ?? ''}
+              value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
               options={compositeOptions}
               onChange={rhf.onChange}
               inputId={controlId}
@@ -238,7 +301,7 @@ function EntityFieldControl({
             />
           ) : enumOptions && allowsOther ? (
             <SelectWithOtherControl
-              value={rhf.value ?? ''}
+              value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
               options={enumOptions}
               onChange={rhf.onChange}
               disabled={disabled}
@@ -261,7 +324,7 @@ function EntityFieldControl({
             />
           ) : enumOptions ? (
             <Select
-              value={rhf.value ?? ''}
+              value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
               onValueChange={rhf.onChange}
               disabled={disabled}
             >
@@ -283,6 +346,7 @@ function EntityFieldControl({
               {useTextarea ? (
                 <Textarea
                   {...rhf}
+                  value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
                   rows={3}
                   placeholder={placeholder}
                   disabled={disabled}
@@ -290,6 +354,7 @@ function EntityFieldControl({
               ) : (
                 <Input
                   {...rhf}
+                  value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
                   autoComplete="off"
                   placeholder={placeholder}
                   disabled={disabled}

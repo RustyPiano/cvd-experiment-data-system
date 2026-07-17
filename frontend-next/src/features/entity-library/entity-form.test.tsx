@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nextProvider } from 'react-i18next'
 import i18n from '@/shared/i18n'
 import { EntityForm } from './entity-form'
@@ -70,5 +70,31 @@ describe('EntityForm — select with other accessibility', () => {
     expect(
       screen.getByRole('combobox', { name: '品牌/型号' }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('EntityForm — multi-select values', () => {
+  it('submits multiple setup devices as an array', async () => {
+    const onSubmit = vi.fn()
+    renderForm({
+      kind: 'setup',
+      onSubmit,
+      defaultData: {
+        setup_code: 'SETUP-001',
+        setup_name: 'Main setup',
+        zone_count: '2',
+        orientation: '水平',
+        coordinate_system: '上游负/下游正',
+      },
+    })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '光' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '电' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      field_devices: ['光', '电'],
+    })
   })
 })

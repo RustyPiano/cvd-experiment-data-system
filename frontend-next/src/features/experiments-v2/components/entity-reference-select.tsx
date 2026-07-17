@@ -9,7 +9,10 @@ import { useAuth } from '@/features/auth/use-auth'
 import { entityConfigs } from '@/features/entity-library/config'
 import type { EntityKind } from '@/features/entity-library/config'
 import { createEntity, listEntities } from '@/features/entity-library/api'
-import type { V2EntityRead } from '@/features/entity-library/api'
+import type {
+  EntityVersionPayload,
+  V2EntityRead,
+} from '@/features/entity-library/api'
 import { EntityForm } from '@/features/entity-library/entity-form'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { Button } from '@/components/ui/button'
@@ -69,7 +72,7 @@ export function EntityReferenceSelect({
   })
   const entities = data?.items ?? []
   const createMutation = useMutation({
-    mutationFn: (payload: Record<string, string>) =>
+    mutationFn: (payload: EntityVersionPayload) =>
       createEntity(kind, payload, token),
     onSuccess: async (entity) => {
       setCreateOpen(false)
