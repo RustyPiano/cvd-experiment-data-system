@@ -80,9 +80,6 @@ vi.mock('./components/process-steps-section', () => ({
   ProcessStepsSection: ({ save }: SectionProps) =>
     sectionStub('process_steps', save),
 }))
-vi.mock('./components/pvd-section', () => ({
-  PvdSection: ({ save }: SectionProps) => sectionStub('pvd', save),
-}))
 vi.mock('./components/results-section', () => ({ ResultsSection: () => null }))
 
 function completeState() {
@@ -90,7 +87,7 @@ function completeState() {
     basic_info: {
       ...emptyModuleValues('basic_info'),
       started_at: '2026-07-11T08:30',
-      synthesis_method: 'PVD-磁控溅射',
+      synthesis_method: 'APCVD',
       operator: 'operator-1',
       run_code: 'RUN-DRAFT',
     },
@@ -122,15 +119,6 @@ function completeState() {
         description_action: 'checked',
       },
     ],
-    pvd: {
-      ...emptyModuleValues('pvd'),
-      target_lot_ref: 'lot-1',
-      target_substrate_distance_mm: '50',
-      power_bias: '100 W',
-      plasma_gas_pressure: 'Ar, 1 Pa',
-      presputter_shutter: '5 min',
-      deposition_rate_nm_s: '0.2',
-    },
   }
 }
 
@@ -179,7 +167,6 @@ describe('ExperimentV2Form module saves', () => {
       'process_events',
       { items: [expect.objectContaining({ description_action: 'checked' })] },
     ],
-    ['pvd', { target_lot_ref: 'lot-1', deposition_rate_nm_s: '0.2' }],
   ])(
     'saves %s to its module endpoint with its payload',
     async (moduleKey, payload) => {
@@ -281,7 +268,7 @@ describe('ExperimentV2Form create and save', () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1))
     expect(api.createRun).toHaveBeenCalledWith(
       expect.objectContaining({
-        synthesis_method: 'PVD-磁控溅射',
+        synthesis_method: 'APCVD',
         operator: 'operator-1',
         run_code: 'RUN-DRAFT',
         chemical_formula: 'MoS2',
@@ -301,7 +288,6 @@ describe('ExperimentV2Form create and save', () => {
       'substrates',
       'process_steps',
       'process_events',
-      'pvd',
     ])
     expect(api.upsertModule).toHaveBeenCalledWith(
       'run-created',

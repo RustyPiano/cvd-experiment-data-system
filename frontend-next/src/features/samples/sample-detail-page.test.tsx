@@ -1,79 +1,45 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type * as ReactModule from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
 
+import i18n from '@/shared/i18n'
 import { SampleDetailPage } from './sample-detail-page'
-import { updateSample } from './api'
 
-let status: 'draft' | 'locked' | 'invalid' = 'draft'
-let currentUserId = 'owner-1'
-let mutationPending = false
-let sampleData = {
-  id: 'sample-1',
-  experiment_run_id: 'run-1',
-  sample_code: 'RUN-1-S1',
-  role: 'growth',
-  metadata_json: {},
-  updated_at: '2026-07-11T00:00:00Z',
+let sampleData: Record<string, unknown> = {}
+const parentSampleData = {
+  id: 'parent-sample-1',
+  sample_code: 'CVD-2026-0001-S01',
 }
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+  Link: ({ children }: { children: React.ReactNode }) => (
+    <a href="#test">{children}</a>
+  ),
   getRouteApi: () => ({ useParams: () => ({ sampleId: 'sample-1' }) }),
-  useBlocker: () => ({ status: 'unblocked' }),
 }))
 vi.mock('@/features/auth/use-auth', () => ({
   useAuth: () => ({
     session: {
       accessToken: 'token',
-      currentUser: { id: currentUserId, role: 'member' },
+      currentUser: { id: 'owner-1', role: 'member' },
       isAuthenticated: true,
     },
   }),
 }))
-vi.mock('./api', () => ({ updateSample: vi.fn() }))
-vi.mock('@tanstack/react-query', async () => {
-  const React = await vi.importActual<typeof ReactModule>('react')
-  return {
-  useQueryClient: () => ({
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-    setQueryData: vi.fn((queryKey: string[], value: typeof sampleData) => {
-      if (queryKey[0] === 'samples' && queryKey[1] === 'detail') {
-        sampleData = value
-      }
-    }),
-  }),
-  useMutation: (options: {
-    mutationFn: () => Promise<unknown>
-    onSuccess?: (data: unknown) => Promise<void> | void
-    onError?: (error: unknown) => void
-    onSettled?: () => void
-  }) => {
-    const [internalPending, setInternalPending] = React.useState(false)
-    const optionsRef = React.useRef(options)
-    optionsRef.current = options
-    const mutate = React.useCallback(async () => {
-      setInternalPending(true)
-      try {
-        const data = await optionsRef.current.mutationFn()
-        await optionsRef.current.onSuccess?.(data)
-      } catch (error) {
-        optionsRef.current.onError?.(error)
-      } finally {
-        setInternalPending(false)
-        optionsRef.current.onSettled?.()
-      }
-    }, [])
-    return { isPending: mutationPending || internalPending, mutate }
-  },
+vi.mock('./api', () => ({
+  downloadExperimentFile: vi.fn(),
+  getExperiment: vi.fn(),
+  getSample: vi.fn(),
+  listExperimentFiles: vi.fn(),
+}))
+vi.mock('@tanstack/react-query', () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => {
     if (queryKey[0] === 'experiments') {
       return {
         data: {
           id: 'run-1',
           owner_id: 'owner-1',
-          run_code: 'RUN-1',
-          status,
+          run_code: 'CVD-2026-0001',
+          status: 'locked',
         },
         isLoading: false,
         isError: false,
@@ -86,115 +52,81 @@ vi.mock('@tanstack/react-query', async () => {
         isError: false,
       }
     }
+    if (queryKey[1] === 'parent') {
+      return {
+        data: parentSampleData,
+        isLoading: false,
+        isError: false,
+      }
+    }
     return {
       data: sampleData,
       isLoading: false,
       isError: false,
     }
   },
+}))
+
+beforeEach(async () => {
+  await i18n.changeLanguage('zh')
+  sampleData = {
+    id: 'sample-1',
+    experiment_run_id: 'run-1',
+    sample_code: 'CVD-2026-0001-S01',
+    role: 'growth',
+    material_system: 'MoS2',
+    parent_sample_id: null,
+    source_substrate_snapshot_json: {
+      material: 'SiO₂/Si',
+      oxide_thickness_nm: 285,
+      source_id: 'internal-id-must-not-render',
+    },
+    metadata_json: { raw: 'must not render' },
   }
 })
 
-describe('sample detail result-domain editability', () => {
-  beforeEach(() => {
-    status = 'draft'
-    currentUserId = 'owner-1'
-    mutationPending = false
-    sampleData = {
-      id: 'sample-1',
-      experiment_run_id: 'run-1',
-      sample_code: 'RUN-1-S1',
-      role: 'growth',
-      metadata_json: {},
-      updated_at: '2026-07-11T00:00:00Z',
-    }
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.mocked(updateSample).mockReset()
-  })
-
-  it.each(['draft', 'locked'] as const)(
-    'keeps %s samples editable',
-    (runStatus) => {
-      status = runStatus
-      render(<SampleDetailPage />)
-
-      expect(screen.getByLabelText('元数据 JSON')).toBeEnabled()
-      expect(
-        screen.getByRole('button', { name: '保存样品' }),
-      ).toBeInTheDocument()
-    },
-  )
-
-  it('allows another member to edit a locked sample', () => {
-    status = 'locked'
-    currentUserId = 'other-member'
+describe('structured sample provenance', () => {
+  it('renders substrate fields structurally without exposing internal JSON', () => {
     render(<SampleDetailPage />)
 
-    expect(screen.getByLabelText('元数据 JSON')).toBeEnabled()
-  })
-
-  it('keeps invalid samples read-only', () => {
-    status = 'invalid'
-    render(<SampleDetailPage />)
-
-    expect(screen.getByLabelText('元数据 JSON')).toBeDisabled()
+    expect(screen.getByText('来源与谱系')).toBeInTheDocument()
+    expect(screen.getByText('SiO₂/Si')).toBeInTheDocument()
+    expect(screen.getByText('285')).toBeInTheDocument()
+    expect(screen.queryByText('元数据 JSON')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: '保存样品' }),
+      screen.queryByText(/internal-id-must-not-render/),
     ).not.toBeInTheDocument()
+    expect(screen.queryByText(/must not render/)).not.toBeInTheDocument()
   })
 
-  it('keeps metadata input enabled while autosave is pending', () => {
-    mutationPending = true
+  it('shows derived-sample lineage as a parent sample link', () => {
+    sampleData = {
+      ...sampleData,
+      role: 'derived',
+      parent_sample_id: 'parent-sample-1',
+      source_substrate_snapshot_json: null,
+    }
+
     render(<SampleDetailPage />)
 
-    expect(screen.getByLabelText('元数据 JSON')).toBeEnabled()
-    expect(screen.getByRole('button', { name: '保存中…' })).toBeDisabled()
+    expect(screen.getByText('父样品')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'CVD-2026-0001-S01' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('parent-sample-1')).not.toBeInTheDocument()
   })
 
-  it('autosaves edits made while a previous autosave is in flight', async () => {
-    vi.useFakeTimers()
-    let finishFirst:
-      | ((value: Awaited<ReturnType<typeof updateSample>>) => void)
-      | undefined
-    vi.mocked(updateSample)
-      .mockImplementationOnce(
-        () => new Promise((resolve) => (finishFirst = resolve)),
-      )
-      .mockResolvedValue({
-        id: 'sample-1',
-        experiment_run_id: 'run-1',
-        sample_code: 'RUN-1-S1',
-        role: 'growth',
-        metadata_json: { version: 2 },
-        updated_at: '2026-07-11T00:00:01Z',
-      } as never)
+  it('shows an explicit empty provenance message for control samples', () => {
+    sampleData = {
+      ...sampleData,
+      role: 'control',
+      source_substrate_snapshot_json: null,
+    }
+
     render(<SampleDetailPage />)
-    const input = screen.getByLabelText('元数据 JSON')
 
-    fireEvent.change(input, { target: { value: '{"version":1}' } })
-    await act(() => vi.advanceTimersByTimeAsync(900))
-    expect(updateSample).toHaveBeenCalledTimes(1)
-
-    fireEvent.change(input, { target: { value: '{"version":2}' } })
-    await act(async () => {
-      finishFirst?.({
-        id: 'sample-1',
-        experiment_run_id: 'run-1',
-        sample_code: 'RUN-1-S1',
-        role: 'growth',
-        metadata_json: { version: 1 },
-        updated_at: '2026-07-11T00:00:00Z',
-      } as unknown as Awaited<ReturnType<typeof updateSample>>)
-      await Promise.resolve()
-    })
-    await act(() => vi.advanceTimersByTimeAsync(900))
-
-    expect(updateSample).toHaveBeenCalledTimes(2)
-    expect(vi.mocked(updateSample).mock.calls[1]?.[2]).toEqual({
-      metadata_json: { version: 2 },
-    })
+    expect(
+      screen.getByText('该样品没有衬底来源或父样品记录。'),
+    ).toBeInTheDocument()
   })
 })

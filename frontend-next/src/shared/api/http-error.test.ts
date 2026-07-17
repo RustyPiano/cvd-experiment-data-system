@@ -52,6 +52,16 @@ describe("resolveErrorMessage", () => {
         '默认错误',
       ),
     ).toBe('请求无效，请检查输入')
+    expect(
+      resolveErrorMessage(
+        new HttpError(
+          409,
+          'Delete active attachments before deleting the result',
+          null,
+        ),
+        '默认错误',
+      ),
+    ).toBe('该结果仍有附件，请先删除附件再删除结果')
   })
 
   it('keeps structured validation details on the form fallback path', () => {

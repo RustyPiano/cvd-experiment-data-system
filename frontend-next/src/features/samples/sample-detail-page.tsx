@@ -1,36 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { ArrowLeft, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import i18n from '@/shared/i18n'
 
 import { useAuth } from '@/features/auth/use-auth'
-import { isResultsReadOnly } from '@/features/experiments-v2/status-logic'
+import { getModuleFields } from '@/features/experiments-v2/field-logic'
 import {
   downloadExperimentFile,
   getExperiment,
   getSample,
   listExperimentFiles,
-  updateSample,
 } from './api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { triggerBlobDownload } from '@/shared/lib/download'
 import { PageHeader } from '@/shared/ui/page-header'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { LoadingState } from '@/shared/ui/loading-state'
-import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
 import { StatusTag } from '@/shared/ui/status-tag'
-import type {
-  FileAssetRead,
-  SampleRead,
-  SampleUpdateRequest,
-} from '@/shared/types/api'
+import type { FileAssetRead } from '@/shared/types/api'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -43,68 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-// ─── Route (imported by route file) ──────────────────────────────────────────
 const routeApi = getRouteApi('/_authed/samples/$sampleId')
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type SampleFieldKey = keyof SampleUpdateRequest
-
-type SampleFormState = {
-  metadataJson: string
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function buildFormState(sample: SampleRead): SampleFormState {
-  return {
-    metadataJson: JSON.stringify(sample.metadata_json ?? {}, null, 2),
-  }
-}
-
-function validateMetadataJson(rawValue: string): string | null {
-  const normalized = rawValue.trim()
-  if (!normalized) return null
-  try {
-    const parsed = JSON.parse(normalized)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return i18n.t('samples.validation.metadataObject')
-    }
-    return null
-  } catch {
-    return i18n.t('samples.validation.metadataInvalid')
-  }
-}
-
-function buildSampleUpdatePayload(
-  formState: SampleFormState,
-  dirtyFields: SampleFieldKey[],
-): SampleUpdateRequest {
-  const payload: SampleUpdateRequest = {}
-  const dirtyFieldSet = new Set(dirtyFields)
-
-  if (dirtyFieldSet.has('metadata_json')) {
-    let parsedMetadata: Record<string, unknown>
-    try {
-      parsedMetadata = JSON.parse(formState.metadataJson || '{}') as Record<
-        string,
-        unknown
-      >
-    } catch {
-      throw new Error(i18n.t('samples.validation.metadataInvalid'))
-    }
-    if (
-      parsedMetadata === null ||
-      Array.isArray(parsedMetadata) ||
-      typeof parsedMetadata !== 'object'
-    ) {
-      throw new Error(i18n.t('samples.validation.metadataObject'))
-    }
-    payload.metadata_json = parsedMetadata
-  }
-
-  return payload
-}
 
 function formatBytes(sizeBytes: number) {
   if (sizeBytes < 1024) return `${sizeBytes} B`
@@ -112,42 +42,41 @@ function formatBytes(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function displayValue(value: unknown): string {
+  if (value == null || value === '') return '—'
+  if (Array.isArray(value)) return value.map(String).join('、')
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([key, item]) => `${key}: ${String(item)}`)
+      .join('；')
+  }
+  return String(value)
+}
 
 export function SampleDetailPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { sampleId } = routeApi.useParams()
-  const queryClient = useQueryClient()
   const { session } = useAuth()
-  const currentUser = session.currentUser
-  const viewerKey = currentUser?.id ?? 'anonymous'
-
-  const [draftFormState, setDraftFormState] = useState<{
-    dirtyFields: SampleFieldKey[]
-    form: SampleFormState
-    revision: string
-  } | null>(null)
+  const viewerKey = session.currentUser?.id ?? 'anonymous'
   const [downloadFileId, setDownloadFileId] = useState<string | null>(null)
-  const [saveStatus, setSaveStatus] = useState<
-    'idle' | 'saving' | 'saved' | 'error'
-  >('idle')
-  const autosaveTimerRef = useRef<number | null>(null)
-  const saveTriggerRef = useRef<'auto' | 'manual' | null>(null)
 
   const sampleQuery = useQuery({
     queryKey: ['samples', 'detail', viewerKey, sampleId],
     queryFn: () => getSample(session.accessToken!, sampleId),
     enabled: session.isAuthenticated && Boolean(sampleId),
   })
-
   const experimentId = sampleQuery.data?.experiment_run_id ?? ''
-
+  const parentSampleId = sampleQuery.data?.parent_sample_id ?? ''
+  const parentSampleQuery = useQuery({
+    queryKey: ['samples', 'parent', viewerKey, parentSampleId],
+    queryFn: () => getSample(session.accessToken!, parentSampleId),
+    enabled: session.isAuthenticated && Boolean(parentSampleId),
+  })
   const experimentQuery = useQuery({
     queryKey: ['experiments', 'detail', viewerKey, experimentId],
     queryFn: () => getExperiment(session.accessToken!, experimentId),
     enabled: session.isAuthenticated && Boolean(experimentId),
   })
-
   const filesQuery = useQuery({
     queryKey: ['samples', 'files', viewerKey, sampleId],
     queryFn: () =>
@@ -156,178 +85,41 @@ export function SampleDetailPage() {
       session.isAuthenticated && Boolean(experimentId) && Boolean(sampleId),
   })
 
-  const sampleRevision = sampleQuery.data
-    ? `${sampleQuery.data.id}:${sampleQuery.data.updated_at}`
-    : null
-
-  const formState =
-    draftFormState && draftFormState.revision === sampleRevision
-      ? draftFormState.form
-      : sampleQuery.data
-        ? buildFormState(sampleQuery.data)
-        : null
-
-  const metadataJsonError = formState
-    ? validateMetadataJson(formState.metadataJson)
-    : null
-
-  const canWriteProcess =
-    currentUser !== null &&
-    experimentQuery.data !== undefined &&
-    (currentUser.role === 'admin' ||
-      currentUser.id === experimentQuery.data.owner_id)
-  const canEditResults =
-    experimentQuery.data?.status === 'locked' || canWriteProcess
-  const canEdit =
-    experimentQuery.data !== undefined &&
-    !isResultsReadOnly(experimentQuery.data.status, canEditResults)
-
-  const hasDirtyFields =
-    draftFormState !== null &&
-    draftFormState.revision === sampleRevision &&
-    draftFormState.dirtyFields.length > 0
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (!draftFormState || draftFormState.revision !== sampleRevision) {
-        throw new Error(i18n.t('samples.detail.formUnavailable'))
-      }
-      setSaveStatus('saving')
-      const savedSample = await updateSample(
-        session.accessToken!,
-        sampleId,
-        buildSampleUpdatePayload(
-          draftFormState.form,
-          draftFormState.dirtyFields,
-        ),
-      )
-      return { savedSample, savingDraft: draftFormState }
-    },
-    onSuccess: async ({ savedSample, savingDraft }) => {
-      setSaveStatus('saved')
-      if (saveTriggerRef.current === 'manual') {
-        toast.success(t('samples.detail.saveSuccess'))
-      }
-      setDraftFormState((current) =>
-        current === savingDraft || !current
-          ? null
-          : {
-              ...current,
-              revision: `${savedSample.id}:${savedSample.updated_at}`,
-            },
-      )
-      queryClient.setQueryData(
-        ['samples', 'detail', viewerKey, sampleId],
-        savedSample,
-      )
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: [
-            'experiments',
-            'samples',
-            viewerKey,
-            savedSample.experiment_run_id,
-          ],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: [
-            'experiments',
-            'detail',
-            viewerKey,
-            savedSample.experiment_run_id,
-          ],
-        }),
-      ])
-    },
-    onError: (error) => {
-      setSaveStatus('error')
-      toast.error(resolveErrorMessage(error, t('samples.detail.saveError')))
-    },
-    onSettled: () => {
-      saveTriggerRef.current = null
-    },
-  })
-
-  const saveMutateRef = useRef(saveMutation.mutate)
-  saveMutateRef.current = saveMutation.mutate
-
-  const formDisabled = !canEdit
+  const fileRows = useMemo(
+    () => filesQuery.data?.items ?? [],
+    [filesQuery.data?.items],
+  )
+  const substrateRows = useMemo(() => {
+    const snapshot = sampleQuery.data?.source_substrate_snapshot_json
+    if (!snapshot) return []
+    return getModuleFields('substrates')
+      .map((field) => ({
+        key: field.key,
+        label: i18n.language.startsWith('en')
+          ? field.labelEn || field.labelZh
+          : field.labelZh,
+        value: snapshot[field.key],
+      }))
+      .filter(({ value }) => value != null && value !== '')
+  }, [i18n.language, sampleQuery.data?.source_substrate_snapshot_json])
 
   const handleDownload = async (file: FileAssetRead) => {
     setDownloadFileId(file.id)
     try {
-      const payload = await downloadExperimentFile(
+      const response = await downloadExperimentFile(
         session.accessToken!,
         file.id,
       )
-      triggerBlobDownload(payload.blob, payload.filename || file.original_name)
+      triggerBlobDownload(
+        response.blob,
+        response.filename || file.original_name,
+      )
     } catch (error) {
       toast.error(resolveErrorMessage(error, t('samples.detail.downloadError')))
     } finally {
       setDownloadFileId(null)
     }
   }
-
-  const fileRows = useMemo(
-    () => filesQuery.data?.items ?? [],
-    [filesQuery.data?.items],
-  )
-
-  const updateFormState = (
-    field: SampleFieldKey,
-    updater: (current: SampleFormState) => SampleFormState,
-  ) => {
-    if (!sampleQuery.data || !sampleRevision) return
-    setDraftFormState((current) => {
-      const base =
-        current && current.revision === sampleRevision
-          ? current.form
-          : buildFormState(sampleQuery.data)
-      const currentDirtyFields =
-        current && current.revision === sampleRevision
-          ? current.dirtyFields
-          : []
-      return {
-        dirtyFields: currentDirtyFields.includes(field)
-          ? currentDirtyFields
-          : [...currentDirtyFields, field],
-        form: updater(base),
-        revision: sampleRevision,
-      }
-    })
-  }
-
-  // Autosave
-  useEffect(() => {
-    if (
-      !canEdit ||
-      !hasDirtyFields ||
-      metadataJsonError ||
-      saveMutation.isPending
-    )
-      return
-    if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current)
-    autosaveTimerRef.current = window.setTimeout(() => {
-      saveTriggerRef.current = 'auto'
-      saveMutateRef.current()
-    }, 900)
-    return () => {
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current)
-        autosaveTimerRef.current = null
-      }
-    }
-  }, [canEdit, hasDirtyFields, metadataJsonError, saveMutation.isPending])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (autosaveTimerRef.current)
-        window.clearTimeout(autosaveTimerRef.current)
-    }
-  }, [])
-
-  // ─── Loading / error states ────────────────────────────────────────────────
 
   if (sampleQuery.isLoading) {
     return (
@@ -337,7 +129,6 @@ export function SampleDetailPage() {
       </div>
     )
   }
-
   if (sampleQuery.isError) {
     return (
       <div className="flex flex-col gap-6">
@@ -346,8 +137,8 @@ export function SampleDetailPage() {
           subtitle={t('samples.detail.loadErrorSubtitle')}
           actions={
             <Button variant="outline" size="sm" asChild>
-              <Link to="/experiments">
-                <ArrowLeft className="mr-1.5 size-4" />
+              <Link to="/samples">
+                <ArrowLeft />
                 {t('samples.actions.backToList')}
               </Link>
             </Button>
@@ -364,13 +155,10 @@ export function SampleDetailPage() {
       </div>
     )
   }
-
   if (!sampleQuery.data) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>
-          {t('samples.detail.unavailable')}
-        </AlertDescription>
+        <AlertDescription>{t('samples.detail.unavailable')}</AlertDescription>
       </Alert>
     )
   }
@@ -379,49 +167,29 @@ export function SampleDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <RouteLeaveGuard
-        when={hasDirtyFields || saveMutation.isPending}
-        message={t('samples.detail.leaveWarning')}
-      />
-
       <PageHeader
         title={t('samples.detail.titleWithCode', { code: sample.sample_code })}
         subtitle={t('samples.detail.subtitle')}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link
-                to="/experiments/$runId/edit"
-                params={{ runId: sample.experiment_run_id }}
-              >
-                <ArrowLeft className="mr-1.5 size-4" />
-                {t('samples.actions.backToRun')}
-              </Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link
+              to="/experiments/$runId/edit"
+              params={{ runId: sample.experiment_run_id }}
+            >
+              <ArrowLeft />
+              {t('samples.actions.backToRun')}
+            </Link>
+          </Button>
         }
       />
 
-      {/* Status bar */}
-      {canEdit && saveStatus === 'saving' ? (
-        <Alert>
-          <AlertDescription>{t('samples.detail.autoSaving')}</AlertDescription>
-        </Alert>
-      ) : null}
-      {canEdit && saveStatus === 'saved' && !hasDirtyFields ? (
-        <Alert>
-          <AlertDescription>{t('samples.detail.autoSaved')}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {/* Identity card */}
       <Card>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <code className="rounded bg-muted px-2 py-1 font-mono text-sm">
               {sample.sample_code}
             </code>
-            <Badge className="bg-primary-soft text-accent-foreground border-transparent">
+            <Badge className="border-transparent bg-primary-soft text-accent-foreground">
               {t(`experimentsV2.sections.results.roles.${sample.role}`, {
                 defaultValue: sample.role,
               })}
@@ -430,126 +198,65 @@ export function SampleDetailPage() {
               <StatusTag status={experimentQuery.data.status} />
             ) : null}
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t('samples.detail.runCode')}
-            {experimentQuery.data?.run_code ?? sample.experiment_run_id}
-          </p>
-          {sample.parent_sample_id ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('samples.detail.parentSample', {
-                id: sample.parent_sample_id,
-              })}
-            </p>
-          ) : null}
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <DetailRow
+              label={t('samples.detail.runCodeLabel')}
+              value={
+                experimentQuery.data?.run_code ??
+                sample.run_code ??
+                t('samples.detail.runUnavailable')
+              }
+            />
+            <DetailRow
+              label={t('samples.detail.materialSystem')}
+              value={sample.material_system || '—'}
+            />
+          </dl>
         </CardContent>
       </Card>
 
-      {/* Edit form card */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            {t('samples.detail.sampleInfo')}
-          </CardTitle>
+        <CardHeader>
+          <CardTitle>{t('samples.detail.sourceAndLineage')}</CardTitle>
         </CardHeader>
-        <CardContent>
-          {experimentQuery.isLoading ? (
-            <LoadingState />
-          ) : experimentQuery.isError ? (
-            <Alert variant="destructive">
-              <AlertDescription>
-                {resolveErrorMessage(
-                  experimentQuery.error,
-                  t('samples.detail.runLoadError'),
-                )}
-              </AlertDescription>
-            </Alert>
-          ) : formState ? (
-            <div className="flex flex-col gap-4">
-              {!canEdit ? (
-                <Alert>
-                  <AlertDescription>
-                    {t('samples.detail.readOnly')}
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="metadata-json">
-                    {t('samples.detail.metadataJson')}
-                    {metadataJsonError ? (
-                      <span
-                        id="metadata-json-error"
-                        className="ml-2 text-xs text-destructive"
-                        role="alert"
-                      >
-                        {metadataJsonError}
-                      </span>
-                    ) : null}
-                  </Label>
-                  <Textarea
-                    id="metadata-json"
-                    autoComplete="off"
-                    rows={6}
-                    disabled={formDisabled}
-                    className={metadataJsonError ? 'border-destructive' : ''}
-                    aria-invalid={metadataJsonError ? 'true' : undefined}
-                    aria-describedby={
-                      metadataJsonError ? 'metadata-json-error' : undefined
-                    }
-                    value={formState.metadataJson}
-                    onChange={(e) =>
-                      updateFormState('metadata_json', (cur) => ({
-                        ...cur,
-                        metadataJson: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {canEdit ? (
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    disabled={
-                      !hasDirtyFields ||
-                      Boolean(metadataJsonError) ||
-                      saveMutation.isPending
-                    }
-                    onClick={() => {
-                      if (autosaveTimerRef.current) {
-                        window.clearTimeout(autosaveTimerRef.current)
-                        autosaveTimerRef.current = null
-                      }
-                      saveTriggerRef.current = 'manual'
-                      saveMutation.mutate()
-                    }}
-                  >
-                    {saveMutation.isPending
-                      ? t('samples.detail.saving')
-                      : t('samples.detail.save')}
-                  </Button>
-                  {!saveMutation.isPending ? (
-                    <p className="text-sm text-muted-foreground">
-                      {hasDirtyFields
-                        ? t('samples.detail.unsavedChanges')
-                        : t('samples.detail.autosaveHint')}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
+        <CardContent className="flex flex-col gap-4">
+          {sample.parent_sample_id ? (
+            <div>
+              <p className="text-xs text-muted-foreground">
+                {t('samples.detail.parentSampleLabel')}
+              </p>
+              <Button variant="link" className="h-auto p-0" asChild>
+                <Link
+                  to="/samples/$sampleId"
+                  params={{ sampleId: sample.parent_sample_id }}
+                >
+                  {parentSampleQuery.data?.sample_code ??
+                    t('samples.detail.parentSampleUnavailable')}
+                </Link>
+              </Button>
             </div>
           ) : null}
+          {substrateRows.length > 0 ? (
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              {substrateRows.map((row) => (
+                <DetailRow
+                  key={row.key}
+                  label={row.label}
+                  value={displayValue(row.value)}
+                />
+              ))}
+            </dl>
+          ) : sample.parent_sample_id ? null : (
+            <p className="text-sm text-muted-foreground">
+              {t('samples.detail.noRecordedSource')}
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* Files card */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            {t('samples.detail.files.title')}
-          </CardTitle>
+        <CardHeader>
+          <CardTitle>{t('samples.detail.files.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {filesQuery.isLoading ? (
@@ -574,7 +281,9 @@ export function SampleDetailPage() {
                     <TableHead>{t('samples.detail.files.method')}</TableHead>
                     <TableHead>{t('samples.detail.files.category')}</TableHead>
                     <TableHead>{t('samples.detail.files.size')}</TableHead>
-                    <TableHead>{t('samples.detail.files.uploadedAt')}</TableHead>
+                    <TableHead>
+                      {t('samples.detail.files.uploadedAt')}
+                    </TableHead>
                     <TableHead>{t('samples.detail.files.note')}</TableHead>
                     <TableHead>{t('samples.detail.files.actions')}</TableHead>
                   </TableRow>
@@ -587,10 +296,8 @@ export function SampleDetailPage() {
                       </TableCell>
                       <TableCell>{file.method ?? '—'}</TableCell>
                       <TableCell>{file.file_category}</TableCell>
-                      <TableCell className="tabular-nums text-sm">
-                        {formatBytes(file.size_bytes)}
-                      </TableCell>
-                      <TableCell className="tabular-nums text-sm text-muted-foreground">
+                      <TableCell>{formatBytes(file.size_bytes)}</TableCell>
+                      <TableCell>
                         {dayjs(file.created_at).format('YYYY-MM-DD HH:mm')}
                       </TableCell>
                       <TableCell>
@@ -606,7 +313,7 @@ export function SampleDetailPage() {
                             filename: file.original_name,
                           })}
                         >
-                          <Download className="mr-1.5 size-3.5" />
+                          <Download />
                           {downloadFileId === file.id
                             ? t('samples.detail.files.downloading')
                             : t('samples.detail.files.download')}
@@ -620,6 +327,15 @@ export function SampleDetailPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm text-foreground">{value}</dd>
     </div>
   )
 }

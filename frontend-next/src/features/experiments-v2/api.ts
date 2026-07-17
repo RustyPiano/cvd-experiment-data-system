@@ -28,6 +28,9 @@ export type MeasuredProductCreate = Schemas['MeasuredProductCreate']
 export type MeasuredProductRead = Schemas['MeasuredProductRead']
 export type MeasuredProductUpdate = Schemas['MeasuredProductUpdate']
 export type MeasuredProductListResponse = Schemas['MeasuredProductListResponse']
+export type V2ResultWrite = Schemas['V2ResultWrite']
+export type V2ResultRead = Schemas['V2ResultRead']
+export type V2ResultListResponse = Schemas['V2ResultListResponse']
 
 const BASE = '/api/v1/experiments'
 const V2 = '/api/v1'
@@ -147,6 +150,44 @@ export function createSample(
   return apiRequest<SampleRead>(`/api/v1/experiments/${runId}/samples`, {
     method: 'POST',
     body: payload,
+    token,
+  })
+}
+
+// ── 样品结果：用户层统一契约，底层仍由表征记录 + 实测产物组成 ──
+export function listResults(sampleId: string, token: string) {
+  return apiRequest<V2ResultListResponse>(`${V2}/samples/${sampleId}/results`, {
+    token,
+  })
+}
+
+export function createResult(
+  sampleId: string,
+  payload: V2ResultWrite,
+  token: string,
+) {
+  return apiRequest<V2ResultRead>(`${V2}/samples/${sampleId}/results`, {
+    method: 'POST',
+    body: payload,
+    token,
+  })
+}
+
+export function updateResult(
+  resultId: string,
+  payload: V2ResultWrite,
+  token: string,
+) {
+  return apiRequest<V2ResultRead>(`${V2}/results/${resultId}`, {
+    method: 'PUT',
+    body: payload,
+    token,
+  })
+}
+
+export function deleteResult(resultId: string, token: string) {
+  return apiRequest<void>(`${V2}/results/${resultId}`, {
+    method: 'DELETE',
     token,
   })
 }

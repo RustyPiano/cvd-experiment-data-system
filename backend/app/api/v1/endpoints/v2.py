@@ -30,6 +30,9 @@ from app.schemas.v2 import (
     V2ModulePayloadRead,
     V2ModulePayloadUpsert,
     V2NotCharacterizedRequest,
+    V2ResultListResponse,
+    V2ResultRead,
+    V2ResultWrite,
     V2SetupReferenceRequest,
 )
 from app.services.v2_entity_service import V2EntityService
@@ -332,3 +335,41 @@ def update_measured_product(
 @router.delete("/measured-products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_measured_product(product_id: UUID, db: DbSession, current_user: CurrentUser) -> None:
     V2ResultsService(db).delete_measured_product(product_id, current_user)
+
+
+@router.get("/samples/{sample_id}/results", response_model=V2ResultListResponse)
+def list_results(
+    sample_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> V2ResultListResponse:
+    return V2ResultsService(db).list_results(sample_id, current_user)
+
+
+@router.post(
+    "/samples/{sample_id}/results",
+    response_model=V2ResultRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_result(
+    sample_id: UUID,
+    payload: V2ResultWrite,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> V2ResultRead:
+    return V2ResultsService(db).create_result(sample_id, payload, current_user)
+
+
+@router.put("/results/{result_id}", response_model=V2ResultRead)
+def update_result(
+    result_id: UUID,
+    payload: V2ResultWrite,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> V2ResultRead:
+    return V2ResultsService(db).update_result(result_id, payload, current_user)
+
+
+@router.delete("/results/{result_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_result(result_id: UUID, db: DbSession, current_user: CurrentUser) -> None:
+    V2ResultsService(db).delete_result(result_id, current_user)

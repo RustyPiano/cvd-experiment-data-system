@@ -1,10 +1,22 @@
-// §1 基本信息：元数据驱动。合成方法下拉是决定 §8 PVD 显隐的顶层判别器（本步先存值）。
+// 基本信息：元数据驱动。PVD 方法暂不在用户界面开放。
 import { useTranslation } from 'react-i18next'
+import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import type { ModuleValues } from '../field-logic'
-import { getModuleFields, isFieldVisible } from '../field-logic'
+import {
+  getModuleFields,
+  isFieldVisible,
+  parseEnumOptions,
+} from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
 import { ModuleCard } from './module-card'
+
+function unsupportedSynthesisMethods(field: FieldMetadata) {
+  if (field.key !== 'synthesis_method') return undefined
+  return parseEnumOptions(field.input, field.options)?.filter(
+    (option) => option.startsWith('PVD') || option === 'PLD',
+  )
+}
 
 export function BasicInfoSection({
   values,
@@ -61,6 +73,7 @@ export function BasicInfoSection({
                   ? '^CVD-\\d{4}-\\d{4}$'
                   : undefined
               }
+              hiddenOptions={unsupportedSynthesisMethods(field)}
               showError={showErrors}
             />
           ))}

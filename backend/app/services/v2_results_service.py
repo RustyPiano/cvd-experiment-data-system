@@ -20,6 +20,9 @@ from app.schemas.v2 import (
     MeasuredProductListResponse,
     MeasuredProductRead,
     MeasuredProductUpdate,
+    V2ResultListResponse,
+    V2ResultRead,
+    V2ResultWrite,
 )
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
@@ -40,6 +43,178 @@ class V2ResultsService:
         self.results = V2ResultRepository(db)
         self.files = FileAssetRepository(db)
         self.audit = AuditService(db)
+
+    def list_results(self, sample_id: UUID, current_user: User) -> V2ResultListResponse:
+        sample = self._visible_sample(sample_id, current_user)
+        items = self.results.list_measured_products(sample.id)
+        return V2ResultListResponse(
+            items=[self._result_read(item) for item in items],
+            total=len(items),
+        )
+
+    def create_result(
+        self,
+        sample_id: UUID,
+        payload: V2ResultWrite,
+        current_user: User,
+    ) -> V2ResultRead:
+        sample = self._visible_sample(sample_id, current_user)
+        run = self.experiments.get_by_id(sample.experiment_run_id)
+        ensure_results_editable(run)
+        self._validate_observed_phenomena(payload.observed_phenomena)
+
+        record = None
+        if payload.kind == "characterization":
+            record = CharacterizationRecord(
+                experiment_run_id=run.id,
+                sample_id=sample.id,
+            )
+            self._apply_characterization_payload(record, payload)
+            record = self.results.save_characterization_record(record)
+
+        product = MeasuredProduct(
+            sample_id=sample.id,
+            characterization_record_id=record.id if record else None,
+            **self._measured_values(payload),
+        )
+        saved = self.results.save_measured_product(product)
+        if record:
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="characterization_record",
+                entity_id=record.id,
+                action="create",
+                before_json=None,
+                after_json=self._characterization_snapshot(record),
+            )
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="measured_product",
+            entity_id=saved.id,
+            action="create",
+            before_json=None,
+            after_json=self._measured_product_snapshot(saved),
+        )
+        self._clear_not_characterized(run, current_user)
+        refresh_result_missing_todo(self.db, run)
+        self.db.commit()
+        return self._result_read(saved)
+
+    def update_result(
+        self,
+        result_id: UUID,
+        payload: V2ResultWrite,
+        current_user: User,
+    ) -> V2ResultRead:
+        product = self._visible_measured_product(result_id, current_user)
+        sample = self.db.get(Sample, product.sample_id)
+        run = self.experiments.get_by_id(sample.experiment_run_id)
+        ensure_results_editable(run)
+        self._validate_observed_phenomena(payload.observed_phenomena)
+        record = (
+            self.results.get_characterization_record(product.characterization_record_id)
+            if product.characterization_record_id
+            else None
+        )
+        current_kind = "characterization" if record else "direct_observation"
+        if payload.kind != current_kind:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Result kind cannot be changed after creation",
+            )
+
+        product_before = self._measured_product_snapshot(product)
+        if record:
+            record_before = self._characterization_snapshot(record)
+            previous_method = record.method_instrument
+            self._apply_characterization_payload(record, payload)
+            saved_record = self.results.save_characterization_record(record)
+            if saved_record.method_instrument != previous_method:
+                self.db.execute(
+                    update(FileAsset)
+                    .where(FileAsset.characterization_record_id == saved_record.id)
+                    .values(
+                        method=saved_record.method_instrument,
+                        file_kind=saved_record.method_instrument,
+                    )
+                )
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="characterization_record",
+                entity_id=saved_record.id,
+                action="update",
+                before_json=record_before,
+                after_json=self._characterization_snapshot(saved_record),
+            )
+
+        for key, value in self._measured_values(payload).items():
+            setattr(product, key, value)
+        saved = self.results.save_measured_product(product)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="measured_product",
+            entity_id=saved.id,
+            action="update",
+            before_json=product_before,
+            after_json=self._measured_product_snapshot(saved),
+        )
+        refresh_result_missing_todo(self.db, run)
+        self.db.commit()
+        return self._result_read(saved)
+
+    def delete_result(self, result_id: UUID, current_user: User) -> None:
+        product = self._visible_measured_product(result_id, current_user)
+        sample = self.db.get(Sample, product.sample_id)
+        run = self.experiments.get_by_id(sample.experiment_run_id)
+        ensure_results_editable(run)
+        record = (
+            self.results.get_characterization_record(product.characterization_record_id)
+            if product.characterization_record_id
+            else None
+        )
+        if record and self.db.scalar(
+            select(MeasuredProduct.id)
+            .where(
+                MeasuredProduct.characterization_record_id == record.id,
+                MeasuredProduct.id != product.id,
+            )
+            .limit(1)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Delete linked measured products before deleting the characterization record"
+                ),
+            )
+        if record and self.files.has_active_for_characterization_record(record.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Delete active attachments before deleting the result",
+            )
+
+        product_before = self._measured_product_snapshot(product)
+        self.results.delete(product)
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="measured_product",
+            entity_id=product.id,
+            action="delete",
+            before_json=product_before,
+            after_json=None,
+        )
+        if record:
+            record_before = self._characterization_snapshot(record)
+            self.results.delete(record)
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="characterization_record",
+                entity_id=record.id,
+                action="delete",
+                before_json=record_before,
+                after_json=None,
+            )
+        refresh_result_missing_todo(self.db, run)
+        self.db.commit()
 
     def list_characterization_records(
         self, run_id: UUID, current_user: User
@@ -201,6 +376,7 @@ class V2ResultsService:
         sample = self._visible_sample(sample_id, current_user)
         run = self.experiments.get_by_id(sample.experiment_run_id)
         ensure_results_editable(run)
+        self._validate_observed_phenomena(payload.observed_phenomena)
         if payload.characterization_record_id:
             self._ensure_record_belongs_to_sample(payload.characterization_record_id, sample.id)
         product = MeasuredProduct(sample_id=sample.id, **payload.model_dump())
@@ -230,6 +406,8 @@ class V2ResultsService:
         ensure_results_editable(run)
         before = self._measured_product_snapshot(product)
         changes = payload.model_dump(exclude_unset=True)
+        if "observed_phenomena" in changes:
+            self._validate_observed_phenomena(changes["observed_phenomena"])
         characterization_record_id = changes.get("characterization_record_id")
         if characterization_record_id:
             self._ensure_record_belongs_to_sample(characterization_record_id, sample.id)
@@ -256,6 +434,73 @@ class V2ResultsService:
                 detail="characterization_record_id must belong to the sample",
             )
 
+    def _apply_characterization_payload(
+        self,
+        record: CharacterizationRecord,
+        payload: V2ResultWrite,
+    ) -> None:
+        record.method_instrument = self._validate_method(payload.method_instrument)
+        record.test_conditions = payload.test_conditions
+        record.instrument_id = payload.instrument_id
+        record.instrument_version = payload.instrument_version
+        record.instrument_snapshot_json = self._instrument_snapshot(
+            payload.instrument_id,
+            payload.instrument_version,
+        )
+
+    def _instrument_snapshot(
+        self,
+        instrument_id: UUID | None,
+        instrument_version: int | None,
+    ) -> dict | None:
+        if instrument_id is None:
+            return None
+        try:
+            version = self.entities.get_version("instrument", instrument_id, instrument_version)
+        except HTTPException as exc:
+            if exc.status_code != status.HTTP_404_NOT_FOUND:
+                raise
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Referenced instrument version does not exist",
+            ) from exc
+        return instrument_version_snapshot(version)
+
+    @staticmethod
+    def _measured_values(payload: V2ResultWrite) -> dict:
+        return {
+            "observed_phenomena": payload.observed_phenomena,
+            "detected_phase_stacking": payload.detected_phase_stacking,
+            "measured_layers_coverage": payload.measured_layers_coverage,
+            "domain_nucleation_continuity": payload.domain_nucleation_continuity,
+            "key_spectral_metrics": payload.key_spectral_metrics,
+        }
+
+    def _result_read(self, product: MeasuredProduct) -> V2ResultRead:
+        record = (
+            self.results.get_characterization_record(product.characterization_record_id)
+            if product.characterization_record_id
+            else None
+        )
+        return V2ResultRead(
+            id=product.id,
+            sample_id=product.sample_id,
+            kind="characterization" if record else "direct_observation",
+            characterization_record_id=record.id if record else None,
+            instrument_id=record.instrument_id if record else None,
+            instrument_version=record.instrument_version if record else None,
+            instrument_snapshot_json=record.instrument_snapshot_json if record else None,
+            method_instrument=record.method_instrument if record else None,
+            test_conditions=record.test_conditions if record else None,
+            observed_phenomena=product.observed_phenomena,
+            detected_phase_stacking=product.detected_phase_stacking,
+            measured_layers_coverage=product.measured_layers_coverage,
+            domain_nucleation_continuity=product.domain_nucleation_continuity,
+            key_spectral_metrics=product.key_spectral_metrics,
+            created_at=product.created_at,
+            updated_at=product.updated_at,
+        )
+
     @staticmethod
     def _validate_method(method: str | None) -> str:
         normalized = (method or "").strip()
@@ -265,6 +510,17 @@ class V2ResultsService:
                 detail="Invalid method_instrument",
             )
         return normalized
+
+    @staticmethod
+    def _validate_observed_phenomena(values: list[str] | None) -> None:
+        if values is None:
+            return
+        allowed = set(field_option_values("observed_phenomena"))
+        if any(value not in allowed for value in values):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid observed_phenomena",
+            )
 
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._visible_measured_product(product_id, current_user)

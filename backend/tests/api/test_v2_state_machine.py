@@ -352,7 +352,7 @@ def test_invalid_run_rejects_process_and_result_writes(active_user) -> None:
     ).json()
     product = client.post(
         f"/api/v1/samples/{sample['id']}/measured-products",
-        json={"observed_phenomena": ["film"]},
+        json={"observed_phenomena": ["不连续覆盖"]},
         headers=headers,
     ).json()
     assert (

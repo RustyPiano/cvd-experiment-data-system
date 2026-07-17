@@ -16,6 +16,8 @@ def test_v2_routes_are_collected_under_api_v1() -> None:
     assert "/api/v1/experiments" in paths
     assert "/api/v1/experiments/{run_id}/characterization-records" in paths
     assert "/api/v1/samples/{sample_id}/measured-products" in paths
+    assert "/api/v1/samples/{sample_id}/results" in paths
+    assert "/api/v1/results/{result_id}" in paths
     legacy_prefix = "/api/v1/" + "v2/"
     assert not any(path.startswith(legacy_prefix) for path in paths)
 

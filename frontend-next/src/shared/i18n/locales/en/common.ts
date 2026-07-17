@@ -45,7 +45,8 @@ export const common = {
     },
     login: {
       title: 'Sign in',
-      subtitle: 'Sign in with your account or register with an internal invite code.',
+      subtitle:
+        'Sign in with your account or register with an internal invite code.',
       noAccount: 'No account?',
       registerLink: 'Register with an invite code',
       submit: 'Sign in',
@@ -55,7 +56,8 @@ export const common = {
     },
     register: {
       title: 'Register with invite code',
-      subtitle: 'Create an account with the research group’s internal invite code.',
+      subtitle:
+        'Create an account with the research group’s internal invite code.',
       hasAccount: 'Already have an account?',
       loginLink: 'Back to sign in',
       submit: 'Register and sign in',
@@ -72,11 +74,13 @@ export const common = {
   routeBoundaries: {
     notFound: {
       title: 'Page not found',
-      description: 'This address does not exist or has moved. Check the link or return to the run list.',
+      description:
+        'This address does not exist or has moved. Check the link or return to the run list.',
     },
     error: {
       title: 'Something went wrong',
-      description: 'The page encountered an unexpected error. Retry or return to the home page.',
+      description:
+        'The page encountered an unexpected error. Retry or return to the home page.',
     },
     retry: 'Retry',
     backToRuns: 'Back to runs',
@@ -98,7 +102,8 @@ export const common = {
     server: 'The server encountered an error. Try again later.',
     badRequest: 'The request is invalid. Check your input.',
     notFound: 'The requested resource was not found.',
-    conflict: 'The operation conflicts with current data. Refresh and try again.',
+    conflict:
+      'The operation conflicts with current data. Refresh and try again.',
     validation: 'The input is invalid. Check it and try again.',
     details: {
       invalidCredentials: 'Incorrect email or password',
@@ -106,7 +111,8 @@ export const common = {
       invalidInviteCode: 'Invalid invite code',
       emailExists: 'An account with this email already exists',
       sessionExpired: 'Your session has expired. Sign in again.',
-      insufficientPermissions: 'You do not have permission to perform this action',
+      insufficientPermissions:
+        'You do not have permission to perform this action',
       adminRequired: 'Only administrators can perform this action',
       runCodeExists: 'Run code already exists',
       cannotInvalidate: 'This run cannot be invalidated',
@@ -114,10 +120,13 @@ export const common = {
       moduleNotFound: 'Module data not found',
       lockedOrInvalidReadOnly: 'Locked or invalidated runs cannot be edited',
       invalidReadOnly: 'Invalidated runs cannot be edited',
-      parentSampleExperimentMismatch: 'The parent sample must belong to the same run',
-      growthSampleAutomatic: 'Growth samples are generated when the process is locked',
+      parentSampleExperimentMismatch:
+        'The parent sample must belong to the same run',
+      growthSampleAutomatic:
+        'Growth samples are generated when the process is locked',
       derivedSampleParentRequired: 'Derived samples require a parent sample',
-      runAlreadyHasResults: 'This run already has results and cannot be marked as not characterized',
+      runAlreadyHasResults:
+        'This run already has results and cannot be marked as not characterized',
       substrateResultConflict:
         'Sample {{code}} already has results or files. Restore its substrate before locking the process.',
       substrateChangedConflict:
@@ -125,23 +134,39 @@ export const common = {
       sampleRoleExists: 'A sample with this role already exists for the run',
       sampleCodeExists: 'Sample code already exists',
       sampleNotFound: 'Sample not found',
-      instrumentPairRequired: 'Instrument and instrument version must be provided together',
-      instrumentVersionNotFound: 'The referenced instrument version does not exist',
-      deleteAttachmentsFirst: 'Delete or handle active attachments before deleting the characterization record',
-      deleteProductsFirst: 'Delete linked measured products before deleting the characterization record',
-      characterizationSampleMismatch: 'The characterization record must belong to the sample',
-      invalidMethodInstrument: 'The characterization method and instrument do not match',
+      instrumentPairRequired:
+        'Instrument and instrument version must be provided together',
+      instrumentVersionNotFound:
+        'The referenced instrument version does not exist',
+      deleteAttachmentsFirst:
+        'Delete or handle active attachments before deleting the characterization record',
+      deleteResultAttachmentsFirst:
+        'Delete the result attachments before deleting the result',
+      resultKindImmutable:
+        'The record type cannot be changed after the result is created',
+      deleteProductsFirst:
+        'Delete linked measured products before deleting the characterization record',
+      characterizationSampleMismatch:
+        'The characterization record must belong to the sample',
+      invalidMethodInstrument:
+        'The characterization method and instrument do not match',
+      invalidObservedPhenomena:
+        'The observation is not in the available objective vocabulary',
       recordNotFound: 'Characterization record not found',
       productNotFound: 'Measured product not found',
       entityNotFound: 'Entity record not found',
       versionExists: 'This version already exists',
       versionNotFound: 'Version not found',
-      setupDiagramCharacterization: 'A setup diagram cannot be linked to a characterization record',
-      characterizationExperimentMismatch: 'The characterization record must belong to the same run',
-      sampleCharacterizationMismatch: 'The sample does not match the characterization record',
+      setupDiagramCharacterization:
+        'A setup diagram cannot be linked to a characterization record',
+      characterizationExperimentMismatch:
+        'The characterization record must belong to the same run',
+      sampleCharacterizationMismatch:
+        'The sample does not match the characterization record',
       sampleExperimentMismatch: 'The sample must belong to the same run',
       setupDiagramSample: 'A setup diagram cannot be linked to a sample',
-      fileMethodMismatch: 'The file method must match the characterization record',
+      fileMethodMismatch:
+        'The file method must match the characterization record',
       fileMethodRequired: 'File method is required',
       fileNotFound: 'File not found',
       fileContentNotFound: 'File content not found',
@@ -149,8 +174,10 @@ export const common = {
       invalidFileMethod: 'Invalid file method',
       invalidAssetRole: 'Invalid file role',
       invalidFileCategory: 'Invalid file category',
-      noneFieldDeviceExclusive: 'None must be the only external-field device selection',
-      fieldParamsRequired: 'External-field parameters are required when the referenced setup has external-field devices',
+      noneFieldDeviceExclusive:
+        'None must be the only external-field device selection',
+      fieldParamsRequired:
+        'External-field parameters are required when the referenced setup has external-field devices',
       fileTooLarge: 'The uploaded file cannot exceed {{size}} MB',
       experimentMustBe: 'Run status must be {{status}}',
       unknownFieldKeys: 'Unknown fields: {{fields}}',
@@ -244,7 +271,7 @@ export const common = {
       roleFilter: 'Type:',
       allRoles: 'All',
       empty:
-        'No samples yet. Add one in the “Characterization · measured products” section of the run edit page.',
+        'No samples yet. Samples are generated from substrates when the process is locked.',
       noMatches: 'No samples match the filters.',
       columns: {
         code: 'Sample code',
@@ -257,18 +284,25 @@ export const common = {
     detail: {
       title: 'Sample details',
       titleWithCode: 'Sample details · {{code}}',
-      subtitle:
-        'View sample ownership, metadata, and related files. Results remain editable until the experiment is invalidated.',
+      subtitle: 'View sample provenance, lineage, and related files.',
       readOnly:
         'This sample is read-only because the run has been invalidated or you do not have edit permission.',
-      loadErrorSubtitle: 'Could not load sample details. Check your connection and account permissions.',
+      loadErrorSubtitle:
+        'Could not load sample details. Check your connection and account permissions.',
       loadError: 'Failed to load sample details',
       unavailable: 'Sample details are unavailable',
       leaveWarning: 'Sample changes have not been saved. Leave this page?',
       autoSaving: 'Autosaving…',
       autoSaved: 'Autosaved',
       runCode: 'Run code: ',
+      runCodeLabel: 'Run',
+      runUnavailable: 'Run information is unavailable',
+      materialSystem: 'Material system',
       parentSample: 'Parent sample: {{id}}',
+      parentSampleLabel: 'Parent sample',
+      parentSampleUnavailable: 'Parent sample information is unavailable',
+      sourceAndLineage: 'Provenance & lineage',
+      noRecordedSource: 'This sample has no substrate source or parent sample.',
       sampleInfo: 'Sample information',
       runLoadError: 'Failed to load linked run',
       metadataJson: 'Metadata JSON',
@@ -283,7 +317,8 @@ export const common = {
       files: {
         title: 'Related files',
         loadError: 'Failed to load sample files',
-        empty: 'No files are linked to this sample yet. Files appear here after the sample is selected during upload.',
+        empty:
+          'No files are linked to this sample yet. Files appear here after the sample is selected during upload.',
         name: 'Filename',
         method: 'Method',
         category: 'Category',
@@ -326,7 +361,8 @@ export const common = {
         'After invalidation, this run cannot be edited or restored. Enter the reason for invalidation.',
       reason: 'Invalidation reason',
       unlockTitle: 'Unlock run',
-      unlockDescription: 'Unlocking makes process parameters editable again. Unlock this run?',
+      unlockDescription:
+        'Unlocking makes process parameters editable again. Unlock this run?',
     },
     nav: 'v2 experiment entry',
     new: {
@@ -400,20 +436,19 @@ export const common = {
       placeholder: 'Select a reference',
       empty: 'No entities to reference yet.',
       goToLibrary: 'Register in the entity library',
+      create: 'Add {{name}}',
     },
     sections: {
       basicInfo: {
         title: 'Basic info',
-        subtitle:
-          'Time, synthesis method, operator, etc. Selecting a PVD synthesis method reveals the PVD parameters section.',
+        subtitle: 'Record the experiment time, synthesis method, and operator.',
       },
       targetProduct: {
         title: 'Target product',
         subtitle:
           'Structure type identifies composite systems; formulas validate element symbols automatically, and display names are generated automatically.',
         displayPreview: 'Display string preview',
-        displayNote:
-          'Consistent with the backend formula_display rule.',
+        displayNote: 'Consistent with the backend formula_display rule.',
       },
       equipment: {
         title: 'Setup',
@@ -456,13 +491,13 @@ export const common = {
         item: 'Event {{position}}',
       },
       results: {
-        title: 'Characterization · measured products',
+        title: 'Samples & results',
         subtitle:
-          'Grouped by sample; create a sample first, then attach characterization records and measured products.',
+          'Select a sample, then record a direct observation or an instrument characterization result.',
         newModeHint:
-          'Add characterization records and measured products on the edit page after creating the run.',
+          'After the run is created and its process is locked, samples are generated from substrates.',
         noSamples:
-          'This run has no samples yet; create a sample to attach characterization and measured products.',
+          'This run has no samples yet. Lock the process to generate them from substrates.',
         sample: 'Sample',
         sampleRole: 'Sample type',
         addSample: 'Add special sample',
@@ -471,8 +506,31 @@ export const common = {
         samplesLoadError: 'Failed to load samples',
         recordsLoadError: 'Failed to load characterization records',
         productsLoadError: 'Failed to load measured products',
+        resultsLoadError: 'Failed to load results',
         filesLoadError: 'Failed to load attachments',
         editing: 'Editing',
+        resultType: 'Record type',
+        directObservation: 'Direct observation',
+        characterizationResult: 'Characterization result',
+        noResults: 'No results yet.',
+        addResult: 'Add result',
+        resultAdded: 'Result added',
+        resultUpdated: 'Result updated',
+        newAttachments: 'Attachments (optional)',
+        selectedAttachmentCount: '{{count}} attachment(s) selected',
+        resultSavedAttachmentUploadError:
+          'The result was saved, but some attachments failed to upload. Upload them again from the result card.',
+        editResultLabel: 'Edit result',
+        deleteResultLabel: 'Delete result',
+        deleteResultTitle: 'Delete result?',
+        deleteResultDescription:
+          'Delete this result and its recorded information. Delete linked attachments first.',
+        confirmDeleteResult: 'Delete result',
+        observedPhenomena: 'Observed phenomena',
+        detectedPhaseStacking: 'Phase and stacking',
+        measuredLayersCoverage: 'Layers and coverage',
+        domainNucleationContinuity: 'Domains, nucleation, and continuity',
+        keySpectralMetrics: 'Key spectral metrics',
         roles: {
           growth: 'Growth sample',
           derived: 'Derived sample',
@@ -518,11 +576,6 @@ export const common = {
         confirmDeleteProduct: 'Confirm delete measured product',
         noProducts: 'No measured products yet.',
         untitledProduct: '(untitled product)',
-      },
-      pvd: {
-        title: 'PVD',
-        subtitle:
-          'Shown only when the §1 synthesis method is a PVD family; some fields are conditionally required.',
       },
       unknown: { title: 'Other information' },
     },

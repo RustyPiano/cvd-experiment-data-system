@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 
 import i18n from '@/shared/i18n'
@@ -40,5 +41,20 @@ describe('BasicInfoSection run code', () => {
     )
     expect(input).toBeEnabled()
     expect(input).toHaveAttribute('pattern', '^CVD-\\d{4}-\\d{4}$')
+  })
+
+  it('does not expose PVD-family methods in the CVD-only interface', async () => {
+    const user = userEvent.setup()
+    renderSection(false)
+
+    await user.click(screen.getAllByRole('combobox')[0])
+
+    expect(screen.getByRole('option', { name: 'APCVD' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: 'PVD-磁控溅射' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: 'PLD' }),
+    ).not.toBeInTheDocument()
   })
 })

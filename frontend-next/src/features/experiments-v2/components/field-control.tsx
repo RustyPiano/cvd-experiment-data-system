@@ -52,6 +52,7 @@ export function FieldControl({
   readOnly,
   hint,
   pattern,
+  hiddenOptions,
 }: {
   moduleKey: string
   field: FieldMetadata
@@ -63,19 +64,22 @@ export function FieldControl({
   /** 提交拦截后是否高亮缺失必填项。 */
   showError?: boolean
   /**
-   * 有效必填的外部判定（跨模块/跨实体条件，如 §5 外场、§8 PVD 由 §1/§2 驱动）。
+   * 有效必填的外部判定（跨模块/跨实体条件，如过程步外场由装置引用驱动）。
    * 给定时优先于模块内 isEffectivelyRequired。
    */
   requiredOverride?: boolean
   readOnly?: boolean
   hint?: string
   pattern?: string
+  hiddenOptions?: readonly string[]
 }) {
   const { t } = useTranslation()
   const controlId = useId()
   const required =
     requiredOverride ?? isEffectivelyRequired(moduleKey, field, values)
-  const enumOptions = parseEnumOptions(field.input, field.options)
+  const enumOptions = parseEnumOptions(field.input, field.options)?.filter(
+    (option) => !hiddenOptions?.includes(option),
+  )
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))

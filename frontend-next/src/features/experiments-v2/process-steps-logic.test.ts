@@ -1,4 +1,4 @@
-// §5 过程步（阶段类型→参数组显隐/必填 + payload union 契约）与 §8 PVD 显隐判别的单测。
+// §5 过程步（阶段类型→参数组显隐/必填 + payload union 契约）的单测。
 // 映射与契约的唯一源 = 生成物 stageTypes/stageGroups（YAML `stage_types` 节，与后端 union
 // 生成器同源）；本测试用它反推期望值，任何映射改动经 gen:fields 后测试自动对齐。
 import { describe, expect, it } from 'vitest'
@@ -13,8 +13,6 @@ import {
   hasExternalFieldSetup,
   isProcessStepFieldRequired,
   isProcessStepFieldVisible,
-  isPvdApplicable,
-  isPvdFieldRequired,
   missingProcessStepKeys,
   visibleGroupsForStage,
 } from './field-logic'
@@ -158,22 +156,5 @@ describe('§5 payload 键集对齐 discriminated union（同 stage_types 源）'
       null,
     )
     expect(missing).toContain('pressure_system')
-  })
-})
-
-describe('§8 PVD 显隐判别（§1 合成方法驱动）', () => {
-  it('仅 PVD 体系合成方法适用', () => {
-    expect(isPvdApplicable('PVD-磁控溅射')).toBe(true)
-    expect(isPvdApplicable('PVD-热蒸发')).toBe(true)
-    expect(isPvdApplicable('PLD')).toBe(true)
-    expect(isPvdApplicable('CVD')).toBe(false)
-    expect(isPvdApplicable('')).toBe(false)
-  })
-
-  it('PVD 适用时字段条件必填，否则不必填', () => {
-    const field = experimentModules.pvd[0]
-    expect(isPvdFieldRequired(field, 'PVD-磁控溅射')).toBe(true)
-    expect(isPvdFieldRequired(field, 'CVD')).toBe(false)
-    expect(isPvdFieldRequired(field, '')).toBe(false)
   })
 })

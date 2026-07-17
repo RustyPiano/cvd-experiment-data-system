@@ -26,10 +26,8 @@ import {
   isFieldVisible,
   isNonEmptyComponent,
   isProcessStepActive,
-  isPvdApplicable,
   itemHasAnyValue,
   missingProcessStepKeys,
-  missingPvdKeys,
   missingRequiredKeys,
 } from './field-logic'
 import { toIsoDateTime } from './datetime'
@@ -41,7 +39,6 @@ import { TargetProductSection } from './components/target-product-section'
 import { EquipmentSection } from './components/equipment-section'
 import { RepeatableItemsSection } from './components/repeatable-items-section'
 import { ProcessStepsSection } from './components/process-steps-section'
-import { PvdSection } from './components/pvd-section'
 import { ResultsSection } from './components/results-section'
 
 const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method', 'operator']
@@ -106,8 +103,6 @@ function processStepsMissing(
 type ModuleContext = {
   mode: 'new' | 'edit'
   state: ExperimentV2FormState
-  synthesisMethod: string
-  pvdApplicable: boolean
   runCode?: string
 }
 
@@ -179,14 +174,6 @@ const MODULE_SPECS: ModuleSpec[] = [
     missing: () => false,
     payload: ({ state }) =>
       buildItemsModulePayload('process_events', state.process_events),
-  },
-  {
-    key: 'pvd',
-    active: ({ state, pvdApplicable }) =>
-      pvdApplicable && itemHasAnyValue(state.pvd),
-    missing: ({ state, synthesisMethod }) =>
-      missingPvdKeys(state.pvd, synthesisMethod).length > 0,
-    payload: ({ state }) => buildFlatModulePayload('pvd', state.pvd),
   },
 ]
 
@@ -299,14 +286,6 @@ export function ExperimentV2Form({
     markDirty('process_events')
     setState((prev) => ({ ...prev, process_events: items }))
   }
-  const setPvd = (key: string, value: string) => {
-    markDirty('pvd')
-    setState((prev) => ({ ...prev, pvd: { ...prev.pvd, [key]: value } }))
-  }
-
-  const synthesisMethod = state.basic_info['synthesis_method'] ?? ''
-  const pvdApplicable = isPvdApplicable(synthesisMethod)
-
   const buildRunCreatePayload = (): V2ExperimentCreate => ({
     started_at: toIsoDateTime(state.basic_info['started_at'] ?? ''),
     synthesis_method: (state.basic_info['synthesis_method'] ?? '').trim(),
@@ -322,8 +301,6 @@ export function ExperimentV2Form({
   ) => ({
     mode: formMode,
     state,
-    synthesisMethod,
-    pvdApplicable,
     runCode: createdRunCode,
   })
 
@@ -556,18 +533,6 @@ export function ExperimentV2Form({
         />
       </fieldset>
       <ResultsSection runId={runId} readOnly={resultsReadOnly} />
-      <fieldset disabled={processReadOnly} className="contents">
-        {pvdApplicable ? (
-          <PvdSection
-            synthesisMethod={synthesisMethod}
-            values={state.pvd}
-            onChange={setPvd}
-            disabled={creating}
-            showErrors={showErrors}
-            save={saveProps('pvd')}
-          />
-        ) : null}
-      </fieldset>
 
       {mode === 'new' ? (
         <div className="flex justify-end">

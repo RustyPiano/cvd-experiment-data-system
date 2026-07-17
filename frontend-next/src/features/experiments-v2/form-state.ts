@@ -19,7 +19,6 @@ export function buildEmptyState(): ExperimentV2FormState {
     substrates: [],
     process_steps: [],
     process_events: [],
-    pvd: emptyModuleValues('pvd'),
   }
 }
 
@@ -49,7 +48,6 @@ export function buildStateFromLoaded(
   const subPayload = modules['substrates']?.payload_json ?? null
   const stepsPayload = modules['process_steps']?.payload_json ?? null
   const eventsPayload = modules['process_events']?.payload_json ?? null
-  const pvdPayload = modules['pvd']?.payload_json ?? null
 
   const basicInfo = moduleValuesFromPayload('basic_info', basicPayload)
   basicInfo['started_at'] = isoToDateTimeLocal(basicInfo['started_at'] ?? '')
@@ -67,6 +65,5 @@ export function buildStateFromLoaded(
     substrates: itemsFromPayload('substrates', subPayload),
     process_steps: itemsFromPayload('process_steps', stepsPayload),
     process_events: itemsFromPayload('process_events', eventsPayload),
-    pvd: moduleValuesFromPayload('pvd', pvdPayload),
   }
 }

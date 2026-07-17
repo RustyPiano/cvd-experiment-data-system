@@ -34,11 +34,16 @@ const DETAIL_KEYS = {
     'errors.details.instrumentVersionNotFound',
   'Delete or otherwise handle active attachments before deleting the characterization record':
     'errors.details.deleteAttachmentsFirst',
+  'Delete active attachments before deleting the result':
+    'errors.details.deleteResultAttachmentsFirst',
+  'Result kind cannot be changed after creation':
+    'errors.details.resultKindImmutable',
   'Delete linked measured products before deleting the characterization record':
     'errors.details.deleteProductsFirst',
   'characterization_record_id must belong to the sample':
     'errors.details.characterizationSampleMismatch',
   'Invalid method_instrument': 'errors.details.invalidMethodInstrument',
+  'Invalid observed_phenomena': 'errors.details.invalidObservedPhenomena',
   'Record not found': 'errors.details.recordNotFound',
   'Product not found': 'errors.details.productNotFound',
   'Entity not found': 'errors.details.entityNotFound',

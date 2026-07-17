@@ -43,7 +43,6 @@ const LOADED_MODULE_KEYS = [
   'substrates',
   'process_steps',
   'process_events',
-  'pvd',
 ] as const
 
 const MODULE_TITLE_KEYS = {
@@ -56,7 +55,6 @@ const MODULE_TITLE_KEYS = {
   process_events: 'processEvents',
   characterization: 'results',
   measured_products: 'results',
-  pvd: 'pvd',
 } as const
 
 export function ExperimentV2EditPage({ runId }: { runId: string }) {
@@ -99,8 +97,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
     }: {
       action: StatusAction
       reason?: string
-    }) =>
-      transitionRun(runId, action, token, invalidReason),
+    }) => transitionRun(runId, action, token, invalidReason),
     onSuccess: (run) => {
       setInvalidating(false)
       setUnlocking(false)
@@ -180,18 +177,16 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               data.run.status,
               canEditProcess,
               isAdmin,
-            ).map(
-              (action) => (
-                <Button
-                  key={action}
-                  variant={action === 'invalidate' ? 'destructive' : 'outline'}
-                  disabled={mutation.isPending}
-                  onClick={() => act(action)}
-                >
-                  {t(`experimentsV2.actions.${action}`)}
-                </Button>
-              ),
-            )}
+            ).map((action) => (
+              <Button
+                key={action}
+                variant={action === 'invalidate' ? 'destructive' : 'outline'}
+                disabled={mutation.isPending}
+                onClick={() => act(action)}
+              >
+                {t(`experimentsV2.actions.${action}`)}
+              </Button>
+            ))}
             {data.run.status === 'locked' &&
             (data.run.result_missing_todo ||
               Boolean(data.run.not_characterized_at)) ? (
@@ -238,7 +233,8 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                       {item.label}（
                       {t(
                         `experimentsV2.sections.${MODULE_TITLE_KEYS[item.module as keyof typeof MODULE_TITLE_KEYS] ?? 'unknown'}.title`,
-                      )}）
+                      )}
+                      ）
                     </li>
                   ))}
                 </ul>
@@ -251,14 +247,8 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             runId={runId}
             runCode={data.run.run_code}
             initialState={buildStateFromLoaded(data.run, data.modules)}
-            processReadOnly={isProcessReadOnly(
-              data.run.status,
-              canEditProcess,
-            )}
-            resultsReadOnly={isResultsReadOnly(
-              data.run.status,
-              canEditResults,
-            )}
+            processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
+            resultsReadOnly={isResultsReadOnly(data.run.status, canEditResults)}
           />
         </>
       )}
@@ -300,9 +290,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       <Dialog open={unlocking} onOpenChange={setUnlocking}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {t('experimentsV2.actions.unlockTitle')}
-            </DialogTitle>
+            <DialogTitle>{t('experimentsV2.actions.unlockTitle')}</DialogTitle>
             <DialogDescription>
               {t('experimentsV2.actions.unlockDescription')}
             </DialogDescription>

@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class V2EntityVersionPayload(BaseModel):
@@ -181,4 +181,65 @@ class MeasuredProductRead(BaseModel):
 
 class MeasuredProductListResponse(BaseModel):
     items: list[MeasuredProductRead]
+    total: int
+
+
+class V2ResultWrite(BaseModel):
+    kind: Literal["direct_observation", "characterization"]
+    instrument_id: UUID | None = None
+    instrument_version: int | None = Field(default=None, ge=1)
+    method_instrument: str | None = Field(default=None, max_length=128)
+    test_conditions: str | None = None
+    observed_phenomena: list[str] | None = None
+    detected_phase_stacking: str | None = None
+    measured_layers_coverage: str | None = None
+    domain_nucleation_continuity: str | None = None
+    key_spectral_metrics: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def validate_kind_fields(self) -> V2ResultWrite:
+        if (self.instrument_id is None) != (self.instrument_version is None):
+            raise ValueError("instrument_id and instrument_version must be provided together")
+        if self.kind == "direct_observation":
+            if not self.observed_phenomena:
+                raise ValueError("Direct observation requires observed_phenomena")
+            if any(
+                value is not None
+                for value in (
+                    self.instrument_id,
+                    self.method_instrument,
+                    self.test_conditions,
+                    self.detected_phase_stacking,
+                    self.measured_layers_coverage,
+                    self.domain_nucleation_continuity,
+                    self.key_spectral_metrics,
+                )
+            ):
+                raise ValueError("Direct observation cannot include characterization fields")
+        elif not (self.method_instrument or "").strip():
+            raise ValueError("Characterization result requires method_instrument")
+        return self
+
+
+class V2ResultRead(BaseModel):
+    id: UUID
+    sample_id: UUID
+    kind: Literal["direct_observation", "characterization"]
+    characterization_record_id: UUID | None
+    instrument_id: UUID | None
+    instrument_version: int | None
+    instrument_snapshot_json: dict[str, Any] | None
+    method_instrument: str | None
+    test_conditions: str | None
+    observed_phenomena: list[str] | None
+    detected_phase_stacking: str | None
+    measured_layers_coverage: str | None
+    domain_nucleation_continuity: str | None
+    key_spectral_metrics: dict[str, Any] | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class V2ResultListResponse(BaseModel):
+    items: list[V2ResultRead]
     total: int

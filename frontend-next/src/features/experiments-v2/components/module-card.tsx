@@ -17,7 +17,7 @@ export function ModuleCard({
   error,
 }: {
   /** 分区序号（§1 / §1b / §2 …），纯展示。 */
-  index: string
+  index?: string
   title: string
   subtitle?: string
   children: ReactNode
@@ -32,9 +32,11 @@ export function ModuleCard({
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-baseline gap-2">
-          <span className="rounded bg-primary-soft px-1.5 py-0.5 text-xs font-semibold text-primary">
-            {index}
-          </span>
+          {index ? (
+            <span className="rounded bg-primary-soft px-1.5 py-0.5 text-xs font-semibold text-primary">
+              {index}
+            </span>
+          ) : null}
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         </div>
         {subtitle ? (

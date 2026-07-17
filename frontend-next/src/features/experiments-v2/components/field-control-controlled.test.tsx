@@ -20,6 +20,8 @@ vi.mock('@tanstack/react-query', () => ({
     },
     isLoading: false,
   }),
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
