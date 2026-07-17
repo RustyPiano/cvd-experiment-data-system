@@ -19,7 +19,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { getModuleOrNull, getRun, transitionRun } from './api'
+import {
+  getModuleOrNull,
+  getRun,
+  setNotCharacterized,
+  transitionRun,
+} from './api'
 import type { V2ModulePayloadRead } from './api'
 import { ExperimentV2Form } from './experiment-v2-form'
 import { buildStateFromLoaded } from './form-state'
@@ -95,12 +100,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       action: StatusAction
       reason?: string
     }) =>
-      transitionRun(
-        runId,
-        action === 'returnToDraft' ? 'return-to-draft' : action,
-        token,
-        invalidReason,
-      ),
+      transitionRun(runId, action, token, invalidReason),
     onSuccess: (run) => {
       setInvalidating(false)
       setUnlocking(false)
@@ -110,6 +110,9 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         ['v2-experiment', runId, token],
         (cached: typeof data) => (cached ? { ...cached, run } : cached),
       )
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-experiment-list'],
+      })
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) => {
@@ -124,14 +127,35 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       )
     },
   })
+  const notCharacterizedMutation = useMutation({
+    mutationFn: (confirmed: boolean) =>
+      setNotCharacterized(runId, confirmed, token),
+    onSuccess: (run) => {
+      queryClient.setQueryData(
+        ['v2-experiment', runId, token],
+        (cached: typeof data) => (cached ? { ...cached, run } : cached),
+      )
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-experiment-list'],
+      })
+      toast.success(t('experimentsV2.actions.success'))
+    },
+    onError: (mutationError) =>
+      toast.error(
+        resolveErrorMessage(mutationError, t('experimentsV2.actions.error')),
+      ),
+  })
   const act = (action: StatusAction) => {
     if (action === 'invalidate') setInvalidating(true)
     else if (action === 'unlock') setUnlocking(true)
     else mutation.mutate({ action })
   }
   const isAdmin = session.currentUser?.role === 'admin'
-  const canWrite = Boolean(
+  const canEditProcess = Boolean(
     data && (isAdmin || session.currentUser?.id === data.run.owner_id),
+  )
+  const canEditResults = Boolean(
+    data && (data.run.status === 'locked' || canEditProcess),
   )
 
   return (
@@ -152,7 +176,11 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
-            {availableStatusActions(data.run.status, canWrite, isAdmin).map(
+            {availableStatusActions(
+              data.run.status,
+              canEditProcess,
+              isAdmin,
+            ).map(
               (action) => (
                 <Button
                   key={action}
@@ -164,6 +192,25 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                 </Button>
               ),
             )}
+            {data.run.status === 'locked' &&
+            (data.run.result_missing_todo ||
+              Boolean(data.run.not_characterized_at)) ? (
+              <Button
+                variant="outline"
+                disabled={notCharacterizedMutation.isPending}
+                onClick={() =>
+                  notCharacterizedMutation.mutate(
+                    data.run.not_characterized_at === null,
+                  )
+                }
+              >
+                {t(
+                  data.run.not_characterized_at
+                    ? 'experimentsV2.actions.clearNotCharacterized'
+                    : 'experimentsV2.actions.markNotCharacterized',
+                )}
+              </Button>
+            ) : null}
           </div>
           {data.run.status === 'locked' || data.run.status === 'invalid' ? (
             <Alert>
@@ -172,7 +219,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               </AlertDescription>
             </Alert>
           ) : null}
-          {!canWrite &&
+          {!canEditProcess &&
           data.run.status !== 'locked' &&
           data.run.status !== 'invalid' ? (
             <Alert>
@@ -204,8 +251,14 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             runId={runId}
             runCode={data.run.run_code}
             initialState={buildStateFromLoaded(data.run, data.modules)}
-            processReadOnly={isProcessReadOnly(data.run.status, canWrite)}
-            resultsReadOnly={isResultsReadOnly(data.run.status, canWrite)}
+            processReadOnly={isProcessReadOnly(
+              data.run.status,
+              canEditProcess,
+            )}
+            resultsReadOnly={isResultsReadOnly(
+              data.run.status,
+              canEditResults,
+            )}
           />
         </>
       )}

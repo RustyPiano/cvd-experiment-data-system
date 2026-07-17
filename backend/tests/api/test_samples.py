@@ -41,7 +41,7 @@ def create_run(email: str, *, formula: str = "MoS2") -> dict:
 def create_sample(run_id: str, email: str, payload: dict | None = None) -> dict:
     response = client.post(
         f"/api/v1/experiments/{run_id}/samples",
-        json=payload or {"role": "product"},
+        json=payload or {"role": "control"},
         headers=auth_headers(email),
     )
     assert response.status_code == 201
@@ -54,7 +54,7 @@ def test_manual_sample_create_list_and_detail(active_user) -> None:
         run["id"],
         active_user.email,
         {
-            "role": "product",
+            "role": "control",
             "metadata_json": {"quality": "good"},
         },
     )
@@ -109,7 +109,7 @@ def test_create_sample_rejects_cross_experiment_parent(active_user, admin_user) 
 
     response = client.post(
         f"/api/v1/experiments/{other_run['id']}/samples",
-        json={"role": "product", "parent_sample_id": parent["id"]},
+        json={"role": "derived", "parent_sample_id": parent["id"]},
         headers=auth_headers(admin_user.email),
     )
 
@@ -117,14 +117,14 @@ def test_create_sample_rejects_cross_experiment_parent(active_user, admin_user) 
     assert response.json()["detail"] == "Parent sample must belong to the same experiment"
 
 
-def test_create_product_samples_generates_incremental_codes(active_user) -> None:
+def test_create_control_samples_generates_incremental_codes(active_user) -> None:
     run = create_run(active_user.email)
 
     first = create_sample(run["id"], active_user.email)
     second = create_sample(run["id"], active_user.email)
 
-    assert first["sample_code"].endswith("-PRODUCT-A")
-    assert second["sample_code"].endswith("-PRODUCT-B")
+    assert first["sample_code"].endswith("-S01")
+    assert second["sample_code"].endswith("-S02")
 
 
 def test_locked_samples_remain_editable_but_invalid_samples_do_not(active_user, db_session) -> None:
@@ -145,7 +145,7 @@ def test_locked_samples_remain_editable_but_invalid_samples_do_not(active_user, 
     db_session.commit()
     create = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "product"},
+        json={"role": "control"},
         headers=auth_headers(active_user.email),
     )
     assert create.status_code == 409
@@ -172,17 +172,17 @@ def test_sample_write_permissions_follow_run_visibility(active_user, db_session)
 
     hidden = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "product"},
+        json={"role": "control"},
         headers=headers,
     )
     assert hidden.status_code == 404
 
     experiment = db_session.get(ExperimentRun, UUID(run["id"]))
-    experiment.status = ExperimentStatus.SUBMITTED
+    experiment.status = ExperimentStatus.LOCKED
     db_session.commit()
     visible = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "product"},
+        json={"role": "control"},
         headers=headers,
     )
-    assert visible.status_code == 403
+    assert visible.status_code == 201

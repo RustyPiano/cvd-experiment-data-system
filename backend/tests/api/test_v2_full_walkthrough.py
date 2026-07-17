@@ -187,13 +187,12 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
         },
     )
 
-    sample = client.post(
-        f"/api/v1/experiments/{run_id}/samples",
-        json={"role": "product"},
-        headers=headers,
-    )
-    assert sample.status_code == 201, sample.text
-    sample_id = sample.json()["id"]
+    locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
+    assert locked.status_code == 200, locked.text
+    samples = client.get(f"/api/v1/samples?experiment_id={run_id}", headers=headers)
+    assert samples.status_code == 200, samples.text
+    assert samples.json()["total"] == 1
+    sample_id = samples.json()["items"][0]["id"]
 
     record = client.post(
         f"/api/v1/experiments/{run_id}/characterization-records",
@@ -237,11 +236,8 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
         ).status_code
         == 204
     )
-    submitted = client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers)
-    assert submitted.status_code == 200, submitted.text
-    locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
-    assert locked.status_code == 200, locked.text
-    assert locked.json()["result_missing_todo"] is True
+    after_delete = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
+    assert after_delete.json()["result_missing_todo"] is True
     supplemented = client.post(
         f"/api/v1/experiments/{run_id}/characterization-records",
         json={

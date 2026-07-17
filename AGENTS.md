@@ -22,7 +22,7 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 
 - **`docs/standard/STATUS.md`（先读：现状与真相指针；含全部背景+进度+已冻结决策+下一步）**
 - `docs/README.md`（文档分类与入口）
-- `docs/product/run-first-workflow-and-copy-design.md`（2026-07-16 已确认、待实施的产品工作流）
+- `docs/product/run-first-workflow-and-copy-design.md`（2026-07-16 已确认、正分阶段实施的产品工作流；阶段 1 已完成）
 - **维护约定**：完成实质改动后，回写 `STATUS.md`（进展日志 + 最后更新日期）；**字段改动改单一源 `docs/standard/field-source.yaml`**，再 `python3 docs/standard/build_field_tables.py` 重新生成 + `python3 docs/standard/check_field_source.py` 校验（CI 强制），勿手改二进制 xlsx、勿改回脚本内嵌数据。
 - `docs/standard/字段草案-v3.xlsx`（现行字段表）
 - `docs/standard/metadata-v2-review-and-redesign.md`（设计理由与国际对标）
@@ -50,8 +50,8 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 
 - 不重命名公共 API/字段，除非同步更新调用方与文档。
 - **字段改动只改 `docs/standard/field-source.yaml`**，然后重跑生成器（后端 `generate_v2_models`/`export_v2_schema`、前端 `gen:fields`、xlsx `build_field_tables.py`）+ `check_field_source.py` 校验；生成物漂移 = CI 红。
-- **当前代码**状态流：draft → submitted → locked（admin 可 unlock 回 submitted）；draft/submitted 可作废为 invalid；submit/lock 过必填门；locked 锁工艺但允许结果后补，invalid 全部只读；每次转移写审计。
-- **已确认待实施目标**：draft → locked 两步；衬底锁定时生成样品；成员可为全组 locked 炉次补结果；详见产品设计文档。实施时必须成批更新代码、测试和本文，禁止半切换。
+- **当前代码**状态流：draft → locked（admin 可 unlock 回 draft）；draft 可作废为 invalid；lock 过必填门并在同一事务中按衬底生成 growth 样品；locked 锁工艺但允许全组成员补结果，invalid 全部只读；每次转移写审计。
+- **产品重构进度**：阶段 1（两步状态、衬底生成样品、跨成员结果权限、“暂未表征”标记）已完成；统一结果录入、基础资料就地新增、CVD-only UI、筛选/审计/导出和全量双语仍待后续阶段。详见产品设计文档，实施时必须成批更新代码、测试和本文，禁止半切换。
 - 实验不做物理删除；文件删除走软删除标记。
 
 ## 安全与 PR

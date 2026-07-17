@@ -93,7 +93,7 @@ export const common = {
     switchToLight: '切换到浅色模式',
     switchToDark: '切换到深色模式',
   },
-  requiredMark: { title: '提交前必填', screenReader: '（必填）' },
+  requiredMark: { title: '必填字段', screenReader: '（必填）' },
   errors: {
     imageLoad: '图片加载失败',
     network: '网络连接失败，请检查网络设置或稍后重试',
@@ -117,6 +117,13 @@ export const common = {
       lockedOrInvalidReadOnly: '已锁定或已作废的炉次不可编辑',
       invalidReadOnly: '已作废的炉次不可编辑',
       parentSampleExperimentMismatch: '父样品必须属于同一炉次',
+      growthSampleAutomatic: '生长样会在锁定工艺时自动生成',
+      derivedSampleParentRequired: '派生样必须选择父样品',
+      runAlreadyHasResults: '该炉次已有结果，不能标记为暂未表征',
+      substrateResultConflict:
+        '样品 {{code}} 已有结果或文件。请先恢复对应衬底，再锁定工艺。',
+      substrateChangedConflict:
+        '样品 {{code}} 已有结果或文件。请恢复原衬底数据，再锁定工艺。',
       sampleRoleExists: '该炉次已存在相同角色的样品',
       sampleCodeExists: '样品编号已存在',
       sampleNotFound: '样品不存在',
@@ -203,7 +210,7 @@ export const common = {
     form: {
       createTitle: '新建{{name}}',
       newVersionTitle: '编辑{{name}}（生成新版本）',
-      requiredHint: '带 * 为提交前必填。',
+      requiredHint: '带 * 为保存前必填。',
       newVersionBanner:
         '保存将生成 v{{version}}，不会修改旧版本；既有实验引用不受影响。',
       selectPlaceholder: '请选择',
@@ -229,11 +236,11 @@ export const common = {
     },
     list: {
       title: '样品',
-      subtitle: '查看全部可见样品及其所属炉次与角色。',
+      subtitle: '查看全部可见样品及其所属炉次与类型。',
       loadError: '样品列表加载失败',
       searchPlaceholder: '搜索样品编号／炉次编号／材料体系',
       searchLabel: '样品搜索',
-      roleFilter: '角色：',
+      roleFilter: '类型：',
       allRoles: '全部',
       empty:
         '还没有样品。请在实验编辑页的『表征与实测产物』区块新增样品。',
@@ -242,7 +249,7 @@ export const common = {
         code: '样品编号',
         run: '所属炉次',
         material: '材料体系',
-        role: '角色',
+        role: '类型',
         updatedAt: '更新时间',
       },
     },
@@ -290,11 +297,11 @@ export const common = {
   // v2 实验录入表单（P4 §1–§4）。字段标签走 field-metadata，此处只放 UI chrome。
   experimentsV2: {
     status: {
-      draft: '草稿',
-      submitted: '已提交',
-      locked: '已锁定',
+      draft: '记录中',
+      locked: '工艺已锁定',
       invalid: '已作废',
-      resultMissing: '结果缺失',
+      resultMissing: '结果待补',
+      notCharacterized: '暂未表征',
     },
     banner: {
       locked: '该炉次的工艺参数已锁定，结果可继续补录。',
@@ -302,27 +309,22 @@ export const common = {
       notOwner: '只读：仅创建者或管理员可编辑。',
     },
     actions: {
-      submit: '提交炉次',
-      lock: '锁定炉次',
+      lock: '锁定工艺',
       unlock: '解锁炉次',
-      returnToDraft: '退回草稿',
       invalidate: '作废炉次',
+      markNotCharacterized: '标记暂未表征',
+      clearNotCharacterized: '取消暂未表征',
       success: '状态已更新',
       error: '状态更新失败',
       missingTitle: '请先补齐以下字段：',
-      requirement: { required: '必填', r0: 'R0' },
+      requirement: { required: '必填', r0: '锁定前必填' },
       invalidateTitle: '作废炉次',
-      invalidateDescription:
-        '作废后该炉次不可编辑且不可恢复，仅管理员可执行。请输入作废原因。',
+      invalidateDescription: '作废后该炉次不可编辑且不可恢复。请输入作废原因。',
       reason: '作废原因',
       unlockTitle: '解锁炉次',
       unlockDescription: '解锁后工艺参数恢复可编辑，确定解锁？',
     },
     nav: 'v2 实验录入',
-    r0: {
-      badge: 'R0',
-      tooltip: 'R0 最小可复现集字段',
-    },
     new: {
       title: '新建实验（v2）',
       subtitle: '按 v2 元数据标准录入炉次；填好 §1 即可创建并保存草稿。',
@@ -352,7 +354,7 @@ export const common = {
       },
     },
     form: {
-      requiredHint: '带 * 为提交前必填；R0 为最小可复现集字段。',
+      requiredHint: '带 * 为锁定工艺前必填。',
       selectPlaceholder: '请选择',
       inputPlaceholder: '请输入',
       removeItem: '删除该条目',
@@ -448,8 +450,8 @@ export const common = {
         newModeHint: '创建炉次后可在编辑页添加表征记录与实测产物。',
         noSamples: '本炉次尚无样品；先创建一个样品才能挂接表征与实测产物。',
         sample: '样品',
-        sampleRole: '样品角色',
-        addSample: '新增样品',
+        sampleRole: '样品类型',
+        addSample: '新增特殊样品',
         sampleCreated: '样品已创建',
         retry: '重试',
         samplesLoadError: '样品加载失败',
@@ -458,10 +460,9 @@ export const common = {
         filesLoadError: '附件加载失败',
         editing: '编辑中',
         roles: {
-          top: '上层',
-          bottom: '下层',
-          product: '产物',
-          control: '对照',
+          growth: '生长样',
+          derived: '派生样',
+          control: '对照样',
         },
         characterization: '表征记录',
         method: '表征类型',

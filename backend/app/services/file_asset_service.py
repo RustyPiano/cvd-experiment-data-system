@@ -19,7 +19,6 @@ from app.schemas.file_asset import FileAssetListResponse, FileAssetRead
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
     ensure_files_editable,
-    get_owned_experiment,
     get_visible_experiment,
 )
 from app.services.file_storage_service import FileStorageService
@@ -121,7 +120,7 @@ class FileAssetService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Setup diagram cannot be linked to a characterization record",
             )
-        experiment = get_owned_experiment(self.experiments, experiment_id, current_user)
+        experiment = get_visible_experiment(self.experiments, experiment_id, current_user)
         ensure_files_editable(experiment, resolved_asset_role)
         record_method: str | None = None
         if characterization_record_id is not None:
@@ -229,7 +228,7 @@ class FileAssetService:
         return to_file_asset_read_model(saved)
 
     def delete_file(self, file_id: UUID, current_user: User) -> None:
-        file_asset = self._get_editable_owned_file(file_id, current_user)
+        file_asset = self._get_editable_file(file_id, current_user)
         before = serialize_file_asset(file_asset)
         file_asset.deleted_at = datetime.now(UTC)
         file_asset.deleted_by_id = current_user.id
@@ -300,11 +299,11 @@ class FileAssetService:
         get_visible_experiment(self.experiments, file_asset.experiment_run_id, current_user)
         return file_asset
 
-    def _get_editable_owned_file(self, file_id: UUID, current_user: User) -> FileAsset:
+    def _get_editable_file(self, file_id: UUID, current_user: User) -> FileAsset:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
-        experiment = get_owned_experiment(
+        experiment = get_visible_experiment(
             self.experiments, file_asset.experiment_run_id, current_user
         )
         ensure_files_editable(experiment, file_asset.asset_role)

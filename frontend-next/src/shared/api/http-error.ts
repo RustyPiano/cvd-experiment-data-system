@@ -19,6 +19,11 @@ const DETAIL_KEYS = {
   'Invalid experiments cannot be edited': 'errors.details.invalidReadOnly',
   'Parent sample must belong to the same experiment':
     'errors.details.parentSampleExperimentMismatch',
+  'Growth samples are generated when the run is locked':
+    'errors.details.growthSampleAutomatic',
+  'Derived samples require a parent sample':
+    'errors.details.derivedSampleParentRequired',
+  'Run already has results': 'errors.details.runAlreadyHasResults',
   'Sample role already exists for experiment':
     'errors.details.sampleRoleExists',
   'Sample code already exists': 'errors.details.sampleCodeExists',
@@ -96,6 +101,24 @@ export function resolveErrorMessage(error: unknown, fallback: string): string {
     if (requiredStatus) {
       return i18n.t('errors.details.experimentMustBe', {
         status: requiredStatus[1],
+      })
+    }
+
+    const substrateResultConflict = error.detail?.match(
+      /^Substrate for sample (.+) has results or files\. Restore the substrate before locking the run\.$/,
+    )
+    if (substrateResultConflict) {
+      return i18n.t('errors.details.substrateResultConflict', {
+        code: substrateResultConflict[1],
+      })
+    }
+
+    const substrateChangedConflict = error.detail?.match(
+      /^Substrate for sample (.+) changed but has results or files\. Restore the previous substrate data before locking the run\.$/,
+    )
+    if (substrateChangedConflict) {
+      return i18n.t('errors.details.substrateChangedConflict', {
+        code: substrateChangedConflict[1],
       })
     }
 

@@ -25,7 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const roleFilters = ['', 'top', 'bottom', 'product', 'control'] as const
+const roleFilters = ['', 'growth', 'derived', 'control'] as const
 
 export function SampleListPage() {
   const { t } = useTranslation()

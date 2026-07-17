@@ -25,7 +25,7 @@ def _sample(db_session, run: ExperimentRun) -> Sample:
     sample = Sample(
         sample_code=f"S-{run.run_code}",
         experiment_run_id=run.id,
-        role=SampleRole.PRODUCT,
+        role=SampleRole.GROWTH,
     )
     db_session.add(sample)
     db_session.flush()
@@ -43,15 +43,13 @@ def test_locked_run_without_phenomena_or_characterization_is_marked_missing(
 
 
 def test_non_terminal_run_is_not_marked_missing(db_session, active_user) -> None:
-    run = _run(db_session, active_user, status=ExperimentStatus.SUBMITTED)
+    run = _run(db_session, active_user, status=ExperimentStatus.DRAFT)
 
     assert refresh_result_missing_todo(db_session, run) is False
     assert run.result_missing_todo is False
 
 
-def test_characterization_or_observed_phenomena_clears_missing_flag(
-    db_session, active_user
-) -> None:
+def test_characterization_clears_missing_flag(db_session, active_user) -> None:
     run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
     sample = _sample(db_session, run)
     db_session.add(CharacterizationRecord(experiment_run_id=run.id, sample_id=sample.id))
@@ -60,8 +58,11 @@ def test_characterization_or_observed_phenomena_clears_missing_flag(
     assert refresh_result_missing_todo(db_session, run) is False
     assert run.result_missing_todo is False
 
-    db_session.delete(db_session.query(CharacterizationRecord).one())
-    db_session.add(MeasuredProduct(sample_id=sample.id, observed_phenomena=["未表征"]))
+
+def test_any_measured_result_row_clears_missing_flag(db_session, active_user) -> None:
+    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
+    sample = _sample(db_session, run)
+    db_session.add(MeasuredProduct(sample_id=sample.id, measured_layers_coverage="1层；70%"))
     db_session.commit()
 
     assert refresh_result_missing_todo(db_session, run) is False

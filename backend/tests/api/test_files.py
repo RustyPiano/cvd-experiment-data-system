@@ -42,7 +42,7 @@ def create_experiment(email: str, *, objective: str = "File asset flow") -> str:
     return response.json()["id"]
 
 
-def create_sample(experiment_id: str, email: str, *, role: str = "product") -> str:
+def create_sample(experiment_id: str, email: str, *, role: str = "control") -> str:
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/samples",
         json={"role": role},
@@ -310,7 +310,7 @@ def test_file_write_permissions_follow_run_visibility(active_user, db_session) -
     assert hidden.status_code == 404
 
     experiment = db_session.get(ExperimentRun, UUID(experiment_id))
-    experiment.status = ExperimentStatus.SUBMITTED
+    experiment.status = ExperimentStatus.LOCKED
     db_session.commit()
     visible = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
@@ -318,7 +318,7 @@ def test_file_write_permissions_follow_run_visibility(active_user, db_session) -
         data={"method": "Raman"},
         files={"file": ("visible.txt", b"visible", "text/plain")},
     )
-    assert visible.status_code == 403
+    assert visible.status_code == 201
 
 
 def test_invalid_experiment_rejects_characterization_file_writes(active_user, db_session) -> None:
@@ -348,13 +348,11 @@ def test_invalid_experiment_rejects_characterization_file_writes(active_user, db
     )
 
 
-def test_upload_file_allowed_on_submitted_experiment(active_user, db_session) -> None:
-    # Characterization files can be attached to a submitted (still-editable)
-    # experiment, not only to drafts.
-    experiment_id = create_experiment(active_user.email, objective="Submitted file upload")
+def test_upload_file_allowed_on_locked_experiment(active_user, db_session) -> None:
+    experiment_id = create_experiment(active_user.email, objective="Locked file upload")
 
     experiment = db_session.get(ExperimentRun, UUID(experiment_id))
-    experiment.status = ExperimentStatus.SUBMITTED
+    experiment.status = ExperimentStatus.LOCKED
     db_session.commit()
 
     response = client.post(

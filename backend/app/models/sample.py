@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Uuid, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,14 +20,20 @@ json_payload_type = JSON().with_variant(JSONB(), "postgresql")
 
 
 class SampleRole(StrEnum):
-    TOP = "top"
-    BOTTOM = "bottom"
-    PRODUCT = "product"
+    GROWTH = "growth"
+    DERIVED = "derived"
     CONTROL = "control"
 
 
 class Sample(Base):
     __tablename__ = "samples"
+    __table_args__ = (
+        UniqueConstraint(
+            "experiment_run_id",
+            "source_substrate_id",
+            name="uq_samples_run_source_substrate",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
@@ -46,6 +52,15 @@ class Sample(Base):
         nullable=True,
     )
     role: Mapped[str] = mapped_column(String(32), index=True)
+    source_substrate_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+    source_substrate_snapshot_json: Mapped[dict | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
     metadata_json: Mapped[dict] = mapped_column(json_payload_type, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

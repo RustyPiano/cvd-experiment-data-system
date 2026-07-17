@@ -421,23 +421,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{run_id}/submit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit V2 Experiment */
-        post: operations["submit_v2_experiment_api_v1_experiments__run_id__submit_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/experiments/{run_id}/lock": {
         parameters: {
             query?: never;
@@ -472,23 +455,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{run_id}/return-to-draft": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Return V2 Experiment To Draft */
-        post: operations["return_v2_experiment_to_draft_api_v1_experiments__run_id__return_to_draft_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/experiments/{run_id}/invalidate": {
         parameters: {
             query?: never;
@@ -500,6 +466,23 @@ export interface paths {
         put?: never;
         /** Invalidate V2 Experiment */
         post: operations["invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{run_id}/not-characterized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set V2 Experiment Not Characterized */
+        put: operations["set_v2_experiment_not_characterized_api_v1_experiments__run_id__not_characterized_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -648,7 +631,7 @@ export interface components {
             /** Instrument Version */
             instrument_version?: number | null;
             /** Method Instrument */
-            method_instrument?: string | null;
+            method_instrument: string;
             /** Test Conditions */
             test_conditions?: string | null;
             /** Raw Data */
@@ -953,6 +936,12 @@ export interface components {
             parent_sample_id: string | null;
             /** Role */
             role: string;
+            /** Source Substrate Id */
+            source_substrate_id: string | null;
+            /** Source Substrate Snapshot Json */
+            source_substrate_snapshot_json: {
+                [key: string]: unknown;
+            } | null;
             /** Metadata Json */
             metadata_json: {
                 [key: string]: unknown;
@@ -978,7 +967,7 @@ export interface components {
          * SampleRole
          * @enum {string}
          */
-        SampleRole: "top" | "bottom" | "product" | "control";
+        SampleRole: "growth" | "derived" | "control";
         /** SampleUpdate */
         SampleUpdate: {
             /** Metadata Json */
@@ -1129,13 +1118,17 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "draft" | "submitted" | "locked" | "invalid";
+            status: "draft" | "locked" | "invalid";
+            /** Invalid Reason */
+            invalid_reason: string | null;
             /** Result Missing Todo */
             result_missing_todo: boolean | null;
-            /** Submitted At */
-            submitted_at: string | null;
             /** Locked At */
             locked_at: string | null;
+            /** Not Characterized By Id */
+            not_characterized_by_id: string | null;
+            /** Not Characterized At */
+            not_characterized_at: string | null;
             /** Setup Ref */
             setup_ref: string | null;
             /** Setup Ref Version */
@@ -1197,6 +1190,11 @@ export interface components {
             payload_json?: {
                 [key: string]: unknown;
             };
+        };
+        /** V2NotCharacterizedRequest */
+        V2NotCharacterizedRequest: {
+            /** Confirmed */
+            confirmed: boolean;
         };
         /** V2SetupReferenceRequest */
         V2SetupReferenceRequest: {
@@ -2218,37 +2216,6 @@ export interface operations {
             };
         };
     };
-    submit_v2_experiment_api_v1_experiments__run_id__submit_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     lock_v2_experiment_api_v1_experiments__run_id__lock_post: {
         parameters: {
             query?: never;
@@ -2311,7 +2278,7 @@ export interface operations {
             };
         };
     };
-    return_v2_experiment_to_draft_api_v1_experiments__run_id__return_to_draft_post: {
+    invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2320,7 +2287,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["V2InvalidateRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2342,7 +2313,7 @@ export interface operations {
             };
         };
     };
-    invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post: {
+    set_v2_experiment_not_characterized_api_v1_experiments__run_id__not_characterized_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -2353,7 +2324,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["V2InvalidateRequest"];
+                "application/json": components["schemas"]["V2NotCharacterizedRequest"];
             };
         };
         responses: {

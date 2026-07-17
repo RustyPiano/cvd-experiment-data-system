@@ -91,7 +91,7 @@ export const common = {
     switchToLight: 'Switch to light mode',
     switchToDark: 'Switch to dark mode',
   },
-  requiredMark: { title: 'Required before submission', screenReader: '(required)' },
+  requiredMark: { title: 'Required field', screenReader: '(required)' },
   errors: {
     imageLoad: 'Failed to load image',
     network: 'Network connection failed. Check your connection and try again.',
@@ -115,6 +115,13 @@ export const common = {
       lockedOrInvalidReadOnly: 'Locked or invalidated runs cannot be edited',
       invalidReadOnly: 'Invalidated runs cannot be edited',
       parentSampleExperimentMismatch: 'The parent sample must belong to the same run',
+      growthSampleAutomatic: 'Growth samples are generated when the process is locked',
+      derivedSampleParentRequired: 'Derived samples require a parent sample',
+      runAlreadyHasResults: 'This run already has results and cannot be marked as not characterized',
+      substrateResultConflict:
+        'Sample {{code}} already has results or files. Restore its substrate before locking the process.',
+      substrateChangedConflict:
+        'Sample {{code}} already has results or files. Restore the previous substrate data before locking the process.',
       sampleRoleExists: 'A sample with this role already exists for the run',
       sampleCodeExists: 'Sample code already exists',
       sampleNotFound: 'Sample not found',
@@ -204,7 +211,7 @@ export const common = {
     form: {
       createTitle: 'New {{name}}',
       newVersionTitle: 'Edit {{name}} (new version)',
-      requiredHint: 'Fields marked * are required to submit.',
+      requiredHint: 'Fields marked * are required before saving.',
       newVersionBanner:
         'Saving creates v{{version}}; the previous version stays unchanged and existing references are unaffected.',
       selectPlaceholder: 'Select',
@@ -230,11 +237,11 @@ export const common = {
     },
     list: {
       title: 'Samples',
-      subtitle: 'View visible samples with their runs and roles.',
+      subtitle: 'View visible samples with their runs and sample types.',
       loadError: 'Failed to load samples',
       searchPlaceholder: 'Search sample code / run code / material system',
       searchLabel: 'Search samples',
-      roleFilter: 'Role:',
+      roleFilter: 'Type:',
       allRoles: 'All',
       empty:
         'No samples yet. Add one in the “Characterization · measured products” section of the run edit page.',
@@ -243,7 +250,7 @@ export const common = {
         code: 'Sample code',
         run: 'Run',
         material: 'Material system',
-        role: 'Role',
+        role: 'Type',
         updatedAt: 'Updated at',
       },
     },
@@ -293,11 +300,11 @@ export const common = {
   // v2 experiment entry form (P4 §1–§4). Field labels come from field-metadata.
   experimentsV2: {
     status: {
-      draft: 'Draft',
-      submitted: 'Submitted',
-      locked: 'Locked',
-      invalid: 'Invalidated',
-      resultMissing: 'Results missing',
+      draft: 'Recording',
+      locked: 'Process locked',
+      invalid: 'Voided',
+      resultMissing: 'Results pending',
+      notCharacterized: 'Not characterized yet',
     },
     banner: {
       locked: 'Process parameters are locked. Results can still be added.',
@@ -305,27 +312,23 @@ export const common = {
       notOwner: 'Read-only: only the creator or an administrator can edit.',
     },
     actions: {
-      submit: 'Submit run',
-      lock: 'Lock run',
+      lock: 'Lock process',
       unlock: 'Unlock run',
-      returnToDraft: 'Return to draft',
       invalidate: 'Invalidate run',
+      markNotCharacterized: 'Mark not characterized yet',
+      clearNotCharacterized: 'Clear not-characterized marker',
       success: 'Status updated',
       error: 'Failed to update status',
       missingTitle: 'Complete these fields first:',
-      requirement: { required: 'Required', r0: 'R0' },
+      requirement: { required: 'Required', r0: 'Required before locking' },
       invalidateTitle: 'Invalidate run',
       invalidateDescription:
-        'After invalidation, this run cannot be edited or restored. Only administrators can perform this action. Enter the reason for invalidation.',
+        'After invalidation, this run cannot be edited or restored. Enter the reason for invalidation.',
       reason: 'Invalidation reason',
       unlockTitle: 'Unlock run',
       unlockDescription: 'Unlocking makes process parameters editable again. Unlock this run?',
     },
     nav: 'v2 experiment entry',
-    r0: {
-      badge: 'R0',
-      tooltip: 'R0 minimal reproducible set field',
-    },
     new: {
       title: 'New experiment (v2)',
       subtitle:
@@ -356,8 +359,7 @@ export const common = {
       },
     },
     form: {
-      requiredHint:
-        'Fields marked * are required to submit; R0 marks minimal-reproducible-set fields.',
+      requiredHint: 'Fields marked * are required before locking the process.',
       selectPlaceholder: 'Select',
       inputPlaceholder: 'Enter a value',
       removeItem: 'Remove this item',
@@ -462,8 +464,8 @@ export const common = {
         noSamples:
           'This run has no samples yet; create a sample to attach characterization and measured products.',
         sample: 'Sample',
-        sampleRole: 'Sample role',
-        addSample: 'Add sample',
+        sampleRole: 'Sample type',
+        addSample: 'Add special sample',
         sampleCreated: 'Sample created',
         retry: 'Retry',
         samplesLoadError: 'Failed to load samples',
@@ -472,10 +474,9 @@ export const common = {
         filesLoadError: 'Failed to load attachments',
         editing: 'Editing',
         roles: {
-          top: 'Top',
-          bottom: 'Bottom',
-          product: 'Product',
-          control: 'Control',
+          growth: 'Growth sample',
+          derived: 'Derived sample',
+          control: 'Control sample',
         },
         characterization: 'Characterization records',
         method: 'Method',

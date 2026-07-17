@@ -24,7 +24,6 @@ from app.schemas.v2 import (
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
     ensure_results_editable,
-    get_owned_experiment,
     get_visible_experiment,
 )
 from app.services.v2_entity_service import V2EntityService
@@ -60,7 +59,7 @@ class V2ResultsService:
         payload: CharacterizationRecordCreate,
         current_user: User,
     ) -> CharacterizationRecordRead:
-        run = get_owned_experiment(
+        run = get_visible_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
         ensure_results_editable(run)
@@ -105,6 +104,7 @@ class V2ResultsService:
             before_json=None,
             after_json=self._characterization_snapshot(saved),
         )
+        self._clear_not_characterized(run, current_user)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return CharacterizationRecordRead.model_validate(saved)
@@ -115,7 +115,7 @@ class V2ResultsService:
         payload: CharacterizationRecordUpdate,
         current_user: User,
     ) -> CharacterizationRecordRead:
-        record = self._owned_characterization_record(record_id, current_user)
+        record = self._visible_characterization_record(record_id, current_user)
         run = self.experiments.get_by_id(record.experiment_run_id)
         ensure_results_editable(run)
         before = self._characterization_snapshot(record)
@@ -146,7 +146,7 @@ class V2ResultsService:
         return CharacterizationRecordRead.model_validate(saved)
 
     def delete_characterization_record(self, record_id: UUID, current_user: User) -> None:
-        record = self._owned_characterization_record(record_id, current_user)
+        record = self._visible_characterization_record(record_id, current_user)
         run = self.experiments.get_by_id(record.experiment_run_id)
         ensure_results_editable(run)
         # Keep characterization evidence explicit: attachments must be soft-deleted first.
@@ -198,7 +198,7 @@ class V2ResultsService:
         payload: MeasuredProductCreate,
         current_user: User,
     ) -> MeasuredProductRead:
-        sample = self._owned_sample(sample_id, current_user)
+        sample = self._visible_sample(sample_id, current_user)
         run = self.experiments.get_by_id(sample.experiment_run_id)
         ensure_results_editable(run)
         if payload.characterization_record_id:
@@ -213,6 +213,7 @@ class V2ResultsService:
             before_json=None,
             after_json=self._measured_product_snapshot(saved),
         )
+        self._clear_not_characterized(run, current_user)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         return MeasuredProductRead.model_validate(saved)
@@ -223,7 +224,7 @@ class V2ResultsService:
         payload: MeasuredProductUpdate,
         current_user: User,
     ) -> MeasuredProductRead:
-        product = self._owned_measured_product(product_id, current_user)
+        product = self._visible_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
         run = self.experiments.get_by_id(sample.experiment_run_id)
         ensure_results_editable(run)
@@ -266,7 +267,7 @@ class V2ResultsService:
         return normalized
 
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
-        product = self._owned_measured_product(product_id, current_user)
+        product = self._visible_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
         run = self.experiments.get_by_id(sample.experiment_run_id)
         ensure_results_editable(run)
@@ -293,7 +294,7 @@ class V2ResultsService:
 
     def _visible_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self.db.get(Sample, sample_id)
-        if sample is None:
+        if sample is None or sample.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
         get_visible_experiment(
             self.experiments,
@@ -303,31 +304,19 @@ class V2ResultsService:
         )
         return sample
 
-    def _owned_sample(self, sample_id: UUID, current_user: User) -> Sample:
-        sample = self.db.get(Sample, sample_id)
-        if sample is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
-        get_owned_experiment(
-            self.experiments,
-            sample.experiment_run_id,
-            current_user,
-            schema_version=SCHEMA_VERSION,
-        )
-        return sample
-
     def _sample_for_run(self, sample_id: UUID, run_id: UUID) -> Sample:
         sample = self.db.get(Sample, sample_id)
-        if sample is None or sample.experiment_run_id != run_id:
+        if sample is None or sample.deleted_at is not None or sample.experiment_run_id != run_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
         return sample
 
-    def _owned_characterization_record(
+    def _visible_characterization_record(
         self, record_id: UUID, current_user: User
     ) -> CharacterizationRecord:
         record = self.results.get_characterization_record(record_id)
         if record is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Record not found")
-        get_owned_experiment(
+        get_visible_experiment(
             self.experiments,
             record.experiment_run_id,
             current_user,
@@ -335,9 +324,31 @@ class V2ResultsService:
         )
         return record
 
-    def _owned_measured_product(self, product_id: UUID, current_user: User) -> MeasuredProduct:
+    def _visible_measured_product(self, product_id: UUID, current_user: User) -> MeasuredProduct:
         product = self.results.get_measured_product(product_id)
         if product is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-        self._owned_sample(product.sample_id, current_user)
+        self._visible_sample(product.sample_id, current_user)
         return product
+
+    def _clear_not_characterized(self, run, current_user: User) -> None:
+        if run.not_characterized_at is None:
+            return
+        before = {
+            "not_characterized_by_id": str(run.not_characterized_by_id),
+            "not_characterized_at": run.not_characterized_at.isoformat(),
+        }
+        run.not_characterized_by_id = None
+        run.not_characterized_at = None
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action="clear_not_characterized",
+            before_json=before,
+            after_json={
+                "not_characterized_by_id": None,
+                "not_characterized_at": None,
+            },
+            reason="result_added",
+        )

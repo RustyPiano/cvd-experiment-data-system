@@ -21,7 +21,7 @@ def _visibility_clause(current_user: User):
         return None
     return or_(
         ExperimentRun.owner_id == current_user.id,
-        ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED]),
+        ExperimentRun.status == ExperimentStatus.LOCKED,
     )
 
 

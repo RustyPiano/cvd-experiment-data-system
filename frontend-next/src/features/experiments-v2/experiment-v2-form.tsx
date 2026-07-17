@@ -2,7 +2,7 @@
 //  - 新建态：一个「创建并保存草稿」按钮 = 创建 run(schema_version=cvd_v2) + 逐模块 upsert，
 //    随后跳转编辑页。
 //  - 编辑态：每个模块区块带「保存本模块」按钮（草稿可分模块保存）。
-// 提交前用与后端同判据的必填校验拦截，避免直接把 422 抛给用户。payload 键=字段 key。
+// 保存前用与后端同判据的必填校验拦截，避免直接把 422 抛给用户。payload 键=字段 key。
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'

@@ -19,6 +19,8 @@ def refresh_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
 def is_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
     if run.status != ExperimentStatus.LOCKED:
         return False
+    if run.not_characterized_at is not None:
+        return False
 
     has_characterization = db.scalar(
         select(CharacterizationRecord.id)
@@ -28,9 +30,10 @@ def is_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
     if has_characterization is not None:
         return False
 
-    products = db.scalars(
-        select(MeasuredProduct)
+    product = db.scalar(
+        select(MeasuredProduct.id)
         .join(Sample, Sample.id == MeasuredProduct.sample_id)
         .where(Sample.experiment_run_id == run.id)
-    ).all()
-    return not any(product.observed_phenomena for product in products)
+        .limit(1)
+    )
+    return product is None

@@ -68,6 +68,18 @@ export function transitionRun(
   })
 }
 
+export function setNotCharacterized(
+  runId: string,
+  confirmed: boolean,
+  token: string,
+) {
+  return apiRequest<V2ExperimentRead>(`${BASE}/${runId}/not-characterized`, {
+    method: 'PUT',
+    body: { confirmed },
+    token,
+  })
+}
+
 /** 逐模块 payload upsert（PUT /experiments/{run}/modules/{module}）。 */
 export function upsertModule(
   runId: string,

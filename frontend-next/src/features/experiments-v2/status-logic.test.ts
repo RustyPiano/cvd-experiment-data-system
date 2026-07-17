@@ -8,8 +8,7 @@ import {
 
 describe('v2 status logic', () => {
   it.each([
-    ['draft', true, false, ['submit', 'invalidate']],
-    ['submitted', true, false, ['lock', 'returnToDraft', 'invalidate']],
+    ['draft', true, false, ['lock', 'invalidate']],
     ['locked', true, false, []],
     ['locked', true, true, ['unlock']],
     ['invalid', true, true, []],
@@ -22,7 +21,7 @@ describe('v2 status logic', () => {
     },
   )
 
-  it.each(['draft', 'submitted', 'locked', 'invalid'] as const)(
+  it.each(['draft', 'locked', 'invalid'] as const)(
     'hides every write entry for a non-owner in %s',
     (status) => {
       expect(availableStatusActions(status, false, false)).toEqual([])
@@ -34,20 +33,18 @@ describe('v2 status logic', () => {
   it('locks process controls for locked and invalid runs', () => {
     expect(isProcessReadOnly('locked', true)).toBe(true)
     expect(isProcessReadOnly('invalid', true)).toBe(true)
-    expect(isProcessReadOnly('submitted', true)).toBe(false)
+    expect(isProcessReadOnly('draft', true)).toBe(false)
   })
 
   it('keeps results editable when locked and locks them when invalid', () => {
     expect(isResultsReadOnly('locked', true)).toBe(false)
     expect(isResultsReadOnly('invalid', true)).toBe(true)
-    expect(isResultsReadOnly('submitted', true)).toBe(false)
+    expect(isResultsReadOnly('draft', true)).toBe(false)
   })
 
   it('maps every status to an existing badge variant', () => {
-    expect(['secondary', 'outline', 'default', 'destructive']).toEqual(
-      (['draft', 'submitted', 'locked', 'invalid'] as const).map(
-        statusBadgeVariant,
-      ),
+    expect(['secondary', 'default', 'destructive']).toEqual(
+      (['draft', 'locked', 'invalid'] as const).map(statusBadgeVariant),
     )
   })
 })

@@ -7,9 +7,12 @@ import {
   buildItemsModulePayload,
   buildTargetProductPayload,
   emptyComponentRow,
+  emptyModuleValues,
   getComponentRoleOptions,
   isEffectivelyRequired,
   isFieldVisible,
+  itemHasAnyValue,
+  itemsFromPayload,
   missingRequiredKeys,
   parseComponentRoles,
   resolveModuleConditionKey,
@@ -202,6 +205,23 @@ describe('payload builders align with backend module contract', () => {
       {},
     ])
     expect(module.items).toHaveLength(1)
+  })
+
+  it('round-trips the internal substrate source id without treating it as content', () => {
+    const sourceId = '00000000-0000-4000-8000-000000000001'
+    expect(
+      buildItemPayload('substrates', {
+        ...emptyModuleValues('substrates'),
+        source_id: sourceId,
+        material: '蓝宝石',
+      }),
+    ).toMatchObject({ material: '蓝宝石', source_id: sourceId })
+    expect(itemHasAnyValue({ source_id: sourceId })).toBe(false)
+    expect(
+      itemsFromPayload('substrates', {
+        items: [{ source_id: sourceId, material: '蓝宝石' }],
+      })[0],
+    ).toMatchObject({ source_id: sourceId, material: '蓝宝石' })
   })
 })
 

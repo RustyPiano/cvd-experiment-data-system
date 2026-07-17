@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
@@ -28,6 +29,7 @@ from app.services.experiment_guards import (
     get_owned_experiment,
     get_visible_experiment,
 )
+from app.services.sample_service import SampleService
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import apply_setup_reference
 from app.services.v2_field_source import (
@@ -36,7 +38,10 @@ from app.services.v2_field_source import (
     stage_types_with_group,
 )
 from app.services.v2_r0_service import missing_r0_fields, missing_required_fields
-from app.services.v2_result_status_service import refresh_result_missing_todo
+from app.services.v2_result_status_service import (
+    is_result_missing_todo,
+    refresh_result_missing_todo,
+)
 
 
 class V2ExperimentService:
@@ -45,6 +50,7 @@ class V2ExperimentService:
         self.experiments = ExperimentRepository(db)
         self.module_payloads = ModulePayloadRepository(db)
         self.entities = V2EntityService(db)
+        self.samples = SampleService(db)
         self.audit = AuditService(db)
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
@@ -130,21 +136,13 @@ class V2ExperimentService:
             )
         )
 
-    def submit(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
+    def lock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
         run = get_owned_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
         self._require_status(run, ExperimentStatus.DRAFT)
         self._require_r0(run)
-        run.submitted_at = datetime.now(UTC)
-        return self._transition(run, ExperimentStatus.SUBMITTED, "submit", current_user)
-
-    def lock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        run = get_owned_experiment(
-            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
-        )
-        self._require_status(run, ExperimentStatus.SUBMITTED)
-        self._require_r0(run)
+        self.samples.sync_growth_samples(run, self._substrate_items(run.id), current_user)
         run.locked_at = datetime.now(UTC)
         self._transition(run, ExperimentStatus.LOCKED, "lock", current_user, commit=False)
         refresh_result_missing_todo(self.db, run)
@@ -160,20 +158,11 @@ class V2ExperimentService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
         self._require_status(run, ExperimentStatus.LOCKED)
         run.locked_at = None
-        self._transition(run, ExperimentStatus.SUBMITTED, "unlock", current_user, commit=False)
+        self._transition(run, ExperimentStatus.DRAFT, "unlock", current_user, commit=False)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
         self.db.refresh(run)
         return self._run_read(run)
-
-    def return_to_draft(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        run = get_owned_experiment(
-            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
-        )
-        self._require_status(run, ExperimentStatus.SUBMITTED)
-        run.submitted_at = None
-        run.locked_at = None
-        return self._transition(run, ExperimentStatus.DRAFT, "return_to_draft", current_user)
 
     def invalidate(self, run_id: UUID, reason: str, current_user: User) -> V2ExperimentRead:
         run = get_owned_experiment(
@@ -244,7 +233,11 @@ class V2ExperimentService:
         )
         ensure_process_editable(run)
         try:
-            validated = validate_v2_module_payload(module_key, payload.payload_json)
+            payload_json = deepcopy(payload.payload_json)
+            substrate_source_ids: list[object | None] = []
+            if module_key == "substrates":
+                payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)
+            validated = validate_v2_module_payload(module_key, payload_json)
         except ValidationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -287,6 +280,12 @@ class V2ExperimentService:
                     detail={"invalid": [{"key": "chemical_formula", "reason": "length"}]},
                 )
             run.material_system = validated.get("chemical_formula") or None
+        if module_key == "substrates":
+            validated = self._attach_substrate_source_ids(
+                run.id,
+                validated,
+                substrate_source_ids,
+            )
         saved = self._save_v2_payload(run.id, module_key, validated)
         # Audit only the module key: payload snapshots are too noisy for routine upserts.
         self.audit.record_event(
@@ -312,6 +311,61 @@ class V2ExperimentService:
             )
         return self._module_read(payload)
 
+    def set_not_characterized(
+        self,
+        run_id: UUID,
+        confirmed: bool,
+        current_user: User,
+    ) -> V2ExperimentRead:
+        run = get_visible_experiment(
+            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        )
+        self._require_status(run, ExperimentStatus.LOCKED)
+        if (
+            confirmed
+            and run.not_characterized_at is None
+            and not is_result_missing_todo(self.db, run)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Run already has results",
+            )
+        before = {
+            "not_characterized_by_id": (
+                str(run.not_characterized_by_id) if run.not_characterized_by_id else None
+            ),
+            "not_characterized_at": (
+                run.not_characterized_at.isoformat() if run.not_characterized_at else None
+            ),
+        }
+        if confirmed:
+            run.not_characterized_by_id = current_user.id
+            run.not_characterized_at = datetime.now(UTC)
+            action = "confirm_not_characterized"
+        else:
+            run.not_characterized_by_id = None
+            run.not_characterized_at = None
+            action = "clear_not_characterized"
+        self.audit.record_event(
+            actor=current_user,
+            entity_type="experiment_run",
+            entity_id=run.id,
+            action=action,
+            before_json=before,
+            after_json={
+                "not_characterized_by_id": (
+                    str(run.not_characterized_by_id) if run.not_characterized_by_id else None
+                ),
+                "not_characterized_at": (
+                    run.not_characterized_at.isoformat() if run.not_characterized_at else None
+                ),
+            },
+        )
+        refresh_result_missing_todo(self.db, run)
+        self.db.commit()
+        self.db.refresh(run)
+        return self._run_read(run)
+
     def _save_v2_payload(
         self, run_id: UUID, module_key: str, payload_json: dict[str, Any]
     ) -> ExperimentModulePayload:
@@ -323,6 +377,61 @@ class V2ExperimentService:
         payload.schema_version = SCHEMA_VERSION
         payload.payload_json = payload_json
         return self.module_payloads.save(payload)
+
+    @staticmethod
+    def _strip_substrate_source_ids(
+        payload_json: dict[str, Any],
+    ) -> tuple[dict[str, Any], list[object | None]]:
+        source_ids: list[object | None] = []
+        items = payload_json.get("items")
+        if not isinstance(items, list):
+            return payload_json, source_ids
+        for item in items:
+            source_ids.append(item.pop("source_id", None) if isinstance(item, dict) else None)
+        return payload_json, source_ids
+
+    def _attach_substrate_source_ids(
+        self,
+        run_id: UUID,
+        payload_json: dict[str, Any],
+        supplied_source_ids: list[object | None],
+    ) -> dict[str, Any]:
+        existing = self.module_payloads.get_by_run_and_key(run_id, "substrates")
+        existing_items = (existing.payload_json.get("items") or []) if existing else []
+        used: set[UUID] = set()
+        for index, item in enumerate(payload_json.get("items") or []):
+            candidate = supplied_source_ids[index] if index < len(supplied_source_ids) else None
+            if candidate is None and index < len(existing_items):
+                previous = existing_items[index]
+                if isinstance(previous, dict):
+                    candidate = previous.get("source_id")
+            try:
+                source_id = UUID(str(candidate)) if candidate is not None else uuid4()
+            except (TypeError, ValueError, AttributeError) as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "source_id", "reason": "value"}]},
+                ) from exc
+            if source_id in used:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "source_id", "reason": "duplicate"}]},
+                )
+            used.add(source_id)
+            item["source_id"] = str(source_id)
+        return payload_json
+
+    def _substrate_items(self, run_id: UUID) -> list[dict[str, Any]]:
+        payload = self.module_payloads.get_by_run_and_key(run_id, "substrates")
+        if payload is None:
+            return []
+        items = payload.payload_json.get("items") or []
+        if all(isinstance(item, dict) and item.get("source_id") for item in items):
+            return items
+        normalized = self._attach_substrate_source_ids(run_id, deepcopy(payload.payload_json), [])
+        payload.payload_json = normalized
+        self.module_payloads.save(payload)
+        return normalized.get("items") or []
 
     def _validate_external_field_requirement(
         self, run: ExperimentRun, payload_json: dict[str, Any]
@@ -409,8 +518,9 @@ class V2ExperimentService:
             status=run.status.value,
             invalid_reason=run.invalid_reason,
             result_missing_todo=run.result_missing_todo,
-            submitted_at=run.submitted_at,
             locked_at=run.locked_at,
+            not_characterized_by_id=run.not_characterized_by_id,
+            not_characterized_at=run.not_characterized_at,
             setup_ref=run.setup_ref,
             setup_ref_version=run.setup_ref_version,
             setup_ref_snapshot_json=run.setup_ref_snapshot_json,

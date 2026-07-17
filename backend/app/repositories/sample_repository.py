@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
@@ -30,36 +30,17 @@ class SampleRepository:
             statement = statement.where(Sample.deleted_at.is_(None))
         return self.db.scalar(statement)
 
-    def get_by_experiment_and_role(
+    def list_by_experiment(
         self,
         experiment_id: UUID,
-        role: SampleRole,
         *,
         include_deleted: bool = False,
-    ) -> Sample | None:
-        statement = select(Sample).where(
-            Sample.experiment_run_id == experiment_id,
-            Sample.role == role.value,
-        )
+    ) -> list[Sample]:
+        statement = select(Sample).where(Sample.experiment_run_id == experiment_id)
         if not include_deleted:
             statement = statement.where(Sample.deleted_at.is_(None))
-        return self.db.scalar(statement)
-
-    def count_by_experiment_and_role(
-        self,
-        experiment_id: UUID,
-        role: SampleRole,
-        *,
-        include_deleted: bool = False,
-    ) -> int:
-        statement = (
-            select(func.count())
-            .select_from(Sample)
-            .where(Sample.experiment_run_id == experiment_id, Sample.role == role.value)
-        )
-        if not include_deleted:
-            statement = statement.where(Sample.deleted_at.is_(None))
-        return int(self.db.scalar(statement) or 0)
+        statement = statement.order_by(Sample.sample_code.asc())
+        return list(self.db.scalars(statement).all())
 
     def list_visible(
         self,
@@ -84,7 +65,7 @@ class SampleRepository:
             statement = statement.where(
                 or_(
                     ExperimentRun.owner_id == current_user.id,
-                    ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED]),
+                    ExperimentRun.status == ExperimentStatus.LOCKED,
                 )
             )
 

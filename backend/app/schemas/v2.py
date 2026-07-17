@@ -59,11 +59,12 @@ class V2ExperimentRead(BaseModel):
     material_system: str | None
     experiment_date: date
     objective: str | None
-    status: Literal["draft", "submitted", "locked", "invalid"]
+    status: Literal["draft", "locked", "invalid"]
     invalid_reason: str | None
     result_missing_todo: bool | None
-    submitted_at: datetime | None
     locked_at: datetime | None
+    not_characterized_by_id: UUID | None
+    not_characterized_at: datetime | None
     setup_ref: UUID | None
     setup_ref_version: int | None
     setup_ref_snapshot_json: dict[str, Any] | None
@@ -78,6 +79,10 @@ class V2ExperimentListResponse(BaseModel):
 
 class V2InvalidateRequest(BaseModel):
     reason: str = Field(min_length=1)
+
+
+class V2NotCharacterizedRequest(BaseModel):
+    confirmed: bool
 
 
 class V2ModulePayloadUpsert(BaseModel):

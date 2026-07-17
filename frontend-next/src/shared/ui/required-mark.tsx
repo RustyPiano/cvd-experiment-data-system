@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 /**
- * Marks a field that is required to submit an experiment. Visual-only asterisk
+ * Marks a required field. Visual-only asterisk
  * with an accessible label so screen readers announce it.
  */
 export function RequiredMark() {

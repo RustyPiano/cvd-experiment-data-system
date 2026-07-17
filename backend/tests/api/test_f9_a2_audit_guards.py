@@ -82,7 +82,7 @@ def test_result_crud_writes_are_audited_with_delete_snapshots(active_user, db_se
     run = _run(headers, "CVD-2026-0902")
     sample = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "product"},
+        json={"role": "control"},
         headers=headers,
     ).json()
     record = client.post(

@@ -57,7 +57,7 @@ def ensure_process_editable(experiment: ExperimentRun) -> None:
 
 
 def ensure_results_editable(experiment: ExperimentRun) -> None:
-    """结果与样品可在 locked 补录，仅 invalid 禁写。"""
+    """结果与样品可后补；作废炉次禁止写入。"""
     if experiment.status == ExperimentStatus.INVALID:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

@@ -5,13 +5,14 @@ import type * as ReactModule from 'react'
 import { SampleDetailPage } from './sample-detail-page'
 import { updateSample } from './api'
 
-let status: 'submitted' | 'locked' | 'invalid' = 'submitted'
+let status: 'draft' | 'locked' | 'invalid' = 'draft'
+let currentUserId = 'owner-1'
 let mutationPending = false
 let sampleData = {
   id: 'sample-1',
   experiment_run_id: 'run-1',
   sample_code: 'RUN-1-S1',
-  role: 'product',
+  role: 'growth',
   metadata_json: {},
   updated_at: '2026-07-11T00:00:00Z',
 }
@@ -25,7 +26,7 @@ vi.mock('@/features/auth/use-auth', () => ({
   useAuth: () => ({
     session: {
       accessToken: 'token',
-      currentUser: { id: 'owner-1', role: 'member' },
+      currentUser: { id: currentUserId, role: 'member' },
       isAuthenticated: true,
     },
   }),
@@ -96,13 +97,14 @@ vi.mock('@tanstack/react-query', async () => {
 
 describe('sample detail result-domain editability', () => {
   beforeEach(() => {
-    status = 'submitted'
+    status = 'draft'
+    currentUserId = 'owner-1'
     mutationPending = false
     sampleData = {
       id: 'sample-1',
       experiment_run_id: 'run-1',
       sample_code: 'RUN-1-S1',
-      role: 'product',
+      role: 'growth',
       metadata_json: {},
       updated_at: '2026-07-11T00:00:00Z',
     }
@@ -113,7 +115,7 @@ describe('sample detail result-domain editability', () => {
     vi.mocked(updateSample).mockReset()
   })
 
-  it.each(['submitted', 'locked'] as const)(
+  it.each(['draft', 'locked'] as const)(
     'keeps %s samples editable',
     (runStatus) => {
       status = runStatus
@@ -125,6 +127,14 @@ describe('sample detail result-domain editability', () => {
       ).toBeInTheDocument()
     },
   )
+
+  it('allows another member to edit a locked sample', () => {
+    status = 'locked'
+    currentUserId = 'other-member'
+    render(<SampleDetailPage />)
+
+    expect(screen.getByLabelText('元数据 JSON')).toBeEnabled()
+  })
 
   it('keeps invalid samples read-only', () => {
     status = 'invalid'
@@ -157,7 +167,7 @@ describe('sample detail result-domain editability', () => {
         id: 'sample-1',
         experiment_run_id: 'run-1',
         sample_code: 'RUN-1-S1',
-        role: 'product',
+        role: 'growth',
         metadata_json: { version: 2 },
         updated_at: '2026-07-11T00:00:01Z',
       } as never)
@@ -174,7 +184,7 @@ describe('sample detail result-domain editability', () => {
         id: 'sample-1',
         experiment_run_id: 'run-1',
         sample_code: 'RUN-1-S1',
-        role: 'product',
+        role: 'growth',
         metadata_json: { version: 1 },
         updated_at: '2026-07-11T00:00:00Z',
       } as unknown as Awaited<ReturnType<typeof updateSample>>)

@@ -61,7 +61,11 @@ export function RepeatableItemsSection({
       ),
     )
   }
-  const addItem = () => onItemsChange([...items, emptyModuleValues(moduleKey)])
+  const addItem = () => {
+    const item = emptyModuleValues(moduleKey)
+    if (moduleKey === 'substrates') item['source_id'] = crypto.randomUUID()
+    onItemsChange([...items, item])
+  }
   const removeItem = (itemIndex: number) =>
     onItemsChange(items.filter((_, i) => i !== itemIndex))
 
@@ -81,7 +85,10 @@ export function RepeatableItemsSection({
 
       <div className="flex flex-col gap-4">
         {items.map((item, itemIndex) => (
-          <div key={itemIndex} className="rounded-md border border-border p-4">
+          <div
+            key={item['source_id'] || itemIndex}
+            className="rounded-md border border-border p-4"
+          >
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold text-foreground">
                 {itemLabel(itemIndex + 1)}

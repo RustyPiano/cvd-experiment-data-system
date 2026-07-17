@@ -37,7 +37,7 @@ def create_run(email: str, code: str) -> str:
 def create_sample(run_id: str, email: str) -> str:
     response = client.post(
         f"/api/v1/experiments/{run_id}/samples",
-        json={"role": "product"},
+        json={"role": "control"},
         headers=auth_headers(email),
     )
     assert response.status_code == 201, response.text

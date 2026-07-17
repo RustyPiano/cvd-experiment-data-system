@@ -32,27 +32,39 @@ def _run(headers: dict[str, str], code: str, method: str = "PVD-热蒸发") -> d
     return response.json()
 
 
-def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_session) -> None:
+def _add_substrates(headers: dict[str, str], run_id: str, items: list[dict] | None = None) -> dict:
+    response = client.put(
+        f"/api/v1/experiments/{run_id}/modules/substrates",
+        json={"payload_json": {"items": items or [{"material": "蓝宝石"}]}},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["payload_json"]
+
+
+def _lockable_run(headers: dict[str, str], code: str) -> dict:
+    run = _run(headers, code)
+    _add_substrates(headers, run["id"])
+    return run
+
+
+def test_direct_lock_unlock_invalidate_and_audit(active_user, admin_user, db_session) -> None:
     owner = _headers(active_user.email)
     admin = _headers(admin_user.email)
-    run = _run(owner, "STATE-HAPPY")
+    run = _lockable_run(owner, "STATE-HAPPY")
     run_id = run["id"]
 
+    assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=owner).status_code == 404
     assert (
         client.post(f"/api/v1/experiments/{run_id}/return-to-draft", headers=owner).status_code
-        == 409
+        == 404
     )
-
-    submitted = client.post(f"/api/v1/experiments/{run_id}/submit", headers=owner)
-    assert submitted.status_code == 200, submitted.text
-    assert submitted.json()["status"] == "submitted"
-    assert submitted.json()["submitted_at"] is not None
-    assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=owner).status_code == 409
-    assert client.post(f"/api/v1/experiments/{run_id}/unlock", headers=admin).status_code == 409
 
     locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=owner)
     assert locked.status_code == 200, locked.text
     assert locked.json()["status"] == "locked"
+    assert locked.json()["locked_at"] is not None
+    assert "submitted_at" not in locked.json()
     assert locked.json()["result_missing_todo"] is True
     assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=owner).status_code == 409
     assert (
@@ -67,14 +79,9 @@ def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_ses
     assert client.post(f"/api/v1/experiments/{run_id}/unlock", headers=owner).status_code == 403
     unlocked = client.post(f"/api/v1/experiments/{run_id}/unlock", headers=admin)
     assert unlocked.status_code == 200, unlocked.text
-    assert unlocked.json()["status"] == "submitted"
+    assert unlocked.json()["status"] == "draft"
     assert unlocked.json()["locked_at"] is None
     assert unlocked.json()["result_missing_todo"] is False
-
-    draft = client.post(f"/api/v1/experiments/{run_id}/return-to-draft", headers=owner)
-    assert draft.status_code == 200, draft.text
-    assert draft.json()["status"] == "draft"
-    assert draft.json()["submitted_at"] is None
 
     invalid = client.post(
         f"/api/v1/experiments/{run_id}/invalidate",
@@ -83,43 +90,25 @@ def test_state_transitions_audit_and_result_todo(active_user, admin_user, db_ses
     )
     assert invalid.status_code == 200, invalid.text
     assert invalid.json()["status"] == "invalid"
-    assert (
-        client.post(
-            f"/api/v1/experiments/{run_id}/invalidate",
-            json={"reason": "again"},
-            headers=owner,
-        ).status_code
-        == 409
-    )
 
     events = db_session.query(AuditEvent).filter(AuditEvent.entity_id == UUID(run_id)).all()
     assert [event.action for event in events] == [
         "create",
-        "submit",
+        "upsert_module",
         "lock",
         "unlock",
-        "return_to_draft",
         "invalidate",
     ]
-    assert [event.actor_id for event in events] == [
-        active_user.id,
-        active_user.id,
-        active_user.id,
-        admin_user.id,
-        active_user.id,
-        active_user.id,
-    ]
-    assert all(event.entity_id == UUID(run_id) for event in events)
-    assert all(
-        event.before_json.get("status") != event.after_json.get("status") for event in events[1:]
-    )
+    assert events[-3].actor_id == active_user.id
+    assert events[-2].actor_id == admin_user.id
+    assert events[-1].actor_id == active_user.id
 
 
-def test_r0_gate_returns_structured_missing_fields(active_user) -> None:
+def test_lock_gate_returns_structured_missing_fields(active_user) -> None:
     headers = _headers(active_user.email)
     run = _run(headers, "STATE-R0", "APCVD")
 
-    response = client.post(f"/api/v1/experiments/{run['id']}/submit", headers=headers)
+    response = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers)
 
     assert response.status_code == 422
     missing = response.json()["detail"]["missing"]
@@ -127,86 +116,70 @@ def test_r0_gate_returns_structured_missing_fields(active_user) -> None:
     assert {"key", "label", "module"} <= missing[0].keys()
 
 
-def test_submit_rejects_missing_non_r0_required_fields(active_user) -> None:
+def test_lock_rejects_missing_non_r0_required_fields(active_user) -> None:
     headers = _headers(active_user.email)
-
-    for code, target_product, precursor, expected_key in (
-        (
-            "STATE-REQUIRED-STRUCTURE",
-            {
-                "chemical_formula": "WS2/MoS2",
-                "structure_type": None,
-                "components": [{"formula": "WS2", "role": "上层"}],
-            },
-            {"name_formula": "MoO3", "phase_state": "固", "amount": 20},
-            "structure_type",
-        ),
-        (
-            "STATE-REQUIRED-PHASE",
-            {"chemical_formula": "MoS2", "structure_type": "本征"},
-            {"name_formula": "MoO3", "phase_state": None, "amount": 20},
-            "phase_state",
-        ),
-    ):
-        setup = client.post(
-            "/api/v1/setups",
-            json={
-                "setup_code": f"SETUP-{code}",
-                "setup_name": code,
-                "zone_count": 1,
-                "orientation": "水平",
-                "coordinate_system": "上游负/下游正",
-                "field_devices": "无",
-            },
+    setup = client.post(
+        "/api/v1/setups",
+        json={
+            "setup_code": "SETUP-STATE-REQUIRED",
+            "setup_name": "Required gate setup",
+            "zone_count": 1,
+            "orientation": "水平",
+            "coordinate_system": "上游负/下游正",
+            "field_devices": "无",
+        },
+        headers=headers,
+    )
+    assert setup.status_code == 201, setup.text
+    run = _run(headers, "STATE-REQUIRED", "APCVD")
+    run_id = run["id"]
+    assert (
+        client.put(
+            f"/api/v1/experiments/{run_id}/setup-reference",
+            json={"setup_id": setup.json()["id"], "version": 1},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    payloads = {
+        "target_product": {
+            "chemical_formula": "WS2/MoS2",
+            "structure_type": None,
+            "components": [{"formula": "WS2", "role": "上层"}],
+        },
+        "precursors": {"items": [{"name_formula": "MoO3", "phase_state": "固", "amount": 20}]},
+        "substrates": {"items": [{"material": "蓝宝石"}]},
+        "process_steps": {
+            "items": [
+                {
+                    "stage_type": "反应生长",
+                    "temperature_program": "750 C",
+                    "gas_species": "Ar",
+                    "gas_flow_sccm": 80,
+                    "pressure_system": "常压",
+                }
+            ]
+        },
+    }
+    for module, payload in payloads.items():
+        response = client.put(
+            f"/api/v1/experiments/{run_id}/modules/{module}",
+            json={"payload_json": payload},
             headers=headers,
         )
-        assert setup.status_code == 201, setup.text
-        run = _run(headers, code, "APCVD")
-        run_id = run["id"]
-        assert (
-            client.put(
-                f"/api/v1/experiments/{run_id}/setup-reference",
-                json={"setup_id": setup.json()["id"], "version": 1},
-                headers=headers,
-            ).status_code
-            == 200
-        )
-        payloads = {
-            "target_product": target_product,
-            "precursors": {"items": [precursor]},
-            "substrates": {"items": [{"material": "蓝宝石"}]},
-            "process_steps": {
-                "items": [
-                    {
-                        "stage_type": "反应生长",
-                        "temperature_program": "750 C",
-                        "gas_species": "Ar",
-                        "gas_flow_sccm": 80,
-                        "pressure_system": "常压",
-                    }
-                ]
-            },
-        }
-        for module, payload in payloads.items():
-            response = client.put(
-                f"/api/v1/experiments/{run_id}/modules/{module}",
-                json={"payload_json": payload},
-                headers=headers,
-            )
-            assert response.status_code == 200, response.text
+        assert response.status_code == 200, response.text
 
-        response = client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers)
+    response = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
 
-        assert response.status_code == 422, response.text
-        missing = response.json()["detail"]["missing"]
-        assert next(item for item in missing if item["key"] == expected_key)["requirement"] == (
-            "required"
-        )
+    assert response.status_code == 422, response.text
+    missing = response.json()["detail"]["missing"]
+    assert (
+        next(item for item in missing if item["key"] == "structure_type")["requirement"]
+        == "required"
+    )
 
 
-def test_write_permissions_hide_invisible_runs_and_forbid_visible_runs(
-    active_user, db_session
-) -> None:
+def test_write_permissions_follow_two_state_visibility(active_user, db_session) -> None:
     owner = _headers(active_user.email)
     other = User(
         email="other@example.com",
@@ -217,14 +190,10 @@ def test_write_permissions_hide_invisible_runs_and_forbid_visible_runs(
     )
     db_session.add(other)
     db_session.commit()
-    run = _run(owner, "STATE-OWNER")
+    run = _lockable_run(owner, "STATE-OWNER")
     headers = _headers(other.email)
 
-    for action in ("submit", "lock", "unlock", "return-to-draft"):
-        assert (
-            client.post(f"/api/v1/experiments/{run['id']}/{action}", headers=headers).status_code
-            == 404
-        )
+    assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers).status_code == 404
     assert (
         client.post(
             f"/api/v1/experiments/{run['id']}/invalidate",
@@ -235,97 +204,134 @@ def test_write_permissions_hide_invisible_runs_and_forbid_visible_runs(
     )
 
     experiment = db_session.get(ExperimentRun, UUID(run["id"]))
-    experiment.status = ExperimentStatus.SUBMITTED
+    experiment.status = ExperimentStatus.LOCKED
     db_session.commit()
 
-    assert (
-        client.post(f"/api/v1/experiments/{run['id']}/return-to-draft", headers=headers).status_code
-        == 403
-    )
+    assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers).status_code == 403
     assert (
         client.post(f"/api/v1/experiments/{run['id']}/unlock", headers=headers).status_code == 403
     )
 
 
-def test_locked_run_allows_result_writes_and_refreshes_todo(active_user) -> None:
-    headers = _headers(active_user.email)
-    run = _run(headers, "CVD-2026-9001")
+def test_other_member_can_write_locked_results_and_files(active_user, db_session) -> None:
+    owner = _headers(active_user.email)
+    other = User(
+        email="result-helper@example.com",
+        name="Result Helper",
+        password_hash=active_user.password_hash,
+        role=UserRole.MEMBER,
+        is_active=True,
+    )
+    db_session.add(other)
+    db_session.commit()
+    helper = _headers(other.email)
+    run = _lockable_run(owner, "STATE-COLLAB")
     run_id = run["id"]
-    sample = client.post(
-        f"/api/v1/experiments/{run_id}/samples", json={"role": "product"}, headers=headers
-    ).json()
-    assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=headers).status_code == 200
-    locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
-    assert locked.status_code == 200
-    assert locked.json()["result_missing_todo"] is True
+    assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=owner).status_code == 200
+    samples = client.get(f"/api/v1/samples?experiment_id={run_id}", headers=helper).json()["items"]
+    assert len(samples) == 1
+    sample = samples[0]
 
     record = client.post(
         f"/api/v1/experiments/{run_id}/characterization-records",
         json={"sample_id": sample["id"], "method_instrument": "Raman"},
-        headers=headers,
+        headers=helper,
     )
     assert record.status_code == 201, record.text
     assert (
-        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
-        is False
-    )
-    record_id = record.json()["id"]
-    assert (
         client.patch(
-            f"/api/v1/characterization-records/{record_id}",
-            json={"method_instrument": "SEM"},
-            headers=headers,
+            f"/api/v1/characterization-records/{record.json()['id']}",
+            json={"test_conditions": "532 nm"},
+            headers=helper,
         ).status_code
         == 200
     )
-    assert (
-        client.delete(f"/api/v1/characterization-records/{record_id}", headers=headers).status_code
-        == 204
-    )
-    assert (
-        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
-        is True
-    )
-
     product = client.post(
         f"/api/v1/samples/{sample['id']}/measured-products",
-        json={"observed_phenomena": ["film"]},
-        headers=headers,
+        json={
+            "characterization_record_id": record.json()["id"],
+            "observed_phenomena": ["不连续覆盖"],
+        },
+        headers=helper,
     )
     assert product.status_code == 201, product.text
     assert (
-        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
-        is False
-    )
-    product_id = product.json()["id"]
-    assert (
         client.patch(
-            f"/api/v1/measured-products/{product_id}",
-            json={"observed_phenomena": ["continuous film"]},
-            headers=headers,
+            f"/api/v1/measured-products/{product.json()['id']}",
+            json={"measured_layers_coverage": "1层；70%"},
+            headers=helper,
         ).status_code
         == 200
     )
+    upload = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        data={
+            "characterization_record_id": record.json()["id"],
+            "asset_role": "characterization_file",
+        },
+        files={"file": ("raman.txt", b"data", "text/plain")},
+        headers=helper,
+    )
+    assert upload.status_code == 201, upload.text
     assert (
-        client.delete(f"/api/v1/measured-products/{product_id}", headers=headers).status_code == 204
+        client.put(
+            f"/api/v1/experiments/{run_id}/modules/substrates",
+            json={"payload_json": {"items": [{"material": "SiO2/Si"}]}},
+            headers=helper,
+        ).status_code
+        == 403
+    )
+    assert client.delete(f"/api/v1/files/{upload.json()['id']}", headers=helper).status_code == 204
+    assert (
+        client.delete(
+            f"/api/v1/measured-products/{product.json()['id']}", headers=helper
+        ).status_code
+        == 204
     )
     assert (
-        client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()["result_missing_todo"]
-        is True
+        client.delete(
+            f"/api/v1/characterization-records/{record.json()['id']}",
+            headers=helper,
+        ).status_code
+        == 204
     )
 
-    assert (
-        client.put(
-            f"/api/v1/experiments/{run_id}/modules/basic_info",
-            json={"payload_json": {}},
-            headers=headers,
-        ).status_code
-        == 409
+
+def test_not_characterized_marker_clears_todo_and_new_result_clears_marker(
+    active_user,
+) -> None:
+    headers = _headers(active_user.email)
+    run = _lockable_run(headers, "STATE-NOT-CHAR")
+    run_id = run["id"]
+    assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers).status_code == 200
+    sample = client.get(f"/api/v1/samples?experiment_id={run_id}", headers=headers).json()["items"][
+        0
+    ]
+
+    marked = client.put(
+        f"/api/v1/experiments/{run_id}/not-characterized",
+        json={"confirmed": True},
+        headers=headers,
     )
+    assert marked.status_code == 200, marked.text
+    assert marked.json()["not_characterized_by_id"] is not None
+    assert marked.json()["not_characterized_at"] is not None
+    assert marked.json()["result_missing_todo"] is False
+
+    result = client.post(
+        f"/api/v1/samples/{sample['id']}/measured-products",
+        json={"observed_phenomena": ["不连续覆盖"]},
+        headers=headers,
+    )
+    assert result.status_code == 201, result.text
+    refreshed = client.get(f"/api/v1/experiments/{run_id}", headers=headers).json()
+    assert refreshed["not_characterized_by_id"] is None
+    assert refreshed["not_characterized_at"] is None
+    assert refreshed["result_missing_todo"] is False
     assert (
         client.put(
-            f"/api/v1/experiments/{run_id}/setup-reference",
-            json={"setup_id": "00000000-0000-0000-0000-000000000001", "version": 1},
+            f"/api/v1/experiments/{run_id}/not-characterized",
+            json={"confirmed": True},
             headers=headers,
         ).status_code
         == 409
@@ -334,10 +340,10 @@ def test_locked_run_allows_result_writes_and_refreshes_todo(active_user) -> None
 
 def test_invalid_run_rejects_process_and_result_writes(active_user) -> None:
     headers = _headers(active_user.email)
-    run = _run(headers, "CVD-2026-9002")
+    run = _run(headers, "STATE-INVALID")
     run_id = run["id"]
     sample = client.post(
-        f"/api/v1/experiments/{run_id}/samples", json={"role": "product"}, headers=headers
+        f"/api/v1/experiments/{run_id}/samples", json={"role": "control"}, headers=headers
     ).json()
     record = client.post(
         f"/api/v1/experiments/{run_id}/characterization-records",

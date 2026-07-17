@@ -30,7 +30,6 @@ json_payload_type = JSON().with_variant(JSONB(), "postgresql")
 
 class ExperimentStatus(StrEnum):
     DRAFT = "draft"
-    SUBMITTED = "submitted"
     LOCKED = "locked"
     INVALID = "invalid"
 
@@ -69,7 +68,6 @@ class ExperimentRun(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
-    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     setup_ref: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     setup_ref_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -81,6 +79,16 @@ class ExperimentRun(Base):
         Boolean,
         nullable=True,
         default=False,
+    )
+    not_characterized_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
+    not_characterized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     owner: Mapped[User] = relationship(foreign_keys=[owner_id])

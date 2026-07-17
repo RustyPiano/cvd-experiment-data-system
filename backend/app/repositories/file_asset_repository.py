@@ -62,7 +62,7 @@ class FileAssetRepository:
             statement = statement.where(
                 or_(
                     ExperimentRun.owner_id == current_user.id,
-                    ExperimentRun.status.in_([ExperimentStatus.SUBMITTED, ExperimentStatus.LOCKED]),
+                    ExperimentRun.status == ExperimentStatus.LOCKED,
                 )
             )
 

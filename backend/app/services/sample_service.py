@@ -1,23 +1,24 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun
+from app.models.file_asset import FileAsset
 from app.models.sample import Sample, SampleRole
 from app.models.user import User
+from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.sample_repository import SampleRepository
 from app.schemas.sample import SampleCreate, SampleListResponse, SampleRead, SampleUpdate
 from app.services.audit_service import AuditService
-from app.services.experiment_guards import (
-    ensure_results_editable,
-    get_owned_experiment,
-    get_visible_experiment,
-)
+from app.services.experiment_guards import ensure_results_editable, get_visible_experiment
 
 
 class SampleService:
@@ -47,8 +48,7 @@ class SampleService:
         )
 
     def get_sample(self, sample_id: UUID, current_user: User) -> SampleRead:
-        sample = self._get_visible_sample(sample_id, current_user)
-        return SampleRead.model_validate(sample)
+        return SampleRead.model_validate(self._get_visible_sample(sample_id, current_user))
 
     def create_sample(
         self,
@@ -56,22 +56,41 @@ class SampleService:
         payload: SampleCreate,
         current_user: User,
     ) -> SampleRead:
-        experiment = get_owned_experiment(self.experiments, experiment_id, current_user)
+        experiment = get_visible_experiment(self.experiments, experiment_id, current_user)
         ensure_results_editable(experiment)
-        restored = self._restore_soft_deleted_role_sample(experiment=experiment, payload=payload)
-        if restored is None:
-            created = self._create_sample(experiment=experiment, payload=payload)
-            action = "create"
-            before = None
-        else:
-            created, before = restored
-            action = "restore"
+        if payload.role == SampleRole.GROWTH:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Growth samples are generated when the run is locked",
+            )
+        parent = self._validate_parent(experiment.id, payload.parent_sample_id)
+        if payload.role == SampleRole.DERIVED and parent is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Derived samples require a parent sample",
+            )
+
+        sample = Sample(
+            sample_code=self._next_sample_code(experiment),
+            experiment_run_id=experiment.id,
+            parent_sample_id=parent.id if parent else None,
+            role=payload.role.value,
+            metadata_json=payload.metadata_json,
+        )
+        try:
+            created = self.samples.create(sample)
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Sample code already exists",
+            ) from exc
         self.audit.record_event(
             actor=current_user,
             entity_type="sample",
             entity_id=created.id,
-            action=action,
-            before_json=before,
+            action="create",
+            before_json=None,
             after_json=self._serialize_sample(created),
         )
         self.db.commit()
@@ -83,10 +102,9 @@ class SampleService:
         payload: SampleUpdate,
         current_user: User,
     ) -> SampleRead:
-        sample = self._get_editable_owned_sample(sample_id, current_user)
+        sample = self._get_editable_sample(sample_id, current_user)
         before = self._serialize_sample(sample)
-        updates = payload.model_dump(exclude_unset=True)
-        for field, value in updates.items():
+        for field, value in payload.model_dump(exclude_unset=True).items():
             setattr(sample, field, value)
         saved = self.samples.save(sample)
         self.audit.record_event(
@@ -100,94 +118,161 @@ class SampleService:
         self.db.commit()
         return SampleRead.model_validate(saved)
 
-    def _create_sample(
+    def sync_growth_samples(
         self,
-        *,
         experiment: ExperimentRun,
-        payload: SampleCreate,
-    ) -> Sample:
-        if payload.parent_sample_id is not None:
-            parent = self.samples.get_by_id(payload.parent_sample_id)
-            if parent is None or parent.experiment_run_id != experiment.id:
+        substrate_items: list[dict[str, Any]],
+        current_user: User,
+    ) -> None:
+        """Synchronize lock-generated samples without committing the lock transaction."""
+        existing = self.samples.list_by_experiment(experiment.id, include_deleted=True)
+        by_source = {
+            sample.source_substrate_id: sample
+            for sample in existing
+            if sample.source_substrate_id is not None
+        }
+        active_source_ids = {UUID(str(item["source_id"])) for item in substrate_items}
+
+        for item in substrate_items:
+            source_id = UUID(str(item["source_id"]))
+            sample = by_source.get(source_id)
+            if sample is None:
+                continue
+            snapshot = {key: value for key, value in item.items() if key != "source_id"}
+            if sample.source_substrate_snapshot_json != snapshot and self._has_result_evidence(
+                sample.id
+            ):
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="Parent sample must belong to the same experiment",
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Substrate for sample {sample.sample_code} changed but has results "
+                        "or files. Restore the previous substrate data before locking the run."
+                    ),
                 )
 
-        sample_count = self.samples.count_by_experiment_and_role(experiment.id, payload.role)
-        sequence = sample_count + 1
-        if payload.role in {SampleRole.TOP, SampleRole.BOTTOM} and sample_count > 0:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Sample role already exists for experiment",
+        stale = [
+            sample
+            for sample in existing
+            if sample.role == SampleRole.GROWTH.value
+            and sample.deleted_at is None
+            and sample.source_substrate_id not in active_source_ids
+        ]
+        for sample in stale:
+            if self._has_result_evidence(sample.id):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Substrate for sample {sample.sample_code} has results or files. "
+                        "Restore the substrate before locking the run."
+                    ),
+                )
+
+        for item in substrate_items:
+            source_id = UUID(str(item["source_id"]))
+            snapshot = {key: value for key, value in item.items() if key != "source_id"}
+            sample = by_source.get(source_id)
+            if sample is None:
+                sample = Sample(
+                    sample_code=self._next_sample_code(experiment),
+                    experiment_run_id=experiment.id,
+                    role=SampleRole.GROWTH.value,
+                    source_substrate_id=source_id,
+                    source_substrate_snapshot_json=snapshot,
+                    metadata_json={},
+                )
+                self.samples.create(sample)
+                self.audit.record_event(
+                    actor=current_user,
+                    entity_type="sample",
+                    entity_id=sample.id,
+                    action="create",
+                    before_json=None,
+                    after_json=self._serialize_sample(sample),
+                )
+                existing.append(sample)
+                continue
+
+            before = self._serialize_sample(sample)
+            action = "restore" if sample.deleted_at is not None else "update"
+            sample.role = SampleRole.GROWTH.value
+            sample.source_substrate_snapshot_json = snapshot
+            sample.deleted_at = None
+            sample.deleted_by_id = None
+            self.samples.save(sample)
+            after = self._serialize_sample(sample)
+            if before != after:
+                self.audit.record_event(
+                    actor=current_user,
+                    entity_type="sample",
+                    entity_id=sample.id,
+                    action=action,
+                    before_json=before,
+                    after_json=after,
+                )
+
+        for sample in stale:
+            before = self._serialize_sample(sample)
+            sample.deleted_at = datetime.now(UTC)
+            sample.deleted_by_id = current_user.id
+            self.samples.save(sample)
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="sample",
+                entity_id=sample.id,
+                action="delete",
+                before_json=before,
+                after_json=self._serialize_sample(sample),
+                reason="source_substrate_removed",
             )
 
-        sample = Sample(
-            sample_code=self._build_sample_code(experiment.run_code, payload.role, sequence),
-            experiment_run_id=experiment.id,
-            parent_sample_id=payload.parent_sample_id,
-            role=payload.role.value,
-            metadata_json=payload.metadata_json,
-        )
-        try:
-            return self.samples.create(sample)
-        except IntegrityError as exc:
-            self.db.rollback()
+    def _validate_parent(self, experiment_id: UUID, parent_id: UUID | None) -> Sample | None:
+        if parent_id is None:
+            return None
+        parent = self.samples.get_by_id(parent_id)
+        if parent is None or parent.experiment_run_id != experiment_id:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Sample code already exists",
-            ) from exc
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Parent sample must belong to the same experiment",
+            )
+        return parent
 
-    def _restore_soft_deleted_role_sample(
-        self,
-        *,
-        experiment: ExperimentRun,
-        payload: SampleCreate,
-    ) -> tuple[Sample, dict | None] | None:
-        if payload.role not in {SampleRole.TOP, SampleRole.BOTTOM}:
-            return None
+    def _next_sample_code(self, experiment: ExperimentRun) -> str:
+        prefix = f"{experiment.run_code}-S"
+        used = {
+            sample.sample_code
+            for sample in self.samples.list_by_experiment(experiment.id, include_deleted=True)
+        }
+        sequence = 1
+        while f"{prefix}{sequence:02d}" in used:
+            sequence += 1
+        return f"{prefix}{sequence:02d}"
 
-        sample = self.samples.get_by_experiment_and_role(
-            experiment.id,
-            payload.role,
-            include_deleted=True,
+    def _has_result_evidence(self, sample_id: UUID) -> bool:
+        child = self.db.scalar(
+            select(Sample.id)
+            .where(Sample.parent_sample_id == sample_id, Sample.deleted_at.is_(None))
+            .limit(1)
         )
-        if sample is None or sample.deleted_at is None:
-            return None
-
-        if payload.parent_sample_id is not None:
-            parent = self.samples.get_by_id(payload.parent_sample_id)
-            if parent is None or parent.experiment_run_id != experiment.id:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="Parent sample must belong to the same experiment",
-                )
-
-        before = self._serialize_sample(sample)
-        sample.parent_sample_id = payload.parent_sample_id
-        sample.metadata_json = payload.metadata_json
-        sample.deleted_at = None
-        sample.deleted_by_id = None
-        return self.samples.save(sample), before
-
-    def _build_sample_code(self, run_code: str, role: SampleRole, sequence: int) -> str:
-        _, year, serial = run_code.split("-", maxsplit=2)
-        prefix = f"S-{year}-{serial}"
-        if role in {SampleRole.TOP, SampleRole.BOTTOM}:
-            return f"{prefix}-{role.value.upper()}"
-        suffix = self._build_alpha_suffix(sequence)
-        return f"{prefix}-{role.value.upper()}-{suffix}"
-
-    def _build_alpha_suffix(self, sequence: int) -> str:
-        if sequence < 1:
-            raise ValueError("sequence must be positive")
-
-        letters: list[str] = []
-        current = sequence
-        while current > 0:
-            current, remainder = divmod(current - 1, 26)
-            letters.append(chr(ord("A") + remainder))
-        return "".join(reversed(letters))
+        if child is not None:
+            return True
+        record = self.db.scalar(
+            select(CharacterizationRecord.id)
+            .where(CharacterizationRecord.sample_id == sample_id)
+            .limit(1)
+        )
+        if record is not None:
+            return True
+        product = self.db.scalar(
+            select(MeasuredProduct.id).where(MeasuredProduct.sample_id == sample_id).limit(1)
+        )
+        if product is not None:
+            return True
+        file_asset = self.db.scalar(
+            select(FileAsset.id)
+            .where(FileAsset.sample_id == sample_id, FileAsset.deleted_at.is_(None))
+            .limit(1)
+        )
+        return file_asset is not None
 
     def _get_visible_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self.samples.get_by_id(sample_id)
@@ -196,11 +281,11 @@ class SampleService:
         get_visible_experiment(self.experiments, sample.experiment_run_id, current_user)
         return sample
 
-    def _get_editable_owned_sample(self, sample_id: UUID, current_user: User) -> Sample:
-        sample = self.samples.get_by_id(sample_id)
-        if sample is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
-        experiment = get_owned_experiment(self.experiments, sample.experiment_run_id, current_user)
+    def _get_editable_sample(self, sample_id: UUID, current_user: User) -> Sample:
+        sample = self._get_visible_sample(sample_id, current_user)
+        experiment = get_visible_experiment(
+            self.experiments, sample.experiment_run_id, current_user
+        )
         ensure_results_editable(experiment)
         return sample
 
@@ -213,6 +298,10 @@ class SampleService:
             "experiment_run_id": str(sample.experiment_run_id),
             "parent_sample_id": str(sample.parent_sample_id) if sample.parent_sample_id else None,
             "role": sample.role,
+            "source_substrate_id": (
+                str(sample.source_substrate_id) if sample.source_substrate_id else None
+            ),
+            "source_substrate_snapshot_json": sample.source_substrate_snapshot_json,
             "metadata_json": sample.metadata_json,
             "deleted_at": sample.deleted_at.isoformat() if sample.deleted_at else None,
             "deleted_by_id": str(sample.deleted_by_id) if sample.deleted_by_id else None,

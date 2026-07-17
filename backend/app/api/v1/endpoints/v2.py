@@ -29,6 +29,7 @@ from app.schemas.v2 import (
     V2InvalidateRequest,
     V2ModulePayloadRead,
     V2ModulePayloadUpsert,
+    V2NotCharacterizedRequest,
     V2SetupReferenceRequest,
 )
 from app.services.v2_entity_service import V2EntityService
@@ -188,13 +189,6 @@ def get_v2_experiment(run_id: UUID, db: DbSession, current_user: CurrentUser) ->
     return V2ExperimentService(db).get_run(run_id, current_user)
 
 
-@router.post("/experiments/{run_id}/submit", response_model=V2ExperimentRead)
-def submit_v2_experiment(
-    run_id: UUID, db: DbSession, current_user: CurrentUser
-) -> V2ExperimentRead:
-    return V2ExperimentService(db).submit(run_id, current_user)
-
-
 @router.post("/experiments/{run_id}/lock", response_model=V2ExperimentRead)
 def lock_v2_experiment(run_id: UUID, db: DbSession, current_user: CurrentUser) -> V2ExperimentRead:
     return V2ExperimentService(db).lock(run_id, current_user)
@@ -207,18 +201,21 @@ def unlock_v2_experiment(
     return V2ExperimentService(db).unlock(run_id, current_user)
 
 
-@router.post("/experiments/{run_id}/return-to-draft", response_model=V2ExperimentRead)
-def return_v2_experiment_to_draft(
-    run_id: UUID, db: DbSession, current_user: CurrentUser
-) -> V2ExperimentRead:
-    return V2ExperimentService(db).return_to_draft(run_id, current_user)
-
-
 @router.post("/experiments/{run_id}/invalidate", response_model=V2ExperimentRead)
 def invalidate_v2_experiment(
     run_id: UUID, payload: V2InvalidateRequest, db: DbSession, current_user: CurrentUser
 ) -> V2ExperimentRead:
     return V2ExperimentService(db).invalidate(run_id, payload.reason, current_user)
+
+
+@router.put("/experiments/{run_id}/not-characterized", response_model=V2ExperimentRead)
+def set_v2_experiment_not_characterized(
+    run_id: UUID,
+    payload: V2NotCharacterizedRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> V2ExperimentRead:
+    return V2ExperimentService(db).set_not_characterized(run_id, payload.confirmed, current_user)
 
 
 @router.put("/experiments/{run_id}/setup-reference", response_model=V2ExperimentRead)

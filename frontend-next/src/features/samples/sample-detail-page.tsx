@@ -171,14 +171,16 @@ export function SampleDetailPage() {
     ? validateMetadataJson(formState.metadataJson)
     : null
 
-  const canWrite =
+  const canWriteProcess =
     currentUser !== null &&
     experimentQuery.data !== undefined &&
     (currentUser.role === 'admin' ||
       currentUser.id === experimentQuery.data.owner_id)
+  const canEditResults =
+    experimentQuery.data?.status === 'locked' || canWriteProcess
   const canEdit =
     experimentQuery.data !== undefined &&
-    !isResultsReadOnly(experimentQuery.data.status, canWrite)
+    !isResultsReadOnly(experimentQuery.data.status, canEditResults)
 
   const hasDirtyFields =
     draftFormState !== null &&

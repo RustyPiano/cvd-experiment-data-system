@@ -6,7 +6,7 @@
 //  - 各模块 payload 用 `extra="forbid"` + 必填键必须在场 → 扁平模块提交时下发全部字段键
 //    （空值下发 null），保证 required 键在场且不夹带 schema 之外的键。
 //  - target_product.components / precursors.items / substrates.items 的条件必填由生成的
-//    model_validator 强制；前端此处复刻同一判据用于动态红星与提交前拦截。
+//    model_validator 强制；前端此处复刻同一判据用于动态红星与保存前拦截。
 import {
   experimentModules,
   stageTypes,
@@ -184,7 +184,9 @@ export function buildTargetProductPayload(
 
 /** 一行是否有实质内容（重复条目：过滤全空行，避免夹带空条目触发后端必填校验）。 */
 export function itemHasAnyValue(values: ModuleValues): boolean {
-  return Object.values(values).some((value) => value.trim() !== '')
+  return Object.entries(values).some(
+    ([key, value]) => key !== 'source_id' && value.trim() !== '',
+  )
 }
 
 /** 单条重复条目（precursors / substrates）的 payload：下发该模块全部字段键。 */
@@ -195,6 +197,9 @@ export function buildItemPayload(
   const item: Record<string, unknown> = {}
   for (const field of getModuleFields(moduleKey)) {
     item[field.key] = emptyToNull(values[field.key])
+  }
+  if (moduleKey === 'substrates' && values['source_id']) {
+    item['source_id'] = values['source_id']
   }
   return item
 }
@@ -212,7 +217,7 @@ export function buildItemsModulePayload(
 }
 
 /**
- * 提交前拦截：返回该模块内「可见 + 有效必填 + 空」的字段键清单（非空即校验通过）。
+ * 保存前拦截：返回该模块内「可见 + 有效必填 + 空」的字段键清单（非空即校验通过）。
  * 组件层用它阻断保存并高亮缺失项，避免直接把后端 422 抛给用户。
  */
 export function missingRequiredKeys(
@@ -284,9 +289,14 @@ export function itemsFromPayload(
 ): ModuleValues[] {
   const raw = payload?.['items']
   if (!Array.isArray(raw)) return []
-  return raw.map((item) =>
-    moduleValuesFromPayload(moduleKey, (item ?? {}) as Record<string, unknown>),
-  )
+  return raw.map((item) => {
+    const payloadItem = (item ?? {}) as Record<string, unknown>
+    const values = moduleValuesFromPayload(moduleKey, payloadItem)
+    if (moduleKey === 'substrates' && payloadItem['source_id'] != null) {
+      values['source_id'] = String(payloadItem['source_id'])
+    }
+    return values
+  })
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -411,7 +421,7 @@ export function buildProcessStepsPayload(steps: ModuleValues[]): {
   return { items }
 }
 
-/** 提交前拦截：一条过程步内「可见 + 有效必填 + 空」的字段键。 */
+/** 保存前拦截：一条过程步内「可见 + 有效必填 + 空」的字段键。 */
 export function missingProcessStepKeys(
   step: ModuleValues,
   setupSnapshot: Record<string, unknown> | null | undefined,
@@ -459,7 +469,7 @@ export function isPvdFieldRequired(
   return matchesCondition(condition, synthesisMethod.trim())
 }
 
-/** 提交前拦截：§8 内「有效必填 + 空」的字段键（仅当 PVD 适用）。 */
+/** 保存前拦截：§8 内「有效必填 + 空」的字段键（仅当 PVD 适用）。 */
 export function missingPvdKeys(
   values: ModuleValues,
   synthesisMethod: string,

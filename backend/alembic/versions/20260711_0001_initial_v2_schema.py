@@ -72,23 +72,30 @@ def upgrade() -> None:
         sa.Column("objective", sa.Text(), nullable=True),
         sa.Column(
             "status",
-            sa.Enum("draft", "submitted", "locked", "invalid", name="experiment_status"),
+            sa.Enum("draft", "locked", "invalid", name="experiment_status"),
             nullable=False,
             server_default="draft",
         ),
         sa.Column("invalid_reason", sa.Text(), nullable=True),
         *_timestamps(),
-        sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("setup_ref", sa.Uuid(), nullable=True),
         sa.Column("setup_ref_version", sa.Integer(), nullable=True),
         sa.Column("setup_ref_snapshot_json", payload_type, nullable=True),
         sa.Column("result_missing_todo", sa.Boolean(), nullable=True),
+        sa.Column("not_characterized_by_id", sa.Uuid(), nullable=True),
+        sa.Column("not_characterized_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["not_characterized_by_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_experiment_runs_experiment_date", "experiment_runs", ["experiment_date"])
     op.create_index("ix_experiment_runs_material_system", "experiment_runs", ["material_system"])
+    op.create_index(
+        "ix_experiment_runs_not_characterized_by_id",
+        "experiment_runs",
+        ["not_characterized_by_id"],
+    )
     op.create_index("ix_experiment_runs_owner_id", "experiment_runs", ["owner_id"])
     op.create_index("ix_experiment_runs_run_code", "experiment_runs", ["run_code"], unique=True)
     op.create_index("ix_experiment_runs_schema_version", "experiment_runs", ["schema_version"])
@@ -148,6 +155,8 @@ def upgrade() -> None:
         sa.Column("experiment_run_id", sa.Uuid(), nullable=False),
         sa.Column("parent_sample_id", sa.Uuid(), nullable=True),
         sa.Column("role", sa.String(length=32), nullable=False),
+        sa.Column("source_substrate_id", sa.Uuid(), nullable=True),
+        sa.Column("source_substrate_snapshot_json", payload_type, nullable=True),
         sa.Column("metadata_json", payload_type, nullable=False),
         *_timestamps(),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
@@ -156,11 +165,17 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["experiment_run_id"], ["experiment_runs.id"]),
         sa.ForeignKeyConstraint(["parent_sample_id"], ["samples.id"]),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "experiment_run_id",
+            "source_substrate_id",
+            name="uq_samples_run_source_substrate",
+        ),
     )
     op.create_index("ix_samples_deleted_by_id", "samples", ["deleted_by_id"])
     op.create_index("ix_samples_experiment_run_id", "samples", ["experiment_run_id"])
     op.create_index("ix_samples_role", "samples", ["role"])
     op.create_index("ix_samples_sample_code", "samples", ["sample_code"], unique=True)
+    op.create_index("ix_samples_source_substrate_id", "samples", ["source_substrate_id"])
 
     op.create_table(
         "material_lots",
@@ -364,7 +379,5 @@ def downgrade() -> None:
         op.drop_table(table_name)
 
     bind = op.get_bind()
-    sa.Enum("draft", "submitted", "locked", "invalid", name="experiment_status").drop(
-        bind, checkfirst=True
-    )
+    sa.Enum("draft", "locked", "invalid", name="experiment_status").drop(bind, checkfirst=True)
     sa.Enum("admin", "member", name="user_role").drop(bind, checkfirst=True)

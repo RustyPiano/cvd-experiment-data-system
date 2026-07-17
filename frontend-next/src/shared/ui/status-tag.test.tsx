@@ -11,7 +11,7 @@ describe('StatusTag', () => {
   it('uses the shared experiment status translations', async () => {
     await i18n.changeLanguage('en')
     render(<StatusTag status="invalid" />)
-    expect(screen.getByText('Invalidated')).toBeInTheDocument()
+    expect(screen.getByText('Voided')).toBeInTheDocument()
   })
 
   it('shows an unknown raw status instead of treating it as draft', () => {

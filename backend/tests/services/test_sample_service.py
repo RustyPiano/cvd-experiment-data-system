@@ -39,7 +39,7 @@ def test_sample_code_integrity_conflict_rolls_back_and_returns_409(
     monkeypatch.setattr(service.samples, "create", conflict)
 
     with pytest.raises(HTTPException) as exc_info:
-        service.create_sample(run.id, SampleCreate(role=SampleRole.PRODUCT), active_user)
+        service.create_sample(run.id, SampleCreate(role=SampleRole.CONTROL), active_user)
 
     assert exc_info.value.status_code == 409
     assert rollback_calls == 1

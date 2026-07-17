@@ -109,7 +109,7 @@ def test_measured_products_reference_samples(db_session, active_user) -> None:
     sample = Sample(
         sample_code="S-V2-RESULT",
         experiment_run_id=run.id,
-        role=SampleRole.PRODUCT,
+        role=SampleRole.GROWTH,
     )
     db_session.add(sample)
     db_session.flush()

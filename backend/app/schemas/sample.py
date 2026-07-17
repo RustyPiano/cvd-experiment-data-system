@@ -27,6 +27,8 @@ class SampleRead(BaseModel):
     material_system: str | None = None
     parent_sample_id: UUID | None
     role: str
+    source_substrate_id: UUID | None
+    source_substrate_snapshot_json: dict[str, Any] | None
     metadata_json: dict[str, Any]
     created_at: datetime
     updated_at: datetime

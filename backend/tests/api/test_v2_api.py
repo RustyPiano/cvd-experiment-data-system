@@ -25,7 +25,7 @@ def test_v2_experiment_status_openapi_is_closed_enum() -> None:
         "status"
     ]
 
-    assert status_schema["enum"] == ["draft", "submitted", "locked", "invalid"]
+    assert status_schema["enum"] == ["draft", "locked", "invalid"]
 
 
 def login(email: str, password: str = "Password123!") -> str:
@@ -298,7 +298,7 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
     sample = Sample(
         sample_code="RUN-V2-RESULTS-S1",
         experiment_run_id=UUID(run_id),
-        role=SampleRole.PRODUCT,
+        role=SampleRole.GROWTH,
     )
     db_session.add(sample)
     db_session.commit()

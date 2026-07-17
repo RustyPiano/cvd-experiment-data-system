@@ -113,6 +113,11 @@ export function ExperimentV2ListPage() {
                               {t('experimentsV2.status.resultMissing')}
                             </Badge>
                           ) : null}
+                          {run.not_characterized_at ? (
+                            <Badge variant="outline">
+                              {t('experimentsV2.status.notCharacterized')}
+                            </Badge>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell>

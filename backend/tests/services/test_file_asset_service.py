@@ -52,7 +52,7 @@ def create_characterization_record(
     sample = Sample(
         sample_code=f"{experiment.run_code}-S1",
         experiment_run_id=experiment.id,
-        role=SampleRole.PRODUCT,
+        role=SampleRole.GROWTH,
     )
     service.db.add(sample)
     service.db.flush()

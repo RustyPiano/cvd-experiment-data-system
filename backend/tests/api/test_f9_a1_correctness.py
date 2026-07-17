@@ -39,7 +39,7 @@ def _create_run(headers: dict[str, str], run_code: str | None = None) -> dict:
 def _create_sample(headers: dict[str, str], run_id: str) -> dict:
     response = client.post(
         f"/api/v1/experiments/{run_id}/samples",
-        json={"role": "product"},
+        json={"role": "control"},
         headers=headers,
     )
     assert response.status_code == 201, response.text
@@ -346,7 +346,7 @@ def test_external_field_none_must_be_the_only_selection(active_user, db_session)
     assert response.status_code == 422
 
 
-def test_submit_setup_gate_ignores_payload_and_accepts_reference_endpoint(
+def test_lock_setup_gate_ignores_payload_and_accepts_reference_endpoint(
     active_user, db_session, monkeypatch
 ) -> None:
     headers = _headers(active_user.email)
@@ -364,7 +364,7 @@ def test_submit_setup_gate_ignores_payload_and_accepts_reference_endpoint(
     setup_ref = next(field for field in experiment_fields(doc) if field["key"] == "setup_ref")
     monkeypatch.setattr(v2_r0_service, "experiment_fields", lambda _doc: [setup_ref])
 
-    rejected = client.post(f"/api/v1/experiments/{run['id']}/submit", headers=headers)
+    rejected = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers)
     setup = client.post(
         "/api/v1/setups",
         json={
@@ -381,7 +381,7 @@ def test_submit_setup_gate_ignores_payload_and_accepts_reference_endpoint(
         json={"setup_id": setup.json()["id"], "version": 1},
         headers=headers,
     )
-    accepted = client.post(f"/api/v1/experiments/{run['id']}/submit", headers=headers)
+    accepted = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers)
 
     assert rejected.status_code == 422
     assert "setup_ref" in {item["key"] for item in rejected.json()["detail"]["missing"]}

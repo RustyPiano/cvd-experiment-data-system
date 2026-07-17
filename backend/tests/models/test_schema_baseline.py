@@ -33,12 +33,13 @@ EXPECTED_EXPERIMENT_RUN_COLUMNS = {
     "invalid_reason",
     "created_at",
     "updated_at",
-    "submitted_at",
     "locked_at",
     "setup_ref",
     "setup_ref_version",
     "setup_ref_snapshot_json",
     "result_missing_todo",
+    "not_characterized_by_id",
+    "not_characterized_at",
 }
 
 EXPECTED_SAMPLE_COLUMNS = {
@@ -47,6 +48,8 @@ EXPECTED_SAMPLE_COLUMNS = {
     "experiment_run_id",
     "parent_sample_id",
     "role",
+    "source_substrate_id",
+    "source_substrate_snapshot_json",
     "metadata_json",
     "created_at",
     "updated_at",
@@ -75,6 +78,11 @@ EXPECTED_INDEXES = {
     "experiment_runs": {
         ("ix_experiment_runs_experiment_date", ("experiment_date",), False),
         ("ix_experiment_runs_material_system", ("material_system",), False),
+        (
+            "ix_experiment_runs_not_characterized_by_id",
+            ("not_characterized_by_id",),
+            False,
+        ),
         ("ix_experiment_runs_owner_id", ("owner_id",), False),
         ("ix_experiment_runs_run_code", ("run_code",), True),
         ("ix_experiment_runs_schema_version", ("schema_version",), False),
@@ -108,6 +116,7 @@ EXPECTED_INDEXES = {
         ("ix_samples_experiment_run_id", ("experiment_run_id",), False),
         ("ix_samples_role", ("role",), False),
         ("ix_samples_sample_code", ("sample_code",), True),
+        ("ix_samples_source_substrate_id", ("source_substrate_id",), False),
     },
     "setup_versions": {("ix_setup_versions_entity_id", ("entity_id",), False)},
     "setups": set(),

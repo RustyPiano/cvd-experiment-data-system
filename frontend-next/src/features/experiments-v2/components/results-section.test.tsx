@@ -52,7 +52,7 @@ vi.mock('./entity-reference-select', () => ({
 const sample = {
   id: 'sample-1',
   sample_code: 'RUN-F4-S1',
-  role: 'product',
+  role: 'growth',
 }
 const record = {
   id: 'record-1',
@@ -125,30 +125,32 @@ beforeEach(async () => {
 })
 
 describe('results behavior', () => {
-  it('creates a selected sample role and refreshes the rendered sample list', async () => {
+  it('creates a derived sample from the active sample and refreshes the list', async () => {
     const created = {
       ...sample,
       id: 'sample-2',
       sample_code: 'RUN-F5-S1',
-      role: 'bottom',
+      role: 'derived',
     }
     resultsApi.listSamples
-      .mockResolvedValueOnce({ items: [], total: 0 })
-      .mockResolvedValue({ items: [created], total: 1 })
+      .mockResolvedValueOnce({ items: [sample], total: 1 })
+      .mockResolvedValue({ items: [sample, created], total: 2 })
     resultsApi.createSample.mockResolvedValue(created)
     const user = userEvent.setup()
     renderResults()
 
-    await user.click(await screen.findByRole('combobox'))
-    await user.click(screen.getByRole('option', { name: 'Bottom' }))
-    await user.click(screen.getByRole('button', { name: 'Add sample' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add special sample' }),
+    )
 
     expect(resultsApi.createSample).toHaveBeenCalledWith(
       'run-1',
-      { role: 'bottom' },
+      { role: 'derived', parent_sample_id: 'sample-1' },
       'token',
     )
-    expect(await screen.findAllByText('RUN-F5-S1 · bottom')).not.toHaveLength(0)
+    expect(
+      await screen.findAllByText('RUN-F5-S1 · derived'),
+    ).not.toHaveLength(0)
     expect(resultsApi.listSamples).toHaveBeenCalledTimes(2)
   })
 
@@ -310,7 +312,9 @@ describe('results behavior', () => {
     expect(
       await screen.findByRole('button', { name: 'Download evidence.csv' }),
     ).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Add sample' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Add special sample' }),
+    ).toBeDisabled()
   })
 
   it('shows a sample load error instead of the no-samples empty state', async () => {
@@ -417,7 +421,7 @@ describe('characterization attachments', () => {
       await screen.findByLabelText('Upload attachment for Raman'),
     ).toBeEnabled()
     expect(
-      await screen.findByRole('button', { name: 'Add sample' }),
+      await screen.findByRole('button', { name: 'Add special sample' }),
     ).toBeEnabled()
     expect(
       screen.getByRole('button', { name: 'Add characterization record' }),
@@ -442,7 +446,9 @@ describe('characterization attachments', () => {
     expect(
       await screen.findByRole('button', { name: 'Delete evidence.csv' }),
     ).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Add sample' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Add special sample' }),
+    ).toBeDisabled()
     expect(
       screen.getByRole('button', { name: 'Add characterization record' }),
     ).toBeDisabled()

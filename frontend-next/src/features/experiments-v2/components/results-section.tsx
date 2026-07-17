@@ -70,13 +70,8 @@ import { FieldLabel } from './field-bits'
 import { EntityReferenceSelect } from './entity-reference-select'
 import { ModuleCard } from './module-card'
 
-/** 样品角色词表（后端 SampleRole 枚举，无对应字段元数据，故在此列举，文案走 i18n）。 */
-const SAMPLE_ROLES: SampleCreate['role'][] = [
-  'top',
-  'bottom',
-  'product',
-  'control',
-]
+/** 可手工新增的特殊样品类型；growth 由锁定工艺时自动生成。 */
+const SAMPLE_ROLES: SampleCreate['role'][] = ['derived', 'control']
 
 function characterizationMethods(): string[] {
   const field = getModuleFields('characterization').find(
@@ -250,9 +245,14 @@ function ResultsBody({
   const invalidateSamples = () =>
     queryClient.invalidateQueries({ queryKey: ['v2-samples', runId, token] })
 
-  const [newRole, setNewRole] = useState<SampleCreate['role']>('product')
+  const [newRole, setNewRole] = useState<SampleCreate['role']>('derived')
   const createSampleMutation = useMutation({
-    mutationFn: () => createSample(runId, { role: newRole }, token),
+    mutationFn: () =>
+      createSample(
+        runId,
+        { role: newRole, parent_sample_id: activeSampleId },
+        token,
+      ),
     onSuccess: (sample) => {
       setSelectedSampleId(sample.id)
       void invalidateSamples()
@@ -276,19 +276,9 @@ function ResultsBody({
 
   if (samples.length === 0) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          {t('experimentsV2.sections.results.noSamples')}
-        </p>
-        <AddSampleControls
-          layout="empty"
-          newRole={newRole}
-          onRoleChange={setNewRole}
-          onAdd={() => createSampleMutation.mutate()}
-          pending={createSampleMutation.isPending}
-          disabled={readOnly}
-        />
-      </div>
+      <p className="text-sm text-muted-foreground">
+        {t('experimentsV2.sections.results.noSamples')}
+      </p>
     )
   }
 
@@ -346,6 +336,7 @@ function ResultsBody({
       <Separator />
       <MeasuredProducts
         key={activeSampleId}
+        runId={runId}
         sampleId={activeSampleId}
         records={records}
         readOnly={readOnly}
@@ -410,6 +401,15 @@ function CharacterizationRecords({
     queryClient.invalidateQueries({
       queryKey: ['v2-characterization', runId, token],
     })
+  const invalidateRun = () =>
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ['v2-experiment', runId, token],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['v2-experiment-list'],
+      }),
+    ])
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -417,7 +417,7 @@ function CharacterizationRecords({
         ? updateCharacterizationRecord(
             editingId,
             {
-              method_instrument: method || null,
+              method_instrument: method,
               test_conditions: conditions.trim() || null,
             },
             token,
@@ -428,7 +428,7 @@ function CharacterizationRecords({
               sample_id: effectiveSampleId,
               instrument_id: instrument.id || null,
               instrument_version: instrument.id ? instrument.version : null,
-              method_instrument: method || null,
+              method_instrument: method,
               test_conditions: conditions.trim() || null,
             },
             token,
@@ -439,7 +439,7 @@ function CharacterizationRecords({
       setMethod('')
       setInstrument({ id: '', version: null })
       setConditions('')
-      void invalidate()
+      void Promise.all([invalidate(), invalidateRun()])
       toast.success(
         t(
           updated
@@ -465,7 +465,7 @@ function CharacterizationRecords({
         setInstrument({ id: '', version: null })
         setConditions('')
       }
-      void invalidate()
+      void Promise.all([invalidate(), invalidateRun()])
     },
     onError: (error) =>
       toast.error(
@@ -900,10 +900,12 @@ function CharacterizationRecordItem({
 }
 
 function MeasuredProducts({
+  runId,
   sampleId,
   records,
   readOnly,
 }: {
+  runId: string
   sampleId: string
   records: CharacterizationRecordRead[]
   readOnly: boolean
@@ -932,6 +934,15 @@ function MeasuredProducts({
     queryClient.invalidateQueries({
       queryKey: ['v2-measured', sampleId, token],
     })
+  const invalidateRun = () =>
+    Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ['v2-experiment', runId, token],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ['v2-experiment-list'],
+      }),
+    ])
 
   const togglePhenomenon = (option: string, checked: boolean) =>
     setSelected((prev) =>
@@ -963,7 +974,7 @@ function MeasuredProducts({
       setLayersCoverage('')
       setDomain('')
       setSpectral('')
-      void invalidate()
+      void Promise.all([invalidate(), invalidateRun()])
       toast.success(
         t(
           updated
@@ -990,7 +1001,7 @@ function MeasuredProducts({
         setDomain('')
         setSpectral('')
       }
-      void invalidate()
+      void Promise.all([invalidate(), invalidateRun()])
     },
     onError: (error) =>
       toast.error(

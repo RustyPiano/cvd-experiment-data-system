@@ -16,10 +16,6 @@ const statusMeta: Partial<Record<ExperimentStatus, StatusMeta>> = {
     className: 'bg-secondary text-secondary-foreground hover:bg-secondary',
     dot: 'bg-muted-foreground/60',
   },
-  submitted: {
-    className: 'bg-primary-soft text-accent-foreground hover:bg-primary-soft',
-    dot: 'bg-primary',
-  },
   locked: {
     className: 'bg-success-soft text-success-text hover:bg-success-soft',
     dot: 'bg-success',

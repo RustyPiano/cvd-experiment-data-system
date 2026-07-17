@@ -79,7 +79,7 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
     sample = Sample(
         sample_code="R0-S1",
         experiment_run_id=run.id,
-        role=SampleRole.PRODUCT,
+        role=SampleRole.GROWTH,
     )
     db_session.add(sample)
     db_session.flush()

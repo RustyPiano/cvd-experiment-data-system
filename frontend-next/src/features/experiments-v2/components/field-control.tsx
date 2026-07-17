@@ -1,4 +1,4 @@
-// 元数据驱动的单字段控件：标签（含单位/必填红星/R0 徽章）+ 控件（下拉 / 多行 / 文本 /
+// 元数据驱动的单字段控件：标签（含单位/必填红星）+ 控件（下拉 / 多行 / 文本 /
 // 化学式）。必填与显隐由 field-logic 计算。文案走 i18n。
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
