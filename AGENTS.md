@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨，F1–F9 已完成但 F9 尚未提交；2026-07-16 已确认炉次优先产品重构，待实施；线上仍为切换前旧部署，批8 前禁止 `deploy.sh`**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨，F1–F9 基线已提交；2026-07-16 确认的炉次优先产品重构正按阶段实施；线上仍为切换前旧部署，批8 前禁止 `deploy.sh`**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
 
 ## 项目概览
 

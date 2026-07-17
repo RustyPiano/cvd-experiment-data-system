@@ -1,13 +1,13 @@
 # 现状与真相指针（STATUS）— 任何新 session / Agent 先读我
 
 > 本文件是本仓库的**单一入口**：读完它 = 拿到全部背景 + 当前进度 + 下一步，**无需向用户重复交代**。
-> 任何文档与本文件冲突，**以本文件为准**。最后更新：2026-07-16。
+> 任何文档与本文件冲突，**以本文件为准**。最后更新：2026-07-17。
 
 ## 0. 一分钟速览（给接手的 Agent）
 - 这是一个 **CVD 二维材料实验数据采集系统**。
 - **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/engineering/v2-single-track-plan.md`**（批0–批8）。
 - ⚠️ **线上生产仍是切换前的旧部署（v1）——批8 生产切换（人工门，用户在场）未执行；在此之前禁止运行 `deploy.sh`**（旧库上启动自动迁移会崩溃循环；数据已确认可弃，切换 = 整库重建）。
-- 当前阶段：**收尾批 F1–F9 已完成，F9 大批改动仍在工作区未提交**。2026-07-16 用户逐项确认新的**炉次优先工作流与全量双语文案重构**，规格见 `docs/product/run-first-workflow-and-copy-design.md`，尚未实施。发布顺序已改为：先固化 F9 基线 → 实施产品重构 → 全量门禁与新版 E2E → push + Actions 首绿 → 批8生产切换。**线 B** 仍等俊杰对齐 4 问后冻结标准。
+- 当前阶段：**收尾批 F1–F9 基线已于 `52bc560` 提交，并经独立 Agent 复审与全门禁验收**。2026-07-16 用户逐项确认新的**炉次优先工作流与全量双语文案重构**，规格见 `docs/product/run-first-workflow-and-copy-design.md`，现进入分阶段实施。发布顺序：产品重构 → 全量门禁与新版 E2E → push + Actions 首绿 → 批8生产切换。**线 B** 仍等俊杰对齐 4 问后冻结标准。
 - 两份交付物已 **freeze-ready**（经 **3 轮独立评审**，最终 8.5/10）：
   - 字段表 `字段草案-v3.xlsx`（**v3.4**，77 字段 + 3 张一等实体表）——生成脚本 `build_field_tables.py`
   - 文字标准 `cvd-2d-process-data-standard-v2.0.md`
@@ -20,7 +20,7 @@
 - **仓库 main = 纯 v2 单轨**；**线上生产 = 切换前旧部署（v1），待批8 整库重建切换**（数据已确认可弃，无迁移）。
 - **v2 单轨形态**：Alembic 单一 initial `20260711_0001`（14 表，SQLite/PG 双兼容）；`/api/v1` 全套端点——实体三件套锁版（material-lots/setups/instruments + versions）、炉次 CRUD + 状态机（submit/lock/unlock/invalidate/return-to-draft，R0 阻塞门 + 全转移审计 + 结果缺失待办）、模块 payload、表征/实测、样品、文件；生成器①②④⑤ + `condition-cases.json` 跨语言 fixture + `check_field_source` 四护栏；前端 `/experiments` 单轨 + 实体库三页。
 - **已确认但未实施的产品目标**：炉次为主入口；draft→locked 两步；衬底锁定时生成样品；表征与测量结果合并录入；成员可为全组 locked 炉次补结果；基础资料就地新增；暂时隐藏 PVD；完整双语；增加筛选、审计查看和 JSON/CSV 导出。当前代码仍是上一行描述，禁止把目标误报为现状。
-- **门禁：后端 pytest 146 · 前端 vitest 210 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机随 P1.5，见 §6）**。
+- **门禁：后端 pytest 147 · 前端 vitest 210 · CI 四 job 全绿（本地）；全部 commit 未 push（push 时机见 §6）**。
 - **F6–F9 验证结论**：API 级全栈冒烟通过；**Codex xhigh 全量 diff 复审**（批2–F5）的 5 CONFIRMED + 3 PLAUSIBLE 已由 F7 修复；交互式浏览器 E2E 发现的文件 SQLite 并发踩踏与实验日期跨日错位已由 F8 修复并补红绿回归；F9 完成最终正确性、审计与工程防护收尾。
 - 工程约定见根 `AGENTS.md`。
 
@@ -101,14 +101,15 @@
 | 07-11 | **收尾批 F7 完成（xhigh 复审修复）**：submit/lock 合并 R0+全量必填门（含条件/过程步/PVD 语义）；非属主编辑入口归零，样品详情对齐结果域；词表判型删启发式、仅依 `field.input`；恢复审计复合索引并精确锁定全表索引基线；unknown-op 双端非对称语义 fixture 定案；表征附件 method 由记录派生且冲突 422；initial 删 `file_assets.method` 默认。**pytest 122/122 · vitest 181/181 · initial upgrade · ruff/format/tsc/eslint/字段源校验全绿** | `41c0f2d` |
 | 07-12 | **收尾批 F8 完成（浏览器 E2E 两发现修复）**：仅内存 SQLite 保留 StaticPool，文件库恢复 QueuePool 并启用 WAL/5000ms busy timeout；`started_at` 按实验员本地墙钟保存 naive ISO，历史 Z 串继续按浏览器本地时区回读。并发鉴权读取 48/48 为 200，跨午夜两例无日期漂移。**pytest 124/124 · vitest 185/185 · ruff/format/tsc/eslint/字段源校验全绿** | `ff00f2e` |
 | 07-12 | **收尾批 F9 完成（全库深审 → 五单全修 A1/A2/B/C/D）**：浏览器 E2E 重跑业务链路 16 项全通、唯一 FAIL 为控制台 Select 受控警告——四处 `value={X\|\|undefined}` 改既有 `\|\| ''` 约定并红绿回归（先行修复）；随后 5 路并行深审（后端/前端实验域/前端基建/文案 i18n/单一源管线），全部发现分五单修复。**A1 后端正确性**：run_code 格式门 `^CVD-\d{4}-\d{4}$`（乱格式建样永久 500 根除）+ 发号改当年 max+1 并撞号重试（行数计数死锁根除）；实体载荷数值/长度校验（SQLite 静默脏数据 vs PG 500 分叉堵死）；仪器引用成对且须存在否则 422；表征 method 过词表 + 附件 method/file_kind 级联同步；basic_info 回写 `experiment_date`、payload run_code 强制真身（创建后冻结）；R0 setup_ref 只认 run 列；登录邮箱大小写不敏感；`invalid_reason` 入读模型；422 统一 `detail.missing`/`detail.invalid`（pydantic 原文不再透出）；pyyaml 显式声明 + alembic↔models 零差测试。**A2**：审计补齐（结果域 CRUD/实体创建/建炉/装置引用，删除带前快照）；守卫收敛 `experiment_guards.py`（visible/owned + 工艺/结果/文件三种锁定策略具名，四服务去重）；「无」独占校验前移实体侧；Integer 拒非整 float；属主可见自身 invalid 炉次；后端死方法清理。**B 前端实验域**：模块保存成功回写 Query 缓存 + 表单 `key={runId}`（30s staleTime 下的数据回退路径根除）；列表分页 50/页+总数（20 条静默截断根除）；接入 RouteLeaveGuard；创建部分失败仍导航编辑页（孤儿 run 复建根除）；并发保存 Set+修订戳；非属主只读横幅；结果域拆 fieldset 一刀切（只读态下载/切样品可用）；表征/实测编辑加取消与指示、产物删除加确认、四查询补加载/错误态；编辑态 run_code 只读；表征记录随样品过滤并标注归属；`detail.invalid` 按字段标签中文渲染；a11y label/aria-describedby 补齐。**C 基建与文案**：storage 事件跨标签登出/登录同步（登出被刷新复活根除）；http-error 后端 detail 全量中文映射（29 静态串+3 类动态+字节转 MB+按状态兜底，结构化 422 直透表单层）；实体页 queryKey 去 token；登录/注册页已登录重定向；登出 401 豁免全局过期事件；实体详情按条件过滤不适用字段+历史版本编辑提示；错误态不再叠加空态；样品两页整页 i18n+角色统一 `roles.*`（「基底」两套译名/虚构存放位置列/「自动生成」错误空态根除）；自动保存不再禁用输入打断录入；StatusTag 复用状态键、未知状态不再伪装草稿；登录/注册/外壳/路由边界/离开守卫文案全部入 locales（zh/en 键镜像）；术语统一（炉次/装置/基础库/en Invalidated/全站「你」）；作废框写明后果+补取消键，解锁加确认框；必填缺失清单显示区块名不再暴露内部 key；新增 CJK 硬编码防回归扫描测试（AST 级）。**D 工程防护+死代码**：`deploy.sh` 哨兵 fail-closed（读不到 DB revision 即中止）；CI drift 补未跟踪文件门 + pip 钉主版本；`check_field_source` 补三护栏——`ne` 驱动须 required（`field_devices` 具名跨实体豁免+依据注释）/条件值∈驱动词表（`/`与`·`双分隔）/key 唯一性独立于 label_en；删 charts 等零引用死代码 65 文件 + 11 个独占依赖（prod build 通过）。**pytest 146/146 · vitest 210/210 · ruff/format/tsc/eslint/build/字段源校验全绿**（Codex gpt-5.6-sol 五单初稿 + Fable 深审/裁决/验收；Fable 另补 file_kind 级联缺口） | 未提交 |
-| 07-16 | **炉次优先产品重构逐项确认**：炉次主线、两步状态、衬底生成样品、统一结果录入、基础资料就地新增、CVD-only UI、边做边记、locked 跨成员补结果、完整双语、筛选/审计/导出均获用户确认；规格落 `docs/product/run-first-workflow-and-copy-design.md`。文档改按 standard/product/engineering/operations/reviews/archive 分层，不再使用 Superpowers 文档流程。 | `149a48a` + 本次整理 |
+| 07-16 | **炉次优先产品重构逐项确认**：炉次主线、两步状态、衬底生成样品、统一结果录入、基础资料就地新增、CVD-only UI、边做边记、locked 跨成员补结果、完整双语、筛选/审计/导出均获用户确认；规格落 `docs/product/run-first-workflow-and-copy-design.md`。文档改按 standard/product/engineering/operations/reviews/archive 分层，不再使用 Superpowers 文档流程。 | `149a48a`, `7dd057a` |
+| 07-17 | **产品重构阶段 0 完成**：F9 工作区经独立 Agent 全量审核，修复 PostgreSQL 数值边界、炉次号耗尽、跨标签换号缓存、部署指引断链和 CI 工具链问题；复审通过。门禁：pytest 147、vitest 210、ruff/format/tsc/eslint/build、生成物与字段源校验全绿。 | `52bc560` |
 
 ## 6. 下一步
 
 **线 A：炉次优先产品重构 → 发布 → 批8**
 
-1. **先固化基线**：核对并独立提交尚在工作区的 F9 改动，避免与新产品重构混成一个不可审查的大提交。
-2. **按已确认产品规格实施**（`docs/product/run-first-workflow-and-copy-design.md`）：状态流简化与衬底生成样品；统一结果录入和跨成员协作；基础资料就地新增；CVD-only UI；筛选、审计时间线、JSON/多表 CSV 导出；全量中英文文案与字段展示清理。
+1. **阶段 0 已完成**：F9 基线已独立复审、全门禁验收并提交（`52bc560`）。
+2. **当前执行阶段 1**：状态流简化、锁定时样品生成、跨成员结果权限与后端数据结构；完成后独立 Agent 审核。后续再实施统一结果录入、基础资料就地新增、CVD-only UI、筛选/审计/导出和全量双语。总规格见 `docs/product/run-first-workflow-and-copy-design.md`。
 3. **验收**：后端、前端、生成物和字段源全门禁 → 更新 `docs/operations/e2e-walkthrough-checklist.md` → 浏览器 E2E 复验完整新流程与控制台零警告。
 4. **发布硬顺序**：push → GitHub Actions 首绿 → 设置 required checks → **批8生产切换（人工门，用户在场）**：停容器 → 重建生产库 → 部署 → `create_admin` → 线上冒烟。**批8完成前禁止运行 `deploy.sh`**。
 
