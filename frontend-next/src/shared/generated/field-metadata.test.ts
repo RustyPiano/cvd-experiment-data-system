@@ -35,13 +35,13 @@ describe('generated field-metadata', () => {
     expect(appearance?.labelEn).toBe('Appearance at time of use')
   })
 
-  it('preserves conditional-required expressions verbatim', () => {
+  it('emits conditional-required expressions with canonical values', () => {
     const amount = experimentModules.precursors.find((f) => f.key === 'amount')
     expect(amount?.requirement.level).toBe('conditional_required')
     expect(amount?.requirement.condition).toEqual({
       field: '前驱体.相态',
       op: 'ne',
-      value: '气',
+      value: 'gas',
     })
     expect(amount?.r0).toBe(true)
   })
@@ -75,7 +75,7 @@ describe('generated field-metadata', () => {
 
   it('exposes the 11 stage types with their param groups (§5 dynamic form)', () => {
     expect(stageTypes).toHaveLength(11)
-    const growth = stageTypes.find((s) => s.name === '反应生长')
+    const growth = stageTypes.find((s) => s.name === 'growth')
     expect(growth?.shows).toContain('temperature')
     expect(growth?.requiredExtra).toEqual(['pressure_system'])
     // every `shows` group must be a declared stageGroups key
@@ -100,7 +100,7 @@ describe('generated field-metadata', () => {
     expect(total).toBe(46)
   })
 
-  it('carries input types for all 12 composite fields', () => {
+  it('carries input types for all 11 composite fields', () => {
     const compositeInputs = new Set([
       '数值+下拉',
       '下拉+数值',
@@ -114,7 +114,7 @@ describe('generated field-metadata', () => {
       .flat()
       .filter((field) => compositeInputs.has(field.input))
 
-    expect(compositeFields).toHaveLength(12)
+    expect(compositeFields).toHaveLength(11)
     expect(compositeFields.map((field) => field.key)).toContain('gas_flow_sccm')
     expect(compositeFields.map((field) => field.key)).toContain(
       'pressure_system',

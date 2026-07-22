@@ -22,7 +22,7 @@ from app.services.experiment_guards import (
     get_visible_experiment,
 )
 from app.services.file_storage_service import FileStorageService
-from app.services.v2_field_source import field_option_values
+from app.services.v2_field_source import canonical_option_value, field_option_values
 
 
 def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
@@ -45,7 +45,7 @@ def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
         "content_type": file_asset.content_type,
         "size_bytes": file_asset.size_bytes,
         "sha256": file_asset.sha256,
-        "method": file_asset.method,
+        "method": canonical_option_value(file_asset.method),
         "file_category": file_asset.file_category,
         "asset_role": file_asset.asset_role,
         "note": file_asset.note,
@@ -311,7 +311,7 @@ class FileAssetService:
         return to_file_asset_read_model(file_asset)
 
     def _normalize_method(self, method: str | None) -> str | None:
-        normalized = (method or "").strip()
+        normalized = canonical_option_value((method or "").strip())
         if not normalized:
             return None
         if normalized not in field_option_values("method_instrument"):

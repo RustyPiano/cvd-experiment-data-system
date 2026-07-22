@@ -119,6 +119,30 @@ def test_lock_gate_returns_structured_missing_fields(active_user) -> None:
     assert {"key", "label", "module"} <= missing[0].keys()
 
 
+def test_operator_is_always_the_run_owner(active_user, admin_user) -> None:
+    headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    run = _run(headers, "OWNER-OPERATOR")
+
+    assert run["operator"] == active_user.name
+
+    response = client.put(
+        f"/api/v1/experiments/{run['id']}/modules/basic_info",
+        json={
+            "payload_json": {
+                "started_at": "2026-07-11T10:00:00",
+                "synthesis_method": "APCVD",
+                "operator": "Another Member",
+                "run_code": "CVD-2099-9999",
+            }
+        },
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["payload_json"]["operator"] == active_user.name
+
+
 def test_lock_translates_concurrent_sample_conflict_to_409(active_user, monkeypatch) -> None:
     headers = _headers(active_user.email)
     run = _lockable_run(headers, "STATE-LOCK-RACE")

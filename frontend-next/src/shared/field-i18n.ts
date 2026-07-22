@@ -1,4 +1,9 @@
-import { optionLabelsEn, unitLabelsEn } from '@/shared/generated/field-metadata'
+import {
+  optionCodes,
+  optionLabelsEn,
+  optionLabelsZh,
+  unitLabelsEn,
+} from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 
 export function isEnglish(language: string): boolean {
@@ -20,7 +25,15 @@ export function localizedFieldLabel(
 }
 
 export function localizedOption(value: string, language: string): string {
-  return isEnglish(language) ? (optionLabelsEn[value] ?? value) : value
+  const code = canonicalOption(value)
+  return isEnglish(language)
+    ? (optionLabelsEn[code] ?? value)
+    : (optionLabelsZh[code] ?? value)
+}
+
+/** 旧中文选项值只在读取时兼容；所有新提交统一使用稳定 ASCII 机器码。 */
+export function canonicalOption(value: string): string {
+  return optionCodes[value] ?? value
 }
 
 /** Localize scalar or multi-select values without collapsing arrays before lookup. */
@@ -30,6 +43,21 @@ export function localizedValue(value: unknown, language: string): string {
     return value
       .map((item) => localizedOption(String(item), language))
       .join(' · ')
+  }
+  if (typeof value === 'object') {
+    const composite = value as { value?: unknown; option?: unknown }
+    if ('value' in composite || 'option' in composite) {
+      const free =
+        composite.value == null || composite.value === ''
+          ? ''
+          : String(composite.value)
+      const selected =
+        composite.option == null || composite.option === ''
+          ? ''
+          : localizedOption(String(composite.option), language)
+      return [free, selected].filter(Boolean).join(' · ')
+    }
+    return JSON.stringify(value)
   }
   return localizedOption(String(value), language)
 }

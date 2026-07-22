@@ -6,12 +6,13 @@ import { useTranslation } from 'react-i18next'
 import type { EntityKind } from '@/features/entity-library/config'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import type { ModuleValues } from '../field-logic'
+import type { ModuleFieldValue, ModuleValues } from '../field-logic'
 import {
   emptyModuleValues,
   getModuleFields,
   isFieldVisible,
   isEffectivelyRequired,
+  moduleValueAsString,
 } from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
@@ -55,7 +56,11 @@ export function RepeatableItemsSection({
   const { i18n, t } = useTranslation()
   const fields = getModuleFields(moduleKey)
 
-  const setItemValue = (itemIndex: number, key: string, value: string) => {
+  const setItemValue = (
+    itemIndex: number,
+    key: string,
+    value: ModuleFieldValue,
+  ) => {
     onItemsChange(
       items.map((item, i) =>
         i === itemIndex ? { ...item, [key]: value } : item,
@@ -87,7 +92,7 @@ export function RepeatableItemsSection({
       <div className="flex flex-col gap-4">
         {items.map((item, itemIndex) => (
           <div
-            key={item['source_id'] || itemIndex}
+            key={moduleValueAsString(item['source_id']) || itemIndex}
             className="rounded-md border border-border p-4"
           >
             <div className="mb-3 flex items-center justify-between">
@@ -125,7 +130,7 @@ export function RepeatableItemsSection({
                         />
                         <EntityReferenceSelect
                           kind={referenceKind}
-                          value={item[field.key] ?? ''}
+                          value={moduleValueAsString(item[field.key])}
                           onChange={(entityId) =>
                             setItemValue(itemIndex, field.key, entityId)
                           }

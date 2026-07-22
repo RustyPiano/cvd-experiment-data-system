@@ -186,6 +186,36 @@ def test_experiment_chemical_formula_length_is_bounded(active_user) -> None:
     assert response.status_code == 422
 
 
+def test_create_run_normalizes_formula_and_rejects_invalid_syntax(active_user) -> None:
+    headers = _headers(active_user.email)
+    normalized = client.post(
+        "/api/v1/experiments",
+        json={
+            "run_code": "CVD-2026-0009",
+            "started_at": "2026-07-22T09:00:00",
+            "synthesis_method": "APCVD",
+            "chemical_formula": " Mo S₂ ",
+        },
+        headers=headers,
+    )
+    assert normalized.status_code == 201, normalized.text
+    assert normalized.json()["material_system"] == "MoS2"
+
+    invalid = client.post(
+        "/api/v1/experiments",
+        json={
+            "run_code": "CVD-2026-0011",
+            "started_at": "2026-07-22T09:00:00",
+            "synthesis_method": "APCVD",
+            "chemical_formula": "Mo(S)2",
+        },
+        headers=headers,
+    )
+    assert invalid.status_code == 422
+    detail = invalid.json()["detail"]
+    assert any(error["loc"][-1] == "chemical_formula" for error in detail)
+
+
 def test_invalid_reason_is_returned_after_invalidation(active_user) -> None:
     headers = _headers(active_user.email)
     run = _create_run(headers, "CVD-2026-0010")
@@ -425,7 +455,7 @@ def test_module_validation_returns_structured_invalid_detail(active_user) -> Non
     assert all(item["reason"] in {"type", "length", "value"} for item in invalid)
     assert bad_formula.status_code == 422
     assert bad_formula.json()["detail"] == {
-        "invalid": [{"key": "chemical_formula", "reason": "length"}]
+        "invalid": [{"key": "chemical_formula", "reason": "value"}]
     }
     assert bad_formula_type.status_code == 422
     assert bad_formula_type.json()["detail"] == {
@@ -451,4 +481,4 @@ def test_basic_info_invalid_started_at_returns_structured_422(active_user) -> No
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == {"invalid": [{"key": "started_at", "reason": "type"}]}
+    assert response.json()["detail"] == {"invalid": [{"key": "started_at", "reason": "value"}]}

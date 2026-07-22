@@ -5,6 +5,7 @@ import {
   componentsFromPayload,
   emptyModuleValues,
   itemsFromPayload,
+  moduleValueAsString,
   moduleValuesFromPayload,
 } from './field-logic'
 import type { ExperimentV2FormState } from './form-types'
@@ -52,7 +53,9 @@ export function buildStateFromLoaded(
   const eventsPayload = modules['process_events']?.payload_json ?? null
 
   const basicInfo = moduleValuesFromPayload('basic_info', basicPayload)
-  basicInfo['started_at'] = isoToDateTimeLocal(basicInfo['started_at'] ?? '')
+  basicInfo['started_at'] = isoToDateTimeLocal(
+    moduleValueAsString(basicInfo['started_at']),
+  )
 
   return {
     basic_info: basicInfo,

@@ -18,7 +18,12 @@ from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.services.experiment_guards import get_visible_experiment
-from app.services.v2_field_source import SCHEMA_VERSION, payload_fields_by_module
+from app.services.v2_field_source import (
+    SCHEMA_VERSION,
+    canonical_option_value,
+    canonicalize_controlled_values,
+    payload_fields_by_module,
+)
 
 
 def _iso(value: date | datetime | None) -> str:
@@ -39,12 +44,12 @@ def _cell(value: Any) -> Any:
     return value
 
 
-def _nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
+def _walk_nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
     if isinstance(value, dict):
         leaves = [
             leaf
             for key in sorted(value)
-            for leaf in _nested_leaves(
+            for leaf in _walk_nested_leaves(
                 value[key],
                 f"{path}.{key}" if path else str(key),
             )
@@ -54,10 +59,15 @@ def _nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
         leaves = [
             leaf
             for index, item in enumerate(value)
-            for leaf in _nested_leaves(item, f"{path}[{index}]")
+            for leaf in _walk_nested_leaves(item, f"{path}[{index}]")
         ]
         return leaves or [(path, "")]
     return [(path, value)]
+
+
+def _nested_leaves(value: Any, path: str = "") -> list[tuple[str, Any]]:
+    """Flatten export details only after recursively normalizing controlled values."""
+    return _walk_nested_leaves(canonicalize_controlled_values(value), path)
 
 
 def _relational_rows(
@@ -204,7 +214,10 @@ class V2ReportingService:
             page += 1
 
     def _run_bundle(self, run: ExperimentRun) -> dict[str, Any]:
-        modules = {item.module_key: item.payload_json for item in run.module_payloads}
+        modules = {
+            item.module_key: canonicalize_controlled_values(item.payload_json)
+            for item in run.module_payloads
+        }
         operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
         samples = self._samples(run.id)
         records = self._records(run.id)
@@ -264,7 +277,7 @@ class V2ReportingService:
             )
 
         attached_file_ids = {file.id for rows in files_by_record.values() for file in rows}
-        return {
+        bundle = {
             "schema_version": SCHEMA_VERSION,
             "exported_at": datetime.now(UTC).isoformat(),
             "run": {
@@ -296,6 +309,7 @@ class V2ReportingService:
                 self._file_json(file) for file in files if file.id not in attached_file_ids
             ],
         }
+        return canonicalize_controlled_values(bundle)
 
     def _csv_tables(
         self, runs: list[ExperimentRun]
@@ -315,7 +329,10 @@ class V2ReportingService:
         file_rows: list[dict[str, Any]] = []
 
         for run in runs:
-            modules = {item.module_key: item.payload_json for item in run.module_payloads}
+            modules = {
+                item.module_key: canonicalize_controlled_values(item.payload_json)
+                for item in run.module_payloads
+            }
             operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
             samples = self._samples(run.id)
             records = self._records(run.id)
@@ -329,7 +346,7 @@ class V2ReportingService:
             }
             record_by_id = {record.id: record for record in records}
 
-            setup_snapshot = run.setup_ref_snapshot_json or {}
+            setup_snapshot = canonicalize_controlled_values(run.setup_ref_snapshot_json or {})
             setup_attrs = setup_snapshot.get("attrs_snapshot")
             setup_leaves = (
                 _nested_leaves(setup_attrs) if isinstance(setup_attrs, (dict, list)) else []
@@ -408,9 +425,9 @@ class V2ReportingService:
                         },
                         {
                             **{
-                                f"source_{key}": (sample.source_substrate_snapshot_json or {}).get(
-                                    key, ""
-                                )
+                                f"source_{key}": canonicalize_controlled_values(
+                                    sample.source_substrate_snapshot_json or {}
+                                ).get(key, "")
                                 for key in substrate_keys
                             },
                             "sample_metadata": sample.metadata_json,
@@ -434,7 +451,7 @@ class V2ReportingService:
                     "sample_code": sample.sample_code,
                     "result_code": result_code,
                     "kind": "characterization" if record else "direct_observation",
-                    "method": record.method_instrument if record else "",
+                    "method": (canonical_option_value(record.method_instrument) if record else ""),
                     "test_conditions": record.test_conditions if record else "",
                     "detected_phase_stacking": product.detected_phase_stacking,
                     "measured_layers_coverage": product.measured_layers_coverage,
@@ -444,7 +461,11 @@ class V2ReportingService:
                 result_rows.extend(
                     _result_rows(
                         result_row,
-                        product.observed_phenomena,
+                        (
+                            [canonical_option_value(value) for value in product.observed_phenomena]
+                            if product.observed_phenomena
+                            else product.observed_phenomena
+                        ),
                         {
                             "instrument_snapshot": (
                                 record.instrument_snapshot_json if record else None
@@ -474,7 +495,7 @@ class V2ReportingService:
                             "sample_code": sample.sample_code,
                             "result_code": result_code,
                             "kind": "characterization",
-                            "method": record.method_instrument,
+                            "method": canonical_option_value(record.method_instrument),
                             "test_conditions": record.test_conditions,
                             "detected_phase_stacking": "",
                             "measured_layers_coverage": "",
@@ -506,10 +527,10 @@ class V2ReportingService:
                         "sample_code": sample.sample_code if sample else "",
                         "result_code": result_code,
                         "filename": file.original_name,
-                        "method": file.method,
+                        "method": canonical_option_value(file.method),
                         "file_category": file.file_category,
                         "asset_role": file.asset_role,
-                        "file_kind": file.file_kind,
+                        "file_kind": canonical_option_value(file.file_kind),
                         "note": file.note,
                         "content_type": file.content_type,
                         "size_bytes": file.size_bytes,
@@ -756,7 +777,7 @@ class V2ReportingService:
             "instrument_id": str(record.instrument_id) if record.instrument_id else None,
             "instrument_version": record.instrument_version,
             "instrument_snapshot": record.instrument_snapshot_json,
-            "method": record.method_instrument,
+            "method": canonical_option_value(record.method_instrument),
             "test_conditions": record.test_conditions,
             "raw_data": record.raw_data,
             "attrs": record.attrs,
@@ -769,7 +790,11 @@ class V2ReportingService:
     def _measurement_json(product: MeasuredProduct) -> dict[str, Any]:
         return {
             "id": str(product.id),
-            "observed_phenomena": product.observed_phenomena,
+            "observed_phenomena": (
+                [canonical_option_value(value) for value in product.observed_phenomena]
+                if product.observed_phenomena
+                else product.observed_phenomena
+            ),
             "detected_phase_stacking": product.detected_phase_stacking,
             "measured_layers_coverage": product.measured_layers_coverage,
             "domain_nucleation_continuity": product.domain_nucleation_continuity,
@@ -788,10 +813,10 @@ class V2ReportingService:
                 str(file.characterization_record_id) if file.characterization_record_id else None
             ),
             "filename": file.original_name,
-            "method": file.method,
+            "method": canonical_option_value(file.method),
             "file_category": file.file_category,
             "asset_role": file.asset_role,
-            "file_kind": file.file_kind,
+            "file_kind": canonical_option_value(file.file_kind),
             "note": file.note,
             "content_type": file.content_type,
             "size_bytes": file.size_bytes,

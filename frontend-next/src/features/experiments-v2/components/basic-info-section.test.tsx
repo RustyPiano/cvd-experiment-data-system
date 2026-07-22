@@ -57,12 +57,11 @@ describe('BasicInfoSection run code', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows the signed-in operator even when the name is not in the shared vocabulary', () => {
+  it('shows the signed-in operator as a fixed value', () => {
     renderSection(false, '成员 A')
 
-    expect(screen.getByRole('combobox', { name: /实验人/ })).toHaveTextContent('其他')
-    expect(screen.getByRole('textbox', { name: '实验人的其他内容' })).toHaveValue(
-      '成员 A',
-    )
+    const input = screen.getByRole('textbox', { name: /实验人/ })
+    expect(input).toHaveValue('成员 A')
+    expect(input).toBeDisabled()
   })
 })

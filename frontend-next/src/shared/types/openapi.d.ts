@@ -1165,8 +1165,6 @@ export interface components {
             started_at: string;
             /** Synthesis Method */
             synthesis_method: string;
-            /** Operator */
-            operator: string;
             /** Run Code */
             run_code?: string | null;
             /** Chemical Formula */

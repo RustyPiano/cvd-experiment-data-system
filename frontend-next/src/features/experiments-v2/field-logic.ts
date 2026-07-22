@@ -20,11 +20,34 @@ import {
   matchesCondition,
   parseEnumOptions,
 } from '@/features/entity-library/field-logic'
+import {
+  formatCompositeValue,
+  isCompositeInput,
+  parseCompositeOptions,
+  parseCompositeValue,
+} from '@/shared/composite-field'
+import { canonicalOption } from '@/shared/field-i18n'
+import { normalizeChemicalFormula } from './formula'
 
 export { matchesCondition, parseEnumOptions }
 
-/** 单条模块的表单取值：统一以字符串承载（组件层），提交时转成 string | null。 */
-export type ModuleValues = Record<string, string>
+/** 单条模块的表单取值：多值字段全程保留数组，其余字段使用字符串。 */
+export type ModuleFieldValue = string | string[]
+export type ModuleValues = Record<string, ModuleFieldValue>
+
+export function isMultiValueInput(input: string): boolean {
+  return input.includes('多选') || input.includes('多条')
+}
+
+export function moduleValueAsString(value: ModuleFieldValue | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '')
+}
+
+export function moduleValueIsEmpty(value: ModuleFieldValue | undefined): boolean {
+  return Array.isArray(value)
+    ? value.length === 0
+    : (value ?? '').trim() === ''
+}
 
 /** §1b 组成明细的一行（键与后端 formula_display.py 读取的键对齐）。 */
 export interface ComponentRow {
@@ -32,6 +55,23 @@ export interface ComponentRow {
   role: string
   concentration_at_percent: string
   layer_order: string
+}
+
+const STRUCTURE_GUIDES = {
+  intrinsic: 'experimentsV2.sections.targetProduct.guides.intrinsic',
+  doped: 'experimentsV2.sections.targetProduct.guides.doped',
+  alloy: 'experimentsV2.sections.targetProduct.guides.alloy',
+  vertical_heterostructure:
+    'experimentsV2.sections.targetProduct.guides.vertical',
+  lateral_heterostructure:
+    'experimentsV2.sections.targetProduct.guides.lateral',
+  other: 'experimentsV2.sections.targetProduct.guides.other',
+} as const
+
+export function structureGuideKey(structureType: string) {
+  return STRUCTURE_GUIDES[
+    canonicalOption(structureType) as keyof typeof STRUCTURE_GUIDES
+  ]
 }
 
 /** 该模块的字段元数据（生成物），未知模块返回空数组。 */
@@ -106,8 +146,8 @@ export function isEffectivelyRequired(
 
 /**
  * 从 components 字段的 options 描述里解析「角色」枚举，保持来自元数据（单一源）。
- * 例：'每条:化学式/角色(基体·掺杂剂·上层·下层·横向域)/浓度(at%)/层序(整数)'
- *   → ['基体','掺杂剂','上层','下层','横向域']
+ * 例：'每条:化学式/角色(基体·掺杂剂·合金组分·上层·下层·横向域)/浓度(at%)/层序(整数)'
+ *   → ['基体','掺杂剂','合金组分','上层','下层','横向域']
  */
 export function parseComponentRoles(options: string | null): string[] {
   if (!options) return []
@@ -117,6 +157,7 @@ export function parseComponentRoles(options: string | null): string[] {
     .split('·')
     .map((token) => token.trim())
     .filter(Boolean)
+    .map(canonicalOption)
 }
 
 /** components 字段的角色枚举（从生成物解析，供 §1b 组分编辑器下拉使用）。 */
@@ -127,9 +168,46 @@ export function getComponentRoleOptions(): string[] {
   return parseComponentRoles(field?.options ?? null)
 }
 
-function emptyToNull(value: string | undefined): string | null {
-  const trimmed = (value ?? '').trim()
+function emptyToNull(value: ModuleFieldValue | undefined): string | null {
+  const trimmed = moduleValueAsString(value).trim()
   return trimmed === '' ? null : trimmed
+}
+
+function fieldValueToPayload(
+  field: FieldMetadata,
+  value: ModuleFieldValue | undefined,
+): unknown {
+  if (isMultiValueInput(field.input) && field.key !== 'structure_type') {
+    const items = Array.isArray(value)
+      ? value
+      : moduleValueAsString(value).split(',')
+    return [
+      ...new Set(
+        items
+          .map((item) => canonicalOption(item.trim()))
+          .filter(Boolean),
+      ),
+    ]
+  }
+  const text = emptyToNull(value)
+  if (text == null) return null
+  if (field.key === 'chemical_formula') return normalizeChemicalFormula(text)
+  if (field.input === '数值') return Number(text)
+  if (isCompositeInput(field.input)) {
+    const options = parseEnumOptions(field.input, field.options) ??
+      parseCompositeOptions(field.options).map(canonicalOption)
+    const parsed = parseCompositeValue(field.input, text, options)
+    return {
+      value: field.input.includes('数值')
+        ? parsed.freeValue.trim() === ''
+          ? null
+          : Number(parsed.freeValue)
+        : parsed.freeValue,
+      option: parsed.option || null,
+    }
+  }
+  if (/(下拉|多选)/.test(field.input)) return canonicalOption(text)
+  return text
 }
 
 /** 一行组分是否有实质内容（至少填了化学式）。 */
@@ -137,12 +215,17 @@ export function isNonEmptyComponent(row: ComponentRow): boolean {
   return row.formula.trim() !== ''
 }
 
-function toComponentObject(row: ComponentRow): Record<string, string | null> {
+function numericOrNull(value: string): number | null {
+  const text = emptyToNull(value)
+  return text == null ? null : Number(text)
+}
+
+function toComponentObject(row: ComponentRow): Record<string, unknown> {
   return {
-    formula: emptyToNull(row.formula),
-    role: emptyToNull(row.role),
-    concentration_at_percent: emptyToNull(row.concentration_at_percent),
-    layer_order: emptyToNull(row.layer_order),
+    formula: normalizeChemicalFormula(row.formula),
+    role: row.role.trim() ? canonicalOption(row.role.trim()) : null,
+    concentration_at_percent: numericOrNull(row.concentration_at_percent),
+    layer_order: numericOrNull(row.layer_order),
   }
 }
 
@@ -153,7 +236,7 @@ export function buildFlatModulePayload(
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {}
   for (const field of getModuleFields(moduleKey)) {
-    payload[field.key] = emptyToNull(values[field.key])
+    payload[field.key] = fieldValueToPayload(field, values[field.key])
   }
   return payload
 }
@@ -166,8 +249,13 @@ export function buildTargetProductPayload(
   values: ModuleValues,
   components: ComponentRow[],
 ): Record<string, unknown> {
-  const structureType = values['structure_type'] ?? ''
-  const active = structureType !== '' && structureType !== '本征'
+  const structureType = canonicalOption(
+    moduleValueAsString(values['structure_type']),
+  )
+  const active =
+    structureType !== '' &&
+    structureType !== 'intrinsic' &&
+    structureType !== '本征'
   const rows = active
     ? components.filter(isNonEmptyComponent).map(toComponentObject)
     : []
@@ -176,7 +264,7 @@ export function buildTargetProductPayload(
     if (field.key === 'components') {
       payload.components = rows.length > 0 ? rows : null
     } else {
-      payload[field.key] = emptyToNull(values[field.key])
+      payload[field.key] = fieldValueToPayload(field, values[field.key])
     }
   }
   return payload
@@ -185,7 +273,7 @@ export function buildTargetProductPayload(
 /** 一行是否有实质内容（重复条目：过滤全空行，避免夹带空条目触发后端必填校验）。 */
 export function itemHasAnyValue(values: ModuleValues): boolean {
   return Object.entries(values).some(
-    ([key, value]) => key !== 'source_id' && value.trim() !== '',
+    ([key, value]) => key !== 'source_id' && !moduleValueIsEmpty(value),
   )
 }
 
@@ -196,10 +284,10 @@ export function buildItemPayload(
 ): Record<string, unknown> {
   const item: Record<string, unknown> = {}
   for (const field of getModuleFields(moduleKey)) {
-    item[field.key] = emptyToNull(values[field.key])
+    item[field.key] = fieldValueToPayload(field, values[field.key])
   }
   if (moduleKey === 'substrates' && values['source_id']) {
-    item['source_id'] = values['source_id']
+    item['source_id'] = moduleValueAsString(values['source_id'])
   }
   return item
 }
@@ -228,15 +316,17 @@ export function missingRequiredKeys(
   for (const field of getModuleFields(moduleKey)) {
     if (!isFieldVisible(moduleKey, field, values)) continue
     if (!isEffectivelyRequired(moduleKey, field, values)) continue
-    if ((values[field.key] ?? '').trim() === '') missing.push(field.key)
+    if (moduleValueIsEmpty(values[field.key])) missing.push(field.key)
   }
   return missing
 }
 
-/** 空模块取值（所有字段键置空串）。 */
+/** 空模块取值（多值字段置空数组，其余字段置空串）。 */
 export function emptyModuleValues(moduleKey: string): ModuleValues {
   const values: ModuleValues = {}
-  for (const field of getModuleFields(moduleKey)) values[field.key] = ''
+  for (const field of getModuleFields(moduleKey)) {
+    values[field.key] = isMultiValueInput(field.input) ? [] : ''
+  }
   return values
 }
 
@@ -259,7 +349,27 @@ export function moduleValuesFromPayload(
   if (!payload) return values
   for (const field of getModuleFields(moduleKey)) {
     const raw = payload[field.key]
-    values[field.key] = raw == null ? '' : String(raw)
+    if (raw != null && isCompositeInput(field.input) && typeof raw === 'object') {
+      const composite = raw as { value?: unknown; option?: unknown }
+      values[field.key] = formatCompositeValue(
+        field.input,
+        composite.value == null ? '' : String(composite.value),
+        composite.option == null ? '' : String(composite.option),
+      )
+    } else if (
+      raw != null &&
+      isMultiValueInput(field.input) &&
+      field.key !== 'structure_type'
+    ) {
+      const items = Array.isArray(raw) ? raw : [raw]
+      values[field.key] = items
+        .map((item) => canonicalOption(String(item)))
+        .filter(Boolean)
+    } else if (raw != null && /(下拉|多选)/.test(field.input)) {
+      values[field.key] = canonicalOption(String(raw))
+    } else {
+      values[field.key] = raw == null ? '' : String(raw)
+    }
   }
   return values
 }
@@ -275,7 +385,7 @@ export function componentsFromPayload(
     const pick = (key: string) => (row[key] == null ? '' : String(row[key]))
     return {
       formula: pick('formula'),
-      role: pick('role'),
+      role: canonicalOption(pick('role')),
       concentration_at_percent: pick('concentration_at_percent'),
       layer_order: pick('layer_order'),
     }
@@ -311,7 +421,8 @@ const EXTERNAL_FIELD_GROUP = 'external_field'
 
 /** 按阶段类型名取 stageTypes 定义（未知阶段返回 undefined）。 */
 export function getStageType(name: string): StageType | undefined {
-  return stageTypes.find((stage) => stage.name === name)
+  const code = canonicalOption(name)
+  return stageTypes.find((stage) => stage.name === code)
 }
 
 /** 该阶段可见的参数组集合（common 恒含 + shows）。未知阶段仅 common。 */
@@ -329,9 +440,13 @@ export function hasExternalFieldSetup(
 ): boolean {
   if (!snapshot) return false
   const value = snapshot['field_devices']
-  if (value == null || value === '' || value === '无') return false
+  if (value == null || value === '' || value === 'none' || value === '无')
+    return false
   if (Array.isArray(value)) {
-    return value.length > 0 && !(value.length === 1 && value[0] === '无')
+    return (
+      value.length > 0 &&
+      !(value.length === 1 && (value[0] === 'none' || value[0] === '无'))
+    )
   }
   return true
 }
@@ -385,7 +500,7 @@ export function isProcessStepFieldRequired(
 
 /** 一条过程步是否已选阶段类型（判定是否纳入保存/校验）。 */
 export function isProcessStepActive(step: ModuleValues): boolean {
-  return (step['stage_type'] ?? '').trim() !== ''
+  return moduleValueAsString(step['stage_type']).trim() !== ''
 }
 
 /**
@@ -395,7 +510,9 @@ export function isProcessStepActive(step: ModuleValues): boolean {
 export function buildProcessStepPayload(
   step: ModuleValues,
 ): Record<string, unknown> | null {
-  const stageType = (step['stage_type'] ?? '').trim()
+  const stageType = canonicalOption(
+    moduleValueAsString(step['stage_type']).trim(),
+  )
   const stage = getStageType(stageType)
   if (!stage) return null
   const allowed = visibleGroupsForStage(stageType)
@@ -404,7 +521,9 @@ export function buildProcessStepPayload(
     const group = field.group ?? COMMON_GROUP
     if (!allowed.has(group)) continue
     payload[field.key] =
-      field.key === 'stage_type' ? stageType : emptyToNull(step[field.key])
+      field.key === 'stage_type'
+        ? stageType
+        : fieldValueToPayload(field, step[field.key])
   }
   return payload
 }
@@ -426,12 +545,12 @@ export function missingProcessStepKeys(
   step: ModuleValues,
   setupSnapshot: Record<string, unknown> | null | undefined,
 ): string[] {
-  const stageType = (step['stage_type'] ?? '').trim()
+  const stageType = moduleValueAsString(step['stage_type']).trim()
   const missing: string[] = []
   for (const field of getModuleFields('process_steps')) {
     if (!isProcessStepFieldVisible(field, stageType, setupSnapshot)) continue
     if (!isProcessStepFieldRequired(field, stageType, setupSnapshot)) continue
-    if ((step[field.key] ?? '').trim() === '') missing.push(field.key)
+    if (moduleValueIsEmpty(step[field.key])) missing.push(field.key)
   }
   return missing
 }

@@ -94,7 +94,7 @@ describe('EntityForm — multi-select values', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
-      field_devices: ['光', '电'],
+      field_devices: ['light', 'electric_field'],
     })
   })
 })

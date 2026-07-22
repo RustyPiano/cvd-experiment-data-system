@@ -4,6 +4,7 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
+  canonicalOption,
   localizedFieldHelp,
   localizedFieldLabel,
   localizedFieldPlaceholder,
@@ -11,6 +12,7 @@ import {
   localizedUnit,
 } from '@/shared/field-i18n'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -28,10 +30,17 @@ import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
 import { SelectWithOtherControl } from '@/shared/ui/select-with-other-control'
 import {
   isOtherOptionMarker,
+  isNoneOption,
   isSelectWithOtherInput,
 } from '@/features/entity-library/field-logic'
-import type { ModuleValues } from '../field-logic'
-import { isEffectivelyRequired, parseEnumOptions } from '../field-logic'
+import type { ModuleFieldValue, ModuleValues } from '../field-logic'
+import {
+  isEffectivelyRequired,
+  isMultiValueInput,
+  moduleValueAsString,
+  moduleValueIsEmpty,
+  parseEnumOptions,
+} from '../field-logic'
 import { FieldLabel } from './field-bits'
 import { FormulaInput } from './formula-input'
 
@@ -46,7 +55,7 @@ const TEXTAREA_KEYS = new Set([
   'coordinate_system',
 ])
 
-// 用化学式元素校验控件的字段键（§1b 化学体系/化学式）。
+// 用化学式元素校验控件的字段键（§1b 目标材料化学式）。
 const FORMULA_KEYS = new Set(['chemical_formula'])
 
 // 用 datetime-local 控件的字段键（§1 实验时间）。
@@ -70,8 +79,8 @@ export function FieldControl({
   field: FieldMetadata
   /** 当前模块（或条目）取值，用于计算有效必填。 */
   values: ModuleValues
-  value: string
-  onChange: (value: string) => void
+  value: ModuleFieldValue
+  onChange: (value: ModuleFieldValue) => void
   disabled?: boolean
   /** 提交拦截后是否高亮缺失必填项。 */
   showError?: boolean
@@ -92,24 +101,33 @@ export function FieldControl({
   const allowsOther = isSelectWithOtherInput(field.input)
   const parsedEnumOptions = parseEnumOptions(field.input, field.options)?.filter(
     (option) =>
-      !hiddenOptions?.includes(option) &&
+      !hiddenOptions?.map(canonicalOption).includes(option) &&
       (!allowsOther || !isOtherOptionMarker(option)),
   )
   const enumOptions = parsedEnumOptions
+  const multiValue = isMultiValueInput(field.input)
+  const selectedValues = Array.isArray(value)
+    ? value.map(canonicalOption)
+    : moduleValueAsString(value)
+      ? [canonicalOption(moduleValueAsString(value))]
+      : []
+  const textValue = moduleValueAsString(value)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))
     : []
-  const missing = Boolean(showError) && required && value.trim() === ''
+  const missing =
+    Boolean(showError) && required && moduleValueIsEmpty(value)
   const errorId = `${controlId}-error`
   const label = localizedFieldLabel(field, i18n.language)
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
   const fieldHelp = localizedFieldHelp(field, i18n.language)
+  const numeric = field.input === '数值'
 
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel
-        htmlFor={controlId}
+        htmlFor={multiValue ? undefined : controlId}
         labelZh={label}
         unit={localizedUnit(field.unit, i18n.language)}
         required={required}
@@ -118,7 +136,7 @@ export function FieldControl({
       {compositeInput ? (
         <CompositeFieldControl
           input={compositeInput}
-          value={value ?? ''}
+          value={textValue}
           options={compositeOptions}
           onChange={onChange}
           inputId={controlId}
@@ -133,16 +151,64 @@ export function FieldControl({
       ) : FORMULA_KEYS.has(field.key) ? (
         <FormulaInput
           id={controlId}
-          value={value}
-          onChange={onChange}
+          value={textValue}
+          onChange={(next) => onChange(next)}
           disabled={disabled || readOnly}
           placeholder={placeholder}
         />
+      ) : enumOptions && multiValue ? (
+        <div
+          id={controlId}
+          role="group"
+          aria-label={label}
+          aria-invalid={missing || undefined}
+          aria-describedby={missing ? errorId : undefined}
+          className={cn(
+            'grid gap-2 rounded-md border border-input px-3 py-2 sm:grid-cols-2',
+            missing && 'border-destructive',
+          )}
+        >
+          {enumOptions.map((option) => {
+            const optionLabel = localizedOption(option, i18n.language)
+            return (
+              <label
+                key={option}
+                className="flex cursor-pointer items-center gap-2 text-sm"
+              >
+                <Checkbox
+                  aria-label={optionLabel}
+                  checked={selectedValues.includes(option)}
+                  disabled={disabled || readOnly}
+                  onCheckedChange={(checked) => {
+                    if (!checked) {
+                      onChange(
+                        selectedValues.filter((item) => item !== option),
+                      )
+                      return
+                    }
+                    onChange(
+                      isNoneOption(option)
+                        ? [option]
+                        : [
+                            ...selectedValues.filter(
+                              (item) =>
+                                !isNoneOption(item) && item !== option,
+                            ),
+                            option,
+                          ],
+                    )
+                  }}
+                />
+                <span>{optionLabel}</span>
+              </label>
+            )
+          })}
+        </div>
       ) : enumOptions && allowsOther ? (
         <SelectWithOtherControl
-          value={value ?? ''}
+          value={textValue}
           options={enumOptions}
-          onChange={onChange}
+          onChange={(next) => onChange(next)}
           disabled={disabled || readOnly}
           selectId={controlId}
           invalid={missing}
@@ -155,9 +221,9 @@ export function FieldControl({
         />
       ) : enumOptions ? (
         <Select
-          value={value ?? ''}
-          onValueChange={onChange}
-          disabled={disabled}
+          value={textValue}
+          onValueChange={(next) => onChange(next)}
+          disabled={disabled || readOnly}
         >
           <SelectTrigger
             id={controlId}
@@ -179,7 +245,7 @@ export function FieldControl({
         <Input
           id={controlId}
           type="datetime-local"
-          value={value}
+          value={textValue}
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled}
           aria-invalid={missing}
@@ -189,7 +255,7 @@ export function FieldControl({
       ) : TEXTAREA_KEYS.has(field.key) ? (
         <Textarea
           id={controlId}
-          value={value}
+          value={textValue}
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled}
           rows={2}
@@ -201,7 +267,18 @@ export function FieldControl({
       ) : (
         <Input
           id={controlId}
-          value={value}
+          type={numeric ? 'number' : 'text'}
+          inputMode={numeric ? 'decimal' : undefined}
+          min={field.key === 'bulk_space_group' ? 1 : undefined}
+          max={field.key === 'bulk_space_group' ? 230 : undefined}
+          step={
+            field.key === 'bulk_space_group'
+              ? '1'
+              : numeric
+                ? 'any'
+                : undefined
+          }
+          value={textValue}
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled || readOnly}
           title={hint}

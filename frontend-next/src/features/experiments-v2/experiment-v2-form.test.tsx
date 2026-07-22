@@ -164,7 +164,7 @@ describe('ExperimentV2Form module saves', () => {
     ['substrates', { items: [expect.objectContaining({ material: 'h-BN' })] }],
     [
       'process_steps',
-      { items: [expect.objectContaining({ stage_type: '卸样' })] },
+      { items: [expect.objectContaining({ stage_type: 'unload' })] },
     ],
     [
       'process_events',
@@ -273,7 +273,6 @@ describe('ExperimentV2Form create and save', () => {
       {
         started_at: expect.stringMatching(/^2026-07-11T/),
         synthesis_method: 'APCVD',
-        operator: 'operator-1',
       },
       'token',
     )

@@ -13,7 +13,11 @@ import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
 import { useAuth } from '@/features/auth/use-auth'
 import type { V2EntityRead } from '@/features/entity-library/api'
 import { Button } from '@/components/ui/button'
-import type { ComponentRow, ModuleValues } from './field-logic'
+import type {
+  ComponentRow,
+  ModuleFieldValue,
+  ModuleValues,
+} from './field-logic'
 import {
   buildFlatModulePayload,
   buildItemsModulePayload,
@@ -27,6 +31,8 @@ import {
   itemHasAnyValue,
   missingProcessStepKeys,
   missingRequiredKeys,
+  moduleValueAsString,
+  moduleValueIsEmpty,
 } from './field-logic'
 import { toIsoDateTime } from './datetime'
 import { createRun, setSetupReference, upsertModule } from './api'
@@ -40,7 +46,7 @@ import { ProcessStepsSection } from './components/process-steps-section'
 import { ResultsSection } from './components/results-section'
 import { localizedFieldLabel } from '@/shared/field-i18n'
 
-const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method', 'operator']
+const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method']
 
 export function shouldBlockExperimentLeave(
   dirtyCount: number,
@@ -51,7 +57,7 @@ export function shouldBlockExperimentLeave(
 
 function targetProductActive(state: ExperimentV2FormState): boolean {
   const hasFlat = Object.entries(state.target_product).some(
-    ([key, value]) => key !== 'components' && value.trim() !== '',
+    ([key, value]) => key !== 'components' && !moduleValueIsEmpty(value),
   )
   return hasFlat || state.components.some(isNonEmptyComponent)
 }
@@ -75,7 +81,7 @@ function targetProductMissing(
     if (
       isFieldVisible('target_product', field, values) &&
       isEffectivelyRequired('target_product', field, values) &&
-      (values[field.key] ?? '').trim() === ''
+      moduleValueIsEmpty(values[field.key])
     ) {
       return true
     }
@@ -119,7 +125,7 @@ const MODULE_SPECS: ModuleSpec[] = [
     missing: ({ mode, state }) =>
       mode === 'new'
         ? ESSENTIAL_RUN_KEYS.some(
-            (key) => (state.basic_info[key] ?? '').trim() === '',
+            (key) => moduleValueIsEmpty(state.basic_info[key]),
           )
         : missingRequiredKeys('basic_info', state.basic_info).length > 0,
     payload: ({ state, runCode }) => {
@@ -127,7 +133,9 @@ const MODULE_SPECS: ModuleSpec[] = [
         ? { ...state.basic_info, run_code: runCode }
         : state.basic_info
       const payload = buildFlatModulePayload('basic_info', values)
-      payload.started_at = toIsoDateTime(state.basic_info['started_at'] ?? '')
+      payload.started_at = toIsoDateTime(
+        moduleValueAsString(state.basic_info['started_at']),
+      )
       return payload
     },
   },
@@ -240,14 +248,14 @@ export function ExperimentV2Form({
     )
   }
 
-  const setBasicInfo = (key: string, value: string) => {
+  const setBasicInfo = (key: string, value: ModuleFieldValue) => {
     markDirty('basic_info')
     setState((prev) => ({
       ...prev,
       basic_info: { ...prev.basic_info, [key]: value },
     }))
   }
-  const setTargetProduct = (key: string, value: string) => {
+  const setTargetProduct = (key: string, value: ModuleFieldValue) => {
     markDirty('target_product')
     setState((prev) => ({
       ...prev,
@@ -286,9 +294,12 @@ export function ExperimentV2Form({
     setState((prev) => ({ ...prev, process_events: items }))
   }
   const buildRunCreatePayload = (): V2ExperimentCreate => ({
-    started_at: toIsoDateTime(state.basic_info['started_at'] ?? ''),
-    synthesis_method: (state.basic_info['synthesis_method'] ?? '').trim(),
-    operator: (state.basic_info['operator'] ?? '').trim(),
+    started_at: toIsoDateTime(
+      moduleValueAsString(state.basic_info['started_at']),
+    ),
+    synthesis_method: moduleValueAsString(
+      state.basic_info['synthesis_method'],
+    ).trim(),
   })
 
   const moduleContext = (

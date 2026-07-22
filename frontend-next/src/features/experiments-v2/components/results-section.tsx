@@ -37,7 +37,11 @@ import {
 } from '@/features/samples/api'
 import type { FileAssetRead } from '@/shared/types/api'
 import { triggerBlobDownload } from '@/shared/lib/download'
-import { localizedFieldLabel, localizedOption } from '@/shared/field-i18n'
+import {
+  canonicalOption,
+  localizedFieldLabel,
+  localizedOption,
+} from '@/shared/field-i18n'
 import type {
   SampleCreate,
   SampleRead,
@@ -341,10 +345,12 @@ function SampleResults({
       kind === 'characterization' && instrument.id ? instrument.id : null,
     instrument_version:
       kind === 'characterization' && instrument.id ? instrument.version : null,
-    method_instrument: kind === 'characterization' ? method : null,
+    method_instrument:
+      kind === 'characterization' ? canonicalOption(method) : null,
     test_conditions:
       kind === 'characterization' ? conditions.trim() || null : null,
-    observed_phenomena: selected.length > 0 ? selected : null,
+    observed_phenomena:
+      selected.length > 0 ? selected.map(canonicalOption) : null,
     detected_phase_stacking:
       kind === 'characterization' ? phaseStacking.trim() || null : null,
     measured_layers_coverage:
@@ -424,9 +430,9 @@ function SampleResults({
       id: result.instrument_id ?? '',
       version: result.instrument_version ?? null,
     })
-    setMethod(result.method_instrument ?? '')
+    setMethod(canonicalOption(result.method_instrument ?? ''))
     setConditions(result.test_conditions ?? '')
-    setSelected(result.observed_phenomena ?? [])
+    setSelected((result.observed_phenomena ?? []).map(canonicalOption))
     setPhaseStacking(result.detected_phase_stacking ?? '')
     setLayersCoverage(result.measured_layers_coverage ?? '')
     setDomain(result.domain_nucleation_continuity ?? '')

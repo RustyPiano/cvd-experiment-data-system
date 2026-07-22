@@ -12,20 +12,24 @@ import {
   isCompositeInput,
   parseCompositeOptions,
 } from '@/shared/composite-field'
-import { parseEnumOptions } from '../field-logic'
+import { buildItemPayload, parseEnumOptions } from '../field-logic'
+import {
+  localizedFieldLabel,
+  localizedOption,
+} from '@/shared/field-i18n'
 import { EntityForm } from '@/features/entity-library/entity-form'
 import type { EntityKind } from '@/features/entity-library/config'
 import { FieldControl } from './field-control'
-import { localizedFieldLabel } from '@/shared/field-i18n'
+import type { ModuleFieldValue } from '../field-logic'
 
 function renderControl(
   moduleKey: string,
   field: FieldMetadata,
-  initialValue = '',
+  initialValue: ModuleFieldValue = '',
   onChange = vi.fn(),
 ) {
   function Wrapper() {
-    const [value, setValue] = useState(initialValue)
+    const [value, setValue] = useState<ModuleFieldValue>(initialValue)
     return (
       <I18nextProvider i18n={i18n}>
         <FieldControl
@@ -122,8 +126,8 @@ function renderCompositeCase(
 }
 
 describe('FieldControl composite inputs', () => {
-  it('enumerates all 12 composite fields from generated metadata', () => {
-    expect(compositeFields).toHaveLength(12)
+  it('enumerates all 11 composite fields from generated metadata', () => {
+    expect(compositeFields).toHaveLength(11)
   })
 
   it.each(compositeFields)(
@@ -141,7 +145,7 @@ describe('FieldControl composite inputs', () => {
 
       let view = renderCompositeCase(testCase, combined)
       expect(view.textbox).toHaveValue(free)
-      expect(view.combobox).toHaveTextContent(option)
+      expect(view.combobox).toHaveTextContent(localizedOption(option, 'zh'))
       view.unmount()
 
       view = renderCompositeCase(testCase, free)
@@ -151,7 +155,7 @@ describe('FieldControl composite inputs', () => {
 
       view = renderCompositeCase(testCase, option)
       expect(view.textbox).toHaveValue('')
-      expect(view.combobox).toHaveTextContent(option)
+      expect(view.combobox).toHaveTextContent(localizedOption(option, 'zh'))
       view.unmount()
 
       view = renderCompositeCase(testCase, 'legacy malformed value')
@@ -160,8 +164,17 @@ describe('FieldControl composite inputs', () => {
       await view.user.clear(view.textbox)
       await view.user.type(view.textbox, free)
       await view.user.click(view.combobox)
-      await view.user.click(screen.getByRole('option', { name: option }))
-      expect(await view.submit()).toBe(combined)
+      await view.user.click(
+        screen.getByRole('option', { name: localizedOption(option, 'zh') }),
+      )
+      expect(await view.submit()).toEqual(
+        testCase.source === 'entity'
+          ? {
+              value: input.includes('数值') ? Number(free) : free,
+              option,
+            }
+          : combined,
+      )
       cleanup()
     },
   )
@@ -188,5 +201,41 @@ describe('FieldControl dropdown with other value', () => {
     )
 
     expect(view.onChange).toHaveBeenLastCalledWith('MoO3')
+  })
+})
+
+describe('FieldControl multi-value dropdown', () => {
+  it('selects, restores, and submits multiple gas species without collapsing them', async () => {
+    await i18n.changeLanguage('zh')
+    const field = experimentModules.process_steps.find(
+      (item) => item.key === 'gas_species',
+    )!
+    let view = renderControl('process_steps', field, [])
+
+    expect(
+      screen.getByRole('group', { name: '气体组分' }),
+    ).toBeInTheDocument()
+    await view.user.click(screen.getByRole('checkbox', { name: 'Ar' }))
+    await view.user.click(screen.getByRole('checkbox', { name: 'H₂' }))
+    expect(view.onChange).toHaveBeenLastCalledWith(['Ar', 'H2'])
+    expect(
+      buildItemPayload('process_steps', {
+        stage_type: 'vent',
+        gas_species: view.onChange.mock.lastCall![0],
+      }).gas_species,
+    ).toEqual(['Ar', 'H2'])
+    view.unmount()
+
+    view = renderControl('process_steps', field, ['Ar', 'H2'])
+    expect(screen.getByRole('checkbox', { name: 'Ar' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'H₂' })).toBeChecked()
+    view.unmount()
+
+    await i18n.changeLanguage('en')
+    renderControl('process_steps', field, ['Ar', 'H2'])
+    expect(
+      screen.getByRole('group', { name: 'Gas species' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'H₂' })).toBeChecked()
   })
 })

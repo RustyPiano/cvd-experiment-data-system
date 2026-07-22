@@ -32,7 +32,11 @@ from app.services.experiment_guards import (
 )
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import instrument_version_snapshot
-from app.services.v2_field_source import SCHEMA_VERSION, field_option_values
+from app.services.v2_field_source import (
+    SCHEMA_VERSION,
+    canonical_option_value,
+    field_option_values,
+)
 from app.services.v2_result_status_service import refresh_result_missing_todo
 
 
@@ -261,7 +265,7 @@ class V2ResultsService:
         )
         items = self.results.list_characterization_records(run.id)
         return CharacterizationRecordListResponse(
-            items=[CharacterizationRecordRead.model_validate(item) for item in items],
+            items=[self._characterization_read(item) for item in items],
             total=len(items),
         )
 
@@ -333,7 +337,7 @@ class V2ResultsService:
         self._clear_not_characterized(run, current_user)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
-        return CharacterizationRecordRead.model_validate(saved)
+        return self._characterization_read(saved)
 
     def update_characterization_record(
         self,
@@ -382,7 +386,7 @@ class V2ResultsService:
         )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
-        return CharacterizationRecordRead.model_validate(saved)
+        return self._characterization_read(saved)
 
     def delete_characterization_record(self, record_id: UUID, current_user: User) -> None:
         record = self._visible_characterization_record(record_id, current_user)
@@ -440,7 +444,7 @@ class V2ResultsService:
         sample = self._visible_sample(sample_id, current_user)
         items = self.results.list_measured_products(sample.id)
         return MeasuredProductListResponse(
-            items=[MeasuredProductRead.model_validate(item) for item in items],
+            items=[self._measured_product_read(item) for item in items],
             total=len(items),
         )
 
@@ -482,7 +486,7 @@ class V2ResultsService:
         self._clear_not_characterized(run, current_user)
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
-        return MeasuredProductRead.model_validate(saved)
+        return self._measured_product_read(saved)
 
     def update_measured_product(
         self,
@@ -527,7 +531,7 @@ class V2ResultsService:
         )
         refresh_result_missing_todo(self.db, run)
         self.db.commit()
-        return MeasuredProductRead.model_validate(saved)
+        return self._measured_product_read(saved)
 
     def _ensure_record_belongs_to_sample(self, record_id: UUID, sample_id: UUID) -> None:
         record = self.results.get_characterization_record(record_id)
@@ -593,9 +597,15 @@ class V2ResultsService:
             instrument_id=record.instrument_id if record else None,
             instrument_version=record.instrument_version if record else None,
             instrument_snapshot_json=record.instrument_snapshot_json if record else None,
-            method_instrument=record.method_instrument if record else None,
+            method_instrument=(
+                canonical_option_value(record.method_instrument) if record else None
+            ),
             test_conditions=record.test_conditions if record else None,
-            observed_phenomena=product.observed_phenomena,
+            observed_phenomena=(
+                [canonical_option_value(value) for value in product.observed_phenomena]
+                if product.observed_phenomena
+                else product.observed_phenomena
+            ),
             detected_phase_stacking=product.detected_phase_stacking,
             measured_layers_coverage=product.measured_layers_coverage,
             domain_nucleation_continuity=product.domain_nucleation_continuity,
@@ -605,8 +615,28 @@ class V2ResultsService:
         )
 
     @staticmethod
+    def _characterization_read(record: CharacterizationRecord) -> CharacterizationRecordRead:
+        result = CharacterizationRecordRead.model_validate(record)
+        return result.model_copy(
+            update={"method_instrument": canonical_option_value(result.method_instrument)}
+        )
+
+    @staticmethod
+    def _measured_product_read(product: MeasuredProduct) -> MeasuredProductRead:
+        result = MeasuredProductRead.model_validate(product)
+        return result.model_copy(
+            update={
+                "observed_phenomena": (
+                    [canonical_option_value(value) for value in result.observed_phenomena]
+                    if result.observed_phenomena
+                    else result.observed_phenomena
+                )
+            }
+        )
+
+    @staticmethod
     def _validate_method(method: str | None) -> str:
-        normalized = (method or "").strip()
+        normalized = canonical_option_value((method or "").strip())
         if not normalized or normalized not in field_option_values("method_instrument"):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -618,12 +648,14 @@ class V2ResultsService:
     def _validate_observed_phenomena(values: list[str] | None) -> None:
         if values is None:
             return
+        normalized = [canonical_option_value(value) for value in values]
         allowed = set(field_option_values("observed_phenomena"))
-        if any(value not in allowed for value in values):
+        if any(value not in allowed for value in normalized):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid observed_phenomena",
             )
+        values[:] = normalized
 
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._visible_measured_product(product_id, current_user)
@@ -660,11 +692,11 @@ class V2ResultsService:
 
     @staticmethod
     def _characterization_snapshot(record: CharacterizationRecord) -> dict:
-        return CharacterizationRecordRead.model_validate(record).model_dump(mode="json")
+        return V2ResultsService._characterization_read(record).model_dump(mode="json")
 
     @staticmethod
     def _measured_product_snapshot(product: MeasuredProduct) -> dict:
-        return MeasuredProductRead.model_validate(product).model_dump(mode="json")
+        return V2ResultsService._measured_product_read(product).model_dump(mode="json")
 
     def _visible_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self.db.get(Sample, sample_id)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,24 @@ PAYLOAD_MODULE_KEYS = (
 )
 ARRAY_MODULE_KEYS = {"precursors", "substrates", "process_steps", "process_events"}
 RESULT_MODULE_KEYS = {"characterization", "measured_products"}
-PVD_METHODS = {"PVD-磁控溅射", "PVD-热蒸发", "PLD"}
+PVD_METHODS = {
+    "pvd_magnetron_sputtering",
+    "pvd_thermal_evaporation",
+    "PVD-磁控溅射",
+    "PVD-热蒸发",
+    "PLD",
+}
+ELEMENT_SYMBOLS = frozenset(
+    "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn "
+    "Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce "
+    "Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn "
+    "Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc "
+    "Lv Ts Og".split()
+)
+FORMULA_PATTERN = re.compile(
+    r"^(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+(?:[:/\-](?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+)*$"
+)
+FORMULA_SUBSCRIPT_TRANSLATION = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
 
 
 @lru_cache(maxsize=4)
@@ -51,6 +69,43 @@ def entity_fields(doc: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     return [field for section in source["entities"]["sections"] for field in section["fields"]]
 
 
+def canonical_option_value(value: Any, doc: dict[str, Any] | None = None) -> Any:
+    source = doc or load_field_source()
+    if isinstance(value, list):
+        return [canonical_option_value(item, source) for item in value]
+    if not isinstance(value, str):
+        return value
+    return source.get("option_codes", {}).get(value, value)
+
+
+def normalize_chemical_formula(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("invalid chemical formula")
+    return re.sub(r"\s+", "", value.translate(FORMULA_SUBSCRIPT_TRANSLATION))
+
+
+def validate_chemical_formula(value: str) -> str:
+    normalized = normalize_chemical_formula(value)
+    if not normalized or not normalized.isascii() or not FORMULA_PATTERN.fullmatch(normalized):
+        raise ValueError("invalid chemical formula")
+    symbols = re.findall(r"[A-Z][a-z]?", normalized)
+    if not symbols or any(symbol not in ELEMENT_SYMBOLS for symbol in symbols):
+        raise ValueError("invalid chemical formula")
+    return normalized
+
+
+def _option_tokens(field: dict[str, Any]) -> list[str]:
+    options = str(field.get("options") or "").strip()
+    if not options or options == "—":
+        return []
+    input_type = str(field.get("input") or "")
+    if input_type in {"数值+下拉", "下拉+数值", "文本+下拉", "下拉+文本"}:
+        segments = [part.strip() for part in options.replace(" + ", "；").split("；")]
+        options = next((part for part in segments if "/" in part), segments[0])
+    separator = "·" if "·" in options else "/"
+    return [value.strip() for value in options.split(separator) if value.strip()]
+
+
 def field_option_values(field_key: str, doc: dict[str, Any] | None = None) -> set[str]:
     source = doc or load_field_source()
     field = next(
@@ -64,7 +119,39 @@ def field_option_values(field_key: str, doc: dict[str, Any] | None = None) -> se
     if field is None:
         # 快速失败：键名拼错/YAML 改名时立刻暴露，而不是静默空集导致所有值被拒
         raise ValueError(f"field-source.yaml 中不存在字段 key: {field_key}")
-    return {value.strip() for value in str(field.get("options") or "").split("/") if value.strip()}
+    return {canonical_option_value(value, source) for value in _option_tokens(field)}
+
+
+def canonicalize_controlled_values(
+    value: Any,
+    doc: dict[str, Any] | None = None,
+    *,
+    key: str | None = None,
+) -> Any:
+    """Canonicalize legacy controlled labels without rewriting narrative text."""
+    source = doc or load_field_source()
+    controlled_keys = {
+        field["key"]
+        for field in [*experiment_fields(source), *entity_fields(source)]
+        if any(token in str(field.get("input") or "") for token in ("下拉", "多选", "多条"))
+    } | {"role", "option", "method", "file_kind", "observed_phenomenon"}
+    if isinstance(value, dict):
+        return {
+            item_key: canonicalize_controlled_values(
+                item,
+                source,
+                key=item_key,
+            )
+            for item_key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [canonicalize_controlled_values(item, source, key=key) for item in value]
+    if not isinstance(value, str) or key is None:
+        return value
+    normalized_key = key.removeprefix("source_").removesuffix("_snapshot")
+    if normalized_key in controlled_keys:
+        return canonical_option_value(value, source)
+    return value
 
 
 def module_key_for_field(field: dict[str, Any], doc: dict[str, Any] | None = None) -> str:
@@ -93,13 +180,15 @@ def entity_fields_by_key(doc: dict[str, Any] | None = None) -> dict[str, list[di
 
 def stage_type_names(doc: dict[str, Any] | None = None) -> list[str]:
     source = doc or load_field_source()
-    return [item["name"] for item in source["stage_types"]["types"]]
+    return [canonical_option_value(item["name"], source) for item in source["stage_types"]["types"]]
 
 
 def stage_types_with_group(group: str, doc: dict[str, Any] | None = None) -> set[str]:
     source = doc or load_field_source()
     return {
-        item["name"] for item in source["stage_types"]["types"] if group in item.get("shows", [])
+        canonical_option_value(item["name"], source)
+        for item in source["stage_types"]["types"]
+        if group in item.get("shows", [])
     }
 
 
@@ -142,7 +231,8 @@ def condition_local_key(
 
 def condition_matches(condition: dict[str, Any], value: Any) -> bool:
     op = condition.get("op")
-    expected = condition.get("value")
+    expected = canonical_option_value(condition.get("value"))
+    value = canonical_option_value(value)
     if isinstance(value, list):
         if op == "eq":
             return expected in value

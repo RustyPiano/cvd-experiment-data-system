@@ -64,6 +64,7 @@ const TEXTAREA_KEYS = new Set([
   'fixed_config',
   'coordinate_system',
 ])
+const NUMERIC_INPUT = '\u6570\u503c'
 
 export type EntityFormMode = 'create' | 'newVersion'
 
@@ -354,6 +355,9 @@ function EntityFieldControl({
               ) : (
                 <Input
                   {...rhf}
+                  type={field.input === NUMERIC_INPUT ? 'number' : 'text'}
+                  inputMode={field.input === NUMERIC_INPUT ? 'decimal' : undefined}
+                  step={field.input === NUMERIC_INPUT ? 'any' : undefined}
                   value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
                   autoComplete="off"
                   placeholder={placeholder}

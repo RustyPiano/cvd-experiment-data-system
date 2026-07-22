@@ -41,10 +41,10 @@ describe('parseEnumOptions', () => {
   })
 
   it.each([
-    ['target_morphology', '纳米片(flake)'],
-    ['appearance', '结块或潮解'],
-    ['material', '蓝宝石(Al₂O₃)'],
-    ['event_part', '其他（可加）'],
+    ['target_morphology', 'nanoflake'],
+    ['appearance', 'caked_or_deliquescent'],
+    ['material', 'sapphire_al2o3'],
+    ['event_part', 'other_addable'],
   ])('keeps the real %s option %s', (key, option) => {
     const item = Object.values(experimentModules)
       .flat()
@@ -246,9 +246,9 @@ describe('buildSubmitPayload', () => {
       gas_purity_grade: '6N',
     }
     const payload = buildSubmitPayload('material_lot', values)
-    expect(payload.lot_category).toBe('衬底')
+    expect(payload.lot_category).toBe('substrate')
     expect(payload.substance_name).toBe('MoO₃')
-    expect(payload.substrate_material).toBe('SiO₂/Si')
+    expect(payload.substrate_material).toBe('sio2_si')
     expect(payload).not.toHaveProperty('gas_purity_grade')
   })
 
@@ -256,11 +256,31 @@ describe('buildSubmitPayload', () => {
     const defaults = buildDefaultValues('setup', {
       field_devices: ['光', '电'],
     })
-    expect(defaults.field_devices).toEqual(['光', '电'])
+    expect(defaults.field_devices).toEqual(['light', 'electric_field'])
 
     const payload = buildSubmitPayload('setup', {
       field_devices: [' 光 ', '电', '光'],
     })
-    expect(payload.field_devices).toEqual(['光', '电'])
+    expect(payload.field_devices).toEqual(['light', 'electric_field'])
+  })
+
+  it('round-trips composite entity fields as structured values', () => {
+    const defaults = buildDefaultValues('setup', {
+      tube_outer_diameter_wall_mm: { value: 2, option: '2″' },
+    })
+    expect(defaults.tube_outer_diameter_wall_mm).toBe('2″；2')
+
+    const payload = buildSubmitPayload('setup', {
+      setup_code: 'CVD-01',
+      setup_name: 'Tube furnace',
+      zone_count: '3',
+      orientation: 'horizontal',
+      tube_outer_diameter_wall_mm: defaults.tube_outer_diameter_wall_mm,
+    })
+    expect(payload.tube_outer_diameter_wall_mm).toEqual({
+      value: 2,
+      option: 'tube_2_inch',
+    })
+    expect(payload.zone_count).toBe(3)
   })
 })

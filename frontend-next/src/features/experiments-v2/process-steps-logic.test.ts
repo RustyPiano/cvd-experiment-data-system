@@ -129,7 +129,7 @@ describe('§5 payload 键集对齐 discriminated union（同 stage_types 源）'
       { stage_type: '卸样' },
     ])
     expect(items).toHaveLength(1)
-    expect(items[0].stage_type).toBe('卸样')
+    expect(items[0].stage_type).toBe('unload')
   })
 
   it('允许键的空值下发 null，越域键不出现', () => {
@@ -139,7 +139,7 @@ describe('§5 payload 键集对齐 discriminated union（同 stage_types 源）'
       gas_species: 'CH₄',
     }) as Record<string, unknown>
     expect(payload.temperature_program).toBe('900/10/30')
-    expect(payload.gas_species).toBe('CH₄')
+    expect(payload.gas_species).toEqual(['CH4'])
     expect(payload.pressure_system).toBeNull()
     // cooling_params 属降温组，不在反应生长的键集内
     expect('cooling_params' in payload).toBe(false)

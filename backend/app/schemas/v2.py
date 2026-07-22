@@ -4,7 +4,9 @@ from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.services.v2_field_source import validate_chemical_formula
 
 
 class V2EntityVersionPayload(BaseModel):
@@ -39,7 +41,6 @@ class V2EntityVersionListResponse(BaseModel):
 class V2ExperimentCreate(BaseModel):
     started_at: datetime
     synthesis_method: str = Field(min_length=1)
-    operator: str = Field(min_length=1)
     run_code: str | None = Field(
         default=None,
         max_length=32,
@@ -47,6 +48,15 @@ class V2ExperimentCreate(BaseModel):
     )
     chemical_formula: str | None = Field(default=None, max_length=64)
     objective: str | None = None
+
+    @field_validator("chemical_formula", mode="before")
+    @classmethod
+    def normalize_formula(cls, value: object) -> object:
+        if value in (None, ""):
+            return value
+        if not isinstance(value, str):
+            raise ValueError("invalid chemical formula")
+        return validate_chemical_formula(value)
 
 
 class V2ExperimentRead(BaseModel):

@@ -5,7 +5,9 @@ import { getComponentRoleOptions } from '@/features/experiments-v2/field-logic'
 import {
   entities,
   experimentModules,
+  optionCodes,
   optionLabelsEn,
+  optionLabelsZh,
   stageTypes,
   unitLabelsEn,
 } from '@/shared/generated/field-metadata'
@@ -21,7 +23,7 @@ import {
 const CJK = /[\u3400-\u9fff]/
 
 describe('field display localization', () => {
-  it('has an English display label for every canonical CJK option', () => {
+  it('has preferred bilingual labels for every machine code', () => {
     const fields = [
       ...Object.values(experimentModules).flat(),
       ...Object.values(entities).flat(),
@@ -30,9 +32,15 @@ describe('field display localization', () => {
       (field) => parseEnumOptions(field.input, field.options) ?? [],
     )
 
-    for (const option of new Set(options.filter((value) => CJK.test(value)))) {
-      expect(optionLabelsEn[option], option).toBeTruthy()
-      expect(localizedOption(option, 'en'), option).not.toMatch(CJK)
+    for (const code of new Set(Object.values(optionCodes))) {
+      expect(optionLabelsZh[code], code).toBeTruthy()
+      expect(optionLabelsEn[code], code).toBeTruthy()
+      if (CJK.test(optionLabelsZh[code])) {
+        expect(optionLabelsEn[code], code).not.toMatch(CJK)
+      }
+    }
+    for (const option of new Set(options)) {
+      expect(optionLabelsEn[option] ?? option, option).toBeTruthy()
     }
     for (const stage of stageTypes) {
       expect(stage.labelEn, stage.name).not.toMatch(CJK)
@@ -66,6 +74,24 @@ describe('field display localization', () => {
     expect(localizedValue(['光', '电'], 'en')).toBe(
       'Light · Electric field',
     )
+  })
+
+  it('renders structured composite values with localized options', () => {
+    expect(
+      localizedValue({ value: 2, option: 'tube_2_inch' }, 'zh'),
+    ).toBe('2 · 2″')
+    expect(
+      localizedValue({ value: 101325, option: '常压(APCVD)' }, 'en'),
+    ).toBe('101325 · Atmospheric pressure (APCVD)')
+  })
+
+  it('keeps canonical pressure labels ahead of compatibility aliases', () => {
+    expect(optionLabelsZh.atmospheric_pressure).toBe('常压(APCVD)')
+    expect(optionLabelsEn.atmospheric_pressure).toBe(
+      'Atmospheric pressure (APCVD)',
+    )
+    expect(optionLabelsZh.low_pressure).toBe('低压(LPCVD)')
+    expect(optionLabelsEn.low_pressure).toBe('Low pressure (LPCVD)')
   })
 
   it('provides independent bilingual placeholders and paired help text', () => {

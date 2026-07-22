@@ -5,9 +5,13 @@ import zipfile
 from uuid import UUID
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.main import app
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.file_asset import FileAsset
+from app.models.module_payload import ExperimentModulePayload
+from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 
 client = TestClient(app)
 
@@ -76,7 +80,7 @@ def test_run_filters_share_visibility_and_return_operator(active_user, admin_use
         params={
             "query": "3001",
             "material_system": "Mo",
-            "operator": "alice",
+            "operator": "Active",
             "date_from": "2026-07-01",
             "date_to": "2026-07-05",
             "status": "draft",
@@ -85,16 +89,16 @@ def test_run_filters_share_visibility_and_return_operator(active_user, admin_use
     )
     assert filtered.status_code == 200, filtered.text
     assert filtered.json()["total"] == 1
-    assert filtered.json()["items"][0]["operator"] == "Alice Zhang"
+    assert filtered.json()["items"][0]["operator"] == active_user.name
 
     visible_to_member = client.get(
         "/api/v1/experiments",
-        params={"material_system": "Mo", "operator": "Alice"},
+        params={"material_system": "Mo", "operator": "User"},
         headers=member_headers,
     )
     visible_to_admin = client.get(
         "/api/v1/experiments",
-        params={"material_system": "Mo", "operator": "Alice"},
+        params={"material_system": "Mo", "operator": "User"},
         headers=admin_headers,
     )
     assert visible_to_member.json()["total"] == 1
@@ -146,6 +150,7 @@ def test_run_audit_timeline_is_readable_and_omits_payload_snapshots(active_user)
 def test_json_and_filtered_zip_exports_are_relational_and_utf8(
     active_user,
     admin_user,
+    db_session,
 ) -> None:
     member_headers = _headers(active_user.email)
     admin_headers = _headers(admin_user.email)
@@ -189,6 +194,34 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
     )
     assert upload.status_code == 201, upload.text
 
+    # Simulate legacy rows that predate machine-code writes. Export must normalize
+    # without mutating narrative text or requiring a data migration first.
+    target_payload = db_session.scalar(
+        select(ExperimentModulePayload).where(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "target_product",
+        )
+    )
+    target_payload.payload_json = {
+        "chemical_formula": "MoS2",
+        "structure_type": "掺杂",
+        "components": [{"formula": "MoS2", "role": "基体"}],
+    }
+    record = db_session.get(
+        CharacterizationRecord,
+        UUID(result["characterization_record_id"]),
+    )
+    product = db_session.get(MeasuredProduct, UUID(result["id"]))
+    file = db_session.get(FileAsset, UUID(upload.json()["id"]))
+    record.method_instrument = "光镜"
+    record.instrument_snapshot_json = {"method_instrument_snapshot": "光镜"}
+    record.attrs = {"method": "光镜"}
+    product.observed_phenomena = ["厚层区域"]
+    product.attrs = {"observed_phenomena": ["厚层区域"]}
+    file.method = "光镜"
+    file.file_kind = "光镜"
+    db_session.commit()
+
     exported_json = client.get(
         f"/api/v1/experiments/{run['id']}/export",
         headers=member_headers,
@@ -196,12 +229,22 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
     assert exported_json.status_code == 200, exported_json.text
     payload = json.loads(exported_json.content)
     assert payload["run"]["run_code"] == "CVD-2026-3201"
-    assert payload["run"]["operator"] == "张三"
+    assert payload["run"]["operator"] == active_user.name
     assert payload["samples"][0]["sample_code"] == sample["sample_code"]
     exported_result = payload["samples"][0]["results"][0]
-    assert exported_result["record"]["method"] == "Raman"
+    assert payload["modules"]["target_product"]["structure_type"] == "doped"
+    assert payload["modules"]["target_product"]["components"][0]["role"] == "matrix"
+    assert exported_result["record"]["method"] == "optical_microscopy"
+    assert exported_result["record"]["instrument_snapshot"] == {
+        "method_instrument_snapshot": "optical_microscopy"
+    }
+    assert exported_result["record"]["attrs"] == {"method": "optical_microscopy"}
     assert exported_result["record"]["files"][0]["filename"] == "拉曼.csv"
-    assert exported_result["measurement"]["observed_phenomena"] == ["厚层区域"]
+    assert exported_result["record"]["files"][0]["method"] == "optical_microscopy"
+    assert exported_result["measurement"]["observed_phenomena"] == ["thick_layer_regions"]
+    assert exported_result["measurement"]["attrs"] == {
+        "observed_phenomena": ["thick_layer_regions"]
+    }
     assert payload["run"]["setup_reference"] == {
         "id": None,
         "version": None,
@@ -217,7 +260,7 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
 
     exported_zip = client.get(
         "/api/v1/exports/runs",
-        params={"operator": "张三"},
+        params={"operator": active_user.name},
         headers=member_headers,
     )
     assert exported_zip.status_code == 200, exported_zip.text
@@ -239,12 +282,28 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
         )
         files = list(csv.DictReader(io.StringIO(archive.read("files.csv").decode("utf-8-sig"))))
     assert [row["run_code"] for row in runs] == ["CVD-2026-3201"]
-    assert runs[0]["operator"] == "张三"
+    assert runs[0]["operator"] == active_user.name
     assert runs[0]["objective"].startswith("'")
     assert results[0]["sample_code"] == sample["sample_code"]
-    assert results[0]["observed_phenomenon"] == "厚层区域"
+    assert results[0]["method"] == "optical_microscopy"
+    assert results[0]["observed_phenomenon"] == "thick_layer_regions"
     assert not results[0]["observed_phenomenon"].startswith("[")
+    nested_values = {
+        (row["detail_scope"], row["detail_path"], row["detail_value"]) for row in results
+    }
+    assert (
+        "instrument_snapshot",
+        "method_instrument_snapshot",
+        "optical_microscopy",
+    ) in nested_values
+    assert ("record_attrs", "method", "optical_microscopy") in nested_values
+    assert (
+        "measurement_attrs",
+        "observed_phenomena[0]",
+        "thick_layer_regions",
+    ) in nested_values
     assert files[0]["result_code"] == results[0]["result_code"]
+    assert files[0]["method"] == "optical_microscopy"
     assert files[0]["download_url"].endswith("/download")
 
 
@@ -272,7 +331,7 @@ def test_exports_keep_standalone_records_shared_results_and_soft_deleted_files(
             "method_instrument": "Raman",
             "test_conditions": "532 nm",
             "raw_data": {"peaks": [384, 403]},
-            "attrs": {"software": "LabSpec"},
+            "attrs": {"software": "LabSpec", "method": "光镜"},
         },
         headers=headers,
     )
@@ -330,7 +389,10 @@ def test_exports_keep_standalone_records_shared_results_and_soft_deleted_files(
     shared_results = [item for item in results if item["record"]["id"] == shared.json()["id"]]
     assert standalone_result["measurement"] is None
     assert standalone_result["record"]["raw_data"] == {"peaks": [384, 403]}
-    assert standalone_result["record"]["attrs"] == {"software": "LabSpec"}
+    assert standalone_result["record"]["attrs"] == {
+        "software": "LabSpec",
+        "method": "optical_microscopy",
+    }
     assert standalone_result["record"]["files"][0]["deleted_at"] is not None
     assert standalone_result["record"]["files"][0]["download_url"] is None
     assert len(shared_results) == 2
@@ -356,6 +418,12 @@ def test_exports_keep_standalone_records_shared_results_and_soft_deleted_files(
         "record_attrs",
         "measurement_attrs",
     }
+    assert any(
+        row["detail_scope"] == "record_attrs"
+        and row["detail_path"] == "method"
+        and row["detail_value"] == "optical_microscopy"
+        for row in result_rows
+    )
     assert all(not value.startswith(("[", "{")) for row in result_rows for value in row.values())
     assert len(file_rows) == 3
     shared_file_rows = [row for row in file_rows if row["filename"] == "shared.png"]
@@ -405,7 +473,7 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
                     {
                         "stage_type": "放气",
                         "gas_species": ["Ar", "H2"],
-                        "gas_flow_sccm": "10",
+                        "gas_flow_sccm": {"value": 10, "option": "MFC"},
                     }
                 ]
             }
@@ -413,6 +481,21 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
         headers=headers,
     )
     assert process.status_code == 200, process.text
+    process_payload = db_session.scalar(
+        select(ExperimentModulePayload).where(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "process_steps",
+        )
+    )
+    process_payload.payload_json = {
+        "items": [
+            {
+                "stage_type": "放气",
+                "gas_species": ["Ar", "H₂"],
+                "gas_flow_sccm": {"value": 10.0, "option": "MFC"},
+            }
+        ]
+    }
     stored_run = db_session.get(ExperimentRun, UUID(run["id"]))
     stored_run.status = ExperimentStatus.LOCKED
     stored_run.result_missing_todo = True
@@ -430,6 +513,9 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
     assert json_run["not_characterized_at"] is not None
     assert json_run["setup_reference"]["version"] == 1
     assert json_run["setup_reference"]["snapshot"]["setup_code_snapshot"] == ("SETUP-EXPORT-1")
+    json_step = exported_json.json()["modules"]["process_steps"]["items"][0]
+    assert json_step["stage_type"] == "vent"
+    assert json_step["gas_species"] == ["Ar", "H2"]
 
     exported_zip = client.get(
         "/api/v1/exports/runs",
@@ -445,11 +531,16 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
     assert {row["setup_code"] for row in run_rows} == {"SETUP-EXPORT-1"}
     assert {row["result_missing_todo"] for row in run_rows} == {"False"}
     assert all(row["not_characterized_at"] for row in run_rows)
-    assert {row["setup_detail_value"] for row in run_rows} == {"光", "电"}
+    assert {row["setup_detail_value"] for row in run_rows} == {
+        "light",
+        "electric_field",
+    }
     nested_gases = [row for row in process_rows if row["nested_field"] == "gas_species"]
     assert {row["nested_path"] for row in nested_gases} == {"[0]", "[1]"}
     assert {row["nested_value"] for row in nested_gases} == {"Ar", "H2"}
-    assert all(row["gas_flow_sccm"] == "10" for row in nested_gases)
+    nested_flow = [row for row in process_rows if row["nested_field"] == "gas_flow_sccm"]
+    assert {row["nested_path"] for row in nested_flow} == {"option", "value"}
+    assert {row["nested_value"] for row in nested_flow} == {"MFC", "10.0"}
 
     cleared = client.put(
         f"/api/v1/experiments/{run['id']}/not-characterized",

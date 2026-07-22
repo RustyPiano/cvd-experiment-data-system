@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from app.commands.export_v2_schema import export_v2_schema
@@ -38,17 +39,18 @@ def test_process_step_schema_discriminates_stage_type_and_forbids_hidden_groups(
         {
             "items": [
                 {
-                    "stage_type": "降温",
+                    "stage_type": "cooling",
                     "temperature_program": "750->25",
-                    "cooling_params": "随炉冷却",
-                    "gas_species": "Ar",
-                    "gas_flow_sccm": 80,
+                    "cooling_params": {"value": None, "option": "furnace_cooling"},
+                    "gas_species": ["Ar"],
+                    "gas_flow_sccm": {"value": 80, "option": "MFC"},
                 }
             ]
         }
     )
+    assert validator.is_valid({"items": [{"stage_type": "unload"}]})
     assert not validator.is_valid(
-        {"items": [{"stage_type": "卸样", "temperature_program": "should be hidden"}]}
+        {"items": [{"stage_type": "unload", "temperature_program": "should be hidden"}]}
     )
 
 
@@ -90,4 +92,99 @@ def test_generated_v2_payload_models_apply_record_local_conditions() -> None:
             ]
         },
     )
-    assert growth["items"][0]["stage_type"] == "反应生长"
+    assert growth["items"][0]["stage_type"] == "growth"
+
+
+@pytest.mark.parametrize("invalid", ["25", True, float("nan"), float("inf")])
+def test_generated_numeric_fields_reject_non_json_or_non_finite_numbers(invalid) -> None:
+    with pytest.raises(ValueError):
+        validate_v2_module_payload(
+            "basic_info",
+            {
+                "started_at": "2026-07-22T09:00:00",
+                "synthesis_method": "APCVD",
+                "operator": "Tester",
+                "run_code": "CVD-2026-0001",
+                "ambient_temperature_C": invalid,
+            },
+        )
+
+
+@pytest.mark.parametrize("invalid", ["194", 194.0, True, 0, 231])
+def test_bulk_space_group_is_a_strict_it_number(invalid) -> None:
+    with pytest.raises(ValueError):
+        validate_v2_module_payload(
+            "target_product",
+            {
+                "chemical_formula": "MoS2",
+                "structure_type": "intrinsic",
+                "bulk_space_group": invalid,
+            },
+        )
+    valid = validate_v2_module_payload(
+        "target_product",
+        {
+            "chemical_formula": "MoS2",
+            "structure_type": "intrinsic",
+            "bulk_space_group": 194,
+        },
+    )
+    assert valid["bulk_space_group"] == 194
+
+
+def test_composite_and_component_vocabularies_are_field_specific() -> None:
+    valid = validate_v2_module_payload(
+        "process_steps",
+        {
+            "items": [
+                {
+                    "stage_type": "vent",
+                    "gas_species": ["Ar"],
+                    "gas_flow_sccm": {"value": 80, "option": "MFC"},
+                }
+            ]
+        },
+    )
+    assert valid["items"][0]["gas_flow_sccm"] == {"value": 80.0, "option": "MFC"}
+
+    for bad_flow in (
+        {"value": "80", "option": "MFC"},
+        {"value": 80, "option": "atmospheric_pressure"},
+        {"value": float("nan"), "option": "MFC"},
+    ):
+        with pytest.raises(ValueError):
+            validate_v2_module_payload(
+                "process_steps",
+                {
+                    "items": [
+                        {
+                            "stage_type": "vent",
+                            "gas_species": ["Ar"],
+                            "gas_flow_sccm": bad_flow,
+                        }
+                    ]
+                },
+            )
+
+    with pytest.raises(ValueError):
+        validate_v2_module_payload(
+            "target_product",
+            {
+                "chemical_formula": "Nb:MoS2",
+                "structure_type": "doped",
+                "components": [{"formula": "Nb", "role": "other"}],
+            },
+        )
+
+
+def test_formula_normalization_matches_the_frontend_contract() -> None:
+    normalized = validate_v2_module_payload(
+        "target_product",
+        {"chemical_formula": " Mo S₂ ", "structure_type": "intrinsic"},
+    )
+    assert normalized["chemical_formula"] == "MoS2"
+    with pytest.raises(ValueError):
+        validate_v2_module_payload(
+            "target_product",
+            {"chemical_formula": "Mo(S)2", "structure_type": "intrinsic"},
+        )

@@ -47,7 +47,9 @@ export function FormulaInput({
             ? t('experimentsV2.formula.unknownSymbols', {
                 symbols: result.unknownSymbols.join('、'),
               })
-            : t('experimentsV2.formula.noElement')}
+            : !result.syntaxValid
+              ? t('experimentsV2.formula.invalidSyntax')
+              : t('experimentsV2.formula.noElement')}
         </p>
       ) : result.elements.length > 0 ? (
         <p id={messageId} className="text-xs text-muted-foreground">

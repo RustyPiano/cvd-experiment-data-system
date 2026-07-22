@@ -6,6 +6,7 @@ import {
   buildItemPayload,
   buildItemsModulePayload,
   buildTargetProductPayload,
+  componentsFromPayload,
   emptyComponentRow,
   emptyModuleValues,
   getComponentRoleOptions,
@@ -13,6 +14,7 @@ import {
   isFieldVisible,
   itemHasAnyValue,
   itemsFromPayload,
+  moduleValuesFromPayload,
   missingRequiredKeys,
   parseComponentRoles,
   resolveModuleConditionKey,
@@ -152,13 +154,14 @@ describe('parseComponentRoles', () => {
   it('extracts role enum from the components options string', () => {
     const components = field('target_product', 'components')
     expect(parseComponentRoles(components.options)).toEqual([
-      '基体',
-      '掺杂剂',
-      '上层',
-      '下层',
-      '横向域',
+      'matrix',
+      'dopant',
+      'alloy_component',
+      'top_layer',
+      'bottom_layer',
+      'lateral_domain',
     ])
-    expect(getComponentRoleOptions()).toContain('掺杂剂')
+    expect(getComponentRoleOptions()).toContain('dopant')
   })
 })
 
@@ -191,13 +194,56 @@ describe('payload builders align with backend module contract', () => {
     expect((composite.components as unknown[]).length).toBe(2)
   })
 
+  it('normalizes formulas, component roles, and component numbers on submit', () => {
+    const payload = buildTargetProductPayload(
+      { chemical_formula: ' Mo S₂ ', structure_type: '掺杂' },
+      [
+        {
+          ...emptyComponentRow(),
+          formula: ' Nb ',
+          role: '掺杂剂',
+          concentration_at_percent: '0.5',
+          layer_order: '2',
+        },
+      ],
+    )
+    expect(payload.chemical_formula).toBe('MoS2')
+    expect(payload.components).toEqual([
+      {
+        formula: 'Nb',
+        role: 'dopant',
+        concentration_at_percent: 0.5,
+        layer_order: 2,
+      },
+    ])
+  })
+
+  it('round-trips every gas species without collapsing an array into one token', () => {
+    const restored = moduleValuesFromPayload('process_steps', {
+      gas_species: ['Ar', 'H₂'],
+    })
+    expect(restored.gas_species).toEqual(['Ar', 'H2'])
+    const payload = buildItemPayload('process_steps', restored)
+    expect(payload.gas_species).toEqual(['Ar', 'H2'])
+  })
+
+  it('canonicalizes legacy component roles when entering edit state', () => {
+    expect(
+      componentsFromPayload({
+        components: [{ formula: 'MoS2', role: '基体' }],
+      }),
+    ).toEqual([
+      expect.objectContaining({ formula: 'MoS2', role: 'matrix' }),
+    ])
+  })
+
   it('item payload carries every field key; empty rows are filtered out', () => {
     const item = buildItemPayload('precursors', {
       name_formula: 'MoO₃',
       phase_state: '固',
     })
     expect(item.name_formula).toBe('MoO₃')
-    expect(item.phase_state).toBe('固')
+    expect(item.phase_state).toBe('solid')
     expect('amount' in item).toBe(true)
 
     const module = buildItemsModulePayload('precursors', [
@@ -215,13 +261,13 @@ describe('payload builders align with backend module contract', () => {
         source_id: sourceId,
         material: '蓝宝石',
       }),
-    ).toMatchObject({ material: '蓝宝石', source_id: sourceId })
+    ).toMatchObject({ material: 'sapphire', source_id: sourceId })
     expect(itemHasAnyValue({ source_id: sourceId })).toBe(false)
     expect(
       itemsFromPayload('substrates', {
         items: [{ source_id: sourceId, material: '蓝宝石' }],
       })[0],
-    ).toMatchObject({ source_id: sourceId, material: '蓝宝石' })
+    ).toMatchObject({ source_id: sourceId, material: 'sapphire' })
   })
 })
 

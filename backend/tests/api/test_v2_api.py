@@ -197,7 +197,7 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
                         "gas_species": "Ar",
                         "gas_flow_sccm": 80,
                         "pressure_system": "常压",
-                        "field_params": "等离子 50W",
+                        "field_params": 50,
                     }
                 ]
             }
@@ -323,7 +323,7 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
         headers=headers,
     )
     assert product.status_code == 201, product.text
-    assert product.json()["observed_phenomena"] == ["不连续覆盖"]
+    assert product.json()["observed_phenomena"] == ["discontinuous_coverage"]
 
     patch = client.patch(
         f"/api/v1/measured-products/{product.json()['id']}",

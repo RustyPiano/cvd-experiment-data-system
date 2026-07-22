@@ -10,30 +10,95 @@
       "additionalProperties": false,
       "properties": {
         "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Started At"
         },
         "synthesis_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Synthesis Method"
         },
         "operator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Operator"
         },
         "run_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Run Code"
         },
         "ambient_temperature_C": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Ambient Temperature C"
         },
         "ambient_humidity_percent": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Ambient Humidity Percent"
         },
         "particle_count_per_m3": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Particle Count Per M3"
         },
         "precheck_reminder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Precheck Reminder"
         }
@@ -49,35 +114,172 @@
       "$id": "https://standard.cvd-2d.org/2.0.0/basic_info.schema.json"
     },
     "target_product": {
+      "$defs": {
+        "ComponentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "formula": {
+              "title": "Formula",
+              "type": "string"
+            },
+            "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "matrix",
+                    "dopant",
+                    "alloy_component",
+                    "top_layer",
+                    "bottom_layer",
+                    "lateral_domain"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role"
+            },
+            "concentration_at_percent": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Concentration At Percent"
+            },
+            "layer_order": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Layer Order"
+            }
+          },
+          "required": [
+            "formula"
+          ],
+          "title": "ComponentPayload",
+          "type": "object"
+        }
+      },
       "additionalProperties": false,
       "properties": {
         "chemical_formula": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Chemical Formula"
         },
         "structure_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "alloy",
+                "doped",
+                "intrinsic",
+                "lateral_heterostructure",
+                "other",
+                "vertical_heterostructure"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Structure Type"
         },
         "components": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ComponentPayload"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Components"
         },
         "target_layer_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Target Layer Count"
         },
         "bulk_space_group": {
+          "anyOf": [
+            {
+              "maximum": 230,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Bulk Space Group"
         },
         "target_morphology": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Target Morphology"
         },
         "target_performance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Target Performance"
         },
         "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Note"
         }
@@ -91,46 +293,189 @@
       "$id": "https://standard.cvd-2d.org/2.0.0/target_product.schema.json"
     },
     "equipment": {
+      "$defs": {
+        "TubeOuterDiameterWallMmValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "custom",
+                    "tube_1_inch",
+                    "tube_2_inch",
+                    "tube_4_inch"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "TubeOuterDiameterWallMmValue",
+          "type": "object"
+        }
+      },
       "additionalProperties": false,
       "properties": {
         "setup_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Setup Ref"
         },
         "brand_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Brand Model"
         },
         "wall_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "cold_wall",
+                "hot_wall"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Wall Type"
         },
         "zone_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Zone Count"
         },
         "orientation": {
+          "anyOf": [
+            {
+              "enum": [
+                "horizontal",
+                "vertical"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Orientation"
         },
         "tube_material_shape": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Tube Material Shape"
         },
         "tube_outer_diameter_wall_mm": {
-          "default": null,
-          "title": "Tube Outer Diameter Wall Mm"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TubeOuterDiameterWallMmValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "coordinate_system": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Coordinate System"
         },
         "field_excitation": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "electric_field",
+                  "light",
+                  "none",
+                  "plasma"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Field Excitation"
         },
         "setup_diagram": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Setup Diagram"
         },
         "tube_boat_history": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Tube Boat History"
         }
@@ -146,48 +491,181 @@
     },
     "precursors": {
       "$defs": {
+        "BoatCrucibleValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "alumina_boat",
+                    "other",
+                    "quartz_boat"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "BoatCrucibleValue",
+          "type": "object"
+        },
         "PrecursorItemPayload": {
           "additionalProperties": false,
           "properties": {
             "name_formula": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Name Formula"
             },
             "cas_inchi": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Cas Inchi"
             },
             "phase_state": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "gas",
+                    "liquid",
+                    "solid"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Phase State"
             },
             "appearance": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Appearance"
             },
             "lot_ref": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Lot Ref"
             },
             "role": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "additive",
+                    "dopant_source",
+                    "main_precursor",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Role"
             },
             "amount": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Amount"
             },
             "treatment_steps": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Treatment Steps"
             },
             "boat_crucible": {
-              "default": null,
-              "title": "Boat Crucible"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BoatCrucibleValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "source_zone_temperature": {
-              "default": null,
-              "title": "Source Zone Temperature"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceZoneTemperatureValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "thermocouple_distance_mm": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Thermocouple Distance Mm"
             }
@@ -197,6 +675,38 @@
             "phase_state"
           ],
           "title": "PrecursorItemPayload",
+          "type": "object"
+        },
+        "SourceZoneTemperatureValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "const": "zone_1",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "SourceZoneTemperatureValue",
           "type": "object"
         }
       },
@@ -216,45 +726,176 @@
     },
     "substrates": {
       "$defs": {
+        "SizePlacementValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "face_down",
+                    "face_up",
+                    "tilted",
+                    "upright"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "SizePlacementValue",
+          "type": "object"
+        },
         "SubstrateItemPayload": {
           "additionalProperties": false,
           "properties": {
             "material": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Material"
             },
             "formula_orientation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Formula Orientation"
             },
             "oxide_thickness_nm": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Oxide Thickness Nm"
             },
             "surface_roughness_nm": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Surface Roughness Nm"
             },
             "size_placement": {
-              "default": null,
-              "title": "Size Placement"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SizePlacementValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "pretreatment_steps": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Pretreatment Steps"
             },
             "exposure_interval_min": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Exposure Interval Min"
             },
             "zone_thermocouple_distance_mm": {
-              "default": null,
-              "title": "Zone Thermocouple Distance Mm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ZoneThermocoupleDistanceMmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             }
           },
           "required": [
             "material"
           ],
           "title": "SubstrateItemPayload",
+          "type": "object"
+        },
+        "ZoneThermocoupleDistanceMmValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "const": "zone_2",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "ZoneThermocoupleDistanceMmValue",
           "type": "object"
         }
       },
@@ -274,51 +915,183 @@
     },
     "process_steps": {
       "$defs": {
+        "CoolingParamsValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "furnace_cooling",
+                    "open_lid_cooling",
+                    "rapid_furnace_move_cooling"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "CoolingParamsValue",
+          "type": "object"
+        },
         "CoolingStepPayload": {
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "降温",
+              "const": "cooling",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "temperature_program": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Temperature Program"
             },
             "measured_temperature": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Measured Temperature"
             },
             "temperature_metrology": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Temperature Metrology"
             },
             "cooling_params": {
-              "title": "Cooling Params"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CoolingParamsValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             }
@@ -337,23 +1110,54 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "抽气",
+              "const": "evacuation",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             }
@@ -364,51 +1168,183 @@
           "title": "EvacuationStepPayload",
           "type": "object"
         },
+        "GasFlowSccmValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "MFC",
+                    "rotameter"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "GasFlowSccmValue",
+          "type": "object"
+        },
         "GrowthStepPayload": {
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "反应生长",
+              "const": "growth",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "temperature_program": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Temperature Program"
             },
             "measured_temperature": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Measured Temperature"
             },
             "temperature_metrology": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Temperature Metrology"
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             },
             "field_params": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Field Params"
             }
@@ -427,23 +1363,54 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "漏检",
+              "const": "leak_check",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             }
@@ -458,48 +1425,145 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "后退火",
+              "const": "post_anneal",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "temperature_program": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Temperature Program"
             },
             "measured_temperature": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Measured Temperature"
             },
             "temperature_metrology": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Temperature Metrology"
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             },
             "field_params": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Field Params"
             }
@@ -513,52 +1577,185 @@
           "title": "PostAnnealStepPayload",
           "type": "object"
         },
+        "PressureSystemValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "atmospheric_pressure",
+                    "low_pressure",
+                    "ultra_high_vacuum"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "PressureSystemValue",
+          "type": "object"
+        },
         "PretreatmentStepPayload": {
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "预处理",
+              "const": "pretreatment",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "temperature_program": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Temperature Program"
             },
             "measured_temperature": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Measured Temperature"
             },
             "temperature_metrology": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Temperature Metrology"
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             },
             "field_params": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Field Params"
             }
@@ -576,33 +1773,98 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "吹扫",
+              "const": "purge",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             }
@@ -619,44 +1881,133 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "升温",
+              "const": "ramp",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "temperature_program": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Temperature Program"
             },
             "measured_temperature": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Measured Temperature"
             },
             "temperature_metrology": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Temperature Metrology"
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             }
@@ -674,44 +2025,133 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "温度稳定",
+              "const": "temperature_stabilization",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "temperature_program": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Temperature Program"
             },
             "measured_temperature": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Measured Temperature"
             },
             "temperature_metrology": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Temperature Metrology"
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             }
@@ -729,15 +2169,31 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "卸样",
+              "const": "unload",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             }
@@ -752,33 +2208,98 @@
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "放气",
+              "const": "vent",
               "title": "Stage Type",
               "type": "string"
             },
             "step_order_time": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Step Order Time"
             },
             "duration_cycles": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Duration Cycles"
             },
             "gas_species": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "Ar",
+                      "CH4",
+                      "H2",
+                      "N2",
+                      "O2",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Gas Species"
             },
             "gas_purity_impurities": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Gas Purity Impurities"
             },
             "gas_flow_sccm": {
-              "title": "Gas Flow Sccm"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GasFlowSccmValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pressure_system": {
-              "default": null,
-              "title": "Pressure System"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PressureSystemValue"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "base_pressure_leak": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Base Pressure Leak"
             }
@@ -798,17 +2319,17 @@
           "items": {
             "discriminator": {
               "mapping": {
-                "升温": "#/$defs/RampStepPayload",
-                "卸样": "#/$defs/UnloadStepPayload",
-                "反应生长": "#/$defs/GrowthStepPayload",
-                "后退火": "#/$defs/PostAnnealStepPayload",
-                "吹扫": "#/$defs/PurgeStepPayload",
-                "抽气": "#/$defs/EvacuationStepPayload",
-                "放气": "#/$defs/VentStepPayload",
-                "温度稳定": "#/$defs/TemperatureStabilizationStepPayload",
-                "漏检": "#/$defs/LeakCheckStepPayload",
-                "降温": "#/$defs/CoolingStepPayload",
-                "预处理": "#/$defs/PretreatmentStepPayload"
+                "cooling": "#/$defs/CoolingStepPayload",
+                "evacuation": "#/$defs/EvacuationStepPayload",
+                "growth": "#/$defs/GrowthStepPayload",
+                "leak_check": "#/$defs/LeakCheckStepPayload",
+                "post_anneal": "#/$defs/PostAnnealStepPayload",
+                "pretreatment": "#/$defs/PretreatmentStepPayload",
+                "purge": "#/$defs/PurgeStepPayload",
+                "ramp": "#/$defs/RampStepPayload",
+                "temperature_stabilization": "#/$defs/TemperatureStabilizationStepPayload",
+                "unload": "#/$defs/UnloadStepPayload",
+                "vent": "#/$defs/VentStepPayload"
               },
               "propertyName": "stage_type"
             },
@@ -862,18 +2383,56 @@
           "additionalProperties": false,
           "properties": {
             "event_part": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Event Part"
             },
             "occurred_at": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Occurred At"
             },
             "abort_reason": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "equipment_alarm",
+                    "manual_stop",
+                    "planned_completion"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Abort Reason"
             },
             "description_action": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": null,
               "title": "Description Action"
             }
@@ -897,29 +2456,113 @@
       "$id": "https://standard.cvd-2d.org/2.0.0/process_events.schema.json"
     },
     "pvd": {
+      "$defs": {
+        "PlasmaGasPressureValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "Ar",
+                    "ar_n2_other"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "PlasmaGasPressureValue",
+          "type": "object"
+        }
+      },
       "additionalProperties": false,
       "properties": {
         "target_lot_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Target Lot Ref"
         },
         "target_substrate_distance_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Target Substrate Distance Mm"
         },
         "power_bias": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Power Bias"
         },
         "plasma_gas_pressure": {
-          "default": null,
-          "title": "Plasma Gas Pressure"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlasmaGasPressureValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "presputter_shutter": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Presputter Shutter"
         },
         "deposition_rate_nm_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "title": "Deposition Rate Nm S"
         }

@@ -60,6 +60,7 @@ interface RawDoc {
   modules: Record<string, string>
   entity_keys: Record<string, string>
   option_labels_en: Record<string, string>
+  option_codes: Record<string, string>
   unit_labels_en: Record<string, string>
   field_ui_defaults: {
     input_placeholder: string
@@ -103,13 +104,16 @@ interface FieldMetadata {
 function toFieldMetadata(
   field: RawField,
   defaults: RawDoc['field_ui_defaults'],
+  optionCodes: Record<string, string>,
 ): FieldMetadata {
   const req = field.requirement
   const condition = req.condition
     ? {
         field: req.condition.field,
         op: req.condition.op,
-        value: req.condition.value,
+        value: Array.isArray(req.condition.value)
+          ? req.condition.value.map((value) => optionCodes[value] ?? value)
+          : (optionCodes[req.condition.value] ?? req.condition.value),
       }
     : null
   return {
@@ -142,6 +146,7 @@ function groupByModule(
   sections: RawSection[],
   moduleMap: Record<string, string>,
   defaults: RawDoc['field_ui_defaults'],
+  optionCodes: Record<string, string>,
 ): Record<string, FieldMetadata[]> {
   const out: Record<string, FieldMetadata[]> = {}
   for (const section of sections) {
@@ -152,7 +157,7 @@ function groupByModule(
           `模块 ${field.module} 未在 modules/entity_keys 映射中登记（字段 ${field.key}）`,
         )
       }
-      ;(out[key] ??= []).push(toFieldMetadata(field, defaults))
+      ;(out[key] ??= []).push(toFieldMetadata(field, defaults, optionCodes))
     }
   }
   return out
@@ -160,6 +165,7 @@ function groupByModule(
 
 interface StageType {
   name: string
+  labelZh: string
   labelEn: string
   shows: string[]
   requiredExtra?: string[]
@@ -177,16 +183,19 @@ const experimentModules = groupByModule(
   doc.experiment_record.sections,
   doc.modules,
   doc.field_ui_defaults,
+  doc.option_codes,
 )
 const entities = groupByModule(
   doc.entities.sections,
   doc.entity_keys,
   doc.field_ui_defaults,
+  doc.option_codes,
 )
 const stageGroups = doc.stage_types.groups
 const stageTypes: StageType[] = doc.stage_types.types.map((type) => {
   const out: StageType = {
-    name: type.name,
+    name: doc.option_codes[type.name] ?? type.name,
+    labelZh: type.name,
     labelEn: doc.option_labels_en[type.name] ?? type.name,
     shows: type.shows ?? [],
   }
@@ -195,6 +204,20 @@ const stageTypes: StageType[] = doc.stage_types.types.map((type) => {
   }
   return out
 })
+
+function preferredOptionLabels(
+  language: 'zh' | 'en',
+): Record<string, string> {
+  const labels: Record<string, string> = {}
+  for (const [labelZh, code] of Object.entries(doc.option_codes)) {
+    if (labels[code] !== undefined) continue
+    labels[code] =
+      language === 'zh'
+        ? labelZh
+        : (doc.option_labels_en[labelZh] ?? labelZh)
+  }
+  return labels
+}
 
 const TYPES = `export interface FieldMetadataMeta {
   version: string
@@ -251,7 +274,9 @@ export interface FieldMetadata {
 
 export interface StageType {
   name: string
-  /** 英文显示名；提交值仍使用 name 的中文规范值 */
+  /** 中文显示名；name 是稳定机器码。 */
+  labelZh: string
+  /** 英文显示名；提交值使用 name 的稳定机器码。 */
   labelEn: string
   /** 该阶段显示哪些参数组（stageGroups 的键；common 恒显） */
   shows: string[]
@@ -273,7 +298,9 @@ const content =
     `export const fieldMetadataMeta: FieldMetadataMeta = ${JSON.stringify(meta, null, 2)}`,
     `/** §1–§8 实验记录字段，按模块键分组（basic_info / target_product / … / pvd） */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
     `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
-    `/** 规范选项值 → 英文显示名；提交与存储始终保留规范值 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(doc.option_labels_en, null, 2)}`,
+    `/** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,
+    `/** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(preferredOptionLabels('en'), null, 2)}`,
+    `/** 旧中文规范值 → 稳定机器码；只用于读取兼容与提交规范化。 */\nexport const optionCodes: Record<string, string> = ${JSON.stringify(doc.option_codes, null, 2)}`,
     `/** 规范单位 → 英文显示名 */\nexport const unitLabelsEn: Record<string, string> = ${JSON.stringify(doc.unit_labels_en, null, 2)}`,
     `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
     `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,

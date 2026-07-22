@@ -18,15 +18,15 @@ def build_upload(filename: str, content: bytes) -> UploadFile:
 
 def test_characterization_methods_come_from_field_source() -> None:
     assert field_option_values("method_instrument") == {
-        "光镜",
+        "optical_microscopy",
         "SEM",
         "Raman",
-        "低波数Raman",
+        "low_frequency_raman",
         "PL",
         "AFM",
         "XRD",
         "TEM",
-        "其他",
+        "other",
     }
 
 

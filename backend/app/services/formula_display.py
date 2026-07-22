@@ -15,16 +15,22 @@ def render_formula_display(
     """
 
     parts = components or []
-    if structure_type == "本征" or not parts:
+    if structure_type in {"intrinsic", "本征"} or not parts:
         return chemical_formula
-    if structure_type == "垂直异质结":
+    if structure_type in {"vertical_heterostructure", "垂直异质结"}:
         ordered = sorted(parts, key=_layer_order)
         return "/".join(_formula(part) for part in ordered if _formula(part)) or chemical_formula
-    if structure_type == "横向异质结":
+    if structure_type in {"lateral_heterostructure", "横向异质结"}:
         return "-".join(_formula(part) for part in parts if _formula(part)) or chemical_formula
-    if structure_type == "掺杂":
-        dopant = next((_formula(part) for part in parts if part.get("role") == "掺杂剂"), "")
-        matrix = next((_formula(part) for part in parts if part.get("role") == "基体"), "")
+    if structure_type in {"doped", "掺杂"}:
+        dopant = next(
+            (_formula(part) for part in parts if part.get("role") in {"dopant", "掺杂剂"}),
+            "",
+        )
+        matrix = next(
+            (_formula(part) for part in parts if part.get("role") in {"matrix", "基体"}),
+            "",
+        )
         if dopant and matrix:
             return f"{dopant}:{matrix}"
     return chemical_formula

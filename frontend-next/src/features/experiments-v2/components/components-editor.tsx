@@ -102,7 +102,9 @@ export function ComponentsEditor({
             </label>
             <Input
               id={`component-${index}-concentration`}
+              type="number"
               inputMode="decimal"
+              step="any"
               value={row.concentration_at_percent}
               onChange={(event) =>
                 updateRow(index, {
@@ -122,7 +124,9 @@ export function ComponentsEditor({
             </label>
             <Input
               id={`component-${index}-layer-order`}
+              type="number"
               inputMode="numeric"
+              step="1"
               value={row.layer_order}
               onChange={(event) =>
                 updateRow(index, { layer_order: event.target.value })

@@ -139,16 +139,21 @@ const SUBSCRIPT_MAP: Record<string, string> = {
   '₉': '9',
 }
 
-function normalizeSubscripts(input: string): string {
-  return input.replace(/[₀-₉]/g, (ch) => SUBSCRIPT_MAP[ch] ?? ch)
+export function normalizeChemicalFormula(input: string): string {
+  return input
+    .replace(/[₀-₉]/g, (ch) => SUBSCRIPT_MAP[ch] ?? ch)
+    .replace(/\s+/g, '')
 }
+
+const FORMULA_PATTERN =
+  /^(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+(?:[-:/](?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+)*$/
 
 /**
  * 从化学式抽取元素符号 token：把非字母字符（数字/下标/分隔符 / - : · ( ) 空格 等）视作断点，
  * 再按「大写字母 + 若干小写字母」贪婪切分（如 'MoS2'→['Mo','S']，'Al₂O₃'→['Al','O']）。
  */
 export function extractElementSymbols(formula: string): string[] {
-  const letters = normalizeSubscripts(formula).replace(/[^A-Za-z]+/g, ' ')
+  const letters = normalizeChemicalFormula(formula).replace(/[^A-Za-z]+/g, ' ')
   return letters.match(/[A-Z][a-z]*/g) ?? []
 }
 
@@ -161,6 +166,8 @@ export interface FormulaValidation {
   elements: string[]
   /** 非法（非周期表）符号 token。 */
   unknownSymbols: string[]
+  /** 是否符合元素+化学计量+体系分隔符语法。 */
+  syntaxValid: boolean
 }
 
 /**
@@ -170,9 +177,16 @@ export interface FormulaValidation {
 export function validateChemicalFormula(input: string): FormulaValidation {
   const trimmed = input.trim()
   if (trimmed === '') {
-    return { valid: true, empty: true, elements: [], unknownSymbols: [] }
+    return {
+      valid: true,
+      empty: true,
+      elements: [],
+      unknownSymbols: [],
+      syntaxValid: true,
+    }
   }
-  const tokens = extractElementSymbols(trimmed)
+  const normalized = normalizeChemicalFormula(trimmed)
+  const tokens = extractElementSymbols(normalized)
   const seen = new Set<string>()
   const elements: string[] = []
   const unknownSymbols: string[] = []
@@ -186,8 +200,16 @@ export function validateChemicalFormula(input: string): FormulaValidation {
       unknownSymbols.push(token)
     }
   }
-  const valid = tokens.length > 0 && unknownSymbols.length === 0
-  return { valid, empty: false, elements, unknownSymbols }
+  const syntaxValid = FORMULA_PATTERN.test(normalized)
+  const valid =
+    syntaxValid && tokens.length > 0 && unknownSymbols.length === 0
+  return {
+    valid,
+    empty: false,
+    elements,
+    unknownSymbols,
+    syntaxValid,
+  }
 }
 
 // ── 显示串（formula_display）复刻，与后端 app/services/formula_display.py 同规则 ──
@@ -221,8 +243,16 @@ export function renderFormulaDisplay(
   components: DisplayComponent[] = [],
 ): string {
   const parts = components ?? []
-  if (structureType === '本征' || parts.length === 0) return chemicalFormula
-  if (structureType === '垂直异质结') {
+  if (
+    structureType === 'intrinsic' ||
+    structureType === '本征' ||
+    parts.length === 0
+  )
+    return chemicalFormula
+  if (
+    structureType === 'vertical_heterostructure' ||
+    structureType === '垂直异质结'
+  ) {
     const ordered = [...parts].sort((a, b) => {
       const [oa, fa] = layerOrder(a)
       const [ob, fb] = layerOrder(b)
@@ -231,16 +261,21 @@ export function renderFormulaDisplay(
     const joined = ordered.map(componentFormula).filter(Boolean).join('/')
     return joined || chemicalFormula
   }
-  if (structureType === '横向异质结') {
+  if (
+    structureType === 'lateral_heterostructure' ||
+    structureType === '横向异质结'
+  ) {
     const joined = parts.map(componentFormula).filter(Boolean).join('-')
     return joined || chemicalFormula
   }
-  if (structureType === '掺杂') {
+  if (structureType === 'doped' || structureType === '掺杂') {
     const dopant = componentFormula(
-      parts.find((part) => part.role === '掺杂剂') ?? {},
+      parts.find(
+        (part) => part.role === 'dopant' || part.role === '掺杂剂',
+      ) ?? {},
     )
     const matrix = componentFormula(
-      parts.find((part) => part.role === '基体') ?? {},
+      parts.find((part) => part.role === 'matrix' || part.role === '基体') ?? {},
     )
     if (dopant && matrix) return `${dopant}:${matrix}`
   }

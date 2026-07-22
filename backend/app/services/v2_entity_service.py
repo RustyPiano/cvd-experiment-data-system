@@ -29,11 +29,14 @@ from app.schemas.v2 import (
 )
 from app.services.audit_service import AuditService
 from app.services.v2_field_source import (
+    canonical_option_value,
     condition_local_key,
     condition_matches,
     entity_fields_by_key,
+    field_option_values,
     load_field_source,
     missing,
+    validate_chemical_formula,
 )
 
 
@@ -64,6 +67,7 @@ ENTITY_CONFIGS = {
 
 INTEGER_MIN = -(2**31)
 INTEGER_MAX = 2**31 - 1
+COMPOSITE_INPUTS = {"数值+下拉", "下拉+数值", "文本+下拉", "下拉+文本"}
 
 
 class V2EntityService:
@@ -177,6 +181,29 @@ class V2EntityService:
         for key, value in data.items():
             if missing(value):
                 continue
+            input_type = str(fields[key].get("input") or "")
+            if input_type in COMPOSITE_INPUTS:
+                data[key] = self._normalize_composite_value(key, input_type, value)
+                value = data[key]
+            elif "下拉" in input_type or "多选" in input_type:
+                data[key] = canonical_option_value(value, self.doc)
+                value = data[key]
+                if "其他" not in input_type:
+                    allowed_values = field_option_values(key, self.doc)
+                    candidates = value if isinstance(value, list) else [value]
+                    if any(candidate not in allowed_values for candidate in candidates):
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            detail={"invalid": [{"key": key, "reason": "value"}]},
+                        )
+            if key == "chemical_formula":
+                try:
+                    data[key] = validate_chemical_formula(str(value))
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": key, "reason": "value"}]},
+                    ) from exc
             if str(fields[key].get("input") or "").strip() == "数值":
                 try:
                     column_type = (
@@ -225,12 +252,55 @@ class V2EntityService:
             **column_values,
         )
 
+    def _normalize_composite_value(self, key: str, input_type: str, raw: Any) -> dict[str, Any]:
+        allowed_options = field_option_values(key, self.doc)
+        if isinstance(raw, dict):
+            if set(raw) - {"value", "option"}:
+                self._raise_invalid(key, "value")
+            free_value = raw.get("value")
+            option = canonical_option_value(raw.get("option"), self.doc)
+        else:
+            canonical = canonical_option_value(raw, self.doc)
+            if canonical in allowed_options:
+                free_value, option = None, canonical
+            else:
+                free_value, option = raw, None
+
+        if option is not None and option not in allowed_options:
+            self._raise_invalid(key, "value")
+        if free_value == "":
+            free_value = None
+        if "数值" in input_type and free_value is not None:
+            try:
+                if isinstance(free_value, bool):
+                    raise ValueError
+                free_value = float(free_value)
+                if not isfinite(free_value):
+                    raise ValueError
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": key, "reason": "type"}]},
+                ) from exc
+        elif free_value is not None and not isinstance(free_value, str):
+            self._raise_invalid(key, "type")
+        if free_value is None and option is None:
+            self._raise_invalid(key, "value")
+        return {"value": free_value, "option": option}
+
+    @staticmethod
+    def _raise_invalid(key: str, reason: str) -> None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"invalid": [{"key": key, "reason": reason}]},
+        )
+
     def _validate_entity_payload(self, kind: str, data: dict[str, Any]) -> None:
         field_devices = data.get("field_devices")
         if (
             kind == "setup"
             and isinstance(field_devices, list)
-            and "无" in field_devices
+            and any(value in {"none", "无"} for value in field_devices)
             and len(field_devices) > 1
         ):
             raise HTTPException(

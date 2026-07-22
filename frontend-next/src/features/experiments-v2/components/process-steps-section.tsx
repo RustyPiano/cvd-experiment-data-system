@@ -6,12 +6,13 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import type { ModuleValues } from '../field-logic'
+import type { ModuleFieldValue, ModuleValues } from '../field-logic'
 import {
   emptyModuleValues,
   getModuleFields,
   isProcessStepFieldRequired,
   isProcessStepFieldVisible,
+  moduleValueAsString,
 } from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
@@ -39,7 +40,11 @@ export function ProcessStepsSection({
   const fields = getModuleFields('process_steps')
   const stageTypeField = fields.find((field) => field.key === STAGE_TYPE_KEY)
 
-  const setStepValue = (stepIndex: number, key: string, value: string) => {
+  const setStepValue = (
+    stepIndex: number,
+    key: string,
+    value: ModuleFieldValue,
+  ) => {
     onStepsChange(
       steps.map((step, i) =>
         i === stepIndex ? { ...step, [key]: value } : step,
@@ -76,7 +81,7 @@ export function ProcessStepsSection({
 
       <div className="flex flex-col gap-4">
         {steps.map((step, stepIndex) => {
-          const stageType = step[STAGE_TYPE_KEY] ?? ''
+          const stageType = moduleValueAsString(step[STAGE_TYPE_KEY])
           return (
             <div
               key={stepIndex}

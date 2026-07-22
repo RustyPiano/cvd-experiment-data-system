@@ -36,8 +36,10 @@ from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import apply_setup_reference
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
+    canonical_option_value,
     missing,
     stage_types_with_group,
+    validate_chemical_formula,
 )
 from app.services.v2_r0_service import missing_r0_fields, missing_required_fields
 from app.services.v2_result_status_service import (
@@ -56,6 +58,17 @@ class V2ExperimentService:
         self.audit = AuditService(db)
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
+        try:
+            chemical_formula = (
+                validate_chemical_formula(payload.chemical_formula)
+                if payload.chemical_formula
+                else None
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "chemical_formula", "reason": "value"}]},
+            ) from exc
         attempts = 1 if payload.run_code else 4
         for attempt in range(attempts):
             try:
@@ -71,7 +84,7 @@ class V2ExperimentService:
                 run_code=run_code,
                 owner_id=current_user.id,
                 schema_version=SCHEMA_VERSION,
-                material_system=payload.chemical_formula,
+                material_system=chemical_formula,
                 experiment_date=payload.started_at.date(),
                 objective=payload.objective,
                 status=ExperimentStatus.DRAFT,
@@ -92,17 +105,20 @@ class V2ExperimentService:
             "basic_info",
             {
                 "started_at": payload.started_at.isoformat(),
-                "synthesis_method": payload.synthesis_method,
-                "operator": payload.operator,
+                "synthesis_method": canonical_option_value(payload.synthesis_method),
+                "operator": current_user.name,
                 "run_code": run.run_code,
             },
         )
-        if payload.chemical_formula:
+        if chemical_formula:
             self._save_v2_payload(
                 run.id,
                 "target_product",
-                # structure_type defaults to "本征" here; the user refines it in the form later.
-                {"chemical_formula": payload.chemical_formula, "structure_type": "本征"},
+                # structure_type defaults to the stable controlled-vocabulary code.
+                {
+                    "chemical_formula": chemical_formula,
+                    "structure_type": "intrinsic",
+                },
             )
         self.audit.record_event(
             actor=current_user,
@@ -307,6 +323,7 @@ class V2ExperimentService:
             ) from exc
         if module_key == "basic_info":
             validated["run_code"] = run.run_code
+            validated["operator"] = run.owner_name or current_user.name
             started_at = validated["started_at"]
             if not isinstance(started_at, str):
                 raise HTTPException(
@@ -509,12 +526,16 @@ class V2ExperimentService:
         snapshot = run.setup_ref_snapshot_json or {}
         attrs = snapshot.get("attrs_snapshot") or {}
         field_devices = attrs.get("field_devices")
-        if isinstance(field_devices, list) and "无" in field_devices and field_devices != ["无"]:
+        if (
+            isinstance(field_devices, list)
+            and any(value in {"none", "无"} for value in field_devices)
+            and field_devices not in (["none"], ["无"])
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="无 must be the only external field device selection",
             )
-        if missing(field_devices) or field_devices == "无" or field_devices == ["无"]:
+        if missing(field_devices) or field_devices in ("none", "无", ["none"], ["无"]):
             return
         external_stage_types = stage_types_with_group("external_field")
         for step in payload_json.get("items") or []:

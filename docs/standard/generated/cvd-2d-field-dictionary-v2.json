@@ -40,7 +40,7 @@
       "condition": null,
       "requirement": "required",
       "unit": null,
-      "options": "课题组成员"
+      "options": null
     },
     {
       "source_part": "experiment_record",
@@ -112,8 +112,8 @@
       "module": "目标产物",
       "module_key": "target_product",
       "key": "chemical_formula",
-      "label": "化学体系/化学式",
-      "label_en": "Chemical system / formula",
+      "label": "目标材料化学式",
+      "label_en": "Target material formula",
       "r0": true,
       "condition": null,
       "requirement": "required",
@@ -148,7 +148,7 @@
       },
       "requirement": "conditional_required",
       "unit": null,
-      "options": "每条:化学式/角色(基体·掺杂剂·上层·下层·横向域)/浓度(at%)/层序(整数)"
+      "options": "每条:化学式/角色(基体·掺杂剂·合金组分·上层·下层·横向域)/浓度(at%)/层序(整数)"
     },
     {
       "source_part": "experiment_record",
@@ -174,7 +174,7 @@
       "condition": null,
       "requirement": "optional",
       "unit": null,
-      "options": "空间群号(1–230)+单层结构说明；未指定"
+      "options": null
     },
     {
       "source_part": "experiment_record",
@@ -710,7 +710,7 @@
       "condition": null,
       "requirement": "required",
       "unit": null,
-      "options": "Ar/N₂/H₂/O₂/CH₄/其他"
+      "options": "Ar/N2/H2/O2/CH4/其他"
     },
     {
       "source_part": "experiment_record",

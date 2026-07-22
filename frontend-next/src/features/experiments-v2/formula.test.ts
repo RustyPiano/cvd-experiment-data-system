@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractElementSymbols,
+  normalizeChemicalFormula,
   renderFormulaDisplay,
   validateChemicalFormula,
 } from './formula'
@@ -14,6 +15,13 @@ describe('extractElementSymbols', () => {
   })
 })
 
+describe('normalizeChemicalFormula', () => {
+  it('normalizes Unicode subscripts and whitespace to the stored ASCII form', () => {
+    expect(normalizeChemicalFormula(' Mo S₂ ')).toBe('MoS2')
+    expect(normalizeChemicalFormula('SiO₂ / Si')).toBe('SiO2/Si')
+  })
+})
+
 describe('validateChemicalFormula (元素校验)', () => {
   it('accepts valid formulas and reports parsed elements (deduped)', () => {
     expect(validateChemicalFormula('MoS2')).toMatchObject({
@@ -23,6 +31,7 @@ describe('validateChemicalFormula (元素校验)', () => {
     })
     expect(validateChemicalFormula('WSe2').valid).toBe(true)
     expect(validateChemicalFormula('MoS₂').valid).toBe(true)
+    expect(validateChemicalFormula(' Mo S₂ ').valid).toBe(true)
     expect(validateChemicalFormula('SiO₂/Si').elements).toEqual(['Si', 'O'])
   })
 
@@ -46,6 +55,14 @@ describe('validateChemicalFormula (元素校验)', () => {
     expect(moq.valid).toBe(false)
     expect(moq.unknownSymbols).toContain('Q')
     expect(moq.elements).toContain('Mo')
+  })
+
+  it('rejects unsupported grouping syntax instead of accepting its elements', () => {
+    expect(validateChemicalFormula('Mo(S)2')).toMatchObject({
+      valid: false,
+      syntaxValid: false,
+      elements: ['Mo', 'S'],
+    })
   })
 })
 

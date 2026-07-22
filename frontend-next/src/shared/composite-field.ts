@@ -1,3 +1,5 @@
+import { canonicalOption } from '@/shared/field-i18n'
+
 export const COMPOSITE_INPUTS = [
   '数值+下拉',
   '下拉+数值',
@@ -35,7 +37,11 @@ export function parseCompositeValue(
   const stored = value
   const trimmed = stored.trim()
   if (!trimmed) return { freeValue: '', option: '' }
-  if (options.includes(trimmed)) return { freeValue: '', option: trimmed }
+  const canonicalOptions = options.map(canonicalOption)
+  const canonicalTrimmed = canonicalOption(trimmed)
+  if (canonicalOptions.includes(canonicalTrimmed)) {
+    return { freeValue: '', option: canonicalTrimmed }
+  }
 
   const match = isFreeFirst(input)
     ? (stored.match(/^(.*)（([^（）]+)）$/) ??
@@ -45,7 +51,10 @@ export function parseCompositeValue(
     const [freeValue, option] = isFreeFirst(input)
       ? [match[1], match[2].trim()]
       : [match[2], match[1].trim()]
-    if (options.includes(option)) return { freeValue, option }
+    const canonical = canonicalOption(option)
+    if (canonicalOptions.includes(canonical)) {
+      return { freeValue, option: canonical }
+    }
   }
 
   return { freeValue: stored, option: '' }

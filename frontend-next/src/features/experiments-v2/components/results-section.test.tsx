@@ -267,6 +267,33 @@ describe('unified sample results', () => {
     )
   })
 
+  it('canonicalizes legacy result options before edit and resave', async () => {
+    resultsApi.listResults.mockResolvedValue({
+      items: [
+        {
+          ...characterizationResult,
+          method_instrument: '光镜',
+          observed_phenomena: ['厚层区域'],
+        },
+      ],
+      total: 1,
+    })
+    const user = userEvent.setup()
+    renderResults()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit result' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(resultsApi.updateResult).toHaveBeenCalledWith(
+      'result-characterization',
+      expect.objectContaining({
+        method_instrument: 'optical_microscopy',
+        observed_phenomena: ['thick_layer_regions'],
+      }),
+      'token',
+    )
+  })
+
   it('creates derived samples from the active sample', async () => {
     const user = userEvent.setup()
     renderResults()

@@ -436,6 +436,7 @@ export const common = {
     formula: {
       parsedElements: '识别元素：{{elements}}',
       unknownSymbols: '非法元素符号：{{symbols}}',
+      invalidSyntax: '请使用元素符号、普通数字与 / - : 分隔符',
       noElement: '未识别到有效元素符号',
     },
     components: {
@@ -461,8 +462,21 @@ export const common = {
       },
       targetProduct: {
         title: '目标产物',
-        subtitle:
-          '结构类型判别复合体系；化学式会自动校验元素符号，显示名称自动生成。',
+        subtitle: '先选择结构类型，再按对应规则填写化学式和组成。',
+        guideTitle: '填写规则',
+        guides: {
+          intrinsic: '本征：只填目标材料化学式，例如 MoS2；不填组成明细。',
+          doped:
+            '掺杂：化学式按“掺杂剂:基体”填写，例如 Nb:MoS2。组成明细填两行：MoS2 选“基体”，Nb 选“掺杂剂”；已知名义掺杂量时填浓度（at%），层序留空。',
+          alloy:
+            '合金：化学式填名义化学计量，例如 Mo0.5W0.5S2。每种合金元素或组分各填一行，角色选“合金组分”；已知时填名义浓度（at%），层序留空。',
+          vertical:
+            '垂直异质结：化学式按“下层/上层”填写，例如 MoS2/WS2。每层一行，角色选“下层”或“上层”；层序 1 表示最靠近衬底，向上递增，浓度留空。',
+          lateral:
+            '横向异质结：化学式用“-”连接，例如 MoS2-WS2。每个横向域各填一行，角色选“横向域”；浓度和层序留空。',
+          other:
+            '其他：用普通数字填写课题组约定的化学式，并在组成明细中逐条记录组分；只填写适用的浓度或层序，关系在备注中说明。',
+        },
         displayPreview: '显示串预览',
         displayNote: '与后端 formula_display 规则保持一致。',
       },

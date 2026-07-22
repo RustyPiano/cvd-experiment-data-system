@@ -57,7 +57,7 @@ def test_direct_observation_uses_one_result_contract(active_user) -> None:
     result = created.json()
     assert result["kind"] == "direct_observation"
     assert result["characterization_record_id"] is None
-    assert result["observed_phenomena"] == ["不连续覆盖"]
+    assert result["observed_phenomena"] == ["discontinuous_coverage"]
 
     listed = client.get(f"/api/v1/samples/{sample_id}/results", headers=headers)
     assert listed.status_code == 200
@@ -72,7 +72,7 @@ def test_direct_observation_uses_one_result_contract(active_user) -> None:
         headers=headers,
     )
     assert updated.status_code == 200, updated.text
-    assert updated.json()["observed_phenomena"] == ["无生长"]
+    assert updated.json()["observed_phenomena"] == ["no_growth"]
 
     switched = client.put(
         f"/api/v1/results/{result['id']}",

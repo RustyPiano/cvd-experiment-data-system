@@ -470,6 +470,8 @@ export const common = {
     formula: {
       parsedElements: 'Elements: {{elements}}',
       unknownSymbols: 'Invalid element symbols: {{symbols}}',
+      invalidSyntax:
+        'Use element symbols, plain digits, and / - : separators only',
       noElement: 'No valid element symbol recognized',
     },
     components: {
@@ -497,7 +499,22 @@ export const common = {
       targetProduct: {
         title: 'Target product',
         subtitle:
-          'Structure type identifies composite systems; formulas validate element symbols automatically, and display names are generated automatically.',
+          'Select a structure type first, then follow its formula and composition rule.',
+        guideTitle: 'How to fill this section',
+        guides: {
+          intrinsic:
+            'Intrinsic: enter only the target material formula, such as MoS2; do not add composition rows.',
+          doped:
+            'Doped: use “dopant:matrix”, such as Nb:MoS2. Add two composition rows: MoS2 as Matrix and Nb as Dopant. Enter nominal concentration (at%) when known and leave layer order blank.',
+          alloy:
+            'Alloy: enter the nominal stoichiometry, such as Mo0.5W0.5S2. Add one row for each alloy element or component and select Alloy component. Enter nominal concentration (at%) when known and leave layer order blank.',
+          vertical:
+            'Vertical heterostructure: use “bottom/top”, such as MoS2/WS2. Add one row per layer, select Bottom layer or Top layer, and number layers from the substrate upward starting at 1. Leave concentration blank.',
+          lateral:
+            'Lateral heterostructure: join domains with “-”, such as MoS2-WS2. Add one row per domain and select Lateral domain. Leave concentration and layer order blank.',
+          other:
+            'Other: enter the group-approved formula with regular digits and add one row per component. Fill only applicable concentration or layer order values and explain the relationship in Notes.',
+        },
         displayPreview: 'Display string preview',
         displayNote: 'Consistent with the backend formula_display rule.',
       },

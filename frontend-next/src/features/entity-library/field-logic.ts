@@ -2,18 +2,21 @@
 // 全部只读消费 field-metadata（生成物），不含 React/网络，便于 vitest 单测。
 import { entities } from '@/shared/generated/field-metadata'
 import {
+  formatCompositeValue,
   isCompositeInput,
   parseCompositeOptions,
+  parseCompositeValue,
 } from '@/shared/composite-field'
 import type {
   FieldCondition,
   FieldMetadata,
 } from '@/shared/generated/field-metadata'
+import { canonicalOption } from '@/shared/field-i18n'
 import type { EntityKind } from './config'
 
 export type EntityFieldValue = string | string[]
 export type EntityFormValues = Record<string, EntityFieldValue>
-export type EntityVersionPayload = Record<string, EntityFieldValue>
+export type EntityVersionPayload = Record<string, unknown>
 
 /**
  * 版本号由后端版本表自增分配（V2EntityVersionRead.version），不是用户录入项，
@@ -32,13 +35,15 @@ export function parseEnumOptions(
   options: string | null,
 ): string[] | null {
   if (!/(下拉|多选)/.test(input) || !options) return null
-  if (isCompositeInput(input)) return parseCompositeOptions(options)
+  if (isCompositeInput(input)) {
+    return parseCompositeOptions(options).map(canonicalOption)
+  }
   const separator = options.includes('·') ? '·' : '/'
   const tokens = options
     .split(separator)
     .map((token) => token.trim())
     .filter(Boolean)
-  return tokens.length ? tokens : null
+  return tokens.length ? tokens.map(canonicalOption) : null
 }
 
 export function isSelectWithOtherInput(input: string): boolean {
@@ -50,11 +55,16 @@ export function isMultiSelectInput(input: string): boolean {
 }
 
 export function isOtherOptionMarker(option: string): boolean {
-  return option === '受控+其他' || option === '其他'
+  option = canonicalOption(option)
+  return (
+    option === 'controlled_or_other' ||
+    option === 'other' ||
+    option === 'other_addable'
+  )
 }
 
 export function isNoneOption(option: string): boolean {
-  return option === '无'
+  return canonicalOption(option) === 'none'
 }
 
 /**
@@ -77,7 +87,10 @@ function findCategoryDriverKey(
 ): string | null {
   for (const field of entities[kind]) {
     const condition = field.requirement.condition
-    if (condition?.op === 'eq' && condition.value === subcategory) {
+    if (
+      condition?.op === 'eq' &&
+      condition.value === canonicalOption(subcategory)
+    ) {
       return resolveConditionKey(kind, condition.field)
     }
   }
@@ -101,26 +114,34 @@ export function matchesCondition(
   condition: FieldCondition,
   value: unknown,
 ): boolean {
-  if (Array.isArray(value)) {
+  const expected = Array.isArray(condition.value)
+    ? condition.value.map(canonicalOption)
+    : canonicalOption(condition.value)
+  const actual = Array.isArray(value)
+    ? value.map((item) => canonicalOption(String(item)))
+    : typeof value === 'string'
+      ? canonicalOption(value)
+      : value
+  if (Array.isArray(actual)) {
     switch (condition.op) {
       case 'eq':
-        return value.includes(condition.value)
+        return actual.includes(expected)
       case 'ne':
-        return !value.includes(condition.value)
+        return !actual.includes(expected)
       case 'in':
-        return Array.isArray(condition.value)
-          ? value.some((item) => condition.value.includes(item))
+        return Array.isArray(expected)
+          ? actual.some((item) => expected.includes(item))
           : false
     }
   }
   switch (condition.op) {
     case 'eq':
-      return value === condition.value
+      return actual === expected
     case 'ne':
-      return value !== condition.value
+      return actual !== expected
     case 'in':
-      return Array.isArray(condition.value)
-        ? condition.value.some((item) => item === value)
+      return Array.isArray(expected)
+        ? expected.some((item) => item === actual)
         : false
     default:
       console.error(`Unsupported condition op: ${condition.op}`)
@@ -142,7 +163,12 @@ export function isFieldVisible(
   const subcategory = parseSubcategory(field.labelZh)
   if (subcategory) {
     const driverKey = findCategoryDriverKey(kind, subcategory)
-    if (driverKey && (values[driverKey] ?? '') !== subcategory) return false
+    if (
+      driverKey &&
+      canonicalOption(String(values[driverKey] ?? '')) !==
+        canonicalOption(subcategory)
+    )
+      return false
   }
 
   const condition = field.requirement.condition
@@ -183,12 +209,28 @@ export function buildDefaultValues(
     const raw = source?.[field.key]
     if (isMultiSelectInput(field.input)) {
       values[field.key] = Array.isArray(raw)
-        ? raw.map(String).filter(Boolean)
+        ? raw.map(String).filter(Boolean).map(canonicalOption)
         : raw == null || raw === ''
           ? []
-          : [String(raw)]
+          : [canonicalOption(String(raw))]
+    } else if (
+      raw != null &&
+      isCompositeInput(field.input) &&
+      typeof raw === 'object'
+    ) {
+      const composite = raw as { value?: unknown; option?: unknown }
+      values[field.key] = formatCompositeValue(
+        field.input,
+        composite.value == null ? '' : String(composite.value),
+        composite.option == null ? '' : String(composite.option),
+      )
     } else {
-      values[field.key] = raw == null ? '' : String(raw)
+      values[field.key] =
+        raw == null
+          ? ''
+          : /下拉/.test(field.input)
+            ? canonicalOption(String(raw))
+            : String(raw)
     }
   }
   return values
@@ -207,12 +249,36 @@ export function buildSubmitPayload(
     if (!isFieldVisible(kind, field, values)) continue
     const value = values[field.key]
     if (Array.isArray(value)) {
-      const normalized = [...new Set(value.map((item) => item.trim()).filter(Boolean))]
+      const normalized = [
+        ...new Set(
+          value.map((item) => canonicalOption(item.trim())).filter(Boolean),
+        ),
+      ]
       if (normalized.length > 0) payload[field.key] = normalized
       continue
     }
     const normalized = (value ?? '').trim()
-    if (normalized) payload[field.key] = normalized
+    if (normalized) {
+      if (isCompositeInput(field.input)) {
+        const options = parseCompositeOptions(field.options).map(canonicalOption)
+        const parsed = parseCompositeValue(field.input, normalized, options)
+        payload[field.key] = {
+          value: field.input.includes('数值')
+            ? parsed.freeValue.trim() === ''
+              ? null
+              : Number(parsed.freeValue)
+            : parsed.freeValue || null,
+          option: parsed.option || null,
+        }
+      } else {
+        payload[field.key] =
+          field.input === '数值'
+          ? Number(normalized)
+          : /(下拉|多选)/.test(field.input)
+            ? canonicalOption(normalized)
+            : normalized
+      }
+    }
   }
   return payload
 }
