@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v9
+      - uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install dependencies
         working-directory: backend
@@ -86,7 +86,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v9
+      - uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install dependencies
         working-directory: backend
@@ -149,7 +149,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v9
+      - uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install dependencies
         run: uv sync --project backend --frozen
@@ -178,7 +178,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v9
+      - uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install dependencies
         working-directory: backend
