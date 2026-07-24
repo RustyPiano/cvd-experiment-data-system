@@ -1,6 +1,6 @@
 // 一等实体的动态表单（纯展示；数据获取/提交由页面注入 onSubmit）。
 // 字段清单、显隐、必填、选项均由 field-metadata 驱动；UI 文案全部走 i18n（D12）。
-import { useId, useMemo } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { Control, FieldError, Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +18,7 @@ import { RequiredMark } from '@/shared/ui/required-mark'
 import {
   isCompositeInput,
   parseCompositeOptions,
+  parseCompositeValue,
 } from '@/shared/composite-field'
 import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
 import { SelectWithOtherControl } from '@/shared/ui/select-with-other-control'
@@ -56,6 +57,19 @@ import {
   parseEnumOptions,
 } from './field-logic'
 import type { EntityFormValues, EntityVersionPayload } from './field-logic'
+import { isStructuredInput, structuredPayload } from '@/shared/structured-field'
+import { StructuredObjectControl } from '@/shared/ui/structured-object-control'
+import {
+  numericInputAttributes,
+  numericValidationIssue,
+} from '@/shared/field-validation'
+import {
+  entityFileInputAllowsNote,
+  entityFilePayload,
+  isEntityFileInput,
+} from '@/shared/entity-file-reference'
+import { EntityFileControl } from './entity-file-control'
+import type { EntityFileAssetRead } from './api'
 
 // 长文本字段用多行输入并跨两列（示意图/配置/坐标系描述）。
 const TEXTAREA_KEYS = new Set([
@@ -76,8 +90,12 @@ type EntityFormProps = {
   /** newVersion 模式下的旧版本数据快照，用于预填。 */
   defaultData?: Record<string, unknown> | null
   submitting: boolean
+  token?: string
   onSubmit: (payload: EntityVersionPayload) => void
   onCancel: () => void
+  onDirtyChange?: (dirty: boolean) => void
+  onPendingFilesChange?: (files: EntityFileAssetRead[]) => void
+  onUploadPendingChange?: (pending: boolean) => void
 }
 
 export function EntityForm({
@@ -86,11 +104,28 @@ export function EntityForm({
   nextVersion,
   defaultData,
   submitting,
+  token = '',
   onSubmit,
   onCancel,
+  onDirtyChange,
+  onPendingFilesChange,
+  onUploadPendingChange,
 }: EntityFormProps) {
   const { t } = useTranslation()
   const fields = useMemo(() => getEntityFields(kind), [kind])
+  const defaultValues = useMemo(
+    () => buildDefaultValues(kind, defaultData),
+    [defaultData, kind],
+  )
+  const [pendingFiles, setPendingFiles] = useState<
+    Record<string, EntityFileAssetRead>
+  >({})
+  const [attachmentDraftDirty, setAttachmentDraftDirty] = useState<
+    Record<string, boolean>
+  >({})
+  const [attachmentUploadPending, setAttachmentUploadPending] = useState<
+    Record<string, boolean>
+  >({})
 
   // 校验随当前取值动态计算：可见且有效必填的字段才强制非空（隐藏字段不校验）。
   // 手写 resolver 等价于旧的动态 z.object（值不 trim；提交时 buildSubmitPayload 再 trim，
@@ -110,6 +145,72 @@ export function EntityForm({
           type: 'required',
           message: t('validation.required'),
         }
+      } else if (!empty && isEntityFileInput(field.input)) {
+        try {
+          entityFilePayload(
+            Array.isArray(value) ? '' : (value ?? ''),
+            field.key,
+          )
+        } catch {
+          errors[field.key] = {
+            type: 'validate',
+            message: t('entityLibrary.form.invalidFileReference'),
+          }
+        }
+      } else if (!empty && isStructuredInput(field.input)) {
+        try {
+          structuredPayload(
+            field.key,
+            Array.isArray(value) ? '' : (value ?? ''),
+          )
+        } catch {
+          errors[field.key] = {
+            type: 'validate',
+            message: t('validation.structuredField'),
+          }
+        }
+      } else if (!empty && !Array.isArray(value)) {
+        const compositeInput = isCompositeInput(field.input)
+          ? field.input
+          : null
+        const numericText =
+          field.input === NUMERIC_INPUT
+            ? value.trim()
+            : compositeInput?.includes(NUMERIC_INPUT)
+              ? parseCompositeValue(
+                  compositeInput,
+                  value,
+                  parseEnumOptions(field.input, field.options) ??
+                    parseCompositeOptions(field.options),
+                ).freeValue.trim()
+              : null
+        if (
+          numericText === '' &&
+          compositeInput?.includes(NUMERIC_INPUT) &&
+          field.validation?.require_value
+        ) {
+          errors[field.key] = {
+            type: 'required',
+            message: t('validation.numericValueRequired'),
+          }
+        } else if (numericText) {
+          const issue = numericValidationIssue(numericText, field.validation)
+          if (issue) {
+            const message =
+              issue.kind === 'finite'
+                ? t('validation.finiteNumber')
+                : issue.kind === 'integer'
+                  ? t('validation.integerNumber')
+                  : issue.kind === 'ge'
+                    ? t('validation.numberGe', { limit: issue.limit })
+                    : issue.kind === 'gt'
+                      ? t('validation.numberGt', { limit: issue.limit })
+                      : issue.kind === 'le'
+                        ? t('validation.numberLe', { limit: issue.limit })
+                        : t('validation.numberLt', { limit: issue.limit })
+            errors[field.key] = { type: 'validate', message }
+          }
+        }
       }
     }
     return Object.keys(errors).length > 0
@@ -118,11 +219,60 @@ export function EntityForm({
   }
 
   const form = useForm<EntityFormValues>({
-    defaultValues: buildDefaultValues(kind, defaultData),
+    defaultValues,
     resolver,
   })
 
   const values = form.watch()
+  const isDirty = form.formState.isDirty
+  const hasAttachmentDraft = Object.values(attachmentDraftDirty).some(Boolean)
+  const hasAttachmentUploadPending = Object.values(
+    attachmentUploadPending,
+  ).some(Boolean)
+  const formBusy = submitting || hasAttachmentUploadPending
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty || hasAttachmentDraft)
+  }, [hasAttachmentDraft, isDirty, onDirtyChange])
+
+  useEffect(() => {
+    onPendingFilesChange?.(Object.values(pendingFiles))
+  }, [onPendingFilesChange, pendingFiles])
+
+  useEffect(() => {
+    onUploadPendingChange?.(hasAttachmentUploadPending)
+  }, [hasAttachmentUploadPending, onUploadPendingChange])
+
+  const handlePendingFileChange = useCallback(
+    (fieldKey: string, file: EntityFileAssetRead | null) => {
+      setPendingFiles((current) => {
+        if (file) return { ...current, [fieldKey]: file }
+        if (!(fieldKey in current)) return current
+        const next = { ...current }
+        delete next[fieldKey]
+        return next
+      })
+    },
+    [],
+  )
+  const handleAttachmentDraftDirtyChange = useCallback(
+    (fieldKey: string, dirty: boolean) => {
+      setAttachmentDraftDirty((current) => {
+        if (current[fieldKey] === dirty) return current
+        return { ...current, [fieldKey]: dirty }
+      })
+    },
+    [],
+  )
+  const handleAttachmentUploadPendingChange = useCallback(
+    (fieldKey: string, pending: boolean) => {
+      setAttachmentUploadPending((current) => {
+        if (current[fieldKey] === pending) return current
+        return { ...current, [fieldKey]: pending }
+      })
+    },
+    [],
+  )
 
   const handleSubmit = form.handleSubmit((submitted) => {
     onSubmit(buildSubmitPayload(kind, submitted))
@@ -134,6 +284,7 @@ export function EntityForm({
         onSubmit={handleSubmit}
         className="flex flex-col gap-4"
         autoComplete="off"
+        noValidate
       >
         {mode === 'newVersion' ? (
           <Alert>
@@ -158,7 +309,18 @@ export function EntityForm({
                 field={field}
                 values={values}
                 control={form.control}
-                disabled={submitting}
+                disabled={formBusy}
+                token={token}
+                initialValue={
+                  typeof defaultValues[field.key] === 'string'
+                    ? (defaultValues[field.key] as string)
+                    : ''
+                }
+                onPendingFileChange={handlePendingFileChange}
+                onAttachmentDraftDirtyChange={handleAttachmentDraftDirtyChange}
+                onAttachmentUploadPendingChange={
+                  handleAttachmentUploadPendingChange
+                }
               />
             ) : null,
           )}
@@ -168,12 +330,12 @@ export function EntityForm({
           <Button
             type="button"
             variant="outline"
-            disabled={submitting}
+            disabled={formBusy}
             onClick={onCancel}
           >
             {t('actions.cancel')}
           </Button>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={formBusy}>
             {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
             {t('actions.save')}
           </Button>
@@ -189,12 +351,25 @@ function EntityFieldControl({
   values,
   control,
   disabled,
+  token,
+  initialValue,
+  onPendingFileChange,
+  onAttachmentDraftDirtyChange,
+  onAttachmentUploadPendingChange,
 }: {
   kind: EntityKind
   field: FieldMetadata
   values: EntityFormValues
   control: Control<EntityFormValues>
   disabled: boolean
+  token: string
+  initialValue: string
+  onPendingFileChange: (
+    fieldKey: string,
+    file: EntityFileAssetRead | null,
+  ) => void
+  onAttachmentDraftDirtyChange: (fieldKey: string, dirty: boolean) => void
+  onAttachmentUploadPendingChange: (fieldKey: string, pending: boolean) => void
 }) {
   const { i18n, t } = useTranslation()
   const label = localizedFieldLabel(field, i18n.language)
@@ -205,6 +380,9 @@ function EntityFieldControl({
     (option) => !allowsOther || !isOtherOptionMarker(option),
   )
   const compositeInput = isCompositeInput(field.input) ? field.input : null
+  const structuredInput = isStructuredInput(field.input)
+  const entityFileInput = isEntityFileInput(field.input)
+  const numericAttributes = numericInputAttributes(field.validation)
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))
     : []
@@ -213,18 +391,23 @@ function EntityFieldControl({
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
   const fieldHelp = localizedFieldHelp(field, i18n.language)
   const customControl = Boolean(
-    compositeInput || (enumOptions && (allowsOther || multiSelect)),
+    entityFileInput ||
+    structuredInput ||
+    compositeInput ||
+    (enumOptions && (allowsOther || multiSelect)),
   )
   const labelId = `${controlId}-label`
   const helpId = `${controlId}-help`
   const messageId = `${controlId}-message`
+
+  const wideControl = useTextarea || entityFileInput
 
   return (
     <FormField
       control={control}
       name={field.key}
       render={({ field: rhf, fieldState }) => (
-        <FormItem className={useTextarea ? 'sm:col-span-2' : undefined}>
+        <FormItem className={wideControl ? 'sm:col-span-2' : undefined}>
           <FormLabel
             {...(multiSelect
               ? { id: labelId }
@@ -240,13 +423,45 @@ function EntityFieldControl({
             ) : null}
             {required ? <RequiredMark /> : null}
           </FormLabel>
-          {enumOptions && multiSelect ? (
+          {entityFileInput ? (
+            <EntityFileControl
+              value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
+              initialValue={initialValue}
+              label={label}
+              allowsNote={entityFileInputAllowsNote(field.input)}
+              token={token}
+              disabled={disabled}
+              invalid={fieldState.invalid}
+              ariaDescribedBy={
+                [
+                  fieldHelp ? helpId : null,
+                  fieldState.invalid ? messageId : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              inputId={controlId}
+              onChange={rhf.onChange}
+              onPendingFileChange={(file) =>
+                onPendingFileChange(field.key, file)
+              }
+              onDraftDirtyChange={(dirty) =>
+                onAttachmentDraftDirtyChange(field.key, dirty)
+              }
+              onUploadPendingChange={(pending) =>
+                onAttachmentUploadPendingChange(field.key, pending)
+              }
+            />
+          ) : enumOptions && multiSelect ? (
             <div
               id={controlId}
               role="group"
               aria-labelledby={labelId}
               aria-describedby={
-                [fieldHelp ? helpId : null, fieldState.invalid ? messageId : null]
+                [
+                  fieldHelp ? helpId : null,
+                  fieldState.invalid ? messageId : null,
+                ]
                   .filter(Boolean)
                   .join(' ') || undefined
               }
@@ -265,7 +480,9 @@ function EntityFieldControl({
                       disabled={disabled}
                       onCheckedChange={(checked) => {
                         if (!checked) {
-                          rhf.onChange(selected.filter((item) => item !== option))
+                          rhf.onChange(
+                            selected.filter((item) => item !== option),
+                          )
                           return
                         }
                         rhf.onChange(
@@ -286,6 +503,22 @@ function EntityFieldControl({
                 )
               })}
             </div>
+          ) : structuredInput ? (
+            <StructuredObjectControl
+              fieldKey={field.key}
+              value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
+              onChange={rhf.onChange}
+              disabled={disabled}
+              invalid={fieldState.invalid}
+              ariaDescribedBy={
+                [
+                  fieldHelp ? helpId : null,
+                  fieldState.invalid ? messageId : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+            />
           ) : compositeInput ? (
             <CompositeFieldControl
               input={compositeInput}
@@ -298,6 +531,7 @@ function EntityFieldControl({
               disabled={disabled}
               freePlaceholder={t('entityLibrary.form.inputPlaceholder')}
               selectPlaceholder={t('entityLibrary.form.selectPlaceholder')}
+              validation={field.validation}
               optionLabel={(option) => localizedOption(option, i18n.language)}
             />
           ) : enumOptions && allowsOther ? (
@@ -309,7 +543,10 @@ function EntityFieldControl({
               selectId={controlId}
               invalid={fieldState.invalid}
               ariaDescribedBy={
-                [fieldHelp ? helpId : null, fieldState.invalid ? messageId : null]
+                [
+                  fieldHelp ? helpId : null,
+                  fieldState.invalid ? messageId : null,
+                ]
                   .filter(Boolean)
                   .join(' ') || undefined
               }
@@ -319,9 +556,7 @@ function EntityFieldControl({
                 label,
               })}
               otherPlaceholder={t('entityLibrary.form.otherPlaceholder')}
-              optionLabel={(option) =>
-                localizedOption(option, i18n.language)
-              }
+              optionLabel={(option) => localizedOption(option, i18n.language)}
             />
           ) : enumOptions ? (
             <Select
@@ -356,8 +591,24 @@ function EntityFieldControl({
                 <Input
                   {...rhf}
                   type={field.input === NUMERIC_INPUT ? 'number' : 'text'}
-                  inputMode={field.input === NUMERIC_INPUT ? 'decimal' : undefined}
-                  step={field.input === NUMERIC_INPUT ? 'any' : undefined}
+                  inputMode={
+                    field.input === NUMERIC_INPUT ? 'decimal' : undefined
+                  }
+                  min={
+                    field.input === NUMERIC_INPUT
+                      ? numericAttributes.min
+                      : undefined
+                  }
+                  max={
+                    field.input === NUMERIC_INPUT
+                      ? numericAttributes.max
+                      : undefined
+                  }
+                  step={
+                    field.input === NUMERIC_INPUT
+                      ? numericAttributes.step
+                      : undefined
+                  }
                   value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
                   autoComplete="off"
                   placeholder={placeholder}

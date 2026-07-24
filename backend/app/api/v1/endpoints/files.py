@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db.session import get_db
+from app.models.file_asset import FILE_NOTE_MAX_LENGTH
 from app.models.user import User
 from app.schemas.file_asset import FileAssetListResponse, FileAssetRead
 from app.services.file_asset_service import FileAssetService
@@ -57,7 +58,7 @@ def upload_file(
     method: Annotated[str | None, Form()] = None,
     file_category: Annotated[str | None, Form()] = None,
     asset_role: Annotated[str | None, Form()] = None,
-    note: Annotated[str | None, Form()] = None,
+    note: Annotated[str | None, Form(max_length=FILE_NOTE_MAX_LENGTH)] = None,
     legacy_file_kind: Annotated[
         str | None,
         Form(alias="file_kind", include_in_schema=False),

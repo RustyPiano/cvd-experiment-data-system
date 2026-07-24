@@ -5,6 +5,7 @@ import {
   buildFlatModulePayload,
   buildItemPayload,
   buildItemsModulePayload,
+  buildProcessStepsPayload,
   buildTargetProductPayload,
   componentsFromPayload,
   emptyComponentRow,
@@ -12,9 +13,12 @@ import {
   getComponentRoleOptions,
   isEffectivelyRequired,
   isFieldVisible,
+  isProcessStepFieldVisible,
   itemHasAnyValue,
   itemsFromPayload,
+  moduleValueAsString,
   moduleValuesFromPayload,
+  missingProcessStepKeys,
   missingRequiredKeys,
   parseComponentRoles,
   resolveModuleConditionKey,
@@ -175,6 +179,19 @@ describe('payload builders align with backend module contract', () => {
     expect(payload.operator).toBeNull()
   })
 
+  it('rejects numeric values outside generated metadata constraints', () => {
+    expect(() =>
+      buildFlatModulePayload('basic_info', {
+        ambient_humidity_percent: '101',
+      }),
+    ).toThrowError(/ambient_humidity_percent.*le/)
+    expect(() =>
+      buildFlatModulePayload('target_product', {
+        target_layer_count: '1.5',
+      }),
+    ).toThrowError(/target_layer_count.*integer/)
+  })
+
   it('drops components for 本征 and includes them for composite systems', () => {
     const intrinsic = buildTargetProductPayload(
       { chemical_formula: 'MoS2', structure_type: '本征' },
@@ -213,9 +230,74 @@ describe('payload builders align with backend module contract', () => {
         formula: 'Nb',
         role: 'dopant',
         concentration_at_percent: 0.5,
-        layer_order: 2,
+        layer_order: null,
       },
     ])
+  })
+
+  it('clears values that became hidden before serializing repeatable items', () => {
+    expect(
+      buildItemPayload('precursors', {
+        phase_state: 'gas',
+        appearance: 'stale solid appearance',
+      }).appearance,
+    ).toBeNull()
+    expect(
+      buildItemPayload('substrates', {
+        material: 'sapphire',
+        oxide_thickness_nm: '285',
+      }).oxide_thickness_nm,
+    ).toBeNull()
+  })
+
+  it('clears external-field values when the selected setup has no field device', () => {
+    const payload = buildProcessStepsPayload(
+      [
+        {
+          ...emptyModuleValues('process_steps'),
+          stage_type: 'growth',
+          pressure_system: 'atmospheric_pressure',
+          field_params: 'stale magnetic field',
+        },
+      ],
+      { field_devices: ['none'] },
+    )
+
+    expect(payload.items[0]?.field_params).toBeNull()
+  })
+
+  it('keeps only structure-applicable component measurements', () => {
+    const vertical = buildTargetProductPayload(
+      {
+        chemical_formula: 'MoS2/WS2',
+        structure_type: 'vertical_heterostructure',
+      },
+      [
+        {
+          formula: 'MoS2',
+          role: 'bottom_layer',
+          concentration_at_percent: '25',
+          layer_order: '1',
+        },
+      ],
+    )
+
+    expect(vertical.components).toEqual([
+      {
+        formula: 'MoS2',
+        role: 'bottom_layer',
+        concentration_at_percent: null,
+        layer_order: 1,
+      },
+    ])
+  })
+
+  it('rejects a non-finite numeric value instead of producing JSON null later', () => {
+    expect(() =>
+      buildFlatModulePayload('basic_info', {
+        ambient_temperature_C: '1e309',
+      }),
+    ).toThrow(/finite/i)
   })
 
   it('round-trips every gas species without collapsing an array into one token', () => {
@@ -232,9 +314,7 @@ describe('payload builders align with backend module contract', () => {
       componentsFromPayload({
         components: [{ formula: 'MoS2', role: '基体' }],
       }),
-    ).toEqual([
-      expect.objectContaining({ formula: 'MoS2', role: 'matrix' }),
-    ])
+    ).toEqual([expect.objectContaining({ formula: 'MoS2', role: 'matrix' })])
   })
 
   it('item payload carries every field key; empty rows are filtered out', () => {
@@ -251,6 +331,82 @@ describe('payload builders align with backend module contract', () => {
       {},
     ])
     expect(module.items).toHaveLength(1)
+  })
+
+  it('stores process-event timestamps with an explicit offset and restores local input', () => {
+    const local = '2026-07-11T23:55'
+    const item = buildItemPayload('process_events', { occurred_at: local })
+
+    expect(item.occurred_at).toEqual(
+      expect.stringMatching(/^2026-07-11T23:55:00[+-]\d{2}:\d{2}$/),
+    )
+    expect(
+      itemsFromPayload('process_events', { items: [item] })[0]?.occurred_at,
+    ).toBe(local)
+  })
+
+  it('round-trips frozen material-lot references and named geometry objects', () => {
+    const reference = {
+      entity_id: '7d9e7787-e5ef-4f34-818f-454a10263a3b',
+      version: 2,
+      snapshot: { lot_code: 'LOT-2' },
+    }
+    const item = buildItemPayload('precursors', {
+      lot_ref: JSON.stringify(reference),
+      boat_crucible: JSON.stringify({
+        material: 'quartz_boat',
+        length_mm: '90',
+      }),
+      source_zone_temperature: JSON.stringify({
+        zone_index: '1',
+        temperature_C: '620',
+      }),
+    })
+
+    expect(item.lot_ref).toEqual(reference)
+    expect(item.boat_crucible).toEqual({
+      material: 'quartz_boat',
+      length_mm: 90,
+      width_mm: null,
+      height_mm: null,
+      diameter_mm: null,
+    })
+    expect(item.source_zone_temperature).toEqual({
+      zone_index: 1,
+      temperature_C: 620,
+    })
+    expect(
+      JSON.parse(
+        moduleValueAsString(
+          itemsFromPayload('precursors', { items: [item] })[0].lot_ref,
+        ),
+      ),
+    ).toEqual(reference)
+  })
+
+  it('requires an other-gas name only when other is selected', () => {
+    const otherGas = field('process_steps', 'other_gas_name')
+    expect(
+      isProcessStepFieldVisible(otherGas, 'growth', null, {
+        gas_species: ['Ar'],
+      }),
+    ).toBe(false)
+    expect(
+      isProcessStepFieldVisible(otherGas, 'growth', null, {
+        gas_species: ['Ar', 'other'],
+      }),
+    ).toBe(true)
+    expect(
+      missingProcessStepKeys(
+        {
+          stage_type: 'growth',
+          gas_species: ['Ar', 'other'],
+          gas_flow_sccm: '10（MFC）',
+          pressure_system: '100（low_pressure）',
+        },
+        null,
+      ),
+    ).toContain('other_gas_name')
   })
 
   it('round-trips the internal substrate source id without treating it as content', () => {

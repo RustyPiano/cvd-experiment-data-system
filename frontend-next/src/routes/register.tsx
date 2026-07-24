@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { RegisterForm } from '@/features/auth/register-form'
 import { getStoredSession } from '@/features/auth/session'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { LanguageToggle } from '@/shared/ui/language-toggle'
 
 export const Route = createFileRoute('/register')({
   beforeLoad: () => {
@@ -18,7 +19,10 @@ export const Route = createFileRoute('/register')({
 function RegisterPage() {
   const { t } = useTranslation()
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background p-4">
+    <div className="relative flex min-h-svh items-center justify-center bg-background p-4">
+      <div className="absolute right-4 top-4">
+        <LanguageToggle />
+      </div>
       <div className="w-full max-w-sm">
         <Card className="shadow-lg">
           <CardHeader className="pb-2">

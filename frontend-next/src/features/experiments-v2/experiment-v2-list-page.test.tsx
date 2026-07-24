@@ -101,4 +101,24 @@ describe('ExperimentV2ListPage pagination', () => {
       }),
     )
   })
+
+  it('shows a retry action without also showing the empty state on load failure', async () => {
+    api.listRuns.mockRejectedValueOnce(new Error('offline'))
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const user = userEvent.setup()
+    render(
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <ExperimentV2ListPage />
+        </QueryClientProvider>
+      </I18nextProvider>,
+    )
+
+    expect(await screen.findByText('offline')).toBeInTheDocument()
+    expect(screen.queryByText(/No runs yet/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(api.listRuns).toHaveBeenCalledTimes(2))
+  })
 })

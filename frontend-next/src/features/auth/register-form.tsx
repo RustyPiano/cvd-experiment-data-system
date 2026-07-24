@@ -27,16 +27,16 @@ import { useAuth } from './use-auth'
 const createRegisterSchema = () =>
   z
     .object({
-    name: z.string().trim().min(1, i18n.t('auth.validation.nameRequired')),
-    email: z.email(i18n.t('auth.validation.email')),
-    password: z.string().min(8, i18n.t('auth.validation.passwordLength')),
-    password_confirmation: z
-      .string()
-      .min(8, i18n.t('auth.validation.confirmPasswordLength')),
-    invite_code: z
-      .string()
-      .trim()
-      .min(1, i18n.t('auth.validation.inviteCodeRequired')),
+      name: z.string().trim().min(1, i18n.t('auth.validation.nameRequired')),
+      email: z.email(i18n.t('auth.validation.email')),
+      password: z.string().min(8, i18n.t('auth.validation.passwordLength')),
+      password_confirmation: z
+        .string()
+        .min(8, i18n.t('auth.validation.confirmPasswordLength')),
+      invite_code: z
+        .string()
+        .trim()
+        .min(1, i18n.t('auth.validation.inviteCodeRequired')),
     })
     .refine((values) => values.password === values.password_confirmation, {
       message: i18n.t('auth.validation.passwordMismatch'),

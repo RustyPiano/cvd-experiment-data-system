@@ -24,6 +24,7 @@ os.environ.setdefault(
     "DATABASE_URL",
     f"sqlite+pysqlite:///{Path(tempfile.gettempdir()) / 'cvd-backend-bootstrap.sqlite3'}",
 )
+TEST_DATABASE_URL = os.environ["DATABASE_URL"]
 os.environ.setdefault(
     "FILE_STORAGE_ROOT",
     str(Path(tempfile.gettempdir()) / "cvd-backend-bootstrap-storage"),
@@ -73,7 +74,9 @@ def _configure_test_engine(database_url: str):
 
 
 @pytest.fixture(scope="session")
-def migrated_database_template_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def migrated_database_template_path(tmp_path_factory: pytest.TempPathFactory) -> Path | None:
+    if TEST_DATABASE_URL.startswith("postgresql"):
+        return None
     template_dir = tmp_path_factory.mktemp("cvd-backend-db-template")
     template_path = template_dir / "template.sqlite3"
 
@@ -94,7 +97,23 @@ def migrated_database_template_path(tmp_path_factory: pytest.TempPathFactory) ->
 
 
 @pytest.fixture(autouse=True)
-def setup_database(migrated_database_template_path: Path) -> None:
+def setup_database(migrated_database_template_path: Path | None) -> None:
+    if migrated_database_template_path is None:
+        close_all_sessions()
+        db_session_module.engine.dispose()
+        os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+        get_settings.cache_clear()
+        _configure_test_engine(TEST_DATABASE_URL)
+        alembic_config = Config(str(ALEMBIC_INI_PATH))
+        alembic_config.set_main_option("script_location", str(ALEMBIC_SCRIPT_PATH))
+        command.downgrade(alembic_config, "base")
+        command.upgrade(alembic_config, "head")
+        yield
+        close_all_sessions()
+        db_session_module.engine.dispose()
+        get_settings.cache_clear()
+        return
+
     close_all_sessions()
     db_session_module.engine.dispose()
     temp_root = Path(tempfile.gettempdir()) / f"cvd-backend-test-{uuid4().hex}"

@@ -13,7 +13,9 @@
     {"name": "list ne miss", "condition": {"field": "Test.driver", "op": "ne", "value": "gas"}, "driver": ["solid", "gas"], "expected": false},
     {"name": "list in intersection", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": ["PLD", "PVD"], "expected": true},
     {"name": "list in disjoint", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": ["PLD", "MBE"], "expected": false},
-    {"name": "null eq null", "condition": {"field": "Test.driver", "op": "eq", "value": null}, "driver": null, "expected": true},
+    {"name": "missing scalar never activates condition", "condition": {"field": "Test.driver", "op": "ne", "value": "gas"}, "driver": "", "expected": false},
+    {"name": "null driver never activates condition", "condition": {"field": "Test.driver", "op": "eq", "value": null}, "driver": null, "expected": false},
+    {"name": "empty list never activates ne condition", "condition": {"field": "Test.driver", "op": "ne", "value": "gas"}, "driver": [], "expected": false},
     {"name": "empty list in", "condition": {"field": "Test.driver", "op": "in", "value": ["CVD", "PVD"]}, "driver": [], "expected": false},
     {"name": "unknown op", "condition": {"field": "Test.driver", "op": "contains", "value": "solid"}, "driver": "solid", "backend": {"raises": "ValueError", "message": "Unsupported condition op"}, "frontend": {"expected": false, "logs": "console.error"}},
     {"name": "unresolvable reference", "condition": {"field": "Missing.driver", "op": "eq", "value": "solid"}, "driver": "solid", "expected": false, "unresolvable": true}

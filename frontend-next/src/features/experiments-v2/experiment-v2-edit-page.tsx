@@ -1,7 +1,7 @@
 // v2 编辑实验页：拉取 run + §1–§6/§8 模块 payload，还原表单状态，支持分模块保存。
 // §7 表征/实测走各自端点，由 ResultsSection 自管拉取，不在此预取。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -64,6 +64,15 @@ const MODULE_TITLE_KEYS = {
   measured_products: 'results',
 } as const
 
+function focusMissingModule(module: string) {
+  const resultModules = new Set(['characterization', 'measured_products'])
+  const target = document.getElementById(
+    resultModules.has(module) ? 'module-results' : `module-${module}`,
+  )
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  target?.focus({ preventScroll: true })
+}
+
 export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const { i18n, t } = useTranslation()
   const { session } = useAuth()
@@ -72,6 +81,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const [invalidating, setInvalidating] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
   const [reason, setReason] = useState('')
+  const [processDirty, setProcessDirty] = useState(false)
   const [missing, setMissing] = useState<
     Array<{
       key: string
@@ -81,7 +91,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
     }>
   >([])
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['v2-experiment', runId, token],
     enabled: session.isAuthenticated && !!token,
     queryFn: async () => {
@@ -179,6 +189,10 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
     data && (data.run.status === 'locked' || canEditProcess),
   )
 
+  useEffect(() => {
+    if (processDirty) setMissing([])
+  }, [processDirty])
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -198,12 +212,22 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       />
       {isError ? (
         <Alert variant="destructive">
-          <AlertDescription>
-            {resolveErrorMessage(error, t('experimentsV2.edit.loadError'))}
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {resolveErrorMessage(error, t('experimentsV2.edit.loadError'))}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void refetch()}
+            >
+              {t('experimentsV2.edit.retry')}
+            </Button>
           </AlertDescription>
         </Alert>
       ) : null}
-      {isLoading || !data ? (
+      {isError ? null : isLoading || !data ? (
         <LoadingState />
       ) : (
         <>
@@ -216,7 +240,9 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               <Button
                 key={action}
                 variant={action === 'invalidate' ? 'destructive' : 'outline'}
-                disabled={mutation.isPending}
+                disabled={
+                  mutation.isPending || (action === 'lock' && processDirty)
+                }
                 onClick={() => act(action)}
               >
                 {t(`experimentsV2.actions.${action}`)}
@@ -242,6 +268,13 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               </Button>
             ) : null}
           </div>
+          {processDirty ? (
+            <Alert>
+              <AlertDescription>
+                {t('experimentsV2.actions.saveBeforeLock')}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {data.run.status === 'locked' || data.run.status === 'invalid' ? (
             <Alert>
               <AlertDescription>
@@ -265,19 +298,25 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                 <ul className="mt-2 list-disc pl-5">
                   {missing.map((item) => (
                     <li key={`${item.module}.${item.key}`}>
-                      {(() => {
-                        const field = getModuleFields(item.module).find(
-                          (candidate) => candidate.key === item.key,
-                        )
-                        return field
-                          ? localizedFieldLabel(field, i18n.language)
-                          : item.label
-                      })()}
-                      （
-                      {t(
-                        `experimentsV2.sections.${MODULE_TITLE_KEYS[item.module as keyof typeof MODULE_TITLE_KEYS] ?? 'unknown'}.title`,
-                      )}
-                      ）
+                      <button
+                        type="button"
+                        className="rounded-sm text-left underline decoration-current/40 underline-offset-2 hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => focusMissingModule(item.module)}
+                      >
+                        {(() => {
+                          const field = getModuleFields(item.module).find(
+                            (candidate) => candidate.key === item.key,
+                          )
+                          return field
+                            ? localizedFieldLabel(field, i18n.language)
+                            : item.label
+                        })()}
+                        （
+                        {t(
+                          `experimentsV2.sections.${MODULE_TITLE_KEYS[item.module as keyof typeof MODULE_TITLE_KEYS] ?? 'unknown'}.title`,
+                        )}
+                        ）
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -292,6 +331,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             initialState={buildStateFromLoaded(data.run, data.modules)}
             processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
             resultsReadOnly={isResultsReadOnly(data.run.status, canEditResults)}
+            onProcessDirtyChange={setProcessDirty}
           />
           <RunAuditSection runId={runId} token={token} />
         </>

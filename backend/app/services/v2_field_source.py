@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import yaml
 
@@ -40,6 +42,13 @@ ELEMENT_SYMBOLS = frozenset(
 )
 FORMULA_PATTERN = re.compile(
     r"^(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+(?:[:/\-](?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+)*$"
+)
+MATERIAL_FORMULA_UNIT = (
+    r"(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?"
+    r"|\((?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+\)(?:\d+(?:\.\d+)?)?)"
+)
+MATERIAL_FORMULA_PATTERN = re.compile(
+    rf"^(?:\d+)?{MATERIAL_FORMULA_UNIT}+(?:[·](?:\d+)?{MATERIAL_FORMULA_UNIT}+)*$"
 )
 FORMULA_SUBSCRIPT_TRANSLATION = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
 
@@ -92,6 +101,39 @@ def validate_chemical_formula(value: str) -> str:
     if not symbols or any(symbol not in ELEMENT_SYMBOLS for symbol in symbols):
         raise ValueError("invalid chemical formula")
     return normalized
+
+
+def validate_material_formula(value: str) -> str:
+    normalized = normalize_chemical_formula(value)
+    if (
+        not normalized
+        or not MATERIAL_FORMULA_PATTERN.fullmatch(normalized)
+        or any(symbol not in ELEMENT_SYMBOLS for symbol in re.findall(r"[A-Z][a-z]?", normalized))
+    ):
+        raise ValueError("invalid material formula")
+    return normalized
+
+
+def formula_element_symbols(value: str) -> set[str]:
+    return set(re.findall(r"[A-Z][a-z]?", normalize_chemical_formula(value)))
+
+
+def normalize_offset_datetime(value: object) -> datetime:
+    if isinstance(value, str):
+        raw = value.strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}", raw):
+            raise ValueError("invalid ISO datetime")
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("invalid ISO datetime") from exc
+    elif isinstance(value, datetime):
+        parsed = value
+    else:
+        raise ValueError("invalid ISO datetime")
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        parsed = parsed.replace(tzinfo=ZoneInfo(get_settings().experiment_timezone))
+    return parsed
 
 
 def _option_tokens(field: dict[str, Any]) -> list[str]:
@@ -193,7 +235,15 @@ def stage_types_with_group(group: str, doc: dict[str, Any] | None = None) -> set
 
 
 def missing(value: Any) -> bool:
-    return value is None or value == "" or value == [] or value == {}
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, tuple, set)):
+        return not value or all(missing(item) for item in value)
+    if isinstance(value, dict):
+        return not value or all(missing(item) for item in value.values())
+    return False
 
 
 def condition_local_key(
@@ -230,6 +280,8 @@ def condition_local_key(
 
 
 def condition_matches(condition: dict[str, Any], value: Any) -> bool:
+    if missing(value):
+        return False
     op = condition.get("op")
     expected = canonical_option_value(condition.get("value"))
     value = canonical_option_value(value)

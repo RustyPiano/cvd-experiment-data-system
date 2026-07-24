@@ -44,6 +44,8 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
             "zone_count": 2,
             "orientation": "水平",
             "coordinate_system": "原点=温区2热电偶；上游负/下游正",
+            "flow_reference_temperature_C": 20,
+            "flow_reference_pressure_Pa": 101325,
             "field_devices": "等离子",
             "wall_type": "热壁",
         },
@@ -65,7 +67,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
             "started_at": "2026-07-08T09:30:00",
             "synthesis_method": "APCVD",
             "operator": "李俊杰",
-            "chemical_formula": "WS2/MoS2",
+            "chemical_formula": "MoS2/WS2",
         },
         headers=headers,
     )
@@ -101,7 +103,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
     upsert(
         "target_product",
         {
-            "chemical_formula": "WS2/MoS2",
+            "chemical_formula": "MoS2/WS2",
             "structure_type": "垂直异质结",
             "components": [
                 {"formula": "WS2", "role": "上层", "layer_order": 2},
@@ -123,8 +125,15 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
                     "role": "主源",
                     "amount": 20,
                     "treatment_steps": "直接加载",
-                    "boat_crucible": {"value": 90, "option": "quartz_boat"},
-                    "source_zone_temperature": {"value": 620, "option": "zone_1"},
+                    "boat_crucible": {
+                        "material": "quartz_boat",
+                        "length_mm": 90,
+                        "width_mm": 15,
+                    },
+                    "source_zone_temperature": {
+                        "zone_index": 1,
+                        "temperature_C": 620,
+                    },
                     "thermocouple_distance_mm": -20,
                 }
             ]
@@ -166,7 +175,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
                 {
                     "stage_type": "降温",
                     "temperature_program": "自然降温",
-                    "cooling_params": {"value": 580, "option": "furnace_cooling"},
+                    "cooling_params": {"value": None, "option": "furnace_cooling"},
                     "gas_species": "Ar",
                     "gas_flow_sccm": {"value": 50, "option": "MFC"},
                     "pressure_system": {"value": 101325, "option": "atmospheric_pressure"},
@@ -180,7 +189,7 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
             "items": [
                 {
                     "event_part": "气流中断（Ar气路）",
-                    "occurred_at": "10:28",
+                    "occurred_at": "2026-07-08T10:28:00+08:00",
                     "description_action": "Ar瓶压不足，已更换",
                 }
             ]
@@ -213,7 +222,8 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
             "characterization_record_id": record.json()["id"],
             "observed_phenomena": ["不连续覆盖", "厚层区域"],
             "detected_phase_stacking": "2H-MoS2；AB堆垛",
-            "measured_layers_coverage": "1层；~70%",
+            "layer_count": 1,
+            "coverage_percent": 70,
         },
         headers=headers,
     )

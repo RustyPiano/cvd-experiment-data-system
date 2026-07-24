@@ -14,22 +14,29 @@ import {
 import type { ComponentRow } from '../field-logic'
 import { emptyComponentRow, getComponentRoleOptions } from '../field-logic'
 import { FormulaInput } from './formula-input'
-import { localizedOption } from '@/shared/field-i18n'
+import { canonicalOption, localizedOption } from '@/shared/field-i18n'
 
 export function ComponentsEditor({
   rows,
   onChange,
   disabled,
   showError,
+  structureType = 'other',
 }: {
   rows: ComponentRow[]
   onChange: (rows: ComponentRow[]) => void
   disabled?: boolean
   /** 上层判定「结构类型≠本征但组分为空」时置真，高亮缺失。 */
   showError?: boolean
+  structureType?: string
 }) {
   const { i18n, t } = useTranslation()
   const roleOptions = getComponentRoleOptions()
+  const structure = canonicalOption(structureType)
+  const showConcentration = ['doped', 'alloy', 'other'].includes(structure)
+  const showLayerOrder = ['vertical_heterostructure', 'other'].includes(
+    structure,
+  )
 
   const updateRow = (index: number, patch: Partial<ComponentRow>) => {
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -93,47 +100,51 @@ export function ComponentsEditor({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor={`component-${index}-concentration`}
-              className="text-xs font-medium text-muted-foreground"
-            >
-              {t('experimentsV2.components.concentration')}
-            </label>
-            <Input
-              id={`component-${index}-concentration`}
-              type="number"
-              inputMode="decimal"
-              step="any"
-              value={row.concentration_at_percent}
-              onChange={(event) =>
-                updateRow(index, {
-                  concentration_at_percent: event.target.value,
-                })
-              }
-              disabled={disabled}
-              placeholder="at%"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor={`component-${index}-layer-order`}
-              className="text-xs font-medium text-muted-foreground"
-            >
-              {t('experimentsV2.components.layerOrder')}
-            </label>
-            <Input
-              id={`component-${index}-layer-order`}
-              type="number"
-              inputMode="numeric"
-              step="1"
-              value={row.layer_order}
-              onChange={(event) =>
-                updateRow(index, { layer_order: event.target.value })
-              }
-              disabled={disabled}
-            />
-          </div>
+          {showConcentration ? (
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor={`component-${index}-concentration`}
+                className="text-xs font-medium text-muted-foreground"
+              >
+                {t('experimentsV2.components.concentration')}
+              </label>
+              <Input
+                id={`component-${index}-concentration`}
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={row.concentration_at_percent}
+                onChange={(event) =>
+                  updateRow(index, {
+                    concentration_at_percent: event.target.value,
+                  })
+                }
+                disabled={disabled}
+                placeholder="at%"
+              />
+            </div>
+          ) : null}
+          {showLayerOrder ? (
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor={`component-${index}-layer-order`}
+                className="text-xs font-medium text-muted-foreground"
+              >
+                {t('experimentsV2.components.layerOrder')}
+              </label>
+              <Input
+                id={`component-${index}-layer-order`}
+                type="number"
+                inputMode="numeric"
+                step="1"
+                value={row.layer_order}
+                onChange={(event) =>
+                  updateRow(index, { layer_order: event.target.value })
+                }
+                disabled={disabled}
+              />
+            </div>
+          ) : null}
           <div className="flex items-end">
             <Button
               type="button"

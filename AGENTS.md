@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨，炉次优先产品重构阶段 0–4、浏览器 E2E 与最终全库复核均已完成，下一步为 push + Actions 首绿；线上仍为切换前旧部署，批8 前禁止 `deploy.sh`**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨，炉次优先阶段 0–4 与 2026-07-24 全库加固复核均已完成，下一步为 push + Actions 首绿；线上仍为切换前旧部署，批8 前禁止 `deploy.sh`**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
 
 ## 项目概览
 
@@ -22,8 +22,10 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 
 - **`docs/standard/STATUS.md`（先读：现状与真相指针；含全部背景+进度+已冻结决策+下一步）**
 - `docs/README.md`（文档分类与入口）
-- `docs/product/run-first-workflow-and-copy-design.md`（2026-07-16 已确认的产品工作流；阶段 1–4 与浏览器 E2E 已完成）
-- **维护约定**：完成实质改动后，回写 `STATUS.md`（进展日志 + 最后更新日期）；**字段改动改单一源 `docs/standard/field-source.yaml`**，再 `python3 docs/standard/build_field_tables.py` 重新生成 + `python3 docs/standard/check_field_source.py` 校验（CI 强制），勿手改二进制 xlsx、勿改回脚本内嵌数据。
+- `docs/product/run-first-workflow-and-copy-design.md`（2026-07-16 已确认的产品工作流；阶段 1–4 已完成）
+- `docs/reviews/2026-07-24-comprehensive-audit-remediation.md`（最新全库问题—整改矩阵）
+- `docs/operations/e2e-comprehensive-hardening-report-2026-07-24.md`（最新验收证据）
+- **维护约定**：完成实质改动后，回写 `STATUS.md`（进展日志 + 最后更新日期）；**字段改动改单一源 `docs/standard/field-source.yaml`**，再用 UV 运行 `docs/standard/build_field_tables.py` 和 `docs/standard/check_field_source.py`（CI 强制），勿手改二进制 xlsx、勿改回脚本内嵌数据。
 - `docs/standard/字段草案-v3.xlsx`（现行字段表）
 - `docs/standard/metadata-v2-review-and-redesign.md`（设计理由与国际对标）
 - 历史（已归档、v1/早期、勿当现状）：`docs/archive/` 下的 `cvd_experiment_data_system_design_v1.md`（业务与数据模型）、`DESIGN.md`（前端设计规范）、`AGENT_IMPLEMENTATION_BRIEF.md`（V1 实现边界）
@@ -51,7 +53,7 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 - 不重命名公共 API/字段，除非同步更新调用方与文档。
 - **字段改动只改 `docs/standard/field-source.yaml`**，然后重跑生成器（后端 `generate_v2_models`/`export_v2_schema`、前端 `gen:fields`、xlsx `build_field_tables.py`）+ `check_field_source.py` 校验；生成物漂移 = CI 红。
 - **当前代码**状态流：draft → locked（admin 可 unlock 回 draft）；draft 可作废为 invalid；lock 过必填门并在同一事务中按衬底生成 growth 样品；locked 锁工艺但允许全组成员补结果，invalid 全部只读；每次转移写审计。
-- **产品重构进度**：阶段 0–4、真实浏览器 E2E 与最终全库复核均已完成；两步状态、样品生成、统一结果录入、全量双语、检索、审计和导出均已验收。下一步为 push + Actions 首绿，之后才进入批8人工切换。
+- **产品重构进度**：阶段 0–4 与 2026-07-24 全库加固复核均已完成；两步状态、样品生成、统一结果录入、全量双语、检索、审计、导出、生产防护和浏览器复验均已验收。下一步为 push + Actions 首绿，之后才进入批8人工切换。
 - 实验不做物理删除；文件删除走软删除标记。
 
 ## 安全与 PR

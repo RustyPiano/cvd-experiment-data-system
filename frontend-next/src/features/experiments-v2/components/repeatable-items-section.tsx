@@ -21,6 +21,17 @@ import { EntityReferenceSelect } from './entity-reference-select'
 import { ModuleCard } from './module-card'
 import { localizedFieldLabel, localizedUnit } from '@/shared/field-i18n'
 
+function referenceId(value: ModuleFieldValue | undefined): string {
+  const text = moduleValueAsString(value)
+  if (!text) return ''
+  try {
+    const parsed = JSON.parse(text) as { entity_id?: unknown }
+    return typeof parsed.entity_id === 'string' ? parsed.entity_id : ''
+  } catch {
+    return text
+  }
+}
+
 // 引用型字段键 → 被引用实体种类。
 const REFERENCE_FIELD_KINDS: Record<string, EntityKind> = {
   lot_ref: 'material_lot',
@@ -77,6 +88,7 @@ export function RepeatableItemsSection({
 
   return (
     <ModuleCard
+      id={`module-${moduleKey}`}
       index={index}
       title={title}
       subtitle={subtitle}
@@ -130,10 +142,21 @@ export function RepeatableItemsSection({
                         />
                         <EntityReferenceSelect
                           kind={referenceKind}
-                          value={moduleValueAsString(item[field.key])}
-                          onChange={(entityId) =>
-                            setItemValue(itemIndex, field.key, entityId)
-                          }
+                          value={referenceId(item[field.key])}
+                          onChange={(_entityId, entity) => {
+                            const version = entity?.latest_version
+                            setItemValue(
+                              itemIndex,
+                              field.key,
+                              entity && version
+                                ? JSON.stringify({
+                                    entity_id: entity.id,
+                                    version: version.version,
+                                    snapshot: version.data,
+                                  })
+                                : '',
+                            )
+                          }}
                           disabled={disabled}
                         />
                       </div>

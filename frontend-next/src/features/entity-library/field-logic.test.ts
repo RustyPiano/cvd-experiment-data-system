@@ -264,11 +264,14 @@ describe('buildSubmitPayload', () => {
     expect(payload.field_devices).toEqual(['light', 'electric_field'])
   })
 
-  it('round-trips composite entity fields as structured values', () => {
+  it('round-trips named tube dimensions and backfills the legacy shape', () => {
     const defaults = buildDefaultValues('setup', {
       tube_outer_diameter_wall_mm: { value: 2, option: '2″' },
     })
-    expect(defaults.tube_outer_diameter_wall_mm).toBe('2″；2')
+    expect(JSON.parse(defaults.tube_outer_diameter_wall_mm as string)).toEqual({
+      outer_diameter_mm: 50.8,
+      wall_thickness_mm: 2,
+    })
 
     const payload = buildSubmitPayload('setup', {
       setup_code: 'CVD-01',
@@ -278,9 +281,78 @@ describe('buildSubmitPayload', () => {
       tube_outer_diameter_wall_mm: defaults.tube_outer_diameter_wall_mm,
     })
     expect(payload.tube_outer_diameter_wall_mm).toEqual({
-      value: 2,
-      option: 'tube_2_inch',
+      outer_diameter_mm: 50.8,
+      wall_thickness_mm: 2,
     })
     expect(payload.zone_count).toBe(3)
+  })
+
+  it('serializes pump model text and ultimate absolute pressure as one composite', () => {
+    const defaults = buildDefaultValues('setup', {
+      pump_model_base_pressure: {
+        option: 'Edwards RV12',
+        value: 2,
+      },
+    })
+    expect(defaults.pump_model_base_pressure).toBe('Edwards RV12；2')
+    expect(
+      buildSubmitPayload('setup', {
+        pump_model_base_pressure: defaults.pump_model_base_pressure,
+      }),
+    ).toEqual({
+      pump_model_base_pressure: {
+        option: 'Edwards RV12',
+        value: 2,
+      },
+    })
+  })
+
+  it('round-trips enriched file references without leaking display metadata', () => {
+    const defaults = buildDefaultValues('material_lot', {
+      coa_attachment: {
+        file_asset_id: 'file-1',
+        sha256: 'abc123',
+        original_name: 'coa.pdf',
+        size_bytes: 2048,
+      },
+    })
+    expect(JSON.parse(defaults.coa_attachment as string)).toEqual({
+      file_asset_id: 'file-1',
+      sha256: 'abc123',
+      original_name: 'coa.pdf',
+      size_bytes: 2048,
+    })
+
+    expect(
+      buildSubmitPayload('material_lot', {
+        coa_attachment: defaults.coa_attachment,
+      }),
+    ).toEqual({
+      coa_attachment: {
+        file_asset_id: 'file-1',
+        sha256: 'abc123',
+      },
+    })
+  })
+
+  it('rejects malformed file references instead of submitting text or JSON guesses', () => {
+    expect(() =>
+      buildSubmitPayload('setup', {
+        setup_diagram: '{"file_asset_id":"file-1"}',
+      }),
+    ).toThrowError(/setup_diagram.*file reference/)
+  })
+
+  it('rejects non-finite and out-of-range numeric entity values', () => {
+    expect(() =>
+      buildSubmitPayload('setup', {
+        flow_reference_pressure_Pa: '0',
+      }),
+    ).toThrowError(/flow_reference_pressure_Pa.*gt/)
+    expect(() =>
+      buildSubmitPayload('setup', {
+        zone_count: '2.5',
+      }),
+    ).toThrowError(/zone_count.*integer/)
   })
 })

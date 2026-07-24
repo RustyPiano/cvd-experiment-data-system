@@ -24,6 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Reject local tooling artifacts
+        run: |
+          forbidden="$(git ls-files | grep -E '^(\.agents/|\.claude/(launch\.json|skills/)|\.codex/|\.impeccable/|\.opencode/|\.superpowers/|skills-lock\.json$|[^/]+\.xlsx$)' || true)"
+          test -z "$forbidden" || { echo "$forbidden"; exit 1; }
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -46,6 +51,55 @@ jobs:
         working-directory: backend
         run: uv run pytest
 
+  postgres-smoke:
+    name: PostgreSQL smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cvd_test
+          POSTGRES_USER: cvd
+          POSTGRES_PASSWORD: cvd
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cvd -d cvd_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_NAME: CVD Backend
+      APP_ENV: test
+      APP_DEBUG: "false"
+      APP_HOST: 127.0.0.1
+      APP_PORT: "8000"
+      DATABASE_URL: postgresql+psycopg://cvd:cvd@127.0.0.1:5432/cvd_test
+      FILE_STORAGE_ROOT: ${{ runner.temp }}/cvd-postgres-storage
+      JWT_SECRET_KEY: test-secret-key
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Run PostgreSQL smoke paths
+        working-directory: backend
+        run: |
+          uv run pytest \
+            tests/api/test_v2_full_walkthrough.py \
+            tests/api/test_files.py::test_upload_file_creates_metadata_and_supports_download \
+            tests/models/test_postgres_features.py
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -59,6 +113,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend-next
         run: bun install --frozen-lockfile
+
+      - name: Prettier
+        working-directory: frontend-next
+        run: bun run check
 
       - name: Regenerate field metadata (生成器⑤)
         working-directory: frontend-next

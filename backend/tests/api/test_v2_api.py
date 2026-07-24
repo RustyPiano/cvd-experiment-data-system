@@ -20,6 +20,8 @@ def test_v2_routes_are_collected_under_api_v1() -> None:
     assert "/api/v1/results/{result_id}" in paths
     legacy_prefix = "/api/v1/" + "v2/"
     assert not any(path.startswith(legacy_prefix) for path in paths)
+    measured_product_update = app.openapi()["components"]["schemas"]["MeasuredProductUpdate"]
+    assert "characterization_record_id" not in measured_product_update["properties"]
 
 
 def test_v2_experiment_status_openapi_is_closed_enum() -> None:
@@ -136,6 +138,8 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
             "zone_count": 2,
             "orientation": "水平",
             "coordinate_system": "原点=温区2热电偶；下游为正",
+            "flow_reference_temperature_C": 20,
+            "flow_reference_pressure_Pa": 101325,
             "field_devices": "等离子",
         },
         headers=headers,
@@ -175,8 +179,11 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
                         "stage_type": "反应生长",
                         "temperature_program": "25->750",
                         "gas_species": "Ar",
-                        "gas_flow_sccm": 80,
-                        "pressure_system": "常压",
+                        "gas_flow_sccm": {"value": 80, "option": "MFC"},
+                        "pressure_system": {
+                            "value": 101325,
+                            "option": "atmospheric_pressure",
+                        },
                     }
                 ]
             }
@@ -195,8 +202,11 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user) -> None:
                         "stage_type": "反应生长",
                         "temperature_program": "25->750",
                         "gas_species": "Ar",
-                        "gas_flow_sccm": 80,
-                        "pressure_system": "常压",
+                        "gas_flow_sccm": {"value": 80, "option": "MFC"},
+                        "pressure_system": {
+                            "value": 101325,
+                            "option": "atmospheric_pressure",
+                        },
                         "field_params": 50,
                     }
                 ]
@@ -232,13 +242,13 @@ def test_target_product_upsert_updates_run_material_system_and_audits_key(
 
     response = client.put(
         f"/api/v1/experiments/{run_id}/modules/target_product",
-        json={"payload_json": {"chemical_formula": "WS2/MoS2", "structure_type": "本征"}},
+        json={"payload_json": {"chemical_formula": "WS2", "structure_type": "本征"}},
         headers=headers,
     )
 
     assert response.status_code == 200, response.text
     run = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
-    assert run.json()["material_system"] == "WS2/MoS2"
+    assert run.json()["material_system"] == "WS2"
     event = db_session.query(AuditEvent).filter(AuditEvent.action == "upsert_module").one()
     assert event.actor_id == active_user.id
     assert event.entity_id == UUID(run_id)
@@ -327,11 +337,18 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
 
     patch = client.patch(
         f"/api/v1/measured-products/{product.json()['id']}",
-        json={"measured_layers_coverage": "1层；70%"},
+        json={
+            "layer_count": 1,
+            "coverage_percent": 70,
+            "attrs": {"reviewed": True},
+        },
         headers=headers,
     )
     assert patch.status_code == 200, patch.text
-    assert patch.json()["measured_layers_coverage"] == "1层；70%"
+    assert patch.json()["layer_count"] == 1
+    assert patch.json()["coverage_percent"] == 70
+    assert patch.json()["attrs"] == {"reviewed": True}
+    assert patch.json()["characterization_record_id"] == record.json()["id"]
 
     other_sample = Sample(
         sample_code="RUN-V2-RESULTS-S2",
@@ -353,7 +370,11 @@ def test_v2_characterization_and_measured_product_crud(active_user, db_session) 
         headers=headers,
     )
     assert cross_sample.status_code == 422
-    assert cross_sample.json()["detail"] == "characterization_record_id must belong to the sample"
+    retained = client.get(
+        f"/api/v1/samples/{sample.id}/measured-products",
+        headers=headers,
+    ).json()["items"][0]
+    assert retained["characterization_record_id"] == record.json()["id"]
 
     referenced_delete = client.delete(
         f"/api/v1/characterization-records/{record.json()['id']}",

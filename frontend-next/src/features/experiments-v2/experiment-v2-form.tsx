@@ -1,7 +1,7 @@
 // 炉次表单编排：新建态只收集开始记录所需的三项基本信息；
 // 创建后进入详情页，再按节保存完整工艺。
 // 保存前用与后端同判据的必填校验拦截，避免直接把 422 抛给用户。payload 键=字段 key。
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
@@ -124,8 +124,8 @@ const MODULE_SPECS: ModuleSpec[] = [
     active: () => true,
     missing: ({ mode, state }) =>
       mode === 'new'
-        ? ESSENTIAL_RUN_KEYS.some(
-            (key) => moduleValueIsEmpty(state.basic_info[key]),
+        ? ESSENTIAL_RUN_KEYS.some((key) =>
+            moduleValueIsEmpty(state.basic_info[key]),
           )
         : missingRequiredKeys('basic_info', state.basic_info).length > 0,
     payload: ({ state, runCode }) => {
@@ -173,7 +173,8 @@ const MODULE_SPECS: ModuleSpec[] = [
     active: ({ state }) => state.process_steps.some(isProcessStepActive),
     missing: ({ state }) =>
       processStepsMissing(state.process_steps, state.equipment.snapshot),
-    payload: ({ state }) => buildProcessStepsPayload(state.process_steps),
+    payload: ({ state }) =>
+      buildProcessStepsPayload(state.process_steps, state.equipment.snapshot),
   },
   {
     key: 'process_events',
@@ -208,6 +209,7 @@ export function ExperimentV2Form({
   runCode,
   processReadOnly = false,
   resultsReadOnly = false,
+  onProcessDirtyChange,
 }: {
   mode: 'new' | 'edit'
   runId?: string
@@ -216,6 +218,7 @@ export function ExperimentV2Form({
   runCode?: string
   processReadOnly?: boolean
   resultsReadOnly?: boolean
+  onProcessDirtyChange?: (dirty: boolean) => void
 }) {
   const { i18n, t } = useTranslation()
   const navigate = useNavigate()
@@ -229,10 +232,15 @@ export function ExperimentV2Form({
   const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(new Set())
   const [savedKeys, setSavedKeys] = useState<ReadonlySet<string>>(new Set())
   const [dirtyKeys, setDirtyKeys] = useState<ReadonlySet<string>>(new Set())
+  const [resultsDirty, setResultsDirty] = useState(false)
   const revisions = useRef<Record<string, number>>({})
   const [moduleErrors, setModuleErrors] = useState<
     Record<string, string | null>
   >({})
+
+  useEffect(() => {
+    onProcessDirtyChange?.(dirtyKeys.size > 0)
+  }, [dirtyKeys, onProcessDirtyChange])
 
   const markDirty = (moduleKey: string) => {
     revisions.current[moduleKey] = (revisions.current[moduleKey] ?? 0) + 1
@@ -434,7 +442,10 @@ export function ExperimentV2Form({
   return (
     <div className="flex flex-col gap-6">
       <RouteLeaveGuard
-        when={shouldBlockExperimentLeave(dirtyKeys.size, creating)}
+        when={shouldBlockExperimentLeave(
+          dirtyKeys.size + Number(resultsDirty),
+          creating,
+        )}
         message={t('experimentsV2.form.leaveWarning')}
       />
       <fieldset disabled={processReadOnly} className="contents">
@@ -535,7 +546,11 @@ export function ExperimentV2Form({
         ) : null}
       </fieldset>
       {mode === 'edit' ? (
-        <ResultsSection runId={runId} readOnly={resultsReadOnly} />
+        <ResultsSection
+          runId={runId}
+          readOnly={resultsReadOnly}
+          onDirtyChange={setResultsDirty}
+        />
       ) : null}
 
       {mode === 'new' ? (

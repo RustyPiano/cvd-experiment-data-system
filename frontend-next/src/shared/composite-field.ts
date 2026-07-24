@@ -5,6 +5,7 @@ export const COMPOSITE_INPUTS = [
   '下拉+数值',
   '文本+下拉',
   '下拉+文本',
+  '文本+数值',
 ] as const
 
 export type CompositeInput = (typeof COMPOSITE_INPUTS)[number]
@@ -14,7 +15,10 @@ export function isCompositeInput(input: string): input is CompositeInput {
 }
 
 function isFreeFirst(input: CompositeInput): boolean {
-  return input.startsWith('数值') || input.startsWith('文本')
+  return (
+    input !== '文本+数值' &&
+    (input.startsWith('数值') || input.startsWith('文本'))
+  )
 }
 
 export function formatCompositeValue(
@@ -24,6 +28,7 @@ export function formatCompositeValue(
 ): string {
   const free = freeValue
   const selected = option
+  if (input === '文本+数值') return `${selected.trim()}；${free.trim()}`
   if (!free.trim()) return selected.trim()
   if (!selected.trim()) return free
   return isFreeFirst(input) ? `${free}（${selected}）` : `${selected}；${free}`
@@ -37,6 +42,15 @@ export function parseCompositeValue(
   const stored = value
   const trimmed = stored.trim()
   if (!trimmed) return { freeValue: '', option: '' }
+  if (input === '文本+数值') {
+    const match = stored.match(/^([^；;]*)[；;]\s*(.*)$/)
+    if (match) {
+      return { freeValue: match[2], option: match[1].trim() }
+    }
+    return Number.isFinite(Number(trimmed))
+      ? { freeValue: trimmed, option: '' }
+      : { freeValue: '', option: trimmed }
+  }
   const canonicalOptions = options.map(canonicalOption)
   const canonicalTrimmed = canonicalOption(trimmed)
   if (canonicalOptions.includes(canonicalTrimmed)) {

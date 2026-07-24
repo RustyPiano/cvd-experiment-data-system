@@ -1,7 +1,7 @@
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import Uuid, bindparam, exists, func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
@@ -55,6 +55,13 @@ class ExperimentRepository:
 
     def get_by_id_for_update(self, experiment_id: UUID) -> ExperimentRun | None:
         """Lock a run row for a state/result write and refresh any stale identity-map value."""
+        if self.db.get_bind().dialect.name == "sqlite":
+            self.db.execute(
+                text("UPDATE experiment_runs SET id = id WHERE id = :id").bindparams(
+                    bindparam("id", type_=Uuid(as_uuid=True))
+                ),
+                {"id": experiment_id},
+            )
         statement = (
             select(ExperimentRun)
             .options(

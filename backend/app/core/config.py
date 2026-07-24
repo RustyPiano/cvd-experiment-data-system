@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +32,31 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(alias="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     registration_invite_code: str | None = Field(default=None, alias="REGISTRATION_INVITE_CODE")
+    experiment_timezone: str = Field(default="Asia/Shanghai", alias="EXPERIMENT_TIMEZONE")
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.app_env.strip().lower() != "production":
+            return self
+        if self.app_debug:
+            raise ValueError("APP_DEBUG must be false in production")
+
+        secret = self.jwt_secret_key.strip()
+        if len(secret) < 32 or secret.lower().startswith(("your_", "change-me", "test")):
+            raise ValueError("JWT_SECRET_KEY is unsafe for production")
+        if self.jwt_algorithm.strip().upper() != "HS256":
+            raise ValueError("JWT_ALGORITHM must be HS256 in production")
+
+        invite_code = (self.registration_invite_code or "").strip()
+        if invite_code and (
+            not 8 <= len(invite_code) <= 128
+            or invite_code.lower().startswith(("your_", "change-me", "test"))
+        ):
+            raise ValueError("REGISTRATION_INVITE_CODE is unsafe for production")
+        self.jwt_secret_key = secret
+        self.jwt_algorithm = "HS256"
+        self.registration_invite_code = invite_code or None
+        return self
 
     @property
     def cors_allow_origins_list(self) -> list[str]:

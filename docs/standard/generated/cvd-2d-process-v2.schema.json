@@ -69,6 +69,8 @@
         "ambient_humidity_percent": {
           "anyOf": [
             {
+              "maximum": 100,
+              "minimum": 0,
               "type": "number"
             },
             {
@@ -81,6 +83,7 @@
         "particle_count_per_m3": {
           "anyOf": [
             {
+              "minimum": 0,
               "type": "number"
             },
             {
@@ -145,6 +148,8 @@
             "concentration_at_percent": {
               "anyOf": [
                 {
+                  "maximum": 100,
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -157,6 +162,7 @@
             "layer_order": {
               "anyOf": [
                 {
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -224,6 +230,7 @@
         "target_layer_count": {
           "anyOf": [
             {
+              "minimum": 1,
               "type": "integer"
             },
             {
@@ -294,41 +301,25 @@
     },
     "equipment": {
       "$defs": {
-        "TubeOuterDiameterWallMmValue": {
+        "TubeDimensionsPayload": {
           "additionalProperties": false,
           "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Value"
+            "outer_diameter_mm": {
+              "exclusiveMinimum": 0,
+              "title": "Outer Diameter Mm",
+              "type": "number"
             },
-            "option": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "custom",
-                    "tube_1_inch",
-                    "tube_2_inch",
-                    "tube_4_inch"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Option"
+            "wall_thickness_mm": {
+              "exclusiveMinimum": 0,
+              "title": "Wall Thickness Mm",
+              "type": "number"
             }
           },
-          "title": "TubeOuterDiameterWallMmValue",
+          "required": [
+            "outer_diameter_mm",
+            "wall_thickness_mm"
+          ],
+          "title": "TubeDimensionsPayload",
           "type": "object"
         }
       },
@@ -376,6 +367,7 @@
         "zone_count": {
           "anyOf": [
             {
+              "minimum": 1,
               "type": "integer"
             },
             {
@@ -414,7 +406,7 @@
         "tube_outer_diameter_wall_mm": {
           "anyOf": [
             {
-              "$ref": "#/$defs/TubeOuterDiameterWallMmValue"
+              "$ref": "#/$defs/TubeDimensionsPayload"
             },
             {
               "type": "null"
@@ -491,12 +483,22 @@
     },
     "precursors": {
       "$defs": {
-        "BoatCrucibleValue": {
+        "BoatCruciblePayload": {
           "additionalProperties": false,
           "properties": {
-            "value": {
+            "material": {
+              "enum": [
+                "quartz_boat",
+                "alumina_boat",
+                "other"
+              ],
+              "title": "Material",
+              "type": "string"
+            },
+            "length_mm": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -504,27 +506,86 @@
                 }
               ],
               "default": null,
-              "title": "Value"
+              "title": "Length Mm"
             },
-            "option": {
+            "width_mm": {
               "anyOf": [
                 {
-                  "enum": [
-                    "alumina_boat",
-                    "other",
-                    "quartz_boat"
-                  ],
-                  "type": "string"
+                  "exclusiveMinimum": 0,
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
               "default": null,
-              "title": "Option"
+              "title": "Width Mm"
+            },
+            "height_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Height Mm"
+            },
+            "diameter_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Diameter Mm"
             }
           },
-          "title": "BoatCrucibleValue",
+          "required": [
+            "material"
+          ],
+          "title": "BoatCruciblePayload",
+          "type": "object"
+        },
+        "MaterialLotReferencePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "entity_id": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            },
+            "version": {
+              "minimum": 1,
+              "title": "Version",
+              "type": "integer"
+            },
+            "snapshot": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Snapshot"
+            }
+          },
+          "required": [
+            "entity_id",
+            "version"
+          ],
+          "title": "MaterialLotReferencePayload",
           "type": "object"
         },
         "PrecursorItemPayload": {
@@ -584,14 +645,13 @@
             "lot_ref": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "$ref": "#/$defs/MaterialLotReferencePayload"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Lot Ref"
+              "default": null
             },
             "role": {
               "anyOf": [
@@ -614,6 +674,7 @@
             "amount": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -638,7 +699,7 @@
             "boat_crucible": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/BoatCrucibleValue"
+                  "$ref": "#/$defs/BoatCruciblePayload"
                 },
                 {
                   "type": "null"
@@ -649,7 +710,7 @@
             "source_zone_temperature": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/SourceZoneTemperatureValue"
+                  "$ref": "#/$defs/SourceZoneTemperaturePayload"
                 },
                 {
                   "type": "null"
@@ -677,36 +738,24 @@
           "title": "PrecursorItemPayload",
           "type": "object"
         },
-        "SourceZoneTemperatureValue": {
+        "SourceZoneTemperaturePayload": {
           "additionalProperties": false,
           "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Value"
+            "zone_index": {
+              "minimum": 1,
+              "title": "Zone Index",
+              "type": "integer"
             },
-            "option": {
-              "anyOf": [
-                {
-                  "const": "zone_1",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Option"
+            "temperature_C": {
+              "title": "Temperature C",
+              "type": "number"
             }
           },
-          "title": "SourceZoneTemperatureValue",
+          "required": [
+            "zone_index",
+            "temperature_C"
+          ],
+          "title": "SourceZoneTemperaturePayload",
           "type": "object"
         }
       },
@@ -726,41 +775,38 @@
     },
     "substrates": {
       "$defs": {
-        "SizePlacementValue": {
+        "MaterialLotReferencePayload": {
           "additionalProperties": false,
           "properties": {
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Value"
+            "entity_id": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
             },
-            "option": {
+            "version": {
+              "minimum": 1,
+              "title": "Version",
+              "type": "integer"
+            },
+            "snapshot": {
               "anyOf": [
                 {
-                  "enum": [
-                    "face_down",
-                    "face_up",
-                    "tilted",
-                    "upright"
-                  ],
-                  "type": "string"
+                  "additionalProperties": true,
+                  "type": "object"
                 },
                 {
                   "type": "null"
                 }
               ],
               "default": null,
-              "title": "Option"
+              "title": "Snapshot"
             }
           },
-          "title": "SizePlacementValue",
+          "required": [
+            "entity_id",
+            "version"
+          ],
+          "title": "MaterialLotReferencePayload",
           "type": "object"
         },
         "SubstrateItemPayload": {
@@ -777,6 +823,17 @@
               ],
               "title": "Material"
             },
+            "lot_ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialLotReferencePayload"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "formula_orientation": {
               "anyOf": [
                 {
@@ -792,6 +849,7 @@
             "oxide_thickness_nm": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -804,6 +862,7 @@
             "surface_roughness_nm": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -816,7 +875,7 @@
             "size_placement": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/SizePlacementValue"
+                  "$ref": "#/$defs/SubstrateSizePlacementPayload"
                 },
                 {
                   "type": "null"
@@ -839,6 +898,7 @@
             "exposure_interval_min": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -851,7 +911,7 @@
             "zone_thermocouple_distance_mm": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/ZoneThermocoupleDistanceMmValue"
+                  "$ref": "#/$defs/ZoneThermocoupleDistancePayload"
                 },
                 {
                   "type": "null"
@@ -866,12 +926,23 @@
           "title": "SubstrateItemPayload",
           "type": "object"
         },
-        "ZoneThermocoupleDistanceMmValue": {
+        "SubstrateSizePlacementPayload": {
           "additionalProperties": false,
           "properties": {
-            "value": {
+            "length_mm": {
+              "exclusiveMinimum": 0,
+              "title": "Length Mm",
+              "type": "number"
+            },
+            "width_mm": {
+              "exclusiveMinimum": 0,
+              "title": "Width Mm",
+              "type": "number"
+            },
+            "thickness_mm": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -879,12 +950,18 @@
                 }
               ],
               "default": null,
-              "title": "Value"
+              "title": "Thickness Mm"
             },
-            "option": {
+            "placement": {
               "anyOf": [
                 {
-                  "const": "zone_2",
+                  "enum": [
+                    "face_up",
+                    "face_down",
+                    "tilted",
+                    "upright",
+                    "other"
+                  ],
                   "type": "string"
                 },
                 {
@@ -892,10 +969,34 @@
                 }
               ],
               "default": null,
-              "title": "Option"
+              "title": "Placement"
             }
           },
-          "title": "ZoneThermocoupleDistanceMmValue",
+          "required": [
+            "length_mm",
+            "width_mm"
+          ],
+          "title": "SubstrateSizePlacementPayload",
+          "type": "object"
+        },
+        "ZoneThermocoupleDistancePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "zone_index": {
+              "minimum": 1,
+              "title": "Zone Index",
+              "type": "integer"
+            },
+            "distance_mm": {
+              "title": "Distance Mm",
+              "type": "number"
+            }
+          },
+          "required": [
+            "zone_index",
+            "distance_mm"
+          ],
+          "title": "ZoneThermocoupleDistancePayload",
           "type": "object"
         }
       },
@@ -974,6 +1075,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1050,9 +1152,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1086,6 +1201,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1129,6 +1245,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1152,6 +1269,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1174,6 +1292,7 @@
             "value": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1226,6 +1345,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1292,9 +1412,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1327,6 +1460,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1382,6 +1516,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1405,6 +1540,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1444,6 +1580,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1510,9 +1647,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1546,6 +1696,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1583,6 +1734,7 @@
             "value": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1636,6 +1788,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1702,9 +1855,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1738,6 +1904,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1792,6 +1959,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1823,9 +1991,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1859,6 +2040,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -1900,6 +2082,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -1966,9 +2149,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -2002,6 +2198,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -2044,6 +2241,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -2110,9 +2308,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -2146,6 +2357,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -2188,6 +2400,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -2227,6 +2440,7 @@
             "duration_cycles": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -2258,9 +2472,22 @@
               ],
               "title": "Gas Species"
             },
+            "other_gas_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Gas Name"
+            },
             "gas_purity_impurities": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -2294,6 +2521,7 @@
             "base_pressure_leak": {
               "anyOf": [
                 {
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
@@ -2397,7 +2625,7 @@
             "occurred_at": {
               "anyOf": [
                 {
-                  "format": "time",
+                  "format": "date-time",
                   "type": "string"
                 },
                 {
@@ -2457,12 +2685,47 @@
     },
     "pvd": {
       "$defs": {
+        "MaterialLotReferencePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "entity_id": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            },
+            "version": {
+              "minimum": 1,
+              "title": "Version",
+              "type": "integer"
+            },
+            "snapshot": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Snapshot"
+            }
+          },
+          "required": [
+            "entity_id",
+            "version"
+          ],
+          "title": "MaterialLotReferencePayload",
+          "type": "object"
+        },
         "PlasmaGasPressureValue": {
           "additionalProperties": false,
           "properties": {
             "value": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
@@ -2498,18 +2761,18 @@
         "target_lot_ref": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/MaterialLotReferencePayload"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Target Lot Ref"
+          "default": null
         },
         "target_substrate_distance_mm": {
           "anyOf": [
             {
+              "exclusiveMinimum": 0,
               "type": "number"
             },
             {
@@ -2545,6 +2808,7 @@
         "presputter_shutter": {
           "anyOf": [
             {
+              "exclusiveMinimum": 0,
               "type": "number"
             },
             {
@@ -2557,6 +2821,7 @@
         "deposition_rate_nm_s": {
           "anyOf": [
             {
+              "exclusiveMinimum": 0,
               "type": "number"
             },
             {
@@ -2570,6 +2835,336 @@
       "title": "PvdPayload",
       "type": "object",
       "$id": "https://standard.cvd-2d.org/2.0.0/pvd.schema.json"
+    }
+  },
+  "result_models": {
+    "unified_result_write": {
+      "$defs": {
+        "SpectralMetric": {
+          "additionalProperties": false,
+          "properties": {
+            "metric_code": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "title": "Metric Code",
+              "type": "string"
+            },
+            "value": {
+              "title": "Value",
+              "type": "number"
+            },
+            "unit": {
+              "maxLength": 32,
+              "minLength": 1,
+              "title": "Unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "metric_code",
+            "value",
+            "unit"
+          ],
+          "title": "SpectralMetric",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "observed_phenomena": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Phenomena"
+        },
+        "detected_phase_stacking": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detected Phase Stacking"
+        },
+        "layer_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer Count"
+        },
+        "coverage_percent": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Percent"
+        },
+        "domain_size_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Domain Size Um"
+        },
+        "nucleation_density_cm2": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nucleation Density Cm2"
+        },
+        "key_spectral_metrics": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SpectralMetric"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Key Spectral Metrics"
+        },
+        "kind": {
+          "enum": [
+            "direct_observation",
+            "characterization"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "instrument_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instrument Id"
+        },
+        "instrument_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instrument Version"
+        },
+        "method_instrument": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Instrument"
+        },
+        "test_conditions": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Test Conditions"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "V2ResultWrite",
+      "type": "object"
+    },
+    "measured_product_metrics": {
+      "$defs": {
+        "SpectralMetric": {
+          "additionalProperties": false,
+          "properties": {
+            "metric_code": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "title": "Metric Code",
+              "type": "string"
+            },
+            "value": {
+              "title": "Value",
+              "type": "number"
+            },
+            "unit": {
+              "maxLength": 32,
+              "minLength": 1,
+              "title": "Unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "metric_code",
+            "value",
+            "unit"
+          ],
+          "title": "SpectralMetric",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "observed_phenomena": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Phenomena"
+        },
+        "detected_phase_stacking": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detected Phase Stacking"
+        },
+        "layer_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer Count"
+        },
+        "coverage_percent": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Percent"
+        },
+        "domain_size_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Domain Size Um"
+        },
+        "nucleation_density_cm2": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nucleation Density Cm2"
+        },
+        "key_spectral_metrics": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SpectralMetric"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Key Spectral Metrics"
+        }
+      },
+      "title": "MeasuredProductMetrics",
+      "type": "object"
     }
   }
 }

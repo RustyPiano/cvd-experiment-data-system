@@ -1,16 +1,16 @@
 # ============================================================================
 # CVD-2D 元数据标准 v2.0 —— 字段【单一权威源】(实现方案 D1)
-# 改字段只改这里；生成: python3 docs/standard/build_field_tables.py
-# 校验: python3 docs/standard/check_field_source.py（CI 强制）
+# 改字段只改这里；生成: uv run --project backend python docs/standard/build_field_tables.py
+# 校验: uv run --project backend python docs/standard/check_field_source.py（CI 强制）
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.5
+  version: v3.6
   status: DRAFT
-  updated: '2026-07-22'
+  updated: '2026-07-24'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
-  edit_howto: 改字段=改本文件 → python3 docs/standard/build_field_tables.py 重新生成 xlsx → python3 docs/standard/check_field_source.py 校验。
-  keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿 v1 风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走变更流程；v1→v2 对应关系统一在 P5 mapping，不靠同名。
+  edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
+  keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
   i18n: 国际化（D12）：字段 label/placeholder/help 与可选词表均提供中英文展示；受控词表提交和存储稳定 ASCII 机器码，中文与英文仅用于显示；自由文本允许任意语言；xlsx 人读视图保持中文。
 field_ui_defaults:
   input_placeholder: 请输入
@@ -299,6 +299,7 @@ unit_labels_en:
   次: cycles
   min·次: min · cycles
   μm·cm⁻²·(连续/孤立): μm · cm⁻² · (continuous/isolated)
+  按指标: per metric
 stage_types:
   note: §5 动态表单的权威映射（D11）：阶段类型 → 显示哪些参数组；common 组恒显。P3 的 discriminated union 与 P4 的表单显隐都从这里生成，禁止在代码里散写。初版由标准§5语义推导，如与实际操作不符改此处即可。
   groups:
@@ -373,6 +374,7 @@ experiment_record:
   - 填写示例
   - 来源
   - 备注
+  - 机器约束
   sections:
   - title: §1 基本信息（这次实验是谁、什么时候、在什么环境做的）
     fields:
@@ -387,7 +389,7 @@ experiment_record:
       requirement:
         raw: 必填
         level: required
-      example: 2026-06-20 09:30
+      example: '2026-06-20T09:30:00+08:00'
       source: 会议
       note: 时刻不能只到天
       r0: true
@@ -464,6 +466,9 @@ experiment_record:
       input: 数值
       options: —
       unit: '%RH'
+      validation:
+        ge: 0
+        le: 100
       requirement:
         raw: 推荐
         level: recommended
@@ -478,6 +483,8 @@ experiment_record:
       input: 数值
       options: —
       unit: 个/m³
+      validation:
+        ge: 0
       requirement:
         raw: 选填
         level: optional
@@ -524,7 +531,7 @@ experiment_record:
       label_en: Structure type
       key: structure_type
       meaning: 材料结构类别（是否掺杂/合金/异质结，供机器检索）
-      input: 下拉+多选
+      input: 下拉
       options: 本征/掺杂/合金/垂直异质结/横向异质结/其他
       unit: —
       requirement:
@@ -535,6 +542,7 @@ experiment_record:
       note: 判别器；决定组成明细是否必填
       help: 选择后页面会显示该类型的化学式和组成明细填写规则
       help_en: The page shows formula and composition rules for the selected type
+      r0: true
     - module: 目标产物
       label: 组成明细
       label_en: Composition details
@@ -554,7 +562,8 @@ experiment_record:
           value: 本征
       example: '{WS2,上层,层序2};{MoS2,下层,层序1}'
       source: 复审
-      note: ★v3.2b升为权威源+条件必填；数量拆浓度/层序；杜绝退回字符串（复审N2）
+      note: ★v3.2b升为权威源+条件必填；数量拆浓度/层序；掺杂浓度已知时须0<at%<100，垂直结构下层层序须早于上层；杜绝退回字符串（复审N2）
+      r0: true
     - module: 目标产物
       label: 目标层数
       label_en: Target layer count
@@ -563,6 +572,9 @@ experiment_record:
       input: 数值
       options: —
       unit: 层
+      validation:
+        type: integer
+        ge: 1
       requirement:
         raw: 推荐
         level: recommended
@@ -682,6 +694,9 @@ experiment_record:
       input: 数值
       options: 1/2/3…
       unit: 个
+      validation:
+        type: integer
+        ge: 1
       requirement:
         raw: 必填
         level: required
@@ -723,8 +738,8 @@ experiment_record:
       label_en: Tube outer diameter / wall thickness
       key: tube_outer_diameter_wall_mm
       meaning: 管径规格与壁厚（内径自动算）
-      input: 下拉+数值
-      options: 1″/2″/4″/自定义 + 壁厚
+      input: 具名尺寸对象
+      options: '{outer_diameter_mm, wall_thickness_mm}'
       unit: mm
       requirement:
         raw: 推荐
@@ -860,8 +875,8 @@ experiment_record:
       label_en: Material lot (reference)
       key: lot_ref
       meaning: 引用批号（纯度/粒径自动带出），锁定当时版本
-      input: 引用
-      options: 批次库
+      input: 实体版本引用
+      options: '{entity_id, version, snapshot}'
       unit: —
       requirement:
         raw: 推荐
@@ -891,6 +906,8 @@ experiment_record:
       input: 数值
       options: —
       unit: mg(固)/µL(液)
+      validation:
+        gt: 0
       requirement:
         raw: 条件必填(非气态)
         level: conditional_required
@@ -921,8 +938,8 @@ experiment_record:
       label_en: Boat / crucible
       key: boat_crucible
       meaning: 盛装容器材质与尺寸
-      input: 下拉+数值
-      options: 石英舟/陶瓷(刚玉)舟/其他；长×宽×高（直径）
+      input: 具名尺寸对象
+      options: '{material, length_mm, width_mm, height_mm, diameter_mm}'
       unit: mm
       requirement:
         raw: 推荐
@@ -935,8 +952,8 @@ experiment_record:
       label_en: Source zone / temperature
       key: source_zone_temperature
       meaning: 放第几温区、源温（若可设/可测）
-      input: 下拉+数值
-      options: 温区1…
+      input: 温区温度对象
+      options: '{zone_index, temperature_C}'
       unit: ℃
       requirement:
         raw: 推荐
@@ -976,6 +993,20 @@ experiment_record:
       note: ''
       r0: true
     - module: 衬底
+      label: 物料批次（引用）
+      label_en: Material lot (reference)
+      key: lot_ref
+      meaning: 引用衬底批号并冻结当时版本、规格与证据
+      input: 实体版本引用
+      options: '{entity_id, version, snapshot}'
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: Sapphire-B202（锁 v1）
+      source: 复审
+      note: 与前驱体引用使用同一不可变版本快照契约
+    - module: 衬底
       label: 化学式/取向
       label_en: Formula / orientation
       key: formula_orientation
@@ -999,6 +1030,8 @@ experiment_record:
       input: 数值
       options: 写成 SiO₂/Si(285nm)
       unit: nm
+      validation:
+        gt: 0
       requirement:
         raw: 条件必填(仅SiO₂/Si)
         level: conditional_required
@@ -1017,6 +1050,8 @@ experiment_record:
       input: 数值
       options: —
       unit: nm
+      validation:
+        ge: 0
       requirement:
         raw: 选填
         level: optional
@@ -1028,8 +1063,8 @@ experiment_record:
       label_en: Size / placement
       key: size_placement
       meaning: 几何尺寸与放置朝向
-      input: 数值+下拉
-      options: 长×宽×厚；正放/倒扣/倾角/竖放
+      input: 具名尺寸对象
+      options: '{length_mm, width_mm, thickness_mm, placement}'
       unit: mm
       requirement:
         raw: 选填
@@ -1059,6 +1094,8 @@ experiment_record:
       input: 数值
       options: —
       unit: min
+      validation:
+        ge: 0
       requirement:
         raw: 选填
         level: optional
@@ -1070,8 +1107,8 @@ experiment_record:
       label_en: Zone / distance to thermocouple
       key: zone_thermocouple_distance_mm
       meaning: 第几温区、距离(±)
-      input: 下拉+数值
-      options: 温区2…
+      input: 温区距离对象
+      options: '{zone_index, distance_mm}'
       unit: mm
       requirement:
         raw: 推荐
@@ -1194,6 +1231,25 @@ experiment_record:
       note: ''
       r0: true
     - module: 步·气体
+      label: 其他气体名称
+      label_en: Other gas name
+      key: other_gas_name
+      group: gas
+      meaning: 气体组分选择“其他”时记录明确化学名称或化学式
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(气体组分含其他)
+        level: conditional_required
+        condition:
+          field: 步·气体.气体组分
+          op: eq
+          value: 其他
+      example: NH3
+      source: 科学契约审查
+      note: 禁止用“其他”丢失真实气体身份
+    - module: 步·气体
       label: 纯度/浓度/水氧
       label_en: Purity / concentration / H₂O·O₂ impurities
       key: gas_purity_impurities
@@ -1202,6 +1258,8 @@ experiment_record:
       input: 数值
       options: —
       unit: N·%·ppm
+      validation:
+        ge: 0
       requirement:
         raw: 推荐
         level: recommended
@@ -1213,26 +1271,42 @@ experiment_record:
       label_en: Flow rate / flow source
       key: gas_flow_sccm
       group: gas
-      meaning: 流量、流量计类型
+      meaning: 本阶段记录值与流量计类型
       input: 数值+下拉
       options: MFC/转子
       unit: sccm
+      validation:
+        gt: 0
+        require_value: true
       requirement:
         raw: 必填
         level: required
       example: 80（MFC）
       source: 会议/复审
-      note: sccm须绑标准状态；设定+实测
+      note: sccm须绑定Setup版本中冻结的参考温度和参考绝对压力；当前仅记录单个阶段值与流量计类型，设定值/实测值拆分延后
       r0: true
     - module: 步·压力
-      label: 压力体系/工作压力
-      label_en: Pressure regime / working pressure
+      label: 压力体系/工作绝对压力
+      label_en: Pressure regime / working absolute pressure
       key: pressure_system
       group: pressure
-      meaning: 常压/低压/超高真空 + 工作压力
+      meaning: 常压/低压/超高真空类别及本阶段工作绝对压力（非表压）
       input: 下拉+数值
       options: 常压(APCVD)/低压(LPCVD)/超高真空
       unit: Pa
+      validation:
+        gt: 0
+        require_value: true
+        option_ranges:
+          atmospheric_pressure:
+            ge: 80000
+            le: 120000
+          low_pressure:
+            gt: 1.0e-06
+            lt: 80000
+          ultra_high_vacuum:
+            gt: 0
+            le: 1.0e-06
       requirement:
         raw: 必填(生长)/选填(其余)
         level: conditional_required
@@ -1240,9 +1314,11 @@ experiment_record:
           field: 过程步.阶段类型
           op: eq
           value: 反应生长
-      example: 常压；1.0×10⁵ Pa
+      example: 常压；1.01325×10⁵ Pa（绝对压力）
       source: 会议
       note: 所有阶段可出现
+      help: 填写相对于绝对真空的工作压力；不要填写相对于大气压的表压
+      help_en: Enter working pressure relative to absolute vacuum, not gauge pressure relative to atmosphere
       r0: true
     - module: 步·压力
       label: 本底压力/漏率
@@ -1253,6 +1329,8 @@ experiment_record:
       input: 数值
       options: —
       unit: Pa·Pa·L/s
+      validation:
+        ge: 0
       requirement:
         raw: 选填
         level: optional
@@ -1268,6 +1346,8 @@ experiment_record:
       input: 数值
       options: —
       unit: min·次
+      validation:
+        gt: 0
       requirement:
         raw: 必填/选填
         level: mixed
@@ -1313,14 +1393,14 @@ experiment_record:
       label: 发生时刻
       label_en: Time of occurrence
       key: occurred_at
-      meaning: 何时发生（记绝对时间）
-      input: 时间
+      meaning: 何时发生（带 UTC offset 的绝对日期时间，可跨午夜）
+      input: 日期时间
       options: —
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: '10:28'
+      example: '2026-07-24T10:28:00+08:00'
       source: 会议
       note: 相对时间可由t0算
     - module: 过程事件
@@ -1428,49 +1508,93 @@ experiment_record:
       status: pending-alignment
       pending: 待明确清单#7：堆垛可判粒度→定自由文本还是下拉
     - module: 实测产物
-      label: 实测层数/覆盖率
-      label_en: Measured layer count / coverage
-      key: measured_layers_coverage
-      meaning: 实测层数与覆盖率
+      label: 实测层数
+      label_en: Measured layer count
+      key: layer_count
+      meaning: 由表征方法判定的层数
       input: 数值
       options: —
-      unit: 层·%
+      unit: 层
+      validation:
+        type: integer
+        ge: 0
       requirement:
         raw: 选填
         level: optional
-      example: 1 层；~70%
-      source: 复审
+      example: '1'
+      source: 复审/科学契约审查
+      note: 与覆盖率拆分，0 表示在该测点未检出层状产物
+    - module: 实测产物
+      label: 覆盖率
+      label_en: Coverage
+      key: coverage_percent
+      meaning: 明确视场或统计区域内材料面积占比
+      input: 数值
+      options: —
+      unit: '%'
+      validation:
+        ge: 0
+        le: 100
+      requirement:
+        raw: 选填
+        level: optional
+      example: '70'
+      source: 复审/科学契约审查
+      note: 量化口径仍须随表征条件记录
+      status: pending-alignment
+      pending: 待明确清单#6：SEM覆盖率组里叫法/量化方式待确认
+    - module: 实测产物
+      label: 畴尺寸
+      label_en: Domain size
+      key: domain_size_um
+      meaning: 由指定统计方法得到的代表性畴尺寸
+      input: 数值
+      options: —
+      unit: μm
+      validation:
+        gt: 0
+      requirement:
+        raw: 选填
+        level: optional
+      example: '50'
+      source: 复审/科学契约审查
       note: ''
     - module: 实测产物
-      label: 畴尺寸/成核密度/连续性
-      label_en: Domain size / nucleation density / continuity
-      key: domain_nucleation_continuity
-      meaning: ''
+      label: 成核密度
+      label_en: Nucleation density
+      key: nucleation_density_cm2
+      meaning: 指定统计区域内单位面积成核点数量
       input: 数值
       options: —
-      unit: μm·cm⁻²·(连续/孤立)
+      unit: cm⁻²
+      validation:
+        ge: 0
       requirement:
         raw: 选填
         level: optional
-      example: 畴 ~50 μm
-      source: 复审
+      example: '10000'
+      source: 复审/科学契约审查
       note: ''
     - module: 实测产物
       label: 关键谱学指标
       label_en: Key spectroscopic metrics
       key: key_spectral_metrics
       meaning: Raman峰位/峰宽/峰面积；PL峰位/峰宽；AFM厚度/粗糙度；SEM覆盖率(视场内材料面积占比,%)/尺寸
-      input: 数值
-      options: —
-      unit: cm⁻¹·eV·nm·%…
+      input: 结构化指标数组
+      options: 每条:{metric_code,value,unit}
+      unit: 按指标
+      validation:
+        item_required:
+        - metric_code
+        - value
+        - unit
+        finite_value: true
       requirement:
         raw: 选填
         level: optional
-      example: Δ(A1g-E2g)≈20；PL~1.85eV
+      example: '[{"metric_code":"raman_e2g_peak","value":384.2,"unit":"cm-1"}]'
       source: 复审/导师
       note: ★v3.4导师评审(C79红字/K79)：PL补峰宽；『SEM占比』改名『SEM覆盖率』并给定义；随技术选填
-      status: pending-alignment
-      pending: 待明确清单#6：SEM覆盖率组里叫法/量化方式待确认
   - title: §8 PVD 专用（若合成方法选 PVD 类才启用；延后实现，先占位）
     fields:
     - module: PVD
@@ -1502,6 +1626,8 @@ experiment_record:
       input: 数值
       options: —
       unit: mm
+      validation:
+        gt: 0
       requirement:
         raw: 条件必填(PVD)
         level: conditional_required
@@ -1532,6 +1658,9 @@ experiment_record:
       input: 下拉+数值
       options: Ar / Ar+N₂…
       unit: Pa
+      validation:
+        gt: 0
+        require_value: true
       requirement:
         raw: 条件必填(PVD)
         level: conditional_required
@@ -1547,6 +1676,8 @@ experiment_record:
       input: 数值
       options: —
       unit: min·s
+      validation:
+        gt: 0
       requirement:
         raw: 条件必填(PVD)
         level: conditional_required
@@ -1562,6 +1693,8 @@ experiment_record:
       input: 数值
       options: —
       unit: nm/s
+      validation:
+        gt: 0
       requirement:
         raw: 条件必填(PVD)
         level: conditional_required
@@ -1581,6 +1714,7 @@ entities:
   - 填写示例
   - 来源
   - 备注
+  - 机器约束
   sections:
   - title: ※ 本表定义『实验只引用、不重复录入』的一等实体；『必填(登记)』指登记该实体时必填，与实验记录的 R0 不同。实验引用时对当时版本快照冻结。
     fields: []
@@ -1633,8 +1767,8 @@ entities:
       label_en: Chemical formula
       key: chemical_formula
       meaning: 化学身份：分子式
-      input: 文本
-      options: —
+      input: 物料化学式
+      options: 支持括号、化学计量数与水合点
       unit: —
       requirement:
         raw: 必填
@@ -1716,16 +1850,19 @@ entities:
       label: 纯度
       label_en: Purity
       key: purity
-      meaning: 质量分数或N值
+      meaning: 仅存质量百分数；N值由质量百分数派生显示，不作为独立存储值
       input: 数值
-      options: '%或N值'
+      options: 质量百分数（N值仅派生显示）
       unit: '%'
+      validation:
+        gt: 0
+        le: 100
       requirement:
         raw: 推荐
         level: recommended
-      example: 99.95（4N5）
+      example: 99.995（派生显示4N5）
       source: review
-      note: ''
+      note: 原始证书中的N值或其他纯度表述保留在CoA/附件说明中
     - module: MaterialLot
       label: 粒径(x50/D50)
       label_en: Particle size (x50/D50)
@@ -1734,6 +1871,8 @@ entities:
       input: 数值
       options: x50严谨；目数可接受
       unit: µm
+      validation:
+        gt: 0
       requirement:
         raw: 选填
         level: optional
@@ -1787,8 +1926,8 @@ entities:
       label_en: Certificate of analysis (CoA)
       key: coa_attachment
       meaning: 质检证书
-      input: 附件
-      options: —
+      input: FileAsset引用
+      options: '{file_asset_id, sha256}'
       unit: —
       requirement:
         raw: 选填
@@ -1822,6 +1961,8 @@ entities:
       input: 数值
       options: —
       unit: nm
+      validation:
+        gt: 0
       requirement:
         raw: 条件必填(SiO₂/Si)
         level: conditional_required
@@ -1972,12 +2113,49 @@ entities:
       input: 数值
       options: —
       unit: 个
+      validation:
+        type: integer
+        ge: 1
       requirement:
         raw: 必填
         level: required
       example: '2'
       source: 会议
       note: ''
+    - module: 装置Setup
+      label: sccm参考温度
+      label_en: sccm reference temperature
+      key: flow_reference_temperature_C
+      meaning: MFC/流量计把体积流量换算为 sccm 时采用的参考温度
+      input: 数值
+      options: —
+      unit: ℃
+      validation:
+        gt: -273.15
+      requirement:
+        raw: 必填
+        level: required
+      example: '20'
+      source: 科学契约审查
+      storage: attrs
+      note: 与参考压力一起随 Setup 版本冻结
+    - module: 装置Setup
+      label: sccm参考压力
+      label_en: sccm reference pressure
+      key: flow_reference_pressure_Pa
+      meaning: MFC/流量计把体积流量换算为 sccm 时采用的参考绝对压力
+      input: 数值
+      options: —
+      unit: Pa
+      validation:
+        gt: 0
+      requirement:
+        raw: 必填
+        level: required
+      example: '101325'
+      source: 科学契约审查
+      storage: attrs
+      note: 与参考温度一起随 Setup 版本冻结
     - module: 装置Setup
       label: 炉体方向
       label_en: Furnace orientation
@@ -2011,8 +2189,8 @@ entities:
       label_en: Tube outer diameter / wall thickness (→ inner diameter)
       key: tube_outer_diameter_wall_mm
       meaning: 管规格
-      input: 下拉+数值
-      options: 1″/2″/4″/自定义 + 壁厚
+      input: 具名尺寸对象
+      options: '{outer_diameter_mm, wall_thickness_mm}'
       unit: mm
       requirement:
         raw: 推荐
@@ -2028,6 +2206,8 @@ entities:
       input: 数值
       options: —
       unit: mm
+      validation:
+        gt: 0
       requirement:
         raw: 推荐
         level: recommended
@@ -2049,19 +2229,22 @@ entities:
       source: 复审
       note: 全局定死，防选反
     - module: 装置Setup
-      label: 泵型号/极限压力
-      label_en: Pump model / ultimate pressure
+      label: 泵型号/极限绝对压力
+      label_en: Pump model / ultimate absolute pressure
       key: pump_model_base_pressure
-      meaning: 真空能力
+      meaning: 结构化复合值；option=泵型号文本，value=极限绝对压力数值
       input: 文本+数值
-      options: —
+      options: '{option:泵型号文本,value:极限绝对压力}'
       unit: Pa
+      validation:
+        gt: 0
+        require_value: true
       requirement:
         raw: 选填
         level: optional
-      example: 机械泵，10 Pa
+      example: '{"option":"Edwards RV12","value":2.0}'
       source: ★review§4.1B补
-      note: ''
+      note: 保持单字段的{option,value}契约，不拆成两个字段
     - module: 装置Setup
       label: MFC配置
       label_en: MFC configuration
@@ -2109,8 +2292,8 @@ entities:
       label_en: Setup diagram / description
       key: setup_diagram
       meaning: 照片/示意图+文字
-      input: 附件+自由
-      options: —
+      input: FileAsset引用+自由
+      options: '{file_asset_id, sha256, note}'
       unit: —
       requirement:
         raw: 推荐
@@ -2425,13 +2608,25 @@ changelog:
     - 时序四元组
     - review对标NOMAD；v3仅一行导入。落地设计见标准§4时序小节：走FileAsset+通道注册，不进payload
     - 回退备案
+  - - v3.5a
+    - §1b
+    - 结构类型由下拉多选纠正为单选判别器；选择值驱动填写提示及组成明细显隐/条件必填
+    - 用户走查修复
+  - - v3.6
+    - 全表/实体
+    - 科学契约加固：结构类型与组成明细纳入R0；补衬底批次引用、具名几何、其他气体名称、sccm参考状态及字段级数值边界
+    - 全库审查修复
+  - - v3.6
+    - §6–§7
+    - 过程事件改为带UTC offset的绝对日期时间；实测层数、覆盖率、畴尺寸、成核密度拆为独立量，关键谱学指标改为带单位的结构化数组
+    - 全库审查修复
   - - ''
     - ''
     - ''
     - ''
   - - R0
-    - 硬必填核心(≈16项，含条件必填)
-    - 实验时间·合成方法·实验人·样品编号·目标化学式·装置·温区数·炉体方向·前驱体名称·前驱体用量(固态源)·衬底材料·阶段类型·设定温度程序·气体组分·流量·压力体系(生长)
+    - 硬必填核心(18项，含条件必填)
+    - 实验时间·合成方法·实验人·炉次编号·目标材料化学式·结构类型·组成明细(非本征)·装置·温区数·炉体方向·前驱体名称/化学式·前驱体用量(非气态)·衬底材料·阶段类型·设定温度程序·气体组分·流量·压力体系/工作压力(生长)
     - 必填集
 open_items:
   headers:
@@ -2447,12 +2642,12 @@ open_items:
     - 待办(技术)
   - - '3'
     - 权威源从xlsx转仓库内YAML/CSV（可行级diff）；词表归一到单一源
-    - 下一轮
+    - 已完成（field-source.yaml）
   - - '4'
     - v1→v2 逐字段迁移映射（68字段去向，含quality_label/failure_modes/color_change落点）
-    - 下一轮
+    - 不适用（批8整库重建，不迁移v1数据）
   - - ''
-    - ── 2026-07-07 导师评审引出的待对齐（计划 07-08 当面问）──
+    - ── 2026-07-07 导师评审引出的待对齐──
     - ''
   - - '5'
     - 【问俊杰·导师K75点名】§7『观察到的现象』粒度：现7项客观多选 vs 只记『生长/不生长』？可带折中案：一级『生长/未生长』必选＋二级现象细分可选（保失败溯源卖点）
@@ -2471,7 +2666,7 @@ open_items:
     - 待回复
   - - '10'
     - 表单UI：必填红星/选填弱化等明显标识（导师B93提醒）
-    - 实现期
+    - 已实现
   - - —
     - 已定/已改：一等实体字段表 · 记录单元=炉次+样品 · 掺杂→结构类型+components · 观察现象词表 · 降温参数 · R0条件化(相态判别) · AP/LP校验 · v3.4导师评审回改
     - 见『v2→v3变更说明』

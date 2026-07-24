@@ -1,4 +1,9 @@
+import json
+import re
+from datetime import date, datetime
 from types import SimpleNamespace
+
+import pytest
 
 from app.services import v2_field_source
 
@@ -16,3 +21,72 @@ def test_load_field_source_bypasses_cache_in_development(tmp_path, monkeypatch) 
     assert v2_field_source.load_field_source(str(source))["version"] == 1
     source.write_text("version: 2\n", encoding="utf-8")
     assert v2_field_source.load_field_source(str(source))["version"] == 2
+
+
+@pytest.mark.parametrize("value", ["2026-07-24", date(2026, 7, 24)])
+def test_offset_datetime_rejects_date_without_clock_time(value) -> None:
+    with pytest.raises(ValueError, match="datetime"):
+        v2_field_source.normalize_offset_datetime(value)
+
+
+def test_naive_datetime_uses_configured_non_default_zoneinfo(monkeypatch) -> None:
+    monkeypatch.setattr(
+        v2_field_source,
+        "get_settings",
+        lambda: SimpleNamespace(experiment_timezone="America/New_York"),
+    )
+
+    normalized = v2_field_source.normalize_offset_datetime("2026-07-24T09:30:00")
+
+    assert normalized.isoformat() == "2026-07-24T09:30:00-04:00"
+
+
+def test_scientific_field_examples_and_meanings_are_machine_unambiguous() -> None:
+    doc = v2_field_source.load_field_source()
+    fields = {field["key"]: field for field in v2_field_source.experiment_fields(doc)}
+
+    started_at = fields["started_at"]
+    parsed_start = datetime.fromisoformat(started_at["example"])
+    assert parsed_start.utcoffset() is not None
+
+    gas_flow = fields["gas_flow_sccm"]
+    assert "阶段记录值" in gas_flow["meaning"]
+    assert "流量计类型" in gas_flow["meaning"]
+    assert "设定+实测" not in gas_flow["note"]
+
+    pressure = fields["pressure_system"]
+    assert "绝对压力" in pressure["label"]
+    assert "绝对压力" in pressure["meaning"]
+    assert "表压" in pressure["help"]
+
+    assert fields["domain_size_um"]["validation"] == {"gt": 0}
+
+    metrics = json.loads(fields["key_spectral_metrics"]["example"])
+    assert isinstance(metrics, list) and metrics
+    for metric in metrics:
+        assert set(metric) == {"metric_code", "value", "unit"}
+        assert re.fullmatch(r"[a-z][a-z0-9_]*", metric["metric_code"])
+        assert isinstance(metric["value"], int | float) and not isinstance(metric["value"], bool)
+        assert isinstance(metric["unit"], str) and metric["unit"].strip()
+
+
+def test_material_lot_purity_and_setup_pump_contracts_are_unambiguous() -> None:
+    doc = v2_field_source.load_field_source()
+    fields = {field["key"]: field for field in v2_field_source.entity_fields(doc)}
+
+    purity = fields["purity"]
+    assert purity["input"] == "数值"
+    assert purity["unit"] == "%"
+    assert "仅存质量百分数" in purity["meaning"]
+    assert "派生显示" in purity["meaning"]
+    assert "原始证书" in purity["note"]
+    assert purity["example"] == "99.995（派生显示4N5）"
+
+    pump = fields["pump_model_base_pressure"]
+    assert pump["input"] == "文本+数值"
+    assert pump["options"] == "{option:泵型号文本,value:极限绝对压力}"
+    assert "option=泵型号文本" in pump["meaning"]
+    assert "value=极限绝对压力" in pump["meaning"]
+    assert pump["unit"] == "Pa"
+    assert pump["validation"] == {"gt": 0, "require_value": True}
+    assert json.loads(pump["example"]) == {"option": "Edwards RV12", "value": 2.0}

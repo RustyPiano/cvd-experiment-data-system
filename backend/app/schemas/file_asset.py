@@ -9,9 +9,12 @@ class FileAssetRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    experiment_run_id: UUID
+    experiment_run_id: UUID | None
     sample_id: UUID | None
     characterization_record_id: UUID | None
+    entity_type: str | None = None
+    entity_id: UUID | None = None
+    entity_version: int | None = None
     uploaded_by_id: UUID
     deleted_by_id: UUID | None
     original_name: str

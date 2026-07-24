@@ -5,12 +5,7 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import {
-  FlaskConical,
-  FlaskRound,
-  LogOut,
-  TestTube2,
-} from 'lucide-react'
+import { FlaskConical, FlaskRound, LogOut, TestTube2 } from 'lucide-react'
 
 import {
   ENTITY_KINDS,
@@ -104,6 +99,18 @@ function SidebarBody({ pathname }: { pathname: string }) {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith(experimentsNavItem.match)}
+                tooltip={t(experimentsNavItem.labelKey)}
+              >
+                <Link to={experimentsNavItem.to} onClick={closeOnMobile}>
+                  <experimentsNavItem.icon />
+                  <span>{t(experimentsNavItem.labelKey)}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             {navItems.map((item) => {
               const Icon = item.icon
               return (
@@ -121,18 +128,6 @@ function SidebarBody({ pathname }: { pathname: string }) {
                 </SidebarMenuItem>
               )
             })}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname.startsWith(experimentsNavItem.match)}
-                tooltip={t(experimentsNavItem.labelKey)}
-              >
-                <Link to={experimentsNavItem.to} onClick={closeOnMobile}>
-                  <experimentsNavItem.icon />
-                  <span>{t(experimentsNavItem.labelKey)}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
@@ -161,7 +156,6 @@ function SidebarBody({ pathname }: { pathname: string }) {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-
     </SidebarContent>
   )
 }
@@ -227,6 +221,12 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <SidebarProvider>
+      <a
+        href="#main-content"
+        className="sr-only z-[100] rounded-md bg-background px-3 py-2 text-sm font-medium focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {t('appShell.skipToContent')}
+      </a>
       {/* Sidebar */}
       <Sidebar className="border-r border-sidebar-border bg-sidebar">
         <SidebarHeader className="px-4 py-3">
@@ -300,9 +300,12 @@ export function AppShell({ children }: AppShellProps) {
       </Sidebar>
 
       {/* Main content area using SidebarInset */}
-      <SidebarInset>
+      <SidebarInset id="main-content" tabIndex={-1}>
         <header className="sticky top-0 z-10 flex h-[60px] shrink-0 items-center gap-2 border-b border-border bg-card/72 px-4 backdrop-blur-md">
-          <SidebarTrigger className="-ml-1" />
+          <SidebarTrigger
+            className="-ml-1"
+            aria-label={t('appShell.toggleSidebar')}
+          />
           <div className="h-4 w-px bg-border shrink-0" />
           <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
             {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname, t)}

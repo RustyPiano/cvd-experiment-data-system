@@ -28,6 +28,13 @@ import {
 } from '@/shared/composite-field'
 import { canonicalOption } from '@/shared/field-i18n'
 import { normalizeChemicalFormula } from './formula'
+import { isoToDateTimeLocal, toIsoDateTime } from './datetime'
+import {
+  isStructuredInput,
+  structuredPayload,
+  structuredValueFromRaw,
+} from '@/shared/structured-field'
+import { assertValidNumber } from '@/shared/field-validation'
 
 export { matchesCondition, parseEnumOptions }
 
@@ -39,17 +46,19 @@ export function isMultiValueInput(input: string): boolean {
   return input.includes('多选') || input.includes('多条')
 }
 
-export function moduleValueAsString(value: ModuleFieldValue | undefined): string {
+export function moduleValueAsString(
+  value: ModuleFieldValue | undefined,
+): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '')
 }
 
-export function moduleValueIsEmpty(value: ModuleFieldValue | undefined): boolean {
-  return Array.isArray(value)
-    ? value.length === 0
-    : (value ?? '').trim() === ''
+export function moduleValueIsEmpty(
+  value: ModuleFieldValue | undefined,
+): boolean {
+  return Array.isArray(value) ? value.length === 0 : (value ?? '').trim() === ''
 }
 
-/** §1b 组成明细的一行（键与后端 formula_display.py 读取的键对齐）。 */
+/** §1b 组成明细的一行。 */
 export interface ComponentRow {
   formula: string
   role: string
@@ -177,31 +186,44 @@ function fieldValueToPayload(
   field: FieldMetadata,
   value: ModuleFieldValue | undefined,
 ): unknown {
-  if (isMultiValueInput(field.input) && field.key !== 'structure_type') {
+  if (isMultiValueInput(field.input)) {
     const items = Array.isArray(value)
       ? value
       : moduleValueAsString(value).split(',')
     return [
       ...new Set(
-        items
-          .map((item) => canonicalOption(item.trim()))
-          .filter(Boolean),
+        items.map((item) => canonicalOption(item.trim())).filter(Boolean),
       ),
     ]
   }
   const text = emptyToNull(value)
   if (text == null) return null
+  if (field.input === '实体版本引用') {
+    try {
+      const reference: unknown = JSON.parse(text)
+      return reference && typeof reference === 'object' ? reference : null
+    } catch {
+      return null
+    }
+  }
+  if (isStructuredInput(field.input)) {
+    return structuredPayload(field.key, text)
+  }
+  if (field.key === 'occurred_at') return toIsoDateTime(text)
   if (field.key === 'chemical_formula') return normalizeChemicalFormula(text)
-  if (field.input === '数值') return Number(text)
+  if (field.input === '数值') {
+    return assertValidNumber(text, field.key, field.validation)
+  }
   if (isCompositeInput(field.input)) {
-    const options = parseEnumOptions(field.input, field.options) ??
+    const options =
+      parseEnumOptions(field.input, field.options) ??
       parseCompositeOptions(field.options).map(canonicalOption)
     const parsed = parseCompositeValue(field.input, text, options)
     return {
       value: field.input.includes('数值')
         ? parsed.freeValue.trim() === ''
           ? null
-          : Number(parsed.freeValue)
+          : assertValidNumber(parsed.freeValue, field.key, field.validation)
         : parsed.freeValue,
       option: parsed.option || null,
     }
@@ -210,22 +232,58 @@ function fieldValueToPayload(
   return text
 }
 
+function finiteNumber(value: string, fieldKey: string): number {
+  return assertValidNumber(value, fieldKey, null)
+}
+
+function requiredFieldValueIsMissing(
+  field: FieldMetadata,
+  value: ModuleFieldValue | undefined,
+): boolean {
+  if (moduleValueIsEmpty(value)) return true
+  if (
+    !field.validation?.require_value ||
+    !isCompositeInput(field.input) ||
+    !field.input.includes('数值')
+  ) {
+    return false
+  }
+  const text = moduleValueAsString(value)
+  const options =
+    parseEnumOptions(field.input, field.options) ??
+    parseCompositeOptions(field.options).map(canonicalOption)
+  return parseCompositeValue(field.input, text, options).freeValue.trim() === ''
+}
+
 /** 一行组分是否有实质内容（至少填了化学式）。 */
 export function isNonEmptyComponent(row: ComponentRow): boolean {
   return row.formula.trim() !== ''
 }
 
-function numericOrNull(value: string): number | null {
+function numericOrNull(value: string, fieldKey: string): number | null {
   const text = emptyToNull(value)
-  return text == null ? null : Number(text)
+  return text == null ? null : finiteNumber(text, fieldKey)
 }
 
-function toComponentObject(row: ComponentRow): Record<string, unknown> {
+function toComponentObject(
+  row: ComponentRow,
+  structureType: string,
+): Record<string, unknown> {
+  const keepsConcentration =
+    structureType === 'doped' ||
+    structureType === 'alloy' ||
+    structureType === 'other'
+  const keepsLayerOrder =
+    structureType === 'vertical_heterostructure' || structureType === 'other'
   return {
     formula: normalizeChemicalFormula(row.formula),
     role: row.role.trim() ? canonicalOption(row.role.trim()) : null,
-    concentration_at_percent: numericOrNull(row.concentration_at_percent),
-    layer_order: numericOrNull(row.layer_order),
+    concentration_at_percent: keepsConcentration
+      ? numericOrNull(row.concentration_at_percent, 'concentration_at_percent')
+      : null,
+    layer_order: keepsLayerOrder
+      ? numericOrNull(row.layer_order, 'layer_order')
+      : null,
   }
 }
 
@@ -236,7 +294,9 @@ export function buildFlatModulePayload(
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {}
   for (const field of getModuleFields(moduleKey)) {
-    payload[field.key] = fieldValueToPayload(field, values[field.key])
+    payload[field.key] = isFieldVisible(moduleKey, field, values)
+      ? fieldValueToPayload(field, values[field.key])
+      : null
   }
   return payload
 }
@@ -257,7 +317,9 @@ export function buildTargetProductPayload(
     structureType !== 'intrinsic' &&
     structureType !== '本征'
   const rows = active
-    ? components.filter(isNonEmptyComponent).map(toComponentObject)
+    ? components
+        .filter(isNonEmptyComponent)
+        .map((row) => toComponentObject(row, structureType))
     : []
   const payload: Record<string, unknown> = {}
   for (const field of getModuleFields('target_product')) {
@@ -284,7 +346,9 @@ export function buildItemPayload(
 ): Record<string, unknown> {
   const item: Record<string, unknown> = {}
   for (const field of getModuleFields(moduleKey)) {
-    item[field.key] = fieldValueToPayload(field, values[field.key])
+    item[field.key] = isFieldVisible(moduleKey, field, values)
+      ? fieldValueToPayload(field, values[field.key])
+      : null
   }
   if (moduleKey === 'substrates' && values['source_id']) {
     item['source_id'] = moduleValueAsString(values['source_id'])
@@ -316,7 +380,9 @@ export function missingRequiredKeys(
   for (const field of getModuleFields(moduleKey)) {
     if (!isFieldVisible(moduleKey, field, values)) continue
     if (!isEffectivelyRequired(moduleKey, field, values)) continue
-    if (moduleValueIsEmpty(values[field.key])) missing.push(field.key)
+    if (requiredFieldValueIsMissing(field, values[field.key])) {
+      missing.push(field.key)
+    }
   }
   return missing
 }
@@ -349,18 +415,32 @@ export function moduleValuesFromPayload(
   if (!payload) return values
   for (const field of getModuleFields(moduleKey)) {
     const raw = payload[field.key]
-    if (raw != null && isCompositeInput(field.input) && typeof raw === 'object') {
+    if (
+      raw != null &&
+      field.input === '实体版本引用' &&
+      typeof raw === 'object'
+    ) {
+      values[field.key] = JSON.stringify(raw)
+    } else if (
+      raw != null &&
+      isStructuredInput(field.input) &&
+      typeof raw === 'object'
+    ) {
+      values[field.key] = structuredValueFromRaw(field.key, raw)
+    } else if (
+      raw != null &&
+      isCompositeInput(field.input) &&
+      typeof raw === 'object'
+    ) {
       const composite = raw as { value?: unknown; option?: unknown }
       values[field.key] = formatCompositeValue(
         field.input,
         composite.value == null ? '' : String(composite.value),
         composite.option == null ? '' : String(composite.option),
       )
-    } else if (
-      raw != null &&
-      isMultiValueInput(field.input) &&
-      field.key !== 'structure_type'
-    ) {
+    } else if (raw != null && field.key === 'occurred_at') {
+      values[field.key] = isoToDateTimeLocal(String(raw))
+    } else if (raw != null && isMultiValueInput(field.input)) {
       const items = Array.isArray(raw) ? raw : [raw]
       values[field.key] = items
         .map((item) => canonicalOption(String(item)))
@@ -462,6 +542,7 @@ export function isProcessStepFieldVisible(
   field: FieldMetadata,
   stageType: string,
   setupSnapshot: Record<string, unknown> | null | undefined,
+  step?: ModuleValues,
 ): boolean {
   const group = field.group ?? COMMON_GROUP
   if (group === COMMON_GROUP) return true
@@ -469,6 +550,11 @@ export function isProcessStepFieldVisible(
   if (!visibleGroupsForStage(stageType).has(group)) return false
   if (group === EXTERNAL_FIELD_GROUP)
     return hasExternalFieldSetup(setupSnapshot)
+  if (field.key === 'other_gas_name' && field.requirement.condition) {
+    return step
+      ? isConditionSatisfied(field.requirement.condition, step, 'process_steps')
+      : true
+  }
   return true
 }
 
@@ -483,6 +569,7 @@ export function isProcessStepFieldRequired(
   field: FieldMetadata,
   stageType: string,
   setupSnapshot: Record<string, unknown> | null | undefined,
+  step?: ModuleValues,
 ): boolean {
   const level = field.requirement.level
   if (level === 'required') return true
@@ -494,8 +581,12 @@ export function isProcessStepFieldRequired(
   if ((field.group ?? COMMON_GROUP) === EXTERNAL_FIELD_GROUP) {
     return hasExternalFieldSetup(setupSnapshot)
   }
-  // 组内条件（降温组/压力组）以「阶段类型」为驱动值。
-  return matchesCondition(condition, stageType)
+  const driverKey = resolveModuleConditionKey('process_steps', condition.field)
+  return driverKey === 'stage_type'
+    ? matchesCondition(condition, stageType)
+    : step
+      ? isConditionSatisfied(condition, step, 'process_steps')
+      : false
 }
 
 /** 一条过程步是否已选阶段类型（判定是否纳入保存/校验）。 */
@@ -509,6 +600,7 @@ export function isProcessStepActive(step: ModuleValues): boolean {
  */
 export function buildProcessStepPayload(
   step: ModuleValues,
+  setupSnapshot?: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
   const stageType = canonicalOption(
     moduleValueAsString(step['stage_type']).trim(),
@@ -523,18 +615,23 @@ export function buildProcessStepPayload(
     payload[field.key] =
       field.key === 'stage_type'
         ? stageType
-        : fieldValueToPayload(field, step[field.key])
+        : isProcessStepFieldVisible(field, stageType, setupSnapshot, step)
+          ? fieldValueToPayload(field, step[field.key])
+          : null
   }
   return payload
 }
 
 /** §5 过程步模块 payload：{ items: [...] }，滤掉未选阶段的空步。 */
-export function buildProcessStepsPayload(steps: ModuleValues[]): {
+export function buildProcessStepsPayload(
+  steps: ModuleValues[],
+  setupSnapshot?: Record<string, unknown> | null,
+): {
   items: Record<string, unknown>[]
 } {
   const items: Record<string, unknown>[] = []
   for (const step of steps) {
-    const payload = buildProcessStepPayload(step)
+    const payload = buildProcessStepPayload(step, setupSnapshot)
     if (payload) items.push(payload)
   }
   return { items }
@@ -548,9 +645,13 @@ export function missingProcessStepKeys(
   const stageType = moduleValueAsString(step['stage_type']).trim()
   const missing: string[] = []
   for (const field of getModuleFields('process_steps')) {
-    if (!isProcessStepFieldVisible(field, stageType, setupSnapshot)) continue
-    if (!isProcessStepFieldRequired(field, stageType, setupSnapshot)) continue
-    if (moduleValueIsEmpty(step[field.key])) missing.push(field.key)
+    if (!isProcessStepFieldVisible(field, stageType, setupSnapshot, step))
+      continue
+    if (!isProcessStepFieldRequired(field, stageType, setupSnapshot, step))
+      continue
+    if (requiredFieldValueIsMissing(field, step[field.key])) {
+      missing.push(field.key)
+    }
   }
   return missing
 }

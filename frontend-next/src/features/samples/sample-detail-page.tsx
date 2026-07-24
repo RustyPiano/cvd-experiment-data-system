@@ -51,6 +51,9 @@ function displayValue(value: unknown, language: string): string {
   if (value == null || value === '') return '—'
   if (Array.isArray(value)) return localizedValue(value, language)
   if (typeof value === 'object') {
+    if ('value' in value || 'option' in value) {
+      return localizedValue(value, language)
+    }
     return Object.entries(value)
       .map(([key, item]) => `${key}: ${localizedValue(item, language)}`)
       .join('；')
@@ -346,9 +349,11 @@ export function SampleDetailPage() {
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value}</dd>
+      <dd className="break-words text-sm text-foreground [overflow-wrap:anywhere]">
+        {value}
+      </dd>
     </div>
   )
 }

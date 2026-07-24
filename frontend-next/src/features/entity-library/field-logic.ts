@@ -13,6 +13,17 @@ import type {
 } from '@/shared/generated/field-metadata'
 import { canonicalOption } from '@/shared/field-i18n'
 import type { EntityKind } from './config'
+import {
+  isStructuredInput,
+  structuredPayload,
+  structuredValueFromRaw,
+} from '@/shared/structured-field'
+import { assertValidNumber } from '@/shared/field-validation'
+import {
+  entityFileFormValue,
+  entityFilePayload,
+  isEntityFileInput,
+} from '@/shared/entity-file-reference'
 
 export type EntityFieldValue = string | string[]
 export type EntityFormValues = Record<string, EntityFieldValue>
@@ -114,6 +125,13 @@ export function matchesCondition(
   condition: FieldCondition,
   value: unknown,
 ): boolean {
+  if (
+    value == null ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  ) {
+    return false
+  }
   const expected = Array.isArray(condition.value)
     ? condition.value.map(canonicalOption)
     : canonicalOption(condition.value)
@@ -215,6 +233,18 @@ export function buildDefaultValues(
           : [canonicalOption(String(raw))]
     } else if (
       raw != null &&
+      isEntityFileInput(field.input) &&
+      typeof raw === 'object'
+    ) {
+      values[field.key] = entityFileFormValue(raw, field.key)
+    } else if (
+      raw != null &&
+      isStructuredInput(field.input) &&
+      typeof raw === 'object'
+    ) {
+      values[field.key] = structuredValueFromRaw(field.key, raw)
+    } else if (
+      raw != null &&
       isCompositeInput(field.input) &&
       typeof raw === 'object'
     ) {
@@ -259,24 +289,30 @@ export function buildSubmitPayload(
     }
     const normalized = (value ?? '').trim()
     if (normalized) {
-      if (isCompositeInput(field.input)) {
-        const options = parseCompositeOptions(field.options).map(canonicalOption)
+      if (isEntityFileInput(field.input)) {
+        payload[field.key] = entityFilePayload(normalized, field.key)
+      } else if (isStructuredInput(field.input)) {
+        payload[field.key] = structuredPayload(field.key, normalized)
+      } else if (isCompositeInput(field.input)) {
+        const options = parseCompositeOptions(field.options).map(
+          canonicalOption,
+        )
         const parsed = parseCompositeValue(field.input, normalized, options)
         payload[field.key] = {
           value: field.input.includes('数值')
             ? parsed.freeValue.trim() === ''
               ? null
-              : Number(parsed.freeValue)
+              : assertValidNumber(parsed.freeValue, field.key, field.validation)
             : parsed.freeValue || null,
           option: parsed.option || null,
         }
       } else {
         payload[field.key] =
           field.input === '数值'
-          ? Number(normalized)
-          : /(下拉|多选)/.test(field.input)
-            ? canonicalOption(normalized)
-            : normalized
+            ? assertValidNumber(normalized, field.key, field.validation)
+            : /(下拉|多选)/.test(field.input)
+              ? canonicalOption(normalized)
+              : normalized
       }
     }
   }

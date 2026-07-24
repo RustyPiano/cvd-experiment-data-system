@@ -54,6 +54,10 @@ const directResult = {
   test_conditions: null,
   observed_phenomena: ['不连续覆盖'],
   detected_phase_stacking: null,
+  layer_count: null,
+  coverage_percent: null,
+  domain_size_um: null,
+  nucleation_density_cm2: null,
   measured_layers_coverage: null,
   domain_nucleation_continuity: null,
   key_spectral_metrics: null,
@@ -66,7 +70,13 @@ const characterizationResult = {
   method_instrument: 'Raman',
   test_conditions: '532 nm',
   detected_phase_stacking: '2H-MoS2',
-  key_spectral_metrics: { note: 'E2g 384 cm-1' },
+  layer_count: 2,
+  coverage_percent: 87.5,
+  domain_size_um: 12.4,
+  nucleation_density_cm2: 1.2e6,
+  key_spectral_metrics: [
+    { metric_code: 'raman_e2g', value: 384, unit: 'cm⁻¹' },
+  ],
 }
 const attachment = {
   id: 'file-1',
@@ -74,20 +84,25 @@ const attachment = {
   size_bytes: 1536,
 }
 
-function renderResults(readOnly = false) {
+function renderResults(readOnly = false, onDirtyChange = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const Component = ResultsSection as ComponentType<{
     runId: string
     readOnly: boolean
+    onDirtyChange?: (dirty: boolean) => void
   }>
   return {
     queryClient,
     ...render(
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
-          <Component runId="run-1" readOnly={readOnly} />
+          <Component
+            runId="run-1"
+            readOnly={readOnly}
+            onDirtyChange={onDirtyChange}
+          />
         </QueryClientProvider>
       </I18nextProvider>,
     ),
@@ -134,6 +149,49 @@ describe('unified sample results', () => {
     )
   })
 
+  it('reports an unsaved draft and clears it only after a successful save', async () => {
+    const onDirtyChange = vi.fn()
+    const user = userEvent.setup()
+    renderResults(false, onDirtyChange)
+
+    await user.click((await screen.findAllByRole('checkbox'))[0])
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true))
+    await user.click(screen.getByRole('button', { name: 'Add result' }))
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false))
+  })
+
+  it('does not switch to another result when the user keeps an unsaved draft', async () => {
+    resultsApi.listResults.mockResolvedValue({
+      items: [
+        characterizationResult,
+        {
+          ...directResult,
+          id: 'result-second',
+          observed_phenomena: ['wrinkles'],
+        },
+      ],
+      total: 2,
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const user = userEvent.setup()
+    renderResults()
+
+    const editButtons = await screen.findAllByRole('button', {
+      name: 'Edit result',
+    })
+    await user.click(editButtons[0])
+    fireEvent.change(document.querySelector('#result-phase')!, {
+      target: { value: 'draft must survive' },
+    })
+    await user.click(editButtons[1])
+
+    expect(confirm).toHaveBeenCalled()
+    expect(document.querySelector('#result-phase')).toHaveValue(
+      'draft must survive',
+    )
+    confirm.mockRestore()
+  })
+
   it('creates a characterization result with method and measured fields together', async () => {
     resultsApi.createResult.mockResolvedValueOnce(characterizationResult)
     const user = userEvent.setup()
@@ -152,6 +210,30 @@ describe('unified sample results', () => {
     fireEvent.change(document.querySelector('#result-phase')!, {
       target: { value: '2H-MoS2' },
     })
+    fireEvent.change(document.querySelector('#result-layer-count')!, {
+      target: { value: '2' },
+    })
+    fireEvent.change(document.querySelector('#result-coverage-percent')!, {
+      target: { value: '87.5' },
+    })
+    fireEvent.change(document.querySelector('#result-domain-size')!, {
+      target: { value: '12.4' },
+    })
+    fireEvent.change(document.querySelector('#result-nucleation-density')!, {
+      target: { value: '1200000' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Add spectral metric' }),
+    )
+    fireEvent.change(document.querySelector('#result-spectral-code-0')!, {
+      target: { value: 'raman_e2g' },
+    })
+    fireEvent.change(document.querySelector('#result-spectral-value-0')!, {
+      target: { value: '384' },
+    })
+    fireEvent.change(document.querySelector('#result-spectral-unit-0')!, {
+      target: { value: 'cm⁻¹' },
+    })
     const attachmentFile = new File(['spectrum'], 'raman.csv', {
       type: 'text/csv',
     })
@@ -167,6 +249,13 @@ describe('unified sample results', () => {
         method_instrument: 'Raman',
         test_conditions: '532 nm',
         detected_phase_stacking: '2H-MoS2',
+        layer_count: 2,
+        coverage_percent: 87.5,
+        domain_size_um: 12.4,
+        nucleation_density_cm2: 1200000,
+        key_spectral_metrics: [
+          { metric_code: 'raman_e2g', value: 384, unit: 'cm⁻¹' },
+        ],
       }),
       'token',
     )
@@ -181,6 +270,55 @@ describe('unified sample results', () => {
         },
       ),
     )
+  })
+
+  it('rejects a zero domain size before submission', async () => {
+    const user = userEvent.setup()
+    renderResults()
+
+    await screen.findByText('Record type')
+    await user.click(document.querySelector('#result-kind')!)
+    await user.click(
+      screen.getByRole('option', { name: 'Characterization result' }),
+    )
+    await user.click(document.querySelector('#result-method')!)
+    await user.click(screen.getByRole('option', { name: 'Raman' }))
+    fireEvent.change(document.querySelector('#result-domain-size')!, {
+      target: { value: '0' },
+    })
+
+    expect(screen.getByRole('button', { name: 'Add result' })).toBeDisabled()
+    expect(document.querySelector('#result-domain-size')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+
+    fireEvent.change(document.querySelector('#result-domain-size')!, {
+      target: { value: '0.1' },
+    })
+    await user.click(screen.getByRole('button', { name: 'Add result' }))
+
+    expect(resultsApi.createResult).toHaveBeenCalledWith(
+      'sample-1',
+      expect.objectContaining({ domain_size_um: 0.1 }),
+      'token',
+    )
+  })
+
+  it('localizes result units in the English form and summary', async () => {
+    resultsApi.listResults.mockResolvedValue({
+      items: [characterizationResult],
+      total: 1,
+    })
+    const user = userEvent.setup()
+    renderResults()
+
+    expect(await screen.findByText('2 layers')).toBeInTheDocument()
+    expect(screen.queryByText('2 层')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Edit result' }))
+    expect(screen.getByText('（layers）')).toBeInTheDocument()
+    expect(screen.queryByText('（层）')).not.toBeInTheDocument()
   })
 
   it('keeps the saved result and explains how to retry a failed initial attachment', async () => {
@@ -351,7 +489,7 @@ describe('characterization result attachments', () => {
     expect(screen.getByText('1.5 KiB')).toBeInTheDocument()
     expect(screen.getByText('Phase and stacking')).toBeInTheDocument()
     expect(screen.getByText('2H-MoS2')).toBeInTheDocument()
-    expect(screen.getByText('E2g 384 cm-1')).toBeInTheDocument()
+    expect(screen.getByText('raman_e2g: 384 cm⁻¹')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Download' }))
     expect(filesApi.downloadExperimentFile).toHaveBeenCalledWith(
       'token',

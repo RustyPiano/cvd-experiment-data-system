@@ -9,6 +9,9 @@ from app.core.config import get_settings
 
 
 class FileStorageService:
+    MAX_FILENAME_BYTES = 255
+    FILE_ID_PREFIX_BYTES = 37
+
     def __init__(self) -> None:
         settings = get_settings()
         self.root = Path(settings.file_storage_root).expanduser().resolve()
@@ -47,8 +50,26 @@ class FileStorageService:
 
     def _sanitize_filename(self, original_name: str) -> str:
         name = Path(original_name).name or "upload.bin"
-        sanitized = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")
-        return sanitized or "upload.bin"
+        candidate_suffix = Path(name).suffix
+        suffix = candidate_suffix if re.fullmatch(r"\.[A-Za-z0-9]{1,32}", candidate_suffix) else ""
+        stem_source = name[: -len(candidate_suffix)] if suffix else name
+        sanitized_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem_source).strip("._")
+        sanitized_stem = sanitized_stem or "upload"
+        limit = self.MAX_FILENAME_BYTES - self.FILE_ID_PREFIX_BYTES
+        stem_limit = limit - len(suffix.encode("ascii"))
+        stem = sanitized_stem[:stem_limit].rstrip("._") or "upload"
+        return f"{stem}{suffix}"
+
+    @staticmethod
+    def normalize_original_name(original_name: str, max_chars: int = 255) -> str:
+        name = Path(original_name).name or "upload.bin"
+        if len(name) <= max_chars:
+            return name
+        suffix = Path(name).suffix
+        if len(suffix) > 32:
+            suffix = ""
+        stem = name[: max_chars - len(suffix)].rstrip(".") or "upload"
+        return f"{stem}{suffix}"
 
     def _sanitize_path_segment(self, segment: str) -> str:
         sanitized = re.sub(r"[^A-Za-z0-9._-]+", "_", segment).strip("._")

@@ -6,8 +6,9 @@
 #   1. 提交的 字段草案-v3.xlsx 与「由 field-source.yaml 重新渲染」逐格一致（防手改 xlsx / 防漂移）
 #   2. YAML 结构约束：必填级别词表封闭、条件必填必须带条件表达式、pending 字段必须有说明
 #   3. 计数断言：字段数 / R0 数（防误删）
-# 用法：python3 docs/standard/check_field_source.py
+# 用法：uv run --project backend python docs/standard/check_field_source.py
 # ============================================================================
+import json
 import os
 import re
 import subprocess
@@ -32,9 +33,9 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 77
-EXPECTED_ENTITY_FIELDS = 46
-EXPECTED_R0 = 16
+EXPECTED_FIELDS = 81
+EXPECTED_ENTITY_FIELDS = 48
+EXPECTED_R0 = 18
 
 errors: list[str] = []
 
@@ -170,6 +171,68 @@ for part, scope_of in (
             err(f"{where}: 下拉字段 options 必须非空且不能为 '—'")
         if f.get("status") == "pending-alignment" and not f.get("pending"):
             err(f"{where}: pending-alignment 缺少 pending 说明")
+        validation = f.get("validation")
+        if validation is not None:
+            allowed_validation_keys = {
+                "type",
+                "ge",
+                "gt",
+                "le",
+                "lt",
+                "require_value",
+                "item_required",
+                "finite_value",
+                "option_ranges",
+            }
+            unknown_validation = set(validation) - allowed_validation_keys
+            if unknown_validation:
+                err(f"{where}: validation 含未知约束 {sorted(unknown_validation)}")
+            if validation.get("type") not in {None, "integer"}:
+                err(f"{where}: validation.type 仅支持 integer")
+            for bound in ("ge", "gt", "le", "lt"):
+                if bound in validation and (
+                    isinstance(validation[bound], bool)
+                    or not isinstance(validation[bound], (int, float))
+                ):
+                    err(f"{where}: validation.{bound} 必须为数值")
+            if "ge" in validation and "le" in validation and validation["ge"] > validation["le"]:
+                err(f"{where}: validation.ge 不得大于 validation.le")
+            option_ranges = validation.get("option_ranges")
+            if option_ranges is not None:
+                if not isinstance(option_ranges, dict) or not option_ranges:
+                    err(f"{where}: validation.option_ranges 必须为非空对象")
+                else:
+                    raw_options = str(f.get("options") or "")
+                    declared = {
+                        doc.get("option_codes", {}).get(option.strip(), option.strip())
+                        for option in raw_options.split("/")
+                        if option.strip()
+                    }
+                    unknown_options = set(option_ranges) - declared
+                    if unknown_options:
+                        err(
+                            f"{where}: validation.option_ranges 含未声明选项 "
+                            f"{sorted(unknown_options)}"
+                        )
+                    for option, bounds in option_ranges.items():
+                        if not isinstance(bounds, dict) or not bounds:
+                            err(
+                                f"{where}: validation.option_ranges.{option} "
+                                "必须为非空边界对象"
+                            )
+                            continue
+                        unknown_bounds = set(bounds) - {"ge", "gt", "le", "lt"}
+                        if unknown_bounds:
+                            err(
+                                f"{where}: validation.option_ranges.{option} "
+                                f"含未知边界 {sorted(unknown_bounds)}"
+                            )
+                        for bound, value in bounds.items():
+                            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                                err(
+                                    f"{where}: validation.option_ranges.{option}.{bound} "
+                                    "必须为数值"
+                                )
         # D10: 机器字段键——必有、合法、模块/实体内唯一
         scope = scope_of(f)
         if scope is None:
@@ -225,6 +288,36 @@ else:
         else:
             wa = openpyxl.load_workbook(COMMITTED)
             wb = openpyxl.load_workbook(regen)
+            for sheet_name, fields, first_data_row in (
+                ("字段草案", list(iter_fields("experiment_record")), 3),
+                ("一等实体字段表", list(iter_fields("entities")), 2),
+            ):
+                sheet = wa[sheet_name]
+                headers = [cell.value for cell in sheet[1]]
+                if not headers or headers[-1] != "机器约束":
+                    err(f"[{sheet_name}] 缺少末列『机器约束』")
+                    continue
+                machine_column = len(headers)
+                actual = [
+                    sheet.cell(row, machine_column).value or ""
+                    for row in range(first_data_row, sheet.max_row + 1)
+                    if sheet.cell(row, 2).value is not None
+                ]
+                expected = [
+                    (
+                        json.dumps(
+                            field["validation"],
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        if field.get("validation")
+                        else ""
+                    )
+                    for field in fields
+                ]
+                if actual != expected:
+                    err(f"[{sheet_name}] 机器约束列与 YAML validation 不一致")
             if wa.sheetnames != wb.sheetnames:
                 err(f"sheet 列表不一致：{wa.sheetnames} vs {wb.sheetnames}")
             for name in wa.sheetnames:
@@ -251,7 +344,8 @@ if errors:
     for e in errors:
         print("  -", e)
     print(
-        "修复方式：改 field-source.yaml → python3 docs/standard/build_field_tables.py → 重新提交 xlsx。"
+        "修复方式：改 field-source.yaml → uv run --project backend python "
+        "docs/standard/build_field_tables.py → 重新提交 xlsx。"
     )
     sys.exit(1)
 

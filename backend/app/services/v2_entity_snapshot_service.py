@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.models.experiment import ExperimentRun
-from app.models.v2_entities import InstrumentVersion, SetupVersion
+from app.models.v2_entities import InstrumentVersion, MaterialLotVersion, SetupVersion
 
 
 def setup_version_snapshot(version: SetupVersion) -> dict:
@@ -21,6 +21,18 @@ def apply_setup_reference(run: ExperimentRun, version: SetupVersion) -> None:
     run.setup_ref = version.entity_id
     run.setup_ref_version = version.version
     run.setup_ref_snapshot_json = setup_version_snapshot(version)
+
+
+def material_lot_version_snapshot(version: MaterialLotVersion) -> dict:
+    return {
+        "entity_id": str(version.entity_id),
+        "version": version.version,
+        "lot_category": version.lot_category,
+        "substance_name": version.substance_name,
+        "chemical_formula": version.chemical_formula,
+        "batch_number": version.batch_number,
+        "attrs": version.attrs,
+    }
 
 
 def instrument_version_snapshot(version: InstrumentVersion) -> dict:

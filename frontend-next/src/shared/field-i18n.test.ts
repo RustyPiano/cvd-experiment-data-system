@@ -71,18 +71,16 @@ describe('field display localization', () => {
   })
 
   it('localizes every member of a multi-select array independently', () => {
-    expect(localizedValue(['光', '电'], 'en')).toBe(
-      'Light · Electric field',
-    )
+    expect(localizedValue(['光', '电'], 'en')).toBe('Light · Electric field')
   })
 
   it('renders structured composite values with localized options', () => {
-    expect(
-      localizedValue({ value: 2, option: 'tube_2_inch' }, 'zh'),
-    ).toBe('2 · 2″')
-    expect(
-      localizedValue({ value: 101325, option: '常压(APCVD)' }, 'en'),
-    ).toBe('101325 · Atmospheric pressure (APCVD)')
+    expect(localizedValue({ value: 2, option: 'tube_2_inch' }, 'zh')).toBe(
+      '2 · 2″',
+    )
+    expect(localizedValue({ value: 101325, option: '常压(APCVD)' }, 'en')).toBe(
+      '101325 · Atmospheric pressure (APCVD)',
+    )
   })
 
   it('keeps canonical pressure labels ahead of compatibility aliases', () => {

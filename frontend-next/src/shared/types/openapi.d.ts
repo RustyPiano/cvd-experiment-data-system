@@ -4,3147 +4,3368 @@
  */
 
 export interface paths {
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Healthcheck */
-        get: operations["healthcheck_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Login */
-        post: operations["login_api_v1_auth_login_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/register": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Register */
-        post: operations["register_api_v1_auth_register_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Refresh */
-        post: operations["refresh_api_v1_auth_refresh_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Logout */
-        post: operations["logout_api_v1_auth_logout_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Me */
-        get: operations["me_api_v1_auth_me_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/files": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Files */
-        get: operations["list_files_api_v1_files_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{experiment_id}/files": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Upload File */
-        post: operations["upload_file_api_v1_experiments__experiment_id__files_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/files/{file_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get File */
-        get: operations["get_file_api_v1_files__file_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete File */
-        delete: operations["delete_file_api_v1_files__file_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/files/{file_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Download File */
-        get: operations["download_file_api_v1_files__file_id__download_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/samples": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Samples */
-        get: operations["list_samples_api_v1_samples_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{experiment_id}/samples": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Sample */
-        post: operations["create_sample_api_v1_experiments__experiment_id__samples_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/samples/{sample_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Sample */
-        get: operations["get_sample_api_v1_samples__sample_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update Sample */
-        patch: operations["update_sample_api_v1_samples__sample_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/material-lots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Material Lots */
-        get: operations["list_material_lots_api_v1_material_lots_get"];
-        put?: never;
-        /** Create Material Lot */
-        post: operations["create_material_lot_api_v1_material_lots_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/material-lots/{entity_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Material Lot */
-        get: operations["get_material_lot_api_v1_material_lots__entity_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/material-lots/{entity_id}/versions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Material Lot Versions */
-        get: operations["list_material_lot_versions_api_v1_material_lots__entity_id__versions_get"];
-        put?: never;
-        /** Append Material Lot Version */
-        post: operations["append_material_lot_version_api_v1_material_lots__entity_id__versions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/setups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Setups */
-        get: operations["list_setups_api_v1_setups_get"];
-        put?: never;
-        /** Create Setup */
-        post: operations["create_setup_api_v1_setups_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/setups/{entity_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Setup */
-        get: operations["get_setup_api_v1_setups__entity_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/setups/{entity_id}/versions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Setup Versions */
-        get: operations["list_setup_versions_api_v1_setups__entity_id__versions_get"];
-        put?: never;
-        /** Append Setup Version */
-        post: operations["append_setup_version_api_v1_setups__entity_id__versions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/instruments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Instruments */
-        get: operations["list_instruments_api_v1_instruments_get"];
-        put?: never;
-        /** Create Instrument */
-        post: operations["create_instrument_api_v1_instruments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/instruments/{entity_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Instrument */
-        get: operations["get_instrument_api_v1_instruments__entity_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/instruments/{entity_id}/versions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Instrument Versions */
-        get: operations["list_instrument_versions_api_v1_instruments__entity_id__versions_get"];
-        put?: never;
-        /** Append Instrument Version */
-        post: operations["append_instrument_version_api_v1_instruments__entity_id__versions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List V2 Experiments */
-        get: operations["list_v2_experiments_api_v1_experiments_get"];
-        put?: never;
-        /** Create V2 Experiment */
-        post: operations["create_v2_experiment_api_v1_experiments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get V2 Experiment */
-        get: operations["get_v2_experiment_api_v1_experiments__run_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/audit-events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Run Audit Events */
-        get: operations["list_run_audit_events_api_v1_experiments__run_id__audit_events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export Run Json */
-        get: operations["export_run_json_api_v1_experiments__run_id__export_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/exports/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export Runs Zip */
-        get: operations["export_runs_zip_api_v1_exports_runs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/lock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Lock V2 Experiment */
-        post: operations["lock_v2_experiment_api_v1_experiments__run_id__lock_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/unlock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Unlock V2 Experiment */
-        post: operations["unlock_v2_experiment_api_v1_experiments__run_id__unlock_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/invalidate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Invalidate V2 Experiment */
-        post: operations["invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/not-characterized": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Set V2 Experiment Not Characterized */
-        put: operations["set_v2_experiment_not_characterized_api_v1_experiments__run_id__not_characterized_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/setup-reference": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Set V2 Setup Reference */
-        put: operations["set_v2_setup_reference_api_v1_experiments__run_id__setup_reference_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/modules/{module_key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get V2 Module */
-        get: operations["get_v2_module_api_v1_experiments__run_id__modules__module_key__get"];
-        /** Upsert V2 Module */
-        put: operations["upsert_v2_module_api_v1_experiments__run_id__modules__module_key__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{run_id}/characterization-records": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Characterization Records */
-        get: operations["list_characterization_records_api_v1_experiments__run_id__characterization_records_get"];
-        put?: never;
-        /** Create Characterization Record */
-        post: operations["create_characterization_record_api_v1_experiments__run_id__characterization_records_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/characterization-records/{record_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Characterization Record */
-        delete: operations["delete_characterization_record_api_v1_characterization_records__record_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Characterization Record */
-        patch: operations["update_characterization_record_api_v1_characterization_records__record_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/samples/{sample_id}/measured-products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Measured Products */
-        get: operations["list_measured_products_api_v1_samples__sample_id__measured_products_get"];
-        put?: never;
-        /** Create Measured Product */
-        post: operations["create_measured_product_api_v1_samples__sample_id__measured_products_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/measured-products/{product_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Measured Product */
-        delete: operations["delete_measured_product_api_v1_measured_products__product_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Measured Product */
-        patch: operations["update_measured_product_api_v1_measured_products__product_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/samples/{sample_id}/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Results */
-        get: operations["list_results_api_v1_samples__sample_id__results_get"];
-        put?: never;
-        /** Create Result */
-        post: operations["create_result_api_v1_samples__sample_id__results_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/results/{result_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Result */
-        put: operations["update_result_api_v1_results__result_id__put"];
-        post?: never;
-        /** Delete Result */
-        delete: operations["delete_result_api_v1_results__result_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Healthcheck */
+    get: operations['healthcheck_health_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/login': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Login */
+    post: operations['login_api_v1_auth_login_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/register': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Register */
+    post: operations['register_api_v1_auth_register_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/refresh': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Refresh */
+    post: operations['refresh_api_v1_auth_refresh_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/logout': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Logout */
+    post: operations['logout_api_v1_auth_logout_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/me': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Me */
+    get: operations['me_api_v1_auth_me_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/entity-files': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Upload Entity File */
+    post: operations['upload_entity_file_api_v1_entity_files_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/entity-files/{file_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Entity File */
+    get: operations['get_entity_file_api_v1_entity_files__file_id__get']
+    put?: never
+    post?: never
+    /** Delete Entity File */
+    delete: operations['delete_entity_file_api_v1_entity_files__file_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/entity-files/{file_id}/download': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Download Entity File */
+    get: operations['download_entity_file_api_v1_entity_files__file_id__download_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/files': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Files */
+    get: operations['list_files_api_v1_files_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{experiment_id}/files': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Upload File */
+    post: operations['upload_file_api_v1_experiments__experiment_id__files_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/files/{file_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get File */
+    get: operations['get_file_api_v1_files__file_id__get']
+    put?: never
+    post?: never
+    /** Delete File */
+    delete: operations['delete_file_api_v1_files__file_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/files/{file_id}/download': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Download File */
+    get: operations['download_file_api_v1_files__file_id__download_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/samples': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Samples */
+    get: operations['list_samples_api_v1_samples_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{experiment_id}/samples': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Sample */
+    post: operations['create_sample_api_v1_experiments__experiment_id__samples_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/samples/{sample_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Sample */
+    get: operations['get_sample_api_v1_samples__sample_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /** Update Sample */
+    patch: operations['update_sample_api_v1_samples__sample_id__patch']
+    trace?: never
+  }
+  '/api/v1/material-lots': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Material Lots */
+    get: operations['list_material_lots_api_v1_material_lots_get']
+    put?: never
+    /** Create Material Lot */
+    post: operations['create_material_lot_api_v1_material_lots_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/material-lots/{entity_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Material Lot */
+    get: operations['get_material_lot_api_v1_material_lots__entity_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/material-lots/{entity_id}/versions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Material Lot Versions */
+    get: operations['list_material_lot_versions_api_v1_material_lots__entity_id__versions_get']
+    put?: never
+    /** Append Material Lot Version */
+    post: operations['append_material_lot_version_api_v1_material_lots__entity_id__versions_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/setups': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Setups */
+    get: operations['list_setups_api_v1_setups_get']
+    put?: never
+    /** Create Setup */
+    post: operations['create_setup_api_v1_setups_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/setups/{entity_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Setup */
+    get: operations['get_setup_api_v1_setups__entity_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/setups/{entity_id}/versions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Setup Versions */
+    get: operations['list_setup_versions_api_v1_setups__entity_id__versions_get']
+    put?: never
+    /** Append Setup Version */
+    post: operations['append_setup_version_api_v1_setups__entity_id__versions_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/instruments': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Instruments */
+    get: operations['list_instruments_api_v1_instruments_get']
+    put?: never
+    /** Create Instrument */
+    post: operations['create_instrument_api_v1_instruments_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/instruments/{entity_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Instrument */
+    get: operations['get_instrument_api_v1_instruments__entity_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/instruments/{entity_id}/versions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Instrument Versions */
+    get: operations['list_instrument_versions_api_v1_instruments__entity_id__versions_get']
+    put?: never
+    /** Append Instrument Version */
+    post: operations['append_instrument_version_api_v1_instruments__entity_id__versions_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List V2 Experiments */
+    get: operations['list_v2_experiments_api_v1_experiments_get']
+    put?: never
+    /** Create V2 Experiment */
+    post: operations['create_v2_experiment_api_v1_experiments_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get V2 Experiment */
+    get: operations['get_v2_experiment_api_v1_experiments__run_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/audit-events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Run Audit Events */
+    get: operations['list_run_audit_events_api_v1_experiments__run_id__audit_events_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/export': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Export Run Json */
+    get: operations['export_run_json_api_v1_experiments__run_id__export_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/exports/runs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Export Runs Zip */
+    get: operations['export_runs_zip_api_v1_exports_runs_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/lock': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Lock V2 Experiment */
+    post: operations['lock_v2_experiment_api_v1_experiments__run_id__lock_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/unlock': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Unlock V2 Experiment */
+    post: operations['unlock_v2_experiment_api_v1_experiments__run_id__unlock_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/invalidate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Invalidate V2 Experiment */
+    post: operations['invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/not-characterized': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /** Set V2 Experiment Not Characterized */
+    put: operations['set_v2_experiment_not_characterized_api_v1_experiments__run_id__not_characterized_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/setup-reference': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /** Set V2 Setup Reference */
+    put: operations['set_v2_setup_reference_api_v1_experiments__run_id__setup_reference_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/modules/{module_key}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get V2 Module */
+    get: operations['get_v2_module_api_v1_experiments__run_id__modules__module_key__get']
+    /** Upsert V2 Module */
+    put: operations['upsert_v2_module_api_v1_experiments__run_id__modules__module_key__put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/characterization-records': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Characterization Records */
+    get: operations['list_characterization_records_api_v1_experiments__run_id__characterization_records_get']
+    put?: never
+    /** Create Characterization Record */
+    post: operations['create_characterization_record_api_v1_experiments__run_id__characterization_records_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/characterization-records/{record_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /** Delete Characterization Record */
+    delete: operations['delete_characterization_record_api_v1_characterization_records__record_id__delete']
+    options?: never
+    head?: never
+    /** Update Characterization Record */
+    patch: operations['update_characterization_record_api_v1_characterization_records__record_id__patch']
+    trace?: never
+  }
+  '/api/v1/samples/{sample_id}/measured-products': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Measured Products */
+    get: operations['list_measured_products_api_v1_samples__sample_id__measured_products_get']
+    put?: never
+    /** Create Measured Product */
+    post: operations['create_measured_product_api_v1_samples__sample_id__measured_products_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/measured-products/{product_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /** Delete Measured Product */
+    delete: operations['delete_measured_product_api_v1_measured_products__product_id__delete']
+    options?: never
+    head?: never
+    /** Update Measured Product */
+    patch: operations['update_measured_product_api_v1_measured_products__product_id__patch']
+    trace?: never
+  }
+  '/api/v1/samples/{sample_id}/results': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Results */
+    get: operations['list_results_api_v1_samples__sample_id__results_get']
+    put?: never
+    /** Create Result */
+    post: operations['create_result_api_v1_samples__sample_id__results_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/results/{result_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /** Update Result */
+    put: operations['update_result_api_v1_results__result_id__put']
+    post?: never
+    /** Delete Result */
+    delete: operations['delete_result_api_v1_results__result_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type webhooks = Record<string, never>;
+export type webhooks = Record<string, never>
 export interface components {
-    schemas: {
-        /** Body_upload_file_api_v1_experiments__experiment_id__files_post */
-        Body_upload_file_api_v1_experiments__experiment_id__files_post: {
-            /** File */
-            file: string;
-            /** Sample Id */
-            sample_id?: string | null;
-            /** Characterization Record Id */
-            characterization_record_id?: string | null;
-            /** Method */
-            method?: string | null;
-            /** File Category */
-            file_category?: string | null;
-            /** Asset Role */
-            asset_role?: string | null;
-            /** Note */
-            note?: string | null;
-            /** File Kind */
-            file_kind?: string | null;
-        };
-        /** CharacterizationRecordCreate */
-        CharacterizationRecordCreate: {
-            /**
-             * Sample Id
-             * Format: uuid
-             */
-            sample_id: string;
-            /** Instrument Id */
-            instrument_id?: string | null;
-            /** Instrument Version */
-            instrument_version?: number | null;
-            /** Method Instrument */
-            method_instrument: string;
-            /** Test Conditions */
-            test_conditions?: string | null;
-            /** Raw Data */
-            raw_data?: {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            };
-        };
-        /** CharacterizationRecordListResponse */
-        CharacterizationRecordListResponse: {
-            /** Items */
-            items: components["schemas"]["CharacterizationRecordRead"][];
-            /** Total */
-            total: number;
-        };
-        /** CharacterizationRecordRead */
-        CharacterizationRecordRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Experiment Run Id
-             * Format: uuid
-             */
-            experiment_run_id: string;
-            /**
-             * Sample Id
-             * Format: uuid
-             */
-            sample_id: string;
-            /** Instrument Id */
-            instrument_id: string | null;
-            /** Instrument Version */
-            instrument_version: number | null;
-            /** Instrument Snapshot Json */
-            instrument_snapshot_json: {
-                [key: string]: unknown;
-            } | null;
-            /** Method Instrument */
-            method_instrument: string | null;
-            /** Test Conditions */
-            test_conditions: string | null;
-            /** Raw Data */
-            raw_data: {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** CharacterizationRecordUpdate */
-        CharacterizationRecordUpdate: {
-            /** Method Instrument */
-            method_instrument?: string | null;
-            /** Test Conditions */
-            test_conditions?: string | null;
-            /** Raw Data */
-            raw_data?: {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /**
-         * ExperimentStatus
-         * @enum {string}
-         */
-        ExperimentStatus: "draft" | "locked" | "invalid";
-        /** FileAssetListResponse */
-        FileAssetListResponse: {
-            /** Items */
-            items: components["schemas"]["FileAssetRead"][];
-            /** Total */
-            total: number;
-        };
-        /** FileAssetRead */
-        FileAssetRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Experiment Run Id
-             * Format: uuid
-             */
-            experiment_run_id: string;
-            /** Sample Id */
-            sample_id: string | null;
-            /** Characterization Record Id */
-            characterization_record_id: string | null;
-            /**
-             * Uploaded By Id
-             * Format: uuid
-             */
-            uploaded_by_id: string;
-            /** Deleted By Id */
-            deleted_by_id: string | null;
-            /** Original Name */
-            original_name: string;
-            /** Storage Path */
-            storage_path: string;
-            /** Download Url */
-            download_url: string;
-            /** Content Type */
-            content_type: string | null;
-            /** Size Bytes */
-            size_bytes: number;
-            /** Sha256 */
-            sha256: string;
-            /** Method */
-            method: string;
-            /** File Category */
-            file_category: string;
-            /** Asset Role */
-            asset_role: string;
-            /** Note */
-            note: string | null;
-            /** Metadata Json */
-            metadata_json: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Deleted At */
-            deleted_at: string | null;
-            /** Is Deleted */
-            is_deleted: boolean;
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /** LoginRequest */
-        LoginRequest: {
-            /** Email */
-            email: string;
-            /** Password */
-            password: string;
-        };
-        /** MeasuredProductCreate */
-        MeasuredProductCreate: {
-            /** Characterization Record Id */
-            characterization_record_id?: string | null;
-            /** Observed Phenomena */
-            observed_phenomena?: string[] | null;
-            /** Detected Phase Stacking */
-            detected_phase_stacking?: string | null;
-            /** Measured Layers Coverage */
-            measured_layers_coverage?: string | null;
-            /** Domain Nucleation Continuity */
-            domain_nucleation_continuity?: string | null;
-            /** Key Spectral Metrics */
-            key_spectral_metrics?: {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            };
-        };
-        /** MeasuredProductListResponse */
-        MeasuredProductListResponse: {
-            /** Items */
-            items: components["schemas"]["MeasuredProductRead"][];
-            /** Total */
-            total: number;
-        };
-        /** MeasuredProductRead */
-        MeasuredProductRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Sample Id
-             * Format: uuid
-             */
-            sample_id: string;
-            /** Characterization Record Id */
-            characterization_record_id: string | null;
-            /** Observed Phenomena */
-            observed_phenomena: string[] | null;
-            /** Detected Phase Stacking */
-            detected_phase_stacking: string | null;
-            /** Measured Layers Coverage */
-            measured_layers_coverage: string | null;
-            /** Domain Nucleation Continuity */
-            domain_nucleation_continuity: string | null;
-            /** Key Spectral Metrics */
-            key_spectral_metrics: {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** MeasuredProductUpdate */
-        MeasuredProductUpdate: {
-            /** Characterization Record Id */
-            characterization_record_id?: string | null;
-            /** Observed Phenomena */
-            observed_phenomena?: string[] | null;
-            /** Detected Phase Stacking */
-            detected_phase_stacking?: string | null;
-            /** Measured Layers Coverage */
-            measured_layers_coverage?: string | null;
-            /** Domain Nucleation Continuity */
-            domain_nucleation_continuity?: string | null;
-            /** Key Spectral Metrics */
-            key_spectral_metrics?: {
-                [key: string]: unknown;
-            } | null;
-            /** Attrs */
-            attrs?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** RegisterRequest */
-        RegisterRequest: {
-            /** Email */
-            email: string;
-            /** Name */
-            name: string;
-            /** Password */
-            password: string;
-            /** Password Confirmation */
-            password_confirmation: string;
-            /** Invite Code */
-            invite_code: string;
-        };
-        /** SampleCreate */
-        SampleCreate: {
-            role: components["schemas"]["SampleRole"];
-            /** Parent Sample Id */
-            parent_sample_id?: string | null;
-            /** Metadata Json */
-            metadata_json?: {
-                [key: string]: unknown;
-            };
-        };
-        /** SampleListResponse */
-        SampleListResponse: {
-            /** Items */
-            items: components["schemas"]["SampleRead"][];
-            /** Total */
-            total: number;
-        };
-        /** SampleRead */
-        SampleRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Sample Code */
-            sample_code: string;
-            /**
-             * Experiment Run Id
-             * Format: uuid
-             */
-            experiment_run_id: string;
-            /** Run Code */
-            run_code?: string | null;
-            /** Material System */
-            material_system?: string | null;
-            /** Parent Sample Id */
-            parent_sample_id: string | null;
-            /** Role */
-            role: string;
-            /** Source Substrate Id */
-            source_substrate_id: string | null;
-            /** Source Substrate Snapshot Json */
-            source_substrate_snapshot_json: {
-                [key: string]: unknown;
-            } | null;
-            /** Metadata Json */
-            metadata_json: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Deleted At */
-            deleted_at: string | null;
-            /** Deleted By Id */
-            deleted_by_id: string | null;
-            /** Is Deleted */
-            is_deleted: boolean;
-        };
-        /**
-         * SampleRole
-         * @enum {string}
-         */
-        SampleRole: "growth" | "derived" | "control";
-        /** SampleUpdate */
-        SampleUpdate: {
-            /** Metadata Json */
-            metadata_json?: {
-                [key: string]: unknown;
-            };
-        };
-        /** TokenResponse */
-        TokenResponse: {
-            /** Access Token */
-            access_token: string;
-            /** Token Type */
-            token_type: string;
-            /** Expires In */
-            expires_in: number;
-            user: components["schemas"]["UserRead"];
-        };
-        /** UserRead */
-        UserRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Email */
-            email: string;
-            /** Name */
-            name: string;
-            /** Role */
-            role: string;
-            /** Is Active */
-            is_active: boolean;
-            /** Last Login At */
-            last_login_at: string | null;
-        };
-        /** V2EntityListResponse */
-        V2EntityListResponse: {
-            /** Items */
-            items: components["schemas"]["V2EntityRead"][];
-            /** Total */
-            total: number;
-        };
-        /** V2EntityRead */
-        V2EntityRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            latest_version?: components["schemas"]["V2EntityVersionRead"] | null;
-        };
-        /** V2EntityVersionListResponse */
-        V2EntityVersionListResponse: {
-            /** Items */
-            items: components["schemas"]["V2EntityVersionRead"][];
-            /** Total */
-            total: number;
-        };
-        /** V2EntityVersionPayload */
-        V2EntityVersionPayload: {
-            [key: string]: unknown;
-        };
-        /** V2EntityVersionRead */
-        V2EntityVersionRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Entity Id
-             * Format: uuid
-             */
-            entity_id: string;
-            /** Version */
-            version: number;
-            /** Data */
-            data: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** V2ExperimentCreate */
-        V2ExperimentCreate: {
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-            /** Synthesis Method */
-            synthesis_method: string;
-            /** Run Code */
-            run_code?: string | null;
-            /** Chemical Formula */
-            chemical_formula?: string | null;
-            /** Objective */
-            objective?: string | null;
-        };
-        /** V2ExperimentListResponse */
-        V2ExperimentListResponse: {
-            /** Items */
-            items: components["schemas"]["V2ExperimentRead"][];
-            /** Total */
-            total: number;
-        };
-        /** V2ExperimentRead */
-        V2ExperimentRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Run Code */
-            run_code: string;
-            /**
-             * Owner Id
-             * Format: uuid
-             */
-            owner_id: string;
-            /** Operator */
-            operator: string | null;
-            /** Schema Version */
-            schema_version: string;
-            /** Material System */
-            material_system: string | null;
-            /**
-             * Experiment Date
-             * Format: date
-             */
-            experiment_date: string;
-            /** Objective */
-            objective: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "draft" | "locked" | "invalid";
-            /** Invalid Reason */
-            invalid_reason: string | null;
-            /** Result Missing Todo */
-            result_missing_todo: boolean | null;
-            /** Locked At */
-            locked_at: string | null;
-            /** Not Characterized By Id */
-            not_characterized_by_id: string | null;
-            /** Not Characterized At */
-            not_characterized_at: string | null;
-            /** Setup Ref */
-            setup_ref: string | null;
-            /** Setup Ref Version */
-            setup_ref_version: number | null;
-            /** Setup Ref Snapshot Json */
-            setup_ref_snapshot_json: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** V2InvalidateRequest */
-        V2InvalidateRequest: {
-            /** Reason */
-            reason: string;
-        };
-        /** V2ModulePayloadRead */
-        V2ModulePayloadRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Experiment Run Id
-             * Format: uuid
-             */
-            experiment_run_id: string;
-            /** Module Key */
-            module_key: string;
-            /** Schema Version */
-            schema_version: string;
-            /** Payload Json */
-            payload_json: {
-                [key: string]: unknown;
-            };
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** V2ModulePayloadUpsert */
-        V2ModulePayloadUpsert: {
-            /** Payload Json */
-            payload_json?: {
-                [key: string]: unknown;
-            };
-        };
-        /** V2NotCharacterizedRequest */
-        V2NotCharacterizedRequest: {
-            /** Confirmed */
-            confirmed: boolean;
-        };
-        /** V2ResultListResponse */
-        V2ResultListResponse: {
-            /** Items */
-            items: components["schemas"]["V2ResultRead"][];
-            /** Total */
-            total: number;
-        };
-        /** V2ResultRead */
-        V2ResultRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Sample Id
-             * Format: uuid
-             */
-            sample_id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "direct_observation" | "characterization";
-            /** Characterization Record Id */
-            characterization_record_id: string | null;
-            /** Instrument Id */
-            instrument_id: string | null;
-            /** Instrument Version */
-            instrument_version: number | null;
-            /** Instrument Snapshot Json */
-            instrument_snapshot_json: {
-                [key: string]: unknown;
-            } | null;
-            /** Method Instrument */
-            method_instrument: string | null;
-            /** Test Conditions */
-            test_conditions: string | null;
-            /** Observed Phenomena */
-            observed_phenomena: string[] | null;
-            /** Detected Phase Stacking */
-            detected_phase_stacking: string | null;
-            /** Measured Layers Coverage */
-            measured_layers_coverage: string | null;
-            /** Domain Nucleation Continuity */
-            domain_nucleation_continuity: string | null;
-            /** Key Spectral Metrics */
-            key_spectral_metrics: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** V2ResultWrite */
-        V2ResultWrite: {
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "direct_observation" | "characterization";
-            /** Instrument Id */
-            instrument_id?: string | null;
-            /** Instrument Version */
-            instrument_version?: number | null;
-            /** Method Instrument */
-            method_instrument?: string | null;
-            /** Test Conditions */
-            test_conditions?: string | null;
-            /** Observed Phenomena */
-            observed_phenomena?: string[] | null;
-            /** Detected Phase Stacking */
-            detected_phase_stacking?: string | null;
-            /** Measured Layers Coverage */
-            measured_layers_coverage?: string | null;
-            /** Domain Nucleation Continuity */
-            domain_nucleation_continuity?: string | null;
-            /** Key Spectral Metrics */
-            key_spectral_metrics?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** V2RunAuditEventListResponse */
-        V2RunAuditEventListResponse: {
-            /** Items */
-            items: components["schemas"]["V2RunAuditEventRead"][];
-            /** Total */
-            total: number;
-        };
-        /** V2RunAuditEventRead */
-        V2RunAuditEventRead: {
-            /** Actor Name */
-            actor_name: string;
-            /** Action */
-            action: string;
-            /** Reason */
-            reason: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** V2SetupReferenceRequest */
-        V2SetupReferenceRequest: {
-            /**
-             * Setup Id
-             * Format: uuid
-             */
-            setup_id: string;
-            /** Version */
-            version: number;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
-    };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: {
+    /** Body_upload_entity_file_api_v1_entity_files_post */
+    Body_upload_entity_file_api_v1_entity_files_post: {
+      /** File */
+      file: string
+      /** Note */
+      note?: string | null
+    }
+    /** Body_upload_file_api_v1_experiments__experiment_id__files_post */
+    Body_upload_file_api_v1_experiments__experiment_id__files_post: {
+      /** File */
+      file: string
+      /** Sample Id */
+      sample_id?: string | null
+      /** Characterization Record Id */
+      characterization_record_id?: string | null
+      /** Method */
+      method?: string | null
+      /** File Category */
+      file_category?: string | null
+      /** Asset Role */
+      asset_role?: string | null
+      /** Note */
+      note?: string | null
+      /** File Kind */
+      file_kind?: string | null
+    }
+    /** CharacterizationRecordCreate */
+    CharacterizationRecordCreate: {
+      /**
+       * Sample Id
+       * Format: uuid
+       */
+      sample_id: string
+      /** Instrument Id */
+      instrument_id?: string | null
+      /** Instrument Version */
+      instrument_version?: number | null
+      /** Method Instrument */
+      method_instrument: string
+      /** Test Conditions */
+      test_conditions?: string | null
+      /** Raw Data */
+      raw_data?: {
+        [key: string]: unknown
+      } | null
+      /** Attrs */
+      attrs?: {
+        [key: string]: unknown
+      }
+    }
+    /** CharacterizationRecordListResponse */
+    CharacterizationRecordListResponse: {
+      /** Items */
+      items: components['schemas']['CharacterizationRecordRead'][]
+      /** Total */
+      total: number
+    }
+    /** CharacterizationRecordRead */
+    CharacterizationRecordRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Experiment Run Id
+       * Format: uuid
+       */
+      experiment_run_id: string
+      /**
+       * Sample Id
+       * Format: uuid
+       */
+      sample_id: string
+      /** Instrument Id */
+      instrument_id: string | null
+      /** Instrument Version */
+      instrument_version: number | null
+      /** Instrument Snapshot Json */
+      instrument_snapshot_json: {
+        [key: string]: unknown
+      } | null
+      /** Method Instrument */
+      method_instrument: string | null
+      /** Test Conditions */
+      test_conditions: string | null
+      /** Raw Data */
+      raw_data: {
+        [key: string]: unknown
+      } | null
+      /** Attrs */
+      attrs: {
+        [key: string]: unknown
+      }
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+    }
+    /** CharacterizationRecordUpdate */
+    CharacterizationRecordUpdate: {
+      /** Method Instrument */
+      method_instrument?: string | null
+      /** Test Conditions */
+      test_conditions?: string | null
+      /** Raw Data */
+      raw_data?: {
+        [key: string]: unknown
+      } | null
+      /** Attrs */
+      attrs?: {
+        [key: string]: unknown
+      }
+    }
+    /**
+     * ExperimentStatus
+     * @enum {string}
+     */
+    ExperimentStatus: 'draft' | 'locked' | 'invalid'
+    /** FileAssetListResponse */
+    FileAssetListResponse: {
+      /** Items */
+      items: components['schemas']['FileAssetRead'][]
+      /** Total */
+      total: number
+    }
+    /** FileAssetRead */
+    FileAssetRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Experiment Run Id */
+      experiment_run_id: string | null
+      /** Sample Id */
+      sample_id: string | null
+      /** Characterization Record Id */
+      characterization_record_id: string | null
+      /** Entity Type */
+      entity_type?: string | null
+      /** Entity Id */
+      entity_id?: string | null
+      /** Entity Version */
+      entity_version?: number | null
+      /**
+       * Uploaded By Id
+       * Format: uuid
+       */
+      uploaded_by_id: string
+      /** Deleted By Id */
+      deleted_by_id: string | null
+      /** Original Name */
+      original_name: string
+      /** Storage Path */
+      storage_path: string
+      /** Download Url */
+      download_url: string
+      /** Content Type */
+      content_type: string | null
+      /** Size Bytes */
+      size_bytes: number
+      /** Sha256 */
+      sha256: string
+      /** Method */
+      method: string
+      /** File Category */
+      file_category: string
+      /** Asset Role */
+      asset_role: string
+      /** Note */
+      note: string | null
+      /** Metadata Json */
+      metadata_json: {
+        [key: string]: unknown
+      }
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      /** Deleted At */
+      deleted_at: string | null
+      /** Is Deleted */
+      is_deleted: boolean
+    }
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][]
+    }
+    /** LoginRequest */
+    LoginRequest: {
+      /** Email */
+      email: string
+      /** Password */
+      password: string
+    }
+    /** MeasuredProductCreate */
+    MeasuredProductCreate: {
+      /** Observed Phenomena */
+      observed_phenomena?: string[] | null
+      /** Detected Phase Stacking */
+      detected_phase_stacking?: string | null
+      /** Layer Count */
+      layer_count?: number | null
+      /** Coverage Percent */
+      coverage_percent?: number | null
+      /** Domain Size Um */
+      domain_size_um?: number | null
+      /** Nucleation Density Cm2 */
+      nucleation_density_cm2?: number | null
+      /** Key Spectral Metrics */
+      key_spectral_metrics?: components['schemas']['SpectralMetric'][] | null
+      /** Characterization Record Id */
+      characterization_record_id?: string | null
+      /** Attrs */
+      attrs?: {
+        [key: string]: unknown
+      }
+    }
+    /** MeasuredProductListResponse */
+    MeasuredProductListResponse: {
+      /** Items */
+      items: components['schemas']['MeasuredProductRead'][]
+      /** Total */
+      total: number
+    }
+    /** MeasuredProductRead */
+    MeasuredProductRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Sample Id
+       * Format: uuid
+       */
+      sample_id: string
+      /** Characterization Record Id */
+      characterization_record_id: string | null
+      /** Observed Phenomena */
+      observed_phenomena: string[] | null
+      /** Detected Phase Stacking */
+      detected_phase_stacking: string | null
+      /** Layer Count */
+      layer_count: number | null
+      /** Coverage Percent */
+      coverage_percent: number | null
+      /** Domain Size Um */
+      domain_size_um: number | null
+      /** Nucleation Density Cm2 */
+      nucleation_density_cm2: number | null
+      /** Measured Layers Coverage */
+      measured_layers_coverage: string | null
+      /** Domain Nucleation Continuity */
+      domain_nucleation_continuity: string | null
+      /** Key Spectral Metrics */
+      key_spectral_metrics:
+        | components['schemas']['SpectralMetric'][]
+        | {
+            [key: string]: unknown
+          }
+        | null
+      /** Attrs */
+      attrs: {
+        [key: string]: unknown
+      }
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+    }
+    /** MeasuredProductUpdate */
+    MeasuredProductUpdate: {
+      /** Observed Phenomena */
+      observed_phenomena?: string[] | null
+      /** Detected Phase Stacking */
+      detected_phase_stacking?: string | null
+      /** Layer Count */
+      layer_count?: number | null
+      /** Coverage Percent */
+      coverage_percent?: number | null
+      /** Domain Size Um */
+      domain_size_um?: number | null
+      /** Nucleation Density Cm2 */
+      nucleation_density_cm2?: number | null
+      /** Key Spectral Metrics */
+      key_spectral_metrics?: components['schemas']['SpectralMetric'][] | null
+      /** Attrs */
+      attrs?: {
+        [key: string]: unknown
+      }
+    }
+    /** RegisterRequest */
+    RegisterRequest: {
+      /** Email */
+      email: string
+      /** Name */
+      name: string
+      /** Password */
+      password: string
+      /** Password Confirmation */
+      password_confirmation: string
+      /** Invite Code */
+      invite_code: string
+    }
+    /** SampleCreate */
+    SampleCreate: {
+      role: components['schemas']['SampleRole']
+      /** Parent Sample Id */
+      parent_sample_id?: string | null
+      /** Metadata Json */
+      metadata_json?: {
+        [key: string]: unknown
+      }
+    }
+    /** SampleListResponse */
+    SampleListResponse: {
+      /** Items */
+      items: components['schemas']['SampleRead'][]
+      /** Total */
+      total: number
+    }
+    /** SampleRead */
+    SampleRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Sample Code */
+      sample_code: string
+      /**
+       * Experiment Run Id
+       * Format: uuid
+       */
+      experiment_run_id: string
+      /** Run Code */
+      run_code?: string | null
+      /** Material System */
+      material_system?: string | null
+      /** Parent Sample Id */
+      parent_sample_id: string | null
+      /** Role */
+      role: string
+      /** Source Substrate Id */
+      source_substrate_id: string | null
+      /** Source Substrate Snapshot Json */
+      source_substrate_snapshot_json: {
+        [key: string]: unknown
+      } | null
+      /** Metadata Json */
+      metadata_json: {
+        [key: string]: unknown
+      }
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      /** Deleted At */
+      deleted_at: string | null
+      /** Deleted By Id */
+      deleted_by_id: string | null
+      /** Is Deleted */
+      is_deleted: boolean
+    }
+    /**
+     * SampleRole
+     * @enum {string}
+     */
+    SampleRole: 'growth' | 'derived' | 'control'
+    /** SampleUpdate */
+    SampleUpdate: {
+      /** Metadata Json */
+      metadata_json?: {
+        [key: string]: unknown
+      }
+    }
+    /** SpectralMetric */
+    SpectralMetric: {
+      /** Metric Code */
+      metric_code: string
+      /** Value */
+      value: number
+      /** Unit */
+      unit: string
+    }
+    /** TokenResponse */
+    TokenResponse: {
+      /** Access Token */
+      access_token: string
+      /** Token Type */
+      token_type: string
+      /** Expires In */
+      expires_in: number
+      user: components['schemas']['UserRead']
+    }
+    /** UserRead */
+    UserRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Email */
+      email: string
+      /** Name */
+      name: string
+      /** Role */
+      role: string
+      /** Is Active */
+      is_active: boolean
+      /** Last Login At */
+      last_login_at: string | null
+    }
+    /** V2EntityListResponse */
+    V2EntityListResponse: {
+      /** Items */
+      items: components['schemas']['V2EntityRead'][]
+      /** Total */
+      total: number
+    }
+    /** V2EntityRead */
+    V2EntityRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      latest_version?: components['schemas']['V2EntityVersionRead'] | null
+    }
+    /** V2EntityVersionListResponse */
+    V2EntityVersionListResponse: {
+      /** Items */
+      items: components['schemas']['V2EntityVersionRead'][]
+      /** Total */
+      total: number
+    }
+    /** V2EntityVersionPayload */
+    V2EntityVersionPayload: {
+      [key: string]: unknown
+    }
+    /** V2EntityVersionRead */
+    V2EntityVersionRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Entity Id
+       * Format: uuid
+       */
+      entity_id: string
+      /** Version */
+      version: number
+      /** Data */
+      data: {
+        [key: string]: unknown
+      }
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+    }
+    /** V2ExperimentCreate */
+    V2ExperimentCreate: {
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string
+      /** Synthesis Method */
+      synthesis_method: string
+      /** Run Code */
+      run_code?: string | null
+      /** Chemical Formula */
+      chemical_formula?: string | null
+      /** Objective */
+      objective?: string | null
+    }
+    /** V2ExperimentListResponse */
+    V2ExperimentListResponse: {
+      /** Items */
+      items: components['schemas']['V2ExperimentRead'][]
+      /** Total */
+      total: number
+    }
+    /** V2ExperimentRead */
+    V2ExperimentRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Run Code */
+      run_code: string
+      /**
+       * Owner Id
+       * Format: uuid
+       */
+      owner_id: string
+      /** Operator */
+      operator: string | null
+      /** Schema Version */
+      schema_version: string
+      /** Material System */
+      material_system: string | null
+      /**
+       * Experiment Date
+       * Format: date
+       */
+      experiment_date: string
+      /** Objective */
+      objective: string | null
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'draft' | 'locked' | 'invalid'
+      /** Invalid Reason */
+      invalid_reason: string | null
+      /** Result Missing Todo */
+      result_missing_todo: boolean | null
+      /** Locked At */
+      locked_at: string | null
+      /** Not Characterized By Id */
+      not_characterized_by_id: string | null
+      /** Not Characterized At */
+      not_characterized_at: string | null
+      /** Setup Ref */
+      setup_ref: string | null
+      /** Setup Ref Version */
+      setup_ref_version: number | null
+      /** Setup Ref Snapshot Json */
+      setup_ref_snapshot_json: {
+        [key: string]: unknown
+      } | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+    }
+    /** V2InvalidateRequest */
+    V2InvalidateRequest: {
+      /** Reason */
+      reason: string
+    }
+    /** V2ModulePayloadRead */
+    V2ModulePayloadRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Experiment Run Id
+       * Format: uuid
+       */
+      experiment_run_id: string
+      /** Module Key */
+      module_key: string
+      /** Schema Version */
+      schema_version: string
+      /** Payload Json */
+      payload_json: {
+        [key: string]: unknown
+      }
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+    }
+    /** V2ModulePayloadUpsert */
+    V2ModulePayloadUpsert: {
+      /** Payload Json */
+      payload_json?: {
+        [key: string]: unknown
+      }
+    }
+    /** V2NotCharacterizedRequest */
+    V2NotCharacterizedRequest: {
+      /** Confirmed */
+      confirmed: boolean
+    }
+    /** V2ResultListResponse */
+    V2ResultListResponse: {
+      /** Items */
+      items: components['schemas']['V2ResultRead'][]
+      /** Total */
+      total: number
+    }
+    /** V2ResultRead */
+    V2ResultRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Sample Id
+       * Format: uuid
+       */
+      sample_id: string
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'direct_observation' | 'characterization'
+      /** Characterization Record Id */
+      characterization_record_id: string | null
+      /** Instrument Id */
+      instrument_id: string | null
+      /** Instrument Version */
+      instrument_version: number | null
+      /** Instrument Snapshot Json */
+      instrument_snapshot_json: {
+        [key: string]: unknown
+      } | null
+      /** Method Instrument */
+      method_instrument: string | null
+      /** Test Conditions */
+      test_conditions: string | null
+      /** Observed Phenomena */
+      observed_phenomena: string[] | null
+      /** Detected Phase Stacking */
+      detected_phase_stacking: string | null
+      /** Layer Count */
+      layer_count: number | null
+      /** Coverage Percent */
+      coverage_percent: number | null
+      /** Domain Size Um */
+      domain_size_um: number | null
+      /** Nucleation Density Cm2 */
+      nucleation_density_cm2: number | null
+      /** Measured Layers Coverage */
+      measured_layers_coverage: string | null
+      /** Domain Nucleation Continuity */
+      domain_nucleation_continuity: string | null
+      /** Key Spectral Metrics */
+      key_spectral_metrics:
+        | components['schemas']['SpectralMetric'][]
+        | {
+            [key: string]: unknown
+          }
+        | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+    }
+    /** V2ResultWrite */
+    V2ResultWrite: {
+      /** Observed Phenomena */
+      observed_phenomena?: string[] | null
+      /** Detected Phase Stacking */
+      detected_phase_stacking?: string | null
+      /** Layer Count */
+      layer_count?: number | null
+      /** Coverage Percent */
+      coverage_percent?: number | null
+      /** Domain Size Um */
+      domain_size_um?: number | null
+      /** Nucleation Density Cm2 */
+      nucleation_density_cm2?: number | null
+      /** Key Spectral Metrics */
+      key_spectral_metrics?: components['schemas']['SpectralMetric'][] | null
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'direct_observation' | 'characterization'
+      /** Instrument Id */
+      instrument_id?: string | null
+      /** Instrument Version */
+      instrument_version?: number | null
+      /** Method Instrument */
+      method_instrument?: string | null
+      /** Test Conditions */
+      test_conditions?: string | null
+    }
+    /** V2RunAuditEventListResponse */
+    V2RunAuditEventListResponse: {
+      /** Items */
+      items: components['schemas']['V2RunAuditEventRead'][]
+      /** Total */
+      total: number
+    }
+    /** V2RunAuditEventRead */
+    V2RunAuditEventRead: {
+      /** Actor Name */
+      actor_name: string
+      /** Action */
+      action: string
+      /** Reason */
+      reason: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+    }
+    /** V2SetupReferenceRequest */
+    V2SetupReferenceRequest: {
+      /**
+       * Setup Id
+       * Format: uuid
+       */
+      setup_id: string
+      /** Version */
+      version: number
+    }
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[]
+      /** Message */
+      msg: string
+      /** Error Type */
+      type: string
+      /** Input */
+      input?: unknown
+      /** Context */
+      ctx?: Record<string, never>
+    }
+  }
+  responses: never
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
 }
-export type $defs = Record<string, never>;
+export type $defs = Record<string, never>
 export interface operations {
-    healthcheck_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
-    login_api_v1_auth_login_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    register_api_v1_auth_register_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    refresh_api_v1_auth_refresh_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenResponse"];
-                };
-            };
-        };
-    };
-    logout_api_v1_auth_logout_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    me_api_v1_auth_me_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserRead"];
-                };
-            };
-        };
-    };
-    list_files_api_v1_files_get: {
-        parameters: {
-            query?: {
-                experiment_id?: string | null;
-                sample_id?: string | null;
-                characterization_record_id?: string | null;
-                method?: string | null;
-                file_category?: string | null;
-                asset_role?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileAssetListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upload_file_api_v1_experiments__experiment_id__files_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_upload_file_api_v1_experiments__experiment_id__files_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileAssetRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_file_api_v1_files__file_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                file_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FileAssetRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_file_api_v1_files__file_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                file_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    download_file_api_v1_files__file_id__download_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                file_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_samples_api_v1_samples_get: {
-        parameters: {
-            query?: {
-                experiment_id?: string | null;
-                role?: components["schemas"]["SampleRole"] | null;
-                sample_code?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SampleListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_sample_api_v1_experiments__experiment_id__samples_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SampleCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SampleRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_sample_api_v1_samples__sample_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SampleRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_sample_api_v1_samples__sample_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SampleUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SampleRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_material_lots_api_v1_material_lots_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityListResponse"];
-                };
-            };
-        };
-    };
-    create_material_lot_api_v1_material_lots_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2EntityVersionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_material_lot_api_v1_material_lots__entity_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_material_lot_versions_api_v1_material_lots__entity_id__versions_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityVersionListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    append_material_lot_version_api_v1_material_lots__entity_id__versions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2EntityVersionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityVersionRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_setups_api_v1_setups_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityListResponse"];
-                };
-            };
-        };
-    };
-    create_setup_api_v1_setups_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2EntityVersionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_setup_api_v1_setups__entity_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_setup_versions_api_v1_setups__entity_id__versions_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityVersionListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    append_setup_version_api_v1_setups__entity_id__versions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2EntityVersionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityVersionRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_instruments_api_v1_instruments_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityListResponse"];
-                };
-            };
-        };
-    };
-    create_instrument_api_v1_instruments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2EntityVersionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_instrument_api_v1_instruments__entity_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_instrument_versions_api_v1_instruments__entity_id__versions_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityVersionListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    append_instrument_version_api_v1_instruments__entity_id__versions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entity_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2EntityVersionPayload"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2EntityVersionRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_v2_experiments_api_v1_experiments_get: {
-        parameters: {
-            query?: {
-                page?: number;
-                page_size?: number;
-                query?: string | null;
-                material_system?: string | null;
-                operator?: string | null;
-                date_from?: string | null;
-                date_to?: string | null;
-                status?: components["schemas"]["ExperimentStatus"][] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_v2_experiment_api_v1_experiments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2ExperimentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_v2_experiment_api_v1_experiments__run_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_run_audit_events_api_v1_experiments__run_id__audit_events_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2RunAuditEventListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_run_json_api_v1_experiments__run_id__export_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_runs_zip_api_v1_exports_runs_get: {
-        parameters: {
-            query?: {
-                query?: string | null;
-                material_system?: string | null;
-                operator?: string | null;
-                date_from?: string | null;
-                date_to?: string | null;
-                status?: components["schemas"]["ExperimentStatus"][] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    lock_v2_experiment_api_v1_experiments__run_id__lock_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unlock_v2_experiment_api_v1_experiments__run_id__unlock_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2InvalidateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_v2_experiment_not_characterized_api_v1_experiments__run_id__not_characterized_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2NotCharacterizedRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_v2_setup_reference_api_v1_experiments__run_id__setup_reference_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2SetupReferenceRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ExperimentRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_v2_module_api_v1_experiments__run_id__modules__module_key__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-                module_key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ModulePayloadRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upsert_v2_module_api_v1_experiments__run_id__modules__module_key__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-                module_key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2ModulePayloadUpsert"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ModulePayloadRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_characterization_records_api_v1_experiments__run_id__characterization_records_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CharacterizationRecordListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_characterization_record_api_v1_experiments__run_id__characterization_records_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CharacterizationRecordCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CharacterizationRecordRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_characterization_record_api_v1_characterization_records__record_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                record_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_characterization_record_api_v1_characterization_records__record_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                record_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CharacterizationRecordUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CharacterizationRecordRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_measured_products_api_v1_samples__sample_id__measured_products_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeasuredProductListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_measured_product_api_v1_samples__sample_id__measured_products_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MeasuredProductCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeasuredProductRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_measured_product_api_v1_measured_products__product_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                product_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_measured_product_api_v1_measured_products__product_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                product_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MeasuredProductUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MeasuredProductRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_results_api_v1_samples__sample_id__results_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ResultListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_result_api_v1_samples__sample_id__results_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sample_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2ResultWrite"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ResultRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_result_api_v1_results__result_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                result_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["V2ResultWrite"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ResultRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_result_api_v1_results__result_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                result_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
+  healthcheck_health_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: string
+          }
+        }
+      }
+    }
+  }
+  login_api_v1_auth_login_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LoginRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TokenResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  register_api_v1_auth_register_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RegisterRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TokenResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  refresh_api_v1_auth_refresh_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TokenResponse']
+        }
+      }
+    }
+  }
+  logout_api_v1_auth_logout_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  me_api_v1_auth_me_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['UserRead']
+        }
+      }
+    }
+  }
+  upload_entity_file_api_v1_entity_files_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_upload_entity_file_api_v1_entity_files_post']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FileAssetRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_entity_file_api_v1_entity_files__file_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        file_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FileAssetRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_entity_file_api_v1_entity_files__file_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        file_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  download_entity_file_api_v1_entity_files__file_id__download_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        file_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_files_api_v1_files_get: {
+    parameters: {
+      query?: {
+        experiment_id?: string | null
+        sample_id?: string | null
+        characterization_record_id?: string | null
+        method?: string | null
+        file_category?: string | null
+        asset_role?: string | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FileAssetListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  upload_file_api_v1_experiments__experiment_id__files_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        experiment_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_upload_file_api_v1_experiments__experiment_id__files_post']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FileAssetRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_file_api_v1_files__file_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        file_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FileAssetRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_file_api_v1_files__file_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        file_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  download_file_api_v1_files__file_id__download_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        file_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_samples_api_v1_samples_get: {
+    parameters: {
+      query?: {
+        experiment_id?: string | null
+        role?: components['schemas']['SampleRole'] | null
+        sample_code?: string | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SampleListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_sample_api_v1_experiments__experiment_id__samples_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        experiment_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SampleCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SampleRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_sample_api_v1_samples__sample_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        sample_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SampleRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  update_sample_api_v1_samples__sample_id__patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        sample_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SampleUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SampleRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_material_lots_api_v1_material_lots_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityListResponse']
+        }
+      }
+    }
+  }
+  create_material_lot_api_v1_material_lots_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2EntityVersionPayload']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_material_lot_api_v1_material_lots__entity_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_material_lot_versions_api_v1_material_lots__entity_id__versions_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityVersionListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  append_material_lot_version_api_v1_material_lots__entity_id__versions_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2EntityVersionPayload']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityVersionRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_setups_api_v1_setups_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityListResponse']
+        }
+      }
+    }
+  }
+  create_setup_api_v1_setups_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2EntityVersionPayload']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_setup_api_v1_setups__entity_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_setup_versions_api_v1_setups__entity_id__versions_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityVersionListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  append_setup_version_api_v1_setups__entity_id__versions_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2EntityVersionPayload']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityVersionRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_instruments_api_v1_instruments_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityListResponse']
+        }
+      }
+    }
+  }
+  create_instrument_api_v1_instruments_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2EntityVersionPayload']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_instrument_api_v1_instruments__entity_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_instrument_versions_api_v1_instruments__entity_id__versions_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityVersionListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  append_instrument_version_api_v1_instruments__entity_id__versions_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        entity_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2EntityVersionPayload']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2EntityVersionRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_v2_experiments_api_v1_experiments_get: {
+    parameters: {
+      query?: {
+        page?: number
+        page_size?: number
+        query?: string | null
+        material_system?: string | null
+        operator?: string | null
+        date_from?: string | null
+        date_to?: string | null
+        status?: components['schemas']['ExperimentStatus'][] | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_v2_experiment_api_v1_experiments_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2ExperimentCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_v2_experiment_api_v1_experiments__run_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_run_audit_events_api_v1_experiments__run_id__audit_events_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2RunAuditEventListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_run_json_api_v1_experiments__run_id__export_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_runs_zip_api_v1_exports_runs_get: {
+    parameters: {
+      query?: {
+        query?: string | null
+        material_system?: string | null
+        operator?: string | null
+        date_from?: string | null
+        date_to?: string | null
+        status?: components['schemas']['ExperimentStatus'][] | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  lock_v2_experiment_api_v1_experiments__run_id__lock_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  unlock_v2_experiment_api_v1_experiments__run_id__unlock_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  invalidate_v2_experiment_api_v1_experiments__run_id__invalidate_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2InvalidateRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_v2_experiment_not_characterized_api_v1_experiments__run_id__not_characterized_put: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2NotCharacterizedRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_v2_setup_reference_api_v1_experiments__run_id__setup_reference_put: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2SetupReferenceRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_v2_module_api_v1_experiments__run_id__modules__module_key__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+        module_key: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ModulePayloadRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  upsert_v2_module_api_v1_experiments__run_id__modules__module_key__put: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+        module_key: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2ModulePayloadUpsert']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ModulePayloadRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_characterization_records_api_v1_experiments__run_id__characterization_records_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CharacterizationRecordListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_characterization_record_api_v1_experiments__run_id__characterization_records_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CharacterizationRecordCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CharacterizationRecordRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_characterization_record_api_v1_characterization_records__record_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        record_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  update_characterization_record_api_v1_characterization_records__record_id__patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        record_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CharacterizationRecordUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CharacterizationRecordRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_measured_products_api_v1_samples__sample_id__measured_products_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        sample_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeasuredProductListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_measured_product_api_v1_samples__sample_id__measured_products_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        sample_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MeasuredProductCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeasuredProductRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_measured_product_api_v1_measured_products__product_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        product_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  update_measured_product_api_v1_measured_products__product_id__patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        product_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MeasuredProductUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeasuredProductRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_results_api_v1_samples__sample_id__results_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        sample_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ResultListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_result_api_v1_samples__sample_id__results_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        sample_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2ResultWrite']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ResultRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  update_result_api_v1_results__result_id__put: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        result_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['V2ResultWrite']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ResultRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_result_api_v1_results__result_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        result_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
 }

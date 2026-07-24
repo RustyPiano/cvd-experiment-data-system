@@ -44,4 +44,22 @@ describe('characterization attachment API', () => {
     expect(form.get('characterization_record_id')).toBe('record-1')
     expect(form.get('sample_id')).toBeNull()
   })
+
+  it('rejects an oversized file before making a request', async () => {
+    const { MAX_UPLOAD_BYTES, uploadExperimentFile } = await import('./api')
+    const file = new File(['x'], 'too-large.bin')
+    Object.defineProperty(file, 'size', { value: MAX_UPLOAD_BYTES + 1 })
+
+    await expect(
+      uploadExperimentFile('token', 'run-1', {
+        file,
+        method: 'Raman',
+        characterizationRecordId: 'record-1',
+      }),
+    ).rejects.toMatchObject({
+      status: 413,
+      detail: `Uploaded file exceeds ${MAX_UPLOAD_BYTES} bytes`,
+    })
+    expect(client.apiRequest).not.toHaveBeenCalled()
+  })
 })

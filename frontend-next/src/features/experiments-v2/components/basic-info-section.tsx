@@ -40,6 +40,7 @@ export function BasicInfoSection({
 
   return (
     <ModuleCard
+      id="module-basic_info"
       index="§1"
       title={t('experimentsV2.sections.basicInfo.title')}
       subtitle={t('experimentsV2.sections.basicInfo.subtitle')}
@@ -68,6 +69,7 @@ export function BasicInfoSection({
                   : undefined
               }
               hiddenOptions={unsupportedSynthesisMethods(field)}
+              hideHelp={field.key === 'run_code'}
               showError={showErrors}
             />
           ))}

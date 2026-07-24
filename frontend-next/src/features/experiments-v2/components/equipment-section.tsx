@@ -54,6 +54,7 @@ export function EquipmentSection({
 
   return (
     <ModuleCard
+      id="module-equipment"
       index="§2"
       title={t('experimentsV2.sections.equipment.title')}
       subtitle={t('experimentsV2.sections.equipment.subtitle')}

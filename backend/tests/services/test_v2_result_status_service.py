@@ -67,3 +67,33 @@ def test_any_measured_result_row_clears_missing_flag(db_session, active_user) ->
 
     assert refresh_result_missing_todo(db_session, run) is False
     assert run.result_missing_todo is False
+
+
+def test_empty_legacy_measured_result_does_not_clear_missing_flag(
+    db_session,
+    active_user,
+) -> None:
+    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
+    sample = _sample(db_session, run)
+    db_session.add(MeasuredProduct(sample_id=sample.id))
+    db_session.commit()
+
+    assert refresh_result_missing_todo(db_session, run) is True
+    assert run.result_missing_todo is True
+
+
+def test_empty_json_values_do_not_clear_missing_flag(db_session, active_user) -> None:
+    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
+    sample = _sample(db_session, run)
+    db_session.add(
+        MeasuredProduct(
+            sample_id=sample.id,
+            observed_phenomena=[],
+            key_spectral_metrics=[],
+            attrs={"note": None},
+        )
+    )
+    db_session.commit()
+
+    assert refresh_result_missing_todo(db_session, run) is True
+    assert run.result_missing_todo is True

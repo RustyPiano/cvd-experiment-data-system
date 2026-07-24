@@ -6,6 +6,7 @@ from app.models.experiment import ExperimentRun
 from app.services.v2_field_source import (
     PVD_METHODS,
     SCHEMA_VERSION,
+    canonical_option_value,
     condition_local_key,
     condition_matches,
     entity_fields,
@@ -46,7 +47,9 @@ def missing_required_fields(run: ExperimentRun) -> list[dict[str, str]]:
     if (payloads.get("basic_info") or {}).get("synthesis_method") in PVD_METHODS:
         return []
 
-    stage_types = {item["name"]: item for item in doc["stage_types"]["types"]}
+    stage_types = {
+        canonical_option_value(item["name"], doc): item for item in doc["stage_types"]["types"]
+    }
     missing_items: list[dict[str, str]] = []
     for field in experiment_fields(doc):
         level = field["requirement"]["level"]

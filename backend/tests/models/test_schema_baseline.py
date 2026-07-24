@@ -94,6 +94,8 @@ EXPECTED_INDEXES = {
             "asset_role",
             "characterization_record_id",
             "deleted_by_id",
+            "entity_id",
+            "entity_type",
             "experiment_run_id",
             "file_category",
             "file_kind",
@@ -102,6 +104,13 @@ EXPECTED_INDEXES = {
             "sha256",
             "uploaded_by_id",
         }
+    }
+    | {
+        (
+            "ix_file_assets_entity_binding",
+            ("entity_type", "entity_id", "entity_version"),
+            False,
+        )
     },
     "instrument_versions": {("ix_instrument_versions_entity_id", ("entity_id",), False)},
     "instruments": set(),

@@ -1,4 +1,5 @@
 import { apiDownload, apiRequest } from '@/shared/api/client'
+import { HttpError } from '@/shared/api/http-error'
 import type {
   FileAssetRead,
   FileAssetListResponse,
@@ -9,6 +10,7 @@ import type {
 import type { components } from '@/shared/types/openapi'
 
 type V2ExperimentRead = components['schemas']['V2ExperimentRead']
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 /** Lists all samples visible to the current user (across experiments). */
 export function listSamples(token: string, role?: string | null) {
@@ -50,10 +52,7 @@ export function listExperimentFiles(
   if (filters.experimentId) query.set('experiment_id', filters.experimentId)
   if (filters.sampleId) query.set('sample_id', filters.sampleId)
   if (filters.characterizationRecordId) {
-    query.set(
-      'characterization_record_id',
-      filters.characterizationRecordId,
-    )
+    query.set('characterization_record_id', filters.characterizationRecordId)
   }
   return apiRequest<FileAssetListResponse>(`/api/v1/files?${query}`, { token })
 }
@@ -67,6 +66,10 @@ export function uploadExperimentFile(
     characterizationRecordId: string
   },
 ) {
+  if (payload.file.size > MAX_UPLOAD_BYTES) {
+    const detail = `Uploaded file exceeds ${MAX_UPLOAD_BYTES} bytes`
+    return Promise.reject(new HttpError(413, detail, { detail }))
+  }
   const body = new FormData()
   body.set('file', payload.file)
   body.set('method', payload.method)

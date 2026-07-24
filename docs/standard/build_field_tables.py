@@ -4,14 +4,15 @@
 #
 # ⚠️ 本脚本自 P1 起不再内嵌字段数据：改字段请改 docs/standard/field-source.yaml，
 # 然后运行：
-#     python3 docs/standard/build_field_tables.py [可选:输出路径]
-#     python3 docs/standard/check_field_source.py   # 校验 xlsx 与 YAML 一致（CI 强制）
+#     uv run --project backend python docs/standard/build_field_tables.py [可选:输出路径]
+#     uv run --project backend python docs/standard/check_field_source.py   # 校验 xlsx 与 YAML 一致（CI 强制）
 # 依赖由项目 UV 环境管理，禁止使用 pip 单独安装。
 #
-# 四个 sheet：字段草案（实验记录 77 字段/9 模块）、一等实体字段表（MaterialLot/
+# 四个 sheet：字段草案（实验记录 81 字段/9 模块）、一等实体字段表（MaterialLot/
 # 装置Setup/表征仪器）、v2→v3变更说明、待明确清单。
 # 全流程背景与进度见 docs/standard/STATUS.md；技术决策见 docs/engineering/v2-implementation-plan.md。
 # ============================================================================
+import json
 import os
 import sys
 
@@ -28,15 +29,35 @@ with open(SRC, encoding="utf-8") as fh:
 
 
 def sections_to_rows(sections):
-    """YAML sections -> 渲染行：("SEC", 标题) 或 10 列字段行（列序与表头一致）。"""
+    """YAML sections -> 渲染行：("SEC", 标题) 或 11 列字段行（列序与表头一致）。"""
     rows = []
     for sec in sections:
         rows.append(("SEC", sec["title"]))
         for f in sec["fields"]:
-            rows.append([
-                f["module"], f["label"], f["meaning"], f["input"], f["options"],
-                f["unit"], f["requirement"]["raw"], f["example"], f["source"], f["note"],
-            ])
+            rows.append(
+                [
+                    f["module"],
+                    f["label"],
+                    f["meaning"],
+                    f["input"],
+                    f["options"],
+                    f["unit"],
+                    f["requirement"]["raw"],
+                    f["example"],
+                    f["source"],
+                    f["note"],
+                    (
+                        json.dumps(
+                            f["validation"],
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        if f.get("validation")
+                        else ""
+                    ),
+                ]
+            )
     return rows
 
 
@@ -59,7 +80,7 @@ sec_font = Font(bold=True, color="1F4E79", size=11)
 star_font = Font(color="C00000")
 thin = Side(style="thin", color="D0D0D0")
 border = Border(left=thin, right=thin, top=thin, bottom=thin)
-widths = [10, 16, 30, 12, 34, 10, 14, 26, 10, 34]
+widths = [10, 16, 30, 12, 34, 10, 14, 26, 10, 34, 34]
 
 
 # 必填级别底色（前缀判定，与 req_font 同族）。「必填/选填」现行橙底为特例，须先于
@@ -99,8 +120,8 @@ def add_legend(sheet):
         cell.fill = PatternFill("solid", fgColor=fg)
         cell.font = Font(bold=True, color=fc)
         cell.alignment = Alignment(horizontal="center", vertical="center")
-    sheet.cell(2, 8, "表单UI另用红星*标必填（待实现，见待明确清单）").font = Font(color="666666", size=9)
-    for c in range(1, 11):
+    sheet.cell(2, 8, "表单 UI 使用红星 * 标记必填项").font = Font(color="666666", size=9)
+    for c in range(1, len(HEADERS) + 1):
         sheet.cell(2, c).border = border
     sheet.row_dimensions[2].height = 18
 
@@ -117,12 +138,17 @@ def render_field_sheet(sheet, headers, rows, *, start_row, freeze):
     for item in rows:
         if isinstance(item, tuple):  # section
             sheet.cell(r, 1, item[1])
-            sheet.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
+            sheet.merge_cells(
+                start_row=r,
+                start_column=1,
+                end_row=r,
+                end_column=len(headers),
+            )
             cc = sheet.cell(r, 1)
             cc.fill = sec_fill
             cc.font = sec_font
             cc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-            for c in range(1, 11):
+            for c in range(1, len(headers) + 1):
                 sheet.cell(r, c).border = border
             sheet.row_dimensions[r].height = 20
         else:

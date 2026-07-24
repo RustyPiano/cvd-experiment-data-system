@@ -1,6 +1,7 @@
 from pathlib import Path
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
@@ -8,6 +9,7 @@ from app.main import app
 from app.models.audit import AuditEvent
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.user import User, UserRole
+from app.repositories.experiment_repository import ExperimentRepository
 from app.services.file_storage_service import FileStorageService
 
 client = TestClient(app)
@@ -96,6 +98,39 @@ def test_upload_file_creates_metadata_and_supports_download(active_user, db_sess
     assert event.actor_id == active_user.id
     assert event.entity_id == UUID(experiment_id)
     assert event.action == "upload_file"
+
+
+@pytest.mark.parametrize(("note_length", "expected_status"), [(500, 201), (501, 422)])
+def test_upload_file_enforces_note_database_boundary(
+    active_user,
+    note_length: int,
+    expected_status: int,
+) -> None:
+    experiment_id = create_experiment(active_user.email)
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"method": "Raman", "note": "n" * note_length},
+        files={"file": ("note.txt", b"note", "text/plain")},
+    )
+
+    assert response.status_code == expected_status, response.text
+
+
+def test_attachment_note_limit_is_published_for_both_upload_apis() -> None:
+    schema = app.openapi()
+
+    for path in ("/api/v1/experiments/{experiment_id}/files", "/api/v1/entity-files"):
+        request_schema = schema["paths"][path]["post"]["requestBody"]["content"][
+            "multipart/form-data"
+        ]["schema"]
+        component_name = request_schema["$ref"].rsplit("/", 1)[-1]
+        note_schema = schema["components"]["schemas"][component_name]["properties"]["note"]
+        assert (
+            next(item for item in note_schema["anyOf"] if item["type"] == "string")["maxLength"]
+            == 500
+        )
 
 
 def test_upload_file_accepts_sample_link_only_within_same_experiment(
@@ -290,6 +325,12 @@ def test_locked_experiment_allows_characterization_file_but_rejects_setup_diagra
 
 def test_file_write_permissions_follow_run_visibility(active_user, db_session) -> None:
     experiment_id = create_experiment(active_user.email)
+    owned_file = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=auth_headers(active_user.email),
+        data={"method": "Raman"},
+        files={"file": ("private.txt", b"private", "text/plain")},
+    ).json()
     other = User(
         email="file-other@example.com",
         name="File Other",
@@ -301,6 +342,11 @@ def test_file_write_permissions_follow_run_visibility(active_user, db_session) -
     db_session.commit()
     headers = auth_headers(other.email)
 
+    assert client.get(f"/api/v1/experiments/{experiment_id}", headers=headers).status_code == 404
+    assert client.get(f"/api/v1/files/{owned_file['id']}", headers=headers).status_code == 404
+    assert (
+        client.get(f"/api/v1/files/{owned_file['id']}/download", headers=headers).status_code == 404
+    )
     hidden = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
         headers=headers,
@@ -346,6 +392,83 @@ def test_invalid_experiment_rejects_characterization_file_writes(active_user, db
         ).status_code
         == 409
     )
+
+
+def test_upload_rechecks_nonowner_visibility_after_run_lock(
+    active_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    experiment_id = create_experiment(active_user.email, objective="File unlock race")
+    experiment = db_session.get(ExperimentRun, UUID(experiment_id))
+    experiment.status = ExperimentStatus.LOCKED
+    helper = User(
+        email="file-unlock-race@example.com",
+        name="File Unlock Race",
+        password_hash=active_user.password_hash,
+        role=UserRole.MEMBER,
+        is_active=True,
+    )
+    db_session.add(helper)
+    db_session.commit()
+    helper_headers = auth_headers(helper.email)
+    original = ExperimentRepository.get_by_id_for_update
+
+    def unlock_before_locked_read(repository, run_id):
+        locked_run = original(repository, run_id)
+        assert locked_run is not None
+        locked_run.status = ExperimentStatus.DRAFT
+        repository.db.flush()
+        return locked_run
+
+    monkeypatch.setattr(
+        ExperimentRepository,
+        "get_by_id_for_update",
+        unlock_before_locked_read,
+    )
+
+    response = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=helper_headers,
+        data={"method": "Raman", "asset_role": "characterization_file"},
+        files={"file": ("race.txt", b"must-not-persist", "text/plain")},
+    )
+
+    assert response.status_code == 404
+
+
+def test_soft_delete_rechecks_invalid_status_after_run_lock(
+    active_user,
+    monkeypatch,
+) -> None:
+    experiment_id = create_experiment(active_user.email, objective="File invalidate race")
+    headers = auth_headers(active_user.email)
+    created = client.post(
+        f"/api/v1/experiments/{experiment_id}/files",
+        headers=headers,
+        data={"method": "Raman"},
+        files={"file": ("before-race.txt", b"retain", "text/plain")},
+    )
+    assert created.status_code == 201, created.text
+    original = ExperimentRepository.get_by_id_for_update
+
+    def invalidate_before_locked_read(repository, run_id):
+        locked_run = original(repository, run_id)
+        assert locked_run is not None
+        locked_run.status = ExperimentStatus.INVALID
+        repository.db.flush()
+        return locked_run
+
+    monkeypatch.setattr(
+        ExperimentRepository,
+        "get_by_id_for_update",
+        invalidate_before_locked_read,
+    )
+
+    response = client.delete(f"/api/v1/files/{created.json()['id']}", headers=headers)
+
+    assert response.status_code == 409
+    assert client.get(f"/api/v1/files/{created.json()['id']}", headers=headers).status_code == 200
 
 
 def test_upload_file_allowed_on_locked_experiment(active_user, db_session) -> None:

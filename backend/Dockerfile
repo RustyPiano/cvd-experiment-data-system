@@ -15,6 +15,7 @@ RUN uv sync --frozen --no-dev
 COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
 COPY backend/app ./app
+COPY docs/standard/field-source.yaml /app/docs/standard/field-source.yaml
 
 RUN mkdir -p /data/storage
 

@@ -60,6 +60,16 @@ describe('composite field serialization', () => {
     })
   })
 
+  it('round-trips a free-text option with a numeric value', () => {
+    expect(formatCompositeValue('文本+数值', '2', 'Edwards RV12')).toBe(
+      'Edwards RV12；2',
+    )
+    expect(parseCompositeValue('文本+数值', 'Edwards RV12；2', [])).toEqual({
+      freeValue: '2',
+      option: 'Edwards RV12',
+    })
+  })
+
   it('extracts options from descriptive composite metadata', () => {
     expect(parseCompositeOptions('常压(APCVD)/低压(LPCVD)/超高真空')).toEqual([
       '常压(APCVD)',

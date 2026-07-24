@@ -35,6 +35,7 @@ describe('shared condition cases', () => {
           input: '文本',
           unit: null,
           options: null,
+          validation: null,
           requirement: {
             raw: '条件必填',
             level: 'conditional_required',

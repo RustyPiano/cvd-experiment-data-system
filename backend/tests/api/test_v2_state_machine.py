@@ -8,6 +8,7 @@ from app.main import app
 from app.models.audit import AuditEvent
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.user import User, UserRole
+from app.models.v2_results import MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.services.sample_service import SampleService
 
@@ -93,6 +94,16 @@ def test_direct_lock_unlock_invalidate_and_audit(active_user, admin_user, db_ses
     )
     assert invalid.status_code == 200, invalid.text
     assert invalid.json()["status"] == "invalid"
+    assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=owner).status_code == 409
+    assert client.post(f"/api/v1/experiments/{run_id}/unlock", headers=admin).status_code == 409
+    assert (
+        client.post(
+            f"/api/v1/experiments/{run_id}/invalidate",
+            json={"reason": "again"},
+            headers=owner,
+        ).status_code
+        == 409
+    )
 
     events = db_session.query(AuditEvent).filter(AuditEvent.entity_id == UUID(run_id)).all()
     assert [event.action for event in events] == [
@@ -117,6 +128,9 @@ def test_lock_gate_returns_structured_missing_fields(active_user) -> None:
     missing = response.json()["detail"]["missing"]
     assert missing
     assert {"key", "label", "module"} <= missing[0].keys()
+    missing_keys = {item["key"] for item in missing}
+    assert {"structure_type", "phase_state"} <= missing_keys
+    assert {"components", "amount"}.isdisjoint(missing_keys)
 
 
 def test_operator_is_always_the_run_owner(active_user, admin_user) -> None:
@@ -199,7 +213,7 @@ def test_process_writes_recheck_status_after_acquiring_run_lock(active_user, mon
     assert locked_run_ids == [UUID(run["id"]), UUID(run["id"])]
 
 
-def test_lock_rejects_missing_non_r0_required_fields(active_user) -> None:
+def test_lock_classifies_missing_structure_discriminator_as_r0(active_user) -> None:
     headers = _headers(active_user.email)
     setup = client.post(
         "/api/v1/setups",
@@ -210,6 +224,8 @@ def test_lock_rejects_missing_non_r0_required_fields(active_user) -> None:
             "orientation": "水平",
             "coordinate_system": "上游负/下游正",
             "field_devices": "无",
+            "flow_reference_temperature_C": 20,
+            "flow_reference_pressure_Pa": 101325,
         },
         headers=headers,
     )
@@ -239,7 +255,10 @@ def test_lock_rejects_missing_non_r0_required_fields(active_user) -> None:
                     "temperature_program": "750 C",
                     "gas_species": "Ar",
                     "gas_flow_sccm": 80,
-                    "pressure_system": "常压",
+                    "pressure_system": {
+                        "value": 101325,
+                        "option": "atmospheric_pressure",
+                    },
                 }
             ]
         },
@@ -256,10 +275,7 @@ def test_lock_rejects_missing_non_r0_required_fields(active_user) -> None:
 
     assert response.status_code == 422, response.text
     missing = response.json()["detail"]["missing"]
-    assert (
-        next(item for item in missing if item["key"] == "structure_type")["requirement"]
-        == "required"
-    )
+    assert next(item for item in missing if item["key"] == "structure_type")["requirement"] == "r0"
 
 
 def test_write_permissions_follow_two_state_visibility(active_user, db_session) -> None:
@@ -341,7 +357,7 @@ def test_other_member_can_write_locked_results_and_files(active_user, db_session
     assert (
         client.patch(
             f"/api/v1/measured-products/{product.json()['id']}",
-            json={"measured_layers_coverage": "1层；70%"},
+            json={"layer_count": 1, "coverage_percent": 70},
             headers=helper,
         ).status_code
         == 200
@@ -378,6 +394,53 @@ def test_other_member_can_write_locked_results_and_files(active_user, db_session
         ).status_code
         == 204
     )
+
+
+def test_result_write_rechecks_nonowner_access_after_run_lock(
+    active_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    owner = _headers(active_user.email)
+    helper_user = User(
+        email="unlock-race-helper@example.com",
+        name="Unlock Race Helper",
+        password_hash=active_user.password_hash,
+        role=UserRole.MEMBER,
+        is_active=True,
+    )
+    db_session.add(helper_user)
+    db_session.commit()
+    helper = _headers(helper_user.email)
+    run = _lockable_run(owner, "STATE-UNLOCK-RACE")
+    assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner).status_code == 200
+    sample = client.get(
+        f"/api/v1/samples?experiment_id={run['id']}",
+        headers=helper,
+    ).json()["items"][0]
+
+    original = ExperimentRepository.get_by_id_for_update
+
+    def unlock_before_locked_read(repository, run_id):
+        locked_run = original(repository, run_id)
+        locked_run.status = ExperimentStatus.DRAFT
+        repository.db.flush()
+        return locked_run
+
+    monkeypatch.setattr(
+        ExperimentRepository,
+        "get_by_id_for_update",
+        unlock_before_locked_read,
+    )
+    response = client.post(
+        f"/api/v1/samples/{sample['id']}/results",
+        json={"kind": "direct_observation", "observed_phenomena": ["无生长"]},
+        headers=helper,
+    )
+
+    assert response.status_code == 404
+    db_session.expire_all()
+    assert db_session.query(MeasuredProduct).count() == 0
 
 
 def test_not_characterized_marker_clears_todo_and_new_result_clears_marker(
@@ -471,7 +534,11 @@ def test_invalid_run_rejects_process_and_result_writes(active_user) -> None:
         ),
         ("patch", f"/api/v1/characterization-records/{record['id']}", {}),
         ("delete", f"/api/v1/characterization-records/{record['id']}", None),
-        ("post", f"/api/v1/samples/{sample['id']}/measured-products", {}),
+        (
+            "post",
+            f"/api/v1/samples/{sample['id']}/measured-products",
+            {"observed_phenomena": ["无生长"]},
+        ),
         ("patch", f"/api/v1/measured-products/{product['id']}", {}),
         ("delete", f"/api/v1/measured-products/{product['id']}", None),
     ]

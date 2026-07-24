@@ -133,6 +133,23 @@ def test_register_rejects_short_password(monkeypatch) -> None:
     assert response.status_code == 422
 
 
+def test_request_validation_does_not_echo_password() -> None:
+    password = "DoNotEcho123!"
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "missing-name@example.com",
+            "password": password,
+            "password_confirmation": password,
+            "invite_code": "lab-invite",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == {"invalid": [{"key": "name", "reason": "value"}]}
+    assert password not in response.text
+
+
 def test_login_returns_access_token_for_valid_credentials(active_user, db_session) -> None:
     response = client.post(
         "/api/v1/auth/login",
@@ -213,6 +230,23 @@ def test_me_returns_current_user(active_user) -> None:
 
     assert response.status_code == 200
     assert response.json()["email"] == active_user.email
+
+
+def test_existing_token_is_rejected_after_user_is_deactivated(active_user, db_session) -> None:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": active_user.email, "password": "Password123!"},
+    ).json()["access_token"]
+    active_user.is_active = False
+    db_session.commit()
+
+    response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Inactive user"
 
 
 def test_logout_requires_token() -> None:

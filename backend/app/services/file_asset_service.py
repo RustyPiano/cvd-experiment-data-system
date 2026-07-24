@@ -9,7 +9,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.file_asset import FileAsset
+from app.models.file_asset import FILE_NOTE_MAX_LENGTH, FileAsset
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
@@ -19,6 +19,7 @@ from app.schemas.file_asset import FileAssetListResponse, FileAssetRead
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
     ensure_files_editable,
+    get_locked_visible_experiment,
     get_visible_experiment,
 )
 from app.services.file_storage_service import FileStorageService
@@ -61,6 +62,16 @@ def to_file_asset_read_model(file_asset: FileAsset) -> FileAssetRead:
     payload = serialize_file_asset(file_asset)
     assert payload is not None
     return FileAssetRead.model_validate(payload)
+
+
+def normalize_file_note(note: str | None) -> str | None:
+    if note is not None and len(note) > FILE_NOTE_MAX_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"invalid": [{"key": "note", "reason": "length"}]},
+        )
+    normalized = (note or "").strip()
+    return normalized or None
 
 
 class FileAssetService:
@@ -114,13 +125,18 @@ class FileAssetService:
         asset_role: str | None = None,
         note: str | None = None,
     ) -> FileAssetRead:
+        normalized_note = normalize_file_note(note)
         resolved_asset_role = self._normalize_asset_role(asset_role)
         if characterization_record_id is not None and resolved_asset_role == "setup_diagram":
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Setup diagram cannot be linked to a characterization record",
             )
-        experiment = get_visible_experiment(self.experiments, experiment_id, current_user)
+        experiment = get_locked_visible_experiment(
+            self.experiments,
+            experiment_id,
+            current_user,
+        )
         ensure_files_editable(experiment, resolved_asset_role)
         record_method: str | None = None
         if characterization_record_id is not None:
@@ -170,10 +186,11 @@ class FileAssetService:
         content = self._read_upload_content(upload)
         resolved_category = self._normalize_file_category(file_category)
         file_id = uuid4()
+        original_name = self.storage.normalize_original_name(upload.filename or "upload.bin")
         relative_path, sha256 = self.storage.persist(
             experiment_run_code=experiment.run_code,
             file_id=file_id,
-            original_name=upload.filename or "upload.bin",
+            original_name=original_name,
             content=content,
         )
         duplicate = self.files.find_active_duplicate(experiment.id, sha256)
@@ -189,7 +206,7 @@ class FileAssetService:
             sample_id=sample_id,
             characterization_record_id=characterization_record_id,
             uploaded_by_id=current_user.id,
-            original_name=upload.filename or "upload.bin",
+            original_name=original_name,
             storage_path=relative_path,
             content_type=upload.content_type,
             size_bytes=len(content),
@@ -197,7 +214,7 @@ class FileAssetService:
             method=resolved_method,
             file_category=resolved_category,
             asset_role=resolved_asset_role,
-            note=self._normalize_note(note),
+            note=normalized_note,
             file_kind=resolved_method,
             metadata_json=metadata_json,
         )
@@ -301,8 +318,10 @@ class FileAssetService:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
-        experiment = get_visible_experiment(
-            self.experiments, file_asset.experiment_run_id, current_user
+        experiment = get_locked_visible_experiment(
+            self.experiments,
+            file_asset.experiment_run_id,
+            current_user,
         )
         ensure_files_editable(experiment, file_asset.asset_role)
         return file_asset
@@ -338,7 +357,3 @@ class FileAssetService:
                 detail="Invalid file category",
             )
         return normalized
-
-    def _normalize_note(self, note: str | None) -> str | None:
-        normalized = (note or "").strip()
-        return normalized or None

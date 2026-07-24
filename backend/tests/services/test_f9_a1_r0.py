@@ -44,6 +44,7 @@ def test_process_step_required_extra_survives_nonmatching_condition(monkeypatch)
     doc = {
         "modules": {"§5": "process_steps"},
         "entity_keys": {},
+        "option_codes": {"反应生长": "growth"},
         "stage_types": {
             "types": [
                 {
@@ -58,7 +59,7 @@ def test_process_step_required_extra_survives_nonmatching_condition(monkeypatch)
         module_payloads=[
             SimpleNamespace(
                 module_key="process_steps",
-                payload_json={"items": [{"stage_type": "反应生长"}]},
+                payload_json={"items": [{"stage_type": "growth"}]},
             )
         ],
         setup_ref_snapshot_json=None,

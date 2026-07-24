@@ -1,5 +1,6 @@
 from datetime import datetime
 from io import BytesIO
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, UploadFile
@@ -114,6 +115,22 @@ def test_characterization_upload_accepts_matching_method(active_user, db_session
     assert created.method == "Raman"
 
 
+def test_upload_rejects_note_beyond_database_limit(active_user, db_session) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.upload_file(
+            experiment_id=experiment.id,
+            upload=build_upload("note.txt", b"payload"),
+            current_user=active_user,
+            method="Raman",
+            note="n" * 501,
+        )
+
+    assert exc_info.value.status_code == 422
+
+
 def test_upload_file_cleans_up_disk_when_audit_fails(active_user, db_session, monkeypatch) -> None:
     service = FileAssetService(db_session)
     experiment = create_draft_experiment(service, active_user.id)
@@ -171,3 +188,53 @@ def test_storage_service_rejects_paths_outside_storage_root() -> None:
 
     with pytest.raises(ValueError, match="outside storage root"):
         storage.resolve("/tmp/escape.txt")
+
+
+def test_storage_truncates_long_filenames_within_filesystem_byte_limit() -> None:
+    storage = FileStorageService()
+
+    storage_path, _ = storage.persist(
+        experiment_run_code="CVD-2026-9999",
+        file_id=uuid4(),
+        original_name=f"{'a' * 400}.csv",
+        content=b"value\n1\n",
+    )
+
+    stored = storage.resolve(storage_path)
+    assert stored.exists()
+    assert len(stored.name.encode("utf-8")) <= 255
+    assert stored.suffix == ".csv"
+
+
+def test_storage_preserves_safe_extension_for_unicode_and_emoji_stem() -> None:
+    storage = FileStorageService()
+
+    storage_path, _ = storage.persist(
+        experiment_run_code="CVD-2026-9998",
+        file_id=uuid4(),
+        original_name=f"{'实验🧪' * 200}.csv",
+        content=b"value\n1\n",
+    )
+
+    stored = storage.resolve(storage_path)
+    assert stored.exists()
+    assert len(stored.name.encode("utf-8")) <= 255
+    assert stored.suffix == ".csv"
+
+
+def test_upload_truncates_long_original_name_before_database_write(
+    active_user,
+    db_session,
+) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+
+    created = service.upload_file(
+        experiment_id=experiment.id,
+        upload=build_upload(f"{'a' * 400}.csv", b"value\n1\n"),
+        current_user=active_user,
+        method="Raman",
+    )
+
+    assert len(created.original_name) <= 255
+    assert created.original_name.endswith(".csv")

@@ -75,7 +75,7 @@ export function ExperimentV2ListPage() {
   const [filters, setFilters] = useState<RunFilters>({})
   const pageSize = 50
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['v2-experiment-list', token, page, filters],
     queryFn: () => listRuns(token, { page, pageSize, filters }),
     enabled: session.isAuthenticated && !!token,
@@ -257,15 +257,25 @@ export function ExperimentV2ListPage() {
 
       {isError ? (
         <Alert variant="destructive">
-          <AlertDescription>
-            {resolveErrorMessage(error, t('experimentsV2.list.loadError'))}
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {resolveErrorMessage(error, t('experimentsV2.list.loadError'))}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void refetch()}
+            >
+              {t('experimentsV2.list.retry')}
+            </Button>
           </AlertDescription>
         </Alert>
       ) : null}
 
       <Card>
         <CardContent>
-          {isLoading ? (
+          {isError ? null : isLoading ? (
             <LoadingState />
           ) : runs.length === 0 ? (
             <EmptyState

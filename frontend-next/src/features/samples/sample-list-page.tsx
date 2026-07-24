@@ -72,7 +72,11 @@ export function SampleListPage() {
                 t('samples.list.loadError'),
               )}
             </span>
-            <Button size="sm" variant="outline" onClick={() => samplesQuery.refetch()}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => samplesQuery.refetch()}
+            >
               {t('samples.actions.retry')}
             </Button>
           </AlertDescription>
@@ -98,6 +102,7 @@ export function SampleListPage() {
                 <button
                   key={role || 'all'}
                   type="button"
+                  aria-pressed={roleFilter === role}
                   onClick={() => setRoleFilter(role)}
                   className={cn(
                     'rounded-md px-2.5 py-1 text-sm transition-colors',

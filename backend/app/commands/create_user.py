@@ -27,11 +27,20 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     email = args.email.strip().lower()
     name = args.name.strip()
+    if not email or len(email) > 320:
+        print("Email must contain 1–320 characters.", file=sys.stderr)
+        return 1
+    if not name or len(name) > 120:
+        print("Name must contain 1–120 characters.", file=sys.stderr)
+        return 1
     password = getpass.getpass("Password: ")
     confirmation = getpass.getpass("Confirm password: ")
 
     if not password.strip():
         print("Password cannot be empty.", file=sys.stderr)
+        return 1
+    if not 8 <= len(password) <= 128:
+        print("Password must contain 8–128 characters.", file=sys.stderr)
         return 1
     if password != confirmation:
         print("Passwords do not match.", file=sys.stderr)

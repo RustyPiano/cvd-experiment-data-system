@@ -28,3 +28,30 @@ def test_create_admin_rejects_duplicate_email(monkeypatch, active_user, capsys) 
 
     assert exit_code == 1
     assert "User with this email already exists." in captured.err
+
+
+def test_create_admin_rejects_blank_password(monkeypatch, db_session, capsys) -> None:
+    prompts = iter(["   ", "   "])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(prompts))
+
+    exit_code = main(["--email", "blank-admin@example.com", "--name", "Blank Admin"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Password cannot be blank." in captured.err
+    assert UserRepository(db_session).get_by_email("blank-admin@example.com") is None
+
+
+def test_create_admin_rejects_blank_identity_and_weak_password(monkeypatch, capsys) -> None:
+    for email, name, password in (
+        (" ", "Admin", "Password123!"),
+        ("admin@example.com", " ", "Password123!"),
+        ("admin@example.com", "Admin", "short"),
+        ("admin@example.com", "Admin", "x" * 129),
+    ):
+        prompts = iter([password, password])
+        monkeypatch.setattr("getpass.getpass", lambda _, prompts=prompts: next(prompts))
+
+        assert main(["--email", email, "--name", name]) == 1
+
+    assert "must" in capsys.readouterr().err.lower()

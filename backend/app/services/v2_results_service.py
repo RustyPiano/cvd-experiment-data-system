@@ -28,6 +28,7 @@ from app.schemas.v2 import (
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
     ensure_results_editable,
+    get_locked_visible_experiment,
     get_visible_experiment,
 )
 from app.services.v2_entity_service import V2EntityService
@@ -36,6 +37,10 @@ from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
     field_option_values,
+)
+from app.services.v2_result_evidence import (
+    MEASURED_PRODUCT_EVIDENCE_FIELDS,
+    has_measured_product_evidence,
 )
 from app.services.v2_result_status_service import refresh_result_missing_todo
 
@@ -64,7 +69,7 @@ class V2ResultsService:
         current_user: User,
     ) -> V2ResultRead:
         sample = self._visible_sample(sample_id, current_user)
-        run = self._locked_run(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
 
@@ -125,7 +130,7 @@ class V2ResultsService:
     ) -> V2ResultRead:
         product = self._visible_measured_product(result_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self._locked_run(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
         record = (
@@ -194,7 +199,7 @@ class V2ResultsService:
     def delete_result(self, result_id: UUID, current_user: User) -> None:
         product = self._visible_measured_product(result_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self._locked_run(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         record = (
             self.results.get_characterization_record(product.characterization_record_id)
@@ -278,7 +283,7 @@ class V2ResultsService:
         run = get_visible_experiment(
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
-        run = self._locked_run(run.id)
+        run = self._locked_run(run.id, current_user)
         ensure_results_editable(run)
         self._sample_for_run(payload.sample_id, run.id)
         method = self._validate_method(payload.method_instrument)
@@ -301,6 +306,7 @@ class V2ResultsService:
                     detail="Referenced instrument version does not exist",
                 ) from exc
             instrument_snapshot = instrument_version_snapshot(version)
+            self._ensure_instrument_method(instrument_snapshot, method)
         record = CharacterizationRecord(
             experiment_run_id=run.id,
             sample_id=payload.sample_id,
@@ -346,12 +352,16 @@ class V2ResultsService:
         current_user: User,
     ) -> CharacterizationRecordRead:
         record = self._visible_characterization_record(record_id, current_user)
-        run = self._locked_run(record.experiment_run_id)
+        run = self._locked_run(record.experiment_run_id, current_user)
         ensure_results_editable(run)
         before = self._characterization_snapshot(record)
         changes = payload.model_dump(exclude_unset=True)
         if "method_instrument" in changes:
             changes["method_instrument"] = self._validate_method(changes["method_instrument"])
+            self._ensure_instrument_method(
+                record.instrument_snapshot_json,
+                changes["method_instrument"],
+            )
             self.db.execute(
                 update(FileAsset)
                 .where(FileAsset.characterization_record_id == record.id)
@@ -390,7 +400,7 @@ class V2ResultsService:
 
     def delete_characterization_record(self, record_id: UUID, current_user: User) -> None:
         record = self._visible_characterization_record(record_id, current_user)
-        run = self._locked_run(record.experiment_run_id)
+        run = self._locked_run(record.experiment_run_id, current_user)
         ensure_results_editable(run)
         # Keep characterization evidence explicit: attachments must be soft-deleted first.
         if self.files.has_active_for_characterization_record(record.id):
@@ -455,7 +465,7 @@ class V2ResultsService:
         current_user: User,
     ) -> MeasuredProductRead:
         sample = self._visible_sample(sample_id, current_user)
-        run = self._locked_run(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
         if payload.characterization_record_id:
@@ -496,15 +506,21 @@ class V2ResultsService:
     ) -> MeasuredProductRead:
         product = self._visible_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self._locked_run(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         before = self._measured_product_snapshot(product)
         changes = payload.model_dump(exclude_unset=True)
         if "observed_phenomena" in changes:
             self._validate_observed_phenomena(changes["observed_phenomena"])
-        characterization_record_id = changes.get("characterization_record_id")
-        if characterization_record_id:
-            self._ensure_record_belongs_to_sample(characterization_record_id, sample.id)
+        projected_values = {
+            field_name: changes.get(field_name, getattr(product, field_name, None))
+            for field_name in MEASURED_PRODUCT_EVIDENCE_FIELDS
+        }
+        if not has_measured_product_evidence(projected_values):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Measured product requires at least one evidence field",
+            )
         for key, value in changes.items():
             setattr(product, key, value)
         saved = self.results.save_measured_product(product)
@@ -554,6 +570,10 @@ class V2ResultsService:
             payload.instrument_id,
             payload.instrument_version,
         )
+        self._ensure_instrument_method(
+            record.instrument_snapshot_json,
+            record.method_instrument,
+        )
 
     def _instrument_snapshot(
         self,
@@ -578,9 +598,15 @@ class V2ResultsService:
         return {
             "observed_phenomena": payload.observed_phenomena,
             "detected_phase_stacking": payload.detected_phase_stacking,
-            "measured_layers_coverage": payload.measured_layers_coverage,
-            "domain_nucleation_continuity": payload.domain_nucleation_continuity,
-            "key_spectral_metrics": payload.key_spectral_metrics,
+            "layer_count": payload.layer_count,
+            "coverage_percent": payload.coverage_percent,
+            "domain_size_um": payload.domain_size_um,
+            "nucleation_density_cm2": payload.nucleation_density_cm2,
+            "key_spectral_metrics": (
+                [metric.model_dump() for metric in payload.key_spectral_metrics]
+                if payload.key_spectral_metrics is not None
+                else None
+            ),
         }
 
     def _result_read(self, product: MeasuredProduct) -> V2ResultRead:
@@ -607,6 +633,10 @@ class V2ResultsService:
                 else product.observed_phenomena
             ),
             detected_phase_stacking=product.detected_phase_stacking,
+            layer_count=product.layer_count,
+            coverage_percent=product.coverage_percent,
+            domain_size_um=product.domain_size_um,
+            nucleation_density_cm2=product.nucleation_density_cm2,
             measured_layers_coverage=product.measured_layers_coverage,
             domain_nucleation_continuity=product.domain_nucleation_continuity,
             key_spectral_metrics=product.key_spectral_metrics,
@@ -660,7 +690,7 @@ class V2ResultsService:
     def delete_measured_product(self, product_id: UUID, current_user: User) -> None:
         product = self._visible_measured_product(product_id, current_user)
         sample = self.db.get(Sample, product.sample_id)
-        run = self._locked_run(sample.experiment_run_id)
+        run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         before = self._measured_product_snapshot(product)
         self.results.delete(product)
@@ -710,14 +740,29 @@ class V2ResultsService:
         )
         return sample
 
-    def _locked_run(self, run_id: UUID) -> ExperimentRun:
-        run = self.experiments.get_by_id_for_update(run_id)
-        if run is None:
+    def _locked_run(self, run_id: UUID, current_user: User) -> ExperimentRun:
+        return get_locked_visible_experiment(
+            self.experiments,
+            run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
+
+    @staticmethod
+    def _ensure_instrument_method(snapshot: dict | None, method: str) -> None:
+        if snapshot is None:
+            return
+        instrument_type = canonical_option_value(snapshot.get("name_type_snapshot"))
+        if (
+            instrument_type
+            and instrument_type != "other"
+            and method != "other"
+            and instrument_type != method
+        ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Experiment not found",
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Instrument type does not match method_instrument",
             )
-        return run
 
     def _sample_for_run(self, sample_id: UUID, run_id: UUID) -> Sample:
         sample = self.db.get(Sample, sample_id)

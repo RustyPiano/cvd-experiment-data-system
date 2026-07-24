@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 
 import { entities, experimentModules } from '@/shared/generated/field-metadata'
@@ -13,10 +14,7 @@ import {
   parseCompositeOptions,
 } from '@/shared/composite-field'
 import { buildItemPayload, parseEnumOptions } from '../field-logic'
-import {
-  localizedFieldLabel,
-  localizedOption,
-} from '@/shared/field-i18n'
+import { localizedFieldLabel, localizedOption } from '@/shared/field-i18n'
 import { EntityForm } from '@/features/entity-library/entity-form'
 import type { EntityKind } from '@/features/entity-library/config'
 import { FieldControl } from './field-control'
@@ -61,7 +59,9 @@ const compositeFields = [
   })),
 ].flatMap(({ source, moduleKey, fields }) =>
   fields
-    .filter((field) => isCompositeInput(field.input))
+    .filter(
+      (field) => isCompositeInput(field.input) && field.input !== '文本+数值',
+    )
     .map((field) => ({
       caseName: `${moduleKey}.${field.key}`,
       source,
@@ -78,35 +78,38 @@ function renderCompositeCase(
     const view = renderControl(testCase.moduleKey, testCase.field, initialValue)
     return {
       ...view,
-      textbox: screen.getByRole('textbox'),
+      textbox: screen.queryByRole('textbox') ?? screen.getByRole('spinbutton'),
       combobox: screen.getByRole('combobox'),
       submit: async () => view.onChange.mock.lastCall?.[0],
     }
   }
 
   const onSubmit = vi.fn()
-  const defaultData = Object.fromEntries(
-    entities[testCase.moduleKey].map((field) => [
-      field.key,
-      field.key === testCase.field.key
-        ? initialValue
-        : field.key === 'lot_category'
-          ? '衬底'
-          : 'seed',
-    ]),
-  )
+  const defaultData = {
+    lot_category: '衬底',
+    substance_name: 'seed',
+    chemical_formula: 'MoO3',
+    batch_number: 'seed',
+    substrate_material: 'sapphire',
+    [testCase.field.key]: initialValue,
+  }
   const user = userEvent.setup()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
   const view = render(
     <I18nextProvider i18n={i18n}>
-      <EntityForm
-        kind={testCase.moduleKey as EntityKind}
-        mode="create"
-        nextVersion={1}
-        defaultData={defaultData}
-        submitting={false}
-        onSubmit={onSubmit}
-        onCancel={vi.fn()}
-      />
+      <QueryClientProvider client={queryClient}>
+        <EntityForm
+          kind={testCase.moduleKey as EntityKind}
+          mode="create"
+          nextVersion={1}
+          defaultData={defaultData}
+          submitting={false}
+          onSubmit={onSubmit}
+          onCancel={vi.fn()}
+        />
+      </QueryClientProvider>
     </I18nextProvider>,
   )
   const combobox = screen.getByRole('combobox', {
@@ -126,8 +129,14 @@ function renderCompositeCase(
 }
 
 describe('FieldControl composite inputs', () => {
-  it('enumerates all 11 composite fields from generated metadata', () => {
-    expect(compositeFields).toHaveLength(11)
+  it('enumerates every remaining scalar-plus-option field from generated metadata', () => {
+    expect(compositeFields.map((item) => item.caseName).sort()).toEqual([
+      'material_lot.substrate_orientation_polish',
+      'process_steps.cooling_params',
+      'process_steps.gas_flow_sccm',
+      'process_steps.pressure_system',
+      'pvd.plasma_gas_pressure',
+    ])
   })
 
   it.each(compositeFields)(
@@ -142,19 +151,20 @@ describe('FieldControl composite inputs', () => {
       const option = options[0]
       const free = '12.5'
       const combined = formatCompositeValue(input, free, option)
+      const renderedFreeValue = input.includes('数值') ? Number(free) : free
 
       let view = renderCompositeCase(testCase, combined)
-      expect(view.textbox).toHaveValue(free)
+      expect(view.textbox).toHaveValue(renderedFreeValue)
       expect(view.combobox).toHaveTextContent(localizedOption(option, 'zh'))
       view.unmount()
 
       view = renderCompositeCase(testCase, free)
-      expect(view.textbox).toHaveValue(free)
+      expect(view.textbox).toHaveValue(renderedFreeValue)
       expect(view.combobox).toHaveAttribute('data-placeholder')
       view.unmount()
 
       view = renderCompositeCase(testCase, option)
-      expect(view.textbox).toHaveValue('')
+      expect(view.textbox).toHaveValue(input.includes('数值') ? null : '')
       expect(view.combobox).toHaveTextContent(localizedOption(option, 'zh'))
       view.unmount()
 
@@ -212,9 +222,7 @@ describe('FieldControl multi-value dropdown', () => {
     )!
     let view = renderControl('process_steps', field, [])
 
-    expect(
-      screen.getByRole('group', { name: '气体组分' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '气体组分' })).toBeInTheDocument()
     await view.user.click(screen.getByRole('checkbox', { name: 'Ar' }))
     await view.user.click(screen.getByRole('checkbox', { name: 'H₂' }))
     expect(view.onChange).toHaveBeenLastCalledWith(['Ar', 'H2'])
@@ -237,5 +245,67 @@ describe('FieldControl multi-value dropdown', () => {
       screen.getByRole('group', { name: 'Gas species' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'H₂' })).toBeChecked()
+  })
+})
+
+describe('FieldControl descriptions and numeric constraints', () => {
+  it('reports a non-finite number inline', async () => {
+    await i18n.changeLanguage('en')
+    const field = experimentModules.basic_info.find(
+      (item) => item.key === 'ambient_temperature_C',
+    )!
+    renderControl('basic_info', field, '1e309')
+
+    const input = screen.getByRole('spinbutton', {
+      name: /Ambient temperature/,
+    })
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('Enter a finite number')).toBeInTheDocument()
+  })
+
+  it('links help and an inline range error to the space-group input', async () => {
+    await i18n.changeLanguage('zh')
+    const field = experimentModules.target_product.find(
+      (item) => item.key === 'bulk_space_group',
+    )!
+    renderControl('target_product', field, '250')
+
+    const input = screen.getByRole('spinbutton', { name: '体相空间群' })
+    const error = screen.getByText('请输入 1–230 的整数')
+    const help = screen.getByText(/填写 International Tables 空间群号/)
+    const describedBy = input.getAttribute('aria-describedby')?.split(' ')
+
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(describedBy).toEqual(expect.arrayContaining([error.id, help.id]))
+  })
+
+  it('uses generated bounds and explains the violated boundary', async () => {
+    await i18n.changeLanguage('en')
+    const field = experimentModules.basic_info.find(
+      (item) => item.key === 'ambient_humidity_percent',
+    )!
+    renderControl('basic_info', field, '101')
+
+    const input = screen.getByRole('spinbutton', {
+      name: /Ambient relative humidity/,
+    })
+    expect(input).toHaveAttribute('min', '0')
+    expect(input).toHaveAttribute('max', '100')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('Enter a value at most 100')).toBeInTheDocument()
+  })
+
+  it('uses integer metadata for the input step and validation', async () => {
+    await i18n.changeLanguage('en')
+    const field = experimentModules.target_product.find(
+      (item) => item.key === 'target_layer_count',
+    )!
+    renderControl('target_product', field, '1.5')
+
+    const input = screen.getByRole('spinbutton', {
+      name: /Target layer count/,
+    })
+    expect(input).toHaveAttribute('step', '1')
+    expect(screen.getByText('Enter an integer')).toBeInTheDocument()
   })
 })

@@ -127,9 +127,7 @@ export function resolveErrorMessage(error: unknown, fallback: string): string {
       })
     }
 
-    const unknownFields = error.detail?.match(
-      /^Unknown (.+) field keys: (.+)$/,
-    )
+    const unknownFields = error.detail?.match(/^Unknown (.+) field keys: (.+)$/)
     if (unknownFields) {
       return i18n.t('errors.details.unknownFieldKeys', {
         fields: unknownFields[2],

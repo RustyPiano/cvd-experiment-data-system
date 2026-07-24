@@ -1,7 +1,6 @@
-// 化学式「文本 + 元素校验」纯逻辑（待明确#2）与显示串复刻。
+// 化学式「文本 + 元素校验」纯逻辑与显示串预览。
 // 元素校验 = 解析化学式里的元素符号 token，逐个比对周期表合法性（非周期表点选）。
-// 显示串规则 = 前端复刻后端默认规则；**与后端 app/services/formula_display.py 保持一致，
-// 待组内确认（待明确#1）**——两侧同源规则任何变更须同步。
+// 显示串仅帮助录入者核对组成关系，不写入后端，也不承担权威校验。
 
 /** 周期表 118 元素符号集合（用于元素合法性校验）。 */
 const ELEMENT_SYMBOLS = new Set([
@@ -201,8 +200,7 @@ export function validateChemicalFormula(input: string): FormulaValidation {
     }
   }
   const syntaxValid = FORMULA_PATTERN.test(normalized)
-  const valid =
-    syntaxValid && tokens.length > 0 && unknownSymbols.length === 0
+  const valid = syntaxValid && tokens.length > 0 && unknownSymbols.length === 0
   return {
     valid,
     empty: false,
@@ -212,7 +210,7 @@ export function validateChemicalFormula(input: string): FormulaValidation {
   }
 }
 
-// ── 显示串（formula_display）复刻，与后端 app/services/formula_display.py 同规则 ──
+// ── 前端显示串预览 ──
 
 export interface DisplayComponent {
   formula?: string | null
@@ -232,10 +230,10 @@ function layerOrder(component: DisplayComponent): [number, string] {
 }
 
 /**
- * 复刻后端 render_formula_display：
+ * 根据当前表单值生成即时预览：
  *  本征/无组分 → 原化学式；垂直异质结 → 按层序升序 '/' 连接；横向异质结 → '-' 连接；
  *  掺杂 → 掺杂剂:基体；其余 → 原化学式。
- * **与后端 formula_display.py 保持一致，待组内确认。**
+ * 该返回值不提交；组成明细仍是存储与校验依据。
  */
 export function renderFormulaDisplay(
   chemicalFormula: string,
@@ -270,12 +268,12 @@ export function renderFormulaDisplay(
   }
   if (structureType === 'doped' || structureType === '掺杂') {
     const dopant = componentFormula(
-      parts.find(
-        (part) => part.role === 'dopant' || part.role === '掺杂剂',
-      ) ?? {},
+      parts.find((part) => part.role === 'dopant' || part.role === '掺杂剂') ??
+        {},
     )
     const matrix = componentFormula(
-      parts.find((part) => part.role === 'matrix' || part.role === '基体') ?? {},
+      parts.find((part) => part.role === 'matrix' || part.role === '基体') ??
+        {},
     )
     if (dopant && matrix) return `${dopant}:${matrix}`
   }

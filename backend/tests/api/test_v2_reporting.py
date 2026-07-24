@@ -2,16 +2,18 @@ import csv
 import io
 import json
 import zipfile
+from types import SimpleNamespace
 from uuid import UUID
 
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from app.main import app
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.services.v2_reporting_service import V2ReportingService
 
 client = TestClient(app)
 
@@ -249,6 +251,8 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
         "id": None,
         "version": None,
         "snapshot": None,
+        "flow_reference_temperature_C": None,
+        "flow_reference_pressure_Pa": None,
     }
 
     for path in ["export", "audit-events"]:
@@ -273,6 +277,10 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
             "samples.csv",
             "characterization_results.csv",
             "files.csv",
+            "module_details.csv",
+            "field_dictionary.csv",
+            "records.json",
+            "schema_manifest.json",
         }
         runs = list(csv.DictReader(io.StringIO(archive.read("runs.csv").decode("utf-8-sig"))))
         results = list(
@@ -305,6 +313,135 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
     assert files[0]["result_code"] == results[0]["result_code"]
     assert files[0]["method"] == "optical_microscopy"
     assert files[0]["download_url"].endswith("/download")
+
+
+def test_batch_export_uses_dedicated_sqlite_read_snapshot(
+    active_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    headers = _headers(active_user.email)
+    _run(
+        headers,
+        code="CVD-2026-3251",
+        started_at="2026-07-04T10:00:00",
+        operator="Snapshot User",
+        material="MoS2",
+    )
+    statements: list[str] = []
+
+    def capture_statement(_connection, _cursor, statement, _parameters, _context, _many) -> None:
+        statements.append(statement)
+
+    def forbid_request_session_queries(*_args, **_kwargs):
+        raise AssertionError("batch export queried through the request session")
+
+    event.listen(db_session.bind, "before_cursor_execute", capture_statement)
+    monkeypatch.setattr(db_session, "scalar", forbid_request_session_queries)
+    monkeypatch.setattr(db_session, "scalars", forbid_request_session_queries)
+    try:
+        content, _ = V2ReportingService(db_session).export_runs_zip(active_user)
+    finally:
+        event.remove(db_session.bind, "before_cursor_execute", capture_statement)
+
+    assert zipfile.is_zipfile(io.BytesIO(content))
+    normalized = [" ".join(statement.upper().split()) for statement in statements]
+    assert "PRAGMA QUERY_ONLY = ON" in normalized
+    assert "BEGIN" in normalized
+
+
+def test_single_run_export_uses_dedicated_sqlite_read_snapshot(
+    active_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    headers = _headers(active_user.email)
+    run = _run(
+        headers,
+        code="CVD-2026-3253",
+        started_at="2026-07-04T10:30:00",
+        operator="Single Snapshot User",
+        material="MoS2",
+    )
+    statements: list[str] = []
+
+    def capture_statement(_connection, _cursor, statement, _parameters, _context, _many) -> None:
+        statements.append(statement)
+
+    def forbid_request_session_queries(*_args, **_kwargs):
+        raise AssertionError("single export queried through the request session")
+
+    event.listen(db_session.bind, "before_cursor_execute", capture_statement)
+    monkeypatch.setattr(db_session, "scalar", forbid_request_session_queries)
+    monkeypatch.setattr(db_session, "scalars", forbid_request_session_queries)
+    try:
+        content, filename = V2ReportingService(db_session).export_run_json(
+            UUID(run["id"]),
+            active_user,
+        )
+    finally:
+        event.remove(db_session.bind, "before_cursor_execute", capture_statement)
+
+    assert json.loads(content)["run"]["run_code"] == "CVD-2026-3253"
+    assert filename == "CVD-2026-3253.json"
+    normalized = [" ".join(statement.upper().split()) for statement in statements]
+    assert "PRAGMA QUERY_ONLY = ON" in normalized
+    assert "BEGIN" in normalized
+
+
+def test_zip_records_json_preserves_null_and_empty_values_and_declares_authority(
+    active_user,
+) -> None:
+    headers = _headers(active_user.email)
+    run = _run(
+        headers,
+        code="CVD-2026-3252",
+        started_at="2026-07-04T11:00:00",
+        operator="Lossless Export User",
+        material="MoS2",
+    )
+    sample = client.post(
+        f"/api/v1/experiments/{run['id']}/samples",
+        json={"role": "control"},
+        headers=headers,
+    ).json()
+    record = client.post(
+        f"/api/v1/experiments/{run['id']}/characterization-records",
+        json={
+            "sample_id": sample["id"],
+            "method_instrument": "Raman",
+            "raw_data": {},
+            "attrs": {
+                "empty_string": "",
+                "empty_list": [],
+                "empty_object": {},
+                "null_value": None,
+            },
+        },
+        headers=headers,
+    )
+    assert record.status_code == 201, record.text
+
+    exported = client.get(
+        "/api/v1/exports/runs",
+        params={"query": "3252"},
+        headers=headers,
+    )
+    assert exported.status_code == 200, exported.text
+    with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
+        records = json.loads(archive.read("records.json"))
+        manifest = json.loads(archive.read("schema_manifest.json"))
+
+    exported_record = records["runs"][0]["samples"][0]["results"][0]["record"]
+    assert exported_record["raw_data"] == {}
+    assert exported_record["attrs"] == {
+        "empty_string": "",
+        "empty_list": [],
+        "empty_object": {},
+        "null_value": None,
+    }
+    assert manifest["reconstruction"]["authoritative_source"] == "records.json"
+    assert manifest["reconstruction"]["csv_empty_cells_distinguish_null_and_empty"] is False
 
 
 def test_exports_keep_standalone_records_shared_results_and_soft_deleted_files(
@@ -448,6 +585,8 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
             "orientation": "水平",
             "coordinate_system": "上游负/下游正",
             "field_devices": ["光", "电"],
+            "flow_reference_temperature_C": 20,
+            "flow_reference_pressure_Pa": 101325,
         },
         headers=headers,
     )
@@ -512,6 +651,8 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
     json_run = exported_json.json()["run"]
     assert json_run["not_characterized_at"] is not None
     assert json_run["setup_reference"]["version"] == 1
+    assert json_run["setup_reference"]["flow_reference_temperature_C"] == 20
+    assert json_run["setup_reference"]["flow_reference_pressure_Pa"] == 101325
     assert json_run["setup_reference"]["snapshot"]["setup_code_snapshot"] == ("SETUP-EXPORT-1")
     json_step = exported_json.json()["modules"]["process_steps"]["items"][0]
     assert json_step["stage_type"] == "vent"
@@ -529,11 +670,15 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
             csv.DictReader(io.StringIO(archive.read("process_steps.csv").decode("utf-8-sig")))
         )
     assert {row["setup_code"] for row in run_rows} == {"SETUP-EXPORT-1"}
+    assert {row["setup_flow_reference_temperature_C"] for row in run_rows} == {"20.0"}
+    assert {row["setup_flow_reference_pressure_Pa"] for row in run_rows} == {"101325.0"}
     assert {row["result_missing_todo"] for row in run_rows} == {"False"}
     assert all(row["not_characterized_at"] for row in run_rows)
     assert {row["setup_detail_value"] for row in run_rows} == {
         "light",
         "electric_field",
+        "20.0",
+        "101325.0",
     }
     nested_gases = [row for row in process_rows if row["nested_field"] == "gas_species"]
     assert {row["nested_path"] for row in nested_gases} == {"[0]", "[1]"}
@@ -636,3 +781,121 @@ def test_legacy_result_crud_writes_run_level_audit(active_user) -> None:
         "delete_result",
         "delete_result",
     ]
+
+
+def test_zip_export_includes_reversible_remaining_modules_and_schema_metadata(
+    active_user,
+    db_session,
+) -> None:
+    headers = _headers(active_user.email)
+    run = _run(
+        headers,
+        code="CVD-2026-3501",
+        started_at="2026-07-06T10:30:00",
+        operator="Export Contract",
+        material="MoS2",
+    )
+    target = db_session.scalar(
+        select(ExperimentModulePayload).where(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "target_product",
+        )
+    )
+    target.payload_json = {
+        "chemical_formula": "MoS2",
+        "structure_type": "doped",
+        "components": [
+            {
+                "formula": "MoS2",
+                "role": "matrix",
+                "concentration_at_percent": 98.5,
+            },
+            {
+                "formula": "Nb",
+                "role": "dopant",
+                "concentration_at_percent": 1.5,
+            },
+        ],
+    }
+    db_session.add(
+        ExperimentModulePayload(
+            experiment_run_id=UUID(run["id"]),
+            module_key="process_events",
+            schema_version="cvd_v2",
+            payload_json={
+                "items": [
+                    {
+                        "event_part": "gas_supply_interruption",
+                        "occurred_at": "10:28",
+                        "description_action": "Changed Ar cylinder",
+                    }
+                ]
+            },
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        "/api/v1/exports/runs",
+        params={"query": "3501"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert {
+            "runs.csv",
+            "precursors.csv",
+            "substrates.csv",
+            "process_steps.csv",
+            "samples.csv",
+            "characterization_results.csv",
+            "files.csv",
+            "module_details.csv",
+            "field_dictionary.csv",
+            "schema_manifest.json",
+        } <= set(archive.namelist())
+        details = list(
+            csv.DictReader(io.StringIO(archive.read("module_details.csv").decode("utf-8-sig")))
+        )
+        dictionary = list(
+            csv.DictReader(io.StringIO(archive.read("field_dictionary.csv").decode("utf-8-sig")))
+        )
+        manifest = json.loads(archive.read("schema_manifest.json"))
+
+    target_rows = [row for row in details if row["module_key"] == "target_product"]
+    assert {(row["field_key"], row["detail_path"], row["detail_value"]) for row in target_rows} >= {
+        ("chemical_formula", "", "MoS2"),
+        ("components", "[0].formula", "MoS2"),
+        ("components", "[1].role", "dopant"),
+    }
+    event_rows = [row for row in details if row["module_key"] == "process_events"]
+    assert {(row["item_index"], row["field_key"], row["detail_value"]) for row in event_rows} >= {
+        ("1", "occurred_at", "10:28"),
+        ("1", "description_action", "Changed Ar cylinder"),
+    }
+    assert any(row["key"] == "gas_flow_sccm" and row["unit"] == "sccm" for row in dictionary)
+    assert manifest["schema_version"] == "cvd_v2"
+    assert manifest["standard_version"] == "2.0.0"
+    assert manifest["module_details"]["path_notation"] == "JSONPath-like"
+
+
+def test_export_fetches_visible_runs_in_one_stable_query(active_user, db_session) -> None:
+    service = V2ReportingService(db_session)
+    expected = [SimpleNamespace(id=index) for index in range(1001)]
+    calls: list[int] = []
+
+    def mutating_offset_pages(*, page_size: int, **_kwargs):
+        calls.append(page_size)
+        if page_size >= len(expected):
+            return expected, len(expected)
+        if len(calls) == 1:
+            return expected[:page_size], len(expected)
+        return [expected[page_size - 1]], len(expected)
+
+    service.experiments.list_visible = mutating_offset_pages
+
+    exported = service._visible_runs_for_export(active_user)
+
+    assert [run.id for run in exported] == list(range(1001))
+    assert len(calls) == 1

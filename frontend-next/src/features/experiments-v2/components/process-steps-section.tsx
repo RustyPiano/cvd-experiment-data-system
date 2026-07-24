@@ -65,6 +65,7 @@ export function ProcessStepsSection({
 
   return (
     <ModuleCard
+      id="module-process_steps"
       index="§5"
       title={t('experimentsV2.sections.processSteps.title')}
       subtitle={t('experimentsV2.sections.processSteps.subtitle')}
@@ -153,6 +154,7 @@ export function ProcessStepsSection({
                         field,
                         stageType,
                         setupSnapshot,
+                        step,
                       ),
                     )
                     .map((field) => (
@@ -171,6 +173,7 @@ export function ProcessStepsSection({
                           field,
                           stageType,
                           setupSnapshot,
+                          step,
                         )}
                       />
                     ))}

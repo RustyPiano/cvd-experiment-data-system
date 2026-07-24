@@ -1,5 +1,14 @@
+function browserStorage() {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage
+  } catch {
+    return null
+  }
+}
+
 export function readJsonStorage<T>(key: string) {
-  const rawValue = window.localStorage.getItem(key)
+  const storage = browserStorage()
+  const rawValue = storage?.getItem(key)
   if (!rawValue) {
     return null
   }
@@ -7,15 +16,15 @@ export function readJsonStorage<T>(key: string) {
   try {
     return JSON.parse(rawValue) as T
   } catch {
-    window.localStorage.removeItem(key)
+    storage?.removeItem(key)
     return null
   }
 }
 
 export function writeJsonStorage(key: string, value: unknown) {
-  window.localStorage.setItem(key, JSON.stringify(value))
+  browserStorage()?.setItem(key, JSON.stringify(value))
 }
 
 export function removeStorageItem(key: string) {
-  window.localStorage.removeItem(key)
+  browserStorage()?.removeItem(key)
 }

@@ -4,7 +4,17 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Uuid, func
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Uuid,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,19 +27,61 @@ if TYPE_CHECKING:
 
 
 json_payload_type = JSON().with_variant(JSONB(), "postgresql")
+FILE_NOTE_MAX_LENGTH = 500
 
 
 class FileAsset(Base):
     __tablename__ = "file_assets"
+    __table_args__ = (
+        Index(
+            "ix_file_assets_entity_binding",
+            "entity_type",
+            "entity_id",
+            "entity_version",
+        ),
+        CheckConstraint(
+            """
+            (
+                experiment_run_id IS NOT NULL
+                AND entity_type IS NULL
+                AND entity_id IS NULL
+                AND entity_version IS NULL
+            )
+            OR
+            (
+                experiment_run_id IS NULL
+                AND (
+                    (
+                        entity_type IS NULL
+                        AND entity_id IS NULL
+                        AND entity_version IS NULL
+                    )
+                    OR
+                    (
+                        entity_type IS NOT NULL
+                        AND entity_id IS NOT NULL
+                        AND entity_version >= 1
+                    )
+                )
+            )
+            """,
+            name="ck_file_assets_single_scope",
+        ),
+        CheckConstraint(
+            "entity_type IS NULL OR entity_type IN ('material_lot', 'setup', 'instrument')",
+            name="ck_file_assets_entity_type",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
     )
-    experiment_run_id: Mapped[uuid.UUID] = mapped_column(
+    experiment_run_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("experiment_runs.id"),
+        nullable=True,
         index=True,
     )
     sample_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -44,6 +96,13 @@ class FileAsset(Base):
         nullable=True,
         index=True,
     )
+    entity_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+    entity_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uploaded_by_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id"),
@@ -68,7 +127,7 @@ class FileAsset(Base):
         default="characterization_file",
         index=True,
     )
-    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(FILE_NOTE_MAX_LENGTH), nullable=True)
     file_kind: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     metadata_json: Mapped[dict] = mapped_column(json_payload_type, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -79,7 +138,7 @@ class FileAsset(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    experiment_run: Mapped[ExperimentRun] = relationship(back_populates="file_assets")
+    experiment_run: Mapped[ExperimentRun | None] = relationship(back_populates="file_assets")
     sample: Mapped[Sample | None] = relationship(back_populates="file_assets")
     characterization_record: Mapped[CharacterizationRecord | None] = relationship(
         back_populates="file_assets"

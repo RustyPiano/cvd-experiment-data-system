@@ -12,12 +12,14 @@ export function FormulaInput({
   onChange,
   disabled,
   placeholder,
+  ariaDescribedBy,
 }: {
   id?: string
   value: string
   onChange: (value: string) => void
   disabled?: boolean
   placeholder?: string
+  ariaDescribedBy?: string
 }) {
   const { t } = useTranslation()
   const generatedId = useId()
@@ -25,6 +27,10 @@ export function FormulaInput({
   const messageId = `${controlId}-message`
   const result = validateChemicalFormula(value)
   const invalid = !result.empty && !result.valid
+  const describedBy =
+    [invalid || result.elements.length > 0 ? messageId : null, ariaDescribedBy]
+      .filter(Boolean)
+      .join(' ') || undefined
 
   return (
     <div className="flex flex-col gap-1">
@@ -36,9 +42,7 @@ export function FormulaInput({
         placeholder={placeholder}
         autoComplete="off"
         aria-invalid={invalid}
-        aria-describedby={
-          invalid || result.elements.length > 0 ? messageId : undefined
-        }
+        aria-describedby={describedBy}
         className={cn(invalid && 'border-destructive')}
       />
       {invalid ? (

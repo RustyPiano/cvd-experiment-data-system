@@ -118,6 +118,8 @@ def test_entity_numeric_and_string_length_validation(active_user) -> None:
         "setup_name": "test furnace",
         "orientation": "水平",
         "coordinate_system": "上游负/下游正",
+        "flow_reference_temperature_C": 20,
+        "flow_reference_pressure_Pa": 101325,
     }
 
     bad_number = client.post(
@@ -136,7 +138,10 @@ def test_entity_numeric_and_string_length_validation(active_user) -> None:
             **base,
             "setup_code": "SETUP-2",
             "zone_count": 2,
-            "pump_model_base_pressure": "Edwards / 1e-3 Pa",
+            "pump_model_base_pressure": {
+                "option": "Edwards RV12",
+                "value": 1e-3,
+            },
         },
         headers=headers,
     )
@@ -169,6 +174,103 @@ def test_entity_numeric_and_string_length_validation(active_user) -> None:
     assert overflow.status_code == 422
     assert boolean_number.status_code == 422
     assert non_finite.status_code == 422
+
+
+def test_setup_pump_composite_requires_model_and_positive_absolute_pressure(
+    active_user,
+) -> None:
+    headers = _headers(active_user.email)
+    base = {
+        "setup_name": "pump contract furnace",
+        "zone_count": 2,
+        "orientation": "horizontal",
+        "coordinate_system": "upstream negative / downstream positive",
+        "flow_reference_temperature_C": 20,
+        "flow_reference_pressure_Pa": 101325,
+    }
+
+    valid = client.post(
+        "/api/v1/setups",
+        json={
+            **base,
+            "setup_code": "SETUP-PUMP-1",
+            "pump_model_base_pressure": {
+                "option": " Edwards RV12 ",
+                "value": 2.0,
+            },
+        },
+        headers=headers,
+    )
+    zero_pressure = client.post(
+        "/api/v1/setups",
+        json={
+            **base,
+            "setup_code": "SETUP-PUMP-2",
+            "pump_model_base_pressure": {
+                "option": "Edwards RV12",
+                "value": 0,
+            },
+        },
+        headers=headers,
+    )
+    blank_model = client.post(
+        "/api/v1/setups",
+        json={
+            **base,
+            "setup_code": "SETUP-PUMP-3",
+            "pump_model_base_pressure": {
+                "option": " ",
+                "value": 2.0,
+            },
+        },
+        headers=headers,
+    )
+    missing_pressure = client.post(
+        "/api/v1/setups",
+        json={
+            **base,
+            "setup_code": "SETUP-PUMP-4",
+            "pump_model_base_pressure": {
+                "option": "Edwards RV12",
+                "value": None,
+            },
+        },
+        headers=headers,
+    )
+
+    assert valid.status_code == 201, valid.text
+    assert valid.json()["latest_version"]["data"]["pump_model_base_pressure"] == {
+        "option": "Edwards RV12",
+        "value": 2.0,
+    }
+    assert zero_pressure.status_code == 422
+    assert blank_model.status_code == 422
+    assert missing_pressure.status_code == 422
+
+
+def test_empty_entity_composite_cannot_bypass_shape_and_option_validation(
+    active_user,
+) -> None:
+    response = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "chemical",
+            "substance_name": "MoO3",
+            "chemical_formula": "MoO3",
+            "batch_number": "BAD-COMPOSITE",
+            "substrate_orientation_polish": {
+                "value": None,
+                "option": "not-a-polish-option",
+                "extra": "must-not-survive",
+            },
+        },
+        headers=_headers(active_user.email),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "invalid": [{"key": "substrate_orientation_polish", "reason": "value"}]
+    }
 
 
 def test_experiment_chemical_formula_length_is_bounded(active_user) -> None:
@@ -212,8 +314,7 @@ def test_create_run_normalizes_formula_and_rejects_invalid_syntax(active_user) -
         headers=headers,
     )
     assert invalid.status_code == 422
-    detail = invalid.json()["detail"]
-    assert any(error["loc"][-1] == "chemical_formula" for error in detail)
+    assert invalid.json()["detail"] == {"invalid": [{"key": "chemical_formula", "reason": "value"}]}
 
 
 def test_invalid_reason_is_returned_after_invalidation(active_user) -> None:
@@ -403,6 +504,8 @@ def test_lock_setup_gate_ignores_payload_and_accepts_reference_endpoint(
             "zone_count": 1,
             "orientation": "水平",
             "coordinate_system": "上游负/下游正",
+            "flow_reference_temperature_C": 20,
+            "flow_reference_pressure_Pa": 101325,
         },
         headers=headers,
     )

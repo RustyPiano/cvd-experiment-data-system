@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import Uuid, bindparam, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
@@ -26,6 +26,22 @@ class FileAssetRepository:
 
     def get_by_id(self, file_id: UUID) -> FileAsset | None:
         statement = select(FileAsset).where(FileAsset.id == file_id)
+        return self.db.scalar(statement)
+
+    def get_by_id_for_update(self, file_id: UUID) -> FileAsset | None:
+        if self.db.get_bind().dialect.name == "sqlite":
+            self.db.execute(
+                text("UPDATE file_assets SET id = id WHERE id = :id").bindparams(
+                    bindparam("id", type_=Uuid(as_uuid=True))
+                ),
+                {"id": file_id},
+            )
+        statement = (
+            select(FileAsset)
+            .where(FileAsset.id == file_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         return self.db.scalar(statement)
 
     def has_active_for_characterization_record(self, record_id: UUID) -> bool:

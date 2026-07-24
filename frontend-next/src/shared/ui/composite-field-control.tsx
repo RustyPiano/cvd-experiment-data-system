@@ -12,6 +12,8 @@ import {
   parseCompositeValue,
 } from '@/shared/composite-field'
 import type { CompositeInput } from '@/shared/composite-field'
+import type { FieldValidation } from '@/shared/generated/field-metadata'
+import { numericInputAttributes } from '@/shared/field-validation'
 
 export function CompositeFieldControl({
   input,
@@ -23,8 +25,10 @@ export function CompositeFieldControl({
   selectLabel,
   disabled,
   invalid,
+  ariaDescribedBy,
   freePlaceholder,
   selectPlaceholder,
+  validation,
   optionLabel = (option) => option,
 }: {
   input: CompositeInput
@@ -36,15 +40,30 @@ export function CompositeFieldControl({
   selectLabel: string
   disabled?: boolean
   invalid?: boolean
+  ariaDescribedBy?: string
   freePlaceholder: string
   selectPlaceholder: string
+  validation?: FieldValidation | null
   optionLabel?: (option: string) => string
 }) {
   const { freeValue, option } = parseCompositeValue(input, value, options)
-  const freeFirst = input.startsWith('数值') || input.startsWith('文本')
+  const freeTextOption = input === '文本+数值'
+  const freeFirst =
+    !freeTextOption && (input.startsWith('数值') || input.startsWith('文本'))
+  // Keep malformed legacy values visible/editable instead of letting
+  // <input type="number"> silently blank them.
+  const numeric =
+    input.includes('数值') &&
+    (freeValue.trim() === '' || Number.isFinite(Number(freeValue)))
+  const numericAttributes = numericInputAttributes(validation)
   const freeControl = (
     <Input
       id={inputId}
+      type={numeric ? 'number' : 'text'}
+      inputMode={numeric ? 'decimal' : undefined}
+      min={numeric ? numericAttributes.min : undefined}
+      max={numeric ? numericAttributes.max : undefined}
+      step={numeric ? numericAttributes.step : undefined}
       value={freeValue}
       onChange={(event) =>
         onChange(formatCompositeValue(input, event.target.value, option))
@@ -53,10 +72,27 @@ export function CompositeFieldControl({
       autoComplete="off"
       placeholder={freePlaceholder}
       aria-invalid={invalid}
+      aria-describedby={ariaDescribedBy}
       className="flex-1"
     />
   )
-  const selectControl = (
+  const optionControl = freeTextOption ? (
+    <Input
+      id={selectId}
+      type="text"
+      value={option}
+      onChange={(event) =>
+        onChange(formatCompositeValue(input, freeValue, event.target.value))
+      }
+      disabled={disabled}
+      autoComplete="off"
+      placeholder={selectPlaceholder}
+      aria-label={selectLabel}
+      aria-invalid={invalid}
+      aria-describedby={ariaDescribedBy}
+      className="flex-1"
+    />
+  ) : (
     <Select
       value={option}
       onValueChange={(selected) =>
@@ -68,6 +104,7 @@ export function CompositeFieldControl({
         id={selectId}
         aria-label={selectLabel}
         aria-invalid={invalid}
+        aria-describedby={ariaDescribedBy}
         className="flex-1"
       >
         <SelectValue placeholder={selectPlaceholder} />
@@ -86,8 +123,8 @@ export function CompositeFieldControl({
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row">
-      {freeFirst ? freeControl : selectControl}
-      {freeFirst ? selectControl : freeControl}
+      {freeFirst ? freeControl : optionControl}
+      {freeFirst ? optionControl : freeControl}
     </div>
   )
 }

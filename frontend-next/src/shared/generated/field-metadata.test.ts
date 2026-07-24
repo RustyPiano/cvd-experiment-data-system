@@ -4,15 +4,16 @@ import {
   experimentModules,
   stageGroups,
   stageTypes,
+  unitLabelsEn,
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('groups the 77 experiment fields into the expected module keys', () => {
+  it('groups the 81 experiment fields into the expected module keys', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(77)
+    expect(total).toBe(81)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',
@@ -58,11 +59,40 @@ describe('generated field-metadata', () => {
     expect(method?.options).toContain('APCVD')
   })
 
-  it('keeps the R0 minimal-reproducible set at 16 fields', () => {
+  it('preserves scalar and structured validation rules from the field source', () => {
+    const humidity = experimentModules.basic_info.find(
+      (field) => field.key === 'ambient_humidity_percent',
+    )
+    expect(humidity?.validation).toEqual({ ge: 0, le: 100 })
+
+    const targetLayers = experimentModules.target_product.find(
+      (field) => field.key === 'target_layer_count',
+    )
+    expect(targetLayers?.validation).toEqual({ type: 'integer', ge: 1 })
+
+    const spectralMetrics = experimentModules.measured_products.find(
+      (field) => field.key === 'key_spectral_metrics',
+    )
+    expect(spectralMetrics?.validation).toEqual({
+      item_required: ['metric_code', 'value', 'unit'],
+      finite_value: true,
+    })
+
+    const startedAt = experimentModules.basic_info.find(
+      (field) => field.key === 'started_at',
+    )
+    expect(startedAt?.validation).toBeNull()
+  })
+
+  it('provides an English label for metric-dependent units', () => {
+    expect(unitLabelsEn['按指标']).toBe('per metric')
+  })
+
+  it('keeps the R0 minimal-reproducible set at 18 fields', () => {
     const r0 = Object.values(experimentModules)
       .flat()
       .filter((f) => f.r0)
-    expect(r0).toHaveLength(16)
+    expect(r0).toHaveLength(18)
   })
 
   it('tags every process_steps field with a valid stage param group', () => {
@@ -97,15 +127,16 @@ describe('generated field-metadata', () => {
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(46)
+    expect(total).toBe(48)
   })
 
-  it('carries input types for all 11 composite fields', () => {
+  it('carries input types for all six scalar-plus-option fields', () => {
     const compositeInputs = new Set([
       '数值+下拉',
       '下拉+数值',
       '文本+下拉',
       '下拉+文本',
+      '文本+数值',
     ])
     const compositeFields = [
       ...Object.values(experimentModules),
@@ -114,7 +145,7 @@ describe('generated field-metadata', () => {
       .flat()
       .filter((field) => compositeInputs.has(field.input))
 
-    expect(compositeFields).toHaveLength(11)
+    expect(compositeFields).toHaveLength(6)
     expect(compositeFields.map((field) => field.key)).toContain('gas_flow_sccm')
     expect(compositeFields.map((field) => field.key)).toContain(
       'pressure_system',

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { decodeJwtExpMs } from '@/shared/lib/jwt'
+import { HttpError } from '@/shared/api/http-error'
 import { refreshSession } from './api'
 import { createSessionSnapshot, useAuth } from './auth-store'
 
@@ -10,6 +11,14 @@ const REFRESH_LEAD_MS = 5 * 60 * 1000
 // When the tab regains focus (e.g. laptop woke up, timers were throttled),
 // proactively renew if the token is within this window of expiring.
 const FOCUS_REFRESH_WINDOW_MS = 30 * 60 * 1000
+const TRANSIENT_RETRY_MS = 30 * 1000
+
+export function sessionRefreshDelay(expMs: number, nowMs = Date.now()) {
+  const remaining = expMs - nowMs
+  return remaining > REFRESH_LEAD_MS
+    ? remaining - REFRESH_LEAD_MS
+    : Math.max(Math.floor(remaining / 2), 0)
+}
 
 /**
  * Keeps an actively-used session alive: schedules a silent token refresh shortly
@@ -50,11 +59,16 @@ export function useSessionRefresh() {
             createSessionSnapshot(next.access_token, next.user),
           )
         }
-      } catch {
+      } catch (error) {
         // A 401 here means the token already lapsed; the API client dispatches
-        // the unauthorized event and the global handler logs out. Any other
-        // (e.g. network) error: keep the current token and let the next focus
-        // or the scheduled timer retry.
+        // the unauthorized event and the global handler logs out.
+        if (
+          !cancelled &&
+          !(error instanceof HttpError && error.status === 401)
+        ) {
+          if (timer) clearTimeout(timer)
+          timer = setTimeout(() => void doRefresh(), TRANSIENT_RETRY_MS)
+        }
       } finally {
         inFlight = false
       }
@@ -62,8 +76,7 @@ export function useSessionRefresh() {
 
     const expMs = decodeJwtExpMs(token)
     if (expMs != null) {
-      const delay = Math.max(expMs - Date.now() - REFRESH_LEAD_MS, 0)
-      timer = setTimeout(() => void doRefresh(), delay)
+      timer = setTimeout(() => void doRefresh(), sessionRefreshDelay(expMs))
     }
 
     const onFocus = () => {

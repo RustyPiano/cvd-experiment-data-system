@@ -64,7 +64,10 @@ function parseStoredSession(rawValue: string | null) {
   try {
     const storedSession = JSON.parse(rawValue) as StoredSession
     return storedSession.accessToken && storedSession.currentUser
-      ? createSessionSnapshot(storedSession.accessToken, storedSession.currentUser)
+      ? createSessionSnapshot(
+          storedSession.accessToken,
+          storedSession.currentUser,
+        )
       : defaultSession
   } catch {
     return defaultSession

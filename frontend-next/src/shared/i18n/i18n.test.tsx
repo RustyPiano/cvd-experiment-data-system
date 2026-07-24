@@ -1,5 +1,20 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import i18n from './index'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18n, { LANGUAGE_STORAGE_KEY } from './index'
+
+const storedValues = new Map<string, string>()
+
+beforeEach(() => {
+  storedValues.clear()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storedValues.get(key) ?? null,
+      setItem: (key: string, value: string) => storedValues.set(key, value),
+      removeItem: (key: string) => storedValues.delete(key),
+      clear: () => storedValues.clear(),
+    },
+  })
+})
 
 afterEach(async () => {
   await i18n.changeLanguage('zh')
@@ -16,6 +31,29 @@ describe('i18n scaffolding', () => {
 
     await i18n.changeLanguage('en')
     expect(i18n.t('example.greeting')).toBe('Hello, world')
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('"en"')
+  })
+
+  it('keeps document language and title in sync with the active locale', async () => {
+    await i18n.changeLanguage('en')
+    expect(document.documentElement.lang).toBe('en')
+    expect(document.title).toBe('CVD Lab · Experiment Data System')
+
+    await i18n.changeLanguage('zh')
+    expect(document.documentElement.lang).toBe('zh-CN')
+    expect(document.title).toBe('CVD 实验数据采集系统')
+  })
+
+  it('adopts the language selected in another tab', async () => {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, '"en"')
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: LANGUAGE_STORAGE_KEY,
+        newValue: '"en"',
+      }),
+    )
+
+    await vi.waitFor(() => expect(i18n.language).toBe('en'))
   })
 
   it('keeps zh and en resources structurally in sync', () => {

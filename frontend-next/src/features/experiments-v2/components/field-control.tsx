@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import {
   isCompositeInput,
   parseCompositeOptions,
+  parseCompositeValue,
 } from '@/shared/composite-field'
 import { CompositeFieldControl } from '@/shared/ui/composite-field-control'
 import { SelectWithOtherControl } from '@/shared/ui/select-with-other-control'
@@ -43,6 +44,12 @@ import {
 } from '../field-logic'
 import { FieldLabel } from './field-bits'
 import { FormulaInput } from './formula-input'
+import { isStructuredInput, structuredPayload } from '@/shared/structured-field'
+import { StructuredObjectControl } from '@/shared/ui/structured-object-control'
+import {
+  numericInputAttributes,
+  numericValidationIssue,
+} from '@/shared/field-validation'
 
 // 跨模块用多行输入的字段键（长文本/描述/清单）。
 const TEXTAREA_KEYS = new Set([
@@ -58,8 +65,8 @@ const TEXTAREA_KEYS = new Set([
 // 用化学式元素校验控件的字段键（§1b 目标材料化学式）。
 const FORMULA_KEYS = new Set(['chemical_formula'])
 
-// 用 datetime-local 控件的字段键（§1 实验时间）。
-const DATETIME_KEYS = new Set(['started_at'])
+// 用 datetime-local 控件的字段键（§1 实验时间、§6 事件发生时刻）。
+const DATETIME_KEYS = new Set(['started_at', 'occurred_at'])
 
 export function FieldControl({
   moduleKey,
@@ -74,6 +81,7 @@ export function FieldControl({
   hint,
   pattern,
   hiddenOptions,
+  hideHelp,
 }: {
   moduleKey: string
   field: FieldMetadata
@@ -93,13 +101,17 @@ export function FieldControl({
   hint?: string
   pattern?: string
   hiddenOptions?: readonly string[]
+  hideHelp?: boolean
 }) {
   const { i18n, t } = useTranslation()
   const controlId = useId()
   const required =
     requiredOverride ?? isEffectivelyRequired(moduleKey, field, values)
   const allowsOther = isSelectWithOtherInput(field.input)
-  const parsedEnumOptions = parseEnumOptions(field.input, field.options)?.filter(
+  const parsedEnumOptions = parseEnumOptions(
+    field.input,
+    field.options,
+  )?.filter(
     (option) =>
       !hiddenOptions?.map(canonicalOption).includes(option) &&
       (!allowsOther || !isOtherOptionMarker(option)),
@@ -113,17 +125,79 @@ export function FieldControl({
       : []
   const textValue = moduleValueAsString(value)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
+  const structuredInput = isStructuredInput(field.input)
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))
     : []
-  const missing =
-    Boolean(showError) && required && moduleValueIsEmpty(value)
+  const numeric = field.input === '数值'
+  const numericText = compositeInput?.includes('数值')
+    ? parseCompositeValue(
+        compositeInput,
+        textValue,
+        compositeOptions,
+      ).freeValue.trim()
+    : numeric
+      ? textValue.trim()
+      : ''
+  const numericIssue =
+    numericText === ''
+      ? null
+      : numericValidationIssue(numericText, field.validation)
+  const numericAttributes = numericInputAttributes(field.validation)
+  const missing = Boolean(showError) && required && moduleValueIsEmpty(value)
+  const compositeNumericMissing =
+    Boolean(showError) &&
+    required &&
+    Boolean(field.validation?.require_value) &&
+    Boolean(compositeInput?.includes('数值')) &&
+    numericText === ''
+  let structuredInvalid = false
+  if (structuredInput && textValue.trim()) {
+    try {
+      structuredPayload(field.key, textValue)
+    } catch {
+      structuredInvalid = true
+    }
+  }
+  const spaceGroupInvalid =
+    field.key === 'bulk_space_group' &&
+    textValue.trim() !== '' &&
+    (!Number.isInteger(Number(textValue)) ||
+      Number(textValue) < 1 ||
+      Number(textValue) > 230)
+  const invalid =
+    missing ||
+    compositeNumericMissing ||
+    spaceGroupInvalid ||
+    Boolean(numericIssue) ||
+    structuredInvalid
+  const numericErrorMessage = (() => {
+    switch (numericIssue?.kind) {
+      case 'finite':
+        return t('validation.finiteNumber')
+      case 'integer':
+        return t('validation.integerNumber')
+      case 'ge':
+        return t('validation.numberGe', { limit: numericIssue.limit })
+      case 'gt':
+        return t('validation.numberGt', { limit: numericIssue.limit })
+      case 'le':
+        return t('validation.numberLe', { limit: numericIssue.limit })
+      case 'lt':
+        return t('validation.numberLt', { limit: numericIssue.limit })
+      default:
+        return null
+    }
+  })()
   const errorId = `${controlId}-error`
   const label = localizedFieldLabel(field, i18n.language)
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
-  const fieldHelp = localizedFieldHelp(field, i18n.language)
-  const numeric = field.input === '数值'
-
+  const fieldHelp = hideHelp ? null : localizedFieldHelp(field, i18n.language)
+  const fieldHelpId = fieldHelp ? `${controlId}-help` : undefined
+  const hintId = hint ? `${controlId}-hint` : undefined
+  const describedBy =
+    [invalid ? errorId : null, fieldHelpId, hintId].filter(Boolean).join(' ') ||
+    undefined
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel
@@ -133,7 +207,16 @@ export function FieldControl({
         required={required}
         r0={field.r0}
       />
-      {compositeInput ? (
+      {structuredInput ? (
+        <StructuredObjectControl
+          fieldKey={field.key}
+          value={textValue}
+          onChange={onChange}
+          disabled={disabled || readOnly}
+          invalid={invalid}
+          ariaDescribedBy={describedBy}
+        />
+      ) : compositeInput ? (
         <CompositeFieldControl
           input={compositeInput}
           value={textValue}
@@ -143,9 +226,11 @@ export function FieldControl({
           selectId={`${controlId}-option`}
           selectLabel={t('experimentsV2.form.fieldOptions', { label })}
           disabled={disabled || readOnly}
-          invalid={missing}
+          invalid={invalid}
+          ariaDescribedBy={describedBy}
           freePlaceholder={t('experimentsV2.form.inputPlaceholder')}
           selectPlaceholder={t('experimentsV2.form.selectPlaceholder')}
+          validation={field.validation}
           optionLabel={(option) => localizedOption(option, i18n.language)}
         />
       ) : FORMULA_KEYS.has(field.key) ? (
@@ -155,17 +240,18 @@ export function FieldControl({
           onChange={(next) => onChange(next)}
           disabled={disabled || readOnly}
           placeholder={placeholder}
+          ariaDescribedBy={describedBy}
         />
       ) : enumOptions && multiValue ? (
         <div
           id={controlId}
           role="group"
           aria-label={label}
-          aria-invalid={missing || undefined}
-          aria-describedby={missing ? errorId : undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
           className={cn(
             'grid gap-2 rounded-md border border-input px-3 py-2 sm:grid-cols-2',
-            missing && 'border-destructive',
+            invalid && 'border-destructive',
           )}
         >
           {enumOptions.map((option) => {
@@ -181,9 +267,7 @@ export function FieldControl({
                   disabled={disabled || readOnly}
                   onCheckedChange={(checked) => {
                     if (!checked) {
-                      onChange(
-                        selectedValues.filter((item) => item !== option),
-                      )
+                      onChange(selectedValues.filter((item) => item !== option))
                       return
                     }
                     onChange(
@@ -191,8 +275,7 @@ export function FieldControl({
                         ? [option]
                         : [
                             ...selectedValues.filter(
-                              (item) =>
-                                !isNoneOption(item) && item !== option,
+                              (item) => !isNoneOption(item) && item !== option,
                             ),
                             option,
                           ],
@@ -211,8 +294,8 @@ export function FieldControl({
           onChange={(next) => onChange(next)}
           disabled={disabled || readOnly}
           selectId={controlId}
-          invalid={missing}
-          ariaDescribedBy={missing ? errorId : undefined}
+          invalid={invalid}
+          ariaDescribedBy={describedBy}
           placeholder={placeholder}
           otherLabel={t('experimentsV2.form.otherOption')}
           otherInputLabel={t('experimentsV2.form.otherInputLabel', { label })}
@@ -227,9 +310,9 @@ export function FieldControl({
         >
           <SelectTrigger
             id={controlId}
-            aria-invalid={missing}
-            aria-describedby={missing ? errorId : undefined}
-            className={cn('w-full', missing && 'border-destructive')}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+            className={cn('w-full', invalid && 'border-destructive')}
           >
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
@@ -246,11 +329,11 @@ export function FieldControl({
           id={controlId}
           type="datetime-local"
           value={textValue}
-          onChange={(event) => onChange(event.target.value)}
+          onInput={(event) => onChange(event.currentTarget.value)}
           disabled={disabled}
-          aria-invalid={missing}
-          aria-describedby={missing ? errorId : undefined}
-          className={cn('w-full', missing && 'border-destructive')}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          className={cn('w-full', invalid && 'border-destructive')}
         />
       ) : TEXTAREA_KEYS.has(field.key) ? (
         <Textarea
@@ -260,22 +343,34 @@ export function FieldControl({
           disabled={disabled}
           rows={2}
           placeholder={placeholder}
-          aria-invalid={missing}
-          aria-describedby={missing ? errorId : undefined}
-          className={cn(missing && 'border-destructive')}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          className={cn(invalid && 'border-destructive')}
         />
       ) : (
         <Input
           id={controlId}
           type={numeric ? 'number' : 'text'}
           inputMode={numeric ? 'decimal' : undefined}
-          min={field.key === 'bulk_space_group' ? 1 : undefined}
-          max={field.key === 'bulk_space_group' ? 230 : undefined}
+          min={
+            field.key === 'bulk_space_group'
+              ? 1
+              : numeric
+                ? numericAttributes.min
+                : undefined
+          }
+          max={
+            field.key === 'bulk_space_group'
+              ? 230
+              : numeric
+                ? numericAttributes.max
+                : undefined
+          }
           step={
             field.key === 'bulk_space_group'
-              ? '1'
+              ? 1
               : numeric
-                ? 'any'
+                ? numericAttributes.step
                 : undefined
           }
           value={textValue}
@@ -285,18 +380,33 @@ export function FieldControl({
           pattern={pattern}
           autoComplete="off"
           placeholder={placeholder}
-          aria-invalid={missing}
-          aria-describedby={missing ? errorId : undefined}
-          className={cn(missing && 'border-destructive')}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          className={cn(invalid && 'border-destructive')}
         />
       )}
-      {missing ? (
+      {invalid ? (
         <p id={errorId} className="text-xs text-destructive">
-          {t('validation.required')}
+          {spaceGroupInvalid
+            ? t('validation.spaceGroupRange')
+            : structuredInvalid
+              ? t('validation.structuredField')
+              : compositeNumericMissing
+                ? t('validation.numericValueRequired')
+                : numericErrorMessage
+                  ? numericErrorMessage
+                  : t('validation.required')}
         </p>
       ) : null}
-      {hint || fieldHelp ? (
-        <p className="text-xs text-muted-foreground">{hint || fieldHelp}</p>
+      {fieldHelp ? (
+        <p id={fieldHelpId} className="text-xs text-muted-foreground">
+          {fieldHelp}
+        </p>
+      ) : null}
+      {hint ? (
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
       ) : null}
     </div>
   )

@@ -32,7 +32,7 @@ def _required_entity_keys(module_name: str) -> set[str]:
     return {
         field["key"]
         for field in _entity_fields(module_name)
-        if field["requirement"]["level"] == "required"
+        if field["requirement"]["level"] == "required" and field.get("storage") != "attrs"
     }
 
 
@@ -54,12 +54,30 @@ def test_entity_version_tables_use_field_source_required_keys_as_columns(
     optional_keys = {
         field["key"]
         for field in _entity_fields(module_name)
-        if field["key"] not in required_keys and field["key"] != "version"
+        if field["key"] not in required_keys
+        and field["key"] != "version"
+        and field.get("storage") != "attrs"
+    }
+    attrs_keys = {
+        field["key"] for field in _entity_fields(module_name) if field.get("storage") == "attrs"
     }
 
     assert {"entity_id", "version", "attrs"}.issubset(columns)
     assert required_keys.issubset(columns)
     assert optional_keys.isdisjoint(columns)
+    assert attrs_keys.isdisjoint(columns)
+
+
+def test_file_assets_support_unbound_and_entity_version_scopes(db_session) -> None:
+    columns = {
+        column["name"]: column for column in inspect(db_session.bind).get_columns("file_assets")
+    }
+
+    assert columns["experiment_run_id"]["nullable"] is True
+    assert {"entity_type", "entity_id", "entity_version"}.issubset(columns)
+    assert columns["entity_type"]["nullable"] is True
+    assert columns["entity_id"]["nullable"] is True
+    assert columns["entity_version"]["nullable"] is True
 
 
 def test_entity_versions_are_unique_per_entity_and_keep_optional_fields_in_attrs(

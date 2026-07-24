@@ -14,6 +14,7 @@ export function ModuleCard({
   saving,
   saved,
   error,
+  id,
 }: {
   /** 分区序号（§1 / §1b / §2 …），纯展示。 */
   index?: string
@@ -25,10 +26,12 @@ export function ModuleCard({
   saving?: boolean
   saved?: boolean
   error?: string | null
+  /** Stable target for validation summaries and skip navigation. */
+  id?: string
 }) {
   const { t } = useTranslation()
   return (
-    <Card>
+    <Card id={id} tabIndex={id ? -1 : undefined} className="scroll-mt-20">
       <CardHeader>
         <div className="flex flex-wrap items-baseline gap-2">
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>

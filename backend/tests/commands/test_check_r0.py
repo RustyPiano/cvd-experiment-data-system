@@ -5,6 +5,7 @@ from app.models.experiment import ExperimentRun
 from app.models.module_payload import ExperimentModulePayload
 from app.models.sample import Sample, SampleRole
 from app.models.v2_results import MeasuredProduct
+from app.services.v2_field_source import experiment_fields, load_field_source
 
 
 def _add_payload(db_session, run_id, module_key: str, payload: dict) -> None:
@@ -47,12 +48,7 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
             "run_code": "RUN-R0-CVD",
         },
     )
-    _add_payload(
-        db_session,
-        run.id,
-        "target_product",
-        {"chemical_formula": "MoS2", "structure_type": "本征"},
-    )
+    _add_payload(db_session, run.id, "target_product", {"chemical_formula": "MoS2"})
     _add_payload(db_session, run.id, "equipment", {"setup_ref": "setup-1"})
     _add_payload(
         db_session,
@@ -99,7 +95,23 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
     missing_keys = {
         item["key"] for item in cvd_report["items"] if item["applicable"] and not item["passed"]
     }
-    assert {"amount", "pressure_system", "zone_count", "orientation"}.issubset(missing_keys)
+    assert {
+        "structure_type",
+        "amount",
+        "pressure_system",
+        "zone_count",
+        "orientation",
+    }.issubset(missing_keys)
+    assert "components" not in missing_keys
 
     pvd_report = next(report for report in reports if report["run_code"] == "RUN-R0-PVD")
     assert pvd_report["status"] == "excluded_pvd"
+
+
+def test_structure_discriminator_and_conditional_components_are_part_of_r0() -> None:
+    fields = experiment_fields(load_field_source())
+    r0_fields = {field["key"]: field for field in fields if field.get("r0")}
+
+    assert len(r0_fields) == 18
+    assert r0_fields["structure_type"]["requirement"]["level"] == "required"
+    assert r0_fields["components"]["requirement"]["level"] == "conditional_required"

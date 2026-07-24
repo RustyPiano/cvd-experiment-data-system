@@ -17,6 +17,12 @@ down_revision: str | None = None
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
+VERSION_TABLES = (
+    "material_lot_versions",
+    "setup_versions",
+    "instrument_versions",
+)
+
 
 def _payload_type() -> sa.JSON:
     return sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql")
@@ -36,6 +42,84 @@ def _timestamps() -> tuple[sa.Column, sa.Column]:
             nullable=False,
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
+    )
+
+
+def _create_version_immutability_guards() -> None:
+    dialect = op.get_bind().dialect.name
+    if dialect == "postgresql":
+        op.execute(
+            """
+            CREATE FUNCTION reject_v2_version_update()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                RAISE EXCEPTION 'v2 entity version rows are immutable';
+                RETURN OLD;
+            END;
+            $$
+            """
+        )
+        for table_name in VERSION_TABLES:
+            op.execute(
+                f"""
+                CREATE TRIGGER trg_{table_name}_immutable
+                BEFORE UPDATE OR DELETE ON {table_name}
+                FOR EACH ROW EXECUTE FUNCTION reject_v2_version_update()
+                """
+            )
+    elif dialect == "sqlite":
+        for table_name in VERSION_TABLES:
+            op.execute(
+                f"""
+                CREATE TRIGGER trg_{table_name}_immutable
+                BEFORE UPDATE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'v2 entity version rows are immutable');
+                END
+                """
+            )
+            op.execute(
+                f"""
+                CREATE TRIGGER trg_{table_name}_immutable_delete
+                BEFORE DELETE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'v2 entity version rows are immutable');
+                END
+                """
+            )
+
+
+def _create_postgres_search_indexes() -> None:
+    if op.get_bind().dialect.name != "postgresql":
+        return
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    op.execute(
+        """
+        CREATE INDEX ix_experiment_runs_run_code_trgm
+        ON experiment_runs USING gin (run_code gin_trgm_ops)
+        """
+    )
+    op.execute(
+        """
+        CREATE INDEX ix_experiment_runs_material_system_trgm
+        ON experiment_runs USING gin (material_system gin_trgm_ops)
+        """
+    )
+    op.execute(
+        """
+        CREATE INDEX ix_experiment_runs_objective_trgm
+        ON experiment_runs USING gin (objective gin_trgm_ops)
+        """
+    )
+    op.execute(
+        """
+        CREATE INDEX ix_module_payloads_operator_trgm
+        ON experiment_module_payloads
+        USING gin ((payload_json ->> 'operator') gin_trgm_ops)
+        WHERE module_key = 'basic_info'
+        """
     )
 
 
@@ -294,6 +378,10 @@ def upgrade() -> None:
         sa.Column("characterization_record_id", sa.Uuid(), nullable=True),
         sa.Column("observed_phenomena", payload_type, nullable=True),
         sa.Column("detected_phase_stacking", sa.Text(), nullable=True),
+        sa.Column("layer_count", sa.Integer(), nullable=True),
+        sa.Column("coverage_percent", sa.Float(), nullable=True),
+        sa.Column("domain_size_um", sa.Float(), nullable=True),
+        sa.Column("nucleation_density_cm2", sa.Float(), nullable=True),
         sa.Column("measured_layers_coverage", sa.Text(), nullable=True),
         sa.Column("domain_nucleation_continuity", sa.Text(), nullable=True),
         sa.Column("key_spectral_metrics", payload_type, nullable=True),
@@ -313,9 +401,12 @@ def upgrade() -> None:
     op.create_table(
         "file_assets",
         sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("experiment_run_id", sa.Uuid(), nullable=False),
+        sa.Column("experiment_run_id", sa.Uuid(), nullable=True),
         sa.Column("sample_id", sa.Uuid(), nullable=True),
         sa.Column("characterization_record_id", sa.Uuid(), nullable=True),
+        sa.Column("entity_type", sa.String(length=32), nullable=True),
+        sa.Column("entity_id", sa.Uuid(), nullable=True),
+        sa.Column("entity_version", sa.Integer(), nullable=True),
         sa.Column("uploaded_by_id", sa.Uuid(), nullable=False),
         sa.Column("deleted_by_id", sa.Uuid(), nullable=True),
         sa.Column("original_name", sa.String(length=255), nullable=False),
@@ -343,11 +434,45 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["uploaded_by_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("storage_path"),
+        sa.CheckConstraint(
+            """
+            (
+                experiment_run_id IS NOT NULL
+                AND entity_type IS NULL
+                AND entity_id IS NULL
+                AND entity_version IS NULL
+            )
+            OR
+            (
+                experiment_run_id IS NULL
+                AND (
+                    (
+                        entity_type IS NULL
+                        AND entity_id IS NULL
+                        AND entity_version IS NULL
+                    )
+                    OR
+                    (
+                        entity_type IS NOT NULL
+                        AND entity_id IS NOT NULL
+                        AND entity_version >= 1
+                    )
+                )
+            )
+            """,
+            name="ck_file_assets_single_scope",
+        ),
+        sa.CheckConstraint(
+            "entity_type IS NULL OR entity_type IN ('material_lot', 'setup', 'instrument')",
+            name="ck_file_assets_entity_type",
+        ),
     )
     for column, unique in (
         ("asset_role", False),
         ("characterization_record_id", False),
         ("deleted_by_id", False),
+        ("entity_id", False),
+        ("entity_type", False),
         ("experiment_run_id", False),
         ("file_category", False),
         ("file_kind", False),
@@ -357,6 +482,13 @@ def upgrade() -> None:
         ("uploaded_by_id", False),
     ):
         op.create_index(f"ix_file_assets_{column}", "file_assets", [column], unique=unique)
+    op.create_index(
+        "ix_file_assets_entity_binding",
+        "file_assets",
+        ["entity_type", "entity_id", "entity_version"],
+    )
+    _create_version_immutability_guards()
+    _create_postgres_search_indexes()
 
 
 def downgrade() -> None:
@@ -379,5 +511,7 @@ def downgrade() -> None:
         op.drop_table(table_name)
 
     bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("DROP FUNCTION IF EXISTS reject_v2_version_update()")
     sa.Enum("draft", "locked", "invalid", name="experiment_status").drop(bind, checkfirst=True)
     sa.Enum("admin", "member", name="user_role").drop(bind, checkfirst=True)

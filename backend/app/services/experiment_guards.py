@@ -47,6 +47,31 @@ def get_owned_experiment(
     return experiment
 
 
+def get_locked_visible_experiment(
+    experiments: ExperimentRepository,
+    experiment_id: UUID,
+    current_user: User,
+    *,
+    schema_version: str | None = None,
+) -> ExperimentRun:
+    """Lock a run row, then re-evaluate the same visibility rule on fresh state."""
+    experiment = experiments.get_by_id_for_update(experiment_id)
+    if (
+        experiment is None
+        or (schema_version is not None and experiment.schema_version != schema_version)
+        or (
+            current_user.role != UserRole.ADMIN
+            and experiment.owner_id != current_user.id
+            and experiment.status != ExperimentStatus.LOCKED
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Experiment not found",
+        )
+    return experiment
+
+
 def ensure_process_editable(experiment: ExperimentRun) -> None:
     """工艺域在 locked/invalid 均只读。"""
     if experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:

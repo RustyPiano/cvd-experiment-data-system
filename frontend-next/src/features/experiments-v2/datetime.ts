@@ -4,10 +4,18 @@ export function toIsoDateTime(local: string): string {
   const trimmed = local.trim()
   if (trimmed === '') return trimmed
   const date = new Date(trimmed)
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed) &&
-    !Number.isNaN(date.getTime())
-    ? `${trimmed}:00`
-    : trimmed
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed) ||
+    Number.isNaN(date.getTime())
+  ) {
+    return trimmed
+  }
+  const offsetMinutes = -date.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const absolute = Math.abs(offsetMinutes)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const offset = `${sign}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}`
+  return `${trimmed}:00${offset}`
 }
 
 export function isoToDateTimeLocal(iso: string): string {

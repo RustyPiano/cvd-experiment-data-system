@@ -9,9 +9,11 @@ from app.schemas.generated.v2_module_payload import (
     V2_MODULE_PAYLOAD_MODELS,
     V2_MODULE_PAYLOAD_SCHEMA_VERSION,
 )
+from app.schemas.v2 import MeasuredProductMetrics, V2ResultWrite
 from app.services.v2_field_source import (
     DEFAULT_FIELD_SOURCE,
     SCHEMA_VERSION,
+    canonical_option_value,
     entity_fields,
     experiment_fields,
     load_field_source,
@@ -71,6 +73,10 @@ def build_v2_json_schema() -> dict[str, Any]:
         module_schema = model.model_json_schema()
         module_schema["$id"] = f"{SCHEMA_BASE_URI}/{module_key}.schema.json"
         modules[module_key] = module_schema
+    result_models = {
+        "unified_result_write": V2ResultWrite.model_json_schema(),
+        "measured_product_metrics": MeasuredProductMetrics.model_json_schema(),
+    }
     return {
         "$schema": JSON_SCHEMA_DIALECT,
         "standard_id": STANDARD_ID,
@@ -79,6 +85,7 @@ def build_v2_json_schema() -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "module_payload_schema_version": V2_MODULE_PAYLOAD_SCHEMA_VERSION,
         "modules": modules,
+        "result_models": result_models,
     }
 
 
@@ -102,6 +109,12 @@ def _field_dictionary_row(
     field: dict[str, Any],
 ) -> dict[str, Any]:
     requirement = field["requirement"]
+    condition = requirement.get("condition")
+    if condition is not None:
+        condition = {
+            **condition,
+            "value": canonical_option_value(condition.get("value"), doc),
+        }
     return {
         "source_part": source_part,
         "module": field["module"],
@@ -110,8 +123,9 @@ def _field_dictionary_row(
         "label": field["label"],
         "label_en": field["label_en"],
         "r0": bool(field.get("r0")),
-        "condition": requirement.get("condition"),
+        "condition": condition,
         "requirement": requirement["level"],
+        "validation": field.get("validation"),
         "unit": None if field.get("unit") == "—" else field.get("unit"),
         "options": None if field.get("options") == "—" else field.get("options"),
     }

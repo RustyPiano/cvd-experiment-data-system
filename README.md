@@ -14,7 +14,7 @@
 4. 锁定工艺时，系统按衬底在同一事务中生成 `growth` 样品。管理员可将炉次解锁回 `draft`。
 5. `locked` 只锁工艺数据；全组成员仍可为可见炉次补录直接观察、表征结果和附件，也可以确认“暂未表征”。新增结果会自动清除该确认。
 6. 样品类型为 `growth / derived / control`。样品保留来源快照和父子谱系；实验与文件不做物理删除。
-7. 炉次支持组合筛选、操作记录、嵌套 JSON 导出和七表关系型 CSV ZIP 导出；界面支持中英文切换。
+7. 炉次支持组合筛选、操作记录和嵌套 JSON 导出；批量 ZIP 含七张业务 CSV、模块明细、字段字典、schema manifest 与权威无损 `records.json`；界面支持中英文切换。
 
 产品规格见 [`docs/product/run-first-workflow-and-copy-design.md`](docs/product/run-first-workflow-and-copy-design.md)，浏览器验收结果见 [`docs/operations/e2e-run-first-report-2026-07-17.md`](docs/operations/e2e-run-first-report-2026-07-17.md)。
 
@@ -111,7 +111,7 @@ bun run build
 字段源校验：
 
 ```bash
-python3 docs/standard/check_field_source.py
+uv run --project backend python docs/standard/check_field_source.py
 ```
 
 字段变更只能修改 `docs/standard/field-source.yaml`，随后按 [`AGENTS.md`](AGENTS.md) 的生成顺序更新后端模型、JSON Schema、前端元数据和 xlsx；不要手改生成物。
@@ -123,6 +123,8 @@ python3 docs/standard/check_field_source.py
 - 字段标准：[`docs/standard/field-source.yaml`](docs/standard/field-source.yaml)
 - 生产切换：[`docs/engineering/v2-single-track-plan.md`](docs/engineering/v2-single-track-plan.md)
 - 端到端检查：[`docs/operations/e2e-walkthrough-checklist.md`](docs/operations/e2e-walkthrough-checklist.md)
+- 最新验收：[`docs/operations/e2e-comprehensive-hardening-report-2026-07-24.md`](docs/operations/e2e-comprehensive-hardening-report-2026-07-24.md)
+- 全库整改：[`docs/reviews/2026-07-24-comprehensive-audit-remediation.md`](docs/reviews/2026-07-24-comprehensive-audit-remediation.md)
 
 生产使用 `docker-compose.prod.yml`，共享 1Panel PostgreSQL，并由 openresty 反向代理。当前发布硬顺序为：
 

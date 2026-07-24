@@ -62,10 +62,11 @@ export function EntityReferenceSelect({
   const viewerKey = session.currentUser?.id ?? 'anonymous'
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
+  const [createDirty, setCreateDirty] = useState(false)
   const config = entityConfigs[kind]
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
   const queryKey = ['v2-entity', kind]
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: [...queryKey, viewerKey],
     queryFn: () => listEntities(kind, token),
     enabled: session.isAuthenticated && !!token,
@@ -75,6 +76,7 @@ export function EntityReferenceSelect({
     mutationFn: (payload: EntityVersionPayload) =>
       createEntity(kind, payload, token),
     onSuccess: async (entity) => {
+      setCreateDirty(false)
       setCreateOpen(false)
       onChange(entity.id, entity)
       toast.success(t('entityLibrary.form.createSuccess'))
@@ -85,6 +87,18 @@ export function EntityReferenceSelect({
         resolveErrorMessage(error, t('entityLibrary.form.submitError')),
       ),
   })
+  const requestCreateOpen = (open: boolean) => {
+    if (createMutation.isPending) return
+    if (
+      !open &&
+      createDirty &&
+      !window.confirm(t('entityLibrary.form.discardChanges'))
+    ) {
+      return
+    }
+    setCreateDirty(false)
+    setCreateOpen(open)
+  }
 
   return (
     <>
@@ -117,22 +131,29 @@ export function EntityReferenceSelect({
             name: entityName,
           })}
           disabled={disabled}
-          onClick={() => setCreateOpen(true)}
+          onClick={() => requestCreateOpen(true)}
         >
           <Plus />
         </Button>
       </div>
-      {!isLoading && entities.length === 0 ? (
+      {isError ? (
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <span>{t('experimentsV2.reference.loadError')}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void refetch()}
+          >
+            {t('experimentsV2.reference.retry')}
+          </Button>
+        </div>
+      ) : !isLoading && entities.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           {t('experimentsV2.reference.empty')}
         </p>
       ) : null}
-      <Dialog
-        open={createOpen}
-        onOpenChange={(open) => {
-          if (!createMutation.isPending) setCreateOpen(open)
-        }}
-      >
+      <Dialog open={createOpen} onOpenChange={requestCreateOpen}>
         <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -150,7 +171,8 @@ export function EntityReferenceSelect({
                 nextVersion={1}
                 submitting={createMutation.isPending}
                 onSubmit={(payload) => createMutation.mutate(payload)}
-                onCancel={() => setCreateOpen(false)}
+                onCancel={() => requestCreateOpen(false)}
+                onDirtyChange={setCreateDirty}
               />
             ) : null}
           </div>

@@ -51,7 +51,9 @@ function cjkLiterals(path: string): string[] {
         ? node.getText(source)
         : ''
     if (/\p{Script=Han}/u.test(text)) {
-      const { line } = source.getLineAndCharacterOfPosition(node.getStart(source))
+      const { line } = source.getLineAndCharacterOfPosition(
+        node.getStart(source),
+      )
       failures.push(`${relative(SRC, path)}:${line + 1} ${text}`)
     }
     ts.forEachChild(node, visit)

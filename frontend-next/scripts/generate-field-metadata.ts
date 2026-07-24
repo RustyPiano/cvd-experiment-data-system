@@ -29,6 +29,17 @@ interface RawRequirement {
   level: string
   condition?: RawCondition
 }
+interface RawValidation {
+  type?: string
+  ge?: number
+  gt?: number
+  le?: number
+  lt?: number
+  require_value?: boolean
+  item_required?: string[]
+  finite_value?: boolean
+  [key: string]: unknown
+}
 interface RawField {
   module: string
   label: string
@@ -45,6 +56,7 @@ interface RawField {
   help?: string
   help_en?: string
   ui?: { visibility_gated?: boolean }
+  validation?: RawValidation
 }
 interface RawSection {
   title: string
@@ -87,6 +99,7 @@ interface FieldMetadata {
   input: string
   unit: string | null
   options: string | null
+  validation: RawValidation | null
   requirement: {
     raw: string
     level: string
@@ -123,6 +136,7 @@ function toFieldMetadata(
     input: field.input,
     unit: dashToNull(field.unit),
     options: dashToNull(field.options),
+    validation: field.validation ?? null,
     requirement: { raw: req.raw, level: req.level, condition },
     r0: Boolean(field.r0),
     group: field.group ?? null,
@@ -205,16 +219,12 @@ const stageTypes: StageType[] = doc.stage_types.types.map((type) => {
   return out
 })
 
-function preferredOptionLabels(
-  language: 'zh' | 'en',
-): Record<string, string> {
+function preferredOptionLabels(language: 'zh' | 'en'): Record<string, string> {
   const labels: Record<string, string> = {}
   for (const [labelZh, code] of Object.entries(doc.option_codes)) {
     if (labels[code] !== undefined) continue
     labels[code] =
-      language === 'zh'
-        ? labelZh
-        : (doc.option_labels_en[labelZh] ?? labelZh)
+      language === 'zh' ? labelZh : (doc.option_labels_en[labelZh] ?? labelZh)
   }
   return labels
 }
@@ -247,6 +257,24 @@ export interface FieldRequirement {
   condition: FieldCondition | null
 }
 
+export interface FieldValidation {
+  /** 数值必须为整数；未指定时按有限浮点数处理。 */
+  type?: 'integer' | string
+  /** 含端点/不含端点的数值上下界。 */
+  ge?: number
+  gt?: number
+  le?: number
+  lt?: number
+  /** 复合字段除选项外还必须提供 value。 */
+  require_value?: boolean
+  /** 数组条目必须具备的键。 */
+  item_required?: string[]
+  /** 数组条目的 value 必须为有限数。 */
+  finite_value?: boolean
+  /** 保留单一源未来增加的校验属性，不在生成时丢弃。 */
+  [key: string]: unknown
+}
+
 export interface FieldMetadata {
   key: string
   labelZh: string
@@ -257,6 +285,8 @@ export interface FieldMetadata {
   unit: string | null
   /** 原始可选项字符串（未拆结构化词表，P3 才做） */
   options: string | null
+  /** 字段校验约束（原样透传自 field-source.yaml；无约束为 null） */
+  validation: FieldValidation | null
   requirement: FieldRequirement
   /** 是否属 R0 最小可复现集 */
   r0: boolean

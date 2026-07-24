@@ -4,8 +4,12 @@ export const common = {
   actions: {
     save: 'Save',
     cancel: 'Cancel',
+    close: 'Close',
     delete: 'Delete',
     confirm: 'Confirm',
+  },
+  app: {
+    title: 'CVD Lab · Experiment Data System',
   },
   language: {
     zh: '中文',
@@ -17,6 +21,41 @@ export const common = {
   },
   validation: {
     required: 'This field is required',
+    spaceGroupRange: 'Enter an integer from 1 to 230',
+    finiteNumber: 'Enter a finite number',
+    integerNumber: 'Enter an integer',
+    numberGe: 'Enter a value of at least {{limit}}',
+    numberGt: 'Enter a value greater than {{limit}}',
+    numberLe: 'Enter a value at most {{limit}}',
+    numberLt: 'Enter a value below {{limit}}',
+    numericValueRequired: 'Enter a number, not only a type',
+    structuredField: 'Complete the named values with valid numbers',
+  },
+  structuredFields: {
+    select: 'Select',
+    material: 'Material',
+    quartzBoat: 'Quartz boat',
+    aluminaBoat: 'Alumina boat',
+    otherMaterial: 'Other material',
+    length: 'Length (mm)',
+    width: 'Width (mm)',
+    height: 'Height (mm)',
+    diameter: 'Diameter (mm)',
+    outerDiameter: 'Outer diameter (mm)',
+    wallThickness: 'Wall thickness (mm)',
+    thickness: 'Thickness (mm)',
+    placement: 'Placement',
+    faceUp: 'Face up',
+    faceDown: 'Face down',
+    tilted: 'Tilted',
+    upright: 'Upright',
+    otherPlacement: 'Other',
+    zoneIndex: 'Zone number',
+    temperature: 'Temperature (°C)',
+    distance: 'Distance (mm)',
+  },
+  states: {
+    loading: 'Loading',
   },
   auth: {
     brand: { subtitle: 'Experiment data collection system' },
@@ -70,6 +109,8 @@ export const common = {
     roles: { admin: 'Administrator', member: 'Member' },
     signedOut: 'Signed out',
     logout: 'Sign out',
+    skipToContent: 'Skip to main content',
+    toggleSidebar: 'Toggle navigation',
   },
   routeBoundaries: {
     notFound: {
@@ -225,6 +266,7 @@ export const common = {
     },
     detail: {
       currentVersion: 'Current version',
+      viewingVersion: 'Viewing version',
       versionHistory: 'Version history',
       versionLabel: 'v{{version}}',
       createdAt: 'Created at',
@@ -249,9 +291,29 @@ export const common = {
       createSuccess: 'Created (v1)',
       newVersionSuccess: 'Saved as v{{version}}',
       submitError: 'Failed to save',
+      discardChanges: 'Discard the unsaved form changes?',
       historicalVersionPrefill:
         'The new version is prefilled from the latest version, not the historical version currently shown.',
       fieldOptions: '{{label}} options',
+      uploadFile: 'Upload {{label}}',
+      uploadingFile: 'Uploading…',
+      download: 'Download',
+      downloadFile: 'Download {{filename}}',
+      deleteUpload: 'Delete',
+      deleteFile: 'Delete {{filename}}',
+      fileNote: 'Note for {{label}}',
+      fileNoteDisplay: 'Note: {{note}}',
+      fileFallbackName: 'Attachment {{id}}',
+      unboundFileHint:
+        'This upload will be bound when the entity version is saved.',
+      fileUploadError: 'File upload failed',
+      fileDownloadError: 'File download failed',
+      fileDeleteError: 'Could not delete the unsaved upload',
+      fileLoadError:
+        'Could not load file details. Retry by reopening the form.',
+      invalidFileReference: 'Select and upload a valid file',
+      discardFileCleanupError:
+        'The unsaved upload could not be deleted. The form remains open so you can retry.',
     },
   },
   samples: {
@@ -357,6 +419,8 @@ export const common = {
       success: 'Status updated',
       error: 'Failed to update status',
       missingTitle: 'Complete these fields first:',
+      saveBeforeLock:
+        'Process changes are still unsaved. Save the affected sections before locking.',
       requirement: { required: 'Required', r0: 'Required before locking' },
       invalidateTitle: 'Invalidate run',
       invalidateDescription:
@@ -377,6 +441,7 @@ export const common = {
       subtitle:
         'Save process details section by section. Sample results remain editable after locking.',
       loadError: 'Failed to load run',
+      retry: 'Retry',
     },
     export: {
       run: 'Export this run',
@@ -415,6 +480,7 @@ export const common = {
       empty: 'No runs yet — use “Start recording a run” in the top-right.',
       filteredEmpty: 'No runs match the current filters.',
       loadError: 'Failed to load',
+      retry: 'Retry',
       edit: 'View',
       export: 'Export current results',
       exportSuccess: 'Export started',
@@ -488,6 +554,8 @@ export const common = {
     reference: {
       placeholder: 'Select',
       empty: 'No records are available in reference data.',
+      loadError: 'Failed to load reference data',
+      retry: 'Retry',
       goToLibrary: 'Add one in reference data',
       create: 'Add {{name}}',
     },
@@ -505,18 +573,20 @@ export const common = {
           intrinsic:
             'Intrinsic: enter only the target material formula, such as MoS2; do not add composition rows.',
           doped:
-            'Doped: use “dopant:matrix”, such as Nb:MoS2. Add two composition rows: MoS2 as Matrix and Nb as Dopant. Enter nominal concentration (at%) when known and leave layer order blank.',
+            'Doped: use “dopant:matrix”, such as Nb:MoS2. Add two composition rows: MoS2 as Matrix and Nb as Dopant. When known, enter a nominal concentration above 0 and below 100 at%, and leave layer order blank.',
           alloy:
             'Alloy: enter the nominal stoichiometry, such as Mo0.5W0.5S2. Add one row for each alloy element or component and select Alloy component. Enter nominal concentration (at%) when known and leave layer order blank.',
           vertical:
-            'Vertical heterostructure: use “bottom/top”, such as MoS2/WS2. Add one row per layer, select Bottom layer or Top layer, and number layers from the substrate upward starting at 1. Leave concentration blank.',
+            'Vertical heterostructure: use “bottom/top”, such as MoS2/WS2. Add one row per layer, select Bottom layer or Top layer, and number layers from the substrate upward starting at 1; every bottom-layer order must precede every top-layer order. Leave concentration blank.',
           lateral:
             'Lateral heterostructure: join domains with “-”, such as MoS2-WS2. Add one row per domain and select Lateral domain. Leave concentration and layer order blank.',
           other:
             'Other: enter the group-approved formula with regular digits and add one row per component. Fill only applicable concentration or layer order values and explain the relationship in Notes.',
         },
-        displayPreview: 'Display string preview',
-        displayNote: 'Consistent with the backend formula_display rule.',
+        displayPreview: 'Display string preview:',
+        displayNote:
+          'Preview only; the component rows remain the authoritative data.',
+        spaceGroupSymbol: 'Hermann–Mauguin symbol: {{symbol}}',
       },
       equipment: {
         title: 'Experimental setup',
@@ -586,6 +656,7 @@ export const common = {
         resultUpdated: 'Result updated',
         newAttachments: 'Attachments (optional)',
         selectedAttachmentCount: '{{count}} attachment(s) selected',
+        discardChanges: 'Discard the unsaved result changes?',
         resultSavedAttachmentUploadError:
           'The result was saved, but some attachments failed to upload. Upload them again from the result card.',
         editResultLabel: 'Edit result',
@@ -599,6 +670,14 @@ export const common = {
         measuredLayersCoverage: 'Layers and coverage',
         domainNucleationContinuity: 'Domains, nucleation, and continuity',
         keySpectralMetrics: 'Key spectral metrics',
+        addSpectralMetric: 'Add spectral metric',
+        removeSpectralMetric: 'Remove spectral metric',
+        metricCode: 'Metric code',
+        metricValue: 'Value',
+        metricUnit: 'Unit',
+        invalidMeasurement: 'Enter a value within the allowed range',
+        invalidSpectralMetric:
+          'Each metric needs a lowercase code, finite value, and unit.',
         roles: {
           growth: 'Growth sample',
           derived: 'Derived sample',

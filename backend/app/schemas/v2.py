@@ -6,7 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.services.v2_field_source import validate_chemical_formula
+from app.services.v2_field_source import normalize_offset_datetime, validate_chemical_formula
+from app.services.v2_result_evidence import has_measured_product_evidence
 
 
 class V2EntityVersionPayload(BaseModel):
@@ -48,6 +49,11 @@ class V2ExperimentCreate(BaseModel):
     )
     chemical_formula: str | None = Field(default=None, max_length=64)
     objective: str | None = None
+
+    @field_validator("started_at", mode="before")
+    @classmethod
+    def normalize_started_at(cls, value: object) -> datetime:
+        return normalize_offset_datetime(value)
 
     @field_validator("chemical_formula", mode="before")
     @classmethod
@@ -141,7 +147,7 @@ class CharacterizationRecordUpdate(BaseModel):
     method_instrument: str | None = Field(default=None, min_length=1, max_length=128)
     test_conditions: str | None = None
     raw_data: dict[str, Any] | None = None
-    attrs: dict[str, Any] | None = None
+    attrs: dict[str, Any] = Field(default_factory=dict)
 
 
 class CharacterizationRecordRead(BaseModel):
@@ -166,24 +172,71 @@ class CharacterizationRecordListResponse(BaseModel):
     total: int
 
 
-class MeasuredProductCreate(BaseModel):
-    characterization_record_id: UUID | None = None
+class SpectralMetric(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    metric_code: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
+    value: float = Field(strict=True, allow_inf_nan=False)
+    unit: str = Field(min_length=1, max_length=32)
+
+    @field_validator("unit")
+    @classmethod
+    def validate_unit(cls, value: str) -> str:
+        if not (normalized := value.strip()):
+            raise ValueError("unit cannot be blank")
+        return normalized
+
+
+class MeasuredProductMetrics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     observed_phenomena: list[str] | None = None
     detected_phase_stacking: str | None = None
-    measured_layers_coverage: str | None = None
-    domain_nucleation_continuity: str | None = None
-    key_spectral_metrics: dict[str, Any] | None = None
+    layer_count: int | None = Field(default=None, strict=True, ge=0)
+    coverage_percent: float | None = Field(
+        default=None,
+        strict=True,
+        ge=0,
+        le=100,
+        allow_inf_nan=False,
+    )
+    domain_size_um: float | None = Field(
+        default=None,
+        strict=True,
+        gt=0,
+        allow_inf_nan=False,
+    )
+    nucleation_density_cm2: float | None = Field(
+        default=None,
+        strict=True,
+        ge=0,
+        allow_inf_nan=False,
+    )
+    key_spectral_metrics: list[SpectralMetric] | None = None
+
+    @field_validator("detected_phase_stacking")
+    @classmethod
+    def validate_detected_phase_stacking(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not (normalized := value.strip()):
+            raise ValueError("detected_phase_stacking cannot be blank")
+        return normalized
+
+
+class MeasuredProductCreate(MeasuredProductMetrics):
+    characterization_record_id: UUID | None = None
     attrs: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def require_evidence(self) -> MeasuredProductCreate:
+        if not has_measured_product_evidence(self.model_dump()):
+            raise ValueError("Measured product requires at least one evidence field")
+        return self
 
-class MeasuredProductUpdate(BaseModel):
-    characterization_record_id: UUID | None = None
-    observed_phenomena: list[str] | None = None
-    detected_phase_stacking: str | None = None
-    measured_layers_coverage: str | None = None
-    domain_nucleation_continuity: str | None = None
-    key_spectral_metrics: dict[str, Any] | None = None
-    attrs: dict[str, Any] | None = None
+
+class MeasuredProductUpdate(MeasuredProductMetrics):
+    attrs: dict[str, Any] = Field(default_factory=dict)
 
 
 class MeasuredProductRead(BaseModel):
@@ -194,9 +247,13 @@ class MeasuredProductRead(BaseModel):
     characterization_record_id: UUID | None
     observed_phenomena: list[str] | None
     detected_phase_stacking: str | None
+    layer_count: int | None
+    coverage_percent: float | None
+    domain_size_um: float | None
+    nucleation_density_cm2: float | None
     measured_layers_coverage: str | None
     domain_nucleation_continuity: str | None
-    key_spectral_metrics: dict[str, Any] | None
+    key_spectral_metrics: list[SpectralMetric] | dict[str, Any] | None
     attrs: dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -207,17 +264,12 @@ class MeasuredProductListResponse(BaseModel):
     total: int
 
 
-class V2ResultWrite(BaseModel):
+class V2ResultWrite(MeasuredProductMetrics):
     kind: Literal["direct_observation", "characterization"]
     instrument_id: UUID | None = None
     instrument_version: int | None = Field(default=None, ge=1)
     method_instrument: str | None = Field(default=None, max_length=128)
     test_conditions: str | None = None
-    observed_phenomena: list[str] | None = None
-    detected_phase_stacking: str | None = None
-    measured_layers_coverage: str | None = None
-    domain_nucleation_continuity: str | None = None
-    key_spectral_metrics: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def validate_kind_fields(self) -> V2ResultWrite:
@@ -233,8 +285,10 @@ class V2ResultWrite(BaseModel):
                     self.method_instrument,
                     self.test_conditions,
                     self.detected_phase_stacking,
-                    self.measured_layers_coverage,
-                    self.domain_nucleation_continuity,
+                    self.layer_count,
+                    self.coverage_percent,
+                    self.domain_size_um,
+                    self.nucleation_density_cm2,
                     self.key_spectral_metrics,
                 )
             ):
@@ -256,9 +310,13 @@ class V2ResultRead(BaseModel):
     test_conditions: str | None
     observed_phenomena: list[str] | None
     detected_phase_stacking: str | None
+    layer_count: int | None
+    coverage_percent: float | None
+    domain_size_um: float | None
+    nucleation_density_cm2: float | None
     measured_layers_coverage: str | None
     domain_nucleation_continuity: str | None
-    key_spectral_metrics: dict[str, Any] | None
+    key_spectral_metrics: list[SpectralMetric] | dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
 

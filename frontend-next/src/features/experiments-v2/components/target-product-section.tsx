@@ -1,5 +1,5 @@
 // §1b 目标产物：结构类型下拉（判别器）驱动 components[] 编辑器条件必填；
-// 化学式带元素校验；显示串预览复刻后端 formula_display 规则。
+// 化学式带元素校验；显示串仅作前端即时预览。
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
@@ -17,6 +17,7 @@ import {
 } from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { renderFormulaDisplay } from '../formula'
+import { hermannMauguinSymbol } from '../space-groups'
 import { FieldControl } from './field-control'
 import { FieldLabel } from './field-bits'
 import { ComponentsEditor } from './components-editor'
@@ -55,6 +56,7 @@ export function TargetProductSection({
     componentsRequired &&
     !components.some(isNonEmptyComponent)
   const guide = structureGuideKey(structureType)
+  const spaceGroupSymbol = hermannMauguinSymbol(values['bulk_space_group'])
 
   const displayPreview = useMemo(() => {
     const chemicalFormula = moduleValueAsString(values['chemical_formula'])
@@ -67,6 +69,7 @@ export function TargetProductSection({
 
   return (
     <ModuleCard
+      id="module-target_product"
       index="§1b"
       title={t('experimentsV2.sections.targetProduct.title')}
       subtitle={t('experimentsV2.sections.targetProduct.subtitle')}
@@ -94,6 +97,13 @@ export function TargetProductSection({
               onChange={(value) => onChange(field.key, value)}
               disabled={disabled}
               showError={showErrors}
+              hint={
+                field.key === 'bulk_space_group' && spaceGroupSymbol
+                  ? t('experimentsV2.sections.targetProduct.spaceGroupSymbol', {
+                      symbol: spaceGroupSymbol,
+                    })
+                  : undefined
+              }
             />
           ))}
       </div>
@@ -103,9 +113,7 @@ export function TargetProductSection({
           <p className="font-medium text-foreground">
             {t('experimentsV2.sections.targetProduct.guideTitle')}
           </p>
-          <p className="mt-1 text-muted-foreground">
-            {t(guide)}
-          </p>
+          <p className="mt-1 text-muted-foreground">{t(guide)}</p>
         </div>
       ) : null}
 
@@ -122,6 +130,7 @@ export function TargetProductSection({
             onChange={onComponentsChange}
             disabled={disabled}
             showError={componentsMissing}
+            structureType={structureType}
           />
         </div>
       ) : null}
@@ -129,7 +138,7 @@ export function TargetProductSection({
       {displayPreview ? (
         <div className="rounded-md bg-muted/50 p-3 text-sm">
           <span className="text-muted-foreground">
-            {t('experimentsV2.sections.targetProduct.displayPreview')}：
+            {t('experimentsV2.sections.targetProduct.displayPreview')}
           </span>
           <span className="font-mono font-medium text-foreground">
             {displayPreview}

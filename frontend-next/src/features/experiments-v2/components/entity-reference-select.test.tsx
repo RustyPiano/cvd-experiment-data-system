@@ -25,12 +25,24 @@ vi.mock('@/features/auth/use-auth', () => ({
 vi.mock('@/features/entity-library/entity-form', () => ({
   EntityForm: ({
     onSubmit,
+    onCancel,
+    onDirtyChange,
   }: {
     onSubmit: (payload: Record<string, string>) => void
+    onCancel: () => void
+    onDirtyChange?: (dirty: boolean) => void
   }) => (
-    <button type="button" onClick={() => onSubmit({ setup_code: 'SET-1' })}>
-      Save inline reference
-    </button>
+    <>
+      <button type="button" onClick={() => onSubmit({ setup_code: 'SET-1' })}>
+        Save inline reference
+      </button>
+      <button type="button" onClick={() => onDirtyChange?.(true)}>
+        Dirty inline reference
+      </button>
+      <button type="button" onClick={onCancel}>
+        Cancel inline reference
+      </button>
+    </>
   ),
 }))
 
@@ -74,4 +86,59 @@ it('creates a reference in place and selects it immediately', async () => {
     ),
   )
   expect(onChange).toHaveBeenCalledWith('setup-1', entity)
+})
+
+it('keeps an unsaved inline entity form open when the user cancels discard', async () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const user = userEvent.setup()
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect kind="setup" value="" onChange={vi.fn()} />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  await user.click(
+    await screen.findByRole('button', { name: /Add Experimental setup/i }),
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Dirty inline reference' }),
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Cancel inline reference' }),
+  )
+
+  expect(confirm).toHaveBeenCalled()
+  expect(
+    screen.getByRole('heading', { name: /New Experimental setup/i }),
+  ).toBeInTheDocument()
+  confirm.mockRestore()
+})
+
+it('shows a retryable error instead of treating a failed query as an empty library', async () => {
+  entityApi.listEntities.mockRejectedValueOnce(new Error('offline'))
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const user = userEvent.setup()
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect kind="setup" value="" onChange={vi.fn()} />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  expect(
+    await screen.findByText('Failed to load reference data'),
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByText('No records are available in reference data.'),
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Retry' }))
+  await waitFor(() => expect(entityApi.listEntities).toHaveBeenCalledTimes(2))
 })

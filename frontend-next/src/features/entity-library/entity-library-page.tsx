@@ -9,6 +9,7 @@ import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { localizedValue } from '@/shared/field-i18n'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { LoadingState } from '@/shared/ui/loading-state'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -35,8 +36,13 @@ import {
 import type { EntityKind } from './config'
 import { entityConfigs, entityRoutes } from './config'
 import { createEntity, listEntities } from './api'
-import type { EntityVersionPayload, V2EntityRead } from './api'
+import type {
+  EntityFileAssetRead,
+  EntityVersionPayload,
+  V2EntityRead,
+} from './api'
 import { EntityForm } from './entity-form'
+import { cleanupPendingEntityFiles } from './entity-file-cleanup'
 
 function displayValue(entity: V2EntityRead, key: string): string {
   const raw = entity.latest_version?.data?.[key]
@@ -44,7 +50,7 @@ function displayValue(entity: V2EntityRead, key: string): string {
 }
 
 export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const queryClient = useQueryClient()
   const { session } = useAuth()
   const token = session.accessToken || ''
@@ -53,6 +59,12 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [createDirty, setCreateDirty] = useState(false)
+  const [createPendingFiles, setCreatePendingFiles] = useState<
+    EntityFileAssetRead[]
+  >([])
+  const [discardingCreate, setDiscardingCreate] = useState(false)
+  const [createUploading, setCreateUploading] = useState(false)
 
   const queryKey = ['v2-entity', kind]
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -66,6 +78,9 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
       createEntity(kind, payload, token),
     onSuccess: async () => {
       toast.success(t('entityLibrary.form.createSuccess'))
+      setCreateDirty(false)
+      setCreatePendingFiles([])
+      setCreateUploading(false)
       setCreateOpen(false)
       await queryClient.invalidateQueries({ queryKey })
     },
@@ -75,6 +90,30 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
       )
     },
   })
+  const requestCreateOpen = async (open: boolean) => {
+    if (createMutation.isPending || discardingCreate || createUploading) return
+    if (
+      !open &&
+      createDirty &&
+      !window.confirm(t('entityLibrary.form.discardChanges'))
+    ) {
+      return
+    }
+    if (!open && createPendingFiles.length > 0) {
+      setDiscardingCreate(true)
+      const failed = await cleanupPendingEntityFiles(token, createPendingFiles)
+      setDiscardingCreate(false)
+      setCreatePendingFiles(failed)
+      if (failed.length > 0) {
+        toast.error(t('entityLibrary.form.discardFileCleanupError'))
+        return
+      }
+    }
+    setCreateDirty(false)
+    setCreatePendingFiles([])
+    setCreateUploading(false)
+    setCreateOpen(open)
+  }
 
   const entities = data?.items ?? []
 
@@ -86,7 +125,7 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
         actions={
           <Button
             aria-label={`${t('entityLibrary.actions.create')}${entityName}`}
-            onClick={() => setCreateOpen(true)}
+            onClick={() => void requestCreateOpen(true)}
           >
             <Plus className="size-4" />
             {t('entityLibrary.actions.create')}
@@ -129,7 +168,10 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
                 </TableHeader>
                 <TableBody>
                   {entities.map((entity) => {
-                    const name = displayValue(entity, config.primaryKey)
+                    const name = localizedValue(
+                      entity.latest_version?.data?.[config.primaryKey],
+                      i18n.language,
+                    )
                     const code = displayValue(entity, config.codeKey)
                     const version = entity.latest_version?.version
                     return (
@@ -174,9 +216,7 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
 
       <Dialog
         open={createOpen}
-        onOpenChange={(open) => {
-          if (!createMutation.isPending) setCreateOpen(open)
-        }}
+        onOpenChange={(open) => void requestCreateOpen(open)}
       >
         <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-2xl">
           <DialogHeader>
@@ -193,9 +233,17 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
                 kind={kind}
                 mode="create"
                 nextVersion={1}
-                submitting={createMutation.isPending}
+                submitting={
+                  createMutation.isPending ||
+                  discardingCreate ||
+                  createUploading
+                }
+                token={token}
                 onSubmit={(payload) => createMutation.mutate(payload)}
-                onCancel={() => setCreateOpen(false)}
+                onCancel={() => void requestCreateOpen(false)}
+                onDirtyChange={setCreateDirty}
+                onPendingFilesChange={setCreatePendingFiles}
+                onUploadPendingChange={setCreateUploading}
               />
             ) : null}
           </div>

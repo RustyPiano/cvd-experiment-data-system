@@ -4,13 +4,20 @@ import csv
 import io
 import json
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.commands.export_v2_schema import (
+    STANDARD_ID,
+    STANDARD_VERSION,
+    build_v2_field_dictionary,
+)
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample
@@ -22,6 +29,7 @@ from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
     canonicalize_controlled_values,
+    load_field_source,
     payload_fields_by_module,
 )
 
@@ -149,6 +157,14 @@ class V2ReportingService:
         self.experiments = ExperimentRepository(db)
 
     def export_run_json(self, run_id: UUID, current_user: User) -> tuple[bytes, str]:
+        with self._batch_export_snapshot() as snapshot:
+            return snapshot._export_run_json_from_snapshot(run_id, current_user)
+
+    def _export_run_json_from_snapshot(
+        self,
+        run_id: UUID,
+        current_user: User,
+    ) -> tuple[bytes, str]:
         run = get_visible_experiment(
             self.experiments,
             run_id,
@@ -173,6 +189,28 @@ class V2ReportingService:
         date_to: date | None = None,
         status_filters: list[ExperimentStatus] | None = None,
     ) -> tuple[bytes, str]:
+        with self._batch_export_snapshot() as snapshot:
+            return snapshot._export_runs_zip_from_snapshot(
+                current_user,
+                query_text=query_text,
+                material_system=material_system,
+                operator=operator,
+                date_from=date_from,
+                date_to=date_to,
+                status_filters=status_filters,
+            )
+
+    def _export_runs_zip_from_snapshot(
+        self,
+        current_user: User,
+        *,
+        query_text: str | None = None,
+        material_system: str | None = None,
+        operator: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        status_filters: list[ExperimentStatus] | None = None,
+    ) -> tuple[bytes, str]:
         runs = self._visible_runs_for_export(
             current_user,
             query_text=query_text,
@@ -182,36 +220,125 @@ class V2ReportingService:
             date_to=date_to,
             status_filters=status_filters,
         )
+        records = {
+            "schema_version": SCHEMA_VERSION,
+            "runs": [self._run_bundle(run) for run in runs],
+        }
         tables = self._csv_tables(runs)
+        field_dictionary = build_v2_field_dictionary(load_field_source())
+        dictionary_fields = [
+            "source_part",
+            "module",
+            "module_key",
+            "key",
+            "label",
+            "label_en",
+            "r0",
+            "requirement",
+            "condition",
+            "validation",
+            "unit",
+            "options",
+        ]
+        dictionary_rows = [
+            {
+                key: (
+                    json.dumps(row[key], ensure_ascii=False, sort_keys=True)
+                    if key in {"condition", "validation"} and row.get(key) is not None
+                    else (row.get(key) if row.get(key) is not None else "")
+                )
+                for key in dictionary_fields
+            }
+            for row in field_dictionary["fields"]
+        ]
+        manifest = {
+            "standard_id": STANDARD_ID,
+            "standard_version": STANDARD_VERSION,
+            "schema_version": SCHEMA_VERSION,
+            "exported_at": datetime.now(UTC).isoformat(),
+            "run_count": len(runs),
+            "tables": [*tables, "field_dictionary.csv"],
+            "module_details": {
+                "path_notation": "JSONPath-like",
+                "array_index_base": 0,
+                "reconstruction_key": [
+                    "run_code",
+                    "module_key",
+                    "item_index",
+                    "field_key",
+                    "detail_path",
+                ],
+            },
+            "reconstruction": {
+                "authoritative_source": "records.json",
+                "csv_empty_cells_distinguish_null_and_empty": False,
+                "csv_empty_cell_note": (
+                    "CSV empty cells alone cannot distinguish null, empty string, "
+                    "empty list, and empty object."
+                ),
+            },
+        }
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for filename, (fieldnames, rows) in tables.items():
                 archive.writestr(filename, self._csv_bytes(fieldnames, rows))
+            archive.writestr(
+                "field_dictionary.csv",
+                self._csv_bytes(dictionary_fields, dictionary_rows),
+            )
+            archive.writestr(
+                "records.json",
+                json.dumps(records, ensure_ascii=False, indent=2).encode("utf-8"),
+            )
+            archive.writestr(
+                "schema_manifest.json",
+                json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"),
+            )
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         return buffer.getvalue(), f"cvd-runs-{stamp}.zip"
+
+    @contextmanager
+    def _batch_export_snapshot(self) -> Iterator[V2ReportingService]:
+        bind = self.db.get_bind()
+        snapshot_db = Session(
+            bind=bind,
+            autoflush=False,
+            expire_on_commit=False,
+        )
+        sqlite_query_only = bind.dialect.name == "sqlite"
+        try:
+            if bind.dialect.name == "postgresql":
+                snapshot_db.execute(
+                    text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                )
+            elif sqlite_query_only:
+                snapshot_db.execute(text("PRAGMA query_only = ON"))
+                snapshot_db.execute(text("BEGIN"))
+            else:
+                snapshot_db.begin()
+            yield type(self)(snapshot_db)
+        finally:
+            snapshot_db.rollback()
+            if sqlite_query_only:
+                snapshot_db.execute(text("PRAGMA query_only = OFF"))
+                snapshot_db.commit()
+            snapshot_db.close()
 
     def _visible_runs_for_export(
         self,
         current_user: User,
         **filters: Any,
     ) -> list[ExperimentRun]:
-        page = 1
-        page_size = 1_000
-        runs: list[ExperimentRun] = []
-        while True:
-            batch, total = self.experiments.list_visible(
-                current_user=current_user,
-                page=page,
-                page_size=page_size,
-                sort_by="experiment_date",
-                sort_order="asc",
-                schema_version=SCHEMA_VERSION,
-                **filters,
-            )
-            runs.extend(batch)
-            if len(runs) >= total:
-                return runs
-            page += 1
+        runs, _ = self.experiments.list_visible(
+            current_user=current_user,
+            page=1,
+            page_size=2_147_483_647,
+            sort_by="experiment_date",
+            sort_order="asc",
+            schema_version=SCHEMA_VERSION,
+            **filters,
+        )
+        return runs
 
     def _run_bundle(self, run: ExperimentRun) -> dict[str, Any]:
         modules = {
@@ -301,6 +428,16 @@ class V2ReportingService:
                     "id": str(run.setup_ref) if run.setup_ref else None,
                     "version": run.setup_ref_version,
                     "snapshot": run.setup_ref_snapshot_json,
+                    "flow_reference_temperature_C": (
+                        ((run.setup_ref_snapshot_json or {}).get("attrs_snapshot") or {}).get(
+                            "flow_reference_temperature_C"
+                        )
+                    ),
+                    "flow_reference_pressure_Pa": (
+                        ((run.setup_ref_snapshot_json or {}).get("attrs_snapshot") or {}).get(
+                            "flow_reference_pressure_Pa"
+                        )
+                    ),
                 },
             },
             "modules": modules,
@@ -323,6 +460,7 @@ class V2ReportingService:
         precursor_rows: list[dict[str, Any]] = []
         substrate_rows: list[dict[str, Any]] = []
         process_rows: list[dict[str, Any]] = []
+        module_detail_rows: list[dict[str, Any]] = []
         source_snapshot_keys = [f"source_{key}" for key in substrate_keys]
         sample_rows: list[dict[str, Any]] = []
         result_rows: list[dict[str, Any]] = []
@@ -368,6 +506,16 @@ class V2ReportingService:
                 "setup_zone_count": setup_snapshot.get("zone_count_snapshot"),
                 "setup_orientation": setup_snapshot.get("orientation_snapshot"),
                 "setup_coordinate_system": setup_snapshot.get("coordinate_system_snapshot"),
+                "setup_flow_reference_temperature_C": (
+                    setup_attrs.get("flow_reference_temperature_C")
+                    if isinstance(setup_attrs, dict)
+                    else None
+                ),
+                "setup_flow_reference_pressure_Pa": (
+                    setup_attrs.get("flow_reference_pressure_Pa")
+                    if isinstance(setup_attrs, dict)
+                    else None
+                ),
                 "created_at": run.created_at,
                 "locked_at": run.locked_at,
                 "setup_detail_path": "",
@@ -396,6 +544,20 @@ class V2ReportingService:
                 modules.get("process_steps"),
                 process_keys,
             )
+            for module_key in (
+                "basic_info",
+                "target_product",
+                "equipment",
+                "process_events",
+                "pvd",
+            ):
+                self._extend_module_detail_rows(
+                    module_detail_rows,
+                    run.run_code,
+                    module_key,
+                    modules.get(module_key),
+                    module_fields[module_key],
+                )
             for index, item in enumerate((modules.get("substrates") or {}).get("items", []), 1):
                 source_id = str(item.get("source_id") or "")
                 generated = sample_by_source.get(source_id)
@@ -454,6 +616,10 @@ class V2ReportingService:
                     "method": (canonical_option_value(record.method_instrument) if record else ""),
                     "test_conditions": record.test_conditions if record else "",
                     "detected_phase_stacking": product.detected_phase_stacking,
+                    "layer_count": product.layer_count,
+                    "coverage_percent": product.coverage_percent,
+                    "domain_size_um": product.domain_size_um,
+                    "nucleation_density_cm2": product.nucleation_density_cm2,
                     "measured_layers_coverage": product.measured_layers_coverage,
                     "domain_nucleation_continuity": product.domain_nucleation_continuity,
                     "created_at": product.created_at,
@@ -498,6 +664,10 @@ class V2ReportingService:
                             "method": canonical_option_value(record.method_instrument),
                             "test_conditions": record.test_conditions,
                             "detected_phase_stacking": "",
+                            "layer_count": "",
+                            "coverage_percent": "",
+                            "domain_size_um": "",
+                            "nucleation_density_cm2": "",
                             "measured_layers_coverage": "",
                             "domain_nucleation_continuity": "",
                             "created_at": record.created_at,
@@ -576,6 +746,8 @@ class V2ReportingService:
                     "setup_zone_count",
                     "setup_orientation",
                     "setup_coordinate_system",
+                    "setup_flow_reference_temperature_C",
+                    "setup_flow_reference_pressure_Pa",
                     "setup_detail_path",
                     "setup_detail_value",
                     "created_at",
@@ -641,6 +813,10 @@ class V2ReportingService:
                     "test_conditions",
                     "observed_phenomenon",
                     "detected_phase_stacking",
+                    "layer_count",
+                    "coverage_percent",
+                    "domain_size_um",
+                    "nucleation_density_cm2",
                     "measured_layers_coverage",
                     "domain_nucleation_continuity",
                     "detail_scope",
@@ -674,6 +850,18 @@ class V2ReportingService:
                 ],
                 file_rows,
             ),
+            "module_details.csv": (
+                [
+                    "run_code",
+                    "module_key",
+                    "item_index",
+                    "field_key",
+                    "detail_path",
+                    "detail_value",
+                    "unit",
+                ],
+                module_detail_rows,
+            ),
         }
 
     @staticmethod
@@ -690,6 +878,41 @@ class V2ReportingService:
                     {key: item.get(key) for key in field_keys},
                 )
             )
+
+    @staticmethod
+    def _extend_module_detail_rows(
+        target: list[dict[str, Any]],
+        run_code: str,
+        module_key: str,
+        payload: dict[str, Any] | None,
+        fields: list[dict[str, Any]],
+    ) -> None:
+        if not payload:
+            return
+        units = {
+            field["key"]: ("" if field.get("unit") in {None, "—"} else field["unit"])
+            for field in fields
+        }
+        items = payload.get("items", []) if isinstance(payload.get("items"), list) else [payload]
+        for index, item in enumerate(items, 1):
+            if not isinstance(item, dict):
+                continue
+            for field_key, value in item.items():
+                if field_key == "items":
+                    continue
+                leaves = _nested_leaves(value) if isinstance(value, (dict, list)) else [("", value)]
+                target.extend(
+                    {
+                        "run_code": run_code,
+                        "module_key": module_key,
+                        "item_index": index if "items" in payload else "",
+                        "field_key": field_key,
+                        "detail_path": path,
+                        "detail_value": leaf,
+                        "unit": units.get(field_key, ""),
+                    }
+                    for path, leaf in leaves
+                )
 
     @staticmethod
     def _csv_bytes(fieldnames: list[str], rows: list[dict[str, Any]]) -> bytes:
@@ -796,6 +1019,10 @@ class V2ReportingService:
                 else product.observed_phenomena
             ),
             "detected_phase_stacking": product.detected_phase_stacking,
+            "layer_count": product.layer_count,
+            "coverage_percent": product.coverage_percent,
+            "domain_size_um": product.domain_size_um,
+            "nucleation_density_cm2": product.nucleation_density_cm2,
             "measured_layers_coverage": product.measured_layers_coverage,
             "domain_nucleation_continuity": product.domain_nucleation_continuity,
             "key_spectral_metrics": product.key_spectral_metrics,

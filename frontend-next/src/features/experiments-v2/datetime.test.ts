@@ -8,7 +8,7 @@ describe('experiment wall-clock datetime', () => {
     (local) => {
       const stored = toIsoDateTime(local)
 
-      expect(stored).toBe(`${local}:00`)
+      expect(stored).toMatch(new RegExp(`^${local}:00[+-]\\d{2}:\\d{2}$`))
       expect(isoToDateTimeLocal(stored)).toBe(local)
     },
   )

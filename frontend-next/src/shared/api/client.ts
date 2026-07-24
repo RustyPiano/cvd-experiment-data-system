@@ -2,6 +2,8 @@ import { env } from '../config/env'
 import { HttpError } from './http-error'
 
 export const API_UNAUTHORIZED_EVENT = 'cvd.api.unauthorized'
+const UNAUTHORIZED_DEDUPE_MS = 1000
+let lastUnauthorized = { token: '', at: 0 }
 
 type ApiRequestOptions = Omit<RequestInit, 'body'> & {
   body?: BodyInit | Record<string, unknown> | null
@@ -42,7 +44,12 @@ function normalizeBody(body: ApiRequestOptions['body']) {
     return body
   }
 
-  return JSON.stringify(body)
+  return JSON.stringify(body, (_key, value) => {
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new TypeError('JSON numeric values must be finite')
+    }
+    return value
+  })
 }
 
 function resolveDetail(payload: unknown) {
@@ -100,6 +107,14 @@ function dispatchUnauthorizedIfNeeded(
   token: string | null | undefined,
 ) {
   if (statusCode === 401 && token && typeof window !== 'undefined') {
+    const now = Date.now()
+    if (
+      lastUnauthorized.token === token &&
+      now - lastUnauthorized.at < UNAUTHORIZED_DEDUPE_MS
+    ) {
+      return
+    }
+    lastUnauthorized = { token, at: now }
     window.dispatchEvent(new Event(API_UNAUTHORIZED_EVENT))
   }
 }

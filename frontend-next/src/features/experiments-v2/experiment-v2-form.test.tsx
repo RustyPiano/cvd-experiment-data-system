@@ -125,13 +125,17 @@ function completeState() {
   }
 }
 
-function renderForm(mode: 'new' | 'edit') {
+function renderForm(
+  mode: 'new' | 'edit',
+  onProcessDirtyChange?: (dirty: boolean) => void,
+) {
   return render(
     <I18nextProvider i18n={i18n}>
       <ExperimentV2Form
         mode={mode}
         runId={mode === 'edit' ? 'run-existing' : undefined}
         initialState={completeState()}
+        onProcessDirtyChange={onProcessDirtyChange}
       />
     </I18nextProvider>,
   )
@@ -256,6 +260,21 @@ describe('ExperimentV2Form module saves', () => {
     fireEvent.click(screen.getByRole('button', { name: 'save-basic_info' }))
     await waitFor(() => expect(guard.when).toBe(false))
   })
+
+  it('reports process dirtiness to the parent so locking cannot discard edits', async () => {
+    const onProcessDirtyChange = vi.fn()
+    renderForm('edit', onProcessDirtyChange)
+
+    fireEvent.click(screen.getByRole('button', { name: 'dirty-basic_info' }))
+    await waitFor(() =>
+      expect(onProcessDirtyChange).toHaveBeenLastCalledWith(true),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'save-basic_info' }))
+    await waitFor(() =>
+      expect(onProcessDirtyChange).toHaveBeenLastCalledWith(false),
+    )
+  })
 })
 
 describe('ExperimentV2Form create and save', () => {
@@ -301,5 +320,4 @@ describe('ExperimentV2Form create and save', () => {
     expect(api.setSetupReference).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
   })
-
 })

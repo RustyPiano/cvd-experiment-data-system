@@ -26,14 +26,19 @@ import {
 import type { EntityKind } from './config'
 import { entityConfigs, entityRoutes } from './config'
 import { appendEntityVersion, getEntity, listEntityVersions } from './api'
-import type { EntityVersionPayload } from './api'
+import type { EntityFileAssetRead, EntityVersionPayload } from './api'
 import { getEntityFields, isFieldVisible } from './field-logic'
 import { EntityForm } from './entity-form'
 import {
   localizedFieldLabel,
+  localizedNamedValue,
   localizedUnit,
   localizedValue,
 } from '@/shared/field-i18n'
+import { cleanupPendingEntityFiles } from './entity-file-cleanup'
+import { isEntityFileInput } from '@/shared/entity-file-reference'
+import { EntityFileDisplay } from './entity-file-control'
+import { isStructuredInput } from '@/shared/structured-field'
 
 export function EntityDetailPage({
   kind,
@@ -52,6 +57,12 @@ export function EntityDetailPage({
   const fields = getEntityFields(kind)
 
   const [editOpen, setEditOpen] = useState(false)
+  const [editDirty, setEditDirty] = useState(false)
+  const [editPendingFiles, setEditPendingFiles] = useState<
+    EntityFileAssetRead[]
+  >([])
+  const [discardingEdit, setDiscardingEdit] = useState(false)
+  const [editUploading, setEditUploading] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
 
   const entityKey = ['v2-entity', kind, entityId]
@@ -91,6 +102,9 @@ export function EntityDetailPage({
       toast.success(
         t('entityLibrary.form.newVersionSuccess', { version: created.version }),
       )
+      setEditDirty(false)
+      setEditPendingFiles([])
+      setEditUploading(false)
       setEditOpen(false)
       setSelectedVersion(null)
       // Prefix match: ['v2-entity', kind] also invalidates ['v2-entity', kind, entityId].
@@ -102,6 +116,30 @@ export function EntityDetailPage({
       )
     },
   })
+  const requestEditOpen = async (open: boolean) => {
+    if (appendMutation.isPending || discardingEdit || editUploading) return
+    if (
+      !open &&
+      editDirty &&
+      !window.confirm(t('entityLibrary.form.discardChanges'))
+    ) {
+      return
+    }
+    if (!open && editPendingFiles.length > 0) {
+      setDiscardingEdit(true)
+      const failed = await cleanupPendingEntityFiles(token, editPendingFiles)
+      setDiscardingEdit(false)
+      setEditPendingFiles(failed)
+      if (failed.length > 0) {
+        toast.error(t('entityLibrary.form.discardFileCleanupError'))
+        return
+      }
+    }
+    setEditDirty(false)
+    setEditPendingFiles([])
+    setEditUploading(false)
+    setEditOpen(open)
+  }
 
   if (entityQuery.isLoading) {
     return <LoadingState />
@@ -122,10 +160,14 @@ export function EntityDetailPage({
     )
   }
 
-  const displayName =
-    (activeVersion?.data?.[config.primaryKey] as string | undefined) ||
-    entity.id.slice(0, 8)
   const activeData = activeVersion?.data ?? {}
+  const displayName =
+    localizedValue(activeData[config.primaryKey], i18n.language) ||
+    entity.id.slice(0, 8)
+  const structuredLabels = {
+    outer_diameter_mm: t('structuredFields.outerDiameter'),
+    wall_thickness_mm: t('structuredFields.wallThickness'),
+  }
   const visibilityValues = Object.fromEntries(
     Object.entries(activeData).map(([key, value]) => [
       key,
@@ -146,7 +188,7 @@ export function EntityDetailPage({
                 {t('entityLibrary.actions.backToList')}
               </Link>
             </Button>
-            <Button onClick={() => setEditOpen(true)}>
+            <Button onClick={() => void requestEditOpen(true)}>
               <Pencil className="size-4" />
               {t('entityLibrary.actions.editAsNewVersion')}
             </Button>
@@ -177,7 +219,11 @@ export function EntityDetailPage({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base">
-              {t('entityLibrary.detail.currentVersion')}
+              {t(
+                isHistorical
+                  ? 'entityLibrary.detail.viewingVersion'
+                  : 'entityLibrary.detail.currentVersion',
+              )}
             </CardTitle>
             {activeVersion ? (
               <Badge className="bg-primary-soft text-primary">
@@ -195,7 +241,9 @@ export function EntityDetailPage({
                 )
                 .map((field) => {
                   const raw = activeData[field.key]
-                  const value = localizedValue(raw, i18n.language)
+                  const value = isStructuredInput(field.input)
+                    ? localizedNamedValue(raw, i18n.language, structuredLabels)
+                    : localizedValue(raw, i18n.language)
                   const label = localizedFieldLabel(field, i18n.language)
                   const unit = localizedUnit(field.unit, i18n.language)
                   return (
@@ -210,7 +258,11 @@ export function EntityDetailPage({
                         ) : null}
                       </dt>
                       <dd className="min-w-0 flex-1 whitespace-pre-wrap text-foreground">
-                        {value || t('entityLibrary.detail.emptyValue')}
+                        {isEntityFileInput(field.input) && raw ? (
+                          <EntityFileDisplay value={raw} token={token} />
+                        ) : (
+                          value || t('entityLibrary.detail.emptyValue')
+                        )}
                       </dd>
                     </div>
                   )
@@ -270,9 +322,7 @@ export function EntityDetailPage({
 
       <Dialog
         open={editOpen}
-        onOpenChange={(open) => {
-          if (!appendMutation.isPending) setEditOpen(open)
-        }}
+        onOpenChange={(open) => void requestEditOpen(open)}
       >
         <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-2xl">
           <DialogHeader>
@@ -299,9 +349,15 @@ export function EntityDetailPage({
                 mode="newVersion"
                 nextVersion={latestVersion + 1}
                 defaultData={latest?.data ?? null}
-                submitting={appendMutation.isPending}
+                submitting={
+                  appendMutation.isPending || discardingEdit || editUploading
+                }
+                token={token}
                 onSubmit={(payload) => appendMutation.mutate(payload)}
-                onCancel={() => setEditOpen(false)}
+                onCancel={() => void requestEditOpen(false)}
+                onDirtyChange={setEditDirty}
+                onPendingFilesChange={setEditPendingFiles}
+                onUploadPendingChange={setEditUploading}
               />
             ) : null}
           </div>

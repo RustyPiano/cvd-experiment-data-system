@@ -4,7 +4,7 @@
 > 依据：2026-07-09 用户确认 **v1 试运行数据可弃**（项目未正式投入使用，不为兼容历史数据做架构妥协）；
 > 三组独立架构评审（后端 / 前端 / 单一源管线，2026-07-09）+ 两组 v1/v2 耦合探查结论。
 > **2026-07-11 修订（5 组并行取证复评，逐断言 file:line 验证）**：批2 原"models 层零 import"断言被证伪→补 schemas/repositories 两层+三处红线切耦合+前端最小补丁；批3 扩范围（守卫缺 5 路径+审计/再校验+快照语义决策）；批6 换更省方案（反对生成 TS matcher）；**新增批8 生产切换**（原 P6 人工门找回，容器启动即 `alembic upgrade head`，squash 后老库部署即崩）。
-> 状态：**批0 豁免（测试数据）；批1–7 已执行完毕（2026-07-11，含批4 走查修复）；仅剩批8 生产切换（人工门，用户在场）**。最后更新：2026-07-11。
+> 状态：**批0 当时获测试数据豁免；批1–7 已执行完毕（2026-07-11，含批4 走查修复）；仅剩批8 生产切换（人工门，用户在场）**。最后更新：2026-07-24。
 > **现行性提示**：批1–7章节保留的是当时的实施计划与执行依据，其中旧 `submitted` 状态和旧端点仅用于历史追溯；当前产品逻辑是 `draft → locked`，以 [`../standard/STATUS.md`](../standard/STATUS.md) 和 [`../product/run-first-workflow-and-copy-design.md`](../product/run-first-workflow-and-copy-design.md) 为准。本文件当前仍具约束力的部分是批8生产切换。
 
 ## 0. 决策与边界
@@ -50,7 +50,7 @@
 ## 3. 批次计划（每批独立 commit，门禁全绿再进下一批）
 
 ### 批0 · 备份留档 — **已豁免（2026-07-11 用户确认：全部为测试数据，无需备份）**
-- 原内容：生产库 `pg_dump` + 文件卷 tar 归档仓库外。用户明示跳过，拆除自由。批8 切换时直接重建库，无恢复预期。
+- 原内容：生产库 `pg_dump` + 文件卷 tar 归档仓库外。用户当时明示跳过，仅适用于批0；**批8 不继承此豁免，必须重新完成并验证数据库与文件双份备份**。
 
 ### 批1 · 删旧 `frontend/`（~0.5h，零风险）
 - 整目录删除（31,889 行；复评确认 compose/CI/deploy.sh/backup.sh 零引用）；清 README 9 处提及（`README.md:6,7,54,132,143,147,152,247,297`）——其中 **:143/:147 声称"dev compose 构建旧前端"是过时错话**（`docker-compose.yml:84` 实际已指 frontend-next），一并修正；AGENTS.md 去"旧前端退役中"表述（`AGENTS.md:8`）。
@@ -142,16 +142,21 @@
 
 ### 批8 · 生产切换（~0.5 天，人工门，用户在场）——2026-07-11 增
 
-> 原 P6"生产切换必须用户在场"的人工门在此找回。前提：批0 备份在手、批1–7 全部门禁绿、代码已 push。
+> 原 P6"生产切换必须用户在场"的人工门在此找回。前提：批1–7 全部门禁绿、代码已 push，并在执行当日重新确认数据处置。批0 曾因当时全是测试数据而获用户豁免，**不存在可沿用的恢复点**；批8 删除任何数据前必须重新完成数据库与文件存储的双份备份并验证可读，不接受沿用旧豁免。
 
-1. 停生产容器（`docker compose -f docker-compose.prod.yml down`）。
-2. **drop 并重建生产数据库**（1Panel 共享 PG 上的本库；文件卷内旧上传按需清理）。
-3. 部署新代码（`deploy.sh`；容器启动自动 `alembic upgrade head` → 纯 v2 单一 initial 一步建成）。
-4. 建管理员账号（`create_admin`），核对 `.env`（邀请码/JWT 等）。
-5. **线上冒烟**：完整录入一条真实炉次（实体→引用→全模块→样品→表征→实测→submit/lock→`check-r0` compliant）。
-- **门**：冒烟通过 + 健康检查绿。在此之前**禁止任何 `deploy.sh`**（见 §0 执行红线）。
+1. **破坏前预检**：在生产机先 `git pull --ff-only` 到已通过 Actions 的目标 commit，并确认工作树干净；确认 `.env` 所有占位符已替换，`COMPOSE_DATABASE_URL` 与 `PG_CONTAINER/POSTGRES_USER/POSTGRES_DB` 指向同一数据库，`EXPERIMENT_TIMEZONE` 正确；运行 `docker compose -f docker-compose.prod.yml config --quiet` 和 `docker compose -f docker-compose.prod.yml build` 成功；只读核对将要重建的数据库与 `/data/storage` 实际挂载卷。将 `.env` 和备份文件设为 `0600`、备份目录设为 `0700`。此时不得停服务或删数据。
+2. **先停写、保留容器**：用 `docker compose -f docker-compose.prod.yml stop frontend backend` 停止应用，不要先 `down` 删除容器；确认 backend 容器唯一且 `.State.Running=false`。若后续备份或恢复演练失败，在尚未删数据时启动旧服务并中止切换。
+3. 在应用停写后运行 `./backup.sh`，取得同一维护窗的 PostgreSQL `pg_dump` 与文件存储归档。脚本从运行或已停止的唯一 backend 容器复制 `/data/storage`，并生成 `SHA256SUMS`；逐一确认 `database.sql`、`storage.tar.gz`、`SHA256SUMS` 非空，重算 SHA-256、列读 tar，并把 SQL 恢复到一次性校验库确认可恢复，随后删除校验库。任一部分失败即中止，不能用常规部署的另一份在线备份替代。
+4. 恢复演练通过后，在该备份目录写入私有的 `batch8-proof.env`：固定 `FORMAT=cvd-batch8-v1`，并逐项记录当前 `PG_CONTAINER`、`POSTGRES_USER`、`POSTGRES_DB`、backend 实际挂载的 `STORAGE_VOLUME`、已通过 Actions 的 40 位 `TARGET_GIT_SHA`、当前备份的 `DATABASE_SHA256`/`STORAGE_SHA256`、当前 `VERIFIED_AT_EPOCH` 与 `RESTORE_VERIFIED=true`。不得 `source` 此文件；`deploy.sh` 只按固定键解析，并固定拒绝超过 6 小时的证明。proof 所在目录的直接父目录即备份根，必须带 `.cvd-backup-root` 标记。
+5. **再次取得用户当日数据处置确认后才进入破坏步骤**：drop 并重建已核验的 1Panel 本项目数据库，再只读确认目标数据库 `public` schema 没有表/分区表、视图/物化视图、序列、外部表、函数/过程、enum/domain 等用户对象。不要使用 `SKIP_SCHEMA_GUARD=1`。
+6. **文件存储必须从空卷开始**：确认步骤 3 的归档与恢复演练通过后，只清理步骤 1/4 绑定的本项目专用卷。通过已停止 backend 的 `/data/storage` 读取归档列表并确认仅有根目录 `./`；不得依赖宿主 Docker `Mountpoint`，也不得把失去数据库元数据的旧文件与新存储混放。
+7. 以唯一批8能力运行 `BATCH8_VERIFIED_BACKUP_DIR=/绝对/真实/备份目录 ./deploy.sh`。脚本会在任何 `compose up` 前重验标记根目录、目录/文件权限、普通文件、tar、manifest 与 proof 双重 SHA-256、proof 固定时效、数据库目标、实际卷、干净 HEAD、目标 SHA、backend 已停止、schema fresh-empty 与容器视角空存储卷；批8模式禁止 `SKIP_SCHEMA_GUARD`，并跳过重复 live backup 和 `git pull`。普通 `./deploy.sh` 的现场备份与拉取行为不变。
+8. 等待脚本确认所有 Compose 服务均为 `running + healthy`；任何 exited、unhealthy 或缺失服务都算失败。
+9. 用 `docker compose -f docker-compose.prod.yml exec backend uv run python -m app.commands.create_admin --email <admin-email> --name <admin-name>` 交互创建管理员；空白密码必须拒绝。
+10. **线上冒烟**：完整录入一条真实炉次（实体→版本引用→全模块→锁定→自动样品→表征与实测→导出），再运行 `docker compose -f docker-compose.prod.yml exec backend uv run python -m app.commands.check_r0 --run-code <CVD-...> --format text`，确认该炉次 compliant。
+- **门**：数据库状态确认、全部服务健康、管理员登录、真实炉次冒烟与导出均通过。在此之前**禁止任何 `deploy.sh`**（见 §0 执行红线）。
 
-**总计 ~5.5–7 天**（含门禁与走查；批2 复评后上调）。回滚方式：每批独立 commit 可 `git revert`；数据兜底 = 批0 备份。
+**总计 ~5.5–7 天**（含门禁与走查；批2 复评后上调）。回滚方式：代码可按批次 `git revert`；数据只从批8前实际生成并验证过的数据库与文件双份备份恢复，不能引用已豁免的批0作为兜底。
 
 ## 4. 保留资产红线（防误删）
 

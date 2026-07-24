@@ -13,3 +13,14 @@ backend/.coverage
 backend/htmlcov/
 storage/
 backups/
+
+# Local agent/tool state and personal root-level workbooks
+/.agents/
+/.claude/launch.json
+/.claude/skills/
+/.codex/
+/.impeccable/
+/.opencode/
+/.superpowers/
+/skills-lock.json
+/*.xlsx

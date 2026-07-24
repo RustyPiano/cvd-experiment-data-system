@@ -66,7 +66,7 @@ describe('validateChemicalFormula (元素校验)', () => {
   })
 })
 
-describe('renderFormulaDisplay (复刻后端 formula_display 规则)', () => {
+describe('renderFormulaDisplay (前端即时预览)', () => {
   it('returns the raw formula for 本征 / no components', () => {
     expect(renderFormulaDisplay('MoS2', '本征', [])).toBe('MoS2')
     expect(renderFormulaDisplay('MoS2', '掺杂', [])).toBe('MoS2')

@@ -21,7 +21,8 @@ const statusMeta: Partial<Record<ExperimentStatus, StatusMeta>> = {
     dot: 'bg-success',
   },
   invalid: {
-    className: 'bg-destructive-soft text-destructive-text hover:bg-destructive-soft',
+    className:
+      'bg-destructive-soft text-destructive-text hover:bg-destructive-soft',
     dot: 'bg-destructive',
   },
 }

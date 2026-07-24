@@ -154,3 +154,4 @@ def _reject_version_update(mapper: Mapper, connection: object, target: object) -
 
 for version_model in (MaterialLotVersion, SetupVersion, InstrumentVersion):
     event.listen(version_model, "before_update", _reject_version_update)
+    event.listen(version_model, "before_delete", _reject_version_update)

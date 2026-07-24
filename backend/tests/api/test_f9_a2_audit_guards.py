@@ -39,6 +39,8 @@ def _setup_payload(**overrides) -> dict:
         "zone_count": 3,
         "orientation": "水平",
         "coordinate_system": "上游负/下游正",
+        "flow_reference_temperature_C": 20,
+        "flow_reference_pressure_Pa": 101325,
         **overrides,
     }
 
@@ -115,7 +117,7 @@ def test_result_crud_writes_are_audited_with_delete_snapshots(active_user, db_se
     assert (
         client.patch(
             f"/api/v1/measured-products/{product_id}",
-            json={"measured_layers_coverage": "1层；70%"},
+            json={"layer_count": 1, "coverage_percent": 70},
             headers=headers,
         ).status_code
         == 200
@@ -143,7 +145,8 @@ def test_result_crud_writes_are_audited_with_delete_snapshots(active_user, db_se
     assert record_events[2].before_json["test_conditions"] == "vacuum"
     assert record_events[2].after_json is None
     assert [event.action for event in product_events] == ["create", "update", "delete"]
-    assert product_events[2].before_json["measured_layers_coverage"] == "1层；70%"
+    assert product_events[2].before_json["layer_count"] == 1
+    assert product_events[2].before_json["coverage_percent"] == 70
     assert product_events[2].after_json is None
 
 

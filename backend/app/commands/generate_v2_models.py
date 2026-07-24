@@ -1,3 +1,5 @@
+# This generator intentionally carries complete generated-code lines as string literals.
+# ruff: noqa: E501
 from __future__ import annotations
 
 import argparse
@@ -103,7 +105,6 @@ def render_v2_models(doc: dict[str, Any]) -> str:
             for fields in payload_fields_by_module(doc).values()
             for field in fields
             if any(token in str(field.get("input") or "") for token in ("多选", "多条"))
-            and field["key"] != "structure_type"
         }
     )
     lines = [
@@ -114,20 +115,19 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "from datetime import date, datetime, time",
         "from typing import Annotated, Any, Literal, Self",
+        "from uuid import UUID",
         "",
         "from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator",
         "",
         "from app.services.v2_field_source import (",
         "    condition_matches as _matches,",
+        "    formula_element_symbols as _formula_elements,",
+        "    missing as _missing,",
+        "    normalize_offset_datetime as _normalize_datetime,",
         "    validate_chemical_formula as _validate_formula,",
         ")",
         "",
         f'V2_MODULE_PAYLOAD_SCHEMA_VERSION = "{SCHEMA_VERSION}"',
-        "",
-        "",
-        "def _missing(value: Any) -> bool:",
-        '    return value is None or value == "" or value == [] or value == {}',
-        "",
         f"_OPTION_ALIASES = {doc.get('option_codes', {})!r}",
         f"_CONTROLLED_KEYS = frozenset({tuple(controlled_keys)!r})",
         f"_COMPOSITE_KEYS = frozenset({tuple(composite_keys)!r})",
@@ -176,22 +176,66 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    formula: str",
         f"    role: {_literal_expr(component_roles)} | None = None",
         "    concentration_at_percent: "
-        "Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None",
-        "    layer_order: Annotated[int, Field(strict=True)] | None = None",
+        "Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, le=100)] | None = None",
+        "    layer_order: Annotated[int, Field(strict=True, ge=1)] | None = None",
         "",
         '    @field_validator("formula")',
         "    @classmethod",
         "    def _formula(cls, value: str) -> str:",
         "        return _validate_formula(value)",
         "",
+        "",
+        "class MaterialLotReferencePayload(V2PayloadBase):",
+        "    entity_id: UUID",
+        "    version: Annotated[int, Field(strict=True, ge=1)]",
+        "    snapshot: dict[str, Any] | None = None",
+        "",
+        "",
+        "class TubeDimensionsPayload(V2PayloadBase):",
+        "    outer_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    wall_thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _wall_fits(self) -> Self:",
+        "        if self.wall_thickness_mm * 2 >= self.outer_diameter_mm:",
+        '            raise ValueError("tube wall thickness must be less than the radius")',
+        "        return self",
+        "",
+        "",
+        "class BoatCruciblePayload(V2PayloadBase):",
+        "    material: Literal['quartz_boat', 'alumina_boat', 'other']",
+        "    length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _has_dimensions(self) -> Self:",
+        "        if all(value is None for value in (self.length_mm, self.width_mm, self.height_mm, self.diameter_mm)):",
+        '            raise ValueError("boat/crucible requires at least one named dimension")',
+        "        return self",
+        "",
+        "",
+        "class SubstrateSizePlacementPayload(V2PayloadBase):",
+        "    length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    placement: Literal['face_up', 'face_down', 'tilted', 'upright', 'other'] | None = None",
+        "",
+        "",
+        "class SourceZoneTemperaturePayload(V2PayloadBase):",
+        "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
+        "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
+        "",
+        "",
+        "class ZoneThermocoupleDistancePayload(V2PayloadBase):",
+        "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
+        "    distance_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
+        "",
     ]
     for field in composite_fields.values():
         options = _controlled_options(doc, field)
-        value_type = (
-            "Annotated[float, Field(strict=True, allow_inf_nan=False)]"
-            if "数值" in str(field.get("input") or "")
-            else "str"
-        )
+        value_type = _number_type_expr(field) if "数值" in str(field.get("input") or "") else "str"
         lines.extend(
             [
                 "",
@@ -200,6 +244,38 @@ def render_v2_models(doc: dict[str, Any]) -> str:
                 f"    option: {_literal_expr(options)} | None = None",
             ]
         )
+        if (field.get("validation") or {}).get("require_value"):
+            lines.extend(
+                [
+                    "",
+                    '    @model_validator(mode="after")',
+                    "    def _requires_numeric_value(self) -> Self:",
+                    "        if self.value is None:",
+                    '            raise ValueError("composite field requires a numeric value")',
+                    "        return self",
+                ]
+            )
+        option_ranges = (field.get("validation") or {}).get("option_ranges")
+        if option_ranges:
+            lines.extend(
+                [
+                    "",
+                    '    @model_validator(mode="after")',
+                    "    def _option_specific_range(self) -> Self:",
+                    f"        bounds = {option_ranges!r}.get(self.option)",
+                    "        if bounds is None or self.value is None:",
+                    "            return self",
+                    '        if "ge" in bounds and self.value < bounds["ge"]:',
+                    '            raise ValueError("value is below the selected option range")',
+                    '        if "gt" in bounds and self.value <= bounds["gt"]:',
+                    '            raise ValueError("value is below the selected option range")',
+                    '        if "le" in bounds and self.value > bounds["le"]:',
+                    '            raise ValueError("value is above the selected option range")',
+                    '        if "lt" in bounds and self.value >= bounds["lt"]:',
+                    '            raise ValueError("value is above the selected option range")',
+                    "        return self",
+                ]
+            )
 
     grouped = payload_fields_by_module(doc)
     for module_key in PAYLOAD_MODULE_KEYS:
@@ -297,6 +373,8 @@ def _render_process_step_models(
                 continue
             required = _field_required_for_stage(field, name, required_extra, doc)
             lines.append(_field_line(doc, field, required=required, indent="    "))
+        lines.extend(_render_field_validators(allowed, indent="    "))
+        lines.extend(_render_condition_validator(doc, allowed, indent="    "))
         lines.append("")
 
     lines.extend(
@@ -366,12 +444,22 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
     input_type = str(field.get("input") or "")
     if key == "components":
         return "list[ComponentPayload]"
+    if key in {"lot_ref", "target_lot_ref"}:
+        return "MaterialLotReferencePayload"
+    if key == "tube_outer_diameter_wall_mm":
+        return "TubeDimensionsPayload"
+    if key == "boat_crucible":
+        return "BoatCruciblePayload"
+    if key == "size_placement":
+        return "SubstrateSizePlacementPayload"
+    if key == "source_zone_temperature":
+        return "SourceZoneTemperaturePayload"
+    if key == "zone_thermocouple_distance_mm":
+        return "ZoneThermocoupleDistancePayload"
     if key == "bulk_space_group":
         return "Annotated[int, Field(strict=True, ge=1, le=230)]"
     if input_type == "数值":
-        if key in {"target_layer_count", "zone_count"}:
-            return "Annotated[int, Field(strict=True)]"
-        return "Annotated[float, Field(strict=True, allow_inf_nan=False)]"
+        return _number_type_expr(field)
     if input_type == "日期时间":
         return "datetime"
     if input_type == "日期":
@@ -383,7 +471,7 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         # trust-boundary type explicit until the dedicated uploader lands.
         return "str"
     options = _controlled_options(doc, field)
-    if any(token in input_type for token in ("多选", "多条")) and key != "structure_type":
+    if any(token in input_type for token in ("多选", "多条")):
         if options:
             literal = "Literal[" + ", ".join(repr(value) for value in options) + "]"
             return f"list[{literal}]"
@@ -393,6 +481,18 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
     if options and "其他" not in input_type:
         return "Literal[" + ", ".join(repr(value) for value in options) + "]"
     return "str"
+
+
+def _number_type_expr(field: dict[str, Any]) -> str:
+    validation = field.get("validation") or {}
+    number_type = "int" if validation.get("type") == "integer" else "float"
+    constraints = ["strict=True"]
+    if number_type == "float":
+        constraints.append("allow_inf_nan=False")
+    for key in ("ge", "gt", "le", "lt"):
+        if key in validation:
+            constraints.append(f"{key}={validation[key]!r}")
+    return f"Annotated[{number_type}, Field({', '.join(constraints)})]"
 
 
 def _composite_class_name(key: str) -> str:
@@ -439,16 +539,92 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}    return _validate_formula(value)",
             ]
         )
-    if any(field["key"] == "started_at" for field in fields):
+    datetime_keys = [
+        field["key"] for field in fields if str(field.get("input") or "") == "日期时间"
+    ]
+    if datetime_keys:
+        quoted_keys = ", ".join(repr(key) for key in datetime_keys)
         lines.extend(
             [
                 "",
-                f'{indent}@field_validator("started_at", mode="before")',
+                f'{indent}@field_validator({quoted_keys}, mode="before")',
                 f"{indent}@classmethod",
-                f"{indent}def _started_at(cls, value: Any) -> Any:",
-                f"{indent}    if value is not None and not isinstance(value, str):",
-                f'{indent}        raise ValueError("started_at must be an ISO datetime string")',
-                f"{indent}    return value",
+                f"{indent}def _offset_datetime(cls, value: Any) -> Any:",
+                f"{indent}    return None if value is None else _normalize_datetime(value)",
+            ]
+        )
+    if any(field["key"] == "components" for field in fields):
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _component_semantics(self) -> Self:",
+                f"{indent}    parts = self.components or []",
+                f"{indent}    if any(part.concentration_at_percent is not None and part.layer_order is not None for part in parts):",
+                f'{indent}        raise ValueError("component concentration and layer order are mutually exclusive")',
+                f'{indent}    if self.structure_type == "intrinsic":',
+                f"{indent}        if parts:",
+                f'{indent}            raise ValueError("intrinsic target cannot include components")',
+                f'{indent}        if any(separator in (self.chemical_formula or "") for separator in (":", "/", "-")):',
+                f'{indent}            raise ValueError("intrinsic target requires a single formula")',
+                f"{indent}        return self",
+                f'{indent}    if self.structure_type == "doped":',
+                f'{indent}        matrix = [part for part in parts if part.role == "matrix"]',
+                f'{indent}        dopants = [part for part in parts if part.role == "dopant"]',
+                f"{indent}        if len(parts) != 2 or len(matrix) != 1 or len(dopants) != 1:",
+                f'{indent}            raise ValueError("doped target components require exactly one matrix and one dopant")',
+                f"{indent}        if any(part.layer_order is not None for part in parts) or matrix[0].concentration_at_percent is not None:",
+                f'{indent}            raise ValueError("doped target cannot use layer order or matrix concentration")',
+                f"{indent}        concentration = dopants[0].concentration_at_percent",
+                f"{indent}        if concentration is not None and not 0 < concentration < 100:",
+                f'{indent}            raise ValueError("dopant concentration must be between 0 and 100 at%")',
+                f'{indent}        if self.chemical_formula != f"{{dopants[0].formula}}:{{matrix[0].formula}}":',
+                f'{indent}            raise ValueError("doped formula is inconsistent with components")',
+                f"{indent}        return self",
+                f'{indent}    if self.structure_type == "alloy":',
+                f'{indent}        if len(parts) < 2 or any(part.role != "alloy_component" for part in parts):',
+                f'{indent}            raise ValueError("alloy target requires at least two alloy components")',
+                f"{indent}        formulas = [part.formula for part in parts]",
+                f"{indent}        if len(set(formulas)) != len(formulas):",
+                f'{indent}            raise ValueError("alloy component formulas must be unique")',
+                f"{indent}        if any(part.layer_order is not None for part in parts):",
+                f'{indent}            raise ValueError("alloy target cannot use layer order")',
+                f"{indent}        target_elements = _formula_elements(self.chemical_formula)",
+                f"{indent}        component_elements = set().union(*(_formula_elements(part.formula) for part in parts))",
+                f"{indent}        if component_elements != target_elements:",
+                f'{indent}            raise ValueError("alloy formula is inconsistent with components")',
+                f"{indent}        concentrations = [part.concentration_at_percent for part in parts]",
+                f"{indent}        if any(value is not None for value in concentrations):",
+                f"{indent}            if any(value is None for value in concentrations):",
+                f'{indent}                raise ValueError("alloy concentrations must be all present or all omitted")',
+                f"{indent}            if abs(sum(value for value in concentrations if value is not None) - 100.0) > 0.001:",
+                f'{indent}                raise ValueError("alloy concentrations must sum to approximately 100 at%")',
+                f"{indent}        return self",
+                f'{indent}    if self.structure_type == "vertical_heterostructure":',
+                f"{indent}        orders = [part.layer_order for part in parts]",
+                f"{indent}        roles = {{part.role for part in parts}}",
+                f'{indent}        if len(parts) < 2 or not {{"bottom_layer", "top_layer"}} <= roles or not roles <= {{"bottom_layer", "top_layer"}}:',
+                f'{indent}            raise ValueError("vertical heterostructure requires bottom and top layers")',
+                f"{indent}        if any(order is None for order in orders) or sorted(orders) != list(range(1, len(parts) + 1)):",
+                f'{indent}            raise ValueError("vertical layer order must be unique and contiguous from 1")',
+                f'{indent}        bottom_orders = [part.layer_order for part in parts if part.role == "bottom_layer"]',
+                f'{indent}        top_orders = [part.layer_order for part in parts if part.role == "top_layer"]',
+                f"{indent}        if max(bottom_orders) >= min(top_orders):",
+                f'{indent}            raise ValueError("bottom layers must precede top layers")',
+                f"{indent}        if any(part.concentration_at_percent is not None for part in parts):",
+                f'{indent}            raise ValueError("vertical heterostructure cannot use concentration")',
+                f'{indent}        expected = "/".join(part.formula for part in sorted(parts, key=lambda part: part.layer_order or 0))',
+                f"{indent}        if self.chemical_formula != expected:",
+                f'{indent}            raise ValueError("vertical formula is inconsistent with layer order")',
+                f"{indent}        return self",
+                f'{indent}    if self.structure_type == "lateral_heterostructure":',
+                f'{indent}        if len(parts) < 2 or any(part.role != "lateral_domain" for part in parts):',
+                f'{indent}            raise ValueError("lateral heterostructure requires at least two lateral domains")',
+                f"{indent}        if any(part.concentration_at_percent is not None or part.layer_order is not None for part in parts):",
+                f'{indent}            raise ValueError("lateral heterostructure cannot use concentration or layer order")',
+                f'{indent}        if self.chemical_formula != "-".join(part.formula for part in parts):',
+                f'{indent}            raise ValueError("lateral formula is inconsistent with components")',
+                f"{indent}    return self",
             ]
         )
     return lines

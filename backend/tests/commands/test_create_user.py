@@ -112,3 +112,19 @@ def test_create_user_rejects_mismatched_password_confirmation(monkeypatch, capsy
 
     assert exit_code == 1
     assert "Passwords do not match." in captured.err
+
+
+def test_create_user_rejects_blank_identity_and_weak_password(monkeypatch, capsys) -> None:
+    main = load_create_user_main()
+    for email, name, password in (
+        (" ", "Member", "Password123!"),
+        ("member@example.com", " ", "Password123!"),
+        ("member@example.com", "Member", "short"),
+        ("member@example.com", "Member", "x" * 129),
+    ):
+        prompts = iter([password, password])
+        monkeypatch.setattr("getpass.getpass", lambda _, prompts=prompts: next(prompts))
+
+        assert main(["--email", email, "--name", name, "--role", "member"]) == 1
+
+    assert "must" in capsys.readouterr().err.lower()

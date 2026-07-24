@@ -5,8 +5,12 @@ export const common = {
   actions: {
     save: '保存',
     cancel: '取消',
+    close: '关闭',
     delete: '删除',
     confirm: '确认',
+  },
+  app: {
+    title: 'CVD 实验数据采集系统',
   },
   language: {
     zh: '中文',
@@ -19,6 +23,41 @@ export const common = {
   },
   validation: {
     required: '此项为必填',
+    spaceGroupRange: '请输入 1–230 的整数',
+    finiteNumber: '请输入有限数值',
+    integerNumber: '请输入整数',
+    numberGe: '请输入不小于 {{limit}} 的数值',
+    numberGt: '请输入大于 {{limit}} 的数值',
+    numberLe: '请输入不大于 {{limit}} 的数值',
+    numberLt: '请输入小于 {{limit}} 的数值',
+    numericValueRequired: '请输入数值，不能只选择类型',
+    structuredField: '请完整填写具名参数，并使用有效数值',
+  },
+  structuredFields: {
+    select: '请选择',
+    material: '材质',
+    quartzBoat: '石英舟',
+    aluminaBoat: '刚玉舟',
+    otherMaterial: '其他材质',
+    length: '长度（mm）',
+    width: '宽度（mm）',
+    height: '高度（mm）',
+    diameter: '直径（mm）',
+    outerDiameter: '外径（mm）',
+    wallThickness: '壁厚（mm）',
+    thickness: '厚度（mm）',
+    placement: '放置方式',
+    faceUp: '正放',
+    faceDown: '倒扣',
+    tilted: '倾斜',
+    upright: '竖放',
+    otherPlacement: '其他',
+    zoneIndex: '温区编号',
+    temperature: '温度（°C）',
+    distance: '距离（mm）',
+  },
+  states: {
+    loading: '正在加载',
   },
   auth: {
     brand: { subtitle: '实验数据采集系统' },
@@ -70,6 +109,8 @@ export const common = {
     roles: { admin: '管理员', member: '成员' },
     signedOut: '未登录',
     logout: '退出登录',
+    skipToContent: '跳至主要内容',
+    toggleSidebar: '展开或收起导航',
   },
   routeBoundaries: {
     notFound: {
@@ -200,6 +241,7 @@ export const common = {
     },
     detail: {
       currentVersion: '当前版本',
+      viewingVersion: '查看版本',
       versionHistory: '版本历史',
       versionLabel: 'v{{version}}',
       createdAt: '创建时间',
@@ -224,9 +266,27 @@ export const common = {
       createSuccess: '已创建（v1）',
       newVersionSuccess: '已保存为 v{{version}}',
       submitError: '保存失败',
+      discardChanges: '当前表单有未保存的修改，确定放弃吗？',
       historicalVersionPrefill:
         '新版本基于最新版本预填，而非当前查看的历史版本。',
       fieldOptions: '{{label}}选项',
+      uploadFile: '上传{{label}}',
+      uploadingFile: '正在上传…',
+      download: '下载',
+      downloadFile: '下载 {{filename}}',
+      deleteUpload: '删除',
+      deleteFile: '删除 {{filename}}',
+      fileNote: '{{label}}的附件备注',
+      fileNoteDisplay: '备注：{{note}}',
+      fileFallbackName: '附件 {{id}}',
+      unboundFileHint: '保存该实体版本后，此文件才会正式绑定。',
+      fileUploadError: '文件上传失败',
+      fileDownloadError: '文件下载失败',
+      fileDeleteError: '未能删除尚未保存的上传文件',
+      fileLoadError: '文件详情加载失败，请关闭后重试。',
+      invalidFileReference: '请选择并上传有效文件',
+      discardFileCleanupError:
+        '未能删除尚未保存的上传文件；表单将保持打开，请重试。',
     },
   },
   samples: {
@@ -328,6 +388,7 @@ export const common = {
       success: '状态已更新',
       error: '状态更新失败',
       missingTitle: '请先补齐以下字段：',
+      saveBeforeLock: '还有未保存的工艺修改；请先保存对应部分，再锁定工艺。',
       requirement: { required: '必填', r0: '锁定前必填' },
       invalidateTitle: '作废炉次',
       invalidateDescription: '作废后该炉次不可编辑且不可恢复。请输入作废原因。',
@@ -344,6 +405,7 @@ export const common = {
       title: '炉次详情',
       subtitle: '工艺信息可分段保存；锁定后仍可继续补录样品结果。',
       loadError: '加载炉次失败',
+      retry: '重试',
     },
     export: {
       run: '导出本炉次',
@@ -381,6 +443,7 @@ export const common = {
       empty: '暂无炉次记录，点击右上角「开始记录炉次」。',
       filteredEmpty: '没有符合当前条件的炉次。',
       loadError: '加载失败',
+      retry: '重试',
       edit: '查看',
       export: '导出当前结果',
       exportSuccess: '导出已开始',
@@ -452,6 +515,8 @@ export const common = {
     reference: {
       placeholder: '请选择',
       empty: '基础资料中暂无可选记录。',
+      loadError: '基础资料加载失败',
+      retry: '重试',
       goToLibrary: '前往基础资料添加',
       create: '新增{{name}}',
     },
@@ -467,18 +532,19 @@ export const common = {
         guides: {
           intrinsic: '本征：只填目标材料化学式，例如 MoS2；不填组成明细。',
           doped:
-            '掺杂：化学式按“掺杂剂:基体”填写，例如 Nb:MoS2。组成明细填两行：MoS2 选“基体”，Nb 选“掺杂剂”；已知名义掺杂量时填浓度（at%），层序留空。',
+            '掺杂：化学式按“掺杂剂:基体”填写，例如 Nb:MoS2。组成明细填两行：MoS2 选“基体”，Nb 选“掺杂剂”；已知名义掺杂量时填大于 0 且小于 100 的浓度（at%），层序留空。',
           alloy:
             '合金：化学式填名义化学计量，例如 Mo0.5W0.5S2。每种合金元素或组分各填一行，角色选“合金组分”；已知时填名义浓度（at%），层序留空。',
           vertical:
-            '垂直异质结：化学式按“下层/上层”填写，例如 MoS2/WS2。每层一行，角色选“下层”或“上层”；层序 1 表示最靠近衬底，向上递增，浓度留空。',
+            '垂直异质结：化学式按“下层/上层”填写，例如 MoS2/WS2。每层一行，角色选“下层”或“上层”；层序 1 表示最靠近衬底，向上递增，下层层序必须早于上层，浓度留空。',
           lateral:
             '横向异质结：化学式用“-”连接，例如 MoS2-WS2。每个横向域各填一行，角色选“横向域”；浓度和层序留空。',
           other:
             '其他：用普通数字填写课题组约定的化学式，并在组成明细中逐条记录组分；只填写适用的浓度或层序，关系在备注中说明。',
         },
-        displayPreview: '显示串预览',
-        displayNote: '与后端 formula_display 规则保持一致。',
+        displayPreview: '显示串预览：',
+        displayNote: '仅用于前端预览；组成明细仍是权威数据。',
+        spaceGroupSymbol: 'Hermann–Mauguin 符号：{{symbol}}',
       },
       equipment: {
         title: '实验装置',
@@ -542,6 +608,7 @@ export const common = {
         resultUpdated: '结果已更新',
         newAttachments: '附件（可选）',
         selectedAttachmentCount: '已选择 {{count}} 个附件',
+        discardChanges: '当前结果有未保存的修改，确定放弃吗？',
         resultSavedAttachmentUploadError:
           '结果已保存，但部分附件上传失败。请在结果卡片中重新上传。',
         editResultLabel: '编辑结果',
@@ -555,6 +622,13 @@ export const common = {
         measuredLayersCoverage: '层数与覆盖率',
         domainNucleationContinuity: '畴、成核与连续性',
         keySpectralMetrics: '关键谱学指标',
+        addSpectralMetric: '新增谱学指标',
+        removeSpectralMetric: '删除谱学指标',
+        metricCode: '指标代码',
+        metricValue: '数值',
+        metricUnit: '单位',
+        invalidMeasurement: '请输入允许范围内的数值',
+        invalidSpectralMetric: '每条指标均需填写小写代码、有限数值和单位。',
         roles: {
           growth: '生长样',
           derived: '派生样',

@@ -62,6 +62,24 @@ export function localizedValue(value: unknown, language: string): string {
   return localizedOption(String(value), language)
 }
 
+export function localizedNamedValue(
+  value: unknown,
+  language: string,
+  labels: Readonly<Record<string, string>>,
+): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return localizedValue(value, language)
+  }
+  const colon = isEnglish(language) ? ': ' : '：'
+  return Object.entries(value)
+    .filter(([, item]) => item != null && item !== '')
+    .map(
+      ([key, item]) =>
+        `${labels[key] ?? key}${colon}${localizedValue(item, language)}`,
+    )
+    .join(' · ')
+}
+
 export function localizedUnit(
   unit: string | null,
   language: string,

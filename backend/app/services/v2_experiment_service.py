@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from datetime import UTC, date, datetime
 from typing import Any
@@ -33,19 +34,54 @@ from app.services.experiment_guards import (
 )
 from app.services.sample_service import SampleService
 from app.services.v2_entity_service import V2EntityService
-from app.services.v2_entity_snapshot_service import apply_setup_reference
+from app.services.v2_entity_snapshot_service import (
+    apply_setup_reference,
+    material_lot_version_snapshot,
+)
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
+    experiment_fields,
+    load_field_source,
     missing,
+    module_key_for_field,
+    normalize_offset_datetime,
     stage_types_with_group,
     validate_chemical_formula,
+    validate_material_formula,
 )
 from app.services.v2_r0_service import missing_r0_fields, missing_required_fields
 from app.services.v2_result_status_service import (
     is_result_missing_todo,
     refresh_result_missing_todo,
 )
+
+PRECURSOR_FORMULA_ALIASES = {
+    "三氧化钼": "MoO3",
+    "氧化钼": "MoO3",
+    "三氧化钨": "WO3",
+    "氧化钨": "WO3",
+    "硫": "S",
+    "硒": "Se",
+    "碲": "Te",
+}
+SUBSTRATE_MATERIAL_ALIASES = {
+    "sio2_si": {"sio2_si"},
+    "sapphire_al2o3": {"sapphire", "sapphire_al2o3"},
+    "quartz": {"quartz"},
+    "mica": {"mica"},
+    "cu_foil": {"cu_foil"},
+    "au_foil": {"au_foil"},
+    "h-BN": {"h-BN"},
+}
+SUBSTRATE_FORMULAS = {
+    "sio2_si": {"Si", "SiO2"},
+    "sapphire_al2o3": {"Al2O3"},
+    "quartz": {"SiO2"},
+    "cu_foil": {"Cu"},
+    "au_foil": {"Au"},
+    "h-BN": {"BN"},
+}
 
 
 class V2ExperimentService:
@@ -58,6 +94,7 @@ class V2ExperimentService:
         self.audit = AuditService(db)
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
+        started_at = normalize_offset_datetime(payload.started_at)
         try:
             chemical_formula = (
                 validate_chemical_formula(payload.chemical_formula)
@@ -72,9 +109,7 @@ class V2ExperimentService:
         attempts = 1 if payload.run_code else 4
         for attempt in range(attempts):
             try:
-                run_code = payload.run_code or self.experiments.next_run_code(
-                    payload.started_at.date()
-                )
+                run_code = payload.run_code or self.experiments.next_run_code(started_at.date())
             except ValueError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -85,7 +120,7 @@ class V2ExperimentService:
                 owner_id=current_user.id,
                 schema_version=SCHEMA_VERSION,
                 material_system=chemical_formula,
-                experiment_date=payload.started_at.date(),
+                experiment_date=started_at.date(),
                 objective=payload.objective,
                 status=ExperimentStatus.DRAFT,
             )
@@ -104,7 +139,7 @@ class V2ExperimentService:
             run.id,
             "basic_info",
             {
-                "started_at": payload.started_at.isoformat(),
+                "started_at": started_at.isoformat(),
                 "synthesis_method": canonical_option_value(payload.synthesis_method),
                 "operator": current_user.name,
                 "run_code": run.run_code,
@@ -117,7 +152,11 @@ class V2ExperimentService:
                 # structure_type defaults to the stable controlled-vocabulary code.
                 {
                     "chemical_formula": chemical_formula,
-                    "structure_type": "intrinsic",
+                    "structure_type": (
+                        None
+                        if any(separator in chemical_formula for separator in (":", "/", "-"))
+                        else "intrinsic"
+                    ),
                 },
             )
         self.audit.record_event(
@@ -265,6 +304,7 @@ class V2ExperimentService:
             "setup_ref_version": run.setup_ref_version,
         }
         version = self.entities.get_version("setup", setup_id, setup_version)
+        self._validate_saved_zone_indices(run.id, version.zone_count)
         apply_setup_reference(run, version)
         self._save_v2_payload(
             run.id,
@@ -331,16 +371,40 @@ class V2ExperimentService:
                     detail={"invalid": [{"key": "started_at", "reason": "type"}]},
                 )
             try:
-                run.experiment_date = datetime.fromisoformat(
-                    started_at.replace("Z", "+00:00")
-                ).date()
+                normalized_started_at = normalize_offset_datetime(started_at)
             except ValueError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail={"invalid": [{"key": "started_at", "reason": "value"}]},
                 ) from exc
+            self._validate_process_event_timeline(
+                run.id,
+                started_at=normalized_started_at,
+                invalid_key="started_at",
+            )
+            run.experiment_date = normalized_started_at.date()
+            process_payload = self.module_payloads.get_by_run_and_key(run.id, "process_steps")
+            self._validate_pressure_regime(
+                validated.get("synthesis_method"),
+                process_payload.payload_json if process_payload else {},
+            )
         if module_key == "process_steps":
             self._validate_external_field_requirement(run, validated)
+            basic_payload = self.module_payloads.get_by_run_and_key(run.id, "basic_info")
+            self._validate_pressure_regime(
+                (basic_payload.payload_json if basic_payload else {}).get("synthesis_method"),
+                validated,
+            )
+        if module_key == "process_events":
+            self._validate_process_event_timeline(
+                run.id,
+                process_events=validated,
+                invalid_key="occurred_at",
+            )
+        if module_key in {"precursors", "substrates", "pvd"}:
+            validated = self._freeze_material_lot_references(module_key, validated)
+        if module_key in {"precursors", "substrates"}:
+            self._validate_zone_indices(run, module_key, validated)
         if module_key == "target_product":
             chemical_formula = validated.get("chemical_formula")
             if chemical_formula is not None and not isinstance(chemical_formula, str):
@@ -545,6 +609,252 @@ class V2ExperimentService:
                     detail=(
                         "field_params is required when referenced setup has external field devices"
                     ),
+                )
+
+    def _freeze_material_lot_references(
+        self,
+        module_key: str,
+        payload_json: dict[str, Any],
+    ) -> dict[str, Any]:
+        if module_key == "pvd":
+            reference = payload_json.get("target_lot_ref")
+            if reference is None:
+                return payload_json
+            version = self._resolve_material_lot_reference(reference, "target_lot_ref")
+            if version.lot_category != "chemical":
+                self._raise_invalid_reference("target_lot_ref", "category")
+            payload_json["target_lot_ref"] = {
+                "entity_id": str(version.entity_id),
+                "version": version.version,
+                "snapshot": material_lot_version_snapshot(version),
+            }
+            return payload_json
+
+        for item in payload_json.get("items") or []:
+            reference = item.get("lot_ref")
+            if reference is None:
+                continue
+            version = self._resolve_material_lot_reference(reference, "lot_ref")
+            expected_categories = (
+                {"substrate"}
+                if module_key == "substrates"
+                else {"gas_cylinder"}
+                if item.get("phase_state") == "gas"
+                else {"chemical"}
+            )
+            if version.lot_category not in expected_categories:
+                self._raise_invalid_reference("lot_ref", "category")
+            if module_key == "precursors":
+                self._validate_precursor_lot_identity(item, version)
+            else:
+                self._validate_substrate_lot_identity(item, version)
+            item["lot_ref"] = {
+                "entity_id": str(version.entity_id),
+                "version": version.version,
+                "snapshot": material_lot_version_snapshot(version),
+            }
+        return payload_json
+
+    def _resolve_material_lot_reference(self, reference: Any, key: str) -> Any:
+        try:
+            entity_id = UUID(str(reference["entity_id"]))
+            version_number = int(reference["version"])
+            return self.entities.get_version(
+                "material_lot",
+                entity_id,
+                version_number,
+            )
+        except (KeyError, TypeError, ValueError, HTTPException) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": key, "reason": "reference"}]},
+            ) from exc
+
+    @staticmethod
+    def _raise_invalid_reference(key: str, reason: str) -> None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"invalid": [{"key": key, "reason": reason}]},
+        )
+
+    def _validate_precursor_lot_identity(self, item: dict[str, Any], version: Any) -> None:
+        supplied = str(item.get("name_formula") or "").strip()
+        if supplied.casefold() == str(version.substance_name).strip().casefold():
+            return
+        formula = PRECURSOR_FORMULA_ALIASES.get(supplied)
+        if formula is None:
+            candidates = [part.strip() for part in supplied.split("/") if part.strip()]
+            for candidate in reversed(candidates):
+                try:
+                    formula = validate_material_formula(candidate)
+                    break
+                except ValueError:
+                    continue
+        if formula != version.chemical_formula:
+            self._raise_invalid_reference("lot_ref", "identity")
+
+    def _validate_substrate_lot_identity(self, item: dict[str, Any], version: Any) -> None:
+        material = canonical_option_value(item.get("material"))
+        lot_material = canonical_option_value(version.attrs.get("substrate_material"))
+        accepted_lot_materials = SUBSTRATE_MATERIAL_ALIASES.get(material, {material})
+        if lot_material not in accepted_lot_materials:
+            self._raise_invalid_reference("lot_ref", "identity")
+
+        expected_formulas = SUBSTRATE_FORMULAS.get(material)
+        if expected_formulas is not None and version.chemical_formula not in expected_formulas:
+            self._raise_invalid_reference("lot_ref", "identity")
+
+        orientation = str(item.get("formula_orientation") or "").strip()
+        match = re.match(r"^((?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+)", orientation)
+        if match:
+            try:
+                orientation_formula = validate_chemical_formula(match.group(1))
+            except ValueError:
+                orientation_formula = None
+            if (
+                orientation_formula is not None
+                and expected_formulas is not None
+                and orientation_formula not in expected_formulas
+            ):
+                self._raise_invalid_reference("lot_ref", "identity")
+
+    def _validate_saved_zone_indices(self, run_id: UUID, zone_count: int) -> None:
+        for module_key in ("precursors", "substrates"):
+            payload = self.module_payloads.get_by_run_and_key(run_id, module_key)
+            if payload is not None:
+                self._validate_zone_items(module_key, payload.payload_json, zone_count)
+
+    def _validate_process_event_timeline(
+        self,
+        run_id: UUID,
+        *,
+        started_at: datetime | None = None,
+        process_events: dict[str, Any] | None = None,
+        invalid_key: str,
+    ) -> None:
+        if started_at is None:
+            basic = self.module_payloads.get_by_run_and_key(run_id, "basic_info")
+            raw_started_at = (basic.payload_json if basic else {}).get("started_at")
+            if raw_started_at is None:
+                return
+            started_at = normalize_offset_datetime(raw_started_at)
+        if process_events is None:
+            saved_events = self.module_payloads.get_by_run_and_key(run_id, "process_events")
+            process_events = saved_events.payload_json if saved_events else {}
+        for event in process_events.get("items") or []:
+            raw_occurred_at = event.get("occurred_at")
+            if raw_occurred_at is None:
+                continue
+            if normalize_offset_datetime(raw_occurred_at) < started_at:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={
+                        "invalid": [
+                            {
+                                "key": invalid_key,
+                                "reason": "before_started_at",
+                            }
+                        ]
+                    },
+                )
+
+    def _validate_zone_indices(
+        self,
+        run: ExperimentRun,
+        module_key: str,
+        payload_json: dict[str, Any],
+    ) -> None:
+        zone_count = (run.setup_ref_snapshot_json or {}).get("zone_count_snapshot")
+        zone_key = (
+            "source_zone_temperature"
+            if module_key == "precursors"
+            else "zone_thermocouple_distance_mm"
+        )
+        has_zone = any(
+            (item.get(zone_key) or {}).get("zone_index") for item in payload_json.get("items") or []
+        )
+        if has_zone and not isinstance(zone_count, int):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": zone_key, "reason": "setup_required"}]},
+            )
+        if isinstance(zone_count, int):
+            self._validate_zone_items(module_key, payload_json, zone_count)
+
+    @staticmethod
+    def _validate_zone_items(
+        module_key: str,
+        payload_json: dict[str, Any],
+        zone_count: int,
+    ) -> None:
+        zone_key = (
+            "source_zone_temperature"
+            if module_key == "precursors"
+            else "zone_thermocouple_distance_mm"
+        )
+        for item in payload_json.get("items") or []:
+            zone = item.get(zone_key)
+            if zone is not None and zone.get("zone_index", 0) > zone_count:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": zone_key, "reason": "zone_count"}]},
+                )
+
+    @staticmethod
+    def _validate_pressure_regime(
+        synthesis_method: Any,
+        process_payload: dict[str, Any],
+    ) -> None:
+        expected = {
+            "APCVD": "atmospheric_pressure",
+            "LPCVD": "low_pressure",
+        }.get(synthesis_method)
+        if expected is None:
+            return
+        doc = load_field_source()
+        pressure_field = next(
+            field
+            for field in experiment_fields(doc)
+            if module_key_for_field(field, doc) == "process_steps"
+            and field["key"] == "pressure_system"
+        )
+        option_ranges = (pressure_field.get("validation") or {}).get("option_ranges") or {}
+        for step in process_payload.get("items") or []:
+            if step.get("stage_type") != "growth":
+                continue
+            pressure = step.get("pressure_system") or {}
+            if pressure.get("option") != expected:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={
+                        "invalid": [
+                            {
+                                "key": "pressure_system",
+                                "reason": "synthesis_method",
+                            }
+                        ]
+                    },
+                )
+            value = pressure.get("value")
+            bounds = option_ranges.get(expected) or {}
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or ("ge" in bounds and value < bounds["ge"])
+                or ("gt" in bounds and value <= bounds["gt"])
+                or ("le" in bounds and value > bounds["le"])
+                or ("lt" in bounds and value >= bounds["lt"])
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={
+                        "invalid": [
+                            {
+                                "key": "pressure_system",
+                                "reason": "range",
+                            }
+                        ]
+                    },
                 )
 
     def _require_status(self, run: ExperimentRun, expected: ExperimentStatus) -> None:
