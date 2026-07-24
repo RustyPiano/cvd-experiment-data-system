@@ -1,12 +1,12 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库 = v2 单轨，炉次优先阶段 0–4 与 2026-07-24 全库加固复核均已完成，下一步为 push + Actions 首绿；线上仍为切换前旧部署，批8 前禁止 `deploy.sh`**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库与香港生产均为 v2 单轨；2026-07-24 批8切换、旧库归档、管理员登录与浏览器冒烟已完成，下一步是用第一条真实炉次完成导出与 R0 验收**。字段单一源 = `docs/standard/field-source.yaml`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
 
 ## 项目概览
 
 CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉次、样品、表征与实测、审计轨迹，落实"最小可复现元数据标准"（R0）。
 - 前端：`frontend-next/`（React + TypeScript + Vite + TanStack Router + shadcn/ui + Tailwind v4）；旧 `frontend/` 已删除（2026-07-11，v2 单轨化批1）
-- 后端：FastAPI + SQLAlchemy 2.x + Alembic（单一 initial）+ PostgreSQL
+- 后端：FastAPI + SQLAlchemy 2.x + Alembic（已发布基线 `20260711_0001`，后续只新增迁移）+ PostgreSQL
 - 文件：本地文件系统 + metadata 入库
 - 部署：生产用 `docker-compose.prod.yml`（后端 + frontend-next 容器 + 共享 1Panel PostgreSQL，1Panel/openresty 反代，域名 cvd.rustypiano.com）；本地 dev 用 `docker-compose.yml`（自带 postgres）
 
@@ -52,8 +52,9 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 
 - 不重命名公共 API/字段，除非同步更新调用方与文档。
 - **字段改动只改 `docs/standard/field-source.yaml`**，然后重跑生成器（后端 `generate_v2_models`/`export_v2_schema`、前端 `gen:fields`、xlsx `build_field_tables.py`）+ `check_field_source.py` 校验；生成物漂移 = CI 红。
+- **生产基线已发布**：不得修改或 squash `20260711_0001`；任何数据库结构变化都新增 Alembic revision，并同时验证空库升级与现有生产 revision 前滚。
 - **当前代码**状态流：draft → locked（admin 可 unlock 回 draft）；draft 可作废为 invalid；lock 过必填门并在同一事务中按衬底生成 growth 样品；locked 锁工艺但允许全组成员补结果，invalid 全部只读；每次转移写审计。
-- **产品重构进度**：阶段 0–4 与 2026-07-24 全库加固复核均已完成；两步状态、样品生成、统一结果录入、全量双语、检索、审计、导出、生产防护和浏览器复验均已验收。下一步为 push + Actions 首绿，之后才进入批8人工切换。
+- **产品重构进度**：阶段 0–4、2026-07-24 全库加固复核与批8香港生产切换均已完成；两步状态、样品生成、统一结果录入、全量双语、检索、审计、导出、生产防护和浏览器复验均已验收。旧 v1 数据库离线归档为 `cvd_v1_archive_20260724`；下一步是第一条真实炉次的导出与 R0 验收。
 - 实验不做物理删除；文件删除走软删除标记。
 
 ## 安全与 PR

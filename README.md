@@ -4,7 +4,7 @@
 
 > 先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)。它是项目现状、已定决策和下一步的唯一入口；完整文档索引见 [`docs/README.md`](docs/README.md)。
 >
-> ⚠️ 线上仍是切换前的旧部署。完成批8人工切换前禁止运行 `deploy.sh`。
+> 香港生产环境已于 2026-07-24 切换到 v2；旧 v1 数据库已离线归档，部署证据见 [`docs/operations/production-deployment-report-2026-07-24.md`](docs/operations/production-deployment-report-2026-07-24.md)。
 
 ## 当前产品逻辑
 
@@ -124,12 +124,13 @@ uv run --project backend python docs/standard/check_field_source.py
 - 生产切换：[`docs/engineering/v2-single-track-plan.md`](docs/engineering/v2-single-track-plan.md)
 - 端到端检查：[`docs/operations/e2e-walkthrough-checklist.md`](docs/operations/e2e-walkthrough-checklist.md)
 - 最新验收：[`docs/operations/e2e-comprehensive-hardening-report-2026-07-24.md`](docs/operations/e2e-comprehensive-hardening-report-2026-07-24.md)
+- 生产部署：[`docs/operations/production-deployment-report-2026-07-24.md`](docs/operations/production-deployment-report-2026-07-24.md)
 - 全库整改：[`docs/reviews/2026-07-24-comprehensive-audit-remediation.md`](docs/reviews/2026-07-24-comprehensive-audit-remediation.md)
 
-生产使用 `docker-compose.prod.yml`，共享 1Panel PostgreSQL，并由 openresty 反向代理。当前发布硬顺序为：
+生产使用 `docker-compose.prod.yml`，共享 1Panel PostgreSQL，并由 openresty 反向代理。批8已经完成，后续普通发布顺序为：
 
 ```text
-push → GitHub Actions 首绿 → required checks → 批8人工切换 → 创建管理员 → 线上冒烟
+push → required checks 全绿 → 服务器 ./deploy.sh → 健康检查与线上冒烟
 ```
 
-批8必须由用户在场执行；在此之前不要运行 `deploy.sh`。
+不要再次使用批8能力重建数据库；普通 `./deploy.sh` 会先做现场备份，再快进拉取和部署。

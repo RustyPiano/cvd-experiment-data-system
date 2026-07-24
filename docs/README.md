@@ -13,7 +13,8 @@
 | 字段表 | [`standard/字段草案-v3.xlsx`](standard/字段草案-v3.xlsx) | 由字段单一源生成的人读表格 |
 | 设计依据 | [`standard/metadata-v2-review-and-redesign.md`](standard/metadata-v2-review-and-redesign.md) | 国际对标、文献和字段设计理由 |
 | 研究输入 | [`research/`](research/) | 导师批注原件、会议纪要、国际对标表和调研附件 |
-| 生产切换 | [`engineering/v2-single-track-plan.md`](engineering/v2-single-track-plan.md) | v1 拆除记录与待执行的批8人工切换 |
+| 生产切换 | [`engineering/v2-single-track-plan.md`](engineering/v2-single-track-plan.md) | v1 拆除与批8生产切换的计划及历史依据 |
+| 生产部署 | [`operations/production-deployment-report-2026-07-24.md`](operations/production-deployment-report-2026-07-24.md) | 香港生产 v2 切换、旧库归档、恢复与线上验收证据 |
 | 技术决策 | [`engineering/v2-implementation-plan.md`](engineering/v2-implementation-plan.md) | P0–P4 与 D1–D12 的历史技术决策 |
 | 操作检查 | [`operations/e2e-walkthrough-checklist.md`](operations/e2e-walkthrough-checklist.md) | 浏览器端到端走查工单 |
 | 最新验收 | [`operations/e2e-comprehensive-hardening-report-2026-07-24.md`](operations/e2e-comprehensive-hardening-report-2026-07-24.md) | 全库加固后的门禁、PostgreSQL 与真实浏览器验收证据 |

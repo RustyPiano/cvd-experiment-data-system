@@ -4,8 +4,8 @@
 > 依据：2026-07-09 用户确认 **v1 试运行数据可弃**（项目未正式投入使用，不为兼容历史数据做架构妥协）；
 > 三组独立架构评审（后端 / 前端 / 单一源管线，2026-07-09）+ 两组 v1/v2 耦合探查结论。
 > **2026-07-11 修订（5 组并行取证复评，逐断言 file:line 验证）**：批2 原"models 层零 import"断言被证伪→补 schemas/repositories 两层+三处红线切耦合+前端最小补丁；批3 扩范围（守卫缺 5 路径+审计/再校验+快照语义决策）；批6 换更省方案（反对生成 TS matcher）；**新增批8 生产切换**（原 P6 人工门找回，容器启动即 `alembic upgrade head`，squash 后老库部署即崩）。
-> 状态：**批0 当时获测试数据豁免；批1–7 已执行完毕（2026-07-11，含批4 走查修复）；仅剩批8 生产切换（人工门，用户在场）**。最后更新：2026-07-24。
-> **现行性提示**：批1–7章节保留的是当时的实施计划与执行依据，其中旧 `submitted` 状态和旧端点仅用于历史追溯；当前产品逻辑是 `draft → locked`，以 [`../standard/STATUS.md`](../standard/STATUS.md) 和 [`../product/run-first-workflow-and-copy-design.md`](../product/run-first-workflow-and-copy-design.md) 为准。本文件当前仍具约束力的部分是批8生产切换。
+> 状态：**批1–8 均已执行；批8于 2026-07-24 完成香港生产 v2 技术切换，旧库改为离线归档而非删除。第一条真实炉次的导出与 R0 验收待实际实验数据。** 最后更新：2026-07-24。
+> **现行性提示**：本文件仅为只读实施历史，**不是回退或再次部署手册，禁止重放其中的 squash、drop、清卷、批8命令或按批次 `git revert`**。已发布的 `20260711_0001` 不得改写；后续结构变化只新增 Alembic revision。当前产品与生产状态以 [`../standard/STATUS.md`](../standard/STATUS.md) 为准，批8证据见 [`../operations/production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
 
 ## 0. 决策与边界
 
@@ -14,8 +14,8 @@
 - 在**当前仓库**清理重建，不新开项目（保 CI/测试/标准资产/git 历史——论文叙事的评审证据链）。
 - v2 本体**不重写**：三大架构选型（YAML 单一源+生成校验、实体锁版快照、元数据驱动表单）经评审确认正确，债集中且可枚举。
 
-**执行红线（2026-07-11 增）**：
-- **批8 完成前禁止运行 `deploy.sh` / 任何生产部署**。后端容器启动命令是 `alembic upgrade head && uvicorn`（`backend/Dockerfile:23`）：批2–批7 任何中间态部署上去功能都是断的；批5 squash 后生产库 `alembic_version` 指向不存在的修订号，后端直接崩溃循环。切换只能走批8 的整库重建。
+**执行红线（2026-07-11 增，2026-07-24 已满足）**：
+- 批8完成前禁止普通生产部署；该门现已关闭。后续只走普通 `./deploy.sh`，不得再次以批8能力重建数据库。
 
 **随之作废**（原 STATUS §6 / 实现计划相关项）：
 - P5 正式迁移全线（`migrate_v1_to_v2`、`v1-to-v2-mapping.yaml`、archive 表、备份门、`--reconcile`、迁移报告 mapped 计数必修项）。
@@ -32,7 +32,7 @@
 3. 字段与词表唯一源 = `field-source.yaml`，治理走 YAML + git + CI；**无 DB 可编辑词表面**。
 4. v2 补齐状态机（submit/lock/unlock + `refresh_result_missing_todo` 接线——§4"结果缺失待办"规则上电），且锁定守卫覆盖**全部**写路径。
 5. 全门禁绿（pytest / vitest / tsc / eslint / 生成物零漂移 / check_field_source）+ UI 手工走查完成。
-6. **生产环境运行纯 v2**（批8 切换完成，线上冒烟一条真实炉次走通）。
+6. **生产环境运行纯 v2**（批8 技术切换与登录冒烟完成；真实炉次闭环作为上线后科研验收单列）。
 
 ## 2. 评审结论摘要（计划依据）
 
@@ -114,6 +114,8 @@
 
 ### 批5 · Schema 重基线（~0.5–1 天）
 
+> **历史步骤，禁止再次执行。** `20260711_0001` 已成为生产基线；任何后续 schema 变化都必须新增前滚迁移。
+>
 > 复评好消息：待删表**零入度 FK**（无任何保留表外键指向它们）；`project_id`/`template_version_id`/`recipe_id` 是无约束裸 Uuid 列（projects/templates 表根本不存在），直接删列；批8 定为整库重建后，squash **无需考虑老库在位升级**（孤儿 enum、drop 顺序均不适用）——新 initial 只写纯 v2 形状。
 
 - **squash 34 个 Alembic 迁移 → 单一 initial**（纯 v2 schema；无生产数据，合法）。**必须 SQLite 兼容**——测试建库走 `alembic upgrade head`（`conftest.py:79-81`），CI 后端 job 用 SQLite。
@@ -142,7 +144,11 @@
 
 ### 批8 · 生产切换（~0.5 天，人工门，用户在场）——2026-07-11 增
 
+> **以下编号步骤只记录 2026-07-24 的一次性切换设计，禁止再次执行或当作回退手册。** 生产已经越过该门；后续发布只走普通 `./deploy.sh`。如需回退，必须另行编写、评审并演练针对当时数据状态的 runbook。
+>
 > 原 P6"生产切换必须用户在场"的人工门在此找回。前提：批1–7 全部门禁绿、代码已 push，并在执行当日重新确认数据处置。批0 曾因当时全是测试数据而获用户豁免，**不存在可沿用的恢复点**；批8 删除任何数据前必须重新完成数据库与文件存储的双份备份并验证可读，不接受沿用旧豁免。
+>
+> **执行结果（2026-07-24）**：步骤 1–9 已完成。用户要求保留旧炉次，因此旧 `cvd` 改名为禁连归档库 `cvd_v1_archive_20260724`，同时保留双哈希备份、永久副本、v1 源码与回退镜像；没有删除旧库。文件卷经容器视角确认本来为空，因此没有清理或重建。步骤 10 的真实炉次/R0 验收待第一条实际实验数据。完整证据见 [`../operations/production-deployment-report-2026-07-24.md`](../operations/production-deployment-report-2026-07-24.md)。
 
 1. **破坏前预检**：在生产机先 `git pull --ff-only` 到已通过 Actions 的目标 commit，并确认工作树干净；确认 `.env` 所有占位符已替换，`COMPOSE_DATABASE_URL` 与 `PG_CONTAINER/POSTGRES_USER/POSTGRES_DB` 指向同一数据库，`EXPERIMENT_TIMEZONE` 正确；运行 `docker compose -f docker-compose.prod.yml config --quiet` 和 `docker compose -f docker-compose.prod.yml build` 成功；只读核对将要重建的数据库与 `/data/storage` 实际挂载卷。将 `.env` 和备份文件设为 `0600`、备份目录设为 `0700`。此时不得停服务或删数据。
 2. **先停写、保留容器**：用 `docker compose -f docker-compose.prod.yml stop frontend backend` 停止应用，不要先 `down` 删除容器；确认 backend 容器唯一且 `.State.Running=false`。若后续备份或恢复演练失败，在尚未删数据时启动旧服务并中止切换。
@@ -154,9 +160,9 @@
 8. 等待脚本确认所有 Compose 服务均为 `running + healthy`；任何 exited、unhealthy 或缺失服务都算失败。
 9. 用 `docker compose -f docker-compose.prod.yml exec backend uv run python -m app.commands.create_admin --email <admin-email> --name <admin-name>` 交互创建管理员；空白密码必须拒绝。
 10. **线上冒烟**：完整录入一条真实炉次（实体→版本引用→全模块→锁定→自动样品→表征与实测→导出），再运行 `docker compose -f docker-compose.prod.yml exec backend uv run python -m app.commands.check_r0 --run-code <CVD-...> --format text`，确认该炉次 compliant。
-- **门**：数据库状态确认、全部服务健康、管理员登录、真实炉次冒烟与导出均通过。在此之前**禁止任何 `deploy.sh`**（见 §0 执行红线）。
+- **门**：数据库状态、全部服务健康、管理员 API/浏览器登录均已通过；真实炉次冒烟、导出和 R0 compliant 尚待实际实验数据，不允许用伪造生产记录替代。
 
-**总计 ~5.5–7 天**（含门禁与走查；批2 复评后上调）。回滚方式：代码可按批次 `git revert`；数据只从批8前实际生成并验证过的数据库与文件双份备份恢复，不能引用已豁免的批0作为兜底。
+**总计 ~5.5–7 天**（含门禁与走查；批2 复评后上调）。这是历史估算，不构成现行回退方式；生产回退必须依据当时数据库、文件和代码状态另拟并演练，旧归档原件始终保持禁连。
 
 ## 4. 保留资产红线（防误删）
 
