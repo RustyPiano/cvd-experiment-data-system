@@ -2,7 +2,7 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2，部署提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `f91057be871e5b8b50fb836b3e94f952bb3f4dbf`。
 - GitHub Actions 运行 `30076866424` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；`main` 已设置同名 required checks，并禁止强推和删除。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧版数据没有删除。旧数据库已离线归档为 `cvd_v1_archive_20260724`，新 v2 使用全新的 `cvd` 数据库。
@@ -74,6 +74,13 @@
 - 浏览器 console warning/error：0
 
 初始管理员密码与新邀请码仅在服务器 root-only 交接材料中暂存，均未写入仓库或本报告。完成首次人工交接后应立即轮换管理员密码，并删除交接材料中的明文副本；邀请码按成员注册需要轮换。
+
+## 后续普通发布
+
+- 2026-07-24 17:03（Asia/Shanghai）按普通 `./deploy.sh` 发布 `f91057b`，未再次使用批8能力，也未接触离线归档库。
+- GitHub Actions 运行 `30081056929` 的五项 required checks 全部通过。
+- 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260724_170310`。
+- 新增装置图上传后预览、版本详情大图和装置库列表缩略图；公网 `/health`、首页、容器健康和真实浏览器装置库/新建表单均通过，console 0 warning/error。
 
 ## 尚待真实数据验收
 
