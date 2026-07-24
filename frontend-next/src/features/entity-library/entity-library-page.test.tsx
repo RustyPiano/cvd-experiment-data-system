@@ -12,6 +12,8 @@ import { EntityLibraryPage } from './entity-library-page'
 const api = vi.hoisted(() => ({
   createEntity: vi.fn(),
   deleteEntityFile: vi.fn(),
+  downloadEntityFile: vi.fn(),
+  getEntityFile: vi.fn(),
   listEntities: vi.fn(),
 }))
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
@@ -74,7 +76,9 @@ vi.mock('./entity-form', () => ({
   },
 }))
 
-function renderPage(kind: 'material_lot' | 'instrument' = 'material_lot') {
+function renderPage(
+  kind: 'material_lot' | 'setup' | 'instrument' = 'material_lot',
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -92,6 +96,17 @@ beforeEach(async () => {
   await i18n.changeLanguage('en')
   api.listEntities.mockResolvedValue({ items: [], total: 0 })
   api.deleteEntityFile.mockResolvedValue(undefined)
+  api.getEntityFile.mockResolvedValue({
+    id: 'file-1',
+    original_name: 'reactor.png',
+    content_type: 'image/png',
+    size_bytes: 12,
+    sha256: 'abc123',
+  })
+  api.downloadEntityFile.mockResolvedValue({
+    blob: new Blob(['image'], { type: 'image/png' }),
+    filename: 'reactor.png',
+  })
   api.createEntity.mockResolvedValue({
     id: 'lot-1',
     latest_version: { version: 1 },
@@ -182,6 +197,83 @@ describe('EntityLibraryPage attachment draft lifecycle', () => {
 })
 
 describe('EntityLibraryPage display values', () => {
+  it('shows the latest setup image beside the apparatus name', async () => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:reactor-preview'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    api.listEntities.mockResolvedValue({
+      items: [
+        {
+          id: 'setup-1',
+          entity_type: 'setup',
+          created_at: '2026-07-24T00:00:00Z',
+          updated_at: '2026-07-24T00:00:00Z',
+          latest_version: {
+            id: 'version-1',
+            entity_id: 'setup-1',
+            version: 1,
+            data: {
+              setup_name: 'Main reactor',
+              setup_code: 'SETUP-01',
+              setup_diagram: {
+                file_asset_id: 'file-1',
+                sha256: 'abc123',
+                original_name: 'reactor.png',
+                size_bytes: 12,
+              },
+            },
+            created_at: '2026-07-24T00:00:00Z',
+          },
+        },
+      ],
+      total: 1,
+    })
+
+    const { container } = renderPage('setup')
+
+    await waitFor(() =>
+      expect(container.querySelector('img[alt=""]')).toHaveAttribute(
+        'src',
+        'blob:reactor-preview',
+      ),
+    )
+  })
+
+  it('does not request file data when a setup has no diagram', async () => {
+    api.listEntities.mockResolvedValue({
+      items: [
+        {
+          id: 'setup-1',
+          entity_type: 'setup',
+          created_at: '2026-07-24T00:00:00Z',
+          updated_at: '2026-07-24T00:00:00Z',
+          latest_version: {
+            id: 'version-1',
+            entity_id: 'setup-1',
+            version: 1,
+            data: {
+              setup_name: 'Bare reactor',
+              setup_code: 'SETUP-01',
+            },
+            created_at: '2026-07-24T00:00:00Z',
+          },
+        },
+      ],
+      total: 1,
+    })
+
+    renderPage('setup')
+
+    expect(await screen.findByText('Bare reactor')).toBeInTheDocument()
+    expect(api.getEntityFile).not.toHaveBeenCalled()
+    expect(api.downloadEntityFile).not.toHaveBeenCalled()
+  })
+
   it('shows the localized instrument type instead of its machine code', async () => {
     await i18n.changeLanguage('zh')
     api.listEntities.mockResolvedValue({

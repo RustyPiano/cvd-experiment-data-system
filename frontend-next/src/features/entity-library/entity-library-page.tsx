@@ -43,6 +43,7 @@ import type {
 } from './api'
 import { EntityForm } from './entity-form'
 import { cleanupPendingEntityFiles } from './entity-file-cleanup'
+import { EntityImagePreview } from './entity-image-preview'
 
 function displayValue(entity: V2EntityRead, key: string): string {
   const raw = entity.latest_version?.data?.[key]
@@ -177,7 +178,19 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
                     return (
                       <TableRow key={entity.id}>
                         <TableCell className="font-medium">
-                          {name || entity.id.slice(0, 8)}
+                          <div className="flex items-center gap-3">
+                            {kind === 'setup' ? (
+                              <EntityImagePreview
+                                value={
+                                  entity.latest_version?.data?.setup_diagram
+                                }
+                                token={token}
+                                alt=""
+                                variant="thumbnail"
+                              />
+                            ) : null}
+                            <span>{name || entity.id.slice(0, 8)}</span>
+                          </div>
                         </TableCell>
                         <TableCell>{code || '-'}</TableCell>
                         <TableCell>

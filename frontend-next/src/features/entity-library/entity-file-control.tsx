@@ -20,6 +20,7 @@ import {
   uploadEntityFile,
 } from './api'
 import type { EntityFileAssetRead } from './api'
+import { EntityImagePreview } from './entity-image-preview'
 
 export function EntityFileControl({
   value,
@@ -134,58 +135,61 @@ export function EntityFileControl({
       aria-describedby={ariaDescribedBy}
     >
       {reference ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="min-w-0 flex-1 truncate font-medium">
-            {originalName ||
-              t('entityLibrary.form.fileFallbackName', {
-                id: reference.file_asset_id.slice(0, 8),
-              })}
-          </span>
-          {sizeBytes != null ? (
-            <span className="text-muted-foreground">
-              {formatFileSize(sizeBytes)}
+        <>
+          <EntityImagePreview value={value} token={token} alt={label} />
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {originalName ||
+                t('entityLibrary.form.fileFallbackName', {
+                  id: reference.file_asset_id.slice(0, 8),
+                })}
             </span>
-          ) : null}
-          {fileQuery.isLoading && !currentFile ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            aria-label={t('entityLibrary.form.downloadFile', {
-              filename: originalName,
-            })}
-            disabled={downloading || !token}
-            onClick={() => void handleDownload()}
-          >
-            {downloading ? (
+            {sizeBytes != null ? (
+              <span className="text-muted-foreground">
+                {formatFileSize(sizeBytes)}
+              </span>
+            ) : null}
+            {fileQuery.isLoading && !currentFile ? (
               <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Download className="size-4" />
-            )}
-            {t('entityLibrary.form.download')}
-          </Button>
-          {unbound ? (
+            ) : null}
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              aria-label={t('entityLibrary.form.deleteFile', {
+              aria-label={t('entityLibrary.form.downloadFile', {
                 filename: originalName,
               })}
-              disabled={disabled || deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(reference.file_asset_id)}
+              disabled={downloading || !token}
+              onClick={() => void handleDownload()}
             >
-              {deleteMutation.isPending ? (
+              {downloading ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                <Trash2 className="size-4" />
+                <Download className="size-4" />
               )}
-              {t('entityLibrary.form.deleteUpload')}
+              {t('entityLibrary.form.download')}
             </Button>
-          ) : null}
-        </div>
+            {unbound ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-label={t('entityLibrary.form.deleteFile', {
+                  filename: originalName,
+                })}
+                disabled={disabled || deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate(reference.file_asset_id)}
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+                {t('entityLibrary.form.deleteUpload')}
+              </Button>
+            ) : null}
+          </div>
+        </>
       ) : null}
 
       {fileQuery.isError && reference ? (
@@ -297,6 +301,11 @@ export function EntityFileDisplay({
 
   return (
     <div className="flex flex-col gap-1">
+      <EntityImagePreview
+        value={value}
+        token={token}
+        alt={originalName || undefined}
+      />
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 flex-1 truncate font-medium">
           {originalName ||

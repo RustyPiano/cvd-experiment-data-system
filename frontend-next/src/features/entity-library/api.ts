@@ -101,8 +101,15 @@ export function getEntityFile(token: string, fileId: string) {
   })
 }
 
-export function downloadEntityFile(token: string, fileId: string) {
-  return apiDownload(`/api/v1/entity-files/${fileId}/download`, { token })
+export function downloadEntityFile(
+  token: string,
+  fileId: string,
+  signal?: AbortSignal,
+) {
+  return apiDownload(`/api/v1/entity-files/${fileId}/download`, {
+    token,
+    ...(signal ? { signal } : {}),
+  })
 }
 
 export function deleteEntityFile(token: string, fileId: string) {
