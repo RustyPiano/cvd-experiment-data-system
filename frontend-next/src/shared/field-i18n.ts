@@ -88,6 +88,21 @@ export function localizedUnit(
   return unitLabelsEn[unit] ?? unit
 }
 
+export function localizedParenthetical(
+  value: string,
+  language: string,
+): string {
+  return isEnglish(language) ? `(${value})` : `（${value}）`
+}
+
+export function localizedUnitLabel(
+  unit: string | null,
+  language: string,
+): string | null {
+  const localized = localizedUnit(unit, language)
+  return localized ? localizedParenthetical(localized, language) : null
+}
+
 export function localizedFieldPlaceholder(
   field: FieldMetadata,
   language: string,

@@ -5,7 +5,13 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { FlaskConical, FlaskRound, LogOut, TestTube2 } from 'lucide-react'
+import {
+  ChevronRight,
+  FlaskConical,
+  FlaskRound,
+  LogOut,
+  TestTube2,
+} from 'lucide-react'
 
 import {
   ENTITY_KINDS,
@@ -228,7 +234,11 @@ export function AppShell({ children }: AppShellProps) {
         {t('appShell.skipToContent')}
       </a>
       {/* Sidebar */}
-      <Sidebar className="border-r border-sidebar-border bg-sidebar">
+      <Sidebar
+        className="border-r border-sidebar-border bg-sidebar"
+        mobileTitle={t('appShell.navigationTitle')}
+        mobileDescription={t('appShell.navigationDescription')}
+      >
         <SidebarHeader className="px-4 py-3">
           <div className="flex items-center gap-3">
             <span className="flex size-[38px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/95 to-primary text-primary-foreground shadow-sm">
@@ -307,8 +317,15 @@ export function AppShell({ children }: AppShellProps) {
             aria-label={t('appShell.toggleSidebar')}
           />
           <div className="h-4 w-px bg-border shrink-0" />
-          <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
-            {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname, t)}
+          <nav
+            aria-label={t('appShell.breadcrumbLabel')}
+            className="flex items-center gap-1.5 text-sm"
+          >
+            <span className="text-muted-foreground">CVD Lab</span>
+            <ChevronRight className="size-3.5 text-muted-foreground" />
+            <span className="font-medium text-foreground" aria-current="page">
+              {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname, t)}
+            </span>
           </nav>
           <div className="ml-auto flex items-center gap-1">
             <LanguageToggle />

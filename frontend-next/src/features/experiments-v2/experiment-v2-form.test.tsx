@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nextProvider } from 'react-i18next'
 
@@ -43,6 +44,7 @@ vi.mock('sonner', () => ({ toast }))
 type SectionProps = {
   save?: ModuleSaveProps
   onChange?: (key: string, value: string) => void
+  footer?: ReactNode
 }
 
 function sectionStub(moduleKey: string, save?: ModuleSaveProps) {
@@ -57,12 +59,13 @@ function sectionStub(moduleKey: string, save?: ModuleSaveProps) {
 }
 
 vi.mock('./components/basic-info-section', () => ({
-  BasicInfoSection: ({ save, onChange }: SectionProps) => (
+  BasicInfoSection: ({ save, onChange, footer }: SectionProps) => (
     <div>
       {sectionStub('basic_info', save)}
       <button type="button" onClick={() => onChange?.('operator', 'changed')}>
         dirty-basic_info
       </button>
+      {footer}
     </div>
   ),
 }))

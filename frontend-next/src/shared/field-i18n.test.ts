@@ -16,7 +16,9 @@ import {
   localizedFieldHelp,
   localizedFieldPlaceholder,
   localizedOption,
+  localizedParenthetical,
   localizedUnit,
+  localizedUnitLabel,
   localizedValue,
 } from './field-i18n'
 
@@ -68,6 +70,14 @@ describe('field display localization', () => {
     const prefixed = fields.find((field) => field.labelZh.startsWith('▸'))
     expect(prefixed).toBeDefined()
     expect(localizedFieldLabel(prefixed!, 'zh')).not.toContain('▸')
+  })
+
+  it('uses locale-appropriate parentheses around units and context labels', () => {
+    expect(localizedUnitLabel('层', 'en')).toBe('(layers)')
+    expect(localizedUnitLabel('层', 'zh')).toBe('（层）')
+    expect(localizedParenthetical('Target product', 'en')).toBe(
+      '(Target product)',
+    )
   })
 
   it('localizes every member of a multi-select array independently', () => {

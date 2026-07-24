@@ -16,7 +16,7 @@ export function LanguageToggle() {
         void i18n.changeLanguage(isEnglish ? 'zh' : 'en')
       }}
     >
-      <Languages className="size-4" />
+      <Languages data-icon="inline-start" />
       <span>{isEnglish ? t('language.zh') : t('language.en')}</span>
     </Button>
   )

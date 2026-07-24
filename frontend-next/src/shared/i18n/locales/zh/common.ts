@@ -111,6 +111,9 @@ export const common = {
     logout: '退出登录',
     skipToContent: '跳至主要内容',
     toggleSidebar: '展开或收起导航',
+    navigationTitle: '主导航',
+    navigationDescription: '系统的主要功能导航。',
+    breadcrumbLabel: '面包屑导航',
   },
   routeBoundaries: {
     notFound: {
@@ -205,14 +208,17 @@ export const common = {
   entityLibrary: {
     materialLot: {
       name: '物料批次',
+      listTitle: '物料批次',
       subtitle: '统一维护常用物料及批次信息，历史炉次会保留当时使用的版本。',
     },
     setup: {
       name: '实验装置',
+      listTitle: '实验装置',
       subtitle: '统一维护实验装置，历史炉次会保留当时使用的配置。',
     },
     instrument: {
       name: '表征仪器',
+      listTitle: '表征仪器',
       subtitle: '统一维护表征仪器，历史结果会保留当时使用的配置。',
     },
     nav: {
@@ -236,7 +242,7 @@ export const common = {
       backToList: '返回列表',
     },
     list: {
-      empty: '暂无记录，点击右上角「新建」。',
+      empty: '暂无记录，可从「新建」开始创建第一条资料。',
       loadError: '加载失败',
     },
     detail: {
@@ -254,6 +260,7 @@ export const common = {
     },
     form: {
       createTitle: '新建{{name}}',
+      createDescription: '填写基础资料；保存后会创建第一个版本。',
       newVersionTitle: '编辑{{name}}（生成新版本）',
       requiredHint: '带 * 为保存前必填。',
       newVersionBanner:
@@ -440,7 +447,7 @@ export const common = {
       title: '炉次记录',
       subtitle: '查找炉次、查看状态，并进入详情补充工艺或结果。',
       create: '开始记录炉次',
-      empty: '暂无炉次记录，点击右上角「开始记录炉次」。',
+      empty: '暂无炉次记录，可从「开始记录炉次」创建第一条记录。',
       filteredEmpty: '没有符合当前条件的炉次。',
       loadError: '加载失败',
       retry: '重试',
@@ -475,6 +482,7 @@ export const common = {
     },
     form: {
       requiredHint: '带 * 为锁定工艺前必填。',
+      sectionNavigation: '炉次章节',
       selectPlaceholder: '请选择',
       inputPlaceholder: '请输入',
       otherOption: '其他',

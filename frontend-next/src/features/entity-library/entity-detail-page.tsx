@@ -32,7 +32,7 @@ import { EntityForm } from './entity-form'
 import {
   localizedFieldLabel,
   localizedNamedValue,
-  localizedUnit,
+  localizedUnitLabel,
   localizedValue,
 } from '@/shared/field-i18n'
 import { cleanupPendingEntityFiles } from './entity-file-cleanup'
@@ -245,7 +245,7 @@ export function EntityDetailPage({
                     ? localizedNamedValue(raw, i18n.language, structuredLabels)
                     : localizedValue(raw, i18n.language)
                   const label = localizedFieldLabel(field, i18n.language)
-                  const unit = localizedUnit(field.unit, i18n.language)
+                  const unit = localizedUnitLabel(field.unit, i18n.language)
                   return (
                     <div
                       key={field.key}
@@ -254,7 +254,7 @@ export function EntityDetailPage({
                       <dt className="shrink-0 text-muted-foreground sm:w-48">
                         {label}
                         {unit ? (
-                          <span className="ml-1 text-xs">（{unit}）</span>
+                          <span className="ml-1 text-xs">{unit}</span>
                         ) : null}
                       </dt>
                       <dd className="min-w-0 flex-1 whitespace-pre-wrap text-foreground">

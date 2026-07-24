@@ -3,10 +3,11 @@ import type { ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export function ModuleCard({
+  index,
   title,
   subtitle,
   children,
@@ -15,6 +16,7 @@ export function ModuleCard({
   saved,
   error,
   id,
+  footer,
 }: {
   /** 分区序号（§1 / §1b / §2 …），纯展示。 */
   index?: string
@@ -28,12 +30,19 @@ export function ModuleCard({
   error?: string | null
   /** Stable target for validation summaries and skip navigation. */
   id?: string
+  /** Optional custom footer action, used by the compact create flow. */
+  footer?: ReactNode
 }) {
   const { t } = useTranslation()
   return (
     <Card id={id} tabIndex={id ? -1 : undefined} className="scroll-mt-20">
       <CardHeader>
         <div className="flex flex-wrap items-baseline gap-2">
+          {index ? (
+            <span className="text-xs font-medium text-muted-foreground">
+              {index}
+            </span>
+          ) : null}
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         </div>
         {subtitle ? (
@@ -47,13 +56,16 @@ export function ModuleCard({
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        {onSave ? (
-          <div className="flex items-center justify-end gap-3">
-            {saved ? (
-              <span className="text-xs text-muted-foreground">
-                {t('experimentsV2.form.moduleSaved')}
-              </span>
-            ) : null}
+      </CardContent>
+      {onSave || footer ? (
+        <CardFooter className="justify-end gap-3">
+          {saved ? (
+            <span className="text-xs text-muted-foreground">
+              {t('experimentsV2.form.moduleSaved')}
+            </span>
+          ) : null}
+          {footer}
+          {onSave ? (
             <Button
               type="button"
               variant="outline"
@@ -61,12 +73,14 @@ export function ModuleCard({
               disabled={saving}
               onClick={onSave}
             >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              {saving ? (
+                <Loader2 data-icon="inline-start" className="animate-spin" />
+              ) : null}
               {t('experimentsV2.form.saveModule')}
             </Button>
-          </div>
-        ) : null}
-      </CardContent>
+          ) : null}
+        </CardFooter>
+      ) : null}
     </Card>
   )
 }

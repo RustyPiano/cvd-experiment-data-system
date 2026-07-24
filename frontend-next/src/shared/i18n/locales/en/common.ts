@@ -111,6 +111,9 @@ export const common = {
     logout: 'Sign out',
     skipToContent: 'Skip to main content',
     toggleSidebar: 'Toggle navigation',
+    navigationTitle: 'Navigation',
+    navigationDescription: 'Primary application navigation.',
+    breadcrumbLabel: 'Breadcrumb',
   },
   routeBoundaries: {
     notFound: {
@@ -227,16 +230,19 @@ export const common = {
   entityLibrary: {
     materialLot: {
       name: 'Material lot',
+      listTitle: 'Material lots',
       subtitle:
         'Maintain reusable material and lot details. Historical runs keep the version used at the time.',
     },
     setup: {
       name: 'Experimental setup',
+      listTitle: 'Experimental setups',
       subtitle:
         'Maintain lab setups. Historical runs keep the configuration used at the time.',
     },
     instrument: {
       name: 'Instrument',
+      listTitle: 'Instruments',
       subtitle:
         'Maintain characterization instruments. Historical results keep the configuration used at the time.',
     },
@@ -261,7 +267,7 @@ export const common = {
       backToList: 'Back to list',
     },
     list: {
-      empty: 'No records yet — use “New” in the top-right corner.',
+      empty: 'No records yet. Create the first record when you are ready.',
       loadError: 'Failed to load',
     },
     detail: {
@@ -279,6 +285,8 @@ export const common = {
     },
     form: {
       createTitle: 'New {{name}}',
+      createDescription:
+        'Enter the reference details. Saving creates the first version.',
       newVersionTitle: 'Edit {{name}} (new version)',
       requiredHint: 'Fields marked * are required before saving.',
       newVersionBanner:
@@ -477,7 +485,7 @@ export const common = {
       subtitle:
         'Find runs, review their status, and open details to add process data or results.',
       create: 'Start recording a run',
-      empty: 'No runs yet — use “Start recording a run” in the top-right.',
+      empty: 'No runs yet. Start recording the first run when you are ready.',
       filteredEmpty: 'No runs match the current filters.',
       loadError: 'Failed to load',
       retry: 'Retry',
@@ -512,6 +520,7 @@ export const common = {
     },
     form: {
       requiredHint: 'Fields marked * are required before locking the process.',
+      sectionNavigation: 'Run sections',
       selectPlaceholder: 'Select',
       inputPlaceholder: 'Enter a value',
       otherOption: 'Other',

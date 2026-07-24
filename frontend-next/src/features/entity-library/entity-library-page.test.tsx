@@ -119,7 +119,7 @@ describe('EntityLibraryPage attachment draft lifecycle', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'NewMaterial lot' }))
+    await user.click(screen.getByRole('button', { name: 'New Material lot' }))
     await user.click(screen.getByRole('button', { name: 'Start upload' }))
     await user.click(screen.getByRole('button', { name: 'Cancel form' }))
 
@@ -135,7 +135,7 @@ describe('EntityLibraryPage attachment draft lifecycle', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'NewMaterial lot' }))
+    await user.click(screen.getByRole('button', { name: 'New Material lot' }))
     await user.click(screen.getByRole('button', { name: 'Stage upload' }))
     await user.click(screen.getByRole('button', { name: 'Cancel form' }))
 
@@ -156,7 +156,7 @@ describe('EntityLibraryPage attachment draft lifecycle', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'NewMaterial lot' }))
+    await user.click(screen.getByRole('button', { name: 'New Material lot' }))
     await user.click(screen.getByRole('button', { name: 'Stage upload' }))
     await user.click(screen.getByRole('button', { name: 'Cancel form' }))
 
@@ -176,7 +176,7 @@ describe('EntityLibraryPage attachment draft lifecycle', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'NewMaterial lot' }))
+    await user.click(screen.getByRole('button', { name: 'New Material lot' }))
     await user.click(screen.getByRole('button', { name: 'Stage upload' }))
     await user.click(screen.getByRole('button', { name: 'Submit entity' }))
     await waitFor(() => expect(api.createEntity).toHaveBeenCalledTimes(1))

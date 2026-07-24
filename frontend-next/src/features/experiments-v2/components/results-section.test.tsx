@@ -317,7 +317,7 @@ describe('unified sample results', () => {
     expect(screen.queryByText('2 层')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Edit result' }))
-    expect(screen.getByText('（layers）')).toBeInTheDocument()
+    expect(screen.getByText('(layers)')).toBeInTheDocument()
     expect(screen.queryByText('（层）')).not.toBeInTheDocument()
   })
 

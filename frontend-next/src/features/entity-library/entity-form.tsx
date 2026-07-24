@@ -12,7 +12,7 @@ import {
   localizedFieldLabel,
   localizedFieldPlaceholder,
   localizedOption,
-  localizedUnit,
+  localizedUnitLabel,
 } from '@/shared/field-i18n'
 import { RequiredMark } from '@/shared/ui/required-mark'
 import {
@@ -416,9 +416,9 @@ function EntityFieldControl({
                 : {})}
           >
             <span>{label}</span>
-            {localizedUnit(field.unit, i18n.language) ? (
+            {localizedUnitLabel(field.unit, i18n.language) ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">
-                （{localizedUnit(field.unit, i18n.language)}）
+                {localizedUnitLabel(field.unit, i18n.language)}
               </span>
             ) : null}
             {required ? <RequiredMark /> : null}

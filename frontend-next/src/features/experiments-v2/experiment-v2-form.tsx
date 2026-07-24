@@ -13,6 +13,14 @@ import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
 import { useAuth } from '@/features/auth/use-auth'
 import type { V2EntityRead } from '@/features/entity-library/api'
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import type {
   ComponentRow,
   ModuleFieldValue,
@@ -47,6 +55,17 @@ import { ResultsSection } from './components/results-section'
 import { localizedFieldLabel } from '@/shared/field-i18n'
 
 const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method']
+
+const FORM_SECTION_LINKS = [
+  { id: 'module-basic_info', index: '§1', titleKey: 'basicInfo' },
+  { id: 'module-target_product', index: '§1b', titleKey: 'targetProduct' },
+  { id: 'module-equipment', index: '§2', titleKey: 'equipment' },
+  { id: 'module-precursors', index: '§3', titleKey: 'precursors' },
+  { id: 'module-substrates', index: '§4', titleKey: 'substrates' },
+  { id: 'module-process_steps', index: '§5', titleKey: 'processSteps' },
+  { id: 'module-process_events', index: '§6', titleKey: 'processEvents' },
+  { id: 'module-results', index: '§7–8', titleKey: 'results' },
+] as const
 
 export function shouldBlockExperimentLeave(
   dirtyCount: number,
@@ -316,7 +335,7 @@ export function ExperimentV2Form({
   ) => ({
     mode: formMode,
     state,
-    runCode: createdRunCode,
+    runCode: createdRunCode ?? (formMode === 'edit' ? runCode : undefined),
   })
 
   // ── 编辑态：分模块保存 ──
@@ -440,7 +459,13 @@ export function ExperimentV2Form({
       : undefined
 
   return (
-    <div className="flex flex-col gap-6">
+    <div
+      className={cn(
+        'flex flex-col gap-6',
+        mode === 'edit' &&
+          'xl:grid xl:grid-cols-[minmax(0,1fr)_15rem] xl:items-start',
+      )}
+    >
       <RouteLeaveGuard
         when={shouldBlockExperimentLeave(
           dirtyKeys.size + Number(resultsDirty),
@@ -448,122 +473,157 @@ export function ExperimentV2Form({
         )}
         message={t('experimentsV2.form.leaveWarning')}
       />
-      <fieldset disabled={processReadOnly} className="contents">
-        {mode === 'edit' && runCode ? (
-          <p className="text-sm text-muted-foreground">
-            {t('experimentsV2.form.editingRun', { runCode })}
-          </p>
-        ) : null}
+      <div className="flex min-w-0 flex-col gap-6">
         {mode === 'edit' ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground xl:hidden">
             {t('experimentsV2.form.requiredHint')}
           </p>
         ) : null}
-
-        <BasicInfoSection
-          values={state.basic_info}
-          onChange={setBasicInfo}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('basic_info')}
-          editMode={mode === 'edit'}
-        />
-        {mode === 'edit' ? (
-          <>
-            <TargetProductSection
-              values={state.target_product}
-              onChange={setTargetProduct}
-              components={state.components}
-              onComponentsChange={setComponents}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('target_product')}
-            />
-            <EquipmentSection
-              equipment={state.equipment}
-              onSelectSetup={selectSetup}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('equipment')}
-            />
-            <RepeatableItemsSection
-              moduleKey="precursors"
-              index="§3"
-              title={t('experimentsV2.sections.precursors.title')}
-              subtitle={t('experimentsV2.sections.precursors.subtitle')}
-              addLabel={t('experimentsV2.sections.precursors.add')}
-              emptyHint={t('experimentsV2.sections.precursors.empty')}
-              itemLabel={(position) =>
-                t('experimentsV2.sections.precursors.item', { position })
-              }
-              items={state.precursors}
-              onItemsChange={setPrecursors}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('precursors')}
-            />
-            <RepeatableItemsSection
-              moduleKey="substrates"
-              index="§4"
-              title={t('experimentsV2.sections.substrates.title')}
-              subtitle={t('experimentsV2.sections.substrates.subtitle')}
-              addLabel={t('experimentsV2.sections.substrates.add')}
-              emptyHint={t('experimentsV2.sections.substrates.empty')}
-              itemLabel={(position) =>
-                t('experimentsV2.sections.substrates.item', { position })
-              }
-              items={state.substrates}
-              onItemsChange={setSubstrates}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('substrates')}
-            />
-            <ProcessStepsSection
-              steps={state.process_steps}
-              setupSnapshot={state.equipment.snapshot}
-              onStepsChange={setProcessSteps}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('process_steps')}
-            />
-            <RepeatableItemsSection
-              moduleKey="process_events"
-              index="§6"
-              title={t('experimentsV2.sections.processEvents.title')}
-              subtitle={t('experimentsV2.sections.processEvents.subtitle')}
-              addLabel={t('experimentsV2.sections.processEvents.add')}
-              emptyHint={t('experimentsV2.sections.processEvents.empty')}
-              itemLabel={(position) =>
-                t('experimentsV2.sections.processEvents.item', { position })
-              }
-              items={state.process_events}
-              onItemsChange={setProcessEvents}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('process_events')}
-            />
-          </>
-        ) : null}
-      </fieldset>
-      {mode === 'edit' ? (
-        <ResultsSection
-          runId={runId}
-          readOnly={resultsReadOnly}
-          onDirtyChange={setResultsDirty}
-        />
-      ) : null}
-
-      {mode === 'new' ? (
-        <div className="flex justify-end">
-          <Button
-            type="button"
+        <fieldset disabled={processReadOnly} className="contents">
+          <BasicInfoSection
+            values={state.basic_info}
+            onChange={setBasicInfo}
             disabled={creating}
-            onClick={() => void createAndSave()}
-          >
-            {creating ? <Loader2 className="size-4 animate-spin" /> : null}
-            {t('experimentsV2.form.createAction')}
-          </Button>
-        </div>
+            showErrors={showErrors}
+            save={saveProps('basic_info')}
+            editMode={mode === 'edit'}
+            footer={
+              mode === 'new' ? (
+                <Button
+                  type="button"
+                  disabled={creating}
+                  onClick={() => void createAndSave()}
+                >
+                  {creating ? (
+                    <Loader2
+                      data-icon="inline-start"
+                      className="animate-spin"
+                    />
+                  ) : null}
+                  {t('experimentsV2.form.createAction')}
+                </Button>
+              ) : undefined
+            }
+          />
+          {mode === 'edit' ? (
+            <>
+              <TargetProductSection
+                values={state.target_product}
+                onChange={setTargetProduct}
+                components={state.components}
+                onComponentsChange={setComponents}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('target_product')}
+              />
+              <EquipmentSection
+                equipment={state.equipment}
+                onSelectSetup={selectSetup}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('equipment')}
+              />
+              <RepeatableItemsSection
+                moduleKey="precursors"
+                index="§3"
+                title={t('experimentsV2.sections.precursors.title')}
+                subtitle={t('experimentsV2.sections.precursors.subtitle')}
+                addLabel={t('experimentsV2.sections.precursors.add')}
+                emptyHint={t('experimentsV2.sections.precursors.empty')}
+                itemLabel={(position) =>
+                  t('experimentsV2.sections.precursors.item', { position })
+                }
+                items={state.precursors}
+                onItemsChange={setPrecursors}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('precursors')}
+              />
+              <RepeatableItemsSection
+                moduleKey="substrates"
+                index="§4"
+                title={t('experimentsV2.sections.substrates.title')}
+                subtitle={t('experimentsV2.sections.substrates.subtitle')}
+                addLabel={t('experimentsV2.sections.substrates.add')}
+                emptyHint={t('experimentsV2.sections.substrates.empty')}
+                itemLabel={(position) =>
+                  t('experimentsV2.sections.substrates.item', { position })
+                }
+                items={state.substrates}
+                onItemsChange={setSubstrates}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('substrates')}
+              />
+              <ProcessStepsSection
+                steps={state.process_steps}
+                setupSnapshot={state.equipment.snapshot}
+                onStepsChange={setProcessSteps}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('process_steps')}
+              />
+              <RepeatableItemsSection
+                moduleKey="process_events"
+                index="§6"
+                title={t('experimentsV2.sections.processEvents.title')}
+                subtitle={t('experimentsV2.sections.processEvents.subtitle')}
+                addLabel={t('experimentsV2.sections.processEvents.add')}
+                emptyHint={t('experimentsV2.sections.processEvents.empty')}
+                itemLabel={(position) =>
+                  t('experimentsV2.sections.processEvents.item', { position })
+                }
+                items={state.process_events}
+                onItemsChange={setProcessEvents}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('process_events')}
+              />
+            </>
+          ) : null}
+        </fieldset>
+        {mode === 'edit' ? (
+          <ResultsSection
+            runId={runId}
+            readOnly={resultsReadOnly}
+            onDirtyChange={setResultsDirty}
+          />
+        ) : null}
+      </div>
+      {mode === 'edit' ? (
+        <Card className="sticky top-[84px] hidden xl:block">
+          <CardHeader>
+            <CardTitle>{t('experimentsV2.form.sectionNavigation')}</CardTitle>
+            <CardDescription>
+              {t('experimentsV2.form.requiredHint')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <nav
+              aria-label={t('experimentsV2.form.sectionNavigation')}
+              className="flex flex-col gap-1"
+            >
+              {FORM_SECTION_LINKS.map((section) => (
+                <Button
+                  key={section.id}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <a href={`#${section.id}`}>
+                    <span className="w-7 shrink-0 text-xs text-muted-foreground">
+                      {section.index}
+                    </span>
+                    <span className="truncate">
+                      {t(`experimentsV2.sections.${section.titleKey}.title`)}
+                    </span>
+                  </a>
+                </Button>
+              ))}
+            </nav>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   )

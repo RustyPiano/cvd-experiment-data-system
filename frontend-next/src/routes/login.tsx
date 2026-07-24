@@ -7,6 +7,7 @@ import { LoginForm } from '@/features/auth/login-form'
 import { getStoredSession } from '@/features/auth/session'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { LanguageToggle } from '@/shared/ui/language-toggle'
+import { ThemeToggle } from '@/shared/ui/theme-toggle'
 
 const loginSearchSchema = z.object({
   redirect: z.string().optional(),
@@ -28,8 +29,9 @@ function LoginPage() {
 
   return (
     <div className="relative flex min-h-svh items-center justify-center bg-background p-4">
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-4 flex items-center gap-1">
         <LanguageToggle />
+        <ThemeToggle />
       </div>
       <div className="w-full max-w-sm">
         <Card className="shadow-lg">

@@ -34,6 +34,7 @@ vi.mock('./experiment-v2-form', () => ({
 beforeEach(async () => {
   vi.clearAllMocks()
   await i18n.changeLanguage('en')
+  api.getModuleOrNull.mockResolvedValue(null)
 })
 
 it('shows a retryable error without a simultaneous loading state', async () => {
@@ -52,4 +53,39 @@ it('shows a retryable error without a simultaneous loading state', async () => {
   expect(await screen.findByText('offline')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   expect(screen.queryByText('Loading')).not.toBeInTheDocument()
+})
+
+it('uses the run code and status as the primary page identity', async () => {
+  api.getRun.mockResolvedValue({
+    id: 'run-1',
+    run_code: 'CVD-2026-0042',
+    status: 'draft',
+    owner_id: 'user-1',
+    setup_ref: null,
+    setup_ref_version: null,
+    setup_ref_snapshot_json: null,
+    result_missing_todo: false,
+    not_characterized_at: null,
+  })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <ExperimentV2EditPage runId="run-1" />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  expect(
+    await screen.findByRole('heading', { name: 'CVD-2026-0042' }),
+  ).toBeInTheDocument()
+  expect(screen.getByText('Recording')).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Lock process' }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Export this run' }),
+  ).toBeInTheDocument()
 })
