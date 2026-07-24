@@ -20,7 +20,7 @@
 - **仓库 main = 纯 v2 单轨**；**线上生产 = 切换前旧部署（v1），待批8 整库重建切换**（数据已确认可弃，无迁移）。
 - **v2 单轨形态**：Alembic 单一 initial `20260711_0001`（14 表，SQLite/PG 双兼容）；`/api/v1` 全套端点——实体三件套锁版（material-lots/setups/instruments + versions）、炉次 CRUD + `draft → locked` 状态机（管理员可解锁，draft 可作废，锁定前必填门 + 全转移审计 + 结果待补/暂未表征）、锁定时按衬底原子生成样品、模块 payload、表征/实测、样品、文件；locked 炉次全组可见且可协作补结果；生成器①②④⑤ + `condition-cases.json` 跨语言 fixture + `check_field_source` 四护栏；前端 `/experiments` 单轨 + 实体库三页。
 - **产品重构实施进度**：阶段 1–4 已落地——两步状态、衬底生成样品、growth/derived/control 谱系、全组 locked 炉次协作补结果、“暂未表征”标记、统一结果录入、结构化来源与谱系、基础资料就地新增、CVD-only UI、全量双语与可见语言入口、炉次筛选、操作记录以及完整 JSON/关系型多表 CSV ZIP 导出；完整新流程 E2E 已通过。
-- **门禁：后端 pytest 391 通过、4 条 PostgreSQL-only 跳过 · PostgreSQL 16 定向验收 6/6 · 运维脚本 93/93 · 前端 vitest 294/294（39 files）· ruff/format/Prettier/tsc/eslint/build/Compose/文本生成物确定性/字段源全绿（本地）；字段源 81 个实验字段 + 48 个实体字段 + R0 18 项；OpenAPI 已重新生成；全部 commit 未 push（push 时机见 §6）**。
+- **门禁：后端 pytest 392 通过、4 条 PostgreSQL-only 跳过 · PostgreSQL 16 定向验收 6/6 · 运维脚本 94/94 · 前端 vitest 294/294（39 files）· ruff/format/Prettier/tsc/eslint/build/Compose/文本生成物确定性/字段源全绿（本地）；字段源 81 个实验字段 + 48 个实体字段 + R0 18 项；OpenAPI 已重新生成；发布严格按 §6 硬顺序执行**。
 - **审查结论**：历史 F6–F9 与阶段 4 E2E 已闭环；2026-07-24 又完成科学契约、后端安全/并发、导出、运维和用户体验的多路独立复核。评审提出的可操作项均已根因修复并有 SQLite/PG/前端/脚本/浏览器证据；没有通过放宽科学、安全、数据留痕或无障碍边界来换取通过。
 - 工程约定见根 `AGENTS.md`。
 
@@ -116,7 +116,7 @@
 | 07-24 | **目标产物走查修复**：用户真实走查发现 `structure_type` 虽在序列化和后端被特判为单值，字段源仍标为“下拉+多选”，导致通用控件允许同时选择本征/掺杂/异质结，而填写提示只能命中一个类型。现从字段单一源改为单选，删除生成器与序列化层特判；补真实 DOM 回归，验证“本征 → 掺杂”后提示同步切换且不再出现多选组；同步更新产品/文字标准和字段变更日志，并修复机读字段字典条件值仍输出中文标签的问题。随后发现空间群字段仅校验 IT number，却没有兑现自动显示符号的文案，现补齐 `1–230` 的 International short Hermann–Mauguin 映射，输入 `194` 显示 `P6₃/mmc`。**pytest 182/182 · vitest 234/234 · 全门禁绿**。 | 待提交 |
 | 07-24 | **外部全库审核复核与加固**：逐项核验 22 条报告；保留已冻结的 locked 炉次全组协作结果规则，#17/#18 已由现有回归覆盖，#20 因禁止物理删除炉次无执行场景；其余可操作项全部闭环。后端统一脱敏 Pydantic 422、补 inactive-token 与跨用户读侧 IDOR 回归、三类实体版本加 SQLite/PG 数据库不可变触发器、SQLite 炉次写通过仓储级 no-op UPDATE 获取写锁、invalid 转出补测试；CI 增 PostgreSQL 16 真库冒烟与本地工具文件禁止提交检查，PG 增 `pg_trgm` 搜索索引。前端补帮助文本 `aria-describedby`、空间群越界内联错误、语言持久化/跨标签同步、401 去重、50 MiB 上传前检查、加载/空态播报、短 token 刷新调度和英文标点。**pytest 188 通过（SQLite 套件 1 skip）· PG 冒烟 3/3 · vitest 240/240 · 全门禁绿**。 | 待提交 |
 | 07-24 | **全项目审查整改收口**：继续关闭终审发现的生产配置占位/弱 CLI、数据库目标错配、备份失败假成功/半成品残留与符号链接绕过、实体附件并发绑定、单炉次 JSON 非一致快照、复合值缺失误判、掺杂浓度与垂直层序矛盾、结果外键可变、附件 note 跨数据库差异及 `attrs:null` 500；真实浏览器另发现并修复日期时间原生输入丢值、条件字段提前报缺、机器码、复合 JSON 和历史版本标签的非专业展示；终审再补前端畴尺寸严格正数与英文单位。标准、字段源、生成物、产品/运维/评审文档同步整理。**pytest 357 通过、4 skip · PG 6/6 · 运维 59/59 · vitest 294/294 · 浏览器 console warning/error 0 · 独立终审 P0/P1/P2 = 0 · 全门禁绿**。完整问题—修复矩阵与最终证据见最新评审、验收报告。 | 待提交 |
-| 07-24 | **批8切换门修正**：关闭“`down`/重建空库后 `deploy.sh` 又强制调用依赖运行中 backend 的 `backup.sh`”顺序冲突；批8改为先停写但保留容器，再从已停止容器归档挂载卷并做恢复演练。`deploy.sh` 新增唯一 `BATCH8_VERIFIED_BACKUP_DIR` 能力，启动前绑定并重验私有备份、manifest+proof 双哈希、固定六小时时效、严格权限、数据库、实际存储卷、Actions 目标 SHA、干净工作树、已停 backend、全部 public 用户对象 fresh-empty 与容器视角空卷；普通部署行为不变。备份默认私有权限并兼容 macOS/Linux SHA 工具。**运维故障注入 93/93**。 | 待提交 |
+| 07-24 | **批8切换门修正**：关闭“`down`/重建空库后 `deploy.sh` 又强制调用依赖运行中 backend 的 `backup.sh`”顺序冲突；批8改为先停写但保留容器，再从已停止容器归档挂载卷并做恢复演练。`deploy.sh` 新增唯一 `BATCH8_VERIFIED_BACKUP_DIR` 能力，启动前绑定并重验私有备份、manifest+proof 双哈希、固定六小时时效、严格权限、数据库、实际存储卷、Actions 目标 SHA、干净工作树、已停 backend、全部 public 用户对象 fresh-empty 与容器视角空卷；普通部署行为不变。备份默认私有权限并兼容 macOS/Linux SHA 工具。**运维故障注入 94/94**。 | 待提交 |
 
 ## 6. 下一步
 

@@ -702,6 +702,12 @@ def test_operations_scripts_do_not_embed_production_database_targets() -> None:
     assert "user_GztwJM" not in scripts
 
 
+def test_ci_job_environment_does_not_use_runner_only_context() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "${{ runner." not in workflow
+
+
 def _backup_fixture(
     tmp_path: Path,
     *,

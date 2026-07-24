@@ -16,8 +16,8 @@ jobs:
       APP_DEBUG: "false"
       APP_HOST: 127.0.0.1
       APP_PORT: "8000"
-      DATABASE_URL: sqlite+pysqlite:///${{ runner.temp }}/cvd-backend.sqlite3
-      FILE_STORAGE_ROOT: ${{ runner.temp }}/cvd-backend-storage
+      DATABASE_URL: sqlite+pysqlite:////tmp/cvd-backend.sqlite3
+      FILE_STORAGE_ROOT: /tmp/cvd-backend-storage
       JWT_SECRET_KEY: test-secret-key
       JWT_ALGORITHM: HS256
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
@@ -75,7 +75,7 @@ jobs:
       APP_HOST: 127.0.0.1
       APP_PORT: "8000"
       DATABASE_URL: postgresql+psycopg://cvd:cvd@127.0.0.1:5432/cvd_test
-      FILE_STORAGE_ROOT: ${{ runner.temp }}/cvd-postgres-storage
+      FILE_STORAGE_ROOT: /tmp/cvd-postgres-storage
       JWT_SECRET_KEY: test-secret-key
       JWT_ALGORITHM: HS256
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
@@ -166,8 +166,8 @@ jobs:
       APP_DEBUG: "false"
       APP_HOST: 127.0.0.1
       APP_PORT: "8000"
-      DATABASE_URL: sqlite+pysqlite:///${{ runner.temp }}/cvd-generated.sqlite3
-      FILE_STORAGE_ROOT: ${{ runner.temp }}/cvd-generated-storage
+      DATABASE_URL: sqlite+pysqlite:////tmp/cvd-generated.sqlite3
+      FILE_STORAGE_ROOT: /tmp/cvd-generated-storage
       JWT_SECRET_KEY: test-secret-key
       JWT_ALGORITHM: HS256
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
