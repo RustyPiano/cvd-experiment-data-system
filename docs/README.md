@@ -7,6 +7,8 @@
 | 类别 | 文档 | 作用 |
 |---|---|---|
 | 现状 | [`standard/STATUS.md`](standard/STATUS.md) | 当前代码、生产状态、已定决策和下一步 |
+| 当前整改计划 | [`product/2026-07-24-meeting-remediation-plan.md`](product/2026-07-24-meeting-remediation-plan.md) | M-01—M-24、A-01—A-09 的执行矩阵与 F-01—F-12 最终收口定义 |
+| 当前整改报告 | [`reviews/2026-07-24-teacher-meeting-remediation.md`](reviews/2026-07-24-teacher-meeting-remediation.md) | M/A/F 逐项状态、最终门禁、本地主线、四类附件、导出/R0 证据和 11 项专业待裁定问题 |
 | 产品 | [`product/run-first-workflow-and-copy-design.md`](product/run-first-workflow-and-copy-design.md) | 2026-07-16 已确认的炉次优先工作流；阶段 0–4 已完成 |
 | 标准 | [`standard/cvd-2d-process-data-standard-v2.0.md`](standard/cvd-2d-process-data-standard-v2.0.md) | CVD-2D 元数据规则书 |
 | 字段 | [`standard/field-source.yaml`](standard/field-source.yaml) | 字段、词表和必填规则的唯一机器源 |
@@ -17,9 +19,9 @@
 | 生产部署 | [`operations/production-deployment-report-2026-07-24.md`](operations/production-deployment-report-2026-07-24.md) | 香港生产 v2 切换、旧库归档、恢复与线上验收证据 |
 | 技术决策 | [`engineering/v2-implementation-plan.md`](engineering/v2-implementation-plan.md) | P0–P4 与 D1–D12 的历史技术决策 |
 | 操作检查 | [`operations/e2e-walkthrough-checklist.md`](operations/e2e-walkthrough-checklist.md) | 浏览器端到端走查工单 |
-| 最新验收 | [`operations/e2e-comprehensive-hardening-report-2026-07-24.md`](operations/e2e-comprehensive-hardening-report-2026-07-24.md) | 全库加固后的门禁、PostgreSQL 与真实浏览器验收证据 |
+| 前置验收 | [`operations/e2e-comprehensive-hardening-report-2026-07-24.md`](operations/e2e-comprehensive-hardening-report-2026-07-24.md) | 导师线上走查之前的全库加固门禁、PostgreSQL 与浏览器证据，不替代本轮验收 |
 | 历史验收 | [`operations/e2e-run-first-report-2026-07-17.md`](operations/e2e-run-first-report-2026-07-17.md) | 炉次优先 17 项主线首次完整浏览器 E2E |
-| 最新评审 | [`reviews/2026-07-24-comprehensive-audit-remediation.md`](reviews/2026-07-24-comprehensive-audit-remediation.md) | 科学、数据、安全、运维与用户体验问题—整改矩阵 |
+| 前置评审 | [`reviews/2026-07-24-comprehensive-audit-remediation.md`](reviews/2026-07-24-comprehensive-audit-remediation.md) | 导师线上走查之前的科学、数据、安全、运维与用户体验加固矩阵 |
 | 评审 | [`reviews/2026-07-08-simplify-review.md`](reviews/2026-07-08-simplify-review.md) | 代码精简评审与执行记录 |
 
 ## 目录约定

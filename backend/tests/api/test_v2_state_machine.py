@@ -11,6 +11,11 @@ from app.models.user import User, UserRole
 from app.models.v2_results import MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.services.sample_service import SampleService
+from tests.helpers.v2_payloads import (
+    basic_info_payload,
+    substrate_item,
+    substrate_lot_payload,
+)
 
 client = TestClient(app)
 
@@ -36,26 +41,58 @@ def _run(headers: dict[str, str], code: str, method: str = "PVD-热蒸发") -> d
     return response.json()
 
 
-def _add_substrates(headers: dict[str, str], run_id: str, items: list[dict] | None = None) -> dict:
+def _add_substrates(
+    headers: dict[str, str],
+    admin_headers: dict[str, str],
+    run_id: str,
+    items: list[dict] | None = None,
+) -> dict:
+    raw_items = items or [{"material": "蓝宝石"}]
+    completed: list[dict] = []
+    for index, item in enumerate(raw_items, start=1):
+        if item.get("lot_ref"):
+            completed.append(item)
+            continue
+        is_sio2 = item.get("material") in {"SiO2/Si", "SiO₂/Si", "sio2_si"}
+        material = "sio2_si" if is_sio2 else "sapphire_al2o3"
+        formula = "SiO2" if is_sio2 else "Al2O3"
+        lot = client.post(
+            "/api/v1/material-lots",
+            json=substrate_lot_payload(
+                batch_number=f"{run_id[-8:]}-{index}",
+                material="sio2_si" if is_sio2 else "sapphire_al2o3",
+                chemical_formula=formula,
+            ),
+            headers=admin_headers,
+        )
+        assert lot.status_code == 201, lot.text
+        completed.append(
+            substrate_item(
+                lot.json(),
+                material=material,
+                chemical_formula=formula,
+                **{key: value for key, value in item.items() if key != "material"},
+            )
+        )
     response = client.put(
         f"/api/v1/experiments/{run_id}/modules/substrates",
-        json={"payload_json": {"items": items or [{"material": "蓝宝石"}]}},
+        json={"payload_json": {"items": completed}},
         headers=headers,
     )
     assert response.status_code == 200, response.text
     return response.json()["payload_json"]
 
 
-def _lockable_run(headers: dict[str, str], code: str) -> dict:
+def _lockable_run(headers: dict[str, str], admin_headers: dict[str, str], code: str) -> dict:
     run = _run(headers, code)
-    _add_substrates(headers, run["id"])
+    _add_substrates(headers, admin_headers, run["id"])
     return run
 
 
 def test_direct_lock_unlock_invalidate_and_audit(active_user, admin_user, db_session) -> None:
     owner = _headers(active_user.email)
     admin = _headers(admin_user.email)
-    run = _lockable_run(owner, "STATE-HAPPY")
+    run = _lockable_run(owner, admin, "STATE-HAPPY")
     run_id = run["id"]
 
     assert client.post(f"/api/v1/experiments/{run_id}/submit", headers=owner).status_code == 404
@@ -143,12 +180,11 @@ def test_operator_is_always_the_run_owner(active_user, admin_user) -> None:
     response = client.put(
         f"/api/v1/experiments/{run['id']}/modules/basic_info",
         json={
-            "payload_json": {
-                "started_at": "2026-07-11T10:00:00",
-                "synthesis_method": "APCVD",
-                "operator": "Another Member",
-                "run_code": "CVD-2099-9999",
-            }
+            "payload_json": basic_info_payload(
+                started_at="2026-07-11T10:00:00",
+                operator="Another Member",
+                run_code="CVD-2099-9999",
+            )
         },
         headers=admin_headers,
     )
@@ -157,9 +193,12 @@ def test_operator_is_always_the_run_owner(active_user, admin_user) -> None:
     assert response.json()["payload_json"]["operator"] == active_user.name
 
 
-def test_lock_translates_concurrent_sample_conflict_to_409(active_user, monkeypatch) -> None:
+def test_lock_translates_concurrent_sample_conflict_to_409(
+    active_user, admin_user, monkeypatch
+) -> None:
     headers = _headers(active_user.email)
-    run = _lockable_run(headers, "STATE-LOCK-RACE")
+    admin = _headers(admin_user.email)
+    run = _lockable_run(headers, admin, "STATE-LOCK-RACE")
 
     def raise_integrity_error(*args, **kwargs):
         del args, kwargs
@@ -213,73 +252,31 @@ def test_process_writes_recheck_status_after_acquiring_run_lock(active_user, mon
     assert locked_run_ids == [UUID(run["id"]), UUID(run["id"])]
 
 
-def test_lock_classifies_missing_structure_discriminator_as_r0(active_user) -> None:
+def test_target_product_rejects_missing_structure_discriminator_on_save(active_user) -> None:
     headers = _headers(active_user.email)
-    setup = client.post(
-        "/api/v1/setups",
+    run = _run(headers, "STATE-REQUIRED", "APCVD")
+    response = client.put(
+        f"/api/v1/experiments/{run['id']}/modules/target_product",
         json={
-            "setup_code": "SETUP-STATE-REQUIRED",
-            "setup_name": "Required gate setup",
-            "zone_count": 1,
-            "orientation": "水平",
-            "coordinate_system": "上游负/下游正",
-            "field_devices": "无",
-            "flow_reference_temperature_C": 20,
-            "flow_reference_pressure_Pa": 101325,
+            "payload_json": {
+                "chemical_formula": "WS2/MoS2",
+                "target_morphology": "continuous_film",
+                "components": [
+                    {"formula": "MoS2", "role": "bottom_layer", "layer_order": 1},
+                    {"formula": "WS2", "role": "top_layer", "layer_order": 2},
+                ],
+            }
         },
         headers=headers,
     )
-    assert setup.status_code == 201, setup.text
-    run = _run(headers, "STATE-REQUIRED", "APCVD")
-    run_id = run["id"]
-    assert (
-        client.put(
-            f"/api/v1/experiments/{run_id}/setup-reference",
-            json={"setup_id": setup.json()["id"], "version": 1},
-            headers=headers,
-        ).status_code
-        == 200
-    )
-    payloads = {
-        "target_product": {
-            "chemical_formula": "WS2/MoS2",
-            "structure_type": None,
-            "components": [{"formula": "WS2", "role": "上层"}],
-        },
-        "precursors": {"items": [{"name_formula": "MoO3", "phase_state": "固", "amount": 20}]},
-        "substrates": {"items": [{"material": "蓝宝石"}]},
-        "process_steps": {
-            "items": [
-                {
-                    "stage_type": "反应生长",
-                    "temperature_program": "750 C",
-                    "gas_species": "Ar",
-                    "gas_flow_sccm": 80,
-                    "pressure_system": {
-                        "value": 101325,
-                        "option": "atmospheric_pressure",
-                    },
-                }
-            ]
-        },
-    }
-    for module, payload in payloads.items():
-        response = client.put(
-            f"/api/v1/experiments/{run_id}/modules/{module}",
-            json={"payload_json": payload},
-            headers=headers,
-        )
-        assert response.status_code == 200, response.text
-
-    response = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
 
     assert response.status_code == 422, response.text
-    missing = response.json()["detail"]["missing"]
-    assert next(item for item in missing if item["key"] == "structure_type")["requirement"] == "r0"
+    assert response.json()["detail"] == {"invalid": [{"key": "structure_type", "reason": "value"}]}
 
 
-def test_write_permissions_follow_two_state_visibility(active_user, db_session) -> None:
+def test_write_permissions_follow_two_state_visibility(active_user, admin_user, db_session) -> None:
     owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
     other = User(
         email="other@example.com",
         name="Other",
@@ -289,7 +286,7 @@ def test_write_permissions_follow_two_state_visibility(active_user, db_session) 
     )
     db_session.add(other)
     db_session.commit()
-    run = _lockable_run(owner, "STATE-OWNER")
+    run = _lockable_run(owner, admin, "STATE-OWNER")
     headers = _headers(other.email)
 
     assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers).status_code == 404
@@ -312,8 +309,11 @@ def test_write_permissions_follow_two_state_visibility(active_user, db_session) 
     )
 
 
-def test_other_member_can_write_locked_results_and_files(active_user, db_session) -> None:
+def test_other_member_can_write_locked_results_and_files(
+    active_user, admin_user, db_session
+) -> None:
     owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
     other = User(
         email="result-helper@example.com",
         name="Result Helper",
@@ -324,7 +324,7 @@ def test_other_member_can_write_locked_results_and_files(active_user, db_session
     db_session.add(other)
     db_session.commit()
     helper = _headers(other.email)
-    run = _lockable_run(owner, "STATE-COLLAB")
+    run = _lockable_run(owner, admin, "STATE-COLLAB")
     run_id = run["id"]
     assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=owner).status_code == 200
     samples = client.get(f"/api/v1/samples?experiment_id={run_id}", headers=helper).json()["items"]
@@ -398,10 +398,12 @@ def test_other_member_can_write_locked_results_and_files(active_user, db_session
 
 def test_result_write_rechecks_nonowner_access_after_run_lock(
     active_user,
+    admin_user,
     db_session,
     monkeypatch,
 ) -> None:
     owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
     helper_user = User(
         email="unlock-race-helper@example.com",
         name="Unlock Race Helper",
@@ -412,7 +414,7 @@ def test_result_write_rechecks_nonowner_access_after_run_lock(
     db_session.add(helper_user)
     db_session.commit()
     helper = _headers(helper_user.email)
-    run = _lockable_run(owner, "STATE-UNLOCK-RACE")
+    run = _lockable_run(owner, admin, "STATE-UNLOCK-RACE")
     assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner).status_code == 200
     sample = client.get(
         f"/api/v1/samples?experiment_id={run['id']}",
@@ -445,6 +447,7 @@ def test_result_write_rechecks_nonowner_access_after_run_lock(
 
 def test_not_characterized_marker_clears_todo_and_new_result_clears_marker(
     active_user,
+    admin_user,
     monkeypatch,
 ) -> None:
     locked_run_ids: list[UUID] = []
@@ -456,7 +459,8 @@ def test_not_characterized_marker_clears_todo_and_new_result_clears_marker(
 
     monkeypatch.setattr(ExperimentRepository, "get_by_id_for_update", tracked_lock)
     headers = _headers(active_user.email)
-    run = _lockable_run(headers, "STATE-NOT-CHAR")
+    admin = _headers(admin_user.email)
+    run = _lockable_run(headers, admin, "STATE-NOT-CHAR")
     run_id = run["id"]
     assert client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers).status_code == 200
     sample = client.get(f"/api/v1/samples?experiment_id={run_id}", headers=headers).json()["items"][

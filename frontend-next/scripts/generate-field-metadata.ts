@@ -22,7 +22,7 @@ const OUT = join(HERE, '..', 'src', 'shared', 'generated', 'field-metadata.ts')
 interface RawCondition {
   field: string
   op: string
-  value: string | string[]
+  value: string | string[] | boolean
 }
 interface RawRequirement {
   raw: string
@@ -72,7 +72,7 @@ interface RawDoc {
   modules: Record<string, string>
   entity_keys: Record<string, string>
   option_labels_en: Record<string, string>
-  option_codes: Record<string, string>
+  option_codes: Record<string, string | boolean>
   unit_labels_en: Record<string, string>
   field_ui_defaults: {
     input_placeholder: string
@@ -117,7 +117,7 @@ interface FieldMetadata {
 function toFieldMetadata(
   field: RawField,
   defaults: RawDoc['field_ui_defaults'],
-  optionCodes: Record<string, string>,
+  optionCodes: Record<string, string | boolean>,
 ): FieldMetadata {
   const req = field.requirement
   const condition = req.condition
@@ -126,7 +126,9 @@ function toFieldMetadata(
         op: req.condition.op,
         value: Array.isArray(req.condition.value)
           ? req.condition.value.map((value) => optionCodes[value] ?? value)
-          : (optionCodes[req.condition.value] ?? req.condition.value),
+          : typeof req.condition.value === 'string'
+            ? (optionCodes[req.condition.value] ?? req.condition.value)
+            : req.condition.value,
       }
     : null
   return {
@@ -160,7 +162,7 @@ function groupByModule(
   sections: RawSection[],
   moduleMap: Record<string, string>,
   defaults: RawDoc['field_ui_defaults'],
-  optionCodes: Record<string, string>,
+  optionCodes: Record<string, string | boolean>,
 ): Record<string, FieldMetadata[]> {
   const out: Record<string, FieldMetadata[]> = {}
   for (const section of sections) {
@@ -207,8 +209,12 @@ const entities = groupByModule(
 )
 const stageGroups = doc.stage_types.groups
 const stageTypes: StageType[] = doc.stage_types.types.map((type) => {
+  const machineName = doc.option_codes[type.name] ?? type.name
+  if (typeof machineName !== 'string') {
+    throw new Error(`阶段类型 ${type.name} 的机器码必须是字符串`)
+  }
   const out: StageType = {
-    name: doc.option_codes[type.name] ?? type.name,
+    name: machineName,
     labelZh: type.name,
     labelEn: doc.option_labels_en[type.name] ?? type.name,
     shows: type.shows ?? [],
@@ -222,6 +228,7 @@ const stageTypes: StageType[] = doc.stage_types.types.map((type) => {
 function preferredOptionLabels(language: 'zh' | 'en'): Record<string, string> {
   const labels: Record<string, string> = {}
   for (const [labelZh, code] of Object.entries(doc.option_codes)) {
+    if (typeof code !== 'string') continue
     if (labels[code] !== undefined) continue
     labels[code] =
       language === 'zh' ? labelZh : (doc.option_labels_en[labelZh] ?? labelZh)
@@ -248,7 +255,7 @@ export type RequirementLevel =
 export interface FieldCondition {
   field: string
   op: string
-  value: string | string[]
+  value: string | string[] | boolean
 }
 
 export interface FieldRequirement {
@@ -330,7 +337,7 @@ const content =
     `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
     `/** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,
     `/** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(preferredOptionLabels('en'), null, 2)}`,
-    `/** 旧中文规范值 → 稳定机器码；只用于读取兼容与提交规范化。 */\nexport const optionCodes: Record<string, string> = ${JSON.stringify(doc.option_codes, null, 2)}`,
+    `/** 旧中文规范值 → 稳定字符串机器码；布尔复选映射不进入此表。 */\nexport const optionCodes: Record<string, string> = ${JSON.stringify(Object.fromEntries(Object.entries(doc.option_codes).filter((entry): entry is [string, string] => typeof entry[1] === 'string')), null, 2)}`,
     `/** 规范单位 → 英文显示名 */\nexport const unitLabelsEn: Record<string, string> = ${JSON.stringify(doc.unit_labels_en, null, 2)}`,
     `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
     `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,

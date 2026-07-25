@@ -126,6 +126,7 @@ export function FieldControl({
   const textValue = moduleValueAsString(value)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const structuredInput = isStructuredInput(field.input)
+  const booleanInput = field.input === '复选' || field.input === '复选确认'
   const compositeOptions = compositeInput
     ? (enumOptions ?? parseCompositeOptions(field.options))
     : []
@@ -144,7 +145,11 @@ export function FieldControl({
       ? null
       : numericValidationIssue(numericText, field.validation)
   const numericAttributes = numericInputAttributes(field.validation)
-  const missing = Boolean(showError) && required && moduleValueIsEmpty(value)
+  const missing =
+    Boolean(showError) &&
+    required &&
+    (moduleValueIsEmpty(value) ||
+      (field.input === '复选确认' && textValue !== 'true'))
   const compositeNumericMissing =
     Boolean(showError) &&
     required &&
@@ -191,6 +196,15 @@ export function FieldControl({
   })()
   const errorId = `${controlId}-error`
   const label = localizedFieldLabel(field, i18n.language)
+  const phaseState = canonicalOption(moduleValueAsString(values['phase_state']))
+  const unit =
+    moduleKey === 'precursors' && field.key === 'amount'
+      ? phaseState === 'solid'
+        ? 'mg'
+        : phaseState === 'liquid'
+          ? 'µL'
+          : null
+      : localizedUnit(field.unit, i18n.language)
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
   const fieldHelp = hideHelp ? null : localizedFieldHelp(field, i18n.language)
   const fieldHelpId = fieldHelp ? `${controlId}-help` : undefined
@@ -203,11 +217,25 @@ export function FieldControl({
       <FieldLabel
         htmlFor={multiValue ? undefined : controlId}
         labelZh={label}
-        unit={localizedUnit(field.unit, i18n.language)}
+        unit={unit}
         required={required}
         r0={field.r0}
       />
-      {structuredInput ? (
+      {booleanInput ? (
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <Checkbox
+            id={controlId}
+            checked={textValue === 'true'}
+            disabled={disabled || readOnly}
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
+            onCheckedChange={(checked) =>
+              onChange(checked === true ? 'true' : 'false')
+            }
+          />
+          <span>{label}</span>
+        </label>
+      ) : structuredInput ? (
         <StructuredObjectControl
           fieldKey={field.key}
           value={textValue}

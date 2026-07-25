@@ -141,11 +141,16 @@ const SUBSCRIPT_MAP: Record<string, string> = {
 export function normalizeChemicalFormula(input: string): string {
   return input
     .replace(/[₀-₉]/g, (ch) => SUBSCRIPT_MAP[ch] ?? ch)
+    .replace(/[∙⋅]/g, '·')
     .replace(/\s+/g, '')
 }
 
-const FORMULA_PATTERN =
-  /^(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+(?:[-:/](?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+)*$/
+const FORMULA_UNIT = String.raw`(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?|\((?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+\)(?:\d+(?:\.\d+)?)?)`
+const FORMULA_COMPONENT = `(?:${FORMULA_UNIT})+`
+const HYDRATED_FORMULA_COMPONENT = `${FORMULA_COMPONENT}(?:·(?:\\d+)?${FORMULA_COMPONENT})*`
+const FORMULA_PATTERN = new RegExp(
+  `^${HYDRATED_FORMULA_COMPONENT}(?:[-:/]${HYDRATED_FORMULA_COMPONENT})*$`,
+)
 
 /**
  * 从化学式抽取元素符号 token：把非字母字符（数字/下标/分隔符 / - : · ( ) 空格 等）视作断点，
@@ -231,8 +236,8 @@ function layerOrder(component: DisplayComponent): [number, string] {
 
 /**
  * 根据当前表单值生成即时预览：
- *  本征/无组分 → 原化学式；垂直异质结 → 按层序升序 '/' 连接；横向异质结 → '-' 连接；
- *  掺杂 → 掺杂剂:基体；其余 → 原化学式。
+ *  本征/无组分/掺杂 → 原化学式；垂直异质结 → 按层序升序 '/' 连接；
+ *  横向异质结 → '-' 连接；其余 → 原化学式。
  * 该返回值不提交；组成明细仍是存储与校验依据。
  */
 export function renderFormulaDisplay(
@@ -265,17 +270,6 @@ export function renderFormulaDisplay(
   ) {
     const joined = parts.map(componentFormula).filter(Boolean).join('-')
     return joined || chemicalFormula
-  }
-  if (structureType === 'doped' || structureType === '掺杂') {
-    const dopant = componentFormula(
-      parts.find((part) => part.role === 'dopant' || part.role === '掺杂剂') ??
-        {},
-    )
-    const matrix = componentFormula(
-      parts.find((part) => part.role === 'matrix' || part.role === '基体') ??
-        {},
-    )
-    if (dopant && matrix) return `${dopant}:${matrix}`
   }
   return chemicalFormula
 }

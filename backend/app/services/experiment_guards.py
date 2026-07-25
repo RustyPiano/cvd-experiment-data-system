@@ -91,9 +91,10 @@ def ensure_results_editable(experiment: ExperimentRun) -> None:
 
 
 def ensure_files_editable(experiment: ExperimentRun, asset_role: str) -> None:
-    """locked 仅允许表征附件，装置图仍只读；invalid 全部禁写。"""
+    """Locked runs allow result evidence only; process evidence remains frozen."""
+    locked_writable_roles = {"characterization_file", "direct_observation_file"}
     if experiment.status == ExperimentStatus.INVALID or (
-        experiment.status == ExperimentStatus.LOCKED and asset_role != "characterization_file"
+        experiment.status == ExperimentStatus.LOCKED and asset_role not in locked_writable_roles
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

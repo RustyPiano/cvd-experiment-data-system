@@ -46,6 +46,9 @@ export function listExperimentFiles(
     experimentId?: string
     sampleId?: string
     characterizationRecordId?: string
+    assetRole?: string
+    bindingType?: string
+    bindingId?: string
   },
 ) {
   const query = new URLSearchParams()
@@ -54,6 +57,9 @@ export function listExperimentFiles(
   if (filters.characterizationRecordId) {
     query.set('characterization_record_id', filters.characterizationRecordId)
   }
+  if (filters.assetRole) query.set('asset_role', filters.assetRole)
+  if (filters.bindingType) query.set('binding_type', filters.bindingType)
+  if (filters.bindingId) query.set('binding_id', filters.bindingId)
   return apiRequest<FileAssetListResponse>(`/api/v1/files?${query}`, { token })
 }
 
@@ -62,8 +68,12 @@ export function uploadExperimentFile(
   experimentId: string,
   payload: {
     file: File
-    method: string
-    characterizationRecordId: string
+    method?: string
+    sampleId?: string
+    characterizationRecordId?: string
+    assetRole?: string
+    bindingType?: string
+    bindingId?: string
   },
 ) {
   if (payload.file.size > MAX_UPLOAD_BYTES) {
@@ -72,8 +82,14 @@ export function uploadExperimentFile(
   }
   const body = new FormData()
   body.set('file', payload.file)
-  body.set('method', payload.method)
-  body.set('characterization_record_id', payload.characterizationRecordId)
+  if (payload.method) body.set('method', payload.method)
+  if (payload.sampleId) body.set('sample_id', payload.sampleId)
+  if (payload.characterizationRecordId) {
+    body.set('characterization_record_id', payload.characterizationRecordId)
+  }
+  if (payload.assetRole) body.set('asset_role', payload.assetRole)
+  if (payload.bindingType) body.set('binding_type', payload.bindingType)
+  if (payload.bindingId) body.set('binding_id', payload.bindingId)
   return apiRequest<FileAssetRead>(
     `/api/v1/experiments/${experimentId}/files`,
     { method: 'POST', body, token },

@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import Any
 
 MEASURED_PRODUCT_EVIDENCE_FIELDS = (
-    "characterization_record_id",
     "observed_phenomena",
     "detected_phase_stacking",
     "layer_count",
@@ -14,7 +13,6 @@ MEASURED_PRODUCT_EVIDENCE_FIELDS = (
     "measured_layers_coverage",
     "domain_nucleation_continuity",
     "key_spectral_metrics",
-    "attrs",
 )
 
 
@@ -31,7 +29,18 @@ def has_meaningful_value(value: Any) -> bool:
 
 
 def has_measured_product_evidence(values: Mapping[str, Any]) -> bool:
+    observed = values.get("observed_phenomena")
+    if isinstance(observed, (list, tuple, set)):
+        if any(
+            has_meaningful_value(value) and value not in {"other", "其他"} for value in observed
+        ):
+            return True
+        attrs = values.get("attrs")
+        if any(value in {"other", "其他"} for value in observed) and isinstance(attrs, Mapping):
+            if has_meaningful_value(attrs.get("observed_phenomena_other")):
+                return True
     return any(
         has_meaningful_value(values.get(field_name))
         for field_name in MEASURED_PRODUCT_EVIDENCE_FIELDS
+        if field_name != "observed_phenomena"
     )

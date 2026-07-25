@@ -3,6 +3,18 @@ import i18n, { LANGUAGE_STORAGE_KEY } from './index'
 
 const storedValues = new Map<string, string>()
 
+const stringEntries = (
+  value: unknown,
+  prefix = '',
+): Array<readonly [path: string, value: string]> =>
+  value && typeof value === 'object'
+    ? Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
+        stringEntries(child, `${prefix}${key}.`),
+      )
+    : typeof value === 'string'
+      ? [[prefix.slice(0, -1), value] as const]
+      : []
+
 beforeEach(() => {
   storedValues.clear()
   Object.defineProperty(window, 'localStorage', {
@@ -57,15 +69,63 @@ describe('i18n scaffolding', () => {
   })
 
   it('keeps zh and en resources structurally in sync', () => {
-    const keyPaths = (obj: Record<string, unknown>, prefix = ''): string[] =>
-      Object.entries(obj).flatMap(([key, value]) =>
-        value && typeof value === 'object'
-          ? keyPaths(value as Record<string, unknown>, `${prefix}${key}.`)
-          : [`${prefix}${key}`],
-      )
-    const zhKeys = keyPaths(i18n.getResourceBundle('zh', 'common')).sort()
-    const enKeys = keyPaths(i18n.getResourceBundle('en', 'common')).sort()
+    const zhKeys = stringEntries(i18n.getResourceBundle('zh', 'common'))
+      .map(([path]) => path)
+      .sort()
+    const enKeys = stringEntries(i18n.getResourceBundle('en', 'common'))
+      .map(([path]) => path)
+      .sort()
     expect(enKeys).toEqual(zhKeys)
+  })
+
+  it('uses the agreed primary record names', () => {
+    expect(i18n.t('experimentsV2.nav', { lng: 'zh' })).toBe('制备实验记录')
+    expect(i18n.t('characterizations.nav', { lng: 'zh' })).toBe('表征实验记录')
+    expect(i18n.t('entityLibrary.nav.group', { lng: 'zh' })).toBe(
+      '基础资料维护',
+    )
+
+    expect(i18n.t('experimentsV2.nav', { lng: 'en' })).toBe(
+      'Preparation records',
+    )
+    expect(i18n.t('characterizations.nav', { lng: 'en' })).toBe(
+      'Characterization records',
+    )
+    expect(i18n.t('entityLibrary.nav.group', { lng: 'en' })).toBe(
+      'Reference data maintenance',
+    )
+
+    const zh = stringEntries(i18n.getResourceBundle('zh', 'common'))
+      .map(([, value]) => value)
+      .join('\n')
+    expect(zh).not.toContain('炉次')
+  })
+
+  it('uses slashes only in scientific units and chemical formulas', () => {
+    const slashEntries = (['en', 'zh'] as const)
+      .flatMap((language) =>
+        stringEntries(i18n.getResourceBundle(language, 'common'))
+          .filter(([, value]) => /[／/]/.test(value))
+          .map(
+            ([path, value]) =>
+              [`${language}.${path}`, value] as readonly [string, string],
+          ),
+      )
+      .sort(([left], [right]) => left.localeCompare(right))
+
+    expect(slashEntries.map(([path]) => path)).toEqual([
+      'en.experimentsV2.sections.targetProduct.guides.vertical',
+      'en.structuredEditors.coolingParams.coolingRateCPerMin',
+      'zh.experimentsV2.sections.targetProduct.guides.vertical',
+      'zh.structuredEditors.coolingParams.coolingRateCPerMin',
+    ])
+    for (const [, value] of slashEntries) {
+      expect(value.match(/[／/]/g)).toHaveLength(1)
+    }
+    expect(slashEntries[0]?.[1]).toContain('MoS2/WS2')
+    expect(slashEntries[1]?.[1]).toContain('°C/min')
+    expect(slashEntries[2]?.[1]).toContain('MoS2/WS2')
+    expect(slashEntries[3]?.[1]).toContain('°C/min')
   })
 
   it('keeps retired implementation wording out of visible copy', () => {

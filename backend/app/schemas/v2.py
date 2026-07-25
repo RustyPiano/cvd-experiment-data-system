@@ -42,6 +42,14 @@ class V2EntityVersionListResponse(BaseModel):
 class V2ExperimentCreate(BaseModel):
     started_at: datetime
     synthesis_method: str = Field(min_length=1)
+    ambient_temperature_C: float | None = Field(default=None, allow_inf_nan=False)
+    ambient_humidity_percent: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        allow_inf_nan=False,
+    )
+    precheck_confirmed: bool | None = None
     run_code: str | None = Field(
         default=None,
         max_length=32,
@@ -172,6 +180,35 @@ class CharacterizationRecordListResponse(BaseModel):
     total: int
 
 
+CONTROLLED_RESULT_METRICS: dict[str, tuple[frozenset[str], str]] = {
+    "raman_e2g_peak_position": (frozenset({"Raman"}), "cm⁻¹"),
+    "raman_a1g_peak_position": (frozenset({"Raman"}), "cm⁻¹"),
+    "raman_peak_separation": (frozenset({"Raman"}), "cm⁻¹"),
+    "raman_peak_fwhm": (frozenset({"Raman"}), "cm⁻¹"),
+    "raman_intensity_ratio": (frozenset({"Raman"}), "ratio"),
+    "shear_mode_peak_position": (frozenset({"low_frequency_raman"}), "cm⁻¹"),
+    "layer_breathing_mode_peak_position": (
+        frozenset({"low_frequency_raman"}),
+        "cm⁻¹",
+    ),
+    "low_frequency_peak_fwhm": (frozenset({"low_frequency_raman"}), "cm⁻¹"),
+    "pl_a_exciton_peak_energy": (frozenset({"PL"}), "eV"),
+    "pl_b_exciton_peak_energy": (frozenset({"PL"}), "eV"),
+    "pl_peak_fwhm": (frozenset({"PL"}), "meV"),
+    "pl_integrated_intensity": (frozenset({"PL"}), "a.u."),
+    "afm_step_height": (frozenset({"AFM"}), "nm"),
+    "afm_rms_roughness": (frozenset({"AFM"}), "nm"),
+    "afm_ra_roughness": (frozenset({"AFM"}), "nm"),
+    "xrd_peak_2theta": (frozenset({"XRD"}), "° 2θ"),
+    "xrd_peak_fwhm": (frozenset({"XRD"}), "° 2θ"),
+    "xrd_d_spacing": (frozenset({"XRD"}), "nm"),
+    "tem_lattice_spacing": (frozenset({"TEM"}), "nm"),
+}
+RESULT_METHOD_ALIASES = {
+    "低波数Raman": "low_frequency_raman",
+}
+
+
 class SpectralMetric(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -266,18 +303,35 @@ class MeasuredProductListResponse(BaseModel):
 
 class V2ResultWrite(MeasuredProductMetrics):
     kind: Literal["direct_observation", "characterization"]
+    file_asset_ids: list[UUID] = Field(default_factory=list, max_length=20)
     instrument_id: UUID | None = None
     instrument_version: int | None = Field(default=None, ge=1)
     method_instrument: str | None = Field(default=None, max_length=128)
+    method_other: str | None = Field(default=None, max_length=128)
+    observed_phenomena_other: str | None = Field(default=None, max_length=255)
     test_conditions: str | None = None
 
     @model_validator(mode="after")
     def validate_kind_fields(self) -> V2ResultWrite:
+        self.method_other = (self.method_other or "").strip() or None
+        self.observed_phenomena_other = (self.observed_phenomena_other or "").strip() or None
+        method_is_other = self.method_instrument in {"other", "其他"}
+        if method_is_other != (self.method_other is not None):
+            raise ValueError("method_other is required only for other method")
+        phenomena_include_other = any(
+            value in {"other", "其他"} for value in self.observed_phenomena or []
+        )
+        if phenomena_include_other != (self.observed_phenomena_other is not None):
+            raise ValueError(
+                "observed_phenomena_other is required only when phenomena include other"
+            )
         if (self.instrument_id is None) != (self.instrument_version is None):
             raise ValueError("instrument_id and instrument_version must be provided together")
         if self.kind == "direct_observation":
-            if not self.observed_phenomena:
-                raise ValueError("Direct observation requires observed_phenomena")
+            if not self.observed_phenomena and not self.file_asset_ids:
+                raise ValueError(
+                    "Direct observation requires observed_phenomena or an evidence file"
+                )
             if any(
                 value is not None
                 for value in (
@@ -293,8 +347,26 @@ class V2ResultWrite(MeasuredProductMetrics):
                 )
             ):
                 raise ValueError("Direct observation cannot include characterization fields")
-        elif not (self.method_instrument or "").strip():
-            raise ValueError("Characterization result requires method_instrument")
+        else:
+            if self.file_asset_ids:
+                raise ValueError(
+                    "Characterization attachments must use the characterization file endpoint"
+                )
+            if not (self.method_instrument or "").strip():
+                raise ValueError("Characterization result requires method_instrument")
+            method = RESULT_METHOD_ALIASES.get(
+                self.method_instrument or "",
+                self.method_instrument or "",
+            )
+            for metric in self.key_spectral_metrics or []:
+                controlled = CONTROLLED_RESULT_METRICS.get(metric.metric_code)
+                if controlled is None:
+                    continue
+                allowed_methods, fixed_unit = controlled
+                if method not in allowed_methods:
+                    raise ValueError(f"{metric.metric_code} is not applicable to {method}")
+                if metric.unit != fixed_unit:
+                    raise ValueError(f"{metric.metric_code} requires unit {fixed_unit}")
         return self
 
 
@@ -307,8 +379,11 @@ class V2ResultRead(BaseModel):
     instrument_version: int | None
     instrument_snapshot_json: dict[str, Any] | None
     method_instrument: str | None
+    method_other: str | None
     test_conditions: str | None
+    file_asset_ids: list[UUID]
     observed_phenomena: list[str] | None
+    observed_phenomena_other: str | None
     detected_phase_stacking: str | None
     layer_count: int | None
     coverage_percent: float | None

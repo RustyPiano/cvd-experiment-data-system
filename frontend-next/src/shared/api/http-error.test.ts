@@ -61,7 +61,7 @@ describe('resolveErrorMessage', () => {
         new HttpError(409, 'Run code already exists', null),
         '默认错误',
       ),
-    ).toBe('炉次编号已存在')
+    ).toBe('制备记录编号已存在')
     expect(
       resolveErrorMessage(
         new HttpError(400, 'Unexpected internal wording', null),

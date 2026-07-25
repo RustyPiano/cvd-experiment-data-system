@@ -39,6 +39,7 @@ import { cleanupPendingEntityFiles } from './entity-file-cleanup'
 import { isEntityFileInput } from '@/shared/entity-file-reference'
 import { EntityFileDisplay } from './entity-file-control'
 import { isStructuredInput } from '@/shared/structured-field'
+import { buildStructuredValueLabels } from '@/shared/structured-editor-labels'
 
 export function EntityDetailPage({
   kind,
@@ -52,6 +53,7 @@ export function EntityDetailPage({
   const { session } = useAuth()
   const token = session.accessToken || ''
   const viewerKey = session.currentUser?.id ?? 'anonymous'
+  const canMaintain = session.currentUser?.role === 'admin'
   const config = entityConfigs[kind]
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
   const fields = getEntityFields(kind)
@@ -164,10 +166,7 @@ export function EntityDetailPage({
   const displayName =
     localizedValue(activeData[config.primaryKey], i18n.language) ||
     entity.id.slice(0, 8)
-  const structuredLabels = {
-    outer_diameter_mm: t('structuredFields.outerDiameter'),
-    wall_thickness_mm: t('structuredFields.wallThickness'),
-  }
+  const structuredLabels = buildStructuredValueLabels(t)
   const visibilityValues = Object.fromEntries(
     Object.entries(activeData).map(([key, value]) => [
       key,
@@ -188,10 +187,12 @@ export function EntityDetailPage({
                 {t('entityLibrary.actions.backToList')}
               </Link>
             </Button>
-            <Button onClick={() => void requestEditOpen(true)}>
-              <Pencil className="size-4" />
-              {t('entityLibrary.actions.editAsNewVersion')}
-            </Button>
+            {canMaintain ? (
+              <Button onClick={() => void requestEditOpen(true)}>
+                <Pencil className="size-4" />
+                {t('entityLibrary.actions.editAsNewVersion')}
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -321,7 +322,7 @@ export function EntityDetailPage({
       </div>
 
       <Dialog
-        open={editOpen}
+        open={canMaintain && editOpen}
         onOpenChange={(open) => void requestEditOpen(open)}
       >
         <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-2xl">

@@ -16,9 +16,10 @@ describe('extractElementSymbols', () => {
 })
 
 describe('normalizeChemicalFormula', () => {
-  it('normalizes Unicode subscripts and whitespace to the stored ASCII form', () => {
+  it('normalizes Unicode subscripts, hydrate-dot variants, and whitespace', () => {
     expect(normalizeChemicalFormula(' Mo S₂ ')).toBe('MoS2')
     expect(normalizeChemicalFormula('SiO₂ / Si')).toBe('SiO2/Si')
+    expect(normalizeChemicalFormula('Na₂WO₄∙2H₂O')).toBe('Na2WO4·2H2O')
   })
 })
 
@@ -57,12 +58,16 @@ describe('validateChemicalFormula (元素校验)', () => {
     expect(moq.elements).toContain('Mo')
   })
 
-  it('rejects unsupported grouping syntax instead of accepting its elements', () => {
+  it('accepts common parenthesized composition groups', () => {
     expect(validateChemicalFormula('Mo(S)2')).toMatchObject({
-      valid: false,
-      syntaxValid: false,
+      valid: true,
+      syntaxValid: true,
       elements: ['Mo', 'S'],
     })
+    expect(validateChemicalFormula('Ca(OH)2').valid).toBe(true)
+    expect(validateChemicalFormula('(NH4)6Mo7O24·4H2O').valid).toBe(true)
+    expect(validateChemicalFormula('Na2WO4⋅2H2O').valid).toBe(true)
+    expect(validateChemicalFormula('Mo((S))2').valid).toBe(false)
   })
 })
 
@@ -90,13 +95,13 @@ describe('renderFormulaDisplay (前端即时预览)', () => {
     ).toBe('WSe2-MoS2')
   })
 
-  it('renders dopant:matrix for 掺杂 and falls back without a pair', () => {
+  it('keeps the entered formula for doped systems because components are authoritative', () => {
     expect(
-      renderFormulaDisplay('x', '掺杂', [
+      renderFormulaDisplay('MoS2', '掺杂', [
         { formula: 'Nb', role: '掺杂剂' },
         { formula: 'MoS2', role: '基体' },
       ]),
-    ).toBe('Nb:MoS2')
+    ).toBe('MoS2')
     expect(
       renderFormulaDisplay('fallback', '掺杂', [
         { formula: 'Nb', role: '其他' },

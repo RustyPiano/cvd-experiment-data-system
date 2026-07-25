@@ -10,107 +10,52 @@
       "additionalProperties": false,
       "properties": {
         "started_at": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Started At"
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
         },
         "synthesis_method": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Synthesis Method"
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Synthesis Method",
+          "type": "string"
         },
         "operator": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Operator"
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Operator",
+          "type": "string"
         },
         "run_code": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Run Code"
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Run Code",
+          "type": "string"
         },
         "ambient_temperature_C": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Ambient Temperature C"
+          "title": "Ambient Temperature C",
+          "type": "number"
         },
         "ambient_humidity_percent": {
-          "anyOf": [
-            {
-              "maximum": 100,
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Ambient Humidity Percent"
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Ambient Humidity Percent",
+          "type": "number"
         },
-        "particle_count_per_m3": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Particle Count Per M3"
-        },
-        "precheck_reminder": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Precheck Reminder"
+        "precheck_confirmed": {
+          "const": true,
+          "title": "Precheck Confirmed",
+          "type": "boolean"
         }
       },
       "required": [
         "started_at",
         "synthesis_method",
         "operator",
-        "run_code"
+        "run_code",
+        "ambient_temperature_C",
+        "ambient_humidity_percent",
+        "precheck_confirmed"
       ],
       "title": "BasicInfoPayload",
       "type": "object",
@@ -183,34 +128,22 @@
       "additionalProperties": false,
       "properties": {
         "chemical_formula": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Chemical Formula"
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Chemical Formula",
+          "type": "string"
         },
         "structure_type": {
-          "anyOf": [
-            {
-              "enum": [
-                "alloy",
-                "doped",
-                "intrinsic",
-                "lateral_heterostructure",
-                "other",
-                "vertical_heterostructure"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "enum": [
+            "alloy",
+            "doped",
+            "intrinsic",
+            "lateral_heterostructure",
+            "other",
+            "vertical_heterostructure"
           ],
-          "title": "Structure Type"
+          "title": "Structure Type",
+          "type": "string"
         },
         "components": {
           "anyOf": [
@@ -255,16 +188,10 @@
           "title": "Bulk Space Group"
         },
         "target_morphology": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Target Morphology"
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Target Morphology",
+          "type": "string"
         },
         "target_performance": {
           "anyOf": [
@@ -293,7 +220,8 @@
       },
       "required": [
         "chemical_formula",
-        "structure_type"
+        "structure_type",
+        "target_morphology"
       ],
       "title": "TargetProductPayload",
       "type": "object",
@@ -301,6 +229,85 @@
     },
     "equipment": {
       "$defs": {
+        "FileAssetReferencePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "file_asset_id": {
+              "format": "uuid",
+              "title": "File Asset Id",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Note"
+            }
+          },
+          "required": [
+            "file_asset_id",
+            "sha256"
+          ],
+          "title": "FileAssetReferencePayload",
+          "type": "object"
+        },
+        "TemperatureSensorPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sensor_name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Sensor Name",
+              "type": "string"
+            },
+            "sensor_type": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Sensor Type",
+              "type": "string"
+            },
+            "zone_index": {
+              "minimum": 1,
+              "title": "Zone Index",
+              "type": "integer"
+            },
+            "uncertainty_C": {
+              "minimum": 0,
+              "title": "Uncertainty C",
+              "type": "number"
+            },
+            "uncertainty_source": {
+              "enum": [
+                "instrument",
+                "calibration",
+                "repeatability",
+                "estimate"
+              ],
+              "title": "Uncertainty Source",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sensor_name",
+            "sensor_type",
+            "zone_index",
+            "uncertainty_C",
+            "uncertainty_source"
+          ],
+          "title": "TemperatureSensorPayload",
+          "type": "object"
+        },
         "TubeDimensionsPayload": {
           "additionalProperties": false,
           "properties": {
@@ -321,20 +328,69 @@
           ],
           "title": "TubeDimensionsPayload",
           "type": "object"
+        },
+        "TubeMaterialShapePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "material": {
+              "enum": [
+                "quartz",
+                "alumina",
+                "other"
+              ],
+              "title": "Material",
+              "type": "string"
+            },
+            "material_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Material Other"
+            },
+            "shape": {
+              "enum": [
+                "round",
+                "square",
+                "rectangular",
+                "other"
+              ],
+              "title": "Shape",
+              "type": "string"
+            },
+            "shape_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Shape Other"
+            }
+          },
+          "required": [
+            "material",
+            "shape"
+          ],
+          "title": "TubeMaterialShapePayload",
+          "type": "object"
         }
       },
       "additionalProperties": false,
       "properties": {
         "setup_ref": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Setup Ref"
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Setup Ref",
+          "type": "string"
         },
         "brand_model": {
           "anyOf": [
@@ -365,43 +421,28 @@
           "title": "Wall Type"
         },
         "zone_count": {
-          "anyOf": [
-            {
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Zone Count"
+          "minimum": 1,
+          "title": "Zone Count",
+          "type": "integer"
         },
         "orientation": {
-          "anyOf": [
-            {
-              "enum": [
-                "horizontal",
-                "vertical"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "enum": [
+            "horizontal",
+            "vertical"
           ],
-          "title": "Orientation"
+          "title": "Orientation",
+          "type": "string"
         },
         "tube_material_shape": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/TubeMaterialShapePayload"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Tube Material Shape"
+          "default": null
         },
         "tube_outer_diameter_wall_mm": {
           "anyOf": [
@@ -426,7 +467,15 @@
           "default": null,
           "title": "Coordinate System"
         },
-        "field_excitation": {
+        "temperature_sensors": {
+          "items": {
+            "$ref": "#/$defs/TemperatureSensorPayload"
+          },
+          "minItems": 1,
+          "title": "Temperature Sensors",
+          "type": "array"
+        },
+        "field_devices": {
           "anyOf": [
             {
               "items": {
@@ -445,37 +494,25 @@
             }
           ],
           "default": null,
-          "title": "Field Excitation"
+          "title": "Field Devices"
         },
         "setup_diagram": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/FileAssetReferencePayload"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Setup Diagram"
-        },
-        "tube_boat_history": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Tube Boat History"
+          "default": null
         }
       },
       "required": [
         "setup_ref",
         "zone_count",
-        "orientation"
+        "orientation",
+        "temperature_sensors"
       ],
       "title": "EquipmentPayload",
       "type": "object",
@@ -483,6 +520,57 @@
     },
     "precursors": {
       "$defs": {
+        "AnnealParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "temperature_C": {
+              "title": "Temperature C",
+              "type": "number"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "atmosphere": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Atmosphere"
+            }
+          },
+          "required": [
+            "temperature_C",
+            "duration_min"
+          ],
+          "title": "AnnealParametersPayload",
+          "type": "object"
+        },
+        "AnnealTreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "anneal",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/AnnealParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "AnnealTreatmentPayload",
+          "type": "object"
+        },
         "BoatCruciblePayload": {
           "additionalProperties": false,
           "properties": {
@@ -494,6 +582,18 @@
               ],
               "title": "Material",
               "type": "string"
+            },
+            "material_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Material Other"
             },
             "length_mm": {
               "anyOf": [
@@ -554,6 +654,50 @@
           "title": "BoatCruciblePayload",
           "type": "object"
         },
+        "DirectLoadTreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "direct_load",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/EmptyParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "DirectLoadTreatmentPayload",
+          "type": "object"
+        },
+        "EmptyParametersPayload": {
+          "additionalProperties": false,
+          "properties": {},
+          "title": "EmptyParametersPayload",
+          "type": "object"
+        },
+        "GrindTreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "grind",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/OptionalDurationParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "GrindTreatmentPayload",
+          "type": "object"
+        },
         "MaterialLotReferencePayload": {
           "additionalProperties": false,
           "properties": {
@@ -588,19 +732,180 @@
           "title": "MaterialLotReferencePayload",
           "type": "object"
         },
-        "PrecursorItemPayload": {
+        "MeltSolidifyParametersPayload": {
           "additionalProperties": false,
           "properties": {
-            "name_formula": {
+            "duration_min": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "exclusiveMinimum": 0,
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Name Formula"
+              "default": null,
+              "title": "Duration Min"
+            },
+            "temperature_C": {
+              "title": "Temperature C",
+              "type": "number"
+            }
+          },
+          "required": [
+            "temperature_C"
+          ],
+          "title": "MeltSolidifyParametersPayload",
+          "type": "object"
+        },
+        "MeltSolidifyTreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "melt_solidify",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/MeltSolidifyParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "MeltSolidifyTreatmentPayload",
+          "type": "object"
+        },
+        "NamedParameterListPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/$defs/NamedParameterPayload"
+              },
+              "minItems": 1,
+              "title": "Items",
+              "type": "array"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "title": "NamedParameterListPayload",
+          "type": "object"
+        },
+        "NamedParameterPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Name",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                }
+              ],
+              "title": "Value"
+            },
+            "unit": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value",
+            "unit"
+          ],
+          "title": "NamedParameterPayload",
+          "type": "object"
+        },
+        "OptionalDurationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "duration_min": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Duration Min"
+            }
+          },
+          "title": "OptionalDurationParametersPayload",
+          "type": "object"
+        },
+        "OtherTreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "other",
+              "title": "Type",
+              "type": "string"
+            },
+            "other_name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Other Name",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/NamedParameterListPayload"
+            }
+          },
+          "required": [
+            "type",
+            "other_name",
+            "parameters"
+          ],
+          "title": "OtherTreatmentPayload",
+          "type": "object"
+        },
+        "PelletizeTreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "pelletize",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/NamedParameterListPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "PelletizeTreatmentPayload",
+          "type": "object"
+        },
+        "PrecursorItemPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "name_formula": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Name Formula",
+              "type": "string"
             },
             "cas_inchi": {
               "anyOf": [
@@ -615,20 +920,13 @@
               "title": "Cas Inchi"
             },
             "phase_state": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "gas",
-                    "liquid",
-                    "solid"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "gas",
+                "liquid",
+                "solid"
               ],
-              "title": "Phase State"
+              "title": "Phase State",
+              "type": "string"
             },
             "appearance": {
               "anyOf": [
@@ -643,15 +941,7 @@
               "title": "Appearance"
             },
             "lot_ref": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/MaterialLotReferencePayload"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
+              "$ref": "#/$defs/MaterialLotReferencePayload"
             },
             "role": {
               "anyOf": [
@@ -687,7 +977,44 @@
             "treatment_steps": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "discriminator": {
+                      "mapping": {
+                        "anneal": "#/$defs/AnnealTreatmentPayload",
+                        "direct_load": "#/$defs/DirectLoadTreatmentPayload",
+                        "grind": "#/$defs/GrindTreatmentPayload",
+                        "melt_solidify": "#/$defs/MeltSolidifyTreatmentPayload",
+                        "other": "#/$defs/OtherTreatmentPayload",
+                        "pelletize": "#/$defs/PelletizeTreatmentPayload",
+                        "spin_coat": "#/$defs/SpinCoatTreatmentPayload"
+                      },
+                      "propertyName": "type"
+                    },
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/DirectLoadTreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/MeltSolidifyTreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/SpinCoatTreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/AnnealTreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/GrindTreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/PelletizeTreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/OtherTreatmentPayload"
+                      }
+                    ]
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -733,7 +1060,8 @@
           },
           "required": [
             "name_formula",
-            "phase_state"
+            "phase_state",
+            "lot_ref"
           ],
           "title": "PrecursorItemPayload",
           "type": "object"
@@ -757,6 +1085,46 @@
           ],
           "title": "SourceZoneTemperaturePayload",
           "type": "object"
+        },
+        "SpinCoatParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "speed_rpm": {
+              "exclusiveMinimum": 0,
+              "title": "Speed Rpm",
+              "type": "number"
+            },
+            "duration_s": {
+              "exclusiveMinimum": 0,
+              "title": "Duration S",
+              "type": "number"
+            }
+          },
+          "required": [
+            "speed_rpm",
+            "duration_s"
+          ],
+          "title": "SpinCoatParametersPayload",
+          "type": "object"
+        },
+        "SpinCoatTreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "spin_coat",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/SpinCoatParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "SpinCoatTreatmentPayload",
+          "type": "object"
         }
       },
       "additionalProperties": false,
@@ -775,6 +1143,131 @@
     },
     "substrates": {
       "$defs": {
+        "AnnealParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "temperature_C": {
+              "title": "Temperature C",
+              "type": "number"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "atmosphere": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Atmosphere"
+            }
+          },
+          "required": [
+            "temperature_C",
+            "duration_min"
+          ],
+          "title": "AnnealParametersPayload",
+          "type": "object"
+        },
+        "AnnealPretreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "anneal",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/AnnealParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "AnnealPretreatmentPayload",
+          "type": "object"
+        },
+        "CleaningPretreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "acetone_clean",
+                "isopropanol_clean",
+                "nitrogen_dry"
+              ],
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/OptionalDurationParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "CleaningPretreatmentPayload",
+          "type": "object"
+        },
+        "HydrophilicPretreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "hydrophilic_treatment",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/HydrophilicTreatmentParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "HydrophilicPretreatmentPayload",
+          "type": "object"
+        },
+        "HydrophilicTreatmentParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "duration_min": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Duration Min"
+            },
+            "method": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Method"
+            }
+          },
+          "title": "HydrophilicTreatmentParametersPayload",
+          "type": "object"
+        },
         "MaterialLotReferencePayload": {
           "additionalProperties": false,
           "properties": {
@@ -809,42 +1302,196 @@
           "title": "MaterialLotReferencePayload",
           "type": "object"
         },
-        "SubstrateItemPayload": {
+        "NamedParameterListPayload": {
           "additionalProperties": false,
           "properties": {
-            "material": {
+            "items": {
+              "items": {
+                "$ref": "#/$defs/NamedParameterPayload"
+              },
+              "minItems": 1,
+              "title": "Items",
+              "type": "array"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "title": "NamedParameterListPayload",
+          "type": "object"
+        },
+        "NamedParameterPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Name",
+              "type": "string"
+            },
+            "value": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "number"
                 },
                 {
-                  "type": "null"
-                }
-              ],
-              "title": "Material"
-            },
-            "lot_ref": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/MaterialLotReferencePayload"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "formula_orientation": {
-              "anyOf": [
-                {
+                  "minLength": 1,
+                  "pattern": "\\S",
                   "type": "string"
+                }
+              ],
+              "title": "Value"
+            },
+            "unit": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value",
+            "unit"
+          ],
+          "title": "NamedParameterPayload",
+          "type": "object"
+        },
+        "OptionalDurationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "duration_min": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
               "default": null,
-              "title": "Formula Orientation"
+              "title": "Duration Min"
+            }
+          },
+          "title": "OptionalDurationParametersPayload",
+          "type": "object"
+        },
+        "OtherPretreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "other",
+              "title": "Type",
+              "type": "string"
+            },
+            "other_name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Other Name",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/NamedParameterListPayload"
+            }
+          },
+          "required": [
+            "type",
+            "other_name",
+            "parameters"
+          ],
+          "title": "OtherPretreatmentPayload",
+          "type": "object"
+        },
+        "PlasmaPretreatmentPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "plasma_treatment",
+              "title": "Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/PlasmaTreatmentParametersPayload"
+            }
+          },
+          "required": [
+            "type",
+            "parameters"
+          ],
+          "title": "PlasmaPretreatmentPayload",
+          "type": "object"
+        },
+        "PlasmaTreatmentParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "power_W": {
+              "exclusiveMinimum": 0,
+              "title": "Power W",
+              "type": "number"
+            },
+            "gas_species": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Gas Species",
+              "type": "string"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "pressure_Pa": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pressure Pa"
+            }
+          },
+          "required": [
+            "power_W",
+            "gas_species",
+            "duration_min"
+          ],
+          "title": "PlasmaTreatmentParametersPayload",
+          "type": "object"
+        },
+        "SubstrateItemPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "material": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Material",
+              "type": "string"
+            },
+            "lot_ref": {
+              "$ref": "#/$defs/MaterialLotReferencePayload"
+            },
+            "chemical_formula": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Chemical Formula",
+              "type": "string"
+            },
+            "crystal_orientation": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Crystal Orientation",
+              "type": "string"
+            },
+            "miscut_angle_deg": {
+              "exclusiveMaximum": 90,
+              "minimum": 0,
+              "title": "Miscut Angle Deg",
+              "type": "number"
             },
             "oxide_thickness_nm": {
               "anyOf": [
@@ -859,34 +1506,47 @@
               "default": null,
               "title": "Oxide Thickness Nm"
             },
-            "surface_roughness_nm": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Surface Roughness Nm"
+            "surface_roughness": {
+              "$ref": "#/$defs/SurfaceRoughnessPayload"
             },
             "size_placement": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/SubstrateSizePlacementPayload"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
+              "$ref": "#/$defs/SubstrateSizePlacementPayload"
             },
             "pretreatment_steps": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "discriminator": {
+                      "mapping": {
+                        "acetone_clean": "#/$defs/CleaningPretreatmentPayload",
+                        "anneal": "#/$defs/AnnealPretreatmentPayload",
+                        "hydrophilic_treatment": "#/$defs/HydrophilicPretreatmentPayload",
+                        "isopropanol_clean": "#/$defs/CleaningPretreatmentPayload",
+                        "nitrogen_dry": "#/$defs/CleaningPretreatmentPayload",
+                        "other": "#/$defs/OtherPretreatmentPayload",
+                        "plasma_treatment": "#/$defs/PlasmaPretreatmentPayload"
+                      },
+                      "propertyName": "type"
+                    },
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/CleaningPretreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/AnnealPretreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/PlasmaPretreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/HydrophilicPretreatmentPayload"
+                      },
+                      {
+                        "$ref": "#/$defs/OtherPretreatmentPayload"
+                      }
+                    ]
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -908,6 +1568,18 @@
               "default": null,
               "title": "Exposure Interval Min"
             },
+            "exposure_environment": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Exposure Environment"
+            },
             "zone_thermocouple_distance_mm": {
               "anyOf": [
                 {
@@ -921,7 +1593,13 @@
             }
           },
           "required": [
-            "material"
+            "material",
+            "lot_ref",
+            "chemical_formula",
+            "crystal_orientation",
+            "miscut_angle_deg",
+            "surface_roughness",
+            "size_placement"
           ],
           "title": "SubstrateItemPayload",
           "type": "object"
@@ -953,15 +1631,33 @@
               "title": "Thickness Mm"
             },
             "placement": {
+              "enum": [
+                "face_up",
+                "face_down",
+                "tilted",
+                "upright",
+                "other"
+              ],
+              "title": "Placement",
+              "type": "string"
+            },
+            "tilt_angle_deg": {
               "anyOf": [
                 {
-                  "enum": [
-                    "face_up",
-                    "face_down",
-                    "tilted",
-                    "upright",
-                    "other"
-                  ],
+                  "exclusiveMinimum": 0,
+                  "maximum": 90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Tilt Angle Deg"
+            },
+            "placement_other": {
+              "anyOf": [
+                {
                   "type": "string"
                 },
                 {
@@ -969,14 +1665,39 @@
                 }
               ],
               "default": null,
-              "title": "Placement"
+              "title": "Placement Other"
             }
           },
           "required": [
             "length_mm",
-            "width_mm"
+            "width_mm",
+            "placement"
           ],
           "title": "SubstrateSizePlacementPayload",
+          "type": "object"
+        },
+        "SurfaceRoughnessPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "metric": {
+              "enum": [
+                "Ra",
+                "RMS"
+              ],
+              "title": "Metric",
+              "type": "string"
+            },
+            "value_nm": {
+              "minimum": 0,
+              "title": "Value Nm",
+              "type": "number"
+            }
+          },
+          "required": [
+            "metric",
+            "value_nm"
+          ],
+          "title": "SurfaceRoughnessPayload",
           "type": "object"
         },
         "ZoneThermocoupleDistancePayload": {
@@ -1016,10 +1737,60 @@
     },
     "process_steps": {
       "$defs": {
-        "CoolingParamsValue": {
+        "ActualFieldPayload": {
           "additionalProperties": false,
           "properties": {
-            "value": {
+            "field_type": {
+              "enum": [
+                "plasma",
+                "light",
+                "electric_field"
+              ],
+              "title": "Field Type",
+              "type": "string"
+            },
+            "start_min": {
+              "minimum": 0,
+              "title": "Start Min",
+              "type": "number"
+            },
+            "end_min": {
+              "exclusiveMinimum": 0,
+              "title": "End Min",
+              "type": "number"
+            },
+            "parameters": {
+              "items": {
+                "$ref": "#/$defs/NamedParameterPayload"
+              },
+              "minItems": 1,
+              "title": "Parameters",
+              "type": "array"
+            }
+          },
+          "required": [
+            "field_type",
+            "start_min",
+            "end_min",
+            "parameters"
+          ],
+          "title": "ActualFieldPayload",
+          "type": "object"
+        },
+        "CoolingParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "enum": [
+                "furnace_cooling",
+                "open_lid_cooling",
+                "rapid_furnace_move_cooling",
+                "other"
+              ],
+              "title": "Method",
+              "type": "string"
+            },
+            "lid_open_temperature_C": {
               "anyOf": [
                 {
                   "type": "number"
@@ -1029,15 +1800,185 @@
                 }
               ],
               "default": null,
-              "title": "Value"
+              "title": "Lid Open Temperature C"
             },
-            "option": {
+            "cooling_rate_C_per_min": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Cooling Rate C Per Min"
+            },
+            "method_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Method Other"
+            }
+          },
+          "required": [
+            "method"
+          ],
+          "title": "CoolingParametersPayload",
+          "type": "object"
+        },
+        "DurationCyclesPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "cycle_count": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Cycle Count"
+            }
+          },
+          "required": [
+            "duration_min"
+          ],
+          "title": "DurationCyclesPayload",
+          "type": "object"
+        },
+        "GasExchangeGasPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "species": {
+              "enum": [
+                "Ar",
+                "N2",
+                "H2",
+                "O2",
+                "CH4",
+                "other"
+              ],
+              "title": "Species",
+              "type": "string"
+            },
+            "other_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Name"
+            },
+            "lot_ref": {
+              "$ref": "#/$defs/MaterialLotReferencePayload"
+            },
+            "flow_sccm": {
+              "exclusiveMinimum": 0,
+              "title": "Flow Sccm",
+              "type": "number"
+            }
+          },
+          "required": [
+            "species",
+            "lot_ref",
+            "flow_sccm"
+          ],
+          "title": "GasExchangeGasPayload",
+          "type": "object"
+        },
+        "GasExchangeOperationPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "operation_type": {
+              "const": "gas_exchange",
+              "title": "Operation Type",
+              "type": "string"
+            },
+            "cycle_count": {
+              "minimum": 1,
+              "title": "Cycle Count",
+              "type": "integer"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "gases": {
+              "items": {
+                "$ref": "#/$defs/GasExchangeGasPayload"
+              },
+              "minItems": 1,
+              "title": "Gases",
+              "type": "array"
+            }
+          },
+          "required": [
+            "operation_type",
+            "cycle_count",
+            "duration_min",
+            "gases"
+          ],
+          "title": "GasExchangeOperationPayload",
+          "type": "object"
+        },
+        "GasFeedPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "species": {
+              "enum": [
+                "Ar",
+                "N2",
+                "H2",
+                "O2",
+                "CH4",
+                "other"
+              ],
+              "title": "Species",
+              "type": "string"
+            },
+            "other_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Name"
+            },
+            "lot_ref": {
+              "$ref": "#/$defs/MaterialLotReferencePayload"
+            },
+            "measurement_source": {
               "anyOf": [
                 {
                   "enum": [
-                    "furnace_cooling",
-                    "open_lid_cooling",
-                    "rapid_furnace_move_cooling"
+                    "mfc",
+                    "rotameter",
+                    "other"
                   ],
                   "type": "string"
                 },
@@ -1046,21 +1987,9 @@
                 }
               ],
               "default": null,
-              "title": "Option"
-            }
-          },
-          "title": "CoolingParamsValue",
-          "type": "object"
-        },
-        "CoolingStepPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "stage_type": {
-              "const": "cooling",
-              "title": "Stage Type",
-              "type": "string"
+              "title": "Measurement Source"
             },
-            "step_order_time": {
+            "measurement_source_other": {
               "anyOf": [
                 {
                   "type": "string"
@@ -1070,662 +1999,275 @@
                 }
               ],
               "default": null,
-              "title": "Step Order Time"
+              "title": "Measurement Source Other"
             },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "temperature_program": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Temperature Program"
-            },
-            "measured_temperature": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Measured Temperature"
-            },
-            "temperature_metrology": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Temperature Metrology"
-            },
-            "cooling_params": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/CoolingParamsValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
+            "intervals": {
+              "items": {
+                "$ref": "#/$defs/GasSupplyIntervalPayload"
+              },
+              "minItems": 1,
+              "title": "Intervals",
+              "type": "array"
             }
           },
           "required": [
-            "stage_type",
-            "temperature_program",
-            "cooling_params",
-            "gas_species",
-            "gas_flow_sccm"
+            "species",
+            "lot_ref",
+            "intervals"
           ],
-          "title": "CoolingStepPayload",
+          "title": "GasFeedPayload",
           "type": "object"
         },
-        "EvacuationStepPayload": {
+        "GasSupplyIntervalPayload": {
           "additionalProperties": false,
           "properties": {
-            "stage_type": {
-              "const": "evacuation",
-              "title": "Stage Type",
-              "type": "string"
+            "start_min": {
+              "minimum": 0,
+              "title": "Start Min",
+              "type": "number"
             },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
+            "end_min": {
+              "exclusiveMinimum": 0,
+              "title": "End Min",
+              "type": "number"
             },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
+            "flow_sccm": {
+              "exclusiveMinimum": 0,
+              "title": "Flow Sccm",
+              "type": "number"
             }
           },
           "required": [
-            "stage_type"
+            "start_min",
+            "end_min",
+            "flow_sccm"
           ],
-          "title": "EvacuationStepPayload",
+          "title": "GasSupplyIntervalPayload",
           "type": "object"
         },
-        "GasFlowSccmValue": {
+        "MaterialLotReferencePayload": {
           "additionalProperties": false,
           "properties": {
+            "entity_id": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            },
+            "version": {
+              "minimum": 1,
+              "title": "Version",
+              "type": "integer"
+            },
+            "snapshot": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Snapshot"
+            }
+          },
+          "required": [
+            "entity_id",
+            "version"
+          ],
+          "title": "MaterialLotReferencePayload",
+          "type": "object"
+        },
+        "MeasuredTemperatureChannelPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "zone_index": {
+              "minimum": 1,
+              "title": "Zone Index",
+              "type": "integer"
+            },
+            "column_name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Column Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "zone_index",
+            "column_name"
+          ],
+          "title": "MeasuredTemperatureChannelPayload",
+          "type": "object"
+        },
+        "MeasuredTemperatureReferencePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "file_asset_id": {
+              "format": "uuid",
+              "title": "File Asset Id",
+              "type": "string"
+            },
+            "time_column": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Time Column",
+              "type": "string"
+            },
+            "channels": {
+              "items": {
+                "$ref": "#/$defs/MeasuredTemperatureChannelPayload"
+              },
+              "minItems": 1,
+              "title": "Channels",
+              "type": "array"
+            }
+          },
+          "required": [
+            "file_asset_id",
+            "time_column",
+            "channels"
+          ],
+          "title": "MeasuredTemperatureReferencePayload",
+          "type": "object"
+        },
+        "NamedParameterPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Name",
+              "type": "string"
+            },
             "value": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
                   "type": "number"
                 },
                 {
-                  "type": "null"
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
                 }
               ],
-              "default": null,
               "title": "Value"
             },
-            "option": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "MFC",
-                    "rotameter"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Option"
+            "unit": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Unit",
+              "type": "string"
             }
           },
-          "title": "GasFlowSccmValue",
+          "required": [
+            "name",
+            "value",
+            "unit"
+          ],
+          "title": "NamedParameterPayload",
           "type": "object"
         },
-        "GrowthStepPayload": {
+        "OtherPreparationOperationPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "operation_type": {
+              "const": "other",
+              "title": "Operation Type",
+              "type": "string"
+            },
+            "other_name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Other Name",
+              "type": "string"
+            },
+            "parameters": {
+              "items": {
+                "$ref": "#/$defs/NamedParameterPayload"
+              },
+              "minItems": 1,
+              "title": "Parameters",
+              "type": "array"
+            }
+          },
+          "required": [
+            "operation_type",
+            "other_name",
+            "parameters"
+          ],
+          "title": "OtherPreparationOperationPayload",
+          "type": "object"
+        },
+        "OtherStepPayload": {
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "growth",
+              "const": "other",
               "title": "Stage Type",
               "type": "string"
             },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
+            "other_stage_name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Other Stage Name",
+              "type": "string"
             },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "temperature_program": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Temperature Program"
-            },
-            "measured_temperature": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Measured Temperature"
-            },
-            "temperature_metrology": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Temperature Metrology"
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
-            },
-            "field_params": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Field Params"
+            "notes": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Notes",
+              "type": "string"
             }
           },
           "required": [
             "stage_type",
-            "temperature_program",
-            "gas_species",
-            "gas_flow_sccm",
-            "pressure_system"
+            "other_stage_name",
+            "notes"
           ],
-          "title": "GrowthStepPayload",
+          "title": "OtherStepPayload",
           "type": "object"
         },
-        "LeakCheckStepPayload": {
+        "PreparationStepPayload": {
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "leak_check",
+              "const": "preparation",
               "title": "Stage Type",
               "type": "string"
             },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
-            }
-          },
-          "required": [
-            "stage_type"
-          ],
-          "title": "LeakCheckStepPayload",
-          "type": "object"
-        },
-        "PostAnnealStepPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "stage_type": {
-              "const": "post_anneal",
-              "title": "Stage Type",
-              "type": "string"
-            },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "temperature_program": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Temperature Program"
-            },
-            "measured_temperature": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Measured Temperature"
-            },
-            "temperature_metrology": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Temperature Metrology"
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
+            "preparation_operations": {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "gas_exchange": "#/$defs/GasExchangeOperationPayload",
+                    "other": "#/$defs/OtherPreparationOperationPayload",
+                    "pump_down": "#/$defs/PumpDownOperationPayload"
                   },
-                  "type": "array"
+                  "propertyName": "operation_type"
                 },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
-            },
-            "field_params": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Field Params"
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/PumpDownOperationPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/GasExchangeOperationPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/OtherPreparationOperationPayload"
+                  }
+                ]
+              },
+              "title": "Preparation Operations",
+              "type": "array"
             }
           },
           "required": [
             "stage_type",
-            "temperature_program",
-            "gas_species",
-            "gas_flow_sccm"
+            "preparation_operations"
           ],
-          "title": "PostAnnealStepPayload",
+          "title": "PreparationStepPayload",
           "type": "object"
         },
         "PressureSystemValue": {
@@ -1765,135 +2307,48 @@
           "title": "PressureSystemValue",
           "type": "object"
         },
-        "PretreatmentStepPayload": {
+        "PumpDownOperationPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "operation_type": {
+              "const": "pump_down",
+              "title": "Operation Type",
+              "type": "string"
+            },
+            "target_absolute_pressure_Pa": {
+              "exclusiveMinimum": 0,
+              "title": "Target Absolute Pressure Pa",
+              "type": "number"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            }
+          },
+          "required": [
+            "operation_type",
+            "target_absolute_pressure_Pa",
+            "duration_min"
+          ],
+          "title": "PumpDownOperationPayload",
+          "type": "object"
+        },
+        "ReactionConditionsStepPayload": {
           "additionalProperties": false,
           "properties": {
             "stage_type": {
-              "const": "pretreatment",
+              "const": "reaction_conditions",
               "title": "Stage Type",
               "type": "string"
             },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
             "temperature_program": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Temperature Program"
+              "$ref": "#/$defs/TemperatureProgramPayload"
             },
             "measured_temperature": {
               "anyOf": [
                 {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Measured Temperature"
-            },
-            "temperature_metrology": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Temperature Metrology"
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
+                  "$ref": "#/$defs/MeasuredTemperatureReferencePayload"
                 },
                 {
                   "type": "null"
@@ -1901,23 +2356,37 @@
               ],
               "default": null
             },
-            "base_pressure_leak": {
+            "gas_feeds": {
+              "items": {
+                "$ref": "#/$defs/GasFeedPayload"
+              },
+              "title": "Gas Feeds",
+              "type": "array"
+            },
+            "pressure_system": {
+              "$ref": "#/$defs/PressureSystemValue"
+            },
+            "duration_cycles": {
+              "$ref": "#/$defs/DurationCyclesPayload"
+            },
+            "cooling_params": {
               "anyOf": [
                 {
-                  "minimum": 0,
-                  "type": "number"
+                  "$ref": "#/$defs/CoolingParametersPayload"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Base Pressure Leak"
+              "default": null
             },
             "field_params": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "items": {
+                    "$ref": "#/$defs/ActualFieldPayload"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -1930,614 +2399,74 @@
           "required": [
             "stage_type",
             "temperature_program",
-            "gas_species",
-            "gas_flow_sccm"
+            "gas_feeds",
+            "pressure_system",
+            "duration_cycles"
           ],
-          "title": "PretreatmentStepPayload",
+          "title": "ReactionConditionsStepPayload",
           "type": "object"
         },
-        "PurgeStepPayload": {
+        "TemperaturePointPayload": {
           "additionalProperties": false,
           "properties": {
-            "stage_type": {
-              "const": "purge",
-              "title": "Stage Type",
-              "type": "string"
+            "elapsed_min": {
+              "minimum": 0,
+              "title": "Elapsed Min",
+              "type": "number"
             },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
+            "setpoint_C": {
+              "exclusiveMinimum": -273.15,
+              "title": "Setpoint C",
+              "type": "number"
             }
           },
           "required": [
-            "stage_type",
-            "gas_species",
-            "gas_flow_sccm"
+            "elapsed_min",
+            "setpoint_C"
           ],
-          "title": "PurgeStepPayload",
+          "title": "TemperaturePointPayload",
           "type": "object"
         },
-        "RampStepPayload": {
+        "TemperatureProgramPayload": {
           "additionalProperties": false,
           "properties": {
-            "stage_type": {
-              "const": "ramp",
-              "title": "Stage Type",
-              "type": "string"
-            },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "temperature_program": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Temperature Program"
-            },
-            "measured_temperature": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Measured Temperature"
-            },
-            "temperature_metrology": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Temperature Metrology"
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
+            "zones": {
+              "items": {
+                "$ref": "#/$defs/TemperatureZoneProgramPayload"
+              },
+              "minItems": 1,
+              "title": "Zones",
+              "type": "array"
             }
           },
           "required": [
-            "stage_type",
-            "temperature_program",
-            "gas_species",
-            "gas_flow_sccm"
+            "zones"
           ],
-          "title": "RampStepPayload",
+          "title": "TemperatureProgramPayload",
           "type": "object"
         },
-        "TemperatureStabilizationStepPayload": {
+        "TemperatureZoneProgramPayload": {
           "additionalProperties": false,
           "properties": {
-            "stage_type": {
-              "const": "temperature_stabilization",
-              "title": "Stage Type",
-              "type": "string"
+            "zone_index": {
+              "minimum": 1,
+              "title": "Zone Index",
+              "type": "integer"
             },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "temperature_program": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Temperature Program"
-            },
-            "measured_temperature": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Measured Temperature"
-            },
-            "temperature_metrology": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Temperature Metrology"
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
+            "points": {
+              "items": {
+                "$ref": "#/$defs/TemperaturePointPayload"
+              },
+              "minItems": 1,
+              "title": "Points",
+              "type": "array"
             }
           },
           "required": [
-            "stage_type",
-            "temperature_program",
-            "gas_species",
-            "gas_flow_sccm"
+            "zone_index",
+            "points"
           ],
-          "title": "TemperatureStabilizationStepPayload",
-          "type": "object"
-        },
-        "UnloadStepPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "stage_type": {
-              "const": "unload",
-              "title": "Stage Type",
-              "type": "string"
-            },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            }
-          },
-          "required": [
-            "stage_type"
-          ],
-          "title": "UnloadStepPayload",
-          "type": "object"
-        },
-        "VentStepPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "stage_type": {
-              "const": "vent",
-              "title": "Stage Type",
-              "type": "string"
-            },
-            "step_order_time": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Step Order Time"
-            },
-            "duration_cycles": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Duration Cycles"
-            },
-            "gas_species": {
-              "anyOf": [
-                {
-                  "items": {
-                    "enum": [
-                      "Ar",
-                      "CH4",
-                      "H2",
-                      "N2",
-                      "O2",
-                      "other"
-                    ],
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Gas Species"
-            },
-            "other_gas_name": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Other Gas Name"
-            },
-            "gas_purity_impurities": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Gas Purity Impurities"
-            },
-            "gas_flow_sccm": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GasFlowSccmValue"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "pressure_system": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/PressureSystemValue"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "base_pressure_leak": {
-              "anyOf": [
-                {
-                  "minimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Base Pressure Leak"
-            }
-          },
-          "required": [
-            "stage_type",
-            "gas_species",
-            "gas_flow_sccm"
-          ],
-          "title": "VentStepPayload",
+          "title": "TemperatureZoneProgramPayload",
           "type": "object"
         }
       },
@@ -2547,53 +2476,21 @@
           "items": {
             "discriminator": {
               "mapping": {
-                "cooling": "#/$defs/CoolingStepPayload",
-                "evacuation": "#/$defs/EvacuationStepPayload",
-                "growth": "#/$defs/GrowthStepPayload",
-                "leak_check": "#/$defs/LeakCheckStepPayload",
-                "post_anneal": "#/$defs/PostAnnealStepPayload",
-                "pretreatment": "#/$defs/PretreatmentStepPayload",
-                "purge": "#/$defs/PurgeStepPayload",
-                "ramp": "#/$defs/RampStepPayload",
-                "temperature_stabilization": "#/$defs/TemperatureStabilizationStepPayload",
-                "unload": "#/$defs/UnloadStepPayload",
-                "vent": "#/$defs/VentStepPayload"
+                "other": "#/$defs/OtherStepPayload",
+                "preparation": "#/$defs/PreparationStepPayload",
+                "reaction_conditions": "#/$defs/ReactionConditionsStepPayload"
               },
               "propertyName": "stage_type"
             },
             "oneOf": [
               {
-                "$ref": "#/$defs/EvacuationStepPayload"
+                "$ref": "#/$defs/PreparationStepPayload"
               },
               {
-                "$ref": "#/$defs/LeakCheckStepPayload"
+                "$ref": "#/$defs/ReactionConditionsStepPayload"
               },
               {
-                "$ref": "#/$defs/PurgeStepPayload"
-              },
-              {
-                "$ref": "#/$defs/PretreatmentStepPayload"
-              },
-              {
-                "$ref": "#/$defs/RampStepPayload"
-              },
-              {
-                "$ref": "#/$defs/TemperatureStabilizationStepPayload"
-              },
-              {
-                "$ref": "#/$defs/GrowthStepPayload"
-              },
-              {
-                "$ref": "#/$defs/PostAnnealStepPayload"
-              },
-              {
-                "$ref": "#/$defs/CoolingStepPayload"
-              },
-              {
-                "$ref": "#/$defs/VentStepPayload"
-              },
-              {
-                "$ref": "#/$defs/UnloadStepPayload"
+                "$ref": "#/$defs/OtherStepPayload"
               }
             ]
           },
@@ -2610,38 +2507,34 @@
         "ProcessEventItemPayload": {
           "additionalProperties": false,
           "properties": {
-            "event_part": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Event Part"
+            "event_id": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            },
+            "event_type": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Event Type",
+              "type": "string"
             },
             "occurred_at": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Occurred At"
+              "format": "date-time",
+              "title": "Occurred At",
+              "type": "string"
             },
-            "abort_reason": {
+            "terminated_run": {
+              "title": "Terminated Run",
+              "type": "boolean"
+            },
+            "termination_reason": {
               "anyOf": [
                 {
                   "enum": [
                     "equipment_alarm",
                     "manual_stop",
-                    "planned_completion"
+                    "other",
+                    "plan_changed"
                   ],
                   "type": "string"
                 },
@@ -2650,9 +2543,9 @@
                 }
               ],
               "default": null,
-              "title": "Abort Reason"
+              "title": "Termination Reason"
             },
-            "description_action": {
+            "description": {
               "anyOf": [
                 {
                   "type": "string"
@@ -2662,9 +2555,43 @@
                 }
               ],
               "default": null,
-              "title": "Description Action"
+              "title": "Description"
+            },
+            "action_taken": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Taken"
+            },
+            "attachment_file_ids": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Attachment File Ids"
             }
           },
+          "required": [
+            "event_id",
+            "event_type",
+            "occurred_at",
+            "terminated_run"
+          ],
           "title": "ProcessEventItemPayload",
           "type": "object"
         }
@@ -2837,6 +2764,723 @@
       "$id": "https://standard.cvd-2d.org/2.0.0/pvd.schema.json"
     }
   },
+  "entities": {
+    "material_lot": {
+      "$defs": {
+        "FileAssetReferencePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "file_asset_id": {
+              "format": "uuid",
+              "title": "File Asset Id",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Note"
+            }
+          },
+          "required": [
+            "file_asset_id",
+            "sha256"
+          ],
+          "title": "FileAssetReferencePayload",
+          "type": "object"
+        },
+        "SubstrateOrientationPolishValue": {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
+            },
+            "option": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "double_side_polished",
+                    "single_side_polished"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Option"
+            }
+          },
+          "title": "SubstrateOrientationPolishValue",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "lot_category": {
+          "enum": [
+            "chemical",
+            "gas_cylinder",
+            "substrate"
+          ],
+          "title": "Lot Category",
+          "type": "string"
+        },
+        "substance_name": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Substance Name",
+          "type": "string"
+        },
+        "chemical_formula": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Chemical Formula",
+          "type": "string"
+        },
+        "cas_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cas Number"
+        },
+        "inchikey_cid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inchikey Cid"
+        },
+        "supplier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supplier"
+        },
+        "catalog_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalog Number"
+        },
+        "batch_number": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Batch Number",
+          "type": "string"
+        },
+        "purity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purity"
+        },
+        "particle_size_d50_um": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Particle Size D50 Um"
+        },
+        "form_appearance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Form Appearance"
+        },
+        "opened_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opened Date"
+        },
+        "storage_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Storage Method"
+        },
+        "coa_attachment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileAssetReferencePayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "label_attachment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileAssetReferencePayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "substrate_material": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate Material"
+        },
+        "substrate_oxide_thickness_nm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate Oxide Thickness Nm"
+        },
+        "substrate_orientation_polish": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubstrateOrientationPolishValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "substrate_size_spec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate Size Spec"
+        },
+        "gas_purity_grade": {
+          "anyOf": [
+            {
+              "enum": [
+                "4N",
+                "5N",
+                "6N",
+                "industrial_grade"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gas Purity Grade"
+        },
+        "gas_cylinder_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gas Cylinder Number"
+        }
+      },
+      "required": [
+        "lot_category",
+        "substance_name",
+        "chemical_formula",
+        "batch_number"
+      ],
+      "title": "MaterialLotVersionPayload",
+      "type": "object"
+    },
+    "setup": {
+      "$defs": {
+        "FileAssetReferencePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "file_asset_id": {
+              "format": "uuid",
+              "title": "File Asset Id",
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Note"
+            }
+          },
+          "required": [
+            "file_asset_id",
+            "sha256"
+          ],
+          "title": "FileAssetReferencePayload",
+          "type": "object"
+        },
+        "TemperatureSensorPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sensor_name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Sensor Name",
+              "type": "string"
+            },
+            "sensor_type": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Sensor Type",
+              "type": "string"
+            },
+            "zone_index": {
+              "minimum": 1,
+              "title": "Zone Index",
+              "type": "integer"
+            },
+            "uncertainty_C": {
+              "minimum": 0,
+              "title": "Uncertainty C",
+              "type": "number"
+            },
+            "uncertainty_source": {
+              "enum": [
+                "instrument",
+                "calibration",
+                "repeatability",
+                "estimate"
+              ],
+              "title": "Uncertainty Source",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sensor_name",
+            "sensor_type",
+            "zone_index",
+            "uncertainty_C",
+            "uncertainty_source"
+          ],
+          "title": "TemperatureSensorPayload",
+          "type": "object"
+        },
+        "TubeDimensionsPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "outer_diameter_mm": {
+              "exclusiveMinimum": 0,
+              "title": "Outer Diameter Mm",
+              "type": "number"
+            },
+            "wall_thickness_mm": {
+              "exclusiveMinimum": 0,
+              "title": "Wall Thickness Mm",
+              "type": "number"
+            }
+          },
+          "required": [
+            "outer_diameter_mm",
+            "wall_thickness_mm"
+          ],
+          "title": "TubeDimensionsPayload",
+          "type": "object"
+        },
+        "TubeMaterialShapePayload": {
+          "additionalProperties": false,
+          "properties": {
+            "material": {
+              "enum": [
+                "quartz",
+                "alumina",
+                "other"
+              ],
+              "title": "Material",
+              "type": "string"
+            },
+            "material_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Material Other"
+            },
+            "shape": {
+              "enum": [
+                "round",
+                "square",
+                "rectangular",
+                "other"
+              ],
+              "title": "Shape",
+              "type": "string"
+            },
+            "shape_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Shape Other"
+            }
+          },
+          "required": [
+            "material",
+            "shape"
+          ],
+          "title": "TubeMaterialShapePayload",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "setup_code": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Setup Code",
+          "type": "string"
+        },
+        "setup_name": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Setup Name",
+          "type": "string"
+        },
+        "brand_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Brand Model"
+        },
+        "wall_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "cold_wall",
+                "hot_wall"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wall Type"
+        },
+        "zone_count": {
+          "minimum": 1,
+          "title": "Zone Count",
+          "type": "integer"
+        },
+        "temperature_sensors": {
+          "items": {
+            "$ref": "#/$defs/TemperatureSensorPayload"
+          },
+          "minItems": 1,
+          "title": "Temperature Sensors",
+          "type": "array"
+        },
+        "orientation": {
+          "enum": [
+            "horizontal",
+            "vertical"
+          ],
+          "title": "Orientation",
+          "type": "string"
+        },
+        "tube_material_shape": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TubeMaterialShapePayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tube_outer_diameter_wall_mm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TubeDimensionsPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "field_devices": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "electric_field",
+                  "light",
+                  "none",
+                  "plasma"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field Devices"
+        },
+        "setup_diagram": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileAssetReferencePayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "setup_code",
+        "setup_name",
+        "zone_count",
+        "temperature_sensors",
+        "orientation"
+      ],
+      "title": "SetupVersionPayload",
+      "type": "object"
+    },
+    "instrument": {
+      "additionalProperties": false,
+      "properties": {
+        "instrument_code": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Instrument Code",
+          "type": "string"
+        },
+        "name_type": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Name Type",
+          "type": "string"
+        },
+        "vendor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vendor"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "serial_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Serial Number"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pid"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
+        "fixed_config": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fixed Config"
+        },
+        "last_calibration": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Calibration"
+        }
+      },
+      "required": [
+        "instrument_code",
+        "name_type"
+      ],
+      "title": "InstrumentVersionPayload",
+      "type": "object"
+    }
+  },
   "result_models": {
     "unified_result_write": {
       "$defs": {
@@ -2975,6 +3619,15 @@
           "title": "Kind",
           "type": "string"
         },
+        "file_asset_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "File Asset Ids",
+          "type": "array"
+        },
         "instrument_id": {
           "anyOf": [
             {
@@ -3013,6 +3666,32 @@
           ],
           "default": null,
           "title": "Method Instrument"
+        },
+        "method_other": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Other"
+        },
+        "observed_phenomena_other": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Phenomena Other"
         },
         "test_conditions": {
           "anyOf": [

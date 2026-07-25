@@ -1,4 +1,4 @@
-// 模块分区卡片：标题 + 副标题 + 内容 + 可选「保存本模块」页脚（编辑态分模块草稿保存）。
+// 模块分区卡片：标题 + 内容 + 可选「保存本模块」页脚（编辑态分模块草稿保存）。
 import type { ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +9,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 export function ModuleCard({
   index,
   title,
-  subtitle,
   children,
   onSave,
   saving,
@@ -21,7 +20,6 @@ export function ModuleCard({
   /** 分区序号（§1 / §1b / §2 …），纯展示。 */
   index?: string
   title: string
-  subtitle?: string
   children: ReactNode
   /** 提供则渲染「保存本模块」页脚（编辑态）。 */
   onSave?: () => void
@@ -45,9 +43,6 @@ export function ModuleCard({
           ) : null}
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         </div>
-        {subtitle ? (
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        ) : null}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {children}

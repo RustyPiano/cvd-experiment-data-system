@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.audit import AuditEvent
+from tests.helpers.v2_payloads import setup_payload
 
 client = TestClient(app)
 
@@ -33,26 +34,26 @@ def _run(headers: dict[str, str], run_code: str) -> dict:
 
 
 def _setup_payload(**overrides) -> dict:
-    return {
+    values = {
         "setup_code": "SETUP-F9-A2",
         "setup_name": "F9-A2 setup",
         "zone_count": 3,
-        "orientation": "水平",
-        "coordinate_system": "上游负/下游正",
-        "flow_reference_temperature_C": 20,
-        "flow_reference_pressure_Pa": 101325,
         **overrides,
     }
+    return setup_payload(**values)
 
 
-def test_entity_run_and_setup_reference_writes_are_audited(active_user, db_session) -> None:
-    headers = _headers(active_user.email)
-    setup = client.post("/api/v1/setups", json=_setup_payload(), headers=headers)
-    run = _run(headers, "CVD-2026-0901")
+def test_entity_run_and_setup_reference_writes_are_audited(
+    active_user, admin_user, db_session
+) -> None:
+    owner_headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    setup = client.post("/api/v1/setups", json=_setup_payload(), headers=admin_headers)
+    run = _run(owner_headers, "CVD-2026-0901")
     referenced = client.put(
         f"/api/v1/experiments/{run['id']}/setup-reference",
         json={"setup_id": setup.json()["id"], "version": 1},
-        headers=headers,
+        headers=owner_headers,
     )
 
     assert setup.status_code == 201, setup.text
@@ -62,7 +63,7 @@ def test_entity_run_and_setup_reference_writes_are_audited(active_user, db_sessi
         .filter_by(entity_type="setup", entity_id=UUID(setup.json()["id"]), action="create")
         .one()
     )
-    assert setup_event.actor_id == active_user.id
+    assert setup_event.actor_id == admin_user.id
     assert setup_event.before_json is None
     assert setup_event.after_json["version"] == 1
     run_events = (
@@ -150,23 +151,23 @@ def test_result_crud_writes_are_audited_with_delete_snapshots(active_user, db_se
     assert product_events[2].after_json is None
 
 
-def test_setup_field_devices_none_is_exclusive_on_create_and_append(active_user) -> None:
-    headers = _headers(active_user.email)
+def test_setup_field_devices_none_is_exclusive_on_create_and_append(admin_user) -> None:
+    headers = _headers(admin_user.email)
     rejected_create = client.post(
         "/api/v1/setups",
-        json=_setup_payload(field_devices=["无", "等离子体"]),
+        json=_setup_payload(field_devices=["none", "plasma"]),
         headers=headers,
     )
     setup = client.post(
         "/api/v1/setups",
-        json=_setup_payload(setup_code="SETUP-F9-A2-VALID", field_devices=["无"]),
+        json=_setup_payload(setup_code="SETUP-F9-A2-VALID", field_devices=["none"]),
         headers=headers,
     )
     rejected_append = client.post(
         f"/api/v1/setups/{setup.json()['id']}/versions",
         json=_setup_payload(
             setup_code="SETUP-F9-A2-VALID",
-            field_devices=["无", "等离子体"],
+            field_devices=["none", "plasma"],
         ),
         headers=headers,
     )
@@ -175,8 +176,8 @@ def test_setup_field_devices_none_is_exclusive_on_create_and_append(active_user)
     assert rejected_append.status_code == 422
 
 
-def test_setup_integer_values_reject_fraction_and_accept_integer_forms(active_user) -> None:
-    headers = _headers(active_user.email)
+def test_setup_integer_values_reject_fraction_and_numeric_strings(admin_user) -> None:
+    headers = _headers(admin_user.email)
     fraction = client.post(
         "/api/v1/setups",
         json=_setup_payload(setup_code="SETUP-FRACTION", zone_count=3.5),
@@ -197,8 +198,8 @@ def test_setup_integer_values_reject_fraction_and_accept_integer_forms(active_us
     assert fraction.json()["detail"] == {"invalid": [{"key": "zone_count", "reason": "type"}]}
     assert integer.status_code == 201, integer.text
     assert integer.json()["latest_version"]["data"]["zone_count"] == 3
-    assert integer_string.status_code == 201, integer_string.text
-    assert integer_string.json()["latest_version"]["data"]["zone_count"] == 3
+    assert integer_string.status_code == 422
+    assert integer_string.json()["detail"] == {"invalid": [{"key": "zone_count", "reason": "type"}]}
 
 
 def test_owner_still_lists_own_invalid_run(active_user) -> None:

@@ -9,6 +9,12 @@ from app.models.v2_entities import Setup, SetupVersion
 from app.repositories.experiment_repository import ExperimentRepository
 from app.services import v2_r0_service
 from app.services.v2_field_source import experiment_fields, load_field_source
+from tests.helpers.v2_payloads import (
+    basic_info_payload,
+    setup_payload,
+    target_product_payload,
+    temperature_sensor,
+)
 
 client = TestClient(app)
 
@@ -112,57 +118,40 @@ def test_auto_run_code_retries_after_unique_collision(active_user, monkeypatch) 
     assert calls == 2
 
 
-def test_entity_numeric_and_string_length_validation(active_user) -> None:
-    headers = _headers(active_user.email)
-    base = {
-        "setup_name": "test furnace",
-        "orientation": "水平",
-        "coordinate_system": "上游负/下游正",
-        "flow_reference_temperature_C": 20,
-        "flow_reference_pressure_Pa": 101325,
-    }
-
+def test_entity_numeric_and_string_length_validation(admin_user) -> None:
+    headers = _headers(admin_user.email)
     bad_number = client.post(
         "/api/v1/setups",
-        json={**base, "setup_code": "SETUP-1", "zone_count": "abc"},
+        json=setup_payload(setup_code="SETUP-1", zone_count="abc"),
         headers=headers,
     )
     too_long = client.post(
         "/api/v1/setups",
-        json={**base, "setup_code": "x" * 129, "zone_count": 2},
+        json=setup_payload(setup_code="x" * 129),
         headers=headers,
     )
-    composite_number = client.post(
+    valid = client.post(
         "/api/v1/setups",
-        json={
-            **base,
-            "setup_code": "SETUP-2",
-            "zone_count": 2,
-            "pump_model_base_pressure": {
-                "option": "Edwards RV12",
-                "value": 1e-3,
-            },
-        },
+        json=setup_payload(setup_code="SETUP-2"),
         headers=headers,
     )
     overflow = client.post(
         "/api/v1/setups",
-        json={**base, "setup_code": "SETUP-3", "zone_count": 2_147_483_648},
+        json=setup_payload(setup_code="SETUP-3", zone_count=2_147_483_648),
         headers=headers,
     )
     boolean_number = client.post(
         "/api/v1/setups",
-        json={**base, "setup_code": "SETUP-4", "zone_count": True},
+        json=setup_payload(setup_code="SETUP-4", zone_count=True),
         headers=headers,
     )
     non_finite = client.post(
         "/api/v1/setups",
-        json={
-            **base,
-            "setup_code": "SETUP-5",
-            "zone_count": 2,
-            "heated_zone_length_mm": "NaN",
-        },
+        json=setup_payload(
+            setup_code="SETUP-5",
+            temperature_sensors=[temperature_sensor(uncertainty_C="NaN")],
+            zone_count=1,
+        ),
         headers=headers,
     )
 
@@ -170,86 +159,54 @@ def test_entity_numeric_and_string_length_validation(active_user) -> None:
     assert "zone_count" in bad_number.text
     assert too_long.status_code == 422
     assert "setup_code" in too_long.text
-    assert composite_number.status_code == 201, composite_number.text
+    assert valid.status_code == 201, valid.text
     assert overflow.status_code == 422
     assert boolean_number.status_code == 422
     assert non_finite.status_code == 422
 
 
-def test_setup_pump_composite_requires_model_and_positive_absolute_pressure(
-    active_user,
-) -> None:
-    headers = _headers(active_user.email)
-    base = {
-        "setup_name": "pump contract furnace",
-        "zone_count": 2,
-        "orientation": "horizontal",
-        "coordinate_system": "upstream negative / downstream positive",
-        "flow_reference_temperature_C": 20,
-        "flow_reference_pressure_Pa": 101325,
-    }
-
+def test_setup_requires_structured_sensors_and_rejects_deleted_fields(admin_user) -> None:
+    headers = _headers(admin_user.email)
     valid = client.post(
         "/api/v1/setups",
+        json=setup_payload(setup_code="SETUP-SENSORS-1"),
+        headers=headers,
+    )
+    missing_sensors = client.post(
+        "/api/v1/setups",
         json={
-            **base,
-            "setup_code": "SETUP-PUMP-1",
-            "pump_model_base_pressure": {
-                "option": " Edwards RV12 ",
-                "value": 2.0,
-            },
+            key: value
+            for key, value in setup_payload(setup_code="SETUP-SENSORS-2").items()
+            if key != "temperature_sensors"
         },
         headers=headers,
     )
-    zero_pressure = client.post(
+    deleted_pump_field = client.post(
         "/api/v1/setups",
         json={
-            **base,
-            "setup_code": "SETUP-PUMP-2",
-            "pump_model_base_pressure": {
-                "option": "Edwards RV12",
-                "value": 0,
-            },
+            **setup_payload(setup_code="SETUP-SENSORS-3"),
+            "pump_model_base_pressure": {"option": "Edwards RV12", "value": 2.0},
         },
         headers=headers,
     )
-    blank_model = client.post(
+    deleted_coordinate_field = client.post(
         "/api/v1/setups",
         json={
-            **base,
-            "setup_code": "SETUP-PUMP-3",
-            "pump_model_base_pressure": {
-                "option": " ",
-                "value": 2.0,
-            },
-        },
-        headers=headers,
-    )
-    missing_pressure = client.post(
-        "/api/v1/setups",
-        json={
-            **base,
-            "setup_code": "SETUP-PUMP-4",
-            "pump_model_base_pressure": {
-                "option": "Edwards RV12",
-                "value": None,
-            },
+            **setup_payload(setup_code="SETUP-SENSORS-4"),
+            "coordinate_system": "upstream negative / downstream positive",
         },
         headers=headers,
     )
 
     assert valid.status_code == 201, valid.text
-    assert valid.json()["latest_version"]["data"]["pump_model_base_pressure"] == {
-        "option": "Edwards RV12",
-        "value": 2.0,
-    }
-    assert zero_pressure.status_code == 422
-    assert blank_model.status_code == 422
-    assert missing_pressure.status_code == 422
+    assert valid.json()["latest_version"]["data"]["temperature_sensors"][0]["zone_index"] == 1
+    assert missing_sensors.status_code == 422
+    assert deleted_pump_field.status_code == 422
+    assert deleted_coordinate_field.status_code == 422
 
 
 def test_empty_entity_composite_cannot_bypass_shape_and_option_validation(
-    active_user,
+    admin_user,
 ) -> None:
     response = client.post(
         "/api/v1/material-lots",
@@ -264,12 +221,13 @@ def test_empty_entity_composite_cannot_bypass_shape_and_option_validation(
                 "extra": "must-not-survive",
             },
         },
-        headers=_headers(active_user.email),
+        headers=_headers(admin_user.email),
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == {
-        "invalid": [{"key": "substrate_orientation_polish", "reason": "value"}]
+    assert {item["key"] for item in response.json()["detail"]["invalid"]} == {
+        "option",
+        "extra",
     }
 
 
@@ -288,7 +246,7 @@ def test_experiment_chemical_formula_length_is_bounded(active_user) -> None:
     assert response.status_code == 422
 
 
-def test_create_run_normalizes_formula_and_rejects_invalid_syntax(active_user) -> None:
+def test_create_run_normalizes_formula_and_accepts_parenthesized_groups(active_user) -> None:
     headers = _headers(active_user.email)
     normalized = client.post(
         "/api/v1/experiments",
@@ -303,7 +261,7 @@ def test_create_run_normalizes_formula_and_rejects_invalid_syntax(active_user) -
     assert normalized.status_code == 201, normalized.text
     assert normalized.json()["material_system"] == "MoS2"
 
-    invalid = client.post(
+    grouped = client.post(
         "/api/v1/experiments",
         json={
             "run_code": "CVD-2026-0011",
@@ -313,8 +271,8 @@ def test_create_run_normalizes_formula_and_rejects_invalid_syntax(active_user) -
         },
         headers=headers,
     )
-    assert invalid.status_code == 422
-    assert invalid.json()["detail"] == {"invalid": [{"key": "chemical_formula", "reason": "value"}]}
+    assert grouped.status_code == 201, grouped.text
+    assert grouped.json()["material_system"] == "Mo(S)2"
 
 
 def test_invalid_reason_is_returned_after_invalidation(active_user) -> None:
@@ -333,10 +291,13 @@ def test_invalid_reason_is_returned_after_invalidation(active_user) -> None:
     assert fetched.json()["invalid_reason"] == "bad thermocouple"
 
 
-def test_characterization_instrument_reference_must_be_complete_and_exist(active_user) -> None:
-    headers = _headers(active_user.email)
-    run = _create_run(headers, "CVD-2026-0020")
-    sample = _create_sample(headers, run["id"])
+def test_characterization_instrument_reference_must_be_complete_and_exist(
+    active_user, admin_user
+) -> None:
+    owner_headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    run = _create_run(owner_headers, "CVD-2026-0020")
+    sample = _create_sample(owner_headers, run["id"])
 
     only_id = client.post(
         f"/api/v1/experiments/{run['id']}/characterization-records",
@@ -345,7 +306,7 @@ def test_characterization_instrument_reference_must_be_complete_and_exist(active
             "instrument_id": str(uuid4()),
             "method_instrument": "Raman",
         },
-        headers=headers,
+        headers=owner_headers,
     )
     missing = client.post(
         f"/api/v1/experiments/{run['id']}/characterization-records",
@@ -355,12 +316,12 @@ def test_characterization_instrument_reference_must_be_complete_and_exist(active
             "instrument_version": 1,
             "method_instrument": "Raman",
         },
-        headers=headers,
+        headers=owner_headers,
     )
     instrument = client.post(
         "/api/v1/instruments",
         json={"instrument_code": "RAMAN-1", "name_type": "Raman"},
-        headers=headers,
+        headers=admin_headers,
     )
     valid = client.post(
         f"/api/v1/experiments/{run['id']}/characterization-records",
@@ -370,7 +331,7 @@ def test_characterization_instrument_reference_must_be_complete_and_exist(active
             "instrument_version": 1,
             "method_instrument": "Raman",
         },
-        headers=headers,
+        headers=owner_headers,
     )
 
     assert only_id.status_code == 422
@@ -427,12 +388,11 @@ def test_basic_info_upsert_synchronizes_date_and_canonical_run_code(active_user)
     saved = client.put(
         f"/api/v1/experiments/{run['id']}/modules/basic_info",
         json={
-            "payload_json": {
-                "started_at": "2026-07-13T00:05:00",
-                "synthesis_method": "APCVD",
-                "operator": "tester",
-                "run_code": "CVD-1999-9999",
-            }
+            "payload_json": basic_info_payload(
+                started_at="2026-07-13T00:05:00",
+                run_code="CVD-1999-9999",
+                operator="tester",
+            )
         },
         headers=headers,
     )
@@ -443,7 +403,9 @@ def test_basic_info_upsert_synchronizes_date_and_canonical_run_code(active_user)
     assert fetched.json()["experiment_date"] == "2026-07-13"
 
 
-def test_external_field_none_must_be_the_only_selection(active_user, db_session) -> None:
+def test_setup_without_external_field_allows_process_without_field_program(
+    active_user, db_session
+) -> None:
     headers = _headers(active_user.email)
     setup = Setup()
     db_session.add(setup)
@@ -457,7 +419,10 @@ def test_external_field_none_must_be_the_only_selection(active_user, db_session)
             zone_count=2,
             orientation="水平",
             coordinate_system="上游负/下游正",
-            attrs={"field_devices": ["无", "等离子体"]},
+            attrs={
+                "field_devices": ["none"],
+                "temperature_sensors": [temperature_sensor()],
+            },
         )
     )
     db_session.commit()
@@ -474,14 +439,15 @@ def test_external_field_none_must_be_the_only_selection(active_user, db_session)
     )
 
     assert reference.status_code == 200, reference.text
-    assert response.status_code == 422
+    assert response.status_code == 200, response.text
 
 
 def test_lock_setup_gate_ignores_payload_and_accepts_reference_endpoint(
-    active_user, db_session, monkeypatch
+    active_user, admin_user, db_session, monkeypatch
 ) -> None:
-    headers = _headers(active_user.email)
-    run = _create_run(headers, "CVD-2026-0051")
+    owner_headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    run = _create_run(owner_headers, "CVD-2026-0051")
     db_session.add(
         ExperimentModulePayload(
             experiment_run_id=UUID(run["id"]),
@@ -494,27 +460,20 @@ def test_lock_setup_gate_ignores_payload_and_accepts_reference_endpoint(
     doc = load_field_source()
     setup_ref = next(field for field in experiment_fields(doc) if field["key"] == "setup_ref")
     monkeypatch.setattr(v2_r0_service, "experiment_fields", lambda _doc: [setup_ref])
+    monkeypatch.setattr(v2_r0_service, "_process_semantic_checks", lambda *args: [])
 
-    rejected = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers)
+    rejected = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner_headers)
     setup = client.post(
         "/api/v1/setups",
-        json={
-            "setup_code": "SETUP-R0",
-            "setup_name": "R0 setup",
-            "zone_count": 1,
-            "orientation": "水平",
-            "coordinate_system": "上游负/下游正",
-            "flow_reference_temperature_C": 20,
-            "flow_reference_pressure_Pa": 101325,
-        },
-        headers=headers,
+        json=setup_payload(setup_code="SETUP-R0", setup_name="R0 setup", zone_count=1),
+        headers=admin_headers,
     )
     referenced = client.put(
         f"/api/v1/experiments/{run['id']}/setup-reference",
         json={"setup_id": setup.json()["id"], "version": 1},
-        headers=headers,
+        headers=owner_headers,
     )
-    accepted = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers)
+    accepted = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner_headers)
 
     assert rejected.status_code == 422
     assert "setup_ref" in {item["key"] for item in rejected.json()["detail"]["missing"]}
@@ -533,22 +492,12 @@ def test_module_validation_returns_structured_invalid_detail(active_user) -> Non
     )
     bad_formula = client.put(
         f"/api/v1/experiments/{run['id']}/modules/target_product",
-        json={
-            "payload_json": {
-                "chemical_formula": "x" * 65,
-                "structure_type": "本征",
-            }
-        },
+        json={"payload_json": target_product_payload(chemical_formula="x" * 65)},
         headers=headers,
     )
     bad_formula_type = client.put(
         f"/api/v1/experiments/{run['id']}/modules/target_product",
-        json={
-            "payload_json": {
-                "chemical_formula": {"not": "text"},
-                "structure_type": "本征",
-            }
-        },
+        json={"payload_json": target_product_payload(chemical_formula={"not": "text"})},
         headers=headers,
     )
 
@@ -573,12 +522,11 @@ def test_basic_info_invalid_started_at_returns_structured_422(active_user) -> No
     response = client.put(
         f"/api/v1/experiments/{run['id']}/modules/basic_info",
         json={
-            "payload_json": {
-                "started_at": 123,
-                "synthesis_method": "APCVD",
-                "operator": "tester",
-                "run_code": run["run_code"],
-            }
+            "payload_json": basic_info_payload(
+                started_at=123,
+                operator="tester",
+                run_code=run["run_code"],
+            )
         },
         headers=headers,
     )

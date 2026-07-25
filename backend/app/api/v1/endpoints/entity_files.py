@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_admin_user, get_current_user
 from app.db.session import get_db
 from app.models.file_asset import FILE_NOTE_MAX_LENGTH
 from app.models.user import User
@@ -15,12 +15,13 @@ from app.services.entity_file_service import EntityFileService
 router = APIRouter(prefix="/api/v1/entity-files", tags=["entity-files"])
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentAdmin = Annotated[User, Depends(get_current_admin_user)]
 
 
 @router.post("", response_model=FileAssetRead, status_code=status.HTTP_201_CREATED)
 def upload_entity_file(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
     file: Annotated[UploadFile, File()],
     note: Annotated[str | None, Form(max_length=FILE_NOTE_MAX_LENGTH)] = None,
 ) -> FileAssetRead:
@@ -58,7 +59,7 @@ def download_entity_file(
 def delete_entity_file(
     file_id: UUID,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ) -> Response:
     EntityFileService(db).delete(file_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

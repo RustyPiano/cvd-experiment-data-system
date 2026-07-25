@@ -54,23 +54,14 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
         db_session,
         run.id,
         "precursors",
-        {"items": [{"name_formula": "MoO3", "phase_state": "固"}]},
+        {"items": [{"name_formula": "MoO3", "phase_state": "solid"}]},
     )
-    _add_payload(db_session, run.id, "substrates", {"items": [{"material": "SiO2/Si"}]})
+    _add_payload(db_session, run.id, "substrates", {"items": [{"material": "sio2_si"}]})
     _add_payload(
         db_session,
         run.id,
         "process_steps",
-        {
-            "items": [
-                {
-                    "stage_type": "反应生长",
-                    "temperature_program": "25->750",
-                    "gas_species": "Ar",
-                    "gas_flow_sccm": 80,
-                }
-            ]
-        },
+        {"items": [{"stage_type": "reaction_conditions"}]},
     )
     sample = Sample(
         sample_code="R0-S1",
@@ -110,8 +101,9 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
 
 def test_structure_discriminator_and_conditional_components_are_part_of_r0() -> None:
     fields = experiment_fields(load_field_source())
-    r0_fields = {field["key"]: field for field in fields if field.get("r0")}
+    r0_fields = [field for field in fields if field.get("r0")]
+    r0_by_key = {field["key"]: field for field in r0_fields}
 
-    assert len(r0_fields) == 18
-    assert r0_fields["structure_type"]["requirement"]["level"] == "required"
-    assert r0_fields["components"]["requirement"]["level"] == "conditional_required"
+    assert len(r0_fields) == 30
+    assert r0_by_key["structure_type"]["requirement"]["level"] == "required"
+    assert r0_by_key["components"]["requirement"]["level"] == "conditional_required"

@@ -33,6 +33,18 @@ PVD_METHODS = {
     "PVD-热蒸发",
     "PLD",
 }
+STRUCTURED_CONTROLLED_KEYS = {
+    "field_type",
+    "material",
+    "measurement_source",
+    "method",
+    "operation_type",
+    "placement",
+    "shape",
+    "species",
+    "type",
+    "uncertainty_source",
+}
 ELEMENT_SYMBOLS = frozenset(
     "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn "
     "Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce "
@@ -40,17 +52,23 @@ ELEMENT_SYMBOLS = frozenset(
     "Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc "
     "Lv Ts Og".split()
 )
-FORMULA_PATTERN = re.compile(
-    r"^(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+(?:[:/\-](?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+)*$"
-)
-MATERIAL_FORMULA_UNIT = (
+FORMULA_UNIT = (
     r"(?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?"
     r"|\((?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+\)(?:\d+(?:\.\d+)?)?)"
 )
-MATERIAL_FORMULA_PATTERN = re.compile(
-    rf"^(?:\d+)?{MATERIAL_FORMULA_UNIT}+(?:[·](?:\d+)?{MATERIAL_FORMULA_UNIT}+)*$"
+FORMULA_COMPONENT = rf"(?:{FORMULA_UNIT})+"
+HYDRATED_FORMULA_COMPONENT = rf"{FORMULA_COMPONENT}(?:·(?:\d+)?{FORMULA_COMPONENT})*"
+FORMULA_PATTERN = re.compile(
+    rf"^{HYDRATED_FORMULA_COMPONENT}(?:[:/\-]{HYDRATED_FORMULA_COMPONENT})*$"
 )
-FORMULA_SUBSCRIPT_TRANSLATION = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
+MATERIAL_FORMULA_PATTERN = re.compile(rf"^(?:\d+)?{HYDRATED_FORMULA_COMPONENT}$")
+FORMULA_TRANSLATION = str.maketrans(
+    {
+        **dict(zip("₀₁₂₃₄₅₆₇₈₉", "0123456789", strict=True)),
+        "∙": "·",
+        "⋅": "·",
+    }
+)
 
 
 @lru_cache(maxsize=4)
@@ -90,12 +108,12 @@ def canonical_option_value(value: Any, doc: dict[str, Any] | None = None) -> Any
 def normalize_chemical_formula(value: str) -> str:
     if not isinstance(value, str):
         raise ValueError("invalid chemical formula")
-    return re.sub(r"\s+", "", value.translate(FORMULA_SUBSCRIPT_TRANSLATION))
+    return re.sub(r"\s+", "", value.translate(FORMULA_TRANSLATION))
 
 
 def validate_chemical_formula(value: str) -> str:
     normalized = normalize_chemical_formula(value)
-    if not normalized or not normalized.isascii() or not FORMULA_PATTERN.fullmatch(normalized):
+    if not normalized or not FORMULA_PATTERN.fullmatch(normalized):
         raise ValueError("invalid chemical formula")
     symbols = re.findall(r"[A-Z][a-z]?", normalized)
     if not symbols or any(symbol not in ELEMENT_SYMBOLS for symbol in symbols):
@@ -141,6 +159,11 @@ def _option_tokens(field: dict[str, Any]) -> list[str]:
     if not options or options == "—":
         return []
     input_type = str(field.get("input") or "")
+    # Structured controls describe object members with separators such as `/` and
+    # `|`; those are not a flat choice list. Their generated Pydantic models own
+    # the vocabulary and shape instead of guessing options from display prose.
+    if not any(token in input_type for token in ("下拉", "多选")):
+        return []
     if input_type in {"数值+下拉", "下拉+数值", "文本+下拉", "下拉+文本"}:
         segments = [part.strip() for part in options.replace(" + ", "；").split("；")]
         options = next((part for part in segments if "/" in part), segments[0])
@@ -176,7 +199,13 @@ def canonicalize_controlled_values(
         field["key"]
         for field in [*experiment_fields(source), *entity_fields(source)]
         if any(token in str(field.get("input") or "") for token in ("下拉", "多选", "多条"))
-    } | {"role", "option", "method", "file_kind", "observed_phenomenon"}
+    } | {
+        "role",
+        "option",
+        "file_kind",
+        "observed_phenomenon",
+        *STRUCTURED_CONTROLLED_KEYS,
+    }
     if isinstance(value, dict):
         return {
             item_key: canonicalize_controlled_values(

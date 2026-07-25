@@ -7,35 +7,43 @@ import {
 
 describe('composite field serialization', () => {
   it.each([
-    ['数值+下拉', '80', 'MFC', '80（MFC）'],
+    ['数值+下拉', '80', 'MFC', '80（MFC）', 'mfc'],
     [
       '文本+下拉',
       'Si(100)',
       'single_side_polished',
       'Si(100)（single_side_polished）',
+      'single_side_polished',
     ],
     [
       '下拉+数值',
       '1.0×10⁵ Pa',
       'atmospheric_pressure',
       'atmospheric_pressure；1.0×10⁵ Pa',
+      'atmospheric_pressure',
     ],
-    ['下拉+文本', '单层2H', 'unspecified', 'unspecified；单层2H'],
+    [
+      '下拉+文本',
+      '单层2H',
+      'unspecified',
+      'unspecified；单层2H',
+      'unspecified',
+    ],
   ] as const)(
     'round-trips %s values',
-    (input, freeValue, option, serialized) => {
+    (input, freeValue, option, serialized, canonicalOption) => {
       const options = [option]
       expect(formatCompositeValue(input, freeValue, option)).toBe(serialized)
       expect(parseCompositeValue(input, serialized, options)).toEqual({
         freeValue,
-        option,
+        option: canonicalOption,
       })
     },
   )
 
   it.each([
     ['数值+下拉', '80', { freeValue: '80', option: '' }],
-    ['数值+下拉', 'MFC', { freeValue: '', option: 'MFC' }],
+    ['数值+下拉', 'MFC', { freeValue: '', option: 'mfc' }],
     ['下拉+数值', '1.0×10⁵ Pa', { freeValue: '1.0×10⁵ Pa', option: '' }],
     [
       '下拉+数值',

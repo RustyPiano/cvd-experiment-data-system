@@ -12,7 +12,14 @@ import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
 import { ModuleCard } from './module-card'
 
-const NEW_RUN_FIELDS = new Set(['started_at', 'synthesis_method', 'operator'])
+const NEW_RUN_FIELDS = new Set([
+  'started_at',
+  'synthesis_method',
+  'operator',
+  'ambient_temperature_C',
+  'ambient_humidity_percent',
+  'precheck_confirmed',
+])
 
 function unsupportedSynthesisMethods(field: FieldMetadata) {
   if (field.key !== 'synthesis_method') return undefined
@@ -46,7 +53,6 @@ export function BasicInfoSection({
       id="module-basic_info"
       index="§1"
       title={t('experimentsV2.sections.basicInfo.title')}
-      subtitle={t('experimentsV2.sections.basicInfo.subtitle')}
       onSave={save?.onSave}
       saving={save?.saving}
       saved={save?.saved}

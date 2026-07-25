@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import i18n from '@/shared/i18n'
@@ -9,6 +10,7 @@ const entityFilesApi = vi.hoisted(() => ({
   deleteEntityFile: vi.fn(),
   downloadEntityFile: vi.fn(),
   getEntityFile: vi.fn(),
+  listEntities: vi.fn(),
   uploadEntityFile: vi.fn(),
 }))
 const download = vi.hoisted(() => ({ triggerBlobDownload: vi.fn() }))
@@ -69,9 +71,20 @@ const unboundAttachment = {
   is_deleted: false,
 }
 
+const oneZoneTemperatureSensors = [
+  {
+    sensor_name: 'TC-1',
+    sensor_type: 'K',
+    zone_index: 1,
+    uncertainty_C: 1,
+    uncertainty_source: 'calibration',
+  },
+]
+
 beforeEach(() => {
   vi.clearAllMocks()
   entityFilesApi.uploadEntityFile.mockResolvedValue(unboundAttachment)
+  entityFilesApi.listEntities.mockResolvedValue({ items: [], total: 0 })
   entityFilesApi.getEntityFile.mockResolvedValue(unboundAttachment)
   entityFilesApi.deleteEntityFile.mockResolvedValue(undefined)
   entityFilesApi.downloadEntityFile.mockResolvedValue({
@@ -96,7 +109,7 @@ describe('EntityForm — "改动即新版本" semantics prompt', () => {
     // interpolated target version + the "old references unaffected" promise
     expect(banner).toHaveTextContent('v3')
     expect(banner).toHaveTextContent('历史版本')
-    expect(banner).toHaveTextContent('炉次不会改变')
+    expect(banner).toHaveTextContent('制备实验记录不会改变')
   })
 })
 
@@ -124,7 +137,37 @@ describe('EntityForm — select with other accessibility', () => {
     renderForm({ kind: 'setup' })
 
     expect(
-      screen.getByRole('combobox', { name: '品牌/型号' }),
+      screen.getByRole('combobox', { name: '品牌与型号' }),
+    ).toBeInTheDocument()
+  })
+
+  it('reuses non-empty values from the latest entity versions as options', async () => {
+    await i18n.changeLanguage('en')
+    entityFilesApi.listEntities.mockResolvedValue({
+      items: [
+        {
+          id: 'lot-1',
+          latest_version: {
+            version: 2,
+            data: { supplier: 'Aladdin' },
+          },
+        },
+      ],
+      total: 1,
+    })
+    const user = userEvent.setup()
+    renderForm({})
+
+    const supplier = screen.getByRole('combobox', { name: 'Supplier' })
+    await waitFor(() =>
+      expect(entityFilesApi.listEntities).toHaveBeenCalledWith(
+        'material_lot',
+        'token',
+      ),
+    )
+    await user.click(supplier)
+    expect(
+      await screen.findByRole('option', { name: 'Aladdin' }),
     ).toBeInTheDocument()
   })
 })
@@ -138,11 +181,9 @@ describe('EntityForm — multi-select values', () => {
       defaultData: {
         setup_code: 'SETUP-001',
         setup_name: 'Main setup',
-        zone_count: '2',
-        flow_reference_temperature_C: '20',
-        flow_reference_pressure_Pa: '101325',
+        zone_count: '1',
+        temperature_sensors: oneZoneTemperatureSensors,
         orientation: '水平',
-        coordinate_system: '上游负/下游正',
       },
     })
 
@@ -181,10 +222,8 @@ describe('EntityForm — generated numeric validation', () => {
         setup_code: 'SETUP-001',
         setup_name: 'Main setup',
         zone_count: '2.5',
-        flow_reference_temperature_C: '20',
-        flow_reference_pressure_Pa: '101325',
+        temperature_sensors: oneZoneTemperatureSensors,
         orientation: 'horizontal',
-        coordinate_system: 'upstream negative / downstream positive',
       },
     })
 
@@ -247,6 +286,8 @@ describe('EntityForm — first-class entity attachments', () => {
         substance_name: 'MoO3',
         chemical_formula: 'MoO3',
         batch_number: 'LOT-1',
+        cas_number: '1313-27-5',
+        purity: '99.9',
       },
     })
     expect(
@@ -301,6 +342,8 @@ describe('EntityForm — first-class entity attachments', () => {
         substance_name: 'MoO3',
         chemical_formula: 'MoO3',
         batch_number: 'LOT-1',
+        cas_number: '1313-27-5',
+        purity: '99.9',
         coa_attachment: {
           file_asset_id: 'bound-file',
           sha256: 'abc123',
@@ -362,22 +405,20 @@ describe('EntityForm — first-class entity attachments', () => {
       defaultData: {
         setup_code: 'SETUP-1',
         setup_name: 'Main reactor',
-        zone_count: 2,
-        flow_reference_temperature_C: 20,
-        flow_reference_pressure_Pa: 101325,
+        zone_count: 1,
+        temperature_sensors: oneZoneTemperatureSensors,
         orientation: 'horizontal',
-        coordinate_system: 'upstream negative / downstream positive',
       },
     })
     fireEvent.change(
-      screen.getByLabelText('Note for Setup diagram / description'),
+      screen.getByLabelText('Note for Setup diagram and description'),
       { target: { value: 'Reactor geometry' } },
     )
     const file = new File(['diagram'], 'setup.svg', {
       type: 'image/svg+xml',
     })
     fireEvent.change(
-      screen.getByLabelText('Upload Setup diagram / description'),
+      screen.getByLabelText('Upload Setup diagram and description'),
       { target: { files: [file] } },
     )
 

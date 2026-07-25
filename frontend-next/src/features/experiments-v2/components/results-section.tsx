@@ -24,6 +24,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -60,10 +61,142 @@ import {
 import { getModuleFields, parseEnumOptions } from '../field-logic'
 import { FieldLabel } from './field-bits'
 import { EntityReferenceSelect } from './entity-reference-select'
+import { snapshotValue } from './reference-snapshot'
 import { ModuleCard } from './module-card'
+import { ExperimentAttachments } from './experiment-attachments'
+import {
+  decodeCustomMetricName,
+  encodeCustomMetricName,
+  methodSchema,
+  metricDefinition,
+  parseTestConditions,
+  readableLegacyMetricCode,
+  serializeTestConditions,
+} from './result-method-schema'
+import type {
+  ConditionField,
+  MethodSchema,
+  NamedParameter,
+  ResultFieldKey,
+} from './result-method-schema'
 
 const SAMPLE_ROLES: SampleCreate['role'][] = ['derived', 'control']
+const CONDITION_LABEL_KEYS = {
+  illumination_mode:
+    'experimentsV2.sections.results.conditionFields.illumination_mode',
+  objective_magnification_x:
+    'experimentsV2.sections.results.conditionFields.objective_magnification_x',
+  scale_calibration_um_per_px:
+    'experimentsV2.sections.results.conditionFields.scale_calibration_um_per_px',
+  accelerating_voltage_kv:
+    'experimentsV2.sections.results.conditionFields.accelerating_voltage_kv',
+  working_distance_mm:
+    'experimentsV2.sections.results.conditionFields.working_distance_mm',
+  detector: 'experimentsV2.sections.results.conditionFields.detector',
+  magnification_x:
+    'experimentsV2.sections.results.conditionFields.magnification_x',
+  excitation_wavelength_nm:
+    'experimentsV2.sections.results.conditionFields.excitation_wavelength_nm',
+  laser_power_mw:
+    'experimentsV2.sections.results.conditionFields.laser_power_mw',
+  integration_time_s:
+    'experimentsV2.sections.results.conditionFields.integration_time_s',
+  accumulations: 'experimentsV2.sections.results.conditionFields.accumulations',
+  low_wavenumber_cutoff_cm1:
+    'experimentsV2.sections.results.conditionFields.low_wavenumber_cutoff_cm1',
+  excitation_power_mw:
+    'experimentsV2.sections.results.conditionFields.excitation_power_mw',
+  measurement_temperature_k:
+    'experimentsV2.sections.results.conditionFields.measurement_temperature_k',
+  afm_mode: 'experimentsV2.sections.results.conditionFields.afm_mode',
+  scan_size_um: 'experimentsV2.sections.results.conditionFields.scan_size_um',
+  scan_rate_hz: 'experimentsV2.sections.results.conditionFields.scan_rate_hz',
+  radiation_source:
+    'experimentsV2.sections.results.conditionFields.radiation_source',
+  scan_start_2theta_deg:
+    'experimentsV2.sections.results.conditionFields.scan_start_2theta_deg',
+  scan_end_2theta_deg:
+    'experimentsV2.sections.results.conditionFields.scan_end_2theta_deg',
+  step_size_2theta_deg:
+    'experimentsV2.sections.results.conditionFields.step_size_2theta_deg',
+  tem_mode: 'experimentsV2.sections.results.conditionFields.tem_mode',
+  camera_length_mm:
+    'experimentsV2.sections.results.conditionFields.camera_length_mm',
+} as const
+const CONDITION_OPTION_KEYS = {
+  bright_field: 'experimentsV2.sections.results.conditionOptions.bright_field',
+  dark_field: 'experimentsV2.sections.results.conditionOptions.dark_field',
+  polarized_light:
+    'experimentsV2.sections.results.conditionOptions.polarized_light',
+  tapping: 'experimentsV2.sections.results.conditionOptions.tapping',
+  contact: 'experimentsV2.sections.results.conditionOptions.contact',
+  non_contact: 'experimentsV2.sections.results.conditionOptions.non_contact',
+  TEM: 'experimentsV2.sections.results.conditionOptions.TEM',
+  HRTEM: 'experimentsV2.sections.results.conditionOptions.HRTEM',
+  STEM: 'experimentsV2.sections.results.conditionOptions.STEM',
+  SAED: 'experimentsV2.sections.results.conditionOptions.SAED',
+} as const
+const METRIC_LABEL_KEYS = {
+  raman_e2g_peak_position:
+    'experimentsV2.sections.results.metrics.raman_e2g_peak_position',
+  raman_a1g_peak_position:
+    'experimentsV2.sections.results.metrics.raman_a1g_peak_position',
+  raman_peak_separation:
+    'experimentsV2.sections.results.metrics.raman_peak_separation',
+  raman_peak_fwhm: 'experimentsV2.sections.results.metrics.raman_peak_fwhm',
+  raman_intensity_ratio:
+    'experimentsV2.sections.results.metrics.raman_intensity_ratio',
+  shear_mode_peak_position:
+    'experimentsV2.sections.results.metrics.shear_mode_peak_position',
+  layer_breathing_mode_peak_position:
+    'experimentsV2.sections.results.metrics.layer_breathing_mode_peak_position',
+  low_frequency_peak_fwhm:
+    'experimentsV2.sections.results.metrics.low_frequency_peak_fwhm',
+  pl_a_exciton_peak_energy:
+    'experimentsV2.sections.results.metrics.pl_a_exciton_peak_energy',
+  pl_b_exciton_peak_energy:
+    'experimentsV2.sections.results.metrics.pl_b_exciton_peak_energy',
+  pl_peak_fwhm: 'experimentsV2.sections.results.metrics.pl_peak_fwhm',
+  pl_integrated_intensity:
+    'experimentsV2.sections.results.metrics.pl_integrated_intensity',
+  afm_step_height: 'experimentsV2.sections.results.metrics.afm_step_height',
+  afm_rms_roughness: 'experimentsV2.sections.results.metrics.afm_rms_roughness',
+  afm_ra_roughness: 'experimentsV2.sections.results.metrics.afm_ra_roughness',
+  xrd_peak_2theta: 'experimentsV2.sections.results.metrics.xrd_peak_2theta',
+  xrd_peak_fwhm: 'experimentsV2.sections.results.metrics.xrd_peak_fwhm',
+  xrd_d_spacing: 'experimentsV2.sections.results.metrics.xrd_d_spacing',
+  tem_lattice_spacing:
+    'experimentsV2.sections.results.metrics.tem_lattice_spacing',
+} as const
 type ResultKind = V2ResultWrite['kind']
+type ResultOtherDetails = {
+  method_other?: string | null
+  observed_phenomena_other?: string | null
+}
+type ResultWithOtherDetails = V2ResultRead & ResultOtherDetails
+
+export function instrumentMatchesMethod(
+  snapshot: Record<string, unknown> | null | undefined,
+  method: string,
+  methodOther = '',
+): boolean {
+  if (!method) return true
+  const nameType = canonicalOption(
+    String(
+      snapshotValue(snapshot, 'name_type') ??
+        snapshotValue(snapshot, 'name_type_snapshot') ??
+        '',
+    ),
+  )
+  const expected = canonicalOption(method)
+  if (expected !== 'other') return Boolean(nameType) && nameType === expected
+  const specific = canonicalOption(methodOther.trim())
+  return (
+    nameType === 'other' ||
+    (Boolean(specific) &&
+      nameType.toLocaleLowerCase() === specific.toLocaleLowerCase())
+  )
+}
 
 function fieldOptions(moduleKey: string, key: string): string[] {
   const field = getModuleFields(moduleKey).find((item) => item.key === key)
@@ -86,41 +219,26 @@ function fieldUnit(
   )
 }
 
+function conditionLabelKey(key: string) {
+  return CONDITION_LABEL_KEYS[key as keyof typeof CONDITION_LABEL_KEYS]
+}
+
+function conditionOptionKey(option: string) {
+  return CONDITION_OPTION_KEYS[option as keyof typeof CONDITION_OPTION_KEYS]
+}
+
+function metricLabelKey(code: string) {
+  return METRIC_LABEL_KEYS[code as keyof typeof METRIC_LABEL_KEYS]
+}
+
 function sampleLabel(sample: SampleRead, roleLabel: string): string {
   return sample.sample_code ? `${sample.sample_code} · ${roleLabel}` : roleLabel
 }
 
-function spectralNote(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (!item || typeof item !== 'object') return ''
-        const metric = item as {
-          metric_code?: unknown
-          value?: unknown
-          unit?: unknown
-        }
-        if (
-          typeof metric.metric_code !== 'string' ||
-          typeof metric.value !== 'number' ||
-          typeof metric.unit !== 'string'
-        ) {
-          return ''
-        }
-        return `${metric.metric_code}: ${metric.value} ${metric.unit}`
-      })
-      .filter(Boolean)
-      .join(' · ')
-  }
-  if (value && typeof value === 'object' && 'note' in value) {
-    const note = (value as { note?: unknown }).note
-    return typeof note === 'string' ? note : ''
-  }
-  return ''
-}
-
 type SpectralMetricDraft = {
   metricCode: string
+  metricName: string
+  originalCode?: string
   value: string
   unit: string
 }
@@ -134,14 +252,50 @@ function spectralDrafts(value: unknown): SpectralMetricDraft[] {
       value?: unknown
       unit?: unknown
     }
+    const code =
+      typeof metric.metric_code === 'string' ? metric.metric_code : ''
+    const definition = metricDefinition(code)
+    const decodedName = decodeCustomMetricName(code)
     return [
       {
-        metricCode:
-          typeof metric.metric_code === 'string' ? metric.metric_code : '',
+        metricCode: definition ? code : 'custom',
+        metricName:
+          decodedName ??
+          (definition || !code ? '' : readableLegacyMetricCode(code)),
+        originalCode: definition ? undefined : code || undefined,
         value: metric.value == null ? '' : String(metric.value),
         unit: typeof metric.unit === 'string' ? metric.unit : '',
       },
     ]
+  })
+}
+
+function metricCodeForDraft(metric: SpectralMetricDraft): string | null {
+  if (metric.metricCode !== 'custom') return metric.metricCode
+  const originalName = metric.originalCode
+    ? (decodeCustomMetricName(metric.originalCode) ??
+      readableLegacyMetricCode(metric.originalCode))
+    : null
+  if (
+    metric.originalCode &&
+    originalName === metric.metricName.trim() &&
+    /^[a-z][a-z0-9_]*$/.test(metric.originalCode)
+  ) {
+    return metric.originalCode
+  }
+  return encodeCustomMetricName(metric.metricName)
+}
+
+function schemaShows(schema: MethodSchema, field: ResultFieldKey): boolean {
+  return schema.resultFields.includes(field)
+}
+
+function conditionValueValid(field: ConditionField, value: string): boolean {
+  if (!value.trim() || field.type !== 'number') return true
+  return resultNumberValid(value, {
+    integer: field.integer,
+    min: field.min,
+    gt: field.gt,
   })
 }
 
@@ -201,7 +355,6 @@ export function ResultsSection({
     <ModuleCard
       id="module-results"
       title={t('experimentsV2.sections.results.title')}
-      subtitle={t('experimentsV2.sections.results.subtitle')}
     >
       {runId ? (
         <ResultsBody
@@ -419,10 +572,19 @@ function SampleResults({
   const [instrument, setInstrument] = useState<{
     id: string
     version: number | null
-  }>({ id: '', version: null })
+    snapshot: Record<string, unknown> | null
+  }>({ id: '', version: null, snapshot: null })
   const [method, setMethod] = useState('')
-  const [conditions, setConditions] = useState('')
+  const [methodOther, setMethodOther] = useState('')
+  const [conditionValues, setConditionValues] = useState<
+    Record<string, string>
+  >({})
+  const [conditionParameters, setConditionParameters] = useState<
+    NamedParameter[]
+  >([])
+  const [conditionNote, setConditionNote] = useState('')
   const [selected, setSelected] = useState<string[]>([])
+  const [phenomenonOther, setPhenomenonOther] = useState('')
   const [phaseStacking, setPhaseStacking] = useState('')
   const [layerCount, setLayerCount] = useState('')
   const [coveragePercent, setCoveragePercent] = useState('')
@@ -432,7 +594,9 @@ function SampleResults({
     [],
   )
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([])
+  const [existingFileIds, setExistingFileIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('')
+  const currentMethodSchema = methodSchema(method)
 
   const queryKey = ['v2-results', sampleId, token]
   const resultsQuery = useQuery({
@@ -454,10 +618,14 @@ function SampleResults({
 
   const reset = () => {
     setKind('direct_observation')
-    setInstrument({ id: '', version: null })
+    setInstrument({ id: '', version: null, snapshot: null })
     setMethod('')
-    setConditions('')
+    setMethodOther('')
+    setConditionValues({})
+    setConditionParameters([])
+    setConditionNote('')
     setSelected([])
+    setPhenomenonOther('')
     setPhaseStacking('')
     setLayerCount('')
     setCoveragePercent('')
@@ -465,22 +633,39 @@ function SampleResults({
     setNucleationDensity('')
     setSpectralMetrics([])
     setPendingAttachments([])
+    setExistingFileIds([])
     setEditingId('')
     onDirtyChange(false)
   }
 
-  const payload = (): V2ResultWrite => ({
+  const payload = (
+    fileAssetIds = existingFileIds,
+  ): V2ResultWrite & ResultOtherDetails => ({
     kind,
+    file_asset_ids: kind === 'direct_observation' ? fileAssetIds : [],
     instrument_id:
       kind === 'characterization' && instrument.id ? instrument.id : null,
     instrument_version:
       kind === 'characterization' && instrument.id ? instrument.version : null,
     method_instrument:
       kind === 'characterization' ? canonicalOption(method) : null,
+    method_other:
+      kind === 'characterization' && canonicalOption(method) === 'other'
+        ? methodOther.trim() || null
+        : null,
     test_conditions:
-      kind === 'characterization' ? conditions.trim() || null : null,
+      kind === 'characterization'
+        ? serializeTestConditions(
+            conditionValues,
+            conditionParameters,
+            conditionNote,
+          )
+        : null,
     observed_phenomena:
       selected.length > 0 ? selected.map(canonicalOption) : null,
+    observed_phenomena_other: selected.map(canonicalOption).includes('other')
+      ? phenomenonOther.trim() || null
+      : null,
     detected_phase_stacking:
       kind === 'characterization' ? phaseStacking.trim() || null : null,
     layer_count:
@@ -502,7 +687,7 @@ function SampleResults({
     key_spectral_metrics:
       kind === 'characterization' && spectralMetrics.length > 0
         ? spectralMetrics.map((metric) => ({
-            metric_code: metric.metricCode.trim(),
+            metric_code: metricCodeForDraft(metric)!,
             value: optionalNumber(metric.value)!,
             unit: metric.unit.trim(),
           }))
@@ -510,10 +695,33 @@ function SampleResults({
   })
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      editingId
+    mutationFn: async () => {
+      const uploadedIds: string[] = []
+      if (kind === 'direct_observation') {
+        try {
+          for (const file of pendingAttachments) {
+            const uploaded = await uploadExperimentFile(token, runId, {
+              file,
+              sampleId,
+              assetRole: 'direct_observation_file',
+            })
+            uploadedIds.push(uploaded.id)
+          }
+          const writePayload = payload([...existingFileIds, ...uploadedIds])
+          return editingId
+            ? await updateResult(editingId, writePayload, token)
+            : await createResult(sampleId, writePayload, token)
+        } catch (error) {
+          await Promise.allSettled(
+            uploadedIds.map((fileId) => deleteExperimentFile(token, fileId)),
+          )
+          throw error
+        }
+      }
+      return editingId
         ? updateResult(editingId, payload(), token)
-        : createResult(sampleId, payload(), token),
+        : createResult(sampleId, payload(), token)
+    },
     onSuccess: async (result) => {
       const updated = Boolean(editingId)
       const attachments = pendingAttachments
@@ -576,15 +784,24 @@ function SampleResults({
       return
     }
     setPendingAttachments([])
+    setExistingFileIds(result.file_asset_ids ?? [])
     setEditingId(result.id)
     setKind(result.kind)
     setInstrument({
       id: result.instrument_id ?? '',
       version: result.instrument_version ?? null,
+      snapshot: result.instrument_snapshot_json ?? null,
     })
     setMethod(canonicalOption(result.method_instrument ?? ''))
-    setConditions(result.test_conditions ?? '')
+    setMethodOther((result as ResultWithOtherDetails).method_other ?? '')
+    const parsedConditions = parseTestConditions(result.test_conditions)
+    setConditionValues(parsedConditions.values)
+    setConditionParameters(parsedConditions.parameters)
+    setConditionNote(parsedConditions.note)
     setSelected((result.observed_phenomena ?? []).map(canonicalOption))
+    setPhenomenonOther(
+      (result as ResultWithOtherDetails).observed_phenomena_other ?? '',
+    )
     setPhaseStacking(result.detected_phase_stacking ?? '')
     setLayerCount(result.layer_count == null ? '' : String(result.layer_count))
     setCoveragePercent(
@@ -604,11 +821,38 @@ function SampleResults({
 
   const togglePhenomenon = (option: string, checked: boolean) => {
     onDirtyChange(true)
+    if (!checked && canonicalOption(option) === 'other') setPhenomenonOther('')
     setSelected((current) =>
       checked
         ? [...new Set([...current, option])]
         : current.filter((item) => item !== option),
     )
+  }
+
+  const selectMethod = (value: string) => {
+    const nextMethod = canonicalOption(value)
+    if (nextMethod !== canonicalOption(method)) {
+      setConditionValues({})
+      setConditionParameters([])
+      setConditionNote('')
+      setSelected([])
+      setPhenomenonOther('')
+      setPhaseStacking('')
+      setLayerCount('')
+      setCoveragePercent('')
+      setDomainSize('')
+      setNucleationDensity('')
+      setSpectralMetrics([])
+    }
+    setMethod(nextMethod)
+    if (nextMethod !== 'other') setMethodOther('')
+    if (
+      instrument.id &&
+      !instrumentMatchesMethod(instrument.snapshot, nextMethod, methodOther)
+    ) {
+      setInstrument({ id: '', version: null, snapshot: null })
+    }
+    onDirtyChange(true)
   }
 
   const numericMeasurementsValid =
@@ -618,17 +862,38 @@ function SampleResults({
     resultNumberValid(nucleationDensity, { min: 0 })
   const spectralMetricsValid = spectralMetrics.every(
     (metric) =>
-      /^[a-z][a-z0-9_]*$/.test(metric.metricCode.trim()) &&
+      Boolean(metricCodeForDraft(metric)) &&
       resultNumberValid(metric.value) &&
       metric.value.trim() !== '' &&
       metric.unit.trim() !== '',
   )
+  const conditionsValid =
+    currentMethodSchema.conditionFields.every((field) =>
+      conditionValueValid(field, conditionValues[field.key] ?? ''),
+    ) &&
+    conditionParameters.every(
+      (parameter) => parameter.name.trim() && parameter.value.trim(),
+    )
+  const methodOtherValid =
+    kind !== 'characterization' ||
+    canonicalOption(method) !== 'other' ||
+    Boolean(methodOther.trim())
+  const phenomenonOtherValid =
+    !selected.map(canonicalOption).includes('other') ||
+    Boolean(phenomenonOther.trim())
   const canSave =
     !readOnly &&
     !saveMutation.isPending &&
     numericMeasurementsValid &&
     spectralMetricsValid &&
-    (kind === 'characterization' ? Boolean(method) : selected.length > 0)
+    conditionsValid &&
+    methodOtherValid &&
+    phenomenonOtherValid &&
+    (kind === 'characterization'
+      ? Boolean(method)
+      : selected.length > 0 ||
+        pendingAttachments.length > 0 ||
+        existingFileIds.length > 0)
 
   return (
     <div className="flex flex-col gap-5">
@@ -713,10 +978,7 @@ function SampleResults({
               />
               <Select
                 value={method}
-                onValueChange={(value) => {
-                  setMethod(value)
-                  onDirtyChange(true)
-                }}
+                onValueChange={selectMethod}
                 disabled={readOnly}
               >
                 <SelectTrigger
@@ -727,14 +989,52 @@ function SampleResults({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {methods.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {localizedOption(option, i18n.language)}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {methods.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {localizedOption(option, i18n.language)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
+            {canonicalOption(method) === 'other' ? (
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel
+                  htmlFor="result-method-other"
+                  labelZh={t('experimentsV2.sections.results.otherMethodName')}
+                  unit={null}
+                  required
+                  r0={false}
+                />
+                <Input
+                  id="result-method-other"
+                  value={methodOther}
+                  aria-invalid={!methodOther.trim() || undefined}
+                  onChange={(event) => {
+                    const next = event.target.value
+                    setMethodOther(next)
+                    if (
+                      instrument.id &&
+                      !instrumentMatchesMethod(
+                        instrument.snapshot,
+                        method,
+                        next,
+                      )
+                    ) {
+                      setInstrument({
+                        id: '',
+                        version: null,
+                        snapshot: null,
+                      })
+                    }
+                    onDirtyChange(true)
+                  }}
+                  disabled={readOnly}
+                />
+              </div>
+            ) : null}
             <div className="flex flex-col gap-1.5">
               <FieldLabel
                 htmlFor="result-instrument"
@@ -747,283 +1047,266 @@ function SampleResults({
                 triggerId="result-instrument"
                 kind="instrument"
                 value={instrument.id}
+                selectedVersion={instrument.version}
+                selectedSnapshot={instrument.snapshot}
+                filter={(entity) =>
+                  instrumentMatchesMethod(
+                    entity.latest_version?.data,
+                    method,
+                    methodOther,
+                  )
+                }
                 onChange={(id, entity: V2EntityRead | null) => {
                   setInstrument({
                     id,
                     version: entity?.latest_version?.version ?? null,
+                    snapshot: entity?.latest_version?.data ?? null,
                   })
                   onDirtyChange(true)
                 }}
                 disabled={readOnly}
               />
+              {instrument.snapshot ? (
+                <InstrumentSnapshotSummary
+                  snapshot={instrument.snapshot}
+                  version={instrument.version}
+                />
+              ) : null}
             </div>
-            <div className="flex flex-col gap-1.5">
-              <FieldLabel
-                htmlFor="result-conditions"
-                labelZh={fieldLabel(
-                  'characterization',
-                  'test_conditions',
+            {method ? (
+              <MethodConditionsEditor
+                schema={currentMethodSchema}
+                values={conditionValues}
+                parameters={conditionParameters}
+                note={conditionNote}
+                disabled={readOnly}
+                onValuesChange={(values) => {
+                  setConditionValues(values)
+                  onDirtyChange(true)
+                }}
+                onParametersChange={(parameters) => {
+                  setConditionParameters(parameters)
+                  onDirtyChange(true)
+                }}
+                onNoteChange={(note) => {
+                  setConditionNote(note)
+                  onDirtyChange(true)
+                }}
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {kind === 'direct_observation' ||
+        (Boolean(method) &&
+          schemaShows(currentMethodSchema, 'observed_phenomena')) ? (
+          <div className="sm:col-span-2 flex flex-col gap-2">
+            <FieldLabel
+              labelZh={fieldLabel(
+                'measured_products',
+                'observed_phenomena',
+                i18n.language,
+              )}
+              unit={null}
+              required={
+                kind === 'direct_observation' &&
+                pendingAttachments.length === 0 &&
+                existingFileIds.length === 0
+              }
+              r0={false}
+            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {phenomena.map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-2 text-sm text-foreground"
+                >
+                  <Checkbox
+                    checked={selected.includes(option)}
+                    onCheckedChange={(checked) =>
+                      togglePhenomenon(option, checked === true)
+                    }
+                    disabled={readOnly}
+                  />
+                  {localizedOption(option, i18n.language)}
+                </label>
+              ))}
+            </div>
+            {selected.map(canonicalOption).includes('other') ? (
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel
+                  htmlFor="result-phenomenon-other"
+                  labelZh={t(
+                    'experimentsV2.sections.results.otherPhenomenonDescription',
+                  )}
+                  unit={null}
+                  required
+                  r0={false}
+                />
+                <Input
+                  id="result-phenomenon-other"
+                  value={phenomenonOther}
+                  aria-invalid={!phenomenonOther.trim() || undefined}
+                  onChange={(event) => {
+                    setPhenomenonOther(event.target.value)
+                    onDirtyChange(true)
+                  }}
+                  disabled={readOnly}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {kind === 'direct_observation' ? (
+          <div className="sm:col-span-2 flex flex-col gap-1.5">
+            <FieldLabel
+              htmlFor="direct-observation-attachments"
+              labelZh={t('experimentsV2.sections.results.newAttachments')}
+              unit={null}
+              required={selected.length === 0}
+              r0={false}
+            />
+            <Input
+              id="direct-observation-attachments"
+              type="file"
+              multiple
+              disabled={readOnly || saveMutation.isPending}
+              onChange={(event) => {
+                setPendingAttachments(Array.from(event.target.files ?? []))
+                onDirtyChange(true)
+              }}
+            />
+            {pendingAttachments.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {t('experimentsV2.sections.results.selectedAttachmentCount', {
+                  count: pendingAttachments.length,
+                })}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {kind === 'characterization' && method ? (
+          <>
+            {schemaShows(currentMethodSchema, 'detected_phase_stacking') ? (
+              <ResultTextField
+                id="result-phase"
+                label={fieldLabel(
+                  'measured_products',
+                  'detected_phase_stacking',
                   i18n.language,
                 )}
-                unit={null}
-                required={false}
-                r0={false}
-              />
-              <Input
-                id="result-conditions"
-                value={conditions}
-                onChange={(event) => {
-                  setConditions(event.target.value)
+                value={phaseStacking}
+                onChange={(value) => {
+                  setPhaseStacking(value)
                   onDirtyChange(true)
                 }}
                 disabled={readOnly}
               />
-            </div>
-          </>
-        ) : null}
-
-        <div className="sm:col-span-2 flex flex-col gap-2">
-          <FieldLabel
-            labelZh={fieldLabel(
-              'measured_products',
-              'observed_phenomena',
-              i18n.language,
-            )}
-            unit={null}
-            required={kind === 'direct_observation'}
-            r0={false}
-          />
-          <div className="grid gap-2 sm:grid-cols-2">
-            {phenomena.map((option) => (
-              <label
-                key={option}
-                className="flex items-center gap-2 text-sm text-foreground"
-              >
-                <Checkbox
-                  checked={selected.includes(option)}
-                  onCheckedChange={(checked) =>
-                    togglePhenomenon(option, checked === true)
-                  }
-                  disabled={readOnly}
-                />
-                {localizedOption(option, i18n.language)}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {kind === 'characterization' ? (
-          <>
-            <ResultTextField
-              id="result-phase"
-              label={fieldLabel(
-                'measured_products',
-                'detected_phase_stacking',
-                i18n.language,
-              )}
-              value={phaseStacking}
-              onChange={(value) => {
-                setPhaseStacking(value)
-                onDirtyChange(true)
-              }}
-              disabled={readOnly}
-            />
-            <ResultNumberField
-              id="result-layer-count"
-              label={fieldLabel(
-                'measured_products',
-                'layer_count',
-                i18n.language,
-              )}
-              unit={fieldUnit(
-                'measured_products',
-                'layer_count',
-                i18n.language,
-              )}
-              value={layerCount}
-              integer
-              min={0}
-              onChange={(value) => {
-                setLayerCount(value)
-                onDirtyChange(true)
-              }}
-              disabled={readOnly}
-            />
-            <ResultNumberField
-              id="result-coverage-percent"
-              label={fieldLabel(
-                'measured_products',
-                'coverage_percent',
-                i18n.language,
-              )}
-              unit={fieldUnit(
-                'measured_products',
-                'coverage_percent',
-                i18n.language,
-              )}
-              value={coveragePercent}
-              min={0}
-              max={100}
-              onChange={(value) => {
-                setCoveragePercent(value)
-                onDirtyChange(true)
-              }}
-              disabled={readOnly}
-            />
-            <ResultNumberField
-              id="result-domain-size"
-              label={fieldLabel(
-                'measured_products',
-                'domain_size_um',
-                i18n.language,
-              )}
-              unit={fieldUnit(
-                'measured_products',
-                'domain_size_um',
-                i18n.language,
-              )}
-              value={domainSize}
-              gt={0}
-              onChange={(value) => {
-                setDomainSize(value)
-                onDirtyChange(true)
-              }}
-              disabled={readOnly}
-            />
-            <ResultNumberField
-              id="result-nucleation-density"
-              label={fieldLabel(
-                'measured_products',
-                'nucleation_density_cm2',
-                i18n.language,
-              )}
-              unit={fieldUnit(
-                'measured_products',
-                'nucleation_density_cm2',
-                i18n.language,
-              )}
-              value={nucleationDensity}
-              min={0}
-              onChange={(value) => {
-                setNucleationDensity(value)
-                onDirtyChange(true)
-              }}
-              disabled={readOnly}
-            />
-            <div className="flex flex-col gap-3 sm:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <FieldLabel
-                  labelZh={fieldLabel(
-                    'measured_products',
-                    'key_spectral_metrics',
-                    i18n.language,
-                  )}
-                  unit={null}
-                  required={false}
-                  r0={false}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={readOnly}
-                  onClick={() => {
-                    setSpectralMetrics((current) => [
-                      ...current,
-                      { metricCode: '', value: '', unit: '' },
-                    ])
-                    onDirtyChange(true)
-                  }}
-                >
-                  <Plus />
-                  {t('experimentsV2.sections.results.addSpectralMetric')}
-                </Button>
-              </div>
-              {spectralMetrics.map((metric, index) => (
-                <div
-                  key={index}
-                  className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
-                >
-                  <Input
-                    id={`result-spectral-code-${index}`}
-                    aria-label={t('experimentsV2.sections.results.metricCode')}
-                    placeholder={t('experimentsV2.sections.results.metricCode')}
-                    value={metric.metricCode}
-                    disabled={readOnly}
-                    onChange={(event) => {
-                      setSpectralMetrics((current) =>
-                        current.map((item, position) =>
-                          position === index
-                            ? { ...item, metricCode: event.target.value }
-                            : item,
-                        ),
-                      )
-                      onDirtyChange(true)
-                    }}
-                  />
-                  <Input
-                    id={`result-spectral-value-${index}`}
-                    type="number"
-                    step="any"
-                    aria-label={t('experimentsV2.sections.results.metricValue')}
-                    placeholder={t(
-                      'experimentsV2.sections.results.metricValue',
-                    )}
-                    value={metric.value}
-                    disabled={readOnly}
-                    onChange={(event) => {
-                      setSpectralMetrics((current) =>
-                        current.map((item, position) =>
-                          position === index
-                            ? { ...item, value: event.target.value }
-                            : item,
-                        ),
-                      )
-                      onDirtyChange(true)
-                    }}
-                  />
-                  <Input
-                    id={`result-spectral-unit-${index}`}
-                    aria-label={t('experimentsV2.sections.results.metricUnit')}
-                    placeholder={t('experimentsV2.sections.results.metricUnit')}
-                    value={metric.unit}
-                    disabled={readOnly}
-                    onChange={(event) => {
-                      setSpectralMetrics((current) =>
-                        current.map((item, position) =>
-                          position === index
-                            ? { ...item, unit: event.target.value }
-                            : item,
-                        ),
-                      )
-                      onDirtyChange(true)
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t(
-                      'experimentsV2.sections.results.removeSpectralMetric',
-                    )}
-                    disabled={readOnly}
-                    onClick={() => {
-                      setSpectralMetrics((current) =>
-                        current.filter((_, position) => position !== index),
-                      )
-                      onDirtyChange(true)
-                    }}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              ))}
-              {!spectralMetricsValid ? (
-                <p className="text-xs text-destructive">
-                  {t('experimentsV2.sections.results.invalidSpectralMetric')}
-                </p>
-              ) : null}
-            </div>
+            ) : null}
+            {schemaShows(currentMethodSchema, 'layer_count') ? (
+              <ResultNumberField
+                id="result-layer-count"
+                label={fieldLabel(
+                  'measured_products',
+                  'layer_count',
+                  i18n.language,
+                )}
+                unit={fieldUnit(
+                  'measured_products',
+                  'layer_count',
+                  i18n.language,
+                )}
+                value={layerCount}
+                integer
+                min={0}
+                onChange={(value) => {
+                  setLayerCount(value)
+                  onDirtyChange(true)
+                }}
+                disabled={readOnly}
+              />
+            ) : null}
+            {schemaShows(currentMethodSchema, 'coverage_percent') ? (
+              <ResultNumberField
+                id="result-coverage-percent"
+                label={fieldLabel(
+                  'measured_products',
+                  'coverage_percent',
+                  i18n.language,
+                )}
+                unit={fieldUnit(
+                  'measured_products',
+                  'coverage_percent',
+                  i18n.language,
+                )}
+                value={coveragePercent}
+                min={0}
+                max={100}
+                onChange={(value) => {
+                  setCoveragePercent(value)
+                  onDirtyChange(true)
+                }}
+                disabled={readOnly}
+              />
+            ) : null}
+            {schemaShows(currentMethodSchema, 'domain_size_um') ? (
+              <ResultNumberField
+                id="result-domain-size"
+                label={fieldLabel(
+                  'measured_products',
+                  'domain_size_um',
+                  i18n.language,
+                )}
+                unit={fieldUnit(
+                  'measured_products',
+                  'domain_size_um',
+                  i18n.language,
+                )}
+                value={domainSize}
+                gt={0}
+                onChange={(value) => {
+                  setDomainSize(value)
+                  onDirtyChange(true)
+                }}
+                disabled={readOnly}
+              />
+            ) : null}
+            {schemaShows(currentMethodSchema, 'nucleation_density_cm2') ? (
+              <ResultNumberField
+                id="result-nucleation-density"
+                label={fieldLabel(
+                  'measured_products',
+                  'nucleation_density_cm2',
+                  i18n.language,
+                )}
+                unit={fieldUnit(
+                  'measured_products',
+                  'nucleation_density_cm2',
+                  i18n.language,
+                )}
+                value={nucleationDensity}
+                min={0}
+                onChange={(value) => {
+                  setNucleationDensity(value)
+                  onDirtyChange(true)
+                }}
+                disabled={readOnly}
+              />
+            ) : null}
+            {schemaShows(currentMethodSchema, 'key_spectral_metrics') ? (
+              <SpectralMetricsEditor
+                schema={currentMethodSchema}
+                metrics={spectralMetrics}
+                valid={spectralMetricsValid}
+                disabled={readOnly}
+                onChange={(metrics) => {
+                  setSpectralMetrics(metrics)
+                  onDirtyChange(true)
+                }}
+              />
+            ) : null}
             {!editingId ? (
               <div className="sm:col-span-2 flex flex-col gap-1.5">
                 <FieldLabel
@@ -1076,6 +1359,490 @@ function SampleResults({
       </div>
     </div>
   )
+}
+
+function MethodConditionsEditor({
+  schema,
+  values,
+  parameters,
+  note,
+  disabled,
+  onValuesChange,
+  onParametersChange,
+  onNoteChange,
+}: {
+  schema: MethodSchema
+  values: Record<string, string>
+  parameters: NamedParameter[]
+  note: string
+  disabled: boolean
+  onValuesChange: (values: Record<string, string>) => void
+  onParametersChange: (parameters: NamedParameter[]) => void
+  onNoteChange: (note: string) => void
+}) {
+  const { i18n, t } = useTranslation()
+  const updateParameter = (index: number, patch: Partial<NamedParameter>) => {
+    onParametersChange(
+      parameters.map((parameter, position) =>
+        position === index ? { ...parameter, ...patch } : parameter,
+      ),
+    )
+  }
+  return (
+    <fieldset className="sm:col-span-2 flex flex-col gap-3 rounded-md border border-border p-3">
+      <legend className="px-1 text-sm font-medium text-foreground">
+        {fieldLabel('characterization', 'test_conditions', i18n.language)}
+      </legend>
+      {schema.conditionFields.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {schema.conditionFields.map((field) =>
+            field.type === 'select' ? (
+              <div key={field.key} className="flex flex-col gap-1.5">
+                <FieldLabel
+                  htmlFor={`result-condition-${field.key}`}
+                  labelZh={t(conditionLabelKey(field.key))}
+                  unit={field.unit ?? null}
+                  required={false}
+                  r0={false}
+                />
+                <Select
+                  value={values[field.key] ?? ''}
+                  onValueChange={(value) =>
+                    onValuesChange({ ...values, [field.key]: value })
+                  }
+                  disabled={disabled}
+                >
+                  <SelectTrigger
+                    id={`result-condition-${field.key}`}
+                    className="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {(field.options ?? []).map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {t(conditionOptionKey(option))}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : field.type === 'number' ? (
+              <ResultNumberField
+                key={field.key}
+                id={`result-condition-${field.key}`}
+                label={t(conditionLabelKey(field.key))}
+                unit={field.unit ?? null}
+                value={values[field.key] ?? ''}
+                integer={field.integer}
+                min={field.min}
+                gt={field.gt}
+                onChange={(value) =>
+                  onValuesChange({ ...values, [field.key]: value })
+                }
+                disabled={disabled}
+              />
+            ) : (
+              <ResultTextField
+                key={field.key}
+                id={`result-condition-${field.key}`}
+                label={t(conditionLabelKey(field.key))}
+                value={values[field.key] ?? ''}
+                onChange={(value) =>
+                  onValuesChange({ ...values, [field.key]: value })
+                }
+                disabled={disabled}
+              />
+            ),
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {t('experimentsV2.sections.results.namedConditionsHint')}
+        </p>
+      )}
+      {parameters.map((parameter, index) => (
+        <div
+          key={index}
+          className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1.4fr_1fr_1fr_auto]"
+        >
+          <Input
+            aria-label={t('experimentsV2.sections.results.parameterName')}
+            placeholder={t('experimentsV2.sections.results.parameterName')}
+            value={parameter.name}
+            disabled={disabled}
+            onChange={(event) =>
+              updateParameter(index, { name: event.target.value })
+            }
+          />
+          <Input
+            aria-label={t('experimentsV2.sections.results.parameterValue')}
+            placeholder={t('experimentsV2.sections.results.parameterValue')}
+            value={parameter.value}
+            disabled={disabled}
+            onChange={(event) =>
+              updateParameter(index, { value: event.target.value })
+            }
+          />
+          <Input
+            aria-label={t('experimentsV2.sections.results.parameterUnit')}
+            placeholder={t('experimentsV2.sections.results.parameterUnit')}
+            value={parameter.unit}
+            disabled={disabled}
+            onChange={(event) =>
+              updateParameter(index, { unit: event.target.value })
+            }
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t(
+              'experimentsV2.sections.results.removeConditionParameter',
+            )}
+            disabled={disabled}
+            onClick={() =>
+              onParametersChange(
+                parameters.filter((_, position) => position !== index),
+              )
+            }
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-end gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() =>
+            onParametersChange([
+              ...parameters,
+              { name: '', value: '', unit: '' },
+            ])
+          }
+        >
+          <Plus />
+          {t('experimentsV2.sections.results.addConditionParameter')}
+        </Button>
+        <div className="min-w-64 flex-1">
+          <Input
+            aria-label={t(
+              'experimentsV2.sections.results.additionalConditionNote',
+            )}
+            placeholder={t(
+              'experimentsV2.sections.results.additionalConditionNote',
+            )}
+            value={note}
+            disabled={disabled}
+            onChange={(event) => onNoteChange(event.target.value)}
+          />
+        </div>
+      </div>
+    </fieldset>
+  )
+}
+
+function SpectralMetricsEditor({
+  schema,
+  metrics,
+  valid,
+  disabled,
+  onChange,
+}: {
+  schema: MethodSchema
+  metrics: SpectralMetricDraft[]
+  valid: boolean
+  disabled: boolean
+  onChange: (metrics: SpectralMetricDraft[]) => void
+}) {
+  const { t } = useTranslation()
+  const update = (index: number, patch: Partial<SpectralMetricDraft>) =>
+    onChange(
+      metrics.map((metric, position) =>
+        position === index ? { ...metric, ...patch } : metric,
+      ),
+    )
+  const firstDefinition = schema.metrics[0]
+  return (
+    <div className="flex flex-col gap-3 sm:col-span-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <FieldLabel
+          labelZh={t('experimentsV2.sections.results.methodMetrics')}
+          unit={null}
+          required={false}
+          r0={false}
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() =>
+            onChange([
+              ...metrics,
+              {
+                metricCode: firstDefinition?.code ?? 'custom',
+                metricName: '',
+                value: '',
+                unit: firstDefinition?.unit ?? '',
+              },
+            ])
+          }
+        >
+          <Plus />
+          {t('experimentsV2.sections.results.addMetric')}
+        </Button>
+      </div>
+      {metrics.map((metric, index) => {
+        const definition =
+          metric.metricCode === 'custom'
+            ? undefined
+            : schema.metrics.find((item) => item.code === metric.metricCode)
+        return (
+          <div
+            key={index}
+            className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1.5fr_1fr_1fr_auto]"
+          >
+            <div className="flex flex-col gap-2">
+              {schema.metrics.length > 0 ? (
+                <Select
+                  value={definition ? metric.metricCode : 'custom'}
+                  onValueChange={(code) => {
+                    const next = schema.metrics.find(
+                      (item) => item.code === code,
+                    )
+                    update(index, {
+                      metricCode: next?.code ?? 'custom',
+                      metricName: '',
+                      originalCode: undefined,
+                      unit: next?.unit ?? '',
+                    })
+                  }}
+                  disabled={disabled}
+                >
+                  <SelectTrigger
+                    aria-label={t('experimentsV2.sections.results.metricName')}
+                    className="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {schema.metrics.map((item) => (
+                        <SelectItem key={item.code} value={item.code}>
+                          {t(metricLabelKey(item.code))}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">
+                        {t('experimentsV2.sections.results.otherNamedMetric')}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              ) : null}
+              {!definition ? (
+                <Input
+                  aria-label={t(
+                    'experimentsV2.sections.results.metricParameterName',
+                  )}
+                  placeholder={t(
+                    'experimentsV2.sections.results.metricParameterName',
+                  )}
+                  value={metric.metricName}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    update(index, { metricName: event.target.value })
+                  }
+                />
+              ) : null}
+            </div>
+            <Input
+              id={`result-metric-value-${index}`}
+              type="number"
+              step="any"
+              aria-label={t('experimentsV2.sections.results.metricValue')}
+              placeholder={t('experimentsV2.sections.results.metricValue')}
+              value={metric.value}
+              disabled={disabled}
+              onChange={(event) => update(index, { value: event.target.value })}
+            />
+            <Input
+              id={`result-metric-unit-${index}`}
+              aria-label={t('experimentsV2.sections.results.metricUnit')}
+              placeholder={t('experimentsV2.sections.results.metricUnit')}
+              value={metric.unit}
+              readOnly={Boolean(definition)}
+              disabled={disabled}
+              onChange={(event) => update(index, { unit: event.target.value })}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t('experimentsV2.sections.results.removeMetric')}
+              disabled={disabled}
+              onClick={() =>
+                onChange(metrics.filter((_, position) => position !== index))
+              }
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        )
+      })}
+      {!valid ? (
+        <p className="text-xs text-destructive">
+          {t('experimentsV2.sections.results.invalidMetric')}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function InstrumentSnapshotSummary({
+  snapshot,
+  version,
+}: {
+  snapshot: Record<string, unknown>
+  version: number | null
+}) {
+  const { i18n, t } = useTranslation()
+  const nameType =
+    snapshotValue(snapshot, 'name_type_snapshot') ??
+    snapshotValue(snapshot, 'name_type')
+  const vendor = snapshotValue(snapshot, 'vendor')
+  const model = snapshotValue(snapshot, 'model')
+  const rows = [
+    {
+      label: t('experimentsV2.sections.results.instrumentSnapshot.type'),
+      value:
+        nameType == null
+          ? null
+          : localizedOption(String(nameType), i18n.language),
+    },
+    {
+      label: t('experimentsV2.sections.results.instrumentSnapshot.code'),
+      value:
+        snapshotValue(snapshot, 'instrument_code_snapshot') ??
+        snapshotValue(snapshot, 'instrument_code'),
+    },
+    {
+      label: t('experimentsV2.sections.results.instrumentSnapshot.vendorModel'),
+      value: [vendor, model].filter(Boolean).join(' · '),
+    },
+    {
+      label: t('experimentsV2.sections.results.instrumentSnapshot.fixedConfig'),
+      value: snapshotValue(snapshot, 'fixed_config'),
+    },
+    {
+      label: t('experimentsV2.sections.results.instrumentSnapshot.version'),
+      value:
+        version ??
+        snapshotValue(snapshot, 'instrument_version') ??
+        snapshotValue(snapshot, 'version'),
+    },
+    {
+      label: t(
+        'experimentsV2.sections.results.instrumentSnapshot.lastCalibration',
+      ),
+      value: snapshotValue(snapshot, 'last_calibration'),
+    },
+  ].filter((row) => row.value != null && row.value !== '')
+  if (rows.length === 0) return null
+  return (
+    <dl className="grid gap-x-3 gap-y-1 rounded-md border border-border p-3 text-xs text-muted-foreground sm:grid-cols-[max-content_1fr]">
+      {rows.map((row) => (
+        <div key={row.label} className="contents">
+          <dt>{row.label}</dt>
+          <dd className="min-w-0 break-words text-foreground [overflow-wrap:anywhere]">
+            {String(row.value)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function TestConditionsSummary({
+  raw,
+  method,
+}: {
+  raw: string
+  method: string
+}) {
+  const { i18n, t } = useTranslation()
+  const parsed = parseTestConditions(raw)
+  const fields = new Map(
+    methodSchema(method).conditionFields.map((field) => [field.key, field]),
+  )
+  const values = Object.entries(parsed.values).map(([key, value]) => {
+    const field = fields.get(key)
+    const label = field
+      ? t(conditionLabelKey(key))
+      : readableLegacyMetricCode(key)
+    return `${label}: ${value}${field?.unit ? ` ${field.unit}` : ''}`
+  })
+  const parameters = parsed.parameters.map(
+    (parameter) =>
+      `${parameter.name}: ${parameter.value}${
+        parameter.unit ? ` ${parameter.unit}` : ''
+      }`,
+  )
+  const summary = [...values, ...parameters, parsed.note].filter(Boolean)
+  return <>{summary.join(i18n.language.startsWith('en') ? ' · ' : '；')}</>
+}
+
+function hasMetricSummary(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { note?: unknown }).note === 'string' &&
+    (value as { note: string }).note.trim(),
+  )
+}
+
+function MetricSummary({ value }: { value: unknown }) {
+  const { t } = useTranslation()
+  if (Array.isArray(value)) {
+    return (
+      <>
+        {value
+          .flatMap((item) => {
+            if (!item || typeof item !== 'object') return []
+            const metric = item as {
+              metric_code?: unknown
+              value?: unknown
+              unit?: unknown
+            }
+            if (
+              typeof metric.metric_code !== 'string' ||
+              typeof metric.value !== 'number' ||
+              typeof metric.unit !== 'string'
+            ) {
+              return []
+            }
+            const definition = metricDefinition(metric.metric_code)
+            const name = definition
+              ? t(metricLabelKey(metric.metric_code))
+              : (decodeCustomMetricName(metric.metric_code) ??
+                readableLegacyMetricCode(metric.metric_code))
+            return [`${name}: ${metric.value} ${metric.unit}`]
+          })
+          .join(' · ')}
+      </>
+    )
+  }
+  if (value && typeof value === 'object' && 'note' in value) {
+    const note = (value as { note?: unknown }).note
+    return <>{typeof note === 'string' ? note : ''}</>
+  }
+  return null
 }
 
 function ResultTextField({
@@ -1183,12 +1950,21 @@ function ResultCard({
   onDelete: () => void
 }) {
   const { i18n, t } = useTranslation()
+  const details = result as ResultWithOtherDetails
+  const fileAssetIds = result.file_asset_ids ?? []
   const title =
     result.kind === 'characterization'
-      ? localizedOption(result.method_instrument || '', i18n.language) ||
+      ? (canonicalOption(result.method_instrument ?? '') === 'other'
+          ? details.method_other
+          : localizedOption(result.method_instrument || '', i18n.language)) ||
         t('experimentsV2.sections.results.characterizationResult')
       : (result.observed_phenomena ?? [])
-          .map((value) => localizedOption(value, i18n.language))
+          .map((value) =>
+            canonicalOption(value) === 'other' &&
+            details.observed_phenomena_other
+              ? details.observed_phenomena_other
+              : localizedOption(value, i18n.language),
+          )
           .join(' · ') || t('experimentsV2.sections.results.directObservation')
   return (
     <li className="min-w-0 flex flex-col gap-3 rounded-md border border-border p-3 text-sm">
@@ -1199,7 +1975,10 @@ function ResultCard({
           </p>
           {result.test_conditions ? (
             <p className="break-words text-muted-foreground [overflow-wrap:anywhere]">
-              {result.test_conditions}
+              <TestConditionsSummary
+                raw={result.test_conditions}
+                method={result.method_instrument ?? ''}
+              />
             </p>
           ) : null}
         </div>
@@ -1247,6 +2026,12 @@ function ResultCard({
           </AlertDialog>
         </div>
       </div>
+      {result.instrument_snapshot_json ? (
+        <InstrumentSnapshotSummary
+          snapshot={result.instrument_snapshot_json}
+          version={result.instrument_version}
+        />
+      ) : null}
       <ResultSummary result={result} />
       {result.kind === 'characterization' &&
       result.characterization_record_id ? (
@@ -1256,6 +2041,15 @@ function ResultCard({
           method={result.method_instrument || ''}
           readOnly={readOnly}
         />
+      ) : result.kind === 'direct_observation' && fileAssetIds.length > 0 ? (
+        <ExperimentAttachments
+          runId={runId}
+          role="direct_observation_file"
+          sampleId={result.sample_id}
+          includeIds={fileAssetIds}
+          allowUpload={false}
+          readOnly={readOnly}
+        />
       ) : null}
     </li>
   )
@@ -1263,11 +2057,16 @@ function ResultCard({
 
 function ResultSummary({ result }: { result: V2ResultRead }) {
   const { i18n, t } = useTranslation()
+  const details = result as ResultWithOtherDetails
   const values = [
     {
       label: t('experimentsV2.sections.results.observedPhenomena'),
       value: (result.observed_phenomena ?? [])
-        .map((value) => localizedOption(value, i18n.language))
+        .map((value) =>
+          canonicalOption(value) === 'other' && details.observed_phenomena_other
+            ? details.observed_phenomena_other
+            : localizedOption(value, i18n.language),
+        )
         .join(' · '),
     },
     {
@@ -1338,9 +2137,11 @@ function ResultSummary({ result }: { result: V2ResultRead }) {
     },
     {
       label: t('experimentsV2.sections.results.keySpectralMetrics'),
-      value: spectralNote(result.key_spectral_metrics),
+      value: hasMetricSummary(result.key_spectral_metrics) ? (
+        <MetricSummary value={result.key_spectral_metrics} />
+      ) : null,
     },
-  ].filter((item) => item.value)
+  ].filter((item) => item.value != null && item.value !== '')
 
   if (values.length === 0) return null
   return (

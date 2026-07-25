@@ -13,12 +13,10 @@ import {
   getComponentRoleOptions,
   isEffectivelyRequired,
   isFieldVisible,
-  isProcessStepFieldVisible,
   itemHasAnyValue,
   itemsFromPayload,
   moduleValueAsString,
   moduleValuesFromPayload,
-  missingProcessStepKeys,
   missingRequiredKeys,
   parseComponentRoles,
   resolveModuleConditionKey,
@@ -66,11 +64,14 @@ describe('相态 → 用量 (phase_state drives amount required)', () => {
     expect(isEffectivelyRequired('precursors', amount, {})).toBe(false)
   })
 
-  it('keeps amount always visible (only the red star toggles)', () => {
+  it('hides amount for gas and before phase is chosen', () => {
     expect(isFieldVisible('precursors', amount, { phase_state: '气' })).toBe(
+      false,
+    )
+    expect(isFieldVisible('precursors', amount, {})).toBe(false)
+    expect(isFieldVisible('precursors', amount, { phase_state: '固' })).toBe(
       true,
     )
-    expect(isFieldVisible('precursors', amount, {})).toBe(true)
   })
 })
 
@@ -243,11 +244,28 @@ describe('payload builders align with backend module contract', () => {
       }).appearance,
     ).toBeNull()
     expect(
+      buildItemPayload('precursors', {
+        phase_state: 'gas',
+        amount: '20',
+      }).amount,
+    ).toBeNull()
+    expect(
       buildItemPayload('substrates', {
-        material: 'sapphire',
+        material: 'sapphire_al2o3',
         oxide_thickness_nm: '285',
       }).oxide_thickness_nm,
     ).toBeNull()
+    expect(
+      buildItemPayload('process_events', {
+        terminated_run: 'false',
+        termination_reason: 'other',
+        description: 'stale termination details',
+      }),
+    ).toMatchObject({
+      terminated_run: false,
+      termination_reason: null,
+      description: null,
+    })
   })
 
   it('clears external-field values when the selected setup has no field device', () => {
@@ -255,9 +273,10 @@ describe('payload builders align with backend module contract', () => {
       [
         {
           ...emptyModuleValues('process_steps'),
-          stage_type: 'growth',
+          stage_type: 'reaction_conditions',
           pressure_system: 'atmospheric_pressure',
-          field_params: 'stale magnetic field',
+          field_params:
+            '[{"field_type":"light","start_min":0,"end_min":10,"parameters":[]}]',
         },
       ],
       { field_devices: ['none'] },
@@ -300,13 +319,25 @@ describe('payload builders align with backend module contract', () => {
     ).toThrow(/finite/i)
   })
 
-  it('round-trips every gas species without collapsing an array into one token', () => {
+  it('round-trips structured per-gas feeds without collapsing the array', () => {
+    const feeds = [
+      {
+        species: 'Ar',
+        lot_ref: {
+          entity_id: '7d9e7787-e5ef-4f34-818f-454a10263a3b',
+          version: 1,
+          snapshot: { lot_code: 'AR-1' },
+        },
+        measurement_source: 'mfc',
+        intervals: [{ start_min: 0, end_min: 10, flow_sccm: 100 }],
+      },
+    ]
     const restored = moduleValuesFromPayload('process_steps', {
-      gas_species: ['Ar', 'H₂'],
+      gas_feeds: feeds,
     })
-    expect(restored.gas_species).toEqual(['Ar', 'H2'])
+    expect(JSON.parse(restored.gas_feeds as string)).toEqual(feeds)
     const payload = buildItemPayload('process_steps', restored)
-    expect(payload.gas_species).toEqual(['Ar', 'H2'])
+    expect(payload.gas_feeds).toEqual(feeds)
   })
 
   it('canonicalizes legacy component roles when entering edit state', () => {
@@ -366,6 +397,7 @@ describe('payload builders align with backend module contract', () => {
     expect(item.lot_ref).toEqual(reference)
     expect(item.boat_crucible).toEqual({
       material: 'quartz_boat',
+      material_other: null,
       length_mm: 90,
       width_mm: null,
       height_mm: null,
@@ -384,29 +416,18 @@ describe('payload builders align with backend module contract', () => {
     ).toEqual(reference)
   })
 
-  it('requires an other-gas name only when other is selected', () => {
-    const otherGas = field('process_steps', 'other_gas_name')
-    expect(
-      isProcessStepFieldVisible(otherGas, 'growth', null, {
-        gas_species: ['Ar'],
-      }),
-    ).toBe(false)
-    expect(
-      isProcessStepFieldVisible(otherGas, 'growth', null, {
-        gas_species: ['Ar', 'other'],
-      }),
-    ).toBe(true)
-    expect(
-      missingProcessStepKeys(
-        {
-          stage_type: 'growth',
-          gas_species: ['Ar', 'other'],
-          gas_flow_sccm: '10（MFC）',
-          pressure_system: '100（low_pressure）',
-        },
-        null,
-      ),
-    ).toContain('other_gas_name')
+  it('round-trips structured substrate surface roughness', () => {
+    const restored = moduleValuesFromPayload('substrates', {
+      surface_roughness: { metric: 'RMS', value_nm: 0.25 },
+    })
+    expect(JSON.parse(restored.surface_roughness as string)).toEqual({
+      metric: 'RMS',
+      value_nm: 0.25,
+    })
+    expect(buildItemPayload('substrates', restored).surface_roughness).toEqual({
+      metric: 'RMS',
+      value_nm: 0.25,
+    })
   })
 
   it('round-trips the internal substrate source id without treating it as content', () => {
@@ -417,13 +438,13 @@ describe('payload builders align with backend module contract', () => {
         source_id: sourceId,
         material: '蓝宝石',
       }),
-    ).toMatchObject({ material: 'sapphire', source_id: sourceId })
+    ).toMatchObject({ material: 'sapphire_al2o3', source_id: sourceId })
     expect(itemHasAnyValue({ source_id: sourceId })).toBe(false)
     expect(
       itemsFromPayload('substrates', {
         items: [{ source_id: sourceId, material: '蓝宝石' }],
       })[0],
-    ).toMatchObject({ source_id: sourceId, material: 'sapphire' })
+    ).toMatchObject({ source_id: sourceId, material: 'sapphire_al2o3' })
   })
 })
 

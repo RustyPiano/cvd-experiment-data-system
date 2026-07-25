@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   encodeStructuredValue,
+  isStructuredInput,
+  parseStructuredValue,
   structuredPayload,
   structuredValueFromRaw,
 } from './structured-field'
@@ -19,6 +21,7 @@ describe('structured scientific fields', () => {
       ),
     ).toEqual({
       material: 'quartz_boat',
+      material_other: null,
       length_mm: 90,
       width_mm: 15,
       height_mm: null,
@@ -41,6 +44,112 @@ describe('structured scientific fields', () => {
         }),
       ),
     ).toEqual({ outer_diameter_mm: 50.8, wall_thickness_mm: 2 })
+  })
+
+  it('recognizes the v3.7 tube and substrate structured inputs', () => {
+    expect(isStructuredInput('管材质形状对象')).toBe(true)
+    expect(isStructuredInput('粗糙度对象')).toBe(true)
+    expect(isStructuredInput('衬底尺寸放置对象')).toBe(true)
+  })
+
+  it('serializes a named non-negative surface roughness value', () => {
+    expect(
+      structuredPayload(
+        'surface_roughness',
+        encodeStructuredValue({ metric: 'RMS', value_nm: '0.5' }),
+      ),
+    ).toEqual({ metric: 'RMS', value_nm: 0.5 })
+    expect(() =>
+      structuredPayload(
+        'surface_roughness',
+        encodeStructuredValue({ metric: 'RMS', value_nm: '-0.1' }),
+      ),
+    ).toThrow(/non-negative/)
+  })
+
+  it('serializes tube material and shape as independent named values', () => {
+    expect(
+      structuredPayload(
+        'tube_material_shape',
+        encodeStructuredValue({ material: 'quartz', shape: 'round' }),
+      ),
+    ).toEqual({
+      material: 'quartz',
+      material_other: null,
+      shape: 'round',
+      shape_other: null,
+    })
+    expect(
+      structuredPayload(
+        'tube_material_shape',
+        encodeStructuredValue({
+          material: 'other',
+          material_other: 'SiC',
+          shape: 'other',
+          shape_other: 'hexagonal',
+        }),
+      ),
+    ).toEqual({
+      material: 'other',
+      material_other: 'SiC',
+      shape: 'other',
+      shape_other: 'hexagonal',
+    })
+  })
+
+  it('requires conditional tube names and a valid substrate tilt angle', () => {
+    expect(() =>
+      structuredPayload(
+        'tube_material_shape',
+        encodeStructuredValue({ material: 'other', shape: 'round' }),
+      ),
+    ).toThrow(/material_other/)
+    expect(() =>
+      structuredPayload(
+        'size_placement',
+        encodeStructuredValue({
+          length_mm: 10,
+          width_mm: 10,
+          placement: 'tilted',
+        }),
+      ),
+    ).toThrow(/tilt_angle_deg/)
+    expect(() =>
+      structuredPayload(
+        'size_placement',
+        encodeStructuredValue({
+          length_mm: 10,
+          width_mm: 10,
+          placement: 'tilted',
+          tilt_angle_deg: 91,
+        }),
+      ),
+    ).toThrow(/exceed 90/)
+  })
+
+  it('round-trips the conditional substrate placement fields', () => {
+    const encoded = structuredValueFromRaw('size_placement', {
+      length_mm: 10,
+      width_mm: 12,
+      thickness_mm: 0.5,
+      placement: 'tilted',
+      tilt_angle_deg: 15,
+    })
+    expect(parseStructuredValue(encoded)).toEqual({
+      length_mm: 10,
+      width_mm: 12,
+      thickness_mm: 0.5,
+      placement: 'tilted',
+      tilt_angle_deg: 15,
+    })
+    expect(structuredPayload('size_placement', encoded)).toEqual({
+      length_mm: 10,
+      width_mm: 12,
+      thickness_mm: 0.5,
+      placement: 'tilted',
+      tilt_angle_deg: 15,
+      placement_other: null,
+    })
   })
 
   it.each([

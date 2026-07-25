@@ -14,6 +14,7 @@ from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.services.v2_reporting_service import V2ReportingService
+from tests.helpers.v2_payloads import setup_payload
 
 client = TestClient(app)
 
@@ -251,8 +252,6 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
         "id": None,
         "version": None,
         "snapshot": None,
-        "flow_reference_temperature_C": None,
-        "flow_reference_pressure_Pa": None,
     }
 
     for path in ["export", "audit-events"]:
@@ -274,12 +273,15 @@ def test_json_and_filtered_zip_exports_are_relational_and_utf8(
             "precursors.csv",
             "substrates.csv",
             "process_steps.csv",
+            "gas_flow_shares.csv",
             "samples.csv",
             "characterization_results.csv",
             "files.csv",
             "module_details.csv",
             "field_dictionary.csv",
             "records.json",
+            "cvd-2d-process-v2.schema.json",
+            "cvd-2d-field-dictionary-v2.json",
             "schema_manifest.json",
         }
         runs = list(csv.DictReader(io.StringIO(archive.read("runs.csv").decode("utf-8-sig"))))
@@ -573,22 +575,19 @@ def test_exports_keep_standalone_records_shared_results_and_soft_deleted_files(
 
 def test_export_relationalizes_nested_module_values_and_includes_run_state(
     active_user,
+    admin_user,
     db_session,
 ) -> None:
     headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
     setup = client.post(
         "/api/v1/setups",
-        json={
-            "setup_code": "SETUP-EXPORT-1",
-            "setup_name": "Export setup",
-            "zone_count": 2,
-            "orientation": "水平",
-            "coordinate_system": "上游负/下游正",
-            "field_devices": ["光", "电"],
-            "flow_reference_temperature_C": 20,
-            "flow_reference_pressure_Pa": 101325,
-        },
-        headers=headers,
+        json=setup_payload(
+            setup_code="SETUP-EXPORT-1",
+            setup_name="Export setup",
+            field_devices=["light", "electric_field"],
+        ),
+        headers=admin_headers,
     )
     assert setup.status_code == 201, setup.text
     run = _run(
@@ -610,9 +609,9 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
             "payload_json": {
                 "items": [
                     {
-                        "stage_type": "放气",
-                        "gas_species": ["Ar", "H2"],
-                        "gas_flow_sccm": {"value": 10, "option": "MFC"},
+                        "stage_type": "other",
+                        "other_stage_name": "Temporary source move",
+                        "notes": "Moved source by 5 mm",
                     }
                 ]
             }
@@ -629,9 +628,35 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
     process_payload.payload_json = {
         "items": [
             {
-                "stage_type": "放气",
-                "gas_species": ["Ar", "H₂"],
-                "gas_flow_sccm": {"value": 10.0, "option": "MFC"},
+                "stage_type": "反应条件",
+                "temperature_program": {
+                    "zones": [
+                        {
+                            "zone_index": 1,
+                            "points": [
+                                {"elapsed_min": 0.0, "setpoint_C": 25.0},
+                                {"elapsed_min": 30.0, "setpoint_C": 750.0},
+                            ],
+                        }
+                    ]
+                },
+                "gas_feeds": [
+                    {
+                        "species": "H₂",
+                        "measurement_source": "MFC",
+                        "lot_ref": {
+                            "entity_id": "00000000-0000-0000-0000-000000000001",
+                            "version": 1,
+                            "snapshot": {"batch_number": "H2-EXPORT"},
+                        },
+                        "intervals": [{"start_min": 0.0, "end_min": 30.0, "flow_sccm": 10.0}],
+                    }
+                ],
+                "pressure_system": {
+                    "value": 101325.0,
+                    "option": "atmospheric_pressure",
+                },
+                "duration_cycles": {"duration_min": 30.0},
             }
         ]
     }
@@ -651,12 +676,13 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
     json_run = exported_json.json()["run"]
     assert json_run["not_characterized_at"] is not None
     assert json_run["setup_reference"]["version"] == 1
-    assert json_run["setup_reference"]["flow_reference_temperature_C"] == 20
-    assert json_run["setup_reference"]["flow_reference_pressure_Pa"] == 101325
+    assert "flow_reference_temperature_C" not in json_run["setup_reference"]
+    assert "flow_reference_pressure_Pa" not in json_run["setup_reference"]
     assert json_run["setup_reference"]["snapshot"]["setup_code_snapshot"] == ("SETUP-EXPORT-1")
     json_step = exported_json.json()["modules"]["process_steps"]["items"][0]
-    assert json_step["stage_type"] == "vent"
-    assert json_step["gas_species"] == ["Ar", "H2"]
+    assert json_step["stage_type"] == "reaction_conditions"
+    assert json_step["gas_feeds"][0]["species"] == "H2"
+    assert json_step["gas_feeds"][0]["measurement_source"] == "mfc"
 
     exported_zip = client.get(
         "/api/v1/exports/runs",
@@ -669,23 +695,49 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
         process_rows = list(
             csv.DictReader(io.StringIO(archive.read("process_steps.csv").decode("utf-8-sig")))
         )
+        gas_share_rows = list(
+            csv.DictReader(io.StringIO(archive.read("gas_flow_shares.csv").decode("utf-8-sig")))
+        )
     assert {row["setup_code"] for row in run_rows} == {"SETUP-EXPORT-1"}
-    assert {row["setup_flow_reference_temperature_C"] for row in run_rows} == {"20.0"}
-    assert {row["setup_flow_reference_pressure_Pa"] for row in run_rows} == {"101325.0"}
+    assert "setup_flow_reference_temperature_C" not in run_rows[0]
+    assert "setup_flow_reference_pressure_Pa" not in run_rows[0]
     assert {row["result_missing_todo"] for row in run_rows} == {"False"}
     assert all(row["not_characterized_at"] for row in run_rows)
-    assert {row["setup_detail_value"] for row in run_rows} == {
-        "light",
-        "electric_field",
-        "20.0",
-        "101325.0",
-    }
-    nested_gases = [row for row in process_rows if row["nested_field"] == "gas_species"]
-    assert {row["nested_path"] for row in nested_gases} == {"[0]", "[1]"}
-    assert {row["nested_value"] for row in nested_gases} == {"Ar", "H2"}
-    nested_flow = [row for row in process_rows if row["nested_field"] == "gas_flow_sccm"]
-    assert {row["nested_path"] for row in nested_flow} == {"option", "value"}
-    assert {row["nested_value"] for row in nested_flow} == {"MFC", "10.0"}
+    assert {"light", "electric_field"} <= {row["setup_detail_value"] for row in run_rows}
+    nested_gases = [row for row in process_rows if row["nested_field"] == "gas_feeds"]
+    assert any(
+        row["nested_path"] == "[0].species" and row["nested_value"] == "H2" for row in nested_gases
+    )
+    assert any(
+        row["nested_path"] == "[0].intervals[0].flow_sccm" and row["nested_value"] == "10.0"
+        for row in nested_gases
+    )
+    assert [
+        {
+            key: row[key]
+            for key in (
+                "run_code",
+                "process_step_index",
+                "interval_index",
+                "gas",
+                "flow_sccm",
+                "total_flow_sccm",
+                "flow_percent",
+            )
+        }
+        for row in gas_share_rows
+    ] == [
+        {
+            "run_code": "CVD-2026-3351",
+            "process_step_index": "1",
+            "interval_index": "1",
+            "gas": "H2",
+            "flow_sccm": "10.0",
+            "total_flow_sccm": "10.0",
+            "flow_percent": "100.0",
+        }
+    ]
+    assert gas_share_rows[0]["relation_key"] == (f"{run['id']}:process_steps:1:1:1")
 
     cleared = client.put(
         f"/api/v1/experiments/{run['id']}/not-characterized",
@@ -848,11 +900,14 @@ def test_zip_export_includes_reversible_remaining_modules_and_schema_metadata(
             "precursors.csv",
             "substrates.csv",
             "process_steps.csv",
+            "gas_flow_shares.csv",
             "samples.csv",
             "characterization_results.csv",
             "files.csv",
             "module_details.csv",
             "field_dictionary.csv",
+            "cvd-2d-process-v2.schema.json",
+            "cvd-2d-field-dictionary-v2.json",
             "schema_manifest.json",
         } <= set(archive.namelist())
         details = list(
@@ -862,6 +917,8 @@ def test_zip_export_includes_reversible_remaining_modules_and_schema_metadata(
             csv.DictReader(io.StringIO(archive.read("field_dictionary.csv").decode("utf-8-sig")))
         )
         manifest = json.loads(archive.read("schema_manifest.json"))
+        schema = json.loads(archive.read("cvd-2d-process-v2.schema.json"))
+        dictionary_json = json.loads(archive.read("cvd-2d-field-dictionary-v2.json"))
 
     target_rows = [row for row in details if row["module_key"] == "target_product"]
     assert {(row["field_key"], row["detail_path"], row["detail_value"]) for row in target_rows} >= {
@@ -874,10 +931,18 @@ def test_zip_export_includes_reversible_remaining_modules_and_schema_metadata(
         ("1", "occurred_at", "10:28"),
         ("1", "description_action", "Changed Ar cylinder"),
     }
-    assert any(row["key"] == "gas_flow_sccm" and row["unit"] == "sccm" for row in dictionary)
+    gas_feeds = next(row for row in dictionary if row["key"] == "gas_feeds")
+    assert gas_feeds["input"] == "逐气体供气数组"
+    assert gas_feeds["meaning"]
+    assert gas_feeds["example"]
+    assert gas_feeds["schema_path"].endswith(".gas_feeds")
+    assert schema["schema_version"] == "cvd_v2"
+    assert dictionary_json["field_count"] == 128
     assert manifest["schema_version"] == "cvd_v2"
     assert manifest["standard_version"] == "2.0.0"
     assert manifest["module_details"]["path_notation"] == "JSONPath-like"
+    assert manifest["derived_tables"]["gas_flow_shares.csv"]["source"].startswith("records.json")
+    assert "cvd-2d-process-v2.schema.json" in manifest["artifacts"]
 
 
 def test_export_fetches_visible_runs_in_one_stable_query(active_user, db_session) -> None:

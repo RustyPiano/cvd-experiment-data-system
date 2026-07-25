@@ -33,7 +33,24 @@ export type EntityVersionPayload = Record<string, unknown>
  * 版本号由后端版本表自增分配（V2EntityVersionRead.version），不是用户录入项，
  * 故从可编辑表单字段中剔除；列表/详情改用后端返回的 version 展示。
  */
-export const SYSTEM_FIELD_KEYS = new Set(['version'])
+export const SYSTEM_FIELD_KEYS = new Set(['version', 'coordinate_system'])
+const JSON_ARRAY_FIELD_KEYS = new Set(['temperature_sensors'])
+
+export function isEntityJsonArrayField(fieldKey: string): boolean {
+  return JSON_ARRAY_FIELD_KEYS.has(fieldKey)
+}
+
+export function parseEntityJsonArray<T>(
+  value: EntityFieldValue | undefined,
+): T[] {
+  if (Array.isArray(value) || !value?.trim()) return []
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? (parsed as T[]) : []
+  } catch {
+    return []
+  }
+}
 
 /** 该实体的「可编辑」注册字段（剔除系统托管字段）。 */
 export function getEntityFields(kind: EntityKind): FieldMetadata[] {
@@ -132,14 +149,17 @@ export function matchesCondition(
   ) {
     return false
   }
+  const normalize = (item: unknown) => {
+    if (typeof item !== 'string') return item
+    const canonical = canonicalOption(item)
+    if (canonical === 'true') return true
+    if (canonical === 'false') return false
+    return canonical
+  }
   const expected = Array.isArray(condition.value)
-    ? condition.value.map(canonicalOption)
-    : canonicalOption(condition.value)
-  const actual = Array.isArray(value)
-    ? value.map((item) => canonicalOption(String(item)))
-    : typeof value === 'string'
-      ? canonicalOption(value)
-      : value
+    ? condition.value.map(normalize)
+    : normalize(condition.value)
+  const actual = Array.isArray(value) ? value.map(normalize) : normalize(value)
   if (Array.isArray(actual)) {
     switch (condition.op) {
       case 'eq':
@@ -233,6 +253,12 @@ export function buildDefaultValues(
           : [canonicalOption(String(raw))]
     } else if (
       raw != null &&
+      isEntityJsonArrayField(field.key) &&
+      Array.isArray(raw)
+    ) {
+      values[field.key] = JSON.stringify(raw)
+    } else if (
+      raw != null &&
       isEntityFileInput(field.input) &&
       typeof raw === 'object'
     ) {
@@ -291,6 +317,8 @@ export function buildSubmitPayload(
     if (normalized) {
       if (isEntityFileInput(field.input)) {
         payload[field.key] = entityFilePayload(normalized, field.key)
+      } else if (isEntityJsonArrayField(field.key)) {
+        payload[field.key] = JSON.parse(normalized) as unknown[]
       } else if (isStructuredInput(field.input)) {
         payload[field.key] = structuredPayload(field.key, normalized)
       } else if (isCompositeInput(field.input)) {

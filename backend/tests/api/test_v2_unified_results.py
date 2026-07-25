@@ -86,6 +86,81 @@ def test_direct_observation_uses_one_result_contract(active_user) -> None:
     assert client.get(f"/api/v1/samples/{sample_id}/results", headers=headers).json()["total"] == 0
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"kind": "characterization", "method_instrument": "other"},
+        {
+            "kind": "characterization",
+            "method_instrument": "Raman",
+            "method_other": "AFM phase imaging",
+        },
+        {"kind": "direct_observation", "observed_phenomena": ["other"]},
+        {
+            "kind": "direct_observation",
+            "observed_phenomena": ["no_growth"],
+            "observed_phenomena_other": "unexpected residue",
+        },
+    ],
+)
+def test_other_result_options_require_details_only_when_selected(
+    active_user,
+    payload: dict,
+) -> None:
+    headers = _headers(active_user.email)
+    _, sample_id = _sample(headers, "0210")
+
+    response = client.post(
+        f"/api/v1/samples/{sample_id}/results",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_other_result_details_round_trip_without_an_instrument(
+    active_user,
+    db_session,
+) -> None:
+    headers = _headers(active_user.email)
+    _, sample_id = _sample(headers, "0211")
+
+    response = client.post(
+        f"/api/v1/samples/{sample_id}/results",
+        json={
+            "kind": "characterization",
+            "method_instrument": "other",
+            "method_other": "AFM phase imaging",
+            "observed_phenomena": ["other"],
+            "observed_phenomena_other": "triangular domains",
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201, response.text
+    result = response.json()
+    assert result["instrument_id"] is None
+    assert result["method_other"] == "AFM phase imaging"
+    assert result["observed_phenomena_other"] == "triangular domains"
+    record = db_session.get(CharacterizationRecord, UUID(result["characterization_record_id"]))
+    product = db_session.get(MeasuredProduct, UUID(result["id"]))
+    assert record.attrs["method_other"] == "AFM phase imaging"
+    assert product.attrs["observed_phenomena_other"] == "triangular domains"
+
+    direct = client.post(
+        f"/api/v1/samples/{sample_id}/results",
+        json={
+            "kind": "direct_observation",
+            "observed_phenomena": ["other"],
+            "observed_phenomena_other": "visible triangular domains",
+        },
+        headers=headers,
+    )
+    assert direct.status_code == 201, direct.text
+    assert direct.json()["observed_phenomena_other"] == "visible triangular domains"
+
+
 def test_characterization_result_writes_both_rows_atomically(
     active_user,
     db_session,
@@ -340,6 +415,63 @@ def test_characterization_metrics_use_structured_numeric_contract(active_user) -
 
 
 @pytest.mark.parametrize(
+    ("method", "metric", "unit", "suffix", "expected"),
+    [
+        (
+            "Raman",
+            "raman_e2g_peak_position",
+            "cm⁻¹",
+            "0221",
+            201,
+        ),
+        (
+            "SEM",
+            "raman_e2g_peak_position",
+            "cm⁻¹",
+            "0222",
+            422,
+        ),
+        (
+            "Raman",
+            "raman_e2g_peak_position",
+            "nm",
+            "0223",
+            422,
+        ),
+        (
+            "SEM",
+            "legacy_named_parameter",
+            "arbitrary",
+            "0224",
+            201,
+        ),
+    ],
+)
+def test_controlled_result_metrics_enforce_method_and_fixed_unit_without_breaking_legacy(
+    active_user,
+    method: str,
+    metric: str,
+    unit: str,
+    suffix: str,
+    expected: int,
+) -> None:
+    headers = _headers(active_user.email)
+    _, sample_id = _sample(headers, suffix)
+
+    response = client.post(
+        f"/api/v1/samples/{sample_id}/results",
+        json={
+            "kind": "characterization",
+            "method_instrument": method,
+            "key_spectral_metrics": [{"metric_code": metric, "value": 384.2, "unit": unit}],
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == expected, response.text
+
+
+@pytest.mark.parametrize(
     "field,value",
     [
         ("layer_count", -1),
@@ -491,13 +623,14 @@ def test_spectral_metric_value_rejects_coerced_types(
     assert response.status_code == 422
 
 
-def test_instrument_type_must_match_characterization_method(active_user) -> None:
+def test_instrument_type_must_match_characterization_method(active_user, admin_user) -> None:
     headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
     _, sample_id = _sample(headers, "0207")
     instrument = client.post(
         "/api/v1/instruments",
         json={"instrument_code": "SEM-ONLY", "name_type": "SEM"},
-        headers=headers,
+        headers=admin_headers,
     )
     assert instrument.status_code == 201, instrument.text
 
@@ -516,13 +649,14 @@ def test_instrument_type_must_match_characterization_method(active_user) -> None
     assert "instrument" in mismatch.text.lower()
 
 
-def test_other_method_is_compatible_with_any_instrument_type(active_user) -> None:
+def test_other_method_is_compatible_with_any_instrument_type(active_user, admin_user) -> None:
     headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
     run_id, sample_id = _sample(headers, "0209")
     instrument = client.post(
         "/api/v1/instruments",
         json={"instrument_code": "SEM-OTHER", "name_type": "SEM"},
-        headers=headers,
+        headers=admin_headers,
     )
     assert instrument.status_code == 201, instrument.text
     reference = {
@@ -533,7 +667,11 @@ def test_other_method_is_compatible_with_any_instrument_type(active_user) -> Non
 
     unified = client.post(
         f"/api/v1/samples/{sample_id}/results",
-        json={"kind": "characterization", **reference},
+        json={
+            "kind": "characterization",
+            **reference,
+            "method_other": "SEM-based custom method",
+        },
         headers=headers,
     )
     legacy = client.post(

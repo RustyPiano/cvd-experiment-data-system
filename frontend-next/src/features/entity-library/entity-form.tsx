@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { Control, FieldError, Resolver } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 
@@ -49,12 +50,14 @@ import {
   buildSubmitPayload,
   getEntityFields,
   isEffectivelyRequired,
+  isEntityJsonArrayField,
   isFieldVisible,
   isMultiSelectInput,
   isNoneOption,
   isOtherOptionMarker,
   isSelectWithOtherInput,
   parseEnumOptions,
+  parseEntityJsonArray,
 } from './field-logic'
 import type { EntityFormValues, EntityVersionPayload } from './field-logic'
 import { isStructuredInput, structuredPayload } from '@/shared/structured-field'
@@ -69,7 +72,14 @@ import {
   isEntityFileInput,
 } from '@/shared/entity-file-reference'
 import { EntityFileControl } from './entity-file-control'
+import { listEntities } from './api'
 import type { EntityFileAssetRead } from './api'
+import {
+  TemperatureSensorsEditor,
+  temperatureSensorsAreValid,
+} from './temperature-sensors-editor'
+import type { TemperatureSensor } from './temperature-sensors-editor'
+import { buildTemperatureSensorsEditorLabels } from '@/shared/structured-editor-labels'
 
 // 长文本字段用多行输入并跨两列（示意图/配置/坐标系描述）。
 const TEXTAREA_KEYS = new Set([
@@ -117,6 +127,31 @@ export function EntityForm({
     () => buildDefaultValues(kind, defaultData),
     [defaultData, kind],
   )
+  const historicalEntities = useQuery({
+    queryKey: ['v2-entity', kind, 'select-history', token],
+    queryFn: () => listEntities(kind, token),
+    enabled: Boolean(token),
+  })
+  const historicalSelectOptions = useMemo(() => {
+    const options: Record<string, string[]> = {}
+    for (const field of fields) {
+      if (!isSelectWithOtherInput(field.input)) continue
+      options[field.key] = [
+        ...new Set(
+          (historicalEntities.data?.items ?? [])
+            .map((entity) => entity.latest_version?.data[field.key])
+            .filter(
+              (value): value is string =>
+                typeof value === 'string' &&
+                value.trim() !== '' &&
+                !isOtherOptionMarker(value),
+            )
+            .map((value) => value.trim()),
+        ),
+      ]
+    }
+    return options
+  }, [fields, historicalEntities.data?.items])
   const [pendingFiles, setPendingFiles] = useState<
     Record<string, EntityFileAssetRead>
   >({})
@@ -144,6 +179,21 @@ export function EntityForm({
         errors[field.key] = {
           type: 'required',
           message: t('validation.required'),
+        }
+      } else if (!empty && field.key === 'temperature_sensors') {
+        const zoneCount = Number(
+          Array.isArray(values['zone_count']) ? '' : values['zone_count'],
+        )
+        if (
+          !temperatureSensorsAreValid(
+            parseEntityJsonArray<TemperatureSensor>(value),
+            Number.isInteger(zoneCount) && zoneCount > 0 ? zoneCount : null,
+          )
+        ) {
+          errors[field.key] = {
+            type: 'validate',
+            message: t('validation.structuredField'),
+          }
         }
       } else if (!empty && isEntityFileInput(field.input)) {
         try {
@@ -311,6 +361,7 @@ export function EntityForm({
                 control={form.control}
                 disabled={formBusy}
                 token={token}
+                historicalOptions={historicalSelectOptions[field.key] ?? []}
                 initialValue={
                   typeof defaultValues[field.key] === 'string'
                     ? (defaultValues[field.key] as string)
@@ -352,6 +403,7 @@ function EntityFieldControl({
   control,
   disabled,
   token,
+  historicalOptions,
   initialValue,
   onPendingFileChange,
   onAttachmentDraftDirtyChange,
@@ -363,6 +415,7 @@ function EntityFieldControl({
   control: Control<EntityFormValues>
   disabled: boolean
   token: string
+  historicalOptions: readonly string[]
   initialValue: string
   onPendingFileChange: (
     fieldKey: string,
@@ -376,9 +429,10 @@ function EntityFieldControl({
   const required = isEffectivelyRequired(kind, field, values)
   const allowsOther = isSelectWithOtherInput(field.input)
   const multiSelect = isMultiSelectInput(field.input)
-  const enumOptions = parseEnumOptions(field.input, field.options)?.filter(
-    (option) => !allowsOther || !isOtherOptionMarker(option),
-  )
+  const enumOptions = parseEnumOptions(field.input, field.options)
+    ?.filter((option) => !allowsOther || !isOtherOptionMarker(option))
+    .concat(allowsOther ? historicalOptions : [])
+    .filter((option, index, options) => options.indexOf(option) === index)
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const structuredInput = isStructuredInput(field.input)
   const entityFileInput = isEntityFileInput(field.input)
@@ -392,6 +446,7 @@ function EntityFieldControl({
   const fieldHelp = localizedFieldHelp(field, i18n.language)
   const customControl = Boolean(
     entityFileInput ||
+    isEntityJsonArrayField(field.key) ||
     structuredInput ||
     compositeInput ||
     (enumOptions && (allowsOther || multiSelect)),
@@ -400,7 +455,8 @@ function EntityFieldControl({
   const helpId = `${controlId}-help`
   const messageId = `${controlId}-message`
 
-  const wideControl = useTextarea || entityFileInput
+  const wideControl =
+    useTextarea || entityFileInput || isEntityJsonArrayField(field.key)
 
   return (
     <FormField
@@ -409,7 +465,7 @@ function EntityFieldControl({
       render={({ field: rhf, fieldState }) => (
         <FormItem className={wideControl ? 'sm:col-span-2' : undefined}>
           <FormLabel
-            {...(multiSelect
+            {...(multiSelect || field.key === 'temperature_sensors'
               ? { id: labelId }
               : customControl
                 ? { htmlFor: controlId }
@@ -423,7 +479,27 @@ function EntityFieldControl({
             ) : null}
             {required ? <RequiredMark /> : null}
           </FormLabel>
-          {entityFileInput ? (
+          {field.key === 'temperature_sensors' ? (
+            <div
+              id={controlId}
+              role="group"
+              aria-labelledby={labelId}
+              aria-invalid={fieldState.invalid || undefined}
+            >
+              <TemperatureSensorsEditor
+                value={parseEntityJsonArray<TemperatureSensor>(rhf.value)}
+                onChange={(value) => rhf.onChange(JSON.stringify(value))}
+                zoneCount={(() => {
+                  const raw = values['zone_count']
+                  const parsed = Number(Array.isArray(raw) ? '' : raw)
+                  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+                })()}
+                disabled={disabled}
+                showErrors={fieldState.invalid}
+                labels={buildTemperatureSensorsEditorLabels(t)}
+              />
+            </div>
+          ) : entityFileInput ? (
             <EntityFileControl
               value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
               initialValue={initialValue}

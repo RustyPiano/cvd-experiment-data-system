@@ -35,7 +35,7 @@ def test_process_step_required_extra_survives_nonmatching_condition(monkeypatch)
         "key": "field_params",
         "label": "外场参数",
         "module": "§5",
-        "group": "external_field",
+        "group": "reaction",
         "requirement": {
             "level": "conditional_required",
             "condition": {"field": "装置Setup.外场装置", "op": "ne", "value": "无"},
@@ -44,12 +44,12 @@ def test_process_step_required_extra_survives_nonmatching_condition(monkeypatch)
     doc = {
         "modules": {"§5": "process_steps"},
         "entity_keys": {},
-        "option_codes": {"反应生长": "growth"},
+        "option_codes": {"反应条件": "reaction_conditions"},
         "stage_types": {
             "types": [
                 {
-                    "name": "反应生长",
-                    "shows": ["external_field"],
+                    "name": "反应条件",
+                    "shows": ["reaction"],
                     "required_extra": ["field_params"],
                 }
             ]
@@ -59,7 +59,7 @@ def test_process_step_required_extra_survives_nonmatching_condition(monkeypatch)
         module_payloads=[
             SimpleNamespace(
                 module_key="process_steps",
-                payload_json={"items": [{"stage_type": "growth"}]},
+                payload_json={"items": [{"stage_type": "reaction_conditions"}]},
             )
         ],
         setup_ref_snapshot_json=None,

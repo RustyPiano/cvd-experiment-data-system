@@ -56,6 +56,7 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
   const { session } = useAuth()
   const token = session.accessToken || ''
   const viewerKey = session.currentUser?.id ?? 'anonymous'
+  const canMaintain = session.currentUser?.role === 'admin'
   const config = entityConfigs[kind]
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
   const entityListTitle = t(`entityLibrary.${config.i18nKey}.listTitle`)
@@ -128,13 +129,15 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
         title={entityListTitle}
         subtitle={t(`entityLibrary.${config.i18nKey}.subtitle`)}
         actions={
-          <Button
-            aria-label={createLabel}
-            onClick={() => void requestCreateOpen(true)}
-          >
-            <Plus data-icon="inline-start" />
-            {t('entityLibrary.actions.create')}
-          </Button>
+          canMaintain ? (
+            <Button
+              aria-label={createLabel}
+              onClick={() => void requestCreateOpen(true)}
+            >
+              <Plus data-icon="inline-start" />
+              {t('entityLibrary.actions.create')}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -159,14 +162,16 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
             <EmptyState
               description={t('entityLibrary.list.empty')}
               action={
-                <Button
-                  variant="outline"
-                  aria-label={createLabel}
-                  onClick={() => void requestCreateOpen(true)}
-                >
-                  <Plus data-icon="inline-start" />
-                  {t('entityLibrary.actions.create')}
-                </Button>
+                canMaintain ? (
+                  <Button
+                    variant="outline"
+                    aria-label={createLabel}
+                    onClick={() => void requestCreateOpen(true)}
+                  >
+                    <Plus data-icon="inline-start" />
+                    {t('entityLibrary.actions.create')}
+                  </Button>
+                ) : undefined
               }
             />
           ) : (
@@ -244,7 +249,7 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
       </Card>
 
       <Dialog
-        open={createOpen}
+        open={canMaintain && createOpen}
         onOpenChange={(open) => void requestCreateOpen(open)}
       >
         <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-2xl">

@@ -10,6 +10,60 @@ const parentSampleData = {
   id: 'parent-sample-1',
   sample_code: 'CVD-2026-0001-S01',
 }
+const frozenSubstrateSnapshot = {
+  material: 'sapphire_al2o3',
+  lot_ref: {
+    entity_id: '2de609d4-82d7-4ccf-867d-73526a2f8acf',
+    version: 3,
+    snapshot: {
+      entity_id: '2de609d4-82d7-4ccf-867d-73526a2f8acf',
+      version: 3,
+      lot_category: 'substrate',
+      substance_name: 'High-purity sapphire wafer',
+      chemical_formula: 'Al2O3',
+      batch_number: 'LOT-SAP-01',
+      attrs: {
+        supplier: 'Crystal Supplier',
+        catalog_number: 'SAP-2IN',
+        internal_note: 'lot-internal-must-not-render',
+      },
+      schema_version: 'internal-schema-must-not-render',
+    },
+  },
+  chemical_formula: 'Al2O3',
+  crystal_orientation: 'c-plane',
+  surface_roughness: {
+    metric: 'RMS',
+    value_nm: 0.42,
+    debug_value: 'roughness-internal-must-not-render',
+  },
+  size_placement: {
+    length_mm: 10,
+    width_mm: 8,
+    thickness_mm: 0.5,
+    placement: 'tilted',
+    tilt_angle_deg: 12,
+    snapshot_id: 'placement-internal-must-not-render',
+  },
+  pretreatment_steps: [
+    {
+      type: 'plasma_treatment',
+      parameters: {
+        power_W: 50,
+        gas_species: 'Ar',
+        duration_min: 5,
+        pressure_Pa: 10,
+        private_debug: 'treatment-internal-must-not-render',
+      },
+      entity_id: 'pretreatment-internal-must-not-render',
+    },
+  ],
+  zone_thermocouple_distance_mm: {
+    zone_index: 2,
+    distance_mm: 15,
+    schema: 'zone-internal-must-not-render',
+  },
+}
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => (
@@ -101,6 +155,41 @@ describe('structured sample provenance', () => {
     expect(screen.queryByText(/must not render/)).not.toBeInTheDocument()
   })
 
+  it('renders frozen lot and nested substrate values with named Chinese labels', () => {
+    sampleData = {
+      ...sampleData,
+      source_substrate_snapshot_json: frozenSubstrateSnapshot,
+    }
+
+    render(<SampleDetailPage />)
+
+    expect(
+      screen.getByText(/物质名称：High-purity sapphire wafer/),
+    ).toHaveTextContent('生产批号：LOT-SAP-01')
+    expect(
+      screen.getByText(/物质名称：High-purity sapphire wafer/),
+    ).toHaveTextContent('冻结版本：v3')
+    expect(screen.getByText(/粗糙度指标：RMS/)).toHaveTextContent(
+      '粗糙度数值（nm）：0.42',
+    )
+    expect(screen.getByText(/长度（mm）：10/)).toHaveTextContent(
+      '放置方式：倾角',
+    )
+    expect(screen.getByText(/长度（mm）：10/)).toHaveTextContent(
+      '倾斜角度（°）：12',
+    )
+    expect(screen.getByText(/处理方式：等离子体/)).toHaveTextContent(
+      '功率（W）：50',
+    )
+    expect(screen.getByText(/温区编号：2/)).toHaveTextContent('距离（mm）：15')
+
+    const pageText = document.body.textContent ?? ''
+    expect(pageText).not.toMatch(
+      /entity_id|snapshot|schema_version|value_nm|length_mm|placement:|internal-must-not-render/,
+    )
+    expect(pageText).not.toContain('2de609d4-82d7-4ccf-867d-73526a2f8acf')
+  })
+
   it('shows derived-sample lineage as a parent sample link', () => {
     sampleData = {
       ...sampleData,
@@ -159,5 +248,43 @@ describe('structured sample provenance', () => {
     expect(screen.getByText('Optical microscopy')).toBeInTheDocument()
     expect(screen.getByText('Raw')).toBeInTheDocument()
     expect(screen.queryByText('光镜')).not.toBeInTheDocument()
+  })
+
+  it('renders frozen lot and nested substrate values with named English labels', async () => {
+    await i18n.changeLanguage('en')
+    sampleData = {
+      ...sampleData,
+      source_substrate_snapshot_json: frozenSubstrateSnapshot,
+    }
+
+    render(<SampleDetailPage />)
+
+    expect(
+      screen.getByText(/Substance name: High-purity sapphire wafer/),
+    ).toHaveTextContent('Production batch number: LOT-SAP-01')
+    expect(
+      screen.getByText(/Substance name: High-purity sapphire wafer/),
+    ).toHaveTextContent('Frozen version: v3')
+    expect(screen.getByText(/Roughness metric: RMS/)).toHaveTextContent(
+      'Roughness value (nm): 0.42',
+    )
+    expect(screen.getByText(/Length \(mm\): 10/)).toHaveTextContent(
+      'Placement: Tilted',
+    )
+    expect(screen.getByText(/Length \(mm\): 10/)).toHaveTextContent(
+      'Tilt angle (°): 12',
+    )
+    expect(
+      screen.getByText(/Treatment type: Plasma treatment/),
+    ).toHaveTextContent('Power (W): 50')
+    expect(screen.getByText(/Zone number: 2/)).toHaveTextContent(
+      'Distance (mm): 15',
+    )
+
+    const pageText = document.body.textContent ?? ''
+    expect(pageText).not.toMatch(
+      /entity_id|snapshot|schema_version|value_nm|length_mm|placement:|internal-must-not-render/,
+    )
+    expect(pageText).not.toContain('2de609d4-82d7-4ccf-867d-73526a2f8acf')
   })
 })

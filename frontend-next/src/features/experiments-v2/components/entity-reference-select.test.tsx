@@ -18,7 +18,7 @@ vi.mock('@/features/auth/use-auth', () => ({
     session: {
       accessToken: 'token',
       isAuthenticated: true,
-      currentUser: { id: 'user-1' },
+      currentUser: { id: 'user-1', role: 'admin' },
     },
   }),
 }))
@@ -27,13 +27,19 @@ vi.mock('@/features/entity-library/entity-form', () => ({
     onSubmit,
     onCancel,
     onDirtyChange,
+    token,
   }: {
     onSubmit: (payload: Record<string, string>) => void
     onCancel: () => void
     onDirtyChange?: (dirty: boolean) => void
+    token?: string
   }) => (
     <>
-      <button type="button" onClick={() => onSubmit({ setup_code: 'SET-1' })}>
+      <button
+        type="button"
+        data-token={token}
+        onClick={() => onSubmit({ setup_code: 'SET-1' })}
+      >
         Save inline reference
       </button>
       <button type="button" onClick={() => onDirtyChange?.(true)}>
@@ -74,6 +80,9 @@ it('creates a reference in place and selects it immediately', async () => {
   await user.click(
     await screen.findByRole('button', { name: /Add Experimental setup/i }),
   )
+  expect(
+    screen.getByRole('button', { name: 'Save inline reference' }),
+  ).toHaveAttribute('data-token', 'token')
   await user.click(
     screen.getByRole('button', { name: 'Save inline reference' }),
   )
@@ -141,4 +150,42 @@ it('shows a retryable error instead of treating a failed query as an empty libra
   ).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(entityApi.listEntities).toHaveBeenCalledTimes(2))
+})
+
+it('renders the frozen snapshot and version for an existing reference', async () => {
+  entityApi.listEntities.mockResolvedValue({
+    items: [
+      {
+        id: 'setup-1',
+        latest_version: {
+          version: 3,
+          data: { setup_name: 'Current furnace', setup_code: 'SET-3' },
+        },
+      },
+    ],
+    total: 1,
+  })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect
+          kind="setup"
+          value="setup-1"
+          selectedVersion={1}
+          selectedSnapshot={{
+            setup_name_snapshot: 'Frozen furnace',
+            setup_code_snapshot: 'SET-1',
+          }}
+          filter={() => false}
+          onChange={vi.fn()}
+        />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  expect(await screen.findByText(/Frozen furnace · SET-1 · v1/)).toBeVisible()
+  expect(screen.queryByText(/Current furnace · SET-3 · v3/)).toBeNull()
 })

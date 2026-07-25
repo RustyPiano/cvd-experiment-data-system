@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import Integer, String
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -22,15 +23,19 @@ from app.models.v2_entities import (
 )
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.v2_repository import V2EntityRepository
+from app.schemas.generated.v2_module_payload import (
+    TemperatureSensorPayload,
+    TubeMaterialShapePayload,
+)
 from app.schemas.v2 import (
     V2EntityListResponse,
     V2EntityRead,
     V2EntityVersionListResponse,
-    V2EntityVersionPayload,
     V2EntityVersionRead,
 )
 from app.services.audit_service import AuditService
 from app.services.entity_file_service import ENTITY_ASSET_ROLE
+from app.services.v2_entity_snapshot_service import FIXED_COORDINATE_SYSTEM
 from app.services.v2_field_source import (
     canonical_option_value,
     condition_local_key,
@@ -90,9 +95,7 @@ class V2EntityService:
         ]
         return V2EntityListResponse(items=items, total=len(items))
 
-    def create_entity(
-        self, kind: str, payload: V2EntityVersionPayload, current_user: User
-    ) -> V2EntityRead:
+    def create_entity(self, kind: str, payload: BaseModel, current_user: User) -> V2EntityRead:
         repo = self._repo(kind)
         entity = repo.create_entity()
         version = self._build_version(kind, entity.id, 1, payload, current_user)
@@ -126,7 +129,7 @@ class V2EntityService:
         self,
         kind: str,
         entity_id: UUID,
-        payload: V2EntityVersionPayload,
+        payload: BaseModel,
         current_user: User,
     ) -> V2EntityVersionRead:
         repo = self._repo(kind)
@@ -176,11 +179,13 @@ class V2EntityService:
         kind: str,
         entity_id: UUID,
         version_number: int,
-        payload: V2EntityVersionPayload,
+        payload: BaseModel,
         current_user: User,
     ) -> Any:
         config = ENTITY_CONFIGS[kind]
         data = payload.model_dump()
+        if kind == "setup":
+            data["coordinate_system"] = FIXED_COORDINATE_SYSTEM
         allowed = {field["key"] for field in self.fields[kind]} - {"version"}
         unknown = sorted(set(data) - allowed)
         if unknown:
@@ -200,9 +205,10 @@ class V2EntityService:
                 if value is not None and (field.get("validation") or {}).get("require_value"):
                     self._raise_invalid(key, "value")
                 continue
-            if input_type in COMPOSITE_INPUTS and not isinstance(value, dict):
-                data[key] = self._normalize_composite_value(key, input_type, value, field)
-                value = data[key]
+            if input_type in COMPOSITE_INPUTS:
+                if not isinstance(value, dict):
+                    data[key] = self._normalize_composite_value(key, input_type, value, field)
+                    value = data[key]
             elif "下拉" in input_type or "多选" in input_type:
                 data[key] = canonical_option_value(value, self.doc)
                 value = data[key]
@@ -229,6 +235,16 @@ class V2EntityService:
                     ) from exc
             if input_type == "具名尺寸对象":
                 data[key] = self._normalize_tube_dimensions(key, value)
+                value = data[key]
+            elif key == "tube_material_shape":
+                data[key] = self._normalize_tube_material_shape(key, value)
+                value = data[key]
+            elif key == "temperature_sensors":
+                data[key] = self._normalize_temperature_sensors(
+                    key,
+                    value,
+                    zone_count=data.get("zone_count"),
+                )
                 value = data[key]
             if input_type == "日期":
                 try:
@@ -367,6 +383,57 @@ class V2EntityService:
             self._raise_invalid(key, "value")
         return {"outer_diameter_mm": outer, "wall_thickness_mm": wall}
 
+    def _normalize_tube_material_shape(self, key: str, raw: Any) -> dict[str, Any]:
+        if not isinstance(raw, dict):
+            self._raise_invalid(key, "type")
+        normalized = {
+            **raw,
+            "material": canonical_option_value(raw.get("material"), self.doc),
+            "shape": canonical_option_value(raw.get("shape"), self.doc),
+        }
+        try:
+            return TubeMaterialShapePayload.model_validate(normalized).model_dump()
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": key, "reason": "value"}]},
+            ) from exc
+
+    def _normalize_temperature_sensors(
+        self,
+        key: str,
+        raw: Any,
+        *,
+        zone_count: object,
+    ) -> list[dict[str, Any]]:
+        if not isinstance(raw, list):
+            self._raise_invalid(key, "type")
+        try:
+            sensors = [
+                TemperatureSensorPayload.model_validate(
+                    {
+                        **item,
+                        "uncertainty_source": canonical_option_value(
+                            item.get("uncertainty_source"), self.doc
+                        ),
+                    }
+                )
+                for item in raw
+                if isinstance(item, dict)
+            ]
+            zones = [sensor.zone_index for sensor in sensors]
+            if len(sensors) != len(raw) or len(zones) != len(set(zones)):
+                raise ValueError
+            maximum_zone = int(zone_count)
+            if set(zones) != set(range(1, maximum_zone + 1)):
+                raise ValueError
+        except (TypeError, ValueError, ValidationError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": key, "reason": "value"}]},
+            ) from exc
+        return [sensor.model_dump() for sensor in sensors]
+
     def _file_asset_snapshot(
         self,
         key: str,
@@ -464,6 +531,13 @@ class V2EntityService:
                 and missing(data.get(key))
             ):
                 missing_fields.append(key)
+            if (
+                condition
+                and local_key
+                and not condition_matches(condition, data.get(local_key))
+                and not missing(data.get(key))
+            ):
+                self._raise_invalid(key, "not_applicable")
         if missing_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -28,6 +28,7 @@ import type {
 } from './field-logic'
 import {
   buildFlatModulePayload,
+  buildItemPayload,
   buildItemsModulePayload,
   buildProcessStepsPayload,
   buildTargetProductPayload,
@@ -41,6 +42,7 @@ import {
   missingRequiredKeys,
   moduleValueAsString,
   moduleValueIsEmpty,
+  processStepOrderIsValid,
 } from './field-logic'
 import { toIsoDateTime } from './datetime'
 import { createRun, setSetupReference, upsertModule } from './api'
@@ -50,11 +52,40 @@ import { BasicInfoSection } from './components/basic-info-section'
 import { TargetProductSection } from './components/target-product-section'
 import { EquipmentSection } from './components/equipment-section'
 import { RepeatableItemsSection } from './components/repeatable-items-section'
-import { ProcessStepsSection } from './components/process-steps-section'
+import {
+  ProcessStepsSection,
+  setupFieldTypes,
+} from './components/process-steps-section'
 import { ResultsSection } from './components/results-section'
-import { localizedFieldLabel } from '@/shared/field-i18n'
+import { canonicalOption, localizedFieldLabel } from '@/shared/field-i18n'
+import { gasFeedsAreValid } from './components/gas-feeds-editor'
+import type { GasFeed } from './components/gas-feeds-editor'
+import {
+  coolingParamsAreValid,
+  durationCyclesAreValid,
+  fieldParamsAreValid,
+  measuredTemperatureIsValid,
+  preparationOperationsAreValid,
+} from './components/process-detail-editors'
+import type {
+  ActualField,
+  CoolingParams,
+  DurationCycles,
+  MeasuredTemperatureReference,
+  PreparationOperation,
+} from './components/process-detail-editors'
+import { temperatureProgramIsValid } from './components/temperature-program-editor'
+import type { TemperatureProgram } from './components/temperature-program-editor'
+import { treatmentStepsAreValid } from './components/treatment-steps-editor'
+import type { TreatmentStep } from './components/treatment-steps-editor'
 
-const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method']
+const ESSENTIAL_RUN_KEYS = [
+  'started_at',
+  'synthesis_method',
+  'ambient_temperature_C',
+  'ambient_humidity_percent',
+  'precheck_confirmed',
+]
 
 const FORM_SECTION_LINKS = [
   { id: 'module-basic_info', index: '§1', titleKey: 'basicInfo' },
@@ -109,9 +140,29 @@ function targetProductMissing(
 }
 
 function itemsMissing(moduleKey: string, items: ModuleValues[]): boolean {
-  return items
-    .filter(itemHasAnyValue)
-    .some((item) => missingRequiredKeys(moduleKey, item).length > 0)
+  return items.filter(itemHasAnyValue).some((item) => {
+    if (missingRequiredKeys(moduleKey, item).length > 0) return true
+    try {
+      buildItemPayload(moduleKey, item)
+      const treatmentKey =
+        moduleKey === 'precursors'
+          ? 'treatment_steps'
+          : moduleKey === 'substrates'
+            ? 'pretreatment_steps'
+            : null
+      if (!treatmentKey) return false
+      const raw = moduleValueAsString(item[treatmentKey])
+      return (
+        raw.trim() !== '' &&
+        !treatmentStepsAreValid(
+          moduleKey === 'precursors' ? 'precursor' : 'substrate',
+          JSON.parse(raw) as TreatmentStep[],
+        )
+      )
+    } catch {
+      return true
+    }
+  })
 }
 
 /** §5 过程步：已选阶段的步中有必填空缺（外场组显隐依赖 §2 装置快照）。 */
@@ -119,9 +170,89 @@ function processStepsMissing(
   steps: ModuleValues[],
   setupSnapshot: Record<string, unknown> | null,
 ): boolean {
-  return steps
-    .filter(isProcessStepActive)
-    .some((step) => missingProcessStepKeys(step, setupSnapshot).length > 0)
+  const active = steps.filter(isProcessStepActive)
+  for (const primary of ['preparation', 'reaction_conditions']) {
+    if (
+      active.filter(
+        (step) =>
+          canonicalOption(moduleValueAsString(step['stage_type'])) === primary,
+      ).length > 1
+    ) {
+      return true
+    }
+  }
+  if (!processStepOrderIsValid(active)) return true
+  const zoneCountValue = Number(setupSnapshot?.['zone_count'])
+  const zoneCount =
+    Number.isInteger(zoneCountValue) && zoneCountValue > 0
+      ? zoneCountValue
+      : null
+  const allowedFieldTypes = setupFieldTypes(setupSnapshot)
+  return active.some((step) => {
+    if (missingProcessStepKeys(step, setupSnapshot).length > 0) return true
+    try {
+      buildProcessStepsPayload([step], setupSnapshot)
+      const stageType = canonicalOption(moduleValueAsString(step['stage_type']))
+      if (stageType === 'preparation') {
+        return !preparationOperationsAreValid(
+          JSON.parse(
+            moduleValueAsString(step['preparation_operations']),
+          ) as PreparationOperation[],
+        )
+      }
+      if (stageType !== 'reaction_conditions') return false
+      const optional = <T,>(key: string): T | null => {
+        const raw = moduleValueAsString(step[key])
+        return raw.trim() ? (JSON.parse(raw) as T) : null
+      }
+      const temperatureProgram = JSON.parse(
+        moduleValueAsString(step['temperature_program']),
+      ) as TemperatureProgram
+      const gasFeeds = JSON.parse(
+        moduleValueAsString(step['gas_feeds']),
+      ) as GasFeed[]
+      const durationCycles = JSON.parse(
+        moduleValueAsString(step['duration_cycles']),
+      ) as DurationCycles
+      const fieldParams = optional<ActualField[]>('field_params') ?? []
+      const duration = durationCycles.duration_min
+      const timelineExceedsDuration =
+        typeof duration === 'number' &&
+        (temperatureProgram.zones.some((zone) =>
+          zone.points.some(
+            (point) =>
+              typeof point.elapsed_min === 'number' &&
+              point.elapsed_min > duration,
+          ),
+        ) ||
+          gasFeeds.some((feed) =>
+            feed.intervals.some(
+              (interval) =>
+                typeof interval.end_min === 'number' &&
+                interval.end_min > duration,
+            ),
+          ) ||
+          fieldParams.some(
+            (field) =>
+              typeof field.end_min === 'number' && field.end_min > duration,
+          ))
+      return (
+        !temperatureProgramIsValid(temperatureProgram, zoneCount) ||
+        !gasFeedsAreValid(gasFeeds) ||
+        !durationCyclesAreValid(durationCycles) ||
+        timelineExceedsDuration ||
+        !measuredTemperatureIsValid(
+          optional<MeasuredTemperatureReference>('measured_temperature'),
+          zoneCount,
+        ) ||
+        !coolingParamsAreValid(optional<CoolingParams>('cooling_params')) ||
+        (allowedFieldTypes.length > 0 &&
+          !fieldParamsAreValid(fieldParams, allowedFieldTypes))
+      )
+    } catch {
+      return true
+    }
+  })
 }
 
 type ModuleContext = {
@@ -144,7 +275,9 @@ const MODULE_SPECS: ModuleSpec[] = [
     missing: ({ mode, state }) =>
       mode === 'new'
         ? ESSENTIAL_RUN_KEYS.some((key) =>
-            moduleValueIsEmpty(state.basic_info[key]),
+            key === 'precheck_confirmed'
+              ? moduleValueAsString(state.basic_info[key]) !== 'true'
+              : moduleValueIsEmpty(state.basic_info[key]),
           )
         : missingRequiredKeys('basic_info', state.basic_info).length > 0,
     payload: ({ state, runCode }) => {
@@ -198,7 +331,8 @@ const MODULE_SPECS: ModuleSpec[] = [
   {
     key: 'process_events',
     active: ({ state }) => state.process_events.some(itemHasAnyValue),
-    missing: () => false,
+    missing: ({ state }) =>
+      itemsMissing('process_events', state.process_events),
     payload: ({ state }) =>
       buildItemsModulePayload('process_events', state.process_events),
   },
@@ -327,6 +461,14 @@ export function ExperimentV2Form({
     synthesis_method: moduleValueAsString(
       state.basic_info['synthesis_method'],
     ).trim(),
+    ambient_temperature_C: Number(
+      moduleValueAsString(state.basic_info['ambient_temperature_C']),
+    ),
+    ambient_humidity_percent: Number(
+      moduleValueAsString(state.basic_info['ambient_humidity_percent']),
+    ),
+    precheck_confirmed:
+      moduleValueAsString(state.basic_info['precheck_confirmed']) === 'true',
   })
 
   const moduleContext = (
@@ -527,7 +669,6 @@ export function ExperimentV2Form({
                 moduleKey="precursors"
                 index="§3"
                 title={t('experimentsV2.sections.precursors.title')}
-                subtitle={t('experimentsV2.sections.precursors.subtitle')}
                 addLabel={t('experimentsV2.sections.precursors.add')}
                 emptyHint={t('experimentsV2.sections.precursors.empty')}
                 itemLabel={(position) =>
@@ -543,7 +684,6 @@ export function ExperimentV2Form({
                 moduleKey="substrates"
                 index="§4"
                 title={t('experimentsV2.sections.substrates.title')}
-                subtitle={t('experimentsV2.sections.substrates.subtitle')}
                 addLabel={t('experimentsV2.sections.substrates.add')}
                 emptyHint={t('experimentsV2.sections.substrates.empty')}
                 itemLabel={(position) =>
@@ -556,6 +696,7 @@ export function ExperimentV2Form({
                 save={saveProps('substrates')}
               />
               <ProcessStepsSection
+                runId={runId ?? ''}
                 steps={state.process_steps}
                 setupSnapshot={state.equipment.snapshot}
                 onStepsChange={setProcessSteps}
@@ -565,9 +706,9 @@ export function ExperimentV2Form({
               />
               <RepeatableItemsSection
                 moduleKey="process_events"
+                runId={runId}
                 index="§6"
                 title={t('experimentsV2.sections.processEvents.title')}
-                subtitle={t('experimentsV2.sections.processEvents.subtitle')}
                 addLabel={t('experimentsV2.sections.processEvents.add')}
                 emptyHint={t('experimentsV2.sections.processEvents.empty')}
                 itemLabel={(position) =>

@@ -85,10 +85,16 @@ vi.mock('./components/repeatable-items-section', () => ({
 vi.mock('./components/process-steps-section', () => ({
   ProcessStepsSection: ({ save }: SectionProps) =>
     sectionStub('process_steps', save),
+  setupFieldTypes: () => [],
 }))
 vi.mock('./components/results-section', () => ({ ResultsSection: () => null }))
 
 function completeState() {
+  const lotRef = {
+    entity_id: '00000000-0000-4000-8000-000000000001',
+    version: 1,
+    snapshot: { lot_code: 'LOT-1' },
+  }
   return {
     basic_info: {
       ...emptyModuleValues('basic_info'),
@@ -96,11 +102,15 @@ function completeState() {
       synthesis_method: 'APCVD',
       operator: 'operator-1',
       run_code: 'RUN-DRAFT',
+      ambient_temperature_C: '23',
+      ambient_humidity_percent: '45',
+      precheck_confirmed: 'true',
     },
     target_product: {
       ...emptyModuleValues('target_product'),
       chemical_formula: 'MoS2',
       structure_type: '本征',
+      target_morphology: 'nanoflake',
     },
     components: [],
     equipment: {
@@ -113,16 +123,46 @@ function completeState() {
         ...emptyModuleValues('precursors'),
         name_formula: 'MoO3',
         phase_state: '气',
+        lot_ref: JSON.stringify(lotRef),
       },
     ],
-    substrates: [{ ...emptyModuleValues('substrates'), material: 'h-BN' }],
+    substrates: [
+      {
+        ...emptyModuleValues('substrates'),
+        material: 'sapphire_al2o3',
+        lot_ref: JSON.stringify(lotRef),
+        chemical_formula: 'Al2O3',
+        crystal_orientation: 'c-plane',
+        miscut_angle_deg: '0',
+        surface_roughness: JSON.stringify({ metric: 'RMS', value_nm: 0.2 }),
+        size_placement: JSON.stringify({
+          length_mm: 10,
+          width_mm: 10,
+          placement: 'face_up',
+        }),
+      },
+    ],
     process_steps: [
-      { ...emptyModuleValues('process_steps'), stage_type: '卸样' },
+      {
+        ...emptyModuleValues('process_steps'),
+        stage_type: 'preparation',
+        preparation_operations: JSON.stringify([
+          {
+            operation_type: 'pump_down',
+            target_absolute_pressure_Pa: 100,
+            duration_min: 5,
+          },
+        ]),
+      },
     ],
     process_events: [
       {
         ...emptyModuleValues('process_events'),
-        description_action: 'checked',
+        event_id: '00000000-0000-4000-8000-000000000002',
+        event_type: 'manual_intervention',
+        occurred_at: '2026-07-11T08:35',
+        terminated_run: 'false',
+        action_taken: 'checked',
       },
     ],
   }
@@ -168,14 +208,24 @@ describe('ExperimentV2Form module saves', () => {
       'precursors',
       { items: [expect.objectContaining({ name_formula: 'MoO3' })] },
     ],
-    ['substrates', { items: [expect.objectContaining({ material: 'h-BN' })] }],
+    [
+      'substrates',
+      { items: [expect.objectContaining({ material: 'sapphire_al2o3' })] },
+    ],
     [
       'process_steps',
-      { items: [expect.objectContaining({ stage_type: 'unload' })] },
+      { items: [expect.objectContaining({ stage_type: 'preparation' })] },
     ],
     [
       'process_events',
-      { items: [expect.objectContaining({ description_action: 'checked' })] },
+      {
+        items: [
+          expect.objectContaining({
+            action_taken: 'checked',
+            terminated_run: false,
+          }),
+        ],
+      },
     ],
   ])(
     'saves %s to its module endpoint with its payload',
@@ -295,6 +345,9 @@ describe('ExperimentV2Form create and save', () => {
       {
         started_at: expect.stringMatching(/^2026-07-11T/),
         synthesis_method: 'APCVD',
+        ambient_temperature_C: 23,
+        ambient_humidity_percent: 45,
+        precheck_confirmed: true,
       },
       'token',
     )

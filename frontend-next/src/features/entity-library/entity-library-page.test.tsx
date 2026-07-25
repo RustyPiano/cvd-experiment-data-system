@@ -28,7 +28,7 @@ vi.mock('@/features/auth/use-auth', () => ({
     session: {
       accessToken: 'token',
       isAuthenticated: true,
-      currentUser: { id: 'user-1' },
+      currentUser: { id: 'user-1', role: 'admin' },
     },
   }),
 }))

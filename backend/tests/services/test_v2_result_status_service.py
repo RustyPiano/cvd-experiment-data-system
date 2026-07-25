@@ -49,14 +49,14 @@ def test_non_terminal_run_is_not_marked_missing(db_session, active_user) -> None
     assert run.result_missing_todo is False
 
 
-def test_characterization_clears_missing_flag(db_session, active_user) -> None:
+def test_empty_characterization_row_does_not_clear_missing_flag(db_session, active_user) -> None:
     run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
     sample = _sample(db_session, run)
     db_session.add(CharacterizationRecord(experiment_run_id=run.id, sample_id=sample.id))
     db_session.commit()
 
-    assert refresh_result_missing_todo(db_session, run) is False
-    assert run.result_missing_todo is False
+    assert refresh_result_missing_todo(db_session, run) is True
+    assert run.result_missing_todo is True
 
 
 def test_any_measured_result_row_clears_missing_flag(db_session, active_user) -> None:
@@ -97,3 +97,24 @@ def test_empty_json_values_do_not_clear_missing_flag(db_session, active_user) ->
 
     assert refresh_result_missing_todo(db_session, run) is True
     assert run.result_missing_todo is True
+
+
+def test_other_phenomenon_needs_detail_to_clear_missing_flag(
+    db_session,
+    active_user,
+) -> None:
+    run = _run(db_session, active_user, status=ExperimentStatus.LOCKED)
+    sample = _sample(db_session, run)
+    product = MeasuredProduct(
+        sample_id=sample.id,
+        observed_phenomena=["other"],
+        attrs={},
+    )
+    db_session.add(product)
+    db_session.commit()
+
+    assert refresh_result_missing_todo(db_session, run) is True
+
+    product.attrs = {"observed_phenomena_other": "triangular domains"}
+    db_session.commit()
+    assert refresh_result_missing_todo(db_session, run) is False
