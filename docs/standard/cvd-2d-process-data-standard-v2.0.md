@@ -2,7 +2,7 @@
 
 > 状态：**DRAFT**，供内部审阅，尚未冻结。
 > 规范版本：`2.0.0`（草案）。对应数据载荷 `schema_version = cvd_v2`。
-> 版本口径：`2.0.0` 是标准语义版本，`cvd_v2` 是载荷标识，`v3.7` 是冻结前字段表内部修订号；文件名 `字段草案-v3.xlsx` 为沿用的交付物名称，不表示第三套 schema。
+> 版本口径：`2.0.0` 是标准语义版本，`cvd_v2` 是载荷标识，`v3.11` 是冻结前字段表内部修订号；文件名 `字段草案-v3.xlsx` 为沿用的交付物名称，不表示第三套 schema。
 > **实现状态**：仓库与香港生产均已完成 v2 单轨和炉次优先产品工作流；旧 v1 数据库离线归档。字段科学语义仍以本标准和字段单一源为准。整体现状见 [`STATUS.md`](STATUS.md)。
 > 适用范围：化学气相沉积（CVD）法生长二维材料的**工艺参数 → 客观结果（含失败）** 数据；含物理气相沉积（PVD）延后 profile。
 > **权威字段字典**：机读、逐字段的唯一权威源是 [`field-source.yaml`](field-source.yaml)；[`字段草案-v3.xlsx`](字段草案-v3.xlsx)、JSON Schema、后端模型和前端字段元数据均由它生成。本文是**人读规范 + 规则书 + 设计依据 + 词表 + 治理**。
@@ -40,7 +40,7 @@
 
 元数据是描述实验数据及其产生语境的数据；"数据到底、不可再分"是本项目对**字段粒度与原子性**的评审口径，不是 metadata 的通用定义。为保证字段能支持复现和失败溯源，每个候选字段过以下五关，过不了的删：
 
-1. **数值化 / 受控**：能量化的必须数值 + 单位；不能量化的用受控词表，**禁止主观形容词**（如删除 v1 的 clean/normal/contaminated 样品环境枚举，改悬浮粒子浓度数值）。
+1. **数值化 / 受控**：能量化的必须数值 + 单位；不能量化的用受控词表，**禁止主观形容词**（如删除 v1 的 clean/normal/contaminated 样品环境枚举；实验环境保留每炉实填的温度和湿度）。
 2. **不可再分**：复合概念拆维度（如"蓝宝石单抛C<0001>"→ 材料/抛光/晶向三字段）。
 3. **可溯源**：凡涉及实物（化学品/衬底/气瓶/仪器），记录的是**批次/实体引用**而非名字（见 §3 实体引用）。
 4. **有依据**：每个字段写得出"为什么记"；科学量给出机理或文献，流程/治理字段给出会议、规范或评审来源——见字段源和设计依据文档。
@@ -54,7 +54,7 @@
 - 数据载荷携带 `schema_version`。仓库与生产参考实现均单轨使用 `cvd_v2`（↔ 2.0.x）；2026-07-24 生产切换使用全新 v2 数据库，旧 v1 数据库离线归档，不执行 `cvd_v1 → cvd_v2` 数据迁移。
 - datetime 字段保存 ISO 8601 日期时间和 UTC offset；浏览器未提供 offset 的本地时间按部署变量 `EXPERIMENT_TIMEZONE` 解释。纯日期不能代替时刻。
 - **受控核心 + 登记扩展**：核心字段集由本规范统一管理；机构特有扩展字段须加机构前缀（参照 OPTIMADE `_provider_`，如 `_pku_chamber_pressure_pa`），不得污染核心命名空间。
-- **术语审定**：中文字段名依国标 / 计量规范 / 名词委审定名核证（衬底≠基底、批号≠批次号、环境温湿度≠室内温湿度、气路置换≠洗炉、校准≠标定、晶畴尺寸、覆盖率、随炉冷却/快速冷却、硫属源、悬浮粒子浓度等）。完整对照见设计依据文档 §六。
+- **术语审定**：中文字段名依国标 / 计量规范 / 名词委审定名核证（衬底≠基底、批号≠批次号、环境温湿度≠室内温湿度、气路置换≠洗炉、校准≠标定、晶畴尺寸、覆盖率、随炉冷却/快速冷却、硫属源等）。完整对照见设计依据文档 §六。
 - **演进治理**：推广期设轻量"标准维护小组"审字段增改；近期以 PI 间轻量协议替代正式委员会（借鉴 CIF/COMCIFS）。
 
 ### 2.1 机器值与显示值
@@ -103,9 +103,9 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
 
 对标 NOMAD/GEMD 的 Spec-vs-Run 与 ESCALATE 的 Material-vs-InventoryMaterial：
 
-- **装置库 Setup**：一台炉登记一次，实验只引用；引用时**快照冻结**当时的装置定义（含坐标系、各温区温度传感器及不确定度、外场能力），事后改装置不影响旧记录。实体带 `版本号`（每次修改 +1，引用锁定该版本）。**实验 §2 的装置属性（壁型/温区数/炉体方向/管径/坐标系等）由所引用 Setup 快照【只读投影】带出，不独立重录**。`temperature_sensors[]` 必须以 `zone_index` 恰好覆盖 `1..zone_count`，每区一条，记录 `sensor_name / sensor_type / uncertainty_C / uncertainty_source`，其中不确定度来源限于仪器、校准、重复性或估计；`field_devices` 只表示装置具备的等离子、光、电能力，不等于本炉实际启用。
+- **装置库 Setup**：一台炉登记一次，实验只引用；引用时**快照冻结**当时的装置定义（含坐标系、各温区温度传感器及不确定度、外场能力），事后改装置不影响旧记录。实体带 `版本号`（每次修改 +1，引用锁定该版本）。**实验 §2 的装置属性（壁型/温区数/炉体方向/截面尺寸/坐标系等）由所引用 Setup 快照【只读投影】带出，不独立重录**。圆形、方形、矩形截面分别记录外径、外边长、外宽与外高，并共同记录壁厚；`temperature_sensors[]` 必须以 `zone_index` 恰好覆盖 `1..zone_count`，每区一条，记录 `sensor_name / sensor_type / uncertainty_C / uncertainty_source`，其中不确定度来源限于仪器、校准、重复性或估计；`field_devices` 只表示装置具备的等离子体、光、电能力，不等于本炉实际启用。
 - **MaterialLot / Setup / Instrument 均带 `版本号`**（改则新版本，旧引用不受影响）。炉次本身不建立 `experiment_versions`；工艺锁定、实体快照与审计日志分别承担不可变工艺、引用溯源和操作留痕。
-- **物料批次库 MaterialLot**：化学身份层（物质名/CAS/分子式）+ 商业批次层（供应商/货号/**批号/纯度/粒径**/形态/开封/存储/证书）。衬底批次子类 + 氧化层厚度/晶向/抛光；气瓶批次 + 纯度等级。当前 R0 要求前驱体与衬底使用版本引用，预处理气路置换和反应条件中的每种气体也必须引用气瓶批次；纯度、粒径和证据由冻结快照带出，不得把未引用的批次属性伪装为已知。
+- **物料批次库 MaterialLot**：化学身份层（物质名/CAS/分子式）+ 商业批次层（供应商/货号/**批号/纯度**/开封/存储/证书）。粒径仅属于化学品，粉末/箔/靶等形态不适用于气瓶。衬底批次保存材料、氧化层、晶向与抛光、偏切和标称粗糙度；晶向/抛光与偏切分别显式记录“有规格数值 / 供应商未提供 / 不适用”，只有有规格时展开明细，禁止用虚构晶向或偏切角 `0` 代替未知。当前 R0 要求前驱体与衬底使用版本引用，预处理气路置换和反应条件中的每种气体也必须引用气瓶批次；批次事实与证据由冻结快照带出，不得把未引用的批次属性伪装为已知。
 - **批次引用载荷**：调用方只提交 `entity_id + version`；服务端验证实体类别和材料身份，忽略调用方提供的 snapshot，并从不可变版本重建快照。该规则同时适用于前驱体、衬底和 PVD 靶材。
 - **实体附件**：CoA、Setup 图等先通过实体附件端点上传，再以 `file_asset_id + sha256` 写入实体版本。服务端绑定 `entity_type/entity_id/entity_version`；绑定后的附件属于不可变版本证据，不允许删除。
 
@@ -159,7 +159,7 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
 | `precursors.items[].role` | 主源 / 辅助剂 / 掺杂源 / other | 否 |
 | `treatment_steps[].type` | 直接加载 / 熔融凝固 / 压片 / 旋涂 / 退火 / 研磨 / other | 否 |
 | `substrates.items[].material` | SiO₂/Si · 蓝宝石(Al₂O₃) · 石英 · 云母 · Cu箔 · Au箔 · h-BN · other | 否 |
-| `pretreatment_steps[].type` | 清洗 / 退火 / 等离子 / 亲水化 / other（有序序列） | 否 |
+| `pretreatment_steps[].type` | 清洗 / 退火 / 等离子体处理 / 亲水化 / other（有序序列） | 否 |
 | `stage_type` | 预处理 `preparation` / 反应条件 `reaction_conditions` / 其他记录 `other` | 否 |
 | `pressure_system` | 常压(APCVD) / 低压(LPCVD) / 超高真空 | 否 |
 | `gas_feeds[].species` | Ar / N₂ / H₂ / O₂ / CH₄ / other（只保留单一气体身份；混合供气拆成多条） | 否 |
@@ -172,14 +172,14 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
 
 > 实体登记项（品牌/型号、批次）由实验室成员维护。凡契约设有 `*_other` 或“其他名称”字段的选择，other 与具名明细必须同时出现或同时为空。
 
-**过程记录结构（字段表 §5，现行 v3.7 契约）**：
+**过程记录结构（字段表 §5，现行 v3.11 契约）**：
 
 - `process_steps.items[]` 是按记录类型判别的数组。锁定时必须**恰好一条** `preparation` 和**恰好一条** `reaction_conditions`；未覆盖的操作可追加任意多条 `other`，但每条都必须同时填写 `other_stage_name` 和 `notes`，不得只保存“其他”。
 - 预处理由 `preparation_operations[]` 按顺序记录：抽气 `pump_down`、气路置换 `gas_exchange` 或具名其他操作。抽气记录目标绝对压力与时长；气路置换记录循环次数、时长及逐气体条目；具名其他操作记录名称和具名参数。漏率是否逐炉记录仍待组内确认，不能先塞入抽气字段。
 - 反应设定温度使用 `temperature_program.zones[]`。温区索引必须无重复并恰好覆盖 Setup 的 `1..zone_count`；每个温区的时间点严格递增，`setpoint_C > -273.15`。相邻同温点表达保温，不使用人为拆分的阶段标签代替数值程序。
 - 反应供气使用 `gas_feeds[]`，**每种气体一条**：`species`（选择 other 时必须有 `other_name`）、气瓶 `lot_ref` 冻结快照、可选测量来源，以及一个或多个 `{start_min,end_min,flow_sccm}` 区间。同一气体的区间不得重叠；气体品种必须与气瓶快照中的化学式/物质名称一致，且快照须含批号和纯度。不存在跨气体共享的流量、纯度、来源或时段字段。
 - 反应条件同时记录 `pressure_system`（类别 + 工作绝对压力）和 `duration_cycles`。所有温度点、供气区间结束时刻和外场区间结束时刻均不得超过 `duration_min`。
-- `field_params[]` 只记录本炉实际启用的等离子、光或电场及其时间区间、具名参数；其 `field_type` 必须已出现在所引 Setup 的 `field_devices` 能力中。
+- `field_params[]` 只记录本炉实际启用的等离子体、光或电场及其时间区间、具名参数；其 `field_type` 必须已出现在所引 Setup 的 `field_devices` 能力中。
 
 **过程事件与附件（字段表 §6）**：
 
@@ -271,7 +271,7 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
   - 目标产物 4 项：`chemical_formula · structure_type · components(非本征时) · target_morphology`；
   - Setup 引用/快照 4 项：`setup_ref · zone_count · orientation · temperature_sensors`；
   - 前驱体 3 项：`name_formula · lot_ref · amount(非气态时)`；
-  - 衬底 6 项：`material · lot_ref · chemical_formula · crystal_orientation · surface_roughness · size_placement`；
+  - 衬底 6 项：`material · lot_ref · chemical_formula · orientation_polish_availability · surface_roughness · size_placement`；
   - 过程 6 项：`stage_type · preparation_operations(预处理) · temperature_program(反应条件) · gas_feeds(反应条件) · pressure_system(反应条件) · duration_cycles(反应条件)`。
 - **R0 按相态 / 结构类型 / 记录类型条件化**（避免逼出垃圾值、让条件可被 schema 评估）：前驱体 `amount` 仅 `phase_state≠gas` 时必填；`components` 在 `structure_type≠intrinsic` 时必填；预处理和反应条件各自只要求其判别分支字段。
 - **锁定语义校验不另计入“30 项”**：锁定还要求恰好一条预处理和一条反应条件、温区完整覆盖 Setup、逐气体气瓶身份/纯度快照正确、过程时间不越过总时长、实际外场属于 Setup 能力，以及过程文件/事件附件引用有效。字段数量与跨字段/跨实体校验数量不得混算。
@@ -284,7 +284,7 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
 
 - 实验时间(datetime) 置首（t0）；`experiment_type` → `合成方法`（顶层选择器 + CHMO）；`material_system` → `目标产物`（拆出目标层数）。
 - 新增 §1b 目标产物；对称性用**体相空间群**（手性/扭转角/堆垛→备注）；结构类型独立下拉。
-- 设备：坐标系全局定死；炉管材质和截面、外径和壁厚分别用具名对象；Setup 登记各温区传感器/不确定度和外场能力，本炉实际外场在反应条件中记录。
+- 设备：坐标系全局定死；炉管材质、截面及按截面形状展开的具名尺寸与壁厚分别记录；Setup 登记各温区传感器/不确定度和外场能力，本炉实际外场在反应条件中记录。
 - 前驱体/衬底：**版本化批次引用**替代品牌+批次自由文本；用量只记投料；衬底保留化学式、晶向、粗糙度、具名尺寸/放置和氧化层厚度条件。
 - 实验过程：不再使用旧的细分流程枚举，而是预处理、反应条件和具名其他三类判别记录；温度使用分温区数值程序 + 实测文件/通道引用；气体按品种独立绑定气瓶和多段流量区间；压力记类别 + 工作绝对压力；时长、降温和外场各自结构化。
 - §6：过程事件使用稳定 UUID，并独立保存事件名称、发生时刻、是否终止/原因、说明、措施和事件附件。
@@ -329,4 +329,4 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
 
 ---
 
-*本 v2.0 草案基于 `field-source.yaml` 生成的 v3.7 候选字段表（源自 2026-06-24 逐字段评审及后续契约审查）与 `metadata-v2-review-and-redesign.md`（自查 + 国际对标 + 隐变量文献）重写，替代已归档的 v1 标准 `docs/archive/cvd-2d-process-data-standard-v0.1.md`。*
+*本 v2.0 草案基于 `field-source.yaml` 生成的 v3.11 候选字段表（源自 2026-06-24 逐字段评审及后续契约审查）与 `metadata-v2-review-and-redesign.md`（自查 + 国际对标 + 隐变量文献）重写，替代已归档的 v1 标准 `docs/archive/cvd-2d-process-data-standard-v0.1.md`。*

@@ -4,6 +4,7 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
+  canonicalFieldOption,
   canonicalOption,
   localizedFieldHelp,
   localizedFieldLabel,
@@ -50,6 +51,7 @@ import {
   numericInputAttributes,
   numericValidationIssue,
 } from '@/shared/field-validation'
+import { spaceGroupNumber, spaceGroupOptions } from '../space-groups'
 
 // 跨模块用多行输入的字段键（长文本/描述/清单）。
 const TEXTAREA_KEYS = new Set([
@@ -82,6 +84,9 @@ export function FieldControl({
   pattern,
   hiddenOptions,
   hideHelp,
+  helpOverride,
+  placeholderOverride,
+  structuredZoneCount,
 }: {
   moduleKey: string
   field: FieldMetadata
@@ -102,6 +107,9 @@ export function FieldControl({
   pattern?: string
   hiddenOptions?: readonly string[]
   hideHelp?: boolean
+  helpOverride?: string
+  placeholderOverride?: string
+  structuredZoneCount?: number | null
 }) {
   const { i18n, t } = useTranslation()
   const controlId = useId()
@@ -111,6 +119,7 @@ export function FieldControl({
   const parsedEnumOptions = parseEnumOptions(
     field.input,
     field.options,
+    field.key,
   )?.filter(
     (option) =>
       !hiddenOptions?.map(canonicalOption).includes(option) &&
@@ -119,11 +128,22 @@ export function FieldControl({
   const enumOptions = parsedEnumOptions
   const multiValue = isMultiValueInput(field.input)
   const selectedValues = Array.isArray(value)
-    ? value.map(canonicalOption)
+    ? value.map((item) => canonicalFieldOption(field.key, item))
     : moduleValueAsString(value)
-      ? [canonicalOption(moduleValueAsString(value))]
+      ? [canonicalFieldOption(field.key, moduleValueAsString(value))]
       : []
   const textValue = moduleValueAsString(value)
+  const polishSeparator =
+    readOnly && field.key === 'crystal_orientation'
+      ? textValue.lastIndexOf('；')
+      : -1
+  const displayTextValue =
+    polishSeparator > 0
+      ? `${textValue.slice(0, polishSeparator)}；${localizedOption(
+          textValue.slice(polishSeparator + 1),
+          i18n.language,
+        )}`
+      : textValue
   const compositeInput = isCompositeInput(field.input) ? field.input : null
   const structuredInput = isStructuredInput(field.input)
   const booleanInput = field.input === '复选' || field.input === '复选确认'
@@ -150,16 +170,28 @@ export function FieldControl({
     required &&
     (moduleValueIsEmpty(value) ||
       (field.input === '复选确认' && textValue !== 'true'))
-  const compositeNumericMissing =
+  const compositePartMissing =
     Boolean(showError) &&
     required &&
-    Boolean(field.validation?.require_value) &&
-    Boolean(compositeInput?.includes('数值')) &&
-    numericText === ''
+    Boolean(compositeInput) &&
+    (() => {
+      if (!compositeInput) return false
+      const parsed = parseCompositeValue(
+        compositeInput,
+        textValue,
+        compositeOptions,
+      )
+      return Boolean(
+        (field.validation?.require_value && !parsed.freeValue.trim()) ||
+        (field.validation?.require_option && !parsed.option),
+      )
+    })()
   let structuredInvalid = false
   if (structuredInput && textValue.trim()) {
     try {
-      structuredPayload(field.key, textValue)
+      structuredPayload(field.key, textValue, {
+        zoneCount: structuredZoneCount,
+      })
     } catch {
       structuredInvalid = true
     }
@@ -167,12 +199,10 @@ export function FieldControl({
   const spaceGroupInvalid =
     field.key === 'bulk_space_group' &&
     textValue.trim() !== '' &&
-    (!Number.isInteger(Number(textValue)) ||
-      Number(textValue) < 1 ||
-      Number(textValue) > 230)
+    spaceGroupNumber(textValue) == null
   const invalid =
     missing ||
-    compositeNumericMissing ||
+    compositePartMissing ||
     spaceGroupInvalid ||
     Boolean(numericIssue) ||
     structuredInvalid
@@ -205,8 +235,11 @@ export function FieldControl({
           ? 'µL'
           : null
       : localizedUnit(field.unit, i18n.language)
-  const placeholder = localizedFieldPlaceholder(field, i18n.language)
-  const fieldHelp = hideHelp ? null : localizedFieldHelp(field, i18n.language)
+  const placeholder =
+    placeholderOverride ?? localizedFieldPlaceholder(field, i18n.language)
+  const fieldHelp = hideHelp
+    ? null
+    : (helpOverride ?? localizedFieldHelp(field, i18n.language))
   const fieldHelpId = fieldHelp ? `${controlId}-help` : undefined
   const hintId = hint ? `${controlId}-hint` : undefined
   const describedBy =
@@ -240,6 +273,7 @@ export function FieldControl({
           fieldKey={field.key}
           value={textValue}
           onChange={onChange}
+          zoneCount={structuredZoneCount}
           disabled={disabled || readOnly}
           invalid={invalid}
           ariaDescribedBy={describedBy}
@@ -352,6 +386,40 @@ export function FieldControl({
             ))}
           </SelectContent>
         </Select>
+      ) : field.key === 'bulk_space_group' ? (
+        <>
+          <Input
+            id={controlId}
+            type="text"
+            inputMode="text"
+            list={`${controlId}-options`}
+            value={textValue}
+            onChange={(event) => {
+              const next = event.target.value
+              const number = next.includes('·')
+                ? spaceGroupNumber(next)
+                : undefined
+              onChange(number == null ? next : String(number))
+            }}
+            onBlur={() => {
+              const number = spaceGroupNumber(textValue)
+              if (number != null && textValue !== String(number)) {
+                onChange(String(number))
+              }
+            }}
+            disabled={disabled || readOnly}
+            autoComplete="off"
+            placeholder={placeholder}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+            className={cn(invalid && 'border-destructive')}
+          />
+          <datalist id={`${controlId}-options`}>
+            {spaceGroupOptions.map((option) => (
+              <option key={option.number} value={option.datalistValue} />
+            ))}
+          </datalist>
+        </>
       ) : DATETIME_KEYS.has(field.key) ? (
         <Input
           id={controlId}
@@ -401,7 +469,7 @@ export function FieldControl({
                 ? numericAttributes.step
                 : undefined
           }
-          value={textValue}
+          value={displayTextValue}
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled || readOnly}
           title={hint}
@@ -419,8 +487,12 @@ export function FieldControl({
             ? t('validation.spaceGroupRange')
             : structuredInvalid
               ? t('validation.structuredField')
-              : compositeNumericMissing
-                ? t('validation.numericValueRequired')
+              : compositePartMissing
+                ? compositeInput?.includes('数值') &&
+                  field.validation?.require_value &&
+                  numericText === ''
+                  ? t('validation.numericValueRequired')
+                  : t('validation.required')
                 : numericErrorMessage
                   ? numericErrorMessage
                   : t('validation.required')}

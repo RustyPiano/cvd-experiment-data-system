@@ -91,6 +91,12 @@ export function EntityReferenceSelect({
     filter ? filter(entity) : true,
   )
   const selectedEntity = allEntities.find((entity) => entity.id === value)
+  const latestVersion = selectedEntity?.latest_version?.version
+  const newerVersionAvailable =
+    latestVersion != null &&
+    selectedVersion != null &&
+    latestVersion > selectedVersion &&
+    (!filter || (selectedEntity != null && filter(selectedEntity)))
   const entities =
     selectedEntity &&
     selectedSnapshot &&
@@ -179,6 +185,20 @@ export function EntityReferenceSelect({
           </Button>
         ) : null}
       </div>
+      {newerVersionAvailable && selectedEntity ? (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto px-0 text-xs"
+          disabled={disabled}
+          onClick={() => onChange(selectedEntity.id, selectedEntity)}
+        >
+          {t('experimentsV2.reference.useLatest', {
+            version: latestVersion,
+          })}
+        </Button>
+      ) : null}
       {isError ? (
         <div className="flex items-center gap-2 text-xs text-destructive">
           <span>{t('experimentsV2.reference.loadError')}</span>

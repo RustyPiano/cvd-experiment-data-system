@@ -40,12 +40,78 @@ const SUBSCRIPT_DIGITS: Record<string, string> = {
   '9': '₉',
 }
 
-export function hermannMauguinSymbol(value: unknown): string | undefined {
-  const number = Number(value)
-  if (!Number.isInteger(number) || number < 1 || number > 230) return undefined
+const ASCII_DIGITS: Record<string, string> = Object.fromEntries(
+  Object.entries(SUBSCRIPT_DIGITS).map(([ascii, subscript]) => [
+    subscript,
+    ascii,
+  ]),
+)
 
-  return HERMANN_MAUGUIN_SYMBOLS[number - 1]?.replace(
-    /_(\d)/g,
-    (_, digit: string) => SUBSCRIPT_DIGITS[digit],
-  )
+function displaySymbol(symbol: string): string {
+  return symbol.replace(/_(\d)/g, (_, digit: string) => SUBSCRIPT_DIGITS[digit])
+}
+
+function normalizedSymbol(symbol: string): string {
+  return symbol
+    .trim()
+    .toLocaleLowerCase('en-US')
+    .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => ASCII_DIGITS[digit])
+    .replaceAll('_', '')
+    .replaceAll('−', '-')
+    .replace(/\s+/g, '')
+}
+
+export interface SpaceGroupOption {
+  number: number
+  symbol: string
+  datalistValue: string
+}
+
+export const spaceGroupOptions: readonly SpaceGroupOption[] =
+  HERMANN_MAUGUIN_SYMBOLS.map((symbol, index) => {
+    const number = index + 1
+    const displayed = displaySymbol(symbol)
+    return {
+      number,
+      symbol: displayed,
+      datalistValue: `${number} · ${displayed}`,
+    }
+  })
+
+const SPACE_GROUP_BY_SYMBOL = new Map(
+  spaceGroupOptions.map((option) => [
+    normalizedSymbol(option.symbol),
+    option.number,
+  ]),
+)
+
+export function spaceGroupNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && value >= 1 && value <= 230
+      ? value
+      : undefined
+  }
+
+  const text = String(value ?? '').trim()
+  if (/^\d{1,3}$/.test(text)) {
+    const number = Number(text)
+    return number >= 1 && number <= 230 ? number : undefined
+  }
+
+  const datalistMatch = text.match(/^(\d{1,3})\s*·\s*(.+)$/)
+  if (datalistMatch) {
+    const number = Number(datalistMatch[1])
+    const option = spaceGroupOptions[number - 1]
+    return option &&
+      normalizedSymbol(datalistMatch[2]) === normalizedSymbol(option.symbol)
+      ? number
+      : undefined
+  }
+
+  return SPACE_GROUP_BY_SYMBOL.get(normalizedSymbol(text))
+}
+
+export function hermannMauguinSymbol(value: unknown): string | undefined {
+  const number = spaceGroupNumber(value)
+  return number == null ? undefined : spaceGroupOptions[number - 1]?.symbol
 }

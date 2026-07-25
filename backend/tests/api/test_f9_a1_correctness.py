@@ -34,6 +34,9 @@ def _create_run(headers: dict[str, str], run_code: str | None = None) -> dict:
         "synthesis_method": "APCVD",
         "operator": "tester",
         "chemical_formula": "MoS2",
+        "ambient_temperature_C": 25.0,
+        "ambient_humidity_percent": 45.0,
+        "precheck_confirmed": True,
     }
     if run_code is not None:
         payload["run_code"] = run_code
@@ -421,7 +424,10 @@ def test_setup_without_external_field_allows_process_without_field_program(
             coordinate_system="上游负/下游正",
             attrs={
                 "field_devices": ["none"],
-                "temperature_sensors": [temperature_sensor()],
+                "temperature_sensors": [
+                    temperature_sensor(zone_index=1),
+                    temperature_sensor(zone_index=2),
+                ],
             },
         )
     )
@@ -429,7 +435,11 @@ def test_setup_without_external_field_allows_process_without_field_program(
     run = _create_run(headers, "CVD-2026-0050")
     reference = client.put(
         f"/api/v1/experiments/{run['id']}/setup-reference",
-        json={"setup_id": str(setup.id), "version": 1},
+        json={
+            "setup_id": str(setup.id),
+            "version": 1,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
+        },
         headers=headers,
     )
     response = client.put(
@@ -442,12 +452,18 @@ def test_setup_without_external_field_allows_process_without_field_program(
     assert response.status_code == 200, response.text
 
 
-def test_lock_setup_gate_ignores_payload_and_accepts_reference_endpoint(
+def test_lock_setup_gate_rejects_invalid_payload_and_accepts_reference_endpoint(
     active_user, admin_user, db_session, monkeypatch
 ) -> None:
     owner_headers = _headers(active_user.email)
     admin_headers = _headers(admin_user.email)
     run = _create_run(owner_headers, "CVD-2026-0051")
+    target = client.put(
+        f"/api/v1/experiments/{run['id']}/modules/target_product",
+        json={"payload_json": target_product_payload()},
+        headers=owner_headers,
+    )
+    assert target.status_code == 200, target.text
     db_session.add(
         ExperimentModulePayload(
             experiment_run_id=UUID(run["id"]),
@@ -470,13 +486,17 @@ def test_lock_setup_gate_ignores_payload_and_accepts_reference_endpoint(
     )
     referenced = client.put(
         f"/api/v1/experiments/{run['id']}/setup-reference",
-        json={"setup_id": setup.json()["id"], "version": 1},
+        json={
+            "setup_id": setup.json()["id"],
+            "version": 1,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
+        },
         headers=owner_headers,
     )
     accepted = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner_headers)
 
     assert rejected.status_code == 422
-    assert "setup_ref" in {item["key"] for item in rejected.json()["detail"]["missing"]}
+    assert "zone_count" in {item["key"] for item in rejected.json()["detail"]["invalid"]}
     assert referenced.status_code == 200, referenced.text
     assert accepted.status_code == 200, accepted.text
 

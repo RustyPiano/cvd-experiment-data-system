@@ -77,6 +77,14 @@ ENTITY_CONFIGS = {
 INTEGER_MIN = -(2**31)
 INTEGER_MAX = 2**31 - 1
 COMPOSITE_INPUTS = {"数值+下拉", "下拉+数值", "文本+下拉", "下拉+文本", "文本+数值"}
+SUBSTRATE_FORMULAS = {
+    "sio2_si": {"Si", "SiO2"},
+    "sapphire_al2o3": {"Al2O3"},
+    "quartz": {"SiO2"},
+    "cu_foil": {"Cu"},
+    "au_foil": {"Au"},
+    "h-BN": {"BN"},
+}
 
 
 class V2EntityService:
@@ -210,7 +218,7 @@ class V2EntityService:
                     data[key] = self._normalize_composite_value(key, input_type, value, field)
                     value = data[key]
             elif "下拉" in input_type or "多选" in input_type:
-                data[key] = canonical_option_value(value, self.doc)
+                data[key] = canonical_option_value(value, self.doc, field_key=key)
                 value = data[key]
                 if "其他" not in input_type:
                     allowed_values = field_option_values(key, self.doc)
@@ -233,8 +241,12 @@ class V2EntityService:
                         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail={"invalid": [{"key": key, "reason": "value"}]},
                     ) from exc
-            if input_type == "具名尺寸对象":
-                data[key] = self._normalize_tube_dimensions(key, value)
+            if key == "tube_outer_diameter_wall_mm":
+                data[key] = self._normalize_tube_dimensions(
+                    key,
+                    value,
+                    shape=(data.get("tube_material_shape") or {}).get("shape"),
+                )
                 value = data[key]
             elif key == "tube_material_shape":
                 data[key] = self._normalize_tube_material_shape(key, value)
@@ -303,6 +315,10 @@ class V2EntityService:
                         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail={"invalid": [{"key": key, "reason": "length"}]},
                     )
+        if kind == "material_lot" and data.get("lot_category") == "substrate":
+            expected = SUBSTRATE_FORMULAS.get(data.get("substrate_material"))
+            if expected is not None and data.get("chemical_formula") not in expected:
+                self._raise_invalid("chemical_formula", "identity")
         column_values = {key: data[key] for key in config.columns}
         attrs = {key: value for key, value in data.items() if key not in config.columns}
         return config.version_model(
@@ -327,11 +343,11 @@ class V2EntityService:
             free_value = raw.get("value")
             option = raw.get("option")
             if not free_text_option:
-                option = canonical_option_value(option, self.doc)
+                option = canonical_option_value(option, self.doc, field_key=key)
         else:
             if free_text_option:
                 self._raise_invalid(key, "value")
-            canonical = canonical_option_value(raw, self.doc)
+            canonical = canonical_option_value(raw, self.doc, field_key=key)
             if canonical in allowed_options:
                 free_value, option = None, canonical
             else:
@@ -359,37 +375,68 @@ class V2EntityService:
             self._validate_numeric_boundary(key, free_value, field)
         elif free_value is not None and not isinstance(free_value, str):
             self._raise_invalid(key, "type")
-        if (field.get("validation") or {}).get("require_value") and free_value is None:
+        validation = field.get("validation") or {}
+        if validation.get("require_value") and (
+            free_value is None or (isinstance(free_value, str) and not free_value.strip())
+        ):
+            self._raise_invalid(key, "value")
+        if validation.get("require_option") and option is None:
             self._raise_invalid(key, "value")
         if free_value is None and option is None:
             self._raise_invalid(key, "value")
         return {"value": free_value, "option": option}
 
-    def _normalize_tube_dimensions(self, key: str, raw: Any) -> dict[str, float]:
-        if not isinstance(raw, dict) or set(raw) != {
-            "outer_diameter_mm",
-            "wall_thickness_mm",
-        }:
+    def _normalize_tube_dimensions(
+        self,
+        key: str,
+        raw: Any,
+        *,
+        shape: Any,
+    ) -> dict[str, float | str]:
+        if not isinstance(raw, dict):
             self._raise_invalid(key, "value")
+        raw = {name: value for name, value in raw.items() if value is not None}
+        normalized_shape = canonical_option_value(shape, self.doc, field_key="shape")
+        required_by_shape = {
+            "round": {"outer_diameter_mm", "wall_thickness_mm"},
+            "square": {"outer_side_mm", "wall_thickness_mm"},
+            "rectangular": {
+                "outer_width_mm",
+                "outer_height_mm",
+                "wall_thickness_mm",
+            },
+            "other": {"dimension_description"},
+        }
+        required = required_by_shape.get(normalized_shape)
+        if required is None or set(raw) != required:
+            self._raise_invalid(key, "value")
+        if normalized_shape == "other":
+            description = raw.get("dimension_description")
+            if not isinstance(description, str) or not description.strip():
+                self._raise_invalid(key, "value")
+            return {"dimension_description": description.strip()}
         try:
-            outer = float(raw["outer_diameter_mm"])
-            wall = float(raw["wall_thickness_mm"])
+            values = {item: float(raw[item]) for item in required}
         except (TypeError, ValueError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"invalid": [{"key": key, "reason": "type"}]},
             ) from exc
-        if not all(isfinite(value) and value > 0 for value in (outer, wall)) or wall * 2 >= outer:
+        if not all(isfinite(value) and value > 0 for value in values.values()):
             self._raise_invalid(key, "value")
-        return {"outer_diameter_mm": outer, "wall_thickness_mm": wall}
+        wall = values["wall_thickness_mm"]
+        outer_sizes = [value for name, value in values.items() if name != "wall_thickness_mm"]
+        if any(wall * 2 >= outer for outer in outer_sizes):
+            self._raise_invalid(key, "value")
+        return values
 
     def _normalize_tube_material_shape(self, key: str, raw: Any) -> dict[str, Any]:
         if not isinstance(raw, dict):
             self._raise_invalid(key, "type")
         normalized = {
             **raw,
-            "material": canonical_option_value(raw.get("material"), self.doc),
-            "shape": canonical_option_value(raw.get("shape"), self.doc),
+            "material": canonical_option_value(raw.get("material"), self.doc, field_key="material"),
+            "shape": canonical_option_value(raw.get("shape"), self.doc, field_key="shape"),
         }
         try:
             return TubeMaterialShapePayload.model_validate(normalized).model_dump()
@@ -414,7 +461,9 @@ class V2EntityService:
                     {
                         **item,
                         "uncertainty_source": canonical_option_value(
-                            item.get("uncertainty_source"), self.doc
+                            item.get("uncertainty_source"),
+                            self.doc,
+                            field_key="uncertainty_source",
                         ),
                     }
                 )

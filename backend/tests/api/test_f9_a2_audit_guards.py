@@ -52,7 +52,11 @@ def test_entity_run_and_setup_reference_writes_are_audited(
     run = _run(owner_headers, "CVD-2026-0901")
     referenced = client.put(
         f"/api/v1/experiments/{run['id']}/setup-reference",
-        json={"setup_id": setup.json()["id"], "version": 1},
+        json={
+            "setup_id": setup.json()["id"],
+            "version": 1,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
+        },
         headers=owner_headers,
     )
 

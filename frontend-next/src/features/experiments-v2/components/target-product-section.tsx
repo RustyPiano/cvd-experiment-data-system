@@ -96,6 +96,18 @@ export function TargetProductSection({
                 onChange={(value) => onChange(field.key, value)}
                 disabled={disabled}
                 showError={showErrors}
+                helpOverride={
+                  field.key === 'bulk_space_group'
+                    ? t('experimentsV2.sections.targetProduct.spaceGroupHelp')
+                    : undefined
+                }
+                placeholderOverride={
+                  field.key === 'bulk_space_group'
+                    ? t(
+                        'experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
+                      )
+                    : undefined
+                }
                 hint={
                   field.key === 'bulk_space_group' && spaceGroupSymbol
                     ? t(
@@ -105,16 +117,6 @@ export function TargetProductSection({
                     : undefined
                 }
               />
-              {field.key === 'bulk_space_group' ? (
-                <a
-                  className="text-xs text-primary underline-offset-4 hover:underline"
-                  href="https://www.cryst.ehu.es/cryst/get_gen.html"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('experimentsV2.sections.targetProduct.spaceGroupLookup')}
-                </a>
-              ) : null}
             </div>
           ))}
       </div>

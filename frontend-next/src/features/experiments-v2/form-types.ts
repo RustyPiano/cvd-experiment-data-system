@@ -7,6 +7,8 @@ export interface EquipmentRef {
   version: number | null
   /** 选中装置版本的注册数据（用于只读投影展示；随引用冻结）。 */
   snapshot: Record<string, unknown> | null
+  /** 本炉次对应的炉管清零次数与清零后使用序号（非 Setup 固定属性）。 */
+  tubeUsageHistory: string
 }
 
 /** 整表状态。 */

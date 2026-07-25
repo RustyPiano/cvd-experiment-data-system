@@ -5,8 +5,10 @@ from typing import Any, Literal
 from app.models.experiment import ExperimentRun
 from app.schemas.generated.v2_module_payload import validate_v2_module_payload
 from app.services.temperature_timeseries import temperature_timeseries_mapping_error
+from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
     PVD_METHODS,
+    RESULT_MODULE_KEYS,
     SCHEMA_VERSION,
     canonical_option_value,
     condition_local_key,
@@ -26,9 +28,13 @@ from app.services.v2_process_semantics import (
 )
 
 
-def build_run_report(run: ExperimentRun) -> dict[str, Any]:
+def build_run_report(
+    run: ExperimentRun,
+    payloads: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     doc = load_field_source()
-    payloads = {item.module_key: item.payload_json for item in run.module_payloads}
+    if payloads is None:
+        payloads = effective_run_module_payloads(run)
     if (payloads.get("basic_info") or {}).get("synthesis_method") in PVD_METHODS:
         return _report(run, "excluded_pvd", [])
     items = [
@@ -44,17 +50,24 @@ def build_run_report(run: ExperimentRun) -> dict[str, Any]:
     )
 
 
-def missing_r0_fields(run: ExperimentRun) -> list[dict[str, str]]:
+def missing_r0_fields(
+    run: ExperimentRun,
+    payloads: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
     return [
         {"key": item["key"], "label": item["label"], "module": item["module_key"]}
-        for item in build_run_report(run)["items"]
+        for item in build_run_report(run, payloads)["items"]
         if item["applicable"] and not item["passed"]
     ]
 
 
-def missing_required_fields(run: ExperimentRun) -> list[dict[str, str]]:
+def missing_required_fields(
+    run: ExperimentRun,
+    payloads: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
     doc = load_field_source()
-    payloads = {item.module_key: item.payload_json for item in run.module_payloads}
+    if payloads is None:
+        payloads = effective_run_module_payloads(run)
     if (payloads.get("basic_info") or {}).get("synthesis_method") in PVD_METHODS:
         return []
 
@@ -67,6 +80,8 @@ def missing_required_fields(run: ExperimentRun) -> list[dict[str, str]]:
         if level not in {"required", "conditional_required"}:
             continue
         module_key = module_key_for_field(field, doc)
+        if module_key in RESULT_MODULE_KEYS:
+            continue
         records = _records(run, payloads, module_key)
         for record in records:
             required = level == "required"
@@ -336,13 +351,18 @@ def _process_semantic_checks(
     setup_attrs = (run.setup_ref_snapshot_json or {}).get("attrs_snapshot") or {}
     raw_devices = setup_attrs.get("field_devices")
     configured_devices = (
-        {canonical_option_value(value) for value in raw_devices if isinstance(value, str)}
+        {
+            canonical_option_value(value, field_key="field_devices")
+            for value in raw_devices
+            if isinstance(value, str)
+        }
         if isinstance(raw_devices, list)
         else set()
     )
     configured_devices.discard("none")
     fields_valid = all(
-        canonical_option_value(field.get("field_type")) in configured_devices
+        canonical_option_value(field.get("field_type"), field_key="field_type")
+        in configured_devices
         for field in actual_fields
     )
     checks.append(
@@ -441,4 +461,6 @@ def _records(
     payload = payloads.get(module_key) or {}
     if isinstance(payload.get("items"), list):
         return [item for item in payload["items"] if isinstance(item, dict)]
+    if module_key == "process_events":
+        return []
     return [{**payload, "run_code": run.run_code}] if module_key == "basic_info" else [payload]

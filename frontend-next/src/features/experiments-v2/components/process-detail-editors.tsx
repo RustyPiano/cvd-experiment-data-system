@@ -23,6 +23,7 @@ import {
 import type { GasSpecies, MaterialLotReference } from './gas-feeds-editor'
 import { EntityReferenceSelect } from './entity-reference-select'
 import { ExperimentAttachments } from './experiment-attachments'
+import { RequiredMark } from '@/shared/ui/required-mark'
 
 export interface NamedProcessParameter {
   name: string
@@ -169,6 +170,135 @@ export const actualFieldTypes = ['plasma', 'light', 'electric_field'] as const
 
 export type ActualFieldType = (typeof actualFieldTypes)[number]
 
+const actualFieldParameterKeys = [
+  'plasmaPowerW',
+  'plasmaGasSpecies',
+  'plasmaPressurePa',
+  'lightWavelengthNm',
+  'lightPowerMw',
+  'lightIrradianceMwCm2',
+  'lightSourceDistanceMm',
+  'electricVoltageV',
+  'electricFieldStrengthVCm',
+  'electricElectrodeGapMm',
+  'electricDirection',
+] as const
+
+type ActualFieldParameterKey = (typeof actualFieldParameterKeys)[number]
+
+interface ActualFieldParameterDefinition {
+  key: ActualFieldParameterKey
+  name: string
+  aliases: readonly string[]
+  kind: 'number' | 'text'
+  unit: string
+  unitAliases?: readonly string[]
+  required?: boolean
+  alternativeGroup?: 'magnitude'
+}
+
+const ACTUAL_FIELD_PARAMETER_DEFINITIONS: Record<
+  ActualFieldType,
+  readonly ActualFieldParameterDefinition[]
+> = {
+  plasma: [
+    {
+      key: 'plasmaPowerW',
+      name: 'power_W',
+      aliases: ['power', 'plasma_power'],
+      kind: 'number',
+      unit: 'W',
+      required: true,
+    },
+    {
+      key: 'plasmaGasSpecies',
+      name: 'gas_species',
+      aliases: ['gas', 'gas species'],
+      kind: 'text',
+      unit: '—',
+      required: true,
+    },
+    {
+      key: 'plasmaPressurePa',
+      name: 'pressure_Pa',
+      aliases: ['pressure', 'working_pressure'],
+      kind: 'number',
+      unit: 'Pa',
+      required: true,
+    },
+  ],
+  light: [
+    {
+      key: 'lightWavelengthNm',
+      name: 'wavelength_nm',
+      aliases: ['wavelength'],
+      kind: 'number',
+      unit: 'nm',
+      required: true,
+    },
+    {
+      key: 'lightPowerMw',
+      name: 'power_mW',
+      aliases: ['light_power'],
+      kind: 'number',
+      unit: 'mW',
+      alternativeGroup: 'magnitude',
+    },
+    {
+      key: 'lightIrradianceMwCm2',
+      name: 'irradiance_mW_cm2',
+      aliases: ['irradiance', 'intensity'],
+      kind: 'number',
+      unit: 'mW·cm⁻²',
+      unitAliases: ['mW/cm2'],
+      alternativeGroup: 'magnitude',
+    },
+    {
+      key: 'lightSourceDistanceMm',
+      name: 'source_distance_mm',
+      aliases: ['source_distance', 'light_source_distance'],
+      kind: 'number',
+      unit: 'mm',
+      required: true,
+    },
+  ],
+  electric_field: [
+    {
+      key: 'electricVoltageV',
+      name: 'voltage_V',
+      aliases: ['voltage'],
+      kind: 'number',
+      unit: 'V',
+      alternativeGroup: 'magnitude',
+    },
+    {
+      key: 'electricFieldStrengthVCm',
+      name: 'field_strength_V_cm',
+      aliases: ['field_strength', 'electric_field_strength'],
+      kind: 'number',
+      unit: 'V·cm⁻¹',
+      unitAliases: ['V/cm'],
+      alternativeGroup: 'magnitude',
+    },
+    {
+      key: 'electricElectrodeGapMm',
+      name: 'electrode_gap_mm',
+      aliases: ['electrode_gap', 'gap'],
+      kind: 'number',
+      unit: 'mm',
+      required: true,
+    },
+    {
+      key: 'electricDirection',
+      name: 'direction',
+      aliases: ['field_direction'],
+      kind: 'text',
+      unit: '—',
+      required: true,
+    },
+  ],
+}
+
 export interface ActualField {
   field_type: ActualFieldType | ''
   start_min: number | null
@@ -185,6 +315,9 @@ export interface FieldParamsEditorLabels {
   startMinutes: string
   endMinutes: string
   removeField: string
+  parameterGroups: Record<ActualFieldType, string>
+  explicitParameters: Record<ActualFieldParameterKey, string>
+  otherParameters: string
   parameters: NamedParameterEditorLabels
 }
 
@@ -256,6 +389,105 @@ function namedParametersAreValid(parameters: NamedProcessParameter[]): boolean {
   )
 }
 
+function normalizedParameterToken(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase('en-US')
+    .replaceAll('²', '2')
+    .replace(/[\s_-]+/g, '')
+}
+
+function parameterMatchesDefinition(
+  parameter: NamedProcessParameter,
+  definition: ActualFieldParameterDefinition,
+): boolean {
+  const acceptedNames = [definition.name, ...definition.aliases].map(
+    normalizedParameterToken,
+  )
+  if (!acceptedNames.includes(normalizedParameterToken(parameter.name))) {
+    return false
+  }
+  if (definition.kind === 'text') return true
+  if (!Number.isFinite(Number(parameter.value))) return false
+  const acceptedUnits = [
+    definition.unit,
+    ...(definition.unitAliases ?? []),
+  ].map(normalizedParameterToken)
+  return acceptedUnits.includes(normalizedParameterToken(parameter.unit))
+}
+
+function explicitParameterIndexes(field: ActualField): Map<string, number> {
+  const matches = new Map<string, number>()
+  const claimed = new Set<number>()
+  if (!field.field_type) return matches
+
+  for (const definition of ACTUAL_FIELD_PARAMETER_DEFINITIONS[
+    field.field_type
+  ]) {
+    const index = field.parameters.findIndex(
+      (parameter, position) =>
+        !claimed.has(position) &&
+        parameterMatchesDefinition(parameter, definition),
+    )
+    if (index >= 0) {
+      claimed.add(index)
+      matches.set(definition.key, index)
+    }
+  }
+  return matches
+}
+
+function explicitFieldParametersAreValid(field: ActualField): boolean {
+  if (!field.field_type) return false
+  const definitions = ACTUAL_FIELD_PARAMETER_DEFINITIONS[field.field_type]
+  const matches = explicitParameterIndexes(field)
+  for (const definition of definitions) {
+    if (definition.required && !matches.has(definition.key)) return false
+    const index = matches.get(definition.key)
+    if (
+      index != null &&
+      definition.kind === 'number' &&
+      !(Number(field.parameters[index].value) > 0)
+    ) {
+      return false
+    }
+  }
+  const alternatives = definitions.filter(
+    (definition) => definition.alternativeGroup === 'magnitude',
+  )
+  return (
+    alternatives.length === 0 ||
+    alternatives.filter((definition) => matches.has(definition.key)).length ===
+      1
+  )
+}
+
+function setExplicitParameter(
+  field: ActualField,
+  definition: ActualFieldParameterDefinition,
+  value: string,
+): ActualField {
+  const existingIndex = explicitParameterIndexes(field).get(definition.key)
+  const nextParameters = [...field.parameters]
+  if (value.trim() === '') {
+    if (existingIndex != null) nextParameters.splice(existingIndex, 1)
+    return { ...field, parameters: nextParameters }
+  }
+
+  const nextValue =
+    definition.kind === 'number' && Number.isFinite(Number(value))
+      ? Number(value)
+      : value
+  const parameter: NamedProcessParameter = {
+    name: definition.name,
+    value: nextValue,
+    unit: definition.unit,
+  }
+  if (existingIndex == null) nextParameters.push(parameter)
+  else nextParameters[existingIndex] = parameter
+  return { ...field, parameters: nextParameters }
+}
+
 function useStableRowIds(length: number) {
   const prefix = useId().replaceAll(':', '')
   const sequence = useRef(0)
@@ -287,18 +519,20 @@ function NamedParametersEditor({
   disabled,
   showErrors,
   labels,
+  title,
 }: {
   value: NamedProcessParameter[]
   onChange: (value: NamedProcessParameter[]) => void
   disabled?: boolean
   showErrors?: boolean
   labels: NamedParameterEditorLabels
+  title?: string
 }) {
   const baseId = useId()
   const stable = useStableRowIds(value.length)
   return (
     <fieldset className="flex flex-col gap-3">
-      <legend className="text-sm font-medium">{labels.add}</legend>
+      <legend className="text-sm font-medium">{title ?? labels.add}</legend>
       {value.map((parameter, index) => (
         <fieldset
           key={stable.ids[index]}
@@ -1228,6 +1462,103 @@ export function CoolingParamsEditor({
   )
 }
 
+function ExplicitFieldParameters({
+  field,
+  onChange,
+  disabled,
+  showErrors,
+  labels,
+}: {
+  field: ActualField
+  onChange: (field: ActualField) => void
+  disabled?: boolean
+  showErrors?: boolean
+  labels: FieldParamsEditorLabels
+}) {
+  const baseId = useId()
+  if (!field.field_type) return null
+
+  const definitions = ACTUAL_FIELD_PARAMETER_DEFINITIONS[field.field_type]
+  const matches = explicitParameterIndexes(field)
+  const explicitIndexes = new Set(matches.values())
+  const otherParameters = field.parameters.filter(
+    (_, index) => !explicitIndexes.has(index),
+  )
+  const explicitInvalid = Boolean(
+    showErrors && !explicitFieldParametersAreValid(field),
+  )
+  const selectedAlternatives = definitions.filter(
+    (definition) =>
+      definition.alternativeGroup === 'magnitude' &&
+      matches.has(definition.key),
+  ).length
+
+  return (
+    <div className="flex flex-col gap-4">
+      <fieldset className="grid gap-3 sm:grid-cols-2">
+        <legend className="mb-1 text-sm font-medium">
+          {labels.parameterGroups[field.field_type]}
+        </legend>
+        {definitions.map((definition) => {
+          const parameterIndex = matches.get(definition.key)
+          const parameter =
+            parameterIndex == null
+              ? undefined
+              : field.parameters[parameterIndex]
+          return (
+            <div key={definition.key} className="flex flex-col gap-1">
+              <Label htmlFor={`${baseId}-${definition.key}`}>
+                {labels.explicitParameters[definition.key]}
+                {definition.required ? <RequiredMark /> : null}
+              </Label>
+              <Input
+                id={`${baseId}-${definition.key}`}
+                type={definition.kind === 'number' ? 'number' : 'text'}
+                inputMode={definition.kind === 'number' ? 'decimal' : undefined}
+                min={definition.kind === 'number' ? 0 : undefined}
+                step={definition.kind === 'number' ? 'any' : undefined}
+                value={parameter == null ? '' : String(parameter.value)}
+                aria-invalid={
+                  (explicitInvalid &&
+                    (definition.required
+                      ? parameter == null ||
+                        (definition.kind === 'number' &&
+                          !(Number(parameter.value) > 0))
+                      : definition.alternativeGroup === 'magnitude' &&
+                        selectedAlternatives !== 1)) ||
+                  undefined
+                }
+                disabled={disabled}
+                onChange={(event) =>
+                  onChange(
+                    setExplicitParameter(field, definition, event.target.value),
+                  )
+                }
+              />
+            </div>
+          )
+        })}
+      </fieldset>
+      <NamedParametersEditor
+        value={otherParameters}
+        onChange={(nextOtherParameters) => {
+          const explicitParameters = field.parameters.filter((_, index) =>
+            explicitIndexes.has(index),
+          )
+          onChange({
+            ...field,
+            parameters: [...explicitParameters, ...nextOtherParameters],
+          })
+        }}
+        disabled={disabled}
+        showErrors={showErrors}
+        labels={labels.parameters}
+        title={labels.otherParameters}
+      />
+    </div>
+  )
+}
+
 export function fieldParamsAreValid(
   value: ActualField[],
   allowedTypes: readonly ActualFieldType[] = actualFieldTypes,
@@ -1240,7 +1571,8 @@ export function fieldParamsAreValid(
       field.start_min >= 0 &&
       isFiniteNumber(field.end_min) &&
       field.end_min > field.start_min &&
-      namedParametersAreValid(field.parameters),
+      namedParametersAreValid(field.parameters) &&
+      explicitFieldParametersAreValid(field),
   )
 }
 
@@ -1280,6 +1612,7 @@ export function FieldParamsEditor({
                         ? {
                             ...item,
                             field_type: fieldType as ActualFieldType,
+                            parameters: [],
                           }
                         : item,
                     ),
@@ -1370,15 +1703,15 @@ export function FieldParamsEditor({
               />
             </div>
           </div>
-          <NamedParametersEditor
-            value={field.parameters}
+          <ExplicitFieldParameters
+            field={field}
             disabled={disabled}
             showErrors={showErrors}
-            labels={labels.parameters}
-            onChange={(parameters) =>
+            labels={labels}
+            onChange={(nextField) =>
               onChange(
                 value.map((item, position) =>
-                  position === index ? { ...item, parameters } : item,
+                  position === index ? nextField : item,
                 ),
               )
             }

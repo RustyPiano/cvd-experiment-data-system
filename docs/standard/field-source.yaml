@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.7
+  version: v3.11
   status: DRAFT
-  updated: '2026-07-24'
+  updated: '2026-07-25'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -68,6 +68,8 @@ option_labels_en:
   自定义: Custom
   无: None
   等离子: Plasma
+  设定值: Setpoint
+  实测值: Measured
   光: Light
   电: Electric field
   固: Solid
@@ -163,6 +165,9 @@ option_labels_en:
   冷藏: Refrigerated
   单面抛: Single-side polished
   双面抛: Double-side polished
+  有规格数值: Specification reported
+  供应商未提供: Supplier did not provide
+  不适用: Not applicable
   工业级: Industrial grade
   主体材料: Host material
   基体: Matrix
@@ -202,6 +207,8 @@ option_codes:
   自定义: custom
   无: none
   等离子: plasma
+  设定值: setpoint
+  实测值: measured
   光: light
   电: electric_field
   固: solid
@@ -302,6 +309,9 @@ option_codes:
   冷藏: refrigerated
   单面抛: single_side_polished
   双面抛: double_side_polished
+  有规格数值: reported
+  供应商未提供: not_provided
+  不适用: not_applicable
   工业级: industrial_grade
   主体材料: matrix
   基体: matrix
@@ -314,6 +324,24 @@ option_codes:
   H₂: H2
   O₂: O2
   CH₄: CH4
+field_option_codes:
+  field_devices:
+    等离子: plasma
+    等离子体: plasma
+  field_type:
+    等离子: plasma
+    等离子体: plasma
+  type:
+    等离子: plasma_treatment
+    等离子体: plasma_treatment
+preferred_option_labels_zh:
+  plasma: 等离子体
+  reported: 有规格数值
+  not_provided: 供应商未提供
+  not_applicable: 不适用
+  round: 圆形
+  square: 方形
+  rectangular: 矩形
 unit_labels_en:
   mg 或 µL（按相态）: mg or µL (by phase)
   ℃: °C
@@ -506,8 +534,8 @@ experiment_record:
       example: MoS2
       source: 2026-07-24导师走查
       note: ★R0；复合体系权威在『组成明细』；录入使用普通数字；允许常见圆括号、组成分组与结晶水点号
-      help: 直接使用普通数字，无需输入下标；允许常见圆括号与结晶水点号（·）。选择结构类型后，按页面显示的对应规则填写，复合体系仍以组成明细为准。
-      help_en: Use regular digits; subscripts are not required. Common parentheses and the hydrate dot (·) are allowed. Follow the selected structure rule; components remain authoritative for composite systems.
+      help: 用普通数字填写，例如 MoS2；复合体系再按下方“组成明细”逐项填写。
+      help_en: Use plain digits, for example MoS2; for composite systems, complete the component rows below.
       r0: true
     - module: 目标产物
       label: 结构类型
@@ -580,8 +608,8 @@ experiment_record:
       note: ★v3：从『层群/点群/多型』改回体相空间群；手性/扭转角/堆垛→备注
       placeholder: 例如 194
       placeholder_en: e.g. 194
-      help: 填写 International Tables 空间群号（1–230）；界面自动显示 Hermann–Mauguin 符号，不清楚可留空
-      help_en: Enter the International Tables number (1–230); the Hermann–Mauguin symbol is displayed automatically. Leave blank if unknown
+      help: 输入编号或从列表选择；不知道可留空，可从XRD结果、文献或材料数据库的“Space group”获取。
+      help_en: Enter a number or choose from the list. Leave blank if unknown; it is usually reported as “Space group” in XRD results, literature, or materials databases.
     - module: 目标产物
       label: 样品形态
       label_en: Target morphology
@@ -625,7 +653,7 @@ experiment_record:
       example: 盐辅助法，追求大畴单层；手性:右手
       source: 会议
       note: ''
-  - title: §2 实验装置与设计（每台装置只维护一次，实验中直接引用；壁型、温区数、炉体方向、管径和坐标系由所引用装置快照【只读投影】带出，不重录）
+  - title: §2 实验装置与设计（装置固定配置由Setup快照只读带出；本炉的炉管使用履历由用户填写）
     fields:
     - module: 设备
       label: 装置（引用）
@@ -718,19 +746,19 @@ experiment_record:
       source: 2026-07-24导师走查
       note: 材质与形状独立保存，禁止从斜杠或分隔符猜测
     - module: 设备
-      label: 炉管外径与壁厚
-      label_en: Tube outer diameter and wall thickness
+      label: 炉管尺寸
+      label_en: Tube dimensions
       key: tube_outer_diameter_wall_mm
-      meaning: 管径规格与壁厚（内径自动算）
-      input: 具名尺寸对象
-      options: '{outer_diameter_mm, wall_thickness_mm}'
+      meaning: 按截面形状记录外部尺寸和壁厚
+      input: 炉管尺寸对象
+      options: '{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}'
       unit: mm
       requirement:
-        raw: 推荐
+        raw: 选择炉管材质与截面后必填
         level: recommended
-      example: 1″(25.4)，壁厚2
-      source: 会议
-      note: 内径决定流速/分压
+      example: '{outer_width_mm: 50, outer_height_mm: 30, wall_thickness_mm: 2}'
+      source: 会议·用户复核2026-07-24
+      note: 选择材质与截面后必须按形状完整填写；圆形填外径+壁厚，方形填外边长+壁厚，矩形填外宽+外高+壁厚，其他截面填写具名尺寸说明
     - module: 设备
       label: 坐标系
       label_en: Coordinate system
@@ -766,7 +794,7 @@ experiment_record:
       key: field_devices
       meaning: 所引用装置是否具备等离子体、光或电场能力；本炉实际使用情况在反应条件中记录
       input: 多选
-      options: 无/等离子/光/电
+      options: 无/等离子体/光/电
       unit: —
       requirement:
         raw: 选填
@@ -788,13 +816,29 @@ experiment_record:
       example: setup.png + 卧式双温区
       source: 会议
       note: ''
+    - module: 设备
+      label: 炉管使用履历
+      label_en: Tube usage history
+      key: tube_usage_history
+      meaning: 当前炉管的累计重置次数，以及本次实验是最近一次重置后的第几次使用
+      input: 使用履历对象
+      options: '{reset_count, use_number_since_reset}'
+      unit: 次
+      requirement:
+        raw: 必填
+        level: required
+      example: '{reset_count: 1, use_number_since_reset: 7}'
+      source: 6/24决定·用户复核2026-07-24
+      note: 每炉手填；清洗或更换炉管后重置次数加1，本次使用序号从1重新累计
+      help: 填本次实验对应的当前计数；从未重置可填“0、当前使用序号”。
+      help_en: Enter the counts for this run. If the tube has never been reset, use reset count 0 and the current use number.
   - title: §3 前驱体（用了哪些原料：主源、辅助剂等，可多个；每个一组）
     fields:
     - module: 前驱体
-      label: 前驱体标识（名称或化学式）
-      label_en: Precursor identity (name or formula)
+      label: 前驱体标识（来自批次）
+      label_en: Precursor identity (from lot)
       key: name_formula
-      meaning: 原料名称与化学式
+      meaning: 从所选物料批次快照带出的原料名称或化学式
       input: 下拉+其他
       options: 受控+其他
       unit: —
@@ -803,7 +847,7 @@ experiment_record:
         level: required
       example: MoO₃
       source: 会议
-      note: ''
+      note: 选择物料批次后只读带出，不在炉次中建立第二套身份
       r0: true
     - module: 前驱体
       label: 化学标识（来自批次）
@@ -927,30 +971,40 @@ experiment_record:
       label: 舟或坩埚
       label_en: Boat or crucible
       key: boat_crucible
-      meaning: 盛装容器材质与尺寸
+      ui:
+        visibility_gated: true
+      meaning: 本前驱体所用盛装容器的材质、尺寸和使用履历
       input: 具名尺寸对象
-      options: '{material: 石英舟|陶瓷(刚玉)舟|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?}'
+      options: '{material: 石英舟|陶瓷(刚玉)舟|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?, reset_count, use_number_since_reset}'
       unit: mm
       requirement:
-        raw: 推荐
-        level: recommended
-      example: 石英舟 90×15
-      source: 复审
-      note: 至少填写一个具名尺寸；material=其他时material_other必填
+        raw: 条件必填(非气态)
+        level: conditional_required
+        condition:
+          field: 前驱体.相态
+          op: ne
+          value: 气
+      example: 石英舟 90×15；重置1次；本次为重置后第7次使用
+      source: 复审·用户复核2026-07-24
+      note: 每个前驱体分别记录，避免多只舟共用一条履历；至少填写一个具名尺寸；其他材质须具名
+      help: 重置指清洗或更换容器；本次使用序号从1开始累计。
+      help_en: A reset means cleaning or replacing the container; count the current use from 1 after each reset.
     - module: 前驱体
-      label: 所在温区与源温
-      label_en: Source zone and temperature
+      label: 前驱体位置
+      label_en: Precursor position
       key: source_zone_temperature
-      meaning: 放第几温区、源温（若可设/可测）
+      meaning: 前驱体所在温区；仅在位置温度不同于温区设定程序或另有测量/估计时补充温度及依据
       input: 温区温度对象
-      options: '{zone_index, temperature_C}'
+      options: '{zone_index, temperature_C?, temperature_basis?: 实测值|估计}'
       unit: ℃
       requirement:
-        raw: 推荐
+        raw: 推荐；填写距热电偶距离时必填
         level: recommended
-      example: 温区1，设定~620
-      source: 会议
-      note: 按进气端编号
+      example: 温区1；位置温度620；依据=估计
+      source: 会议·用户复核2026-07-24
+      note: 温区按进气端编号；温度程序仍是各温区设定值的权威记录；填写距热电偶距离时必须先选择所在温区
+      help: 先选所在温区。若没有独立测量或估计，位置温度可留空，不要重复抄温度程序。
+      help_en: Select the zone first. Leave the local temperature blank unless it was measured or estimated separately; do not copy the zone program.
     - module: 前驱体
       label: 距热电偶距离
       label_en: Distance to thermocouple
@@ -970,10 +1024,10 @@ experiment_record:
   - title: §4 衬底（长在什么基底上，可多片）
     fields:
     - module: 衬底
-      label: 衬底材料
+      label: 衬底材料（来自批次）
       label_en: Substrate material
       key: material
-      meaning: 衬底种类
+      meaning: 衬底种类；引用批次后从冻结快照带出且不可在炉次中覆盖
       input: 下拉+其他
       options: SiO₂/Si·蓝宝石(Al₂O₃)·石英·云母·Cu箔·Au箔·h-BN·其他
       unit: —
@@ -1000,10 +1054,10 @@ experiment_record:
       note: 必须引用衬底类别的不可变物料版本
       r0: true
     - module: 衬底
-      label: 衬底化学式
+      label: 衬底化学式（来自批次）
       label_en: Substrate formula
       key: chemical_formula
-      meaning: 衬底材料的化学式；可从物料批次快照带出
+      meaning: 衬底材料的化学式；引用批次后从冻结快照带出且不可在炉次中覆盖
       input: 文本
       options: 标准化学式
       unit: —
@@ -1017,25 +1071,65 @@ experiment_record:
       help_en: Use regular digits; common parentheses and the hydrate dot (·) are supported.
       r0: true
     - module: 衬底
-      label: 晶面取向
-      label_en: Crystal orientation
-      key: crystal_orientation
-      meaning: 单晶衬底的晶面或晶轴取向
-      input: 文本
-      options: 例如 (100)、c面、a面
+      label: 取向与抛光信息（来自批次）
+      label_en: Orientation and polish availability
+      key: orientation_polish_availability
+      meaning: 批次是否提供且是否适用晶面取向与抛光规格；引用批次后只读
+      input: 下拉
+      options: 有规格数值·供应商未提供·不适用
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: (100)
-      source: 2026-07-24导师走查
-      note: 不与化学式或偏转角合并
+      example: 有规格数值
+      source: 2026-07-25用户复核
+      note: Cu/Au箔等不适用时明确选择不适用；未知不得用虚构晶向代替
+      help: 这是物料批次中的供应商规格状态；本次实验只读带出。
+      help_en: This status comes from the material-lot specification and is read-only in the run.
       r0: true
     - module: 衬底
-      label: 偏转角
+      label: 晶面取向与抛光（来自批次）
+      label_en: Crystal orientation
+      key: crystal_orientation
+      ui:
+        visibility_gated: true
+      meaning: 单晶衬底的晶面或晶轴取向及抛光面；引用批次后只读
+      input: 文本
+      options: 例如 (100)、c面、a面
+      unit: —
+      requirement:
+        raw: 条件必填(批次有规格数值)
+        level: conditional_required
+        condition:
+          field: 衬底.取向与抛光信息（来自批次）
+          op: eq
+          value: 有规格数值
+      example: c面；单面抛
+      source: 2026-07-24导师走查
+      note: 不与化学式或偏转角合并
+    - module: 衬底
+      label: 偏切信息（来自批次）
+      label_en: Miscut availability
+      key: miscut_availability
+      meaning: 批次是否提供且是否适用相对标称晶面的偏切规格；引用批次后只读
+      input: 下拉
+      options: 有规格数值·供应商未提供·不适用
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 供应商未提供
+      source: 2026-07-25用户复核
+      note: 只有明确有规格数值时才填写角度；0表示已报告无偏切，不表示未知
+      help: 有供应商偏切规格才选择“有规格数值”；未给或不适用请明确选择，不能用 0 代替未知。
+      help_en: Choose “Specification reported” only when a miscut specification exists; zero means reported no miscut, not unknown.
+    - module: 衬底
+      label: 偏切角（相对标称晶面，来自批次）
       label_en: Miscut angle
       key: miscut_angle_deg
-      meaning: 晶面相对标称取向的偏转角
+      ui:
+        visibility_gated: true
+      meaning: 实际晶面相对标称晶面的偏切角；引用批次后只读
       input: 数值
       options: —
       unit: °
@@ -1043,18 +1137,46 @@ experiment_record:
         ge: 0
         lt: 90
       requirement:
-        raw: 必填
-        level: required
+        raw: 条件必填(批次有规格数值)
+        level: conditional_required
+        condition:
+          field: 衬底.偏切信息（来自批次）
+          op: eq
+          value: 有规格数值
       example: '0'
-      source: 2026-07-24导师走查
-      note: 锁定前必须确认；无偏转填0，不得留空或揉入晶向字符串
+      source: 2026-07-25用户复核
+      note: 批次明确报告无偏切时填0；大于0时必须同时填写偏切方向
+      help: 仅在供应商给出偏切规格时填写；明确无偏切填 0，有偏切还要填写晶轴方向。
+      help_en: Enter this only for a reported supplier specification; use zero only for reported no miscut and add the direction for a positive angle.
     - module: 衬底
-      label: 氧化层厚度
+      label: 偏切方向（来自批次）
+      label_en: Miscut direction
+      key: miscut_direction
+      ui:
+        visibility_gated: true
+      meaning: 偏切角所指的晶轴或晶向；引用批次后只读
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(偏切角>0)
+        level: optional
+        condition:
+          field: 衬底.偏切信息（来自批次）
+          op: eq
+          value: 有规格数值
+      example: c面向a轴偏0.2°
+      source: 2026-07-24用户走查
+      note: miscut_angle_deg大于0时由跨字段校验强制填写
+      help: 例：c 面向 a 轴偏 0.2°；只写方向，角度填在上一项。
+      help_en: 'Example: c-plane toward the a-axis; enter the angle in the preceding field.'
+    - module: 衬底
+      label: 氧化层厚度（来自批次）
       label_en: Oxide layer thickness
       key: oxide_thickness_nm
       ui:
         visibility_gated: true
-      meaning: SiO₂ 层厚度（决定光学判层数）
+      meaning: SiO₂ 层厚度（决定光学判层数）；引用批次后只读
       input: 数值
       options: 正数
       unit: nm
@@ -1064,32 +1186,34 @@ experiment_record:
         raw: 条件必填(仅SiO₂/Si)
         level: conditional_required
         condition:
-          field: 衬底.衬底材料
+          field: 衬底.衬底材料（来自批次）
           op: eq
           value: SiO₂/Si
       example: '285'
       source: 会议
       note: ''
     - module: 衬底
-      label: 表面粗糙度指标与数值
+      label: 标称表面粗糙度（来自批次）
       label_en: Surface roughness
       key: surface_roughness
-      meaning: 表面粗糙度的指标类型和对应数值
+      meaning: 供应商或批次规格中的标称粗糙度；本片实测粗糙度应记录在AFM结果
       input: 粗糙度对象
-      options: '{metric: Ra|RMS, value_nm}'
+      options: '{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}'
       unit: nm
       requirement:
         raw: 必填
         level: required
-      example: '{metric: RMS, value_nm: 0.5}'
+      example: '{availability: reported, metric: RMS, value_nm: 0.5}'
       source: 2026-07-24导师走查
-      note: value_nm必须大于等于0；Ra和RMS不可省略
+      note: reported时value_nm必须大于等于0且Ra/RMS不可省略；not_provided不得伪填数值；历史无availability对象按reported兼容；引用批次后只读
+      help: 选择“有规格数值”并填批次 Ra/RMS；供应商没给就选“供应商未提供”。本片 AFM 实测值填在表征结果。
+      help_en: Choose “Specification reported” and enter the lot Ra/RMS, or “Supplier did not provide”. Record AFM measurements as characterization results.
       r0: true
     - module: 衬底
-      label: 尺寸与放置方式
-      label_en: Size and placement
+      label: 本片实际尺寸与放置方式
+      label_en: Actual piece size and placement
       key: size_placement
-      meaning: 几何尺寸、放置方式及条件角度
+      meaning: 本次实验实际放入炉内的这一片衬底尺寸、放置方式及条件角度；批次来料规格另存于MaterialLot
       input: 衬底尺寸放置对象
       options: '{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|倾角|竖放|其他, tilt_angle_deg?, placement_other?}'
       unit: mm
@@ -1098,7 +1222,9 @@ experiment_record:
         level: required
       example: '{length_mm: 10, width_mm: 10, thickness_mm: 0.5, placement: 倾角, tilt_angle_deg: 15}'
       source: 2026-07-24导师走查
-      note: placement=倾角时tilt_angle_deg条件必填；placement=其他时placement_other条件必填
+      note: 每片可能经过切割，故不得用批次来料尺寸替代；placement=倾角时tilt_angle_deg条件必填；placement=其他时placement_other条件必填
+      help: 填这次真正放进炉内的单片尺寸和摆放方式；整片晶圆或来料标称尺寸填在物料批次。
+      help_en: Enter the dimensions and placement of the actual piece loaded for this run; record wafer or supplied-lot dimensions in the material lot.
       r0: true
     - module: 衬底
       label: 预处理（有序步骤）
@@ -1328,16 +1454,16 @@ experiment_record:
       label_en: Applied external-field program
       key: field_params
       group: external_field
-      meaning: 本炉实际启用的外场、时间区间与具名参数
+      meaning: 本炉实际启用的外场、时间区间与按类型展开的参数
       input: 实际外场数组
-      options: '{field_type: 等离子|光|电, start_min, end_min, parameters: [{name, value, unit}]}'
+      options: '{field_type: 等离子体|光|电, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；other_parameters?}'
       unit: 按参数
       requirement:
         raw: 选填
         level: optional
-      example: '[{field_type: 等离子, start_min: 10, end_min: 40, parameters: [{name: power, value: 50, unit: W}]}]'
+      example: '[{field_type: 等离子体, start_min: 10, end_min: 40, parameters: [{name: power_W, value: 50, unit: W}, {name: gas_species, value: Ar, unit: —}, {name: pressure_Pa, value: 50, unit: Pa}]}]'
       source: 2026-07-24导师走查
-      note: field_type必须属于Setup能力；有记录时参数至少一项且不得使用混合单位单值
+      note: field_type必须属于Setup能力；界面按类型显示明确字段，其他参数仍使用具名值和单位
     - module: 过程步
       label: 其他记录名称
       label_en: Other record name
@@ -1463,17 +1589,16 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 条件必填(终止原因=其他)
+        raw: 选填；终止原因=其他时必填
         level: conditional_required
+        otherwise: optional
         condition:
           field: 过程事件.终止原因
           op: eq
           value: 其他
-      ui:
-        visibility_gated: true
       example: Ar气瓶压力不足，供气中断约2分钟
       source: 2026-07-24导师走查
-      note: 不与处理措施或附件拼接；终止原因选择“其他”时必须具名说明
+      note: 始终可选填写事件上下文，不与处理措施或附件拼接；终止原因选择“其他”时必须具名说明
     - module: 过程事件
       label: 处理措施
       label_en: Action taken
@@ -1505,19 +1630,19 @@ experiment_record:
   - title: §7 产物表征 + 实测产物（★独立表，用编号与实验记录关联；只记事实，不判好坏）
     fields:
     - module: 表征
-      label: 表征方法与仪器
-      label_en: Method and instrument
+      label: 表征方法
+      label_en: Characterization method
       key: method_instrument
-      meaning: 表征手段 + 引用仪器
+      meaning: 本次使用的表征手段；仪器通过独立仪器引用选择
       input: 下拉+其他
       options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
       unit: —
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 必填
+        level: required
       example: Raman
       source: 会议
-      note: ★v3：长一批表征一批，拆成独立表编号关联
+      note: ★v3：长一批表征一批，拆成独立表编号关联；不要在此字段重复写仪器
     - module: 表征
       label: 测试条件
       label_en: Test conditions
@@ -1529,7 +1654,7 @@ experiment_record:
       requirement:
         raw: 推荐
         level: recommended
-      example: 532nm / 1mW / 100×
+      example: 激光532 nm；功率1 mW；物镜100×
       source: 会议
       note: 随仪器导出
     - module: 表征
@@ -1722,7 +1847,7 @@ experiment_record:
       source: 复审
       note: ''
     - module: PVD
-      label: 等离子气氛与工作气压
+      label: 等离子体气氛与工作气压
       label_en: Plasma atmosphere and working pressure
       key: plasma_gas_pressure
       meaning: 溅射气体与气压
@@ -1965,9 +2090,13 @@ entities:
       requirement:
         raw: 选填
         level: optional
+        condition:
+          field: MaterialLot.批次类别
+          op: eq
+          value: 化学品
       example: '10'
       source: review
-      note: ''
+      note: 仅用于固体或液体化学前驱体的来料粒径；气瓶与衬底不适用
     - module: MaterialLot
       label: 形态与性状
       label_en: Form and appearance
@@ -1979,9 +2108,13 @@ entities:
       requirement:
         raw: 选填
         level: optional
+        condition:
+          field: MaterialLot.批次类别
+          op: ne
+          value: 气瓶
       example: 粉末
       source: review
-      note: 外观=性状
+      note: 外观=性状；气瓶不使用粉末/箔/靶等物料形态
     - module: MaterialLot
       label: 开封日期
       label_en: Date opened
@@ -2077,6 +2210,26 @@ entities:
       source: review
       note: ''
     - module: MaterialLot
+      label: ▸衬底·晶向与抛光信息
+      label_en: Substrate · orientation and polish availability
+      key: substrate_orientation_polish_availability
+      meaning: 供应商是否提供且该衬底是否适用晶面取向与抛光规格
+      input: 下拉
+      options: 有规格数值·供应商未提供·不适用
+      unit: —
+      requirement:
+        raw: 条件必填(衬底)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: eq
+          value: 衬底
+      example: 有规格数值
+      source: 2026-07-25用户复核
+      note: Cu/Au箔等不适用时明确选择不适用；禁止伪填晶向或抛光面
+      help: 单晶片且供应商给了晶面和抛光规格时选“有规格数值”；未给或不适用请明确选择。
+      help_en: Choose “Specification reported” only when orientation and polish are supplied; otherwise select not provided or not applicable.
+    - module: MaterialLot
       label: ▸衬底·晶向与抛光
       label_en: Substrate · orientation and polish
       key: substrate_orientation_polish
@@ -2084,21 +2237,109 @@ entities:
       input: 文本+下拉
       options: 晶向；单面抛/双面抛
       unit: —
+      validation:
+        require_value: true
+        require_option: true
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 条件必填(有规格数值)
+        level: conditional_required
+        condition:
+          field: MaterialLot.▸衬底·晶向与抛光信息
+          op: eq
+          value: 有规格数值
+      example: Si(100)；单面抛
+      source: review
+      note: 实验引用批次后只读带出
+      help: 例：c 面；单面抛。晶面和抛光面都写清楚。
+      help_en: 'Example: c-plane; single-side polished. State both orientation and polished side.'
+    - module: MaterialLot
+      label: ▸衬底·偏切信息
+      label_en: Substrate · miscut availability
+      key: substrate_miscut_availability
+      meaning: 供应商是否提供且该衬底是否适用相对标称晶面的偏切规格
+      input: 下拉
+      options: 有规格数值·供应商未提供·不适用
+      unit: —
+      requirement:
+        raw: 条件必填(衬底)
+        level: conditional_required
         condition:
           field: MaterialLot.批次类别
           op: eq
           value: 衬底
-      example: Si(100)；单面抛
-      source: review
-      note: ''
+      example: 供应商未提供
+      source: 2026-07-25用户复核
+      note: 0仅表示供应商明确报告无偏切，不能表示未知或不适用
+      help: 有偏切规格才选“有规格数值”；供应商没给或该材料不适用时请选择对应状态。
+      help_en: Choose “Specification reported” only when a miscut specification exists; zero never represents unknown.
     - module: MaterialLot
-      label: ▸衬底·尺寸规格
-      label_en: Substrate · size specification
+      label: ▸衬底·偏切角
+      label_en: Substrate · miscut angle
+      key: substrate_miscut_angle_deg
+      meaning: 实际晶面相对标称晶面的偏切角
+      input: 数值
+      options: —
+      unit: °
+      validation:
+        ge: 0
+        lt: 90
+      requirement:
+        raw: 条件必填(有规格数值)
+        level: conditional_required
+        condition:
+          field: MaterialLot.▸衬底·偏切信息
+          op: eq
+          value: 有规格数值
+      example: '0.2'
+      source: 2026-07-24用户走查
+      note: 大于0时必须同时填写substrate_miscut_direction
+      help: 无偏切填 0；有偏切时还要填写偏向哪个晶轴或方向。
+      help_en: Enter 0 for no miscut; otherwise also state the crystallographic direction.
+    - module: MaterialLot
+      label: ▸衬底·偏切方向
+      label_en: Substrate · miscut direction
+      key: substrate_miscut_direction
+      meaning: 偏切角所指的晶轴或晶向
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(偏切角>0)
+        level: optional
+        condition:
+          field: MaterialLot.▸衬底·偏切信息
+          op: eq
+          value: 有规格数值
+      example: c面向a轴
+      source: 2026-07-24用户走查
+      note: substrate_miscut_angle_deg大于0时由跨字段校验强制填写
+      help: 例：c 面向 a 轴；角度填在上一项。
+      help_en: 'Example: c-plane toward the a-axis; enter the angle above.'
+    - module: MaterialLot
+      label: ▸衬底·标称表面粗糙度
+      label_en: Substrate · nominal surface roughness
+      key: substrate_surface_roughness
+      meaning: 供应商或批次规格中的标称粗糙度
+      input: 粗糙度对象
+      options: '{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}'
+      unit: nm
+      requirement:
+        raw: 条件必填(衬底)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: eq
+          value: 衬底
+      example: '{availability: not_provided}'
+      source: 2026-07-25用户复核
+      note: reported时metric与value_nm必填；not_provided时二者禁止填写；历史无availability对象按reported兼容；本片AFM实测值属于表征结果
+      help: 有供应商或批次规格就选“有规格数值”并填 Ra/RMS；没有就明确选“供应商未提供”，不要填 0 或猜测值。
+      help_en: Enter a reported supplier or lot Ra/RMS value, or explicitly choose “Supplier did not provide”; never use zero as an unknown value.
+    - module: MaterialLot
+      label: ▸衬底·来料尺寸规格
+      label_en: Substrate · supplied-lot size
       key: substrate_size_spec
-      meaning: 出厂几何
+      meaning: 供应商标称或该批次来料的原始几何；切割后本次实际单片尺寸属于实验记录
       input: 文本
       options: 长×宽×厚
       unit: mm
@@ -2111,7 +2352,9 @@ entities:
           value: 衬底
       example: 10×10×0.5
       source: review
-      note: ''
+      note: 不替代每次实验的本片实际尺寸
+      help: 填供应商标签或该批次来料的标称尺寸；切割后放进炉内的实际尺寸在每次实验中填写。
+      help_en: Enter the supplier-labelled or incoming lot size; record the actual cut piece loaded into each run in the experiment.
     - module: MaterialLot
       label: ▸气瓶·纯度等级
       label_en: Gas cylinder · purity grade
@@ -2121,15 +2364,17 @@ entities:
       options: 6N/5N/4N/工业级
       unit: —
       requirement:
-        raw: 条件必填(气瓶)
-        level: conditional_required
+        raw: 选填
+        level: optional
         condition:
           field: MaterialLot.批次类别
           op: eq
           value: 气瓶
       example: 5N
       source: review
-      note: 分工：base纯度填数值%、此处填等级标签(Fable三轮B4)
+      note: base纯度的数值百分比为权威值；这里只保留供应商标签
+      help: 有供应商等级标签可填；数值纯度以“纯度（质量%）”为准。
+      help_en: Enter the supplier grade if present; the numeric purity percentage is authoritative.
     - module: MaterialLot
       label: ▸气瓶·气瓶编号
       label_en: Gas cylinder · cylinder number
@@ -2280,19 +2525,19 @@ entities:
       source: 2026-07-24导师走查
       note: 材质与截面形状独立保存，禁止把“刚玉；圆”当作一个选项
     - module: 装置Setup
-      label: 炉管外径与壁厚
-      label_en: Tube outer diameter and wall thickness
+      label: 炉管尺寸
+      label_en: Tube dimensions
       key: tube_outer_diameter_wall_mm
-      meaning: 管规格
-      input: 具名尺寸对象
-      options: '{outer_diameter_mm, wall_thickness_mm}'
+      meaning: 按截面形状记录外部尺寸和壁厚
+      input: 炉管尺寸对象
+      options: '{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}'
       unit: mm
       requirement:
-        raw: 推荐
+        raw: 选择炉管材质与截面后必填
         level: recommended
-      example: 1″，壁厚2
-      source: 会议
-      note: 内径由外径与壁厚派生显示
+      example: '{outer_width_mm: 50, outer_height_mm: 30, wall_thickness_mm: 2}'
+      source: 会议·用户复核2026-07-24
+      note: 选择材质与截面后必须按形状完整填写；圆形填外径+壁厚，方形填外边长+壁厚，矩形填外宽+外高+壁厚，其他截面填写具名尺寸说明
     - module: 装置Setup
       label: 坐标系定义
       label_en: Coordinate system definition
@@ -2313,7 +2558,7 @@ entities:
       key: field_devices
       meaning: 装置具备的光、电或等离子体能力
       input: 多选
-      options: 无/光/电/等离子
+      options: 无/光/电/等离子体
       unit: —
       requirement:
         raw: 选填
@@ -2352,10 +2597,10 @@ entities:
       source: 复审
       note: ''
     - module: 表征仪器
-      label: 仪器名称与类型
-      label_en: Instrument name and type
+      label: 适用表征方法
+      label_en: Applicable characterization method
       key: name_type
-      meaning: 手段类型
+      meaning: 该仪器适用的表征方法，用于结果录入时筛选仪器
       input: 下拉+其他
       options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
       unit: —
@@ -2364,7 +2609,9 @@ entities:
         level: required
       example: Raman
       source: 会议
-      note: ''
+      help: 用于按表征方法筛选仪器；仪器身份由编号、厂商和型号表达。
+      help_en: Used to filter instruments by characterization method; identify the instrument by its code, vendor, and model.
+      note: API key 保持 name_type 以兼容现有数据
     - module: 表征仪器
       label: 厂商
       label_en: Vendor
@@ -2441,16 +2688,18 @@ entities:
       label: 关键固定配置
       label_en: Key fixed configuration
       key: fixed_config
-      meaning: 随仪器固定的参数（可变测试条件在实验§7填）
+      meaning: 随仪器长期固定的硬件或能力；本次实际使用参数在表征结果的测试条件中填写
       input: 自由
-      options: 如激光波长/物镜/探测器
+      options: 如探测器型号、光栅范围、可用激光与物镜范围
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: 532nm激光
+      example: CCD探测器；300、600、1800 lines·mm⁻¹光栅
       source: 会议
-      note: ''
+      note: 不在此重复本次实际使用的波长、物镜、功率或积分时间
+      help: 只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。
+      help_en: Enter stable hardware or capabilities only; record settings used for a measurement in that result.
     - module: 表征仪器
       label: 最近校准或维护日期
       label_en: Last calibration or maintenance date
@@ -2668,6 +2917,30 @@ changelog:
     - 实体
     - Setup删除sccm参考值、加热区长度、泵、MFC和PID，坐标系固定，新增温度传感器；炉管材质与形状拆入具名对象；MaterialLot新增瓶身或包装标签附件
     - 导师走查整改
+  - - v3.8
+    - §1–§5
+    - 用户走查修复：炉管和各舟履历改为每炉手填；炉管尺寸按圆/方/矩形条件展开；前驱体源温改为可选位置温度及依据；外场按等离子体/光/电展开明确参数
+    - 用户走查修复
+  - - v3.8
+    - §4/实体
+    - 衬底稳定规格归MaterialLot：晶向抛光、偏切角与方向、氧化层及标称粗糙度由批次冻结带出；本片尺寸、放置、预处理和位置留在炉次；气瓶等级改为供应商原始标签选填
+    - 用户走查修复
+  - - v3.8
+    - 术语/表征
+    - 装置与实际外场统一显示“等离子体”；体相空间群改用内置230项检索；“表征方法”与仪器引用分开，固定配置只记录稳定硬件能力
+    - 用户走查修复
+  - - v3.9
+    - §1/§4/实体
+    - 按会议逐字稿删除悬浮粒子浓度；粗糙度允许明确记录供应商未提供；旧批次缺稳定字段时禁止在实验回填；区分来料尺寸与本次实际切片尺寸
+    - 2026-07-25用户复核
+  - - v3.10
+    - §3/§4/实体
+    - 补齐温区距离参照、条件不适用后端约束与旧等离子别名；粒径/形态按物料类别展开；晶向抛光和偏切以有规格、未提供、不适用三态记录，禁止用伪值或0代替未知
+    - 2026-07-25终审收口
+  - - v3.11
+    - §6/实体
+    - 事件具体说明始终可选填写、终止原因=其他时升级为必填；仪器字段改称“适用表征方法”；补明热电偶距离与前驱体温区、炉管截面与尺寸的联动必填规则
+    - 2026-07-25逐字稿与语义终审
   - - ''
     - ''
     - ''

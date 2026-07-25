@@ -39,6 +39,7 @@ describe('shared condition cases', () => {
           requirement: {
             raw: '条件必填',
             level: 'conditional_required',
+            otherwise: null,
             condition: testCase.condition,
           },
           r0: false,

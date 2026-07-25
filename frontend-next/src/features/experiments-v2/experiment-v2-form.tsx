@@ -46,12 +46,19 @@ import {
 } from './field-logic'
 import { toIsoDateTime } from './datetime'
 import { createRun, setSetupReference, upsertModule } from './api'
-import type { V2ExperimentCreate, V2ExperimentRead } from './api'
+import type {
+  TubeUsageHistoryPayload,
+  V2ExperimentCreate,
+  V2ExperimentRead,
+} from './api'
 import type { ExperimentV2FormState, ModuleSaveProps } from './form-types'
 import { BasicInfoSection } from './components/basic-info-section'
 import { TargetProductSection } from './components/target-product-section'
 import { EquipmentSection } from './components/equipment-section'
-import { RepeatableItemsSection } from './components/repeatable-items-section'
+import {
+  RepeatableItemsSection,
+  materialLotProjectedItem,
+} from './components/repeatable-items-section'
 import {
   ProcessStepsSection,
   setupFieldTypes,
@@ -74,10 +81,14 @@ import type {
   MeasuredTemperatureReference,
   PreparationOperation,
 } from './components/process-detail-editors'
-import { temperatureProgramIsValid } from './components/temperature-program-editor'
+import {
+  reconcileTemperatureProgram,
+  temperatureProgramIsValid,
+} from './components/temperature-program-editor'
 import type { TemperatureProgram } from './components/temperature-program-editor'
 import { treatmentStepsAreValid } from './components/treatment-steps-editor'
 import type { TreatmentStep } from './components/treatment-steps-editor'
+import { structuredPayload } from '@/shared/structured-field'
 
 const ESSENTIAL_RUN_KEYS = [
   'started_at',
@@ -139,30 +150,96 @@ function targetProductMissing(
   return false
 }
 
-function itemsMissing(moduleKey: string, items: ModuleValues[]): boolean {
-  return items.filter(itemHasAnyValue).some((item) => {
-    if (missingRequiredKeys(moduleKey, item).length > 0) return true
-    try {
-      buildItemPayload(moduleKey, item)
-      const treatmentKey =
-        moduleKey === 'precursors'
-          ? 'treatment_steps'
-          : moduleKey === 'substrates'
-            ? 'pretreatment_steps'
-            : null
-      if (!treatmentKey) return false
-      const raw = moduleValueAsString(item[treatmentKey])
-      return (
-        raw.trim() !== '' &&
-        !treatmentStepsAreValid(
-          moduleKey === 'precursors' ? 'precursor' : 'substrate',
-          JSON.parse(raw) as TreatmentStep[],
+function itemsMissing(
+  moduleKey: string,
+  items: ModuleValues[],
+  zoneCount?: number | null,
+): boolean {
+  return items
+    .map((item) => materialLotProjectedItem(moduleKey, item))
+    .filter(itemHasAnyValue)
+    .some((item) => {
+      if (missingRequiredKeys(moduleKey, item).length > 0) return true
+      try {
+        buildItemPayload(moduleKey, item)
+        if (
+          moduleKey === 'precursors' &&
+          moduleValueAsString(item['source_zone_temperature']).trim()
+        ) {
+          structuredPayload(
+            'source_zone_temperature',
+            moduleValueAsString(item['source_zone_temperature']),
+            { zoneCount },
+          )
+        }
+        const treatmentKey =
+          moduleKey === 'precursors'
+            ? 'treatment_steps'
+            : moduleKey === 'substrates'
+              ? 'pretreatment_steps'
+              : null
+        if (!treatmentKey) return false
+        const raw = moduleValueAsString(item[treatmentKey])
+        return (
+          raw.trim() !== '' &&
+          !treatmentStepsAreValid(
+            moduleKey === 'precursors' ? 'precursor' : 'substrate',
+            JSON.parse(raw) as TreatmentStep[],
+          )
         )
-      )
+      } catch {
+        return true
+      }
+    })
+}
+
+function authoritativeItems(
+  moduleKey: string,
+  items: ModuleValues[],
+): ModuleValues[] {
+  return items.map((item) => materialLotProjectedItem(moduleKey, item))
+}
+
+function tubeUsageHistoryPayload(
+  value: string,
+): TubeUsageHistoryPayload | null {
+  try {
+    return structuredPayload(
+      'tube_usage_history',
+      value,
+    ) as TubeUsageHistoryPayload | null
+  } catch {
+    return null
+  }
+}
+
+export function reconcileProcessTemperaturePrograms(
+  steps: ModuleValues[],
+  setupSnapshot: Record<string, unknown> | null,
+): ModuleValues[] {
+  const count = Number(setupSnapshot?.['zone_count'])
+  if (!Number.isInteger(count) || count < 1) return steps
+  let changed = false
+  const next = steps.map((step) => {
+    if (
+      canonicalOption(moduleValueAsString(step['stage_type'])) !==
+      'reaction_conditions'
+    ) {
+      return step
+    }
+    const raw = moduleValueAsString(step['temperature_program'])
+    if (!raw.trim()) return step
+    try {
+      const parsed = JSON.parse(raw) as TemperatureProgram
+      const reconciled = reconcileTemperatureProgram(parsed, count)
+      if (JSON.stringify(parsed) === JSON.stringify(reconciled)) return step
+      changed = true
+      return { ...step, temperature_program: JSON.stringify(reconciled) }
     } catch {
-      return true
+      return step
     }
   })
+  return changed ? next : steps
 }
 
 /** §5 过程步：已选阶段的步中有必填空缺（外场组显隐依赖 §2 装置快照）。 */
@@ -304,21 +381,36 @@ const MODULE_SPECS: ModuleSpec[] = [
     active: ({ state }) =>
       Boolean(state.equipment.setupId && state.equipment.version != null),
     missing: ({ state }) =>
-      !state.equipment.setupId || state.equipment.version == null,
+      !state.equipment.setupId ||
+      state.equipment.version == null ||
+      tubeUsageHistoryPayload(state.equipment.tubeUsageHistory) == null,
   },
   {
     key: 'precursors',
     active: ({ state }) => state.precursors.some(itemHasAnyValue),
-    missing: ({ state }) => itemsMissing('precursors', state.precursors),
+    missing: ({ state }) => {
+      const value = Number(state.equipment.snapshot?.['zone_count'])
+      return itemsMissing(
+        'precursors',
+        state.precursors,
+        Number.isInteger(value) && value > 0 ? value : null,
+      )
+    },
     payload: ({ state }) =>
-      buildItemsModulePayload('precursors', state.precursors),
+      buildItemsModulePayload(
+        'precursors',
+        authoritativeItems('precursors', state.precursors),
+      ),
   },
   {
     key: 'substrates',
     active: ({ state }) => state.substrates.some(itemHasAnyValue),
     missing: ({ state }) => itemsMissing('substrates', state.substrates),
     payload: ({ state }) =>
-      buildItemsModulePayload('substrates', state.substrates),
+      buildItemsModulePayload(
+        'substrates',
+        authoritativeItems('substrates', state.substrates),
+      ),
   },
   {
     key: 'process_steps',
@@ -349,6 +441,9 @@ function saveModuleSpec(
       runId,
       context.state.equipment.setupId,
       context.state.equipment.version as number,
+      tubeUsageHistoryPayload(
+        context.state.equipment.tubeUsageHistory,
+      ) as TubeUsageHistoryPayload,
       token,
     )
   }
@@ -379,7 +474,13 @@ export function ExperimentV2Form({
   const token = session.accessToken || ''
   const queryClient = useQueryClient()
 
-  const [state, setState] = useState<ExperimentV2FormState>(initialState)
+  const [state, setState] = useState<ExperimentV2FormState>(() => ({
+    ...initialState,
+    process_steps: reconcileProcessTemperaturePrograms(
+      initialState.process_steps,
+      initialState.equipment.snapshot,
+    ),
+  }))
   const [showErrors, setShowErrors] = useState(false)
   const [creating, setCreating] = useState(false)
   const [savingKeys, setSavingKeys] = useState<ReadonlySet<string>>(new Set())
@@ -436,14 +537,51 @@ export function ExperimentV2Form({
     setState((prev) => ({ ...prev, substrates: items }))
   }
   const selectSetup = (entityId: string, entity: V2EntityRead | null) => {
+    const snapshot = entity?.latest_version?.data ?? null
+    const processSteps = reconcileProcessTemperaturePrograms(
+      state.process_steps,
+      snapshot,
+    )
+    const setupSemanticsChanged =
+      Number(state.equipment.snapshot?.['zone_count']) !==
+        Number(snapshot?.['zone_count']) ||
+      JSON.stringify(state.equipment.snapshot?.['field_devices'] ?? []) !==
+        JSON.stringify(snapshot?.['field_devices'] ?? [])
     markDirty('equipment')
+    if (
+      processSteps !== state.process_steps ||
+      (setupSemanticsChanged && state.process_steps.some(isProcessStepActive))
+    ) {
+      markDirty('process_steps')
+    }
+    if (setupSemanticsChanged && state.precursors.some(itemHasAnyValue)) {
+      markDirty('precursors')
+    }
+    if (setupSemanticsChanged && state.substrates.some(itemHasAnyValue)) {
+      markDirty('substrates')
+    }
     setState((prev) => ({
       ...prev,
       equipment: {
         setupId: entityId,
         version: entity?.latest_version?.version ?? null,
-        snapshot: entity?.latest_version?.data ?? null,
+        snapshot,
+        tubeUsageHistory:
+          entityId === prev.equipment.setupId
+            ? prev.equipment.tubeUsageHistory
+            : '',
       },
+      process_steps:
+        processSteps === state.process_steps
+          ? prev.process_steps
+          : processSteps,
+    }))
+  }
+  const setTubeUsageHistory = (value: string) => {
+    markDirty('equipment')
+    setState((prev) => ({
+      ...prev,
+      equipment: { ...prev.equipment, tubeUsageHistory: value },
     }))
   }
   const setProcessSteps = (steps: ModuleValues[]) => {
@@ -490,9 +628,11 @@ export function ExperimentV2Form({
       setShowErrors(true)
       toast.error(
         t(
-          moduleKey === 'equipment'
+          moduleKey === 'equipment' && !state.equipment.setupId
             ? 'experimentsV2.form.selectSetupFirst'
-            : 'experimentsV2.form.fixRequired',
+            : moduleKey === 'equipment'
+              ? 'validation.usageHistory'
+              : 'experimentsV2.form.fixRequired',
         ),
       )
       return
@@ -599,6 +739,11 @@ export function ExperimentV2Form({
           error: moduleErrors[moduleKey] ?? null,
         }
       : undefined
+  const setupZoneCountValue = Number(state.equipment.snapshot?.['zone_count'])
+  const setupZoneCount =
+    Number.isInteger(setupZoneCountValue) && setupZoneCountValue > 0
+      ? setupZoneCountValue
+      : null
 
   return (
     <div
@@ -661,6 +806,7 @@ export function ExperimentV2Form({
               <EquipmentSection
                 equipment={state.equipment}
                 onSelectSetup={selectSetup}
+                onTubeUsageHistoryChange={setTubeUsageHistory}
                 disabled={creating}
                 showErrors={showErrors}
                 save={saveProps('equipment')}
@@ -679,6 +825,7 @@ export function ExperimentV2Form({
                 disabled={creating}
                 showErrors={showErrors}
                 save={saveProps('precursors')}
+                zoneCount={setupZoneCount}
               />
               <RepeatableItemsSection
                 moduleKey="substrates"
@@ -694,6 +841,7 @@ export function ExperimentV2Form({
                 disabled={creating}
                 showErrors={showErrors}
                 save={saveProps('substrates')}
+                zoneCount={setupZoneCount}
               />
               <ProcessStepsSection
                 runId={runId ?? ''}

@@ -599,7 +599,11 @@ def test_export_relationalizes_nested_module_values_and_includes_run_state(
     )
     referenced = client.put(
         f"/api/v1/experiments/{run['id']}/setup-reference",
-        json={"setup_id": setup.json()["id"], "version": 1},
+        json={
+            "setup_id": setup.json()["id"],
+            "version": 1,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
+        },
         headers=headers,
     )
     assert referenced.status_code == 200, referenced.text
@@ -937,7 +941,7 @@ def test_zip_export_includes_reversible_remaining_modules_and_schema_metadata(
     assert gas_feeds["example"]
     assert gas_feeds["schema_path"].endswith(".gas_feeds")
     assert schema["schema_version"] == "cvd_v2"
-    assert dictionary_json["field_count"] == 128
+    assert dictionary_json["field_count"] == 137
     assert manifest["schema_version"] == "cvd_v2"
     assert manifest["standard_version"] == "2.0.0"
     assert manifest["module_details"]["path_notation"] == "JSONPath-like"

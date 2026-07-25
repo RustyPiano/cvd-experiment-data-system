@@ -188,4 +188,44 @@ it('renders the frozen snapshot and version for an existing reference', async ()
 
   expect(await screen.findByText(/Frozen furnace · SET-1 · v1/)).toBeVisible()
   expect(screen.queryByText(/Current furnace · SET-3 · v3/)).toBeNull()
+  expect(
+    screen.queryByRole('button', { name: 'Use latest version v3' }),
+  ).toBeNull()
+})
+
+it('lets an old frozen reference explicitly switch to the latest version', async () => {
+  const entity = {
+    id: 'setup-1',
+    latest_version: {
+      version: 3,
+      data: { setup_name: 'Current furnace', setup_code: 'SET-3' },
+    },
+  }
+  entityApi.listEntities.mockResolvedValue({ items: [entity], total: 1 })
+  const onChange = vi.fn()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const user = userEvent.setup()
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect
+          kind="setup"
+          value="setup-1"
+          selectedVersion={1}
+          selectedSnapshot={{
+            setup_name_snapshot: 'Frozen furnace',
+            setup_code_snapshot: 'SET-1',
+          }}
+          onChange={onChange}
+        />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Use latest version v3' }),
+  )
+  expect(onChange).toHaveBeenCalledWith('setup-1', entity)
 })

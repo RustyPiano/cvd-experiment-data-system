@@ -1024,8 +1024,23 @@ export interface components {
       substrate_material?: string | null
       /** Substrate Oxide Thickness Nm */
       substrate_oxide_thickness_nm?: number | null
+      /** Substrate Orientation Polish Availability */
+      substrate_orientation_polish_availability?:
+        | ('not_applicable' | 'not_provided' | 'reported')
+        | null
       substrate_orientation_polish?:
         | components['schemas']['SubstrateOrientationPolishValue']
+        | null
+      /** Substrate Miscut Availability */
+      substrate_miscut_availability?:
+        | ('not_applicable' | 'not_provided' | 'reported')
+        | null
+      /** Substrate Miscut Angle Deg */
+      substrate_miscut_angle_deg?: number | null
+      /** Substrate Miscut Direction */
+      substrate_miscut_direction?: string | null
+      substrate_surface_roughness?:
+        | components['schemas']['SurfaceRoughnessPayload']
         | null
       /** Substrate Size Spec */
       substrate_size_spec?: string | null
@@ -1273,6 +1288,19 @@ export interface components {
       /** Option */
       option?: ('double_side_polished' | 'single_side_polished') | null
     }
+    /** SurfaceRoughnessPayload */
+    SurfaceRoughnessPayload: {
+      /**
+       * Availability
+       * @default reported
+       * @enum {string}
+       */
+      availability: 'reported' | 'not_provided'
+      /** Metric */
+      metric?: ('Ra' | 'RMS') | null
+      /** Value Nm */
+      value_nm?: number | null
+    }
     /** TemperatureSensorPayload */
     TemperatureSensorPayload: {
       /** Sensor Name */
@@ -1306,9 +1334,17 @@ export interface components {
     /** TubeDimensionsPayload */
     TubeDimensionsPayload: {
       /** Outer Diameter Mm */
-      outer_diameter_mm: number
+      outer_diameter_mm?: number | null
+      /** Outer Side Mm */
+      outer_side_mm?: number | null
+      /** Outer Width Mm */
+      outer_width_mm?: number | null
+      /** Outer Height Mm */
+      outer_height_mm?: number | null
       /** Wall Thickness Mm */
-      wall_thickness_mm: number
+      wall_thickness_mm?: number | null
+      /** Dimension Description */
+      dimension_description?: string | null
     }
     /** TubeMaterialShapePayload */
     TubeMaterialShapePayload: {
@@ -1326,6 +1362,13 @@ export interface components {
       shape: 'round' | 'square' | 'rectangular' | 'other'
       /** Shape Other */
       shape_other?: string | null
+    }
+    /** TubeUsageHistoryPayload */
+    TubeUsageHistoryPayload: {
+      /** Reset Count */
+      reset_count: number
+      /** Use Number Since Reset */
+      use_number_since_reset: number
     }
     /** UserRead */
     UserRead: {
@@ -1684,6 +1727,7 @@ export interface components {
       setup_id: string
       /** Version */
       version: number
+      tube_usage_history: components['schemas']['TubeUsageHistoryPayload']
     }
     /** ValidationError */
     ValidationError: {

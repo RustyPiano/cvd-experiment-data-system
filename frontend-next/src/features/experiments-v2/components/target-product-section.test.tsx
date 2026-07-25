@@ -7,7 +7,11 @@ import { I18nextProvider } from 'react-i18next'
 import i18n from '@/shared/i18n'
 import { emptyModuleValues } from '../field-logic'
 import type { ModuleFieldValue, ModuleValues } from '../field-logic'
-import { hermannMauguinSymbol } from '../space-groups'
+import {
+  hermannMauguinSymbol,
+  spaceGroupNumber,
+  spaceGroupOptions,
+} from '../space-groups'
 import { TargetProductSection } from './target-product-section'
 
 function renderSection(
@@ -33,10 +37,13 @@ describe('TargetProductSection composition guide', () => {
   beforeEach(async () => i18n.changeLanguage('zh'))
 
   it('maps the full International Tables number range', () => {
+    expect(spaceGroupOptions).toHaveLength(230)
     expect(hermannMauguinSymbol(1)).toBe('P1')
     expect(hermannMauguinSymbol(194)).toBe('P6₃/mmc')
     expect(hermannMauguinSymbol(230)).toBe('Ia-3d')
     expect(hermannMauguinSymbol(231)).toBeUndefined()
+    expect(spaceGroupNumber('P6_3/mmc')).toBe(194)
+    expect(spaceGroupNumber('194 · P6₃/mmc')).toBe(194)
   })
 
   it('uses one structure type and updates the guide when it changes', async () => {
@@ -77,14 +84,18 @@ describe('TargetProductSection composition guide', () => {
     expect(screen.queryByText(/不填组成明细/)).not.toBeInTheDocument()
 
     await user.type(
-      screen.getByRole('spinbutton', { name: '体相空间群' }),
+      screen.getByRole('combobox', { name: '体相空间群' }),
+      'P6_3/mmc',
+    )
+    await user.tab()
+    expect(screen.getByRole('combobox', { name: '体相空间群' })).toHaveValue(
       '194',
     )
-    const symbol = screen.getByText('Hermann–Mauguin 符号：P6₃/mmc')
+    const symbol = screen.getByText('空间群符号：P6₃/mmc')
     expect(symbol).toBeInTheDocument()
     expect(
       screen
-        .getByRole('spinbutton', { name: '体相空间群' })
+        .getByRole('combobox', { name: '体相空间群' })
         .getAttribute('aria-describedby')
         ?.split(' '),
     ).toContain(symbol.id)
@@ -112,17 +123,29 @@ describe('TargetProductSection composition guide', () => {
   it('does not ask intrinsic materials for composition rows', () => {
     renderSection('本征')
 
-    expect(screen.getByText(/MoS2/)).toHaveTextContent('不填组成明细')
-    const spaceGroupInput = screen.getByRole('spinbutton', {
+    expect(
+      screen.getByText(/本征：只填目标材料化学式.*不填组成明细/),
+    ).toBeInTheDocument()
+    const spaceGroupInput = screen.getByRole('combobox', {
       name: '体相空间群',
     })
-    expect(spaceGroupInput).toHaveAttribute('placeholder', '例如 194')
-    expect(spaceGroupInput).toHaveAttribute('step', '1')
-    expect(spaceGroupInput).toHaveAttribute('min', '1')
-    expect(spaceGroupInput).toHaveAttribute('max', '230')
+    expect(spaceGroupInput).toHaveAttribute(
+      'placeholder',
+      '输入编号或符号，例如 194',
+    )
+    const datalistId = spaceGroupInput.getAttribute('list')
+    expect(datalistId).toBeTruthy()
+    const datalist = document.getElementById(datalistId!)
+    expect(datalist).toBeInTheDocument()
     expect(
-      screen.getByText(/填写 International Tables 空间群号/),
-    ).toHaveTextContent('不清楚可留空')
+      datalist!.querySelector('option[value="194 · P6₃/mmc"]'),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/不知道可留空；可从 XRD 结果/)).toHaveTextContent(
+      '材料数据库中的 Space group 获取',
+    )
+    expect(
+      screen.queryByRole('link', { name: /空间群编号与符号查询/ }),
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('新增组分')).not.toBeInTheDocument()
   })
 })

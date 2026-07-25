@@ -5,12 +5,18 @@
 降温参数）→ 样品 → 表征记录（仪器引用）→ 实测产物 → check-r0 合规报告 compliant。
 """
 
-from uuid import uuid4
+import csv
+import io
+import zipfile
+from copy import deepcopy
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from app.commands.check_r0 import build_r0_reports
 from app.main import app
+from app.models.module_payload import ExperimentModulePayload
+from app.schemas.generated.v2_module_payload import validate_v2_module_payload
 from tests.helpers.v2_payloads import (
     basic_info_payload,
     gas_lot_payload,
@@ -103,7 +109,11 @@ def test_full_v2_run_walkthrough(active_user, admin_user, db_session) -> None:
 
     ref = client.put(
         f"/api/v1/experiments/{run_id}/setup-reference",
-        json={"setup_id": setup.json()["id"], "version": 1},
+        json={
+            "setup_id": setup.json()["id"],
+            "version": 1,
+            "tube_usage_history": {"reset_count": 1, "use_number_since_reset": 7},
+        },
         headers=headers,
     )
     assert ref.status_code == 200, ref.text
@@ -153,10 +163,13 @@ def test_full_v2_run_walkthrough(active_user, admin_user, db_session) -> None:
                         "material": "quartz_boat",
                         "length_mm": 90,
                         "width_mm": 15,
+                        "reset_count": 1,
+                        "use_number_since_reset": 7,
                     },
                     "source_zone_temperature": {
                         "zone_index": 1,
                         "temperature_C": 620,
+                        "temperature_basis": "estimate",
                     },
                     "thermocouple_distance_mm": -20,
                 }
@@ -208,30 +221,63 @@ def test_full_v2_run_walkthrough(active_user, admin_user, db_session) -> None:
                             "field_type": "plasma",
                             "start_min": 2.0,
                             "end_min": 12.0,
-                            "parameters": [{"name": "power", "value": 50.0, "unit": "W"}],
+                            "parameters": [
+                                {"name": "power", "value": 50.0, "unit": "W"},
+                                {"name": "gas", "value": "Ar", "unit": "—"},
+                                {"name": "pressure", "value": 100.0, "unit": "Pa"},
+                            ],
                         }
                     ],
                 ),
             ]
         },
     )
-    upsert(
-        "process_events",
-        {
-            "items": [
-                {
-                    "event_id": str(uuid4()),
-                    "event_type": "gas_interruption",
-                    "occurred_at": "2026-07-08T09:40:00+08:00",
-                    "terminated_run": False,
-                    "action_taken": "更换气瓶",
-                }
-            ]
-        },
+    stale_substrates = (
+        db_session.query(ExperimentModulePayload)
+        .filter(
+            ExperimentModulePayload.experiment_run_id == UUID(run_id),
+            ExperimentModulePayload.module_key == "substrates",
+        )
+        .one()
     )
+    stale_payload = deepcopy(stale_substrates.payload_json)
+    stale_payload["items"][0].pop("orientation_polish_availability")
+    stale_payload["items"][0].pop("miscut_availability")
+    stale_substrates.payload_json = stale_payload
+    db_session.commit()
+    stored_stale_payload = deepcopy(stale_substrates.payload_json)
 
     locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
     assert locked.status_code == 200, locked.text
+    db_session.expire_all()
+    assert (
+        db_session.get(ExperimentModulePayload, stale_substrates.id).payload_json
+        == stored_stale_payload
+    )
+    exported_json = client.get(
+        f"/api/v1/experiments/{run_id}/export",
+        headers=headers,
+    )
+    assert exported_json.status_code == 200, exported_json.text
+    exported_substrates = exported_json.json()["modules"]["substrates"]
+    schema_payload = deepcopy(exported_substrates)
+    for item in schema_payload["items"]:
+        item.pop("source_id", None)
+    validate_v2_module_payload("substrates", schema_payload)
+    assert exported_substrates["items"][0]["orientation_polish_availability"] == ("reported")
+    assert exported_substrates["items"][0]["miscut_availability"] == "reported"
+    exported_zip = client.get(
+        "/api/v1/exports/runs",
+        params={"query": "0200"},
+        headers=headers,
+    )
+    assert exported_zip.status_code == 200, exported_zip.text
+    with zipfile.ZipFile(io.BytesIO(exported_zip.content)) as archive:
+        substrate_rows = list(
+            csv.DictReader(io.StringIO(archive.read("substrates.csv").decode("utf-8-sig")))
+        )
+    assert {row["orientation_polish_availability"] for row in substrate_rows} == {"reported"}
+    assert {row["miscut_availability"] for row in substrate_rows} == {"reported"}
     samples = client.get(f"/api/v1/samples?experiment_id={run_id}", headers=headers)
     assert samples.status_code == 200, samples.text
     assert samples.json()["total"] == 1

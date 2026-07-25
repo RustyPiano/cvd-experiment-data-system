@@ -20,10 +20,7 @@ export interface TemperatureProgram {
 }
 
 export interface TemperatureProgramEditorLabels {
-  addZone: string
-  zone: (position: number) => string
-  zoneIndex: string
-  removeZone: string
+  zone: (zoneIndex: number) => string
   addPoint: string
   point: (position: number) => string
   elapsedMinutes: string
@@ -31,6 +28,7 @@ export interface TemperatureProgramEditorLabels {
   removePoint: string
   moveUp: string
   moveDown: string
+  selectSetupFirst: string
 }
 
 export interface TemperatureProgramEditorProps {
@@ -98,6 +96,51 @@ export function temperatureProgramIsValid(
   )
 }
 
+function emptyZone(zoneIndex: number): TemperatureZone {
+  return {
+    zone_index: zoneIndex,
+    points: [{ elapsed_min: 0, setpoint_C: null }],
+  }
+}
+
+/**
+ * 温度程序的温区结构只来自已选 Setup。既有数据优先按 zone_index 对齐，
+ * 旧的缺号/重复数据按原顺序补入空位，输出永远覆盖 1..zoneCount。
+ */
+export function reconcileTemperatureProgram(
+  value: TemperatureProgram,
+  zoneCount?: number | null,
+): TemperatureProgram {
+  if (zoneCount == null || !Number.isInteger(zoneCount) || zoneCount < 1) {
+    return { zones: [] }
+  }
+
+  const assigned = new Map<number, TemperatureZone>()
+  const usedRows = new Set<number>()
+  for (let zoneIndex = 1; zoneIndex <= zoneCount; zoneIndex += 1) {
+    const rowIndex = value.zones.findIndex(
+      (zone, index) => !usedRows.has(index) && zone.zone_index === zoneIndex,
+    )
+    if (rowIndex >= 0) {
+      assigned.set(zoneIndex, value.zones[rowIndex])
+      usedRows.add(rowIndex)
+    }
+  }
+  const leftovers = value.zones.filter((_, index) => !usedRows.has(index))
+  let fallbackIndex = 0
+
+  return {
+    zones: Array.from({ length: zoneCount }, (_, index) => {
+      const zoneIndex = index + 1
+      const source = assigned.get(zoneIndex) ?? leftovers[fallbackIndex++]
+      return {
+        ...(source ?? emptyZone(zoneIndex)),
+        zone_index: zoneIndex,
+      }
+    }),
+  }
+}
+
 function numberFromInput(value: string): number | null {
   return value === '' ? null : Number(value)
 }
@@ -128,29 +171,17 @@ function useStableRowIds(length: number) {
 }
 
 function TemperatureZoneRow({
-  rowId,
   zone,
-  zones,
-  position,
-  zoneCount,
   disabled,
   showErrors,
   labels,
   onChange,
-  onMove,
-  onRemove,
 }: {
-  rowId: string
   zone: TemperatureZone
-  zones: TemperatureZone[]
-  position: number
-  zoneCount?: number | null
   disabled?: boolean
   showErrors?: boolean
   labels: TemperatureProgramEditorLabels
   onChange: (zone: TemperatureZone) => void
-  onMove: (delta: number) => void
-  onRemove: () => void
 }) {
   const baseId = useId()
   const stablePoints = useStableRowIds(zone.points.length)
@@ -166,70 +197,12 @@ function TemperatureZoneRow({
 
   return (
     <fieldset
-      data-row-id={rowId}
+      data-row-id={`zone-${zone.zone_index}`}
       className="flex flex-col gap-3 rounded-md border border-border p-4"
     >
       <legend className="px-1 text-sm font-semibold">
-        {labels.zone(position + 1)}
+        {labels.zone(zone.zone_index as number)}
       </legend>
-      <div className="flex justify-end gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={labels.moveUp}
-          disabled={disabled || position === 0}
-          onClick={() => onMove(-1)}
-        >
-          <ArrowUp />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={labels.moveDown}
-          disabled={disabled || position === zones.length - 1}
-          onClick={() => onMove(1)}
-        >
-          <ArrowDown />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={labels.removeZone}
-          disabled={disabled}
-          onClick={onRemove}
-        >
-          <Trash2 />
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={`${baseId}-zone-index`}>{labels.zoneIndex}</Label>
-        <Input
-          id={`${baseId}-zone-index`}
-          type="number"
-          inputMode="numeric"
-          step={1}
-          min={1}
-          max={zoneCount ?? undefined}
-          value={zone.zone_index ?? ''}
-          aria-invalid={
-            (showErrors &&
-              !zoneIndexIsValid(zone.zone_index, zones, zoneCount)) ||
-            undefined
-          }
-          disabled={disabled}
-          onChange={(event) =>
-            onChange({
-              ...zone,
-              zone_index: numberFromInput(event.target.value),
-            })
-          }
-        />
-      </div>
-
       <div className="flex flex-col gap-3">
         {zone.points.map((point, index) => {
           const previous = zone.points[index - 1]
@@ -378,23 +351,6 @@ function TemperatureZoneRow({
   )
 }
 
-function nextZoneIndex(
-  zones: TemperatureZone[],
-  zoneCount?: number | null,
-): number | null {
-  const used = new Set(zones.map((zone) => zone.zone_index))
-  if (zoneCount != null) {
-    for (let index = 1; index <= zoneCount; index += 1) {
-      if (!used.has(index)) return index
-    }
-    return null
-  }
-  const indices = zones
-    .map((zone) => zone.zone_index)
-    .filter((index): index is number => index != null)
-  return indices.length === 0 ? 1 : Math.max(...indices) + 1
-}
-
 export function TemperatureProgramEditor({
   value,
   onChange,
@@ -403,75 +359,38 @@ export function TemperatureProgramEditor({
   showErrors,
   labels,
 }: TemperatureProgramEditorProps) {
-  const stableZones = useStableRowIds(value.zones.length)
+  const program = reconcileTemperatureProgram(value, zoneCount)
 
-  const moveZone = (index: number, delta: number) => {
-    const target = index + delta
-    if (target < 0 || target >= value.zones.length) return
-    const zones = [...value.zones]
-    ;[zones[index], zones[target]] = [zones[target], zones[index]]
-    stableZones.move(index, target)
-    onChange({ zones })
+  if (program.zones.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">{labels.selectSetupFirst}</p>
+    )
   }
 
   return (
     <div
       className="flex flex-col gap-3"
       data-invalid={
-        (showErrors && !temperatureProgramIsValid(value, zoneCount)) ||
+        (showErrors && !temperatureProgramIsValid(program, zoneCount)) ||
         undefined
       }
     >
-      {value.zones.map((zone, index) => (
+      {program.zones.map((zone, index) => (
         <TemperatureZoneRow
-          key={stableZones.ids[index]}
-          rowId={stableZones.ids[index]}
+          key={zone.zone_index}
           zone={zone}
-          zones={value.zones}
-          position={index}
-          zoneCount={zoneCount}
           disabled={disabled}
           showErrors={showErrors}
           labels={labels}
           onChange={(next) =>
             onChange({
-              zones: value.zones.map((item, itemIndex) =>
+              zones: program.zones.map((item, itemIndex) =>
                 itemIndex === index ? next : item,
               ),
             })
           }
-          onMove={(delta) => moveZone(index, delta)}
-          onRemove={() => {
-            stableZones.remove(index)
-            onChange({
-              zones: value.zones.filter((_, itemIndex) => itemIndex !== index),
-            })
-          }}
         />
       ))}
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          onClick={() => {
-            stableZones.add()
-            onChange({
-              zones: [
-                ...value.zones,
-                {
-                  zone_index: nextZoneIndex(value.zones, zoneCount),
-                  points: [{ elapsed_min: 0, setpoint_C: null }],
-                },
-              ],
-            })
-          }}
-        >
-          <Plus data-icon="inline-start" />
-          {labels.addZone}
-        </Button>
-      </div>
     </div>
   )
 }

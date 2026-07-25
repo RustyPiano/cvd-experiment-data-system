@@ -12,15 +12,17 @@ import { FieldLabel } from './field-bits'
 import { EntityReferenceSelect } from './entity-reference-select'
 import { ModuleCard } from './module-card'
 import {
+  localizedFieldHelp,
   localizedFieldLabel,
   localizedNamedValue,
   localizedValue,
   localizedUnit,
 } from '@/shared/field-i18n'
-import { isStructuredInput } from '@/shared/structured-field'
+import { isStructuredInput, structuredPayload } from '@/shared/structured-field'
 import { buildStructuredValueLabels } from '@/shared/structured-editor-labels'
 import { isEntityFileInput } from '@/shared/entity-file-reference'
 import { EntityFileDisplay } from '@/features/entity-library/entity-file-control'
+import { StructuredObjectControl } from '@/shared/ui/structured-object-control'
 
 const PROJECTION_FIELDS = (entities['setup'] ?? []).filter(
   (field) => field.key !== 'version',
@@ -40,12 +42,14 @@ function projectionValue(
 export function EquipmentSection({
   equipment,
   onSelectSetup,
+  onTubeUsageHistoryChange,
   disabled,
   showErrors,
   save,
 }: {
   equipment: EquipmentRef
   onSelectSetup: (entityId: string, entity: V2EntityRead | null) => void
+  onTubeUsageHistoryChange: (value: string) => void
   disabled?: boolean
   showErrors?: boolean
   save?: ModuleSaveProps
@@ -55,7 +59,22 @@ export function EquipmentSection({
   const setupRefField = getModuleFields('equipment').find(
     (field) => field.key === 'setup_ref',
   )
-  const missing = Boolean(showErrors) && equipment.setupId === ''
+  const tubeUsageHistoryField = getModuleFields('equipment').find(
+    (field) => field.key === 'tube_usage_history',
+  )
+  const setupMissing = Boolean(showErrors) && equipment.setupId === ''
+  let tubeUsageHistoryInvalid = equipment.tubeUsageHistory.trim() === ''
+  if (!tubeUsageHistoryInvalid) {
+    try {
+      tubeUsageHistoryInvalid =
+        structuredPayload('tube_usage_history', equipment.tubeUsageHistory) ==
+        null
+    } catch {
+      tubeUsageHistoryInvalid = true
+    }
+  }
+  const showTubeUsageHistoryError =
+    Boolean(showErrors) && tubeUsageHistoryInvalid
   const snapshot = equipment.snapshot ?? {}
   const structuredLabels = buildStructuredValueLabels(t)
 
@@ -86,8 +105,42 @@ export function EquipmentSection({
           onChange={onSelectSetup}
           disabled={disabled}
         />
-        {missing ? (
+        {setupMissing ? (
           <p className="text-xs text-destructive">{t('validation.required')}</p>
+        ) : null}
+      </div>
+
+      <div className="flex max-w-md flex-col gap-1.5">
+        <FieldLabel
+          labelZh={
+            tubeUsageHistoryField
+              ? localizedFieldLabel(tubeUsageHistoryField, i18n.language)
+              : t('experimentsV2.sections.equipment.tubeUsageHistory')
+          }
+          unit={
+            tubeUsageHistoryField
+              ? localizedUnit(tubeUsageHistoryField.unit, i18n.language)
+              : null
+          }
+          required
+          r0={tubeUsageHistoryField?.r0 ?? false}
+        />
+        <StructuredObjectControl
+          fieldKey="tube_usage_history"
+          value={equipment.tubeUsageHistory}
+          onChange={onTubeUsageHistoryChange}
+          disabled={disabled}
+          invalid={showTubeUsageHistoryError}
+        />
+        <p className="text-xs text-muted-foreground">
+          {tubeUsageHistoryField
+            ? localizedFieldHelp(tubeUsageHistoryField, i18n.language)
+            : t('experimentsV2.sections.equipment.tubeUsageHistoryHelp')}
+        </p>
+        {showTubeUsageHistoryError ? (
+          <p className="text-xs text-destructive">
+            {t('validation.usageHistory')}
+          </p>
         ) : null}
       </div>
 

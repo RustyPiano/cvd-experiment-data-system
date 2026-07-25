@@ -1,5 +1,8 @@
+import importlib.util
+import sys
 from copy import deepcopy
 from pathlib import Path
+from types import ModuleType
 
 import openpyxl
 import pytest
@@ -7,7 +10,11 @@ from jsonschema import Draft202012Validator
 
 from app.commands.export_v2_schema import export_v2_schema
 from app.commands.generate_v2_models import generate_v2_models, render_v2_models
-from app.schemas.generated.v2_module_payload import validate_v2_module_payload
+from app.schemas.generated.v2_module_payload import (
+    MaterialLotVersionPayload,
+    SurfaceRoughnessPayload,
+    validate_v2_module_payload,
+)
 from app.services.v2_field_source import load_field_source, missing
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -77,7 +84,9 @@ def _substrate_item(**changes) -> dict:
         "material": "sapphire_al2o3",
         "lot_ref": LOT_REF,
         "chemical_formula": "Al2O3",
+        "orientation_polish_availability": "reported",
         "crystal_orientation": "c-plane",
+        "miscut_availability": "reported",
         "miscut_angle_deg": 0.0,
         "surface_roughness": {"metric": "RMS", "value_nm": 0.5},
         "size_placement": {
@@ -96,15 +105,167 @@ def _precursor_item(**changes) -> dict:
         "phase_state": "solid",
         "lot_ref": LOT_REF,
         "amount": 20.0,
+        "boat_crucible": {
+            "material": "quartz_boat",
+            "length_mm": 90.0,
+            "reset_count": 0,
+            "use_number_since_reset": 1,
+        },
     }
     item.update(changes)
     return item
+
+
+@pytest.fixture
+def rendered_models(tmp_path: Path) -> ModuleType:
+    target = tmp_path / "rendered_v2_module_payload.py"
+    target.write_text(render_v2_models(load_field_source()), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("_rendered_v2_module_payload", target)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_generate_v2_models_matches_committed_file(tmp_path: Path) -> None:
     generated = generate_v2_models(output_path=tmp_path / "v2_module_payload.py")
 
     assert Path(generated).read_bytes() == GENERATED_MODEL.read_bytes()
+
+
+def test_substrate_lot_miscut_requires_direction() -> None:
+    with pytest.raises(ValueError, match="substrate_miscut_direction"):
+        MaterialLotVersionPayload.model_validate(
+            {
+                "lot_category": "substrate",
+                "substance_name": "Sapphire",
+                "chemical_formula": "Al2O3",
+                "batch_number": "S-1",
+                "substrate_material": "sapphire_al2o3",
+                "substrate_orientation_polish_availability": "reported",
+                "substrate_orientation_polish": {
+                    "value": "c-plane",
+                    "option": "single_side_polished",
+                },
+                "substrate_miscut_availability": "reported",
+                "substrate_miscut_angle_deg": 0.2,
+                "substrate_surface_roughness": {
+                    "metric": "RMS",
+                    "value_nm": 0.5,
+                },
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "orientation",
+    [
+        {"value": None, "option": "single_side_polished"},
+        {"value": "c-plane", "option": None},
+        {"value": " ", "option": "single_side_polished"},
+    ],
+)
+def test_substrate_lot_requires_both_orientation_and_polish(
+    orientation: dict,
+) -> None:
+    with pytest.raises(ValueError):
+        MaterialLotVersionPayload.model_validate(
+            {
+                "lot_category": "substrate",
+                "substance_name": "Sapphire",
+                "chemical_formula": "Al2O3",
+                "batch_number": "S-1",
+                "substrate_material": "sapphire_al2o3",
+                "substrate_orientation_polish_availability": "reported",
+                "substrate_orientation_polish": orientation,
+                "substrate_miscut_availability": "reported",
+                "substrate_miscut_angle_deg": 0,
+                "substrate_surface_roughness": {
+                    "metric": "RMS",
+                    "value_nm": 0.5,
+                },
+            }
+        )
+
+
+def test_surface_roughness_records_unavailable_specification_without_fake_zero() -> None:
+    legacy = SurfaceRoughnessPayload.model_validate({"metric": "RMS", "value_nm": 0.5})
+    assert legacy.availability == "reported"
+    assert SurfaceRoughnessPayload.model_validate({"availability": "not_provided"}).model_dump(
+        exclude_none=True
+    ) == {"availability": "not_provided"}
+
+    with pytest.raises(ValueError, match="requires metric and value_nm"):
+        SurfaceRoughnessPayload.model_validate({"availability": "reported"})
+    with pytest.raises(ValueError, match="cannot include"):
+        SurfaceRoughnessPayload.model_validate(
+            {
+                "availability": "not_provided",
+                "metric": "RMS",
+                "value_nm": 0,
+            }
+        )
+
+
+def test_substrate_crystal_specs_support_explicit_not_applicable() -> None:
+    payload = {
+        "lot_category": "substrate",
+        "substance_name": "Copper foil",
+        "chemical_formula": "Cu",
+        "batch_number": "CU-1",
+        "substrate_material": "cu_foil",
+        "substrate_orientation_polish_availability": "not_applicable",
+        "substrate_miscut_availability": "not_applicable",
+        "substrate_surface_roughness": {"availability": "not_provided"},
+    }
+    MaterialLotVersionPayload.model_validate(payload)
+
+    with pytest.raises(ValueError, match="substrate_miscut_angle_deg is not applicable"):
+        MaterialLotVersionPayload.model_validate({**payload, "substrate_miscut_angle_deg": 0})
+
+    reported = {
+        **payload,
+        "substrate_miscut_availability": "reported",
+        "substrate_miscut_angle_deg": 0,
+        "substrate_miscut_direction": "toward a",
+    }
+    with pytest.raises(
+        ValueError,
+        match="not applicable when substrate_miscut_angle_deg is zero",
+    ):
+        MaterialLotVersionPayload.model_validate(reported)
+    with pytest.raises(ValueError, match="not applicable when miscut_angle_deg is zero"):
+        validate_v2_module_payload(
+            "substrates",
+            {"items": [_substrate_item(miscut_direction="toward a")]},
+        )
+
+
+def test_legacy_plasma_pretreatment_alias_uses_the_nested_discriminator() -> None:
+    validated = validate_v2_module_payload(
+        "substrates",
+        {
+            "items": [
+                _substrate_item(
+                    pretreatment_steps=[
+                        {
+                            "type": "等离子",
+                            "parameters": {
+                                "power_W": 50,
+                                "gas_species": "Ar",
+                                "pressure_Pa": 20,
+                                "duration_min": 5,
+                            },
+                        }
+                    ]
+                )
+            ]
+        },
+    )
+
+    assert validated["items"][0]["pretreatment_steps"][0]["type"] == "plasma_treatment"
 
 
 def test_export_v2_schema_matches_committed_files(tmp_path: Path) -> None:
@@ -142,6 +303,13 @@ def test_field_dictionary_conditions_use_machine_codes() -> None:
         "substrate",
         "gas_cylinder",
     }
+    description = next(
+        field
+        for field in dictionary["fields"]
+        if field["module_key"] == "process_events" and field["key"] == "description"
+    )
+    assert description["requirement"] == "conditional_required"
+    assert description["otherwise"] == "optional"
 
 
 def test_standard_schema_exports_structured_result_models_and_validation() -> None:
@@ -365,25 +533,21 @@ def test_conditionally_required_fields_are_rejected_when_not_applicable() -> Non
             "substrates",
             {"items": [_substrate_item(oxide_thickness_nm=285.0)]},
         )
-    for stale in (
-        {"termination_reason": "other"},
-        {"description": "stale termination details"},
-    ):
-        with pytest.raises(ValueError, match="is not applicable"):
-            validate_v2_module_payload(
-                "process_events",
-                {
-                    "items": [
-                        {
-                            "event_id": "366f5ef9-0fac-4b53-81bf-92e094e39430",
-                            "event_type": "equipment_alarm",
-                            "occurred_at": "2026-07-08T10:28:00+08:00",
-                            "terminated_run": False,
-                            **stale,
-                        }
-                    ]
-                },
-            )
+    with pytest.raises(ValueError, match="is not applicable"):
+        validate_v2_module_payload(
+            "process_events",
+            {
+                "items": [
+                    {
+                        "event_id": "366f5ef9-0fac-4b53-81bf-92e094e39430",
+                        "event_type": "equipment_alarm",
+                        "occurred_at": "2026-07-08T10:28:00+08:00",
+                        "terminated_run": False,
+                        "termination_reason": "other",
+                    }
+                ]
+            },
+        )
 
 
 def test_required_values_reject_blank_strings_and_empty_composite_shells() -> None:
@@ -759,10 +923,13 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
                         "length_mm": 90,
                         "width_mm": 15,
                         "height_mm": 5,
+                        "reset_count": 1,
+                        "use_number_since_reset": 7,
                     },
                     "source_zone_temperature": {
                         "zone_index": 1,
                         "temperature_C": 620,
+                        "temperature_basis": "estimate",
                     },
                 }
             ]
@@ -772,7 +939,18 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
     with pytest.raises(ValueError, match="material_other"):
         validate_v2_module_payload(
             "precursors",
-            {"items": [_precursor_item(boat_crucible={"material": "other", "length_mm": 90.0})]},
+            {
+                "items": [
+                    _precursor_item(
+                        boat_crucible={
+                            "material": "other",
+                            "length_mm": 90.0,
+                            "reset_count": 0,
+                            "use_number_since_reset": 1,
+                        }
+                    )
+                ]
+            },
         )
     other_boat = validate_v2_module_payload(
         "precursors",
@@ -783,6 +961,8 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
                         "material": "other",
                         "material_other": "graphite",
                         "length_mm": 90.0,
+                        "reset_count": 0,
+                        "use_number_since_reset": 1,
                     }
                 )
             ]
@@ -798,7 +978,9 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
                     "material": "sapphire_al2o3",
                     "lot_ref": LOT_REF,
                     "chemical_formula": "Al2O3",
+                    "orientation_polish_availability": "reported",
                     "crystal_orientation": "c-plane",
+                    "miscut_availability": "reported",
                     "miscut_angle_deg": 0,
                     "surface_roughness": {"metric": "RMS", "value_nm": 0.5},
                     "size_placement": {
@@ -831,6 +1013,26 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
         },
     )
     assert event["items"][0]["occurred_at"] == "2026-07-08T10:28:00+08:00"
+
+    for termination in (
+        {"terminated_run": False},
+        {"terminated_run": True, "termination_reason": "equipment_alarm"},
+    ):
+        described = validate_v2_module_payload(
+            "process_events",
+            {
+                "items": [
+                    {
+                        "event_id": "366f5ef9-0fac-4b53-81bf-92e094e39435",
+                        "event_type": "equipment_alarm",
+                        "occurred_at": "2026-07-08T10:28:00+08:00",
+                        "description": "报警时炉压短时波动",
+                        **termination,
+                    }
+                ]
+            },
+        )
+        assert described["items"][0]["description"] == "报警时炉压短时波动"
 
     with pytest.raises(ValueError, match="description is conditionally required"):
         validate_v2_module_payload(
@@ -1007,6 +1209,15 @@ def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() ->
         "zone_count": 2,
         "orientation": "水平",
         "tube_material_shape": {"material": "石英", "shape": "圆形"},
+        "tube_outer_diameter_wall_mm": {
+            "outer_diameter_mm": 50.0,
+            "wall_thickness_mm": 2.0,
+        },
+        "tube_usage_history": {
+            "reset_count": 1,
+            "use_number_since_reset": 7,
+        },
+        "field_devices": ["等离子体"],
         "temperature_sensors": [
             {
                 "sensor_name": "TC-1",
@@ -1014,7 +1225,14 @@ def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() ->
                 "zone_index": 1,
                 "uncertainty_C": 1.0,
                 "uncertainty_source": "校准",
-            }
+            },
+            {
+                "sensor_name": "TC-2",
+                "sensor_type": "K",
+                "zone_index": 2,
+                "uncertainty_C": 1.0,
+                "uncertainty_source": "校准",
+            },
         ],
         "setup_diagram": {
             "file_asset_id": "366f5ef9-0fac-4b53-81bf-92e094e39432",
@@ -1031,6 +1249,7 @@ def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() ->
         "shape_other": None,
     }
     assert validated["temperature_sensors"][0]["uncertainty_source"] == "calibration"
+    assert validated["field_devices"] == ["plasma"]
     with pytest.raises(ValueError):
         validate_v2_module_payload(
             "equipment",
@@ -1042,6 +1261,118 @@ def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() ->
     invalid_source["temperature_sensors"][0]["uncertainty_source"] = "other"
     with pytest.raises(ValueError):
         validate_v2_module_payload("equipment", invalid_source)
+
+
+def test_rendered_equipment_and_setup_models_enforce_shape_and_zone_contracts(
+    rendered_models: ModuleType,
+) -> None:
+    sensors = [
+        {
+            "sensor_name": f"TC-{zone_index}",
+            "sensor_type": "K",
+            "zone_index": zone_index,
+            "uncertainty_C": 1.0,
+            "uncertainty_source": "calibration",
+        }
+        for zone_index in (1, 2)
+    ]
+    equipment = {
+        "setup_ref": "setup-1@v2",
+        "zone_count": 2,
+        "orientation": "horizontal",
+        "tube_material_shape": {"material": "quartz", "shape": "round"},
+        "tube_outer_diameter_wall_mm": {
+            "outer_diameter_mm": 50.0,
+            "wall_thickness_mm": 2.0,
+        },
+        "temperature_sensors": sensors,
+        "tube_usage_history": {
+            "reset_count": 0,
+            "use_number_since_reset": 1,
+        },
+    }
+    setup = {
+        "setup_code": "SETUP-1",
+        "setup_name": "Two-zone furnace",
+        **{
+            key: value
+            for key, value in equipment.items()
+            if key not in {"setup_ref", "tube_usage_history"}
+        },
+    }
+
+    for model, payload in (
+        (rendered_models.EquipmentPayload, equipment),
+        (rendered_models.SetupVersionPayload, setup),
+    ):
+        model.model_validate(payload)
+
+        unpaired = deepcopy(payload)
+        unpaired.pop("tube_outer_diameter_wall_mm")
+        with pytest.raises(ValueError, match="must be provided together"):
+            model.model_validate(unpaired)
+
+        wrong_shape = deepcopy(payload)
+        wrong_shape["tube_outer_diameter_wall_mm"] = {
+            "outer_side_mm": 50.0,
+            "wall_thickness_mm": 2.0,
+        }
+        with pytest.raises(ValueError, match="do not match"):
+            model.model_validate(wrong_shape)
+
+        duplicate_zone = deepcopy(payload)
+        duplicate_zone["temperature_sensors"][1]["zone_index"] = 1
+        with pytest.raises(ValueError, match="cover each zone exactly once"):
+            model.model_validate(duplicate_zone)
+
+
+def test_rendered_precursor_and_local_condition_contracts(
+    rendered_models: ModuleType,
+) -> None:
+    with pytest.raises(ValueError, match="source_zone_temperature is required"):
+        rendered_models.PrecursorItemPayload.model_validate(
+            _precursor_item(thermocouple_distance_mm=0.0)
+        )
+    rendered_models.PrecursorItemPayload.model_validate(
+        _precursor_item(
+            source_zone_temperature={"zone_index": 1},
+            thermocouple_distance_mm=-20.0,
+        )
+    )
+
+    with pytest.raises(ValueError, match="appearance is not applicable"):
+        rendered_models.PrecursorItemPayload.model_validate(
+            {
+                "name_formula": "Ar",
+                "phase_state": "gas",
+                "appearance": "gas",
+                "lot_ref": LOT_REF,
+            }
+        )
+    rendered_models.PrecursorItemPayload.model_validate(_precursor_item())
+
+    with pytest.raises(ValueError, match="gas_purity_grade is not applicable"):
+        rendered_models.MaterialLotVersionPayload.model_validate(
+            {
+                "lot_category": "chemical",
+                "substance_name": "MoO3",
+                "chemical_formula": "MoO3",
+                "cas_number": "1313-27-5",
+                "batch_number": "M-1",
+                "purity": 99.9,
+                "gas_purity_grade": "5N",
+            }
+        )
+    rendered_models.MaterialLotVersionPayload.model_validate(
+        {
+            "lot_category": "gas_cylinder",
+            "substance_name": "Argon",
+            "chemical_formula": "Ar",
+            "cas_number": "7440-37-1",
+            "batch_number": "AR-1",
+            "purity": 99.999,
+        }
+    )
 
 
 def test_treatment_and_pretreatment_steps_use_discriminated_parameter_objects() -> None:
@@ -1149,7 +1480,11 @@ def test_process_structures_preserve_preparation_measurement_cooling_and_fields(
                 "field_type": "等离子",
                 "start_min": 10.0,
                 "end_min": 20.0,
-                "parameters": [{"name": "power", "value": 50.0, "unit": "W"}],
+                "parameters": [
+                    {"name": "power", "value": 50.0, "unit": "W"},
+                    {"name": "gas", "value": "Ar", "unit": "—"},
+                    {"name": "pressure", "value": 50.0, "unit": "Pa"},
+                ],
             }
         ],
     )
@@ -1158,6 +1493,40 @@ def test_process_structures_preserve_preparation_measurement_cooling_and_fields(
     assert saved["measured_temperature"]["channels"][0]["column_name"] == "zone1_C"
     assert saved["cooling_params"]["method"] == "open_lid_cooling"
     assert saved["field_params"][0]["field_type"] == "plasma"
+
+    invalid_field_parameters = [
+        [{"name": "frequency", "value": 13.56, "unit": "MHz"}],
+        [
+            {"name": "power_W", "value": -1.0, "unit": "W"},
+            {"name": "gas_species", "value": "Ar", "unit": "—"},
+            {"name": "pressure_Pa", "value": 50.0, "unit": "Pa"},
+        ],
+        [
+            {"name": "power_W", "value": 50.0, "unit": "W"},
+            {"name": "gas_species", "value": "Ar", "unit": "—"},
+            {"name": "pressure_Pa", "value": 50.0, "unit": "Pa"},
+            {"name": "wavelength_nm", "value": 365.0, "unit": "nm"},
+        ],
+    ]
+    for parameters in invalid_field_parameters:
+        with pytest.raises(ValueError):
+            validate_v2_module_payload(
+                "process_steps",
+                {
+                    "items": [
+                        _reaction_step(
+                            field_params=[
+                                {
+                                    "field_type": "plasma",
+                                    "start_min": 10.0,
+                                    "end_min": 20.0,
+                                    "parameters": parameters,
+                                }
+                            ]
+                        )
+                    ]
+                },
+            )
 
     with pytest.raises(ValueError):
         validate_v2_module_payload(
@@ -1175,6 +1544,86 @@ def test_process_structures_preserve_preparation_measurement_cooling_and_fields(
         validate_v2_module_payload(
             "process_steps",
             {"items": [_reaction_step(gas_feeds=gas_with_copied_purity)]},
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_type", "parameters"),
+    [
+        (
+            "light",
+            [
+                {"name": "wavelength_nm", "value": 365.0, "unit": "nm"},
+                {
+                    "name": "irradiance_mW_cm2",
+                    "value": 12.0,
+                    "unit": "mW·cm⁻²",
+                },
+                {"name": "source_distance_mm", "value": 30.0, "unit": "mm"},
+            ],
+        ),
+        (
+            "electric_field",
+            [
+                {
+                    "name": "field_strength_V_cm",
+                    "value": 100.0,
+                    "unit": "V·cm⁻¹",
+                },
+                {"name": "electrode_gap_mm", "value": 5.0, "unit": "mm"},
+                {"name": "direction", "value": "parallel", "unit": "—"},
+            ],
+        ),
+    ],
+)
+def test_external_field_types_require_their_explicit_parameter_contract(
+    field_type: str,
+    parameters: list[dict],
+) -> None:
+    validated = validate_v2_module_payload(
+        "process_steps",
+        {
+            "items": [
+                _reaction_step(
+                    field_params=[
+                        {
+                            "field_type": field_type,
+                            "start_min": 5.0,
+                            "end_min": 20.0,
+                            "parameters": parameters,
+                        }
+                    ]
+                )
+            ]
+        },
+    )
+    assert validated["items"][0]["field_params"][0]["field_type"] == field_type
+
+    both_magnitudes = deepcopy(parameters)
+    both_magnitudes.append(
+        {
+            "name": "power_mW" if field_type == "light" else "voltage_V",
+            "value": 10.0,
+            "unit": "mW" if field_type == "light" else "V",
+        }
+    )
+    with pytest.raises(ValueError):
+        validate_v2_module_payload(
+            "process_steps",
+            {
+                "items": [
+                    _reaction_step(
+                        field_params=[
+                            {
+                                "field_type": field_type,
+                                "start_min": 5.0,
+                                "end_min": 20.0,
+                                "parameters": both_magnitudes,
+                            }
+                        ]
+                    )
+                ]
+            },
         )
 
 

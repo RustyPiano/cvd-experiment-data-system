@@ -312,20 +312,85 @@
           "additionalProperties": false,
           "properties": {
             "outer_diameter_mm": {
-              "exclusiveMinimum": 0,
-              "title": "Outer Diameter Mm",
-              "type": "number"
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Diameter Mm"
+            },
+            "outer_side_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Side Mm"
+            },
+            "outer_width_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Width Mm"
+            },
+            "outer_height_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Height Mm"
             },
             "wall_thickness_mm": {
-              "exclusiveMinimum": 0,
-              "title": "Wall Thickness Mm",
-              "type": "number"
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Wall Thickness Mm"
+            },
+            "dimension_description": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dimension Description"
             }
           },
-          "required": [
-            "outer_diameter_mm",
-            "wall_thickness_mm"
-          ],
           "title": "TubeDimensionsPayload",
           "type": "object"
         },
@@ -381,6 +446,27 @@
             "shape"
           ],
           "title": "TubeMaterialShapePayload",
+          "type": "object"
+        },
+        "TubeUsageHistoryPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "reset_count": {
+              "minimum": 0,
+              "title": "Reset Count",
+              "type": "integer"
+            },
+            "use_number_since_reset": {
+              "minimum": 1,
+              "title": "Use Number Since Reset",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "reset_count",
+            "use_number_since_reset"
+          ],
+          "title": "TubeUsageHistoryPayload",
           "type": "object"
         }
       },
@@ -506,13 +592,17 @@
             }
           ],
           "default": null
+        },
+        "tube_usage_history": {
+          "$ref": "#/$defs/TubeUsageHistoryPayload"
         }
       },
       "required": [
         "setup_ref",
         "zone_count",
         "orientation",
-        "temperature_sensors"
+        "temperature_sensors",
+        "tube_usage_history"
       ],
       "title": "EquipmentPayload",
       "type": "object",
@@ -646,10 +736,22 @@
               ],
               "default": null,
               "title": "Diameter Mm"
+            },
+            "reset_count": {
+              "minimum": 0,
+              "title": "Reset Count",
+              "type": "integer"
+            },
+            "use_number_since_reset": {
+              "minimum": 1,
+              "title": "Use Number Since Reset",
+              "type": "integer"
             }
           },
           "required": [
-            "material"
+            "material",
+            "reset_count",
+            "use_number_since_reset"
           ],
           "title": "BoatCruciblePayload",
           "type": "object"
@@ -1075,13 +1177,36 @@
               "type": "integer"
             },
             "temperature_C": {
-              "title": "Temperature C",
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Temperature C"
+            },
+            "temperature_basis": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "measured",
+                    "estimate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Temperature Basis"
             }
           },
           "required": [
-            "zone_index",
-            "temperature_C"
+            "zone_index"
           ],
           "title": "SourceZoneTemperaturePayload",
           "type": "object"
@@ -1481,17 +1606,61 @@
               "title": "Chemical Formula",
               "type": "string"
             },
+            "orientation_polish_availability": {
+              "enum": [
+                "not_applicable",
+                "not_provided",
+                "reported"
+              ],
+              "title": "Orientation Polish Availability",
+              "type": "string"
+            },
             "crystal_orientation": {
-              "minLength": 1,
-              "pattern": "\\S",
-              "title": "Crystal Orientation",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Crystal Orientation"
+            },
+            "miscut_availability": {
+              "enum": [
+                "not_applicable",
+                "not_provided",
+                "reported"
+              ],
+              "title": "Miscut Availability",
               "type": "string"
             },
             "miscut_angle_deg": {
-              "exclusiveMaximum": 90,
-              "minimum": 0,
-              "title": "Miscut Angle Deg",
-              "type": "number"
+              "anyOf": [
+                {
+                  "exclusiveMaximum": 90,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Miscut Angle Deg"
+            },
+            "miscut_direction": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Miscut Direction"
             },
             "oxide_thickness_nm": {
               "anyOf": [
@@ -1596,8 +1765,8 @@
             "material",
             "lot_ref",
             "chemical_formula",
-            "crystal_orientation",
-            "miscut_angle_deg",
+            "orientation_polish_availability",
+            "miscut_availability",
             "surface_roughness",
             "size_placement"
           ],
@@ -1679,24 +1848,45 @@
         "SurfaceRoughnessPayload": {
           "additionalProperties": false,
           "properties": {
-            "metric": {
+            "availability": {
+              "default": "reported",
               "enum": [
-                "Ra",
-                "RMS"
+                "reported",
+                "not_provided"
               ],
-              "title": "Metric",
+              "title": "Availability",
               "type": "string"
             },
+            "metric": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "Ra",
+                    "RMS"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Metric"
+            },
             "value_nm": {
-              "minimum": 0,
-              "title": "Value Nm",
-              "type": "number"
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value Nm"
             }
           },
-          "required": [
-            "metric",
-            "value_nm"
-          ],
           "title": "SurfaceRoughnessPayload",
           "type": "object"
         },
@@ -2834,6 +3024,51 @@
           },
           "title": "SubstrateOrientationPolishValue",
           "type": "object"
+        },
+        "SurfaceRoughnessPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "availability": {
+              "default": "reported",
+              "enum": [
+                "reported",
+                "not_provided"
+              ],
+              "title": "Availability",
+              "type": "string"
+            },
+            "metric": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "Ra",
+                    "RMS"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Metric"
+            },
+            "value_nm": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value Nm"
+            }
+          },
+          "title": "SurfaceRoughnessPayload",
+          "type": "object"
         }
       },
       "additionalProperties": false,
@@ -3024,10 +3259,81 @@
           "default": null,
           "title": "Substrate Oxide Thickness Nm"
         },
+        "substrate_orientation_polish_availability": {
+          "anyOf": [
+            {
+              "enum": [
+                "not_applicable",
+                "not_provided",
+                "reported"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate Orientation Polish Availability"
+        },
         "substrate_orientation_polish": {
           "anyOf": [
             {
               "$ref": "#/$defs/SubstrateOrientationPolishValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "substrate_miscut_availability": {
+          "anyOf": [
+            {
+              "enum": [
+                "not_applicable",
+                "not_provided",
+                "reported"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate Miscut Availability"
+        },
+        "substrate_miscut_angle_deg": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 90,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate Miscut Angle Deg"
+        },
+        "substrate_miscut_direction": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate Miscut Direction"
+        },
+        "substrate_surface_roughness": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SurfaceRoughnessPayload"
             },
             {
               "type": "null"
@@ -3172,20 +3478,85 @@
           "additionalProperties": false,
           "properties": {
             "outer_diameter_mm": {
-              "exclusiveMinimum": 0,
-              "title": "Outer Diameter Mm",
-              "type": "number"
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Diameter Mm"
+            },
+            "outer_side_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Side Mm"
+            },
+            "outer_width_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Width Mm"
+            },
+            "outer_height_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Outer Height Mm"
             },
             "wall_thickness_mm": {
-              "exclusiveMinimum": 0,
-              "title": "Wall Thickness Mm",
-              "type": "number"
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Wall Thickness Mm"
+            },
+            "dimension_description": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dimension Description"
             }
           },
-          "required": [
-            "outer_diameter_mm",
-            "wall_thickness_mm"
-          ],
           "title": "TubeDimensionsPayload",
           "type": "object"
         },

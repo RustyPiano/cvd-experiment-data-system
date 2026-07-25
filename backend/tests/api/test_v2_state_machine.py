@@ -1,3 +1,4 @@
+from copy import deepcopy
 from uuid import UUID
 from zlib import crc32
 
@@ -7,12 +8,15 @@ from sqlalchemy.exc import IntegrityError
 from app.main import app
 from app.models.audit import AuditEvent
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.module_payload import ExperimentModulePayload
 from app.models.user import User, UserRole
+from app.models.v2_entities import MaterialLotVersion, SetupVersion
 from app.models.v2_results import MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.services.sample_service import SampleService
 from tests.helpers.v2_payloads import (
     basic_info_payload,
+    setup_payload,
     substrate_item,
     substrate_lot_payload,
 )
@@ -34,6 +38,9 @@ def _run(headers: dict[str, str], code: str, method: str = "PVD-热蒸发") -> d
             "started_at": "2026-07-11T09:00:00",
             "synthesis_method": method,
             "operator": "tester",
+            "ambient_temperature_C": 25.0,
+            "ambient_humidity_percent": 45.0,
+            "precheck_confirmed": True,
         },
         headers=headers,
     )
@@ -170,6 +177,261 @@ def test_lock_gate_returns_structured_missing_fields(active_user) -> None:
     assert {"components", "amount"}.isdisjoint(missing_keys)
 
 
+def test_lock_revalidates_saved_modules_without_rewriting_them(
+    active_user,
+    db_session,
+) -> None:
+    owner = _headers(active_user.email)
+    run = _run(owner, "STATE-REVALIDATE")
+    payload = (
+        db_session.query(ExperimentModulePayload)
+        .filter(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "basic_info",
+        )
+        .one()
+    )
+    payload.payload_json = {
+        **payload.payload_json,
+        "ambient_temperature_C": "not-a-number",
+    }
+    db_session.commit()
+    stored = deepcopy(payload.payload_json)
+
+    response = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == {
+        "invalid": [{"key": "ambient_temperature_C", "reason": "type"}]
+    }
+    db_session.expire_all()
+    assert db_session.get(ExperimentModulePayload, payload.id).payload_json == stored
+
+
+def test_lock_revalidates_saved_process_semantics_without_rewriting_them(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
+    owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
+    run = _lockable_run(owner, admin, "STATE-PROCESS-REVALIDATE")
+    preparation = {
+        "stage_type": "preparation",
+        "preparation_operations": [
+            {
+                "operation_type": "pump_down",
+                "target_absolute_pressure_Pa": 10.0,
+                "duration_min": 5.0,
+            }
+        ],
+    }
+    payload = ExperimentModulePayload(
+        experiment_run_id=UUID(run["id"]),
+        module_key="process_steps",
+        payload_json={"items": [preparation, deepcopy(preparation)]},
+    )
+    db_session.add(payload)
+    db_session.commit()
+    stored = deepcopy(payload.payload_json)
+
+    response = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == {"invalid": [{"key": "stage_type", "reason": "duplicate"}]}
+    db_session.expire_all()
+    assert db_session.get(ExperimentModulePayload, payload.id).payload_json == stored
+
+
+def test_lock_rejects_legacy_malformed_zone_values_without_rewriting_them(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
+    owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
+    run = _lockable_run(owner, admin, "STATE-ZONE-REVALIDATE")
+    payload = (
+        db_session.query(ExperimentModulePayload)
+        .filter(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "substrates",
+        )
+        .one()
+    )
+    changed_payload = deepcopy(payload.payload_json)
+    changed_payload["items"][0]["zone_thermocouple_distance_mm"] = "legacy-free-text"
+    payload.payload_json = changed_payload
+    db_session.commit()
+    stored = deepcopy(payload.payload_json)
+
+    response = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
+
+    assert response.status_code == 422, response.text
+    assert {item["key"] for item in response.json()["detail"]["invalid"]} == {
+        "zone_thermocouple_distance_mm"
+    }
+    db_session.expire_all()
+    assert db_session.get(ExperimentModulePayload, payload.id).payload_json == stored
+
+
+def test_lock_refreshes_lot_facts_on_a_copy(active_user, admin_user, db_session) -> None:
+    owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
+    run = _lockable_run(owner, admin, "STATE-LOT-REVALIDATE")
+    payload = (
+        db_session.query(ExperimentModulePayload)
+        .filter(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "substrates",
+        )
+        .one()
+    )
+    stored = deepcopy(payload.payload_json)
+    lot_id = UUID(stored["items"][0]["lot_ref"]["entity_id"])
+    current_version = (
+        db_session.query(MaterialLotVersion)
+        .filter(
+            MaterialLotVersion.entity_id == lot_id,
+            MaterialLotVersion.version == 1,
+        )
+        .one()
+    )
+    invalid_version = MaterialLotVersion(
+        entity_id=current_version.entity_id,
+        version=2,
+        lot_category=current_version.lot_category,
+        substance_name=current_version.substance_name,
+        chemical_formula=current_version.chemical_formula,
+        batch_number=current_version.batch_number,
+        attrs={
+            key: value
+            for key, value in current_version.attrs.items()
+            if key != "substrate_surface_roughness"
+        },
+    )
+    db_session.add(invalid_version)
+    stale_payload = deepcopy(payload.payload_json)
+    stale_payload["items"][0]["lot_ref"]["version"] = 2
+    payload.payload_json = stale_payload
+    db_session.commit()
+    stored = deepcopy(payload.payload_json)
+
+    response = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == {
+        "invalid": [
+            {
+                "key": "lot_ref",
+                "reason": "incomplete_stable_facts",
+                "missing": ["surface_roughness"],
+            }
+        ]
+    }
+    db_session.expire_all()
+    assert db_session.get(ExperimentModulePayload, payload.id).payload_json == stored
+
+
+def test_lock_prefills_new_lot_projection_fields_on_a_copy(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
+    owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
+    run = _lockable_run(owner, admin, "STATE-LOT-PREFILL")
+    payload = (
+        db_session.query(ExperimentModulePayload)
+        .filter(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "substrates",
+        )
+        .one()
+    )
+    stale_payload = deepcopy(payload.payload_json)
+    stale_payload["items"][0].pop("orientation_polish_availability")
+    stale_payload["items"][0].pop("miscut_availability")
+    payload.payload_json = stale_payload
+    db_session.commit()
+    stored = deepcopy(payload.payload_json)
+
+    response = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
+
+    assert response.status_code == 200, response.text
+    db_session.expire_all()
+    assert db_session.get(ExperimentModulePayload, payload.id).payload_json == stored
+
+
+def test_setup_reference_validates_projection_before_writing(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
+    owner = _headers(active_user.email)
+    admin = _headers(admin_user.email)
+    setup = client.post(
+        "/api/v1/setups",
+        json=setup_payload(setup_code="SETUP-OLD-INCOMPATIBLE"),
+        headers=admin,
+    )
+    assert setup.status_code == 201, setup.text
+    current_version = (
+        db_session.query(SetupVersion)
+        .filter(
+            SetupVersion.entity_id == UUID(setup.json()["id"]),
+            SetupVersion.version == 1,
+        )
+        .one()
+    )
+    invalid_version = SetupVersion(
+        entity_id=current_version.entity_id,
+        version=2,
+        setup_code=current_version.setup_code,
+        setup_name=current_version.setup_name,
+        zone_count=current_version.zone_count,
+        orientation=current_version.orientation,
+        coordinate_system=current_version.coordinate_system,
+        attrs={**current_version.attrs, "temperature_sensors": []},
+    )
+    db_session.add(invalid_version)
+    db_session.commit()
+    run = _run(owner, "STATE-SETUP-REVALIDATE")
+
+    response = client.put(
+        f"/api/v1/experiments/{run['id']}/setup-reference",
+        json={
+            "setup_id": setup.json()["id"],
+            "version": 2,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
+        },
+        headers=owner,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == {
+        "invalid": [{"key": "temperature_sensors", "reason": "length"}]
+    }
+    db_session.expire_all()
+    persisted_run = db_session.get(ExperimentRun, UUID(run["id"]))
+    assert persisted_run.setup_ref is None
+    assert (
+        db_session.query(ExperimentModulePayload)
+        .filter(
+            ExperimentModulePayload.experiment_run_id == UUID(run["id"]),
+            ExperimentModulePayload.module_key == "equipment",
+        )
+        .one_or_none()
+        is None
+    )
+    assert [
+        event.action
+        for event in db_session.query(AuditEvent)
+        .filter(AuditEvent.entity_id == UUID(run["id"]))
+        .all()
+    ] == ["create"]
+
+
 def test_operator_is_always_the_run_owner(active_user, admin_user) -> None:
     headers = _headers(active_user.email)
     admin_headers = _headers(admin_user.email)
@@ -243,6 +505,7 @@ def test_process_writes_recheck_status_after_acquiring_run_lock(active_user, mon
         json={
             "setup_id": "00000000-0000-0000-0000-000000000001",
             "version": 1,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
         },
         headers=headers,
     )
@@ -529,7 +792,14 @@ def test_invalid_run_rejects_process_and_result_writes(active_user) -> None:
         (
             "put",
             f"/api/v1/experiments/{run_id}/setup-reference",
-            {"setup_id": "00000000-0000-0000-0000-000000000001", "version": 1},
+            {
+                "setup_id": "00000000-0000-0000-0000-000000000001",
+                "version": 1,
+                "tube_usage_history": {
+                    "reset_count": 0,
+                    "use_number_since_reset": 1,
+                },
+            },
         ),
         (
             "post",

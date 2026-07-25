@@ -378,11 +378,11 @@ def test_lock_r0_rechecks_process_order_temperature_start_and_cycle_count(
 
     with pytest.raises(HTTPException) as exc_info:
         service.lock(run.id, active_user)
-    lock_missing_keys = {item["key"] for item in exc_info.value.detail["missing"]}
+    lock_missing_keys = {item["key"] for item in exc_info.value.detail["invalid"]}
     assert {
-        "process_step_order",
-        "temperature_program_start",
-        "reaction_cycle_count",
+        "stage_type",
+        "temperature_program",
+        "duration_cycles",
     } <= lock_missing_keys
 
 
@@ -412,7 +412,11 @@ def test_process_save_rejects_setup_zone_and_field_capability_overreach(
             "field_type": "plasma",
             "start_min": 5,
             "end_min": 20,
-            "parameters": [{"name": "power", "value": 50, "unit": "W"}],
+            "parameters": [
+                {"name": "power", "value": 50, "unit": "W"},
+                {"name": "gas", "value": "Ar", "unit": "—"},
+                {"name": "pressure", "value": 100, "unit": "Pa"},
+            ],
         }
     ]
     with pytest.raises(HTTPException) as field_exc:
@@ -597,7 +601,11 @@ def test_process_timed_values_cannot_exceed_total_duration(
             "field_type": "plasma",
             "start_min": 0,
             "end_min": 30,
-            "parameters": [{"name": "power", "value": 50, "unit": "W"}],
+            "parameters": [
+                {"name": "power", "value": 50, "unit": "W"},
+                {"name": "gas", "value": "Ar", "unit": "—"},
+                {"name": "pressure", "value": 100, "unit": "Pa"},
+            ],
         }
     ]
     target = reaction
@@ -1164,6 +1172,155 @@ def test_substrate_identity_uses_separate_formula_field(db_session, active_user)
             },
             version,
         )
+
+
+def test_material_lot_freeze_projects_stable_substrate_facts_and_rejects_old_lot_gaps(
+    db_session,
+    active_user,
+) -> None:
+    service = V2ExperimentService(db_session)
+    current = _gas_lot(
+        db_session,
+        category="substrate",
+        substance_name="Sapphire",
+        formula="Al2O3",
+        attrs={
+            "substrate_material": "sapphire_al2o3",
+            "substrate_orientation_polish": {
+                "value": "c-plane",
+                "option": "single_side_polished",
+            },
+            "substrate_oxide_thickness_nm": 285,
+            "substrate_miscut_angle_deg": 0.2,
+            "substrate_miscut_direction": "toward_a_axis",
+            "substrate_surface_roughness": {
+                "availability": "reported",
+                "metric": "RMS",
+                "value_nm": 0.5,
+            },
+        },
+    )
+    item = {
+        "material": "sapphire_al2o3",
+        "chemical_formula": "Al2O3",
+        "crystal_orientation": "FORGED",
+        "oxide_thickness_nm": 90,
+        "miscut_angle_deg": 1.5,
+        "miscut_direction": "FORGED",
+        "surface_roughness": {"metric": "Ra", "value_nm": 99},
+        "lot_ref": _lot_ref(current),
+    }
+
+    frozen = service._freeze_material_lot_references("substrates", {"items": [item]})["items"][0]
+
+    assert frozen["crystal_orientation"] == "c-plane；single_side_polished"
+    assert frozen["oxide_thickness_nm"] == 285
+    assert frozen["miscut_angle_deg"] == 0.2
+    assert frozen["miscut_direction"] == "toward_a_axis"
+    assert frozen["surface_roughness"] == {
+        "availability": "reported",
+        "metric": "RMS",
+        "value_nm": 0.5,
+    }
+
+    legacy = _gas_lot(
+        db_session,
+        category="substrate",
+        substance_name="Legacy sapphire",
+        formula="Al2O3",
+        attrs={"substrate_material": "sapphire_al2o3"},
+    )
+    fallback = {
+        "material": "sapphire_al2o3",
+        "chemical_formula": "Al2O3",
+        "crystal_orientation": "legacy user value",
+        "miscut_angle_deg": 0,
+        "miscut_direction": "",
+        "surface_roughness": {"metric": "RMS", "value_nm": 0.8},
+        "lot_ref": _lot_ref(legacy),
+    }
+
+    run = _run(db_session, active_user)
+    with pytest.raises(HTTPException) as exc_info:
+        service.upsert_module(
+            run.id,
+            "substrates",
+            V2ModulePayloadUpsert(
+                payload_json={
+                    "items": [
+                        {
+                            **fallback,
+                            "size_placement": {
+                                "length_mm": 10,
+                                "width_mm": 10,
+                                "placement": "face_up",
+                            },
+                        }
+                    ]
+                }
+            ),
+            active_user,
+        )
+    assert exc_info.value.detail["invalid"] == [
+        {
+            "key": "lot_ref",
+            "reason": "incomplete_stable_facts",
+            "missing": [
+                "orientation_polish_availability",
+                "miscut_availability",
+                "surface_roughness",
+            ],
+        }
+    ]
+
+
+def test_substrate_save_can_derive_lot_owned_required_fields(
+    db_session,
+    active_user,
+) -> None:
+    run = _run(db_session, active_user)
+    lot = _gas_lot(
+        db_session,
+        category="substrate",
+        substance_name="Sapphire",
+        formula="Al2O3",
+        attrs={
+            "substrate_material": "sapphire_al2o3",
+            "substrate_orientation_polish": {
+                "value": "c-plane",
+                "option": "single_side_polished",
+            },
+            "substrate_miscut_angle_deg": 0,
+            "substrate_surface_roughness": {"metric": "RMS", "value_nm": 0.5},
+        },
+    )
+
+    saved = V2ExperimentService(db_session).upsert_module(
+        run.id,
+        "substrates",
+        V2ModulePayloadUpsert(
+            payload_json={
+                "items": [
+                    {
+                        "lot_ref": _lot_ref(lot),
+                        "size_placement": {
+                            "length_mm": 10,
+                            "width_mm": 10,
+                            "placement": "face_up",
+                        },
+                    }
+                ]
+            }
+        ),
+        active_user,
+    )
+
+    item = saved.payload_json["items"][0]
+    assert item["material"] == "sapphire_al2o3"
+    assert item["chemical_formula"] == "Al2O3"
+    assert item["crystal_orientation"] == "c-plane；single_side_polished"
+    assert item["miscut_angle_deg"] == 0
+    assert item["surface_roughness"] == {"metric": "RMS", "value_nm": 0.5}
 
 
 def test_pressure_regime_uses_reaction_conditions_stage(db_session) -> None:

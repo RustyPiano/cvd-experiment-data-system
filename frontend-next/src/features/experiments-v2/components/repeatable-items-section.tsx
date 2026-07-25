@@ -59,6 +59,99 @@ function snapshotText(snapshot: Record<string, unknown>, key: string): string {
   return value == null ? '' : String(value).trim()
 }
 
+function snapshotFormValue(
+  snapshot: Record<string, unknown>,
+  key: string,
+): string {
+  const value = snapshotValue(snapshot, key)
+  if (value == null || value === '') return ''
+  return typeof value === 'object'
+    ? JSON.stringify(value)
+    : String(value).trim()
+}
+
+const MATERIAL_LOT_PROJECTED_FIELDS: Record<string, readonly string[]> = {
+  precursors: ['name_formula', 'cas_inchi'],
+  substrates: [
+    'material',
+    'chemical_formula',
+    'orientation_polish_availability',
+    'crystal_orientation',
+    'oxide_thickness_nm',
+    'miscut_availability',
+    'miscut_angle_deg',
+    'miscut_direction',
+    'surface_roughness',
+  ],
+}
+
+export function materialLotProjection(
+  moduleKey: string,
+  snapshot: Record<string, unknown>,
+): ModuleValues {
+  if (moduleKey === 'precursors') {
+    return Object.fromEntries(
+      Object.entries({
+        name_formula:
+          snapshotText(snapshot, 'chemical_formula') ||
+          snapshotText(snapshot, 'substance_name'),
+        cas_inchi: [
+          snapshotText(snapshot, 'cas_number'),
+          snapshotText(snapshot, 'inchikey_cid'),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      }).filter(([, value]) => value !== ''),
+    )
+  }
+  if (moduleKey === 'substrates') {
+    const orientation = snapshotValue(snapshot, 'substrate_orientation_polish')
+    const orientationAvailability =
+      snapshotText(snapshot, 'substrate_orientation_polish_availability') ||
+      (orientation ? 'reported' : '')
+    const miscutAngle = snapshotValue(snapshot, 'substrate_miscut_angle_deg')
+    const miscutAvailability =
+      snapshotText(snapshot, 'substrate_miscut_availability') ||
+      (miscutAngle !== null && miscutAngle !== undefined ? 'reported' : '')
+    const crystalOrientation =
+      orientation && typeof orientation === 'object'
+        ? ['value', 'option']
+            .map((key) =>
+              String(
+                (orientation as Record<string, unknown>)[key] ?? '',
+              ).trim(),
+            )
+            .filter(Boolean)
+            .join('；')
+        : snapshotText(snapshot, 'substrate_orientation_polish')
+    return Object.fromEntries(
+      Object.entries({
+        material: canonicalOption(snapshotText(snapshot, 'substrate_material')),
+        chemical_formula: snapshotText(snapshot, 'chemical_formula'),
+        orientation_polish_availability: canonicalOption(
+          orientationAvailability,
+        ),
+        crystal_orientation: crystalOrientation,
+        oxide_thickness_nm: snapshotFormValue(
+          snapshot,
+          'substrate_oxide_thickness_nm',
+        ),
+        miscut_availability: canonicalOption(miscutAvailability),
+        miscut_angle_deg:
+          miscutAngle === null || miscutAngle === undefined
+            ? ''
+            : String(miscutAngle),
+        miscut_direction: snapshotText(snapshot, 'substrate_miscut_direction'),
+        surface_roughness: snapshotFormValue(
+          snapshot,
+          'substrate_surface_roughness',
+        ),
+      }).filter(([, value]) => value !== ''),
+    )
+  }
+  return {}
+}
+
 export function materialLotAutofill(
   moduleKey: string,
   snapshot: Record<string, unknown>,
@@ -73,51 +166,27 @@ export function materialLotAutofill(
         : ['powder', 'granules', 'bulk_solid', 'foil', 'target'].includes(form)
           ? 'solid'
           : '')
-    return Object.fromEntries(
-      Object.entries({
-        name_formula:
-          snapshotText(snapshot, 'chemical_formula') ||
-          snapshotText(snapshot, 'substance_name'),
-        cas_inchi: [
-          snapshotText(snapshot, 'cas_number'),
-          snapshotText(snapshot, 'inchikey_cid'),
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        phase_state: phase,
-      }).filter(([, value]) => value !== ''),
-    )
+    return {
+      ...materialLotProjection(moduleKey, snapshot),
+      ...(phase ? { phase_state: phase } : {}),
+    }
   }
-  if (moduleKey === 'substrates') {
-    const orientation = snapshotValue(snapshot, 'substrate_orientation_polish')
-    const crystalOrientation =
-      orientation && typeof orientation === 'object'
-        ? String((orientation as Record<string, unknown>).value ?? '').trim()
-        : ''
-    return Object.fromEntries(
-      Object.entries({
-        material: canonicalOption(snapshotText(snapshot, 'substrate_material')),
-        chemical_formula: snapshotText(snapshot, 'chemical_formula'),
-        crystal_orientation: crystalOrientation,
-        oxide_thickness_nm: snapshotText(
-          snapshot,
-          'substrate_oxide_thickness_nm',
-        ),
-      }).filter(([, value]) => value !== ''),
-    )
-  }
-  return {}
+  return materialLotProjection(moduleKey, snapshot)
 }
 
-function materialLotSummary(snapshot: Record<string, unknown>): string {
+function materialLotSummary(
+  snapshot: Record<string, unknown>,
+  sizePrefix: string,
+): string {
   const purity = snapshotText(snapshot, 'purity')
   const particleSize = snapshotText(snapshot, 'particle_size_d50_um')
+  const size = snapshotText(snapshot, 'substrate_size_spec')
   return [
     snapshotText(snapshot, 'supplier'),
     snapshotText(snapshot, 'batch_number'),
     purity ? `${purity}%` : '',
     particleSize ? `D50 ${particleSize} μm` : '',
-    snapshotText(snapshot, 'substrate_size_spec'),
+    size ? `${sizePrefix}${size}` : '',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -128,15 +197,108 @@ export function materialLotMatchesItem(
   item: ModuleValues,
   snapshot: Record<string, unknown>,
 ): boolean {
-  const expectedCategory =
-    moduleKey === 'substrates'
-      ? 'substrate'
-      : canonicalOption(moduleValueAsString(item['phase_state'])) === 'gas'
-        ? 'gas_cylinder'
-        : 'chemical'
-  return (
-    canonicalOption(snapshotText(snapshot, 'lot_category')) === expectedCategory
+  const category = canonicalOption(snapshotText(snapshot, 'lot_category'))
+  if (moduleKey === 'substrates') {
+    return category === 'substrate'
+  }
+  const phase = canonicalOption(moduleValueAsString(item['phase_state']))
+  if (!phase) return category === 'chemical' || category === 'gas_cylinder'
+  return category === (phase === 'gas' ? 'gas_cylinder' : 'chemical')
+}
+
+export function materialLotReferenceFirst<T extends { key: string }>(
+  fields: readonly T[],
+): T[] {
+  return [...fields].sort(
+    (left, right) =>
+      Number(right.key === 'lot_ref') - Number(left.key === 'lot_ref'),
   )
+}
+
+export function materialLotFieldIsProjected(
+  moduleKey: string,
+  fieldKey: string,
+  _item: ModuleValues,
+): boolean {
+  return Boolean(MATERIAL_LOT_PROJECTED_FIELDS[moduleKey]?.includes(fieldKey))
+}
+
+export function materialLotMissingStableFields(
+  moduleKey: string,
+  snapshot: Record<string, unknown>,
+): string[] {
+  if (moduleKey !== 'substrates') return []
+  const projection = materialLotProjection(moduleKey, snapshot)
+  const required = [
+    'material',
+    'chemical_formula',
+    'orientation_polish_availability',
+    'miscut_availability',
+    'surface_roughness',
+  ]
+  if (projection.orientation_polish_availability === 'reported') {
+    required.push('crystal_orientation')
+  }
+  if (projection.miscut_availability === 'reported') {
+    required.push('miscut_angle_deg')
+  }
+  if (projection.material === 'sio2_si') required.push('oxide_thickness_nm')
+  if (Number(projection.miscut_angle_deg ?? 0) > 0) {
+    required.push('miscut_direction')
+  }
+  return required.filter(
+    (key) => moduleValueAsString(projection[key]).trim() === '',
+  )
+}
+
+export function materialLotProjectedItem(
+  moduleKey: string,
+  item: ModuleValues,
+): ModuleValues {
+  const reference = referenceValue(item['lot_ref'])
+  if (!reference) return item
+  return {
+    ...applyMaterialLotSelection(moduleKey, item),
+    ...materialLotProjection(moduleKey, reference.snapshot),
+  }
+}
+
+export function applyMaterialLotSelection(
+  moduleKey: string,
+  item: ModuleValues,
+  snapshot?: Record<string, unknown>,
+): ModuleValues {
+  const next = { ...item }
+  for (const key of MATERIAL_LOT_PROJECTED_FIELDS[moduleKey] ?? []) {
+    next[key] = ''
+  }
+  return snapshot
+    ? { ...next, ...materialLotAutofill(moduleKey, snapshot) }
+    : next
+}
+
+export function updateMaterialLotAwareItem(
+  moduleKey: string,
+  item: ModuleValues,
+  key: string,
+  value: ModuleFieldValue,
+): ModuleValues {
+  const next = { ...item, [key]: value }
+  if (
+    (key !== 'phase_state' && key !== 'material') ||
+    !referenceValue(item['lot_ref'])
+  ) {
+    return next
+  }
+  const reference = referenceValue(item['lot_ref'])
+  if (
+    !reference ||
+    materialLotMatchesItem(moduleKey, next, reference.snapshot)
+  ) {
+    return next
+  }
+  const cleared = applyMaterialLotSelection(moduleKey, next)
+  return { ...cleared, [key]: value, lot_ref: '' }
 }
 
 function jsonArrayValue<T>(value: ModuleFieldValue | undefined): T[] {
@@ -166,6 +328,7 @@ export function RepeatableItemsSection({
   showErrors,
   save,
   runId,
+  zoneCount,
 }: {
   moduleKey: string
   index: string
@@ -179,9 +342,10 @@ export function RepeatableItemsSection({
   showErrors?: boolean
   save?: ModuleSaveProps
   runId?: string
+  zoneCount?: number | null
 }) {
   const { i18n, t } = useTranslation()
-  const fields = getModuleFields(moduleKey)
+  const fields = materialLotReferenceFirst(getModuleFields(moduleKey))
 
   const setItemValue = (
     itemIndex: number,
@@ -190,7 +354,9 @@ export function RepeatableItemsSection({
   ) => {
     onItemsChange(
       items.map((item, i) =>
-        i === itemIndex ? { ...item, [key]: value } : item,
+        i === itemIndex
+          ? updateMaterialLotAwareItem(moduleKey, item, key, value)
+          : item,
       ),
     )
   }
@@ -221,199 +387,261 @@ export function RepeatableItemsSection({
       ) : null}
 
       <div className="flex flex-col gap-4">
-        {items.map((item, itemIndex) => (
-          <div
-            key={
-              moduleValueAsString(item['source_id']) ||
-              moduleValueAsString(item['event_id']) ||
-              itemIndex
-            }
-            className="rounded-md border border-border p-4"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold text-foreground">
-                {itemLabel(itemIndex + 1)}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={
-                  disabled ||
-                  (moduleKey === 'process_events' &&
+        {items.map((item, itemIndex) => {
+          const displayItem = materialLotProjectedItem(moduleKey, item)
+          const itemReference = referenceValue(item['lot_ref'])
+          const missingStableFields = itemReference
+            ? materialLotMissingStableFields(moduleKey, itemReference.snapshot)
+            : []
+          return (
+            <div
+              key={
+                moduleValueAsString(item['source_id']) ||
+                moduleValueAsString(item['event_id']) ||
+                itemIndex
+              }
+              className="rounded-md border border-border p-4"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">
+                  {itemLabel(itemIndex + 1)}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={
+                    disabled ||
+                    (moduleKey === 'process_events' &&
+                      jsonArrayValue<string>(item['attachment_file_ids'])
+                        .length > 0)
+                  }
+                  title={
+                    moduleKey === 'process_events' &&
                     jsonArrayValue<string>(item['attachment_file_ids']).length >
-                      0)
-                }
-                title={
-                  moduleKey === 'process_events' &&
-                  jsonArrayValue<string>(item['attachment_file_ids']).length > 0
-                    ? t('experimentsV2.sections.processEvents.removeFilesFirst')
-                    : undefined
-                }
-                aria-label={t('experimentsV2.form.removeItem')}
-                onClick={() => removeItem(itemIndex)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {fields
-                .filter((field) => isFieldVisible(moduleKey, field, item))
-                .filter(
-                  (field) =>
-                    field.key !== 'attachment_file_ids' &&
-                    field.key !== 'event_id',
-                )
-                .map((field) => {
-                  const referenceKind = REFERENCE_FIELD_KINDS[field.key]
-                  if (referenceKind) {
-                    const reference = referenceValue(item[field.key])
-                    const summary = reference
-                      ? materialLotSummary(reference.snapshot)
-                      : ''
-                    return (
-                      <div key={field.key} className="flex flex-col gap-1.5">
-                        <FieldLabel
-                          labelZh={localizedFieldLabel(field, i18n.language)}
-                          unit={localizedUnit(field.unit, i18n.language)}
-                          required={isEffectivelyRequired(
-                            moduleKey,
-                            field,
-                            item,
-                          )}
-                          r0={field.r0}
-                        />
-                        <EntityReferenceSelect
-                          kind={referenceKind}
-                          value={reference?.entity_id ?? ''}
-                          selectedVersion={reference?.version}
-                          selectedSnapshot={reference?.snapshot}
-                          filter={(entity) =>
-                            field.key !== 'lot_ref' ||
-                            (entity.latest_version != null &&
-                              materialLotMatchesItem(
-                                moduleKey,
-                                item,
-                                entity.latest_version.data,
-                              ))
-                          }
-                          onChange={(_entityId, entity) => {
-                            const version = entity?.latest_version
-                            onItemsChange(
-                              items.map((current, currentIndex) =>
-                                currentIndex === itemIndex
-                                  ? {
-                                      ...current,
-                                      ...(entity && version
-                                        ? materialLotAutofill(
-                                            moduleKey,
-                                            version.data,
-                                          )
-                                        : {}),
-                                      [field.key]:
-                                        entity && version
-                                          ? JSON.stringify({
-                                              entity_id: entity.id,
-                                              version: version.version,
-                                              snapshot: version.data,
-                                            })
-                                          : '',
-                                    }
-                                  : current,
-                              ),
-                            )
-                          }}
-                          disabled={disabled}
-                        />
-                        {summary ? (
-                          <p className="text-xs text-muted-foreground">
-                            {summary}
-                          </p>
-                        ) : null}
-                      </div>
-                    )
+                      0
+                      ? t(
+                          'experimentsV2.sections.processEvents.removeFilesFirst',
+                        )
+                      : undefined
                   }
-                  if (
-                    field.key === 'treatment_steps' ||
-                    field.key === 'pretreatment_steps'
-                  ) {
-                    return (
-                      <div
-                        key={field.key}
-                        className="flex flex-col gap-2 sm:col-span-2"
-                      >
-                        <FieldLabel
-                          labelZh={localizedFieldLabel(field, i18n.language)}
-                          unit={localizedUnit(field.unit, i18n.language)}
-                          required={isEffectivelyRequired(
-                            moduleKey,
-                            field,
-                            item,
-                          )}
-                          r0={field.r0}
-                        />
-                        <TreatmentStepsEditor
-                          kind={
-                            field.key === 'treatment_steps'
-                              ? 'precursor'
-                              : 'substrate'
-                          }
-                          value={jsonArrayValue<TreatmentStep>(item[field.key])}
-                          onChange={(value) =>
-                            setItemValue(
-                              itemIndex,
-                              field.key,
-                              JSON.stringify(value),
-                            )
-                          }
-                          disabled={disabled}
-                          showErrors={showErrors}
-                          labels={buildTreatmentStepsEditorLabels(t)}
-                        />
-                      </div>
-                    )
-                  }
-                  return (
-                    <FieldControl
-                      key={field.key}
-                      moduleKey={moduleKey}
-                      field={field}
-                      values={item}
-                      value={item[field.key] ?? ''}
-                      onChange={(value) =>
-                        setItemValue(itemIndex, field.key, value)
-                      }
-                      disabled={disabled}
-                      showError={showErrors}
-                      readOnly={field.key === 'cas_inchi'}
-                    />
-                  )
-                })}
-            </div>
-            {moduleKey === 'process_events' &&
-            runId &&
-            moduleValueAsString(item['event_id']) ? (
-              <div className="mt-4 border-t border-border pt-4">
-                <ExperimentAttachments
-                  runId={runId}
-                  role="process_event_attachment"
-                  bindingType="process_event"
-                  bindingId={moduleValueAsString(item['event_id'])}
-                  readOnly={Boolean(disabled)}
-                  cleanupUncommitted
-                  saved={save?.saved}
-                  onFilesChange={(files) =>
-                    setItemValue(
-                      itemIndex,
-                      'attachment_file_ids',
-                      JSON.stringify(files.map((file) => file.id)),
-                    )
-                  }
-                />
+                  aria-label={t('experimentsV2.form.removeItem')}
+                  onClick={() => removeItem(itemIndex)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
               </div>
-            ) : null}
-          </div>
-        ))}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {fields
+                  .filter((field) =>
+                    isFieldVisible(moduleKey, field, displayItem),
+                  )
+                  .filter(
+                    (field) =>
+                      field.key !== 'attachment_file_ids' &&
+                      field.key !== 'event_id',
+                  )
+                  .map((field) => {
+                    const referenceKind = REFERENCE_FIELD_KINDS[field.key]
+                    if (referenceKind) {
+                      const reference = referenceValue(item[field.key])
+                      const summary = reference
+                        ? materialLotSummary(
+                            reference.snapshot,
+                            t(
+                              'experimentsV2.sections.substrates.lotSizePrefix',
+                            ),
+                          )
+                        : ''
+                      return (
+                        <div key={field.key} className="flex flex-col gap-1.5">
+                          <FieldLabel
+                            labelZh={localizedFieldLabel(field, i18n.language)}
+                            unit={localizedUnit(field.unit, i18n.language)}
+                            required={isEffectivelyRequired(
+                              moduleKey,
+                              field,
+                              displayItem,
+                            )}
+                            r0={field.r0}
+                          />
+                          <EntityReferenceSelect
+                            kind={referenceKind}
+                            value={reference?.entity_id ?? ''}
+                            selectedVersion={reference?.version}
+                            selectedSnapshot={reference?.snapshot}
+                            filter={(entity) =>
+                              field.key !== 'lot_ref' ||
+                              (entity.latest_version != null &&
+                                materialLotMatchesItem(
+                                  moduleKey,
+                                  displayItem,
+                                  entity.latest_version.data,
+                                ) &&
+                                materialLotMissingStableFields(
+                                  moduleKey,
+                                  entity.latest_version.data,
+                                ).length === 0)
+                            }
+                            onChange={(_entityId, entity) => {
+                              const version = entity?.latest_version
+                              onItemsChange(
+                                items.map((current, currentIndex) =>
+                                  currentIndex === itemIndex
+                                    ? {
+                                        ...applyMaterialLotSelection(
+                                          moduleKey,
+                                          current,
+                                          version?.data,
+                                        ),
+                                        [field.key]:
+                                          entity && version
+                                            ? JSON.stringify({
+                                                entity_id: entity.id,
+                                                version: version.version,
+                                                snapshot: version.data,
+                                              })
+                                            : '',
+                                      }
+                                    : current,
+                                ),
+                              )
+                            }}
+                            disabled={disabled}
+                          />
+                          {summary ? (
+                            <p className="text-xs text-muted-foreground">
+                              {summary}
+                            </p>
+                          ) : null}
+                          {field.key === 'lot_ref' && !reference ? (
+                            <p className="text-xs text-muted-foreground">
+                              {t(
+                                moduleKey === 'precursors'
+                                  ? 'experimentsV2.sections.precursors.selectLotFirst'
+                                  : 'experimentsV2.sections.substrates.selectLotFirst',
+                              )}
+                            </p>
+                          ) : null}
+                          {field.key === 'lot_ref' &&
+                          missingStableFields.length > 0 ? (
+                            <p className="text-xs text-destructive">
+                              {t(
+                                'experimentsV2.sections.substrates.incompleteLot',
+                                {
+                                  fields: missingStableFields
+                                    .map((key) => {
+                                      const missingField = fields.find(
+                                        (candidate) => candidate.key === key,
+                                      )
+                                      return missingField
+                                        ? localizedFieldLabel(
+                                            missingField,
+                                            i18n.language,
+                                          )
+                                        : key
+                                    })
+                                    .join(
+                                      i18n.language.startsWith('en')
+                                        ? ', '
+                                        : '、',
+                                    ),
+                                },
+                              )}
+                            </p>
+                          ) : null}
+                        </div>
+                      )
+                    }
+                    if (
+                      field.key === 'treatment_steps' ||
+                      field.key === 'pretreatment_steps'
+                    ) {
+                      return (
+                        <div
+                          key={field.key}
+                          className="flex flex-col gap-2 sm:col-span-2"
+                        >
+                          <FieldLabel
+                            labelZh={localizedFieldLabel(field, i18n.language)}
+                            unit={localizedUnit(field.unit, i18n.language)}
+                            required={isEffectivelyRequired(
+                              moduleKey,
+                              field,
+                              displayItem,
+                            )}
+                            r0={field.r0}
+                          />
+                          <TreatmentStepsEditor
+                            kind={
+                              field.key === 'treatment_steps'
+                                ? 'precursor'
+                                : 'substrate'
+                            }
+                            value={jsonArrayValue<TreatmentStep>(
+                              displayItem[field.key],
+                            )}
+                            onChange={(value) =>
+                              setItemValue(
+                                itemIndex,
+                                field.key,
+                                JSON.stringify(value),
+                              )
+                            }
+                            disabled={disabled}
+                            showErrors={showErrors}
+                            labels={buildTreatmentStepsEditorLabels(t)}
+                          />
+                        </div>
+                      )
+                    }
+                    return (
+                      <FieldControl
+                        key={field.key}
+                        moduleKey={moduleKey}
+                        field={field}
+                        values={displayItem}
+                        value={displayItem[field.key] ?? ''}
+                        onChange={(value) =>
+                          setItemValue(itemIndex, field.key, value)
+                        }
+                        disabled={disabled}
+                        showError={showErrors}
+                        readOnly={materialLotFieldIsProjected(
+                          moduleKey,
+                          field.key,
+                          item,
+                        )}
+                        structuredZoneCount={zoneCount}
+                      />
+                    )
+                  })}
+              </div>
+              {moduleKey === 'process_events' &&
+              runId &&
+              moduleValueAsString(item['event_id']) ? (
+                <div className="mt-4 border-t border-border pt-4">
+                  <ExperimentAttachments
+                    runId={runId}
+                    role="process_event_attachment"
+                    bindingType="process_event"
+                    bindingId={moduleValueAsString(item['event_id'])}
+                    readOnly={Boolean(disabled)}
+                    cleanupUncommitted
+                    saved={save?.saved}
+                    onFilesChange={(files) =>
+                      setItemValue(
+                        itemIndex,
+                        'attachment_file_ids',
+                        JSON.stringify(files.map((file) => file.id)),
+                      )
+                    }
+                  />
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
       </div>
 
       <Separator />

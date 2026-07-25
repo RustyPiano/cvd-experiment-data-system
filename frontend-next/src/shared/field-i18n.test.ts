@@ -12,6 +12,7 @@ import {
   unitLabelsEn,
 } from '@/shared/generated/field-metadata'
 import {
+  canonicalFieldOption,
   localizedFieldLabel,
   localizedFieldHelp,
   localizedFieldPlaceholder,
@@ -32,7 +33,7 @@ describe('field display localization', () => {
       ...Object.values(entities).flat(),
     ]
     const options = fields.flatMap(
-      (field) => parseEnumOptions(field.input, field.options) ?? [],
+      (field) => parseEnumOptions(field.input, field.options, field.key) ?? [],
     )
 
     for (const code of new Set(Object.values(optionCodes))) {
@@ -83,6 +84,12 @@ describe('field display localization', () => {
 
   it('localizes every member of a multi-select array independently', () => {
     expect(localizedValue(['光', '电'], 'en')).toBe('Light · Electric field')
+  })
+
+  it('keeps plasma capability distinct from plasma pretreatment', () => {
+    expect(canonicalFieldOption('field_devices', '等离子体')).toBe('plasma')
+    expect(canonicalFieldOption('type', '等离子体')).toBe('plasma_treatment')
+    expect(optionLabelsZh.plasma).toBe('等离子体')
   })
 
   it('renders structured composite values with localized options', () => {

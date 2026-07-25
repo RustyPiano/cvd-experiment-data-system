@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from math import isfinite
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
@@ -18,17 +19,20 @@ from app.services.v2_field_source import (
 )
 
 V2_MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
-_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '光': 'light', '电': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主源': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '倾角': 'tilted', '竖放': 'upright', '清洗': 'clean', '丙酮清洗': 'acetone_clean', '异丙醇清洗': 'isopropanol_clean', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '亲水处理': 'hydrophilic_treatment', '亲水化': 'hydrophilic_treatment', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气路置换': 'gas_exchange', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4'}
-_CONTROLLED_KEYS = frozenset(('appearance', 'brand_model', 'event_type', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'lot_category', 'material', 'name_formula', 'name_type', 'orientation', 'phase_state', 'plasma_gas_pressure', 'pressure_system', 'role', 'stage_type', 'storage_method', 'structure_type', 'substrate_material', 'substrate_orientation_polish', 'supplier', 'synthesis_method', 'target_morphology', 'termination_reason', 'wall_type'))
+_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主源': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '倾角': 'tilted', '竖放': 'upright', '清洗': 'clean', '丙酮清洗': 'acetone_clean', '异丙醇清洗': 'isopropanol_clean', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '亲水处理': 'hydrophilic_treatment', '亲水化': 'hydrophilic_treatment', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气路置换': 'gas_exchange', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4'}
+_FIELD_OPTION_ALIASES = {'field_devices': {'等离子': 'plasma', '等离子体': 'plasma'}, 'field_type': {'等离子': 'plasma', '等离子体': 'plasma'}, 'type': {'等离子': 'plasma_treatment', '等离子体': 'plasma_treatment'}}
+_CONTROLLED_KEYS = frozenset(('appearance', 'brand_model', 'event_type', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'lot_category', 'material', 'miscut_availability', 'name_formula', 'name_type', 'orientation', 'orientation_polish_availability', 'phase_state', 'plasma_gas_pressure', 'pressure_system', 'role', 'stage_type', 'storage_method', 'structure_type', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'synthesis_method', 'target_morphology', 'termination_reason', 'wall_type'))
 _STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type', 'uncertainty_source'))
 _COMPOSITE_KEYS = frozenset(('plasma_gas_pressure', 'pressure_system', 'substrate_orientation_polish'))
 _MULTI_KEYS = frozenset(('field_devices',))
 
 
-def _canonical(value: Any) -> Any:
+def _canonical(value: Any, key: str | None = None) -> Any:
     if isinstance(value, list):
-        return [_canonical(item) for item in value]
+        return [_canonical(item, key) for item in value]
     if isinstance(value, str):
+        if value in _FIELD_OPTION_ALIASES.get(key or '', {}):
+            return _FIELD_OPTION_ALIASES[key or ''][value]
         return _OPTION_ALIASES.get(value, value)
     return value
 
@@ -41,19 +45,19 @@ def _normalize_payload(value: Any) -> Any:
     normalized = dict(value)
     for key, item in normalized.items():
         if key in _COMPOSITE_KEYS:
-            canonical = _canonical(item)
+            canonical = _canonical(item, key)
             if isinstance(item, dict):
                 normalized[key] = dict(item)
-                normalized[key]["option"] = _canonical(item.get("option"))
+                normalized[key]["option"] = _canonical(item.get("option"), key)
             elif isinstance(item, (int, float)):
                 normalized[key] = {"value": item, "option": None}
             elif canonical != item:
                 normalized[key] = {"value": None, "option": canonical}
         elif key in _MULTI_KEYS:
-            canonical = _canonical(item)
+            canonical = _canonical(item, key)
             normalized[key] = canonical if isinstance(canonical, list) else [canonical]
         elif key in _CONTROLLED_KEYS or key in _STRUCTURED_CONTROLLED_KEYS:
-            normalized[key] = _canonical(item)
+            normalized[key] = _canonical(item, key)
         elif isinstance(item, (dict, list)):
             normalized[key] = _normalize_payload(item)
     return normalized
@@ -247,19 +251,53 @@ class TemperatureSensorPayload(V2PayloadBase):
 
 
 class SurfaceRoughnessPayload(V2PayloadBase):
-    metric: Literal['Ra', 'RMS']
-    value_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]
+    availability: Literal['reported', 'not_provided'] = 'reported'
+    metric: Literal['Ra', 'RMS'] | None = None
+    value_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] | None = None
+
+    @model_validator(mode="after")
+    def _availability(self) -> Self:
+        has_specification = self.metric is not None or self.value_nm is not None
+        if self.availability == 'reported' and (self.metric is None or self.value_nm is None):
+            raise ValueError("reported roughness requires metric and value_nm")
+        if self.availability == 'not_provided' and has_specification:
+            raise ValueError("unreported roughness cannot include metric or value_nm")
+        return self
 
 
 class TubeDimensionsPayload(V2PayloadBase):
-    outer_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
-    wall_thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
+    outer_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    outer_side_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    outer_width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    outer_height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    wall_thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    dimension_description: NonBlankStr | None = None
 
     @model_validator(mode="after")
-    def _wall_fits(self) -> Self:
-        if self.wall_thickness_mm * 2 >= self.outer_diameter_mm:
-            raise ValueError("tube wall thickness must be less than the radius")
+    def _shape_dimensions(self) -> Self:
+        groups = (
+            (self.outer_diameter_mm,),
+            (self.outer_side_mm,),
+            (self.outer_width_mm, self.outer_height_mm),
+        )
+        complete = [all(value is not None for value in group) for group in groups]
+        if self.dimension_description is not None:
+            if any(complete) or self.wall_thickness_mm is not None:
+                raise ValueError("custom tube dimensions cannot mix with numeric dimensions")
+            return self
+        if sum(complete) != 1 or self.wall_thickness_mm is None:
+            raise ValueError("tube dimensions must match one supported cross-section")
+        selected = next(group for group, ready in zip(groups, complete, strict=True) if ready)
+        if any(value is not None for group, ready in zip(groups, complete, strict=True) if not ready for value in group):
+            raise ValueError("tube dimensions cannot mix cross-section fields")
+        if any(self.wall_thickness_mm * 2 >= value for value in selected if value is not None):
+            raise ValueError("tube wall thickness must be less than half every outer dimension")
         return self
+
+
+class TubeUsageHistoryPayload(V2PayloadBase):
+    reset_count: Annotated[int, Field(strict=True, ge=0)]
+    use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]
 
 
 class BoatCruciblePayload(V2PayloadBase):
@@ -269,6 +307,8 @@ class BoatCruciblePayload(V2PayloadBase):
     width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    reset_count: Annotated[int, Field(strict=True, ge=0)]
+    use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]
 
     @model_validator(mode="after")
     def _has_dimensions(self) -> Self:
@@ -298,7 +338,14 @@ class SubstrateSizePlacementPayload(V2PayloadBase):
 
 class SourceZoneTemperaturePayload(V2PayloadBase):
     zone_index: Annotated[int, Field(strict=True, ge=1)]
-    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]
+    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None
+    temperature_basis: Literal['measured', 'estimate'] | None = None
+
+    @model_validator(mode="after")
+    def _temperature_basis(self) -> Self:
+        if (self.temperature_C is None) != (self.temperature_basis is None):
+            raise ValueError("temperature_C and temperature_basis must be provided together")
+        return self
 
 
 class ZoneThermocoupleDistancePayload(V2PayloadBase):
@@ -455,15 +502,86 @@ class ActualFieldPayload(V2PayloadBase):
             raise ValueError("external field end_min must exceed start_min")
         return self
 
+    @model_validator(mode="after")
+    def _typed_parameters(self) -> Self:
+        aliases = {
+            'plasma': {
+                'powerw': 'power_W', 'power': 'power_W', 'plasmapower': 'power_W',
+                'gasspecies': 'gas_species', 'gas': 'gas_species',
+                'pressurepa': 'pressure_Pa', 'pressure': 'pressure_Pa', 'workingpressure': 'pressure_Pa',
+            },
+            'light': {
+                'wavelengthnm': 'wavelength_nm', 'wavelength': 'wavelength_nm',
+                'powermw': 'power_mW', 'power': 'power_mW', 'lightpower': 'power_mW',
+                'irradiancemwcm2': 'irradiance_mW_cm2', 'irradiance': 'irradiance_mW_cm2', 'intensity': 'irradiance_mW_cm2',
+                'sourcedistancemm': 'source_distance_mm', 'sourcedistance': 'source_distance_mm', 'lightsourcedistance': 'source_distance_mm',
+            },
+            'electric_field': {
+                'voltagev': 'voltage_V', 'voltage': 'voltage_V',
+                'fieldstrengthvcm': 'field_strength_V_cm', 'fieldstrength': 'field_strength_V_cm', 'electricfieldstrength': 'field_strength_V_cm',
+                'electrodegapmm': 'electrode_gap_mm', 'electrodegap': 'electrode_gap_mm', 'gap': 'electrode_gap_mm',
+                'direction': 'direction', 'fielddirection': 'direction',
+            },
+        }
+        units = {
+            'power_W': {'w'}, 'gas_species': {'—', '-'}, 'pressure_Pa': {'pa'},
+            'wavelength_nm': {'nm'}, 'power_mW': {'mw'},
+            'irradiance_mW_cm2': {'mw·cm⁻²', 'mw/cm²', 'mw/cm2'},
+            'source_distance_mm': {'mm'}, 'voltage_V': {'v'},
+            'field_strength_V_cm': {'v·cm⁻¹', 'v/cm'},
+            'electrode_gap_mm': {'mm'}, 'direction': {'—', '-'},
+        }
+        all_aliases = {token for mapping in aliases.values() for token in mapping}
+        recognized: dict[str, NamedParameterPayload] = {}
+        for parameter in self.parameters:
+            token = ''.join(character for character in parameter.name.casefold() if character.isalnum())
+            key = aliases[self.field_type].get(token)
+            if key is None:
+                if token in all_aliases:
+                    raise ValueError("external field contains parameters for another field type")
+                continue
+            if key in recognized:
+                raise ValueError("external field parameter is duplicated")
+            if parameter.unit.casefold() not in units[key]:
+                raise ValueError("external field parameter unit is invalid")
+            recognized[key] = parameter
+        required = {
+            'plasma': {'power_W', 'gas_species', 'pressure_Pa'},
+            'light': {'wavelength_nm', 'source_distance_mm'},
+            'electric_field': {'electrode_gap_mm', 'direction'},
+        }[self.field_type]
+        if not required.issubset(recognized):
+            raise ValueError("external field required parameters are missing")
+        alternatives = {
+            'plasma': (),
+            'light': ('power_mW', 'irradiance_mW_cm2'),
+            'electric_field': ('voltage_V', 'field_strength_V_cm'),
+        }[self.field_type]
+        if alternatives and sum(key in recognized for key in alternatives) != 1:
+            raise ValueError("external field requires exactly one magnitude parameter")
+        text_keys = {'gas_species', 'direction'}
+        for key, parameter in recognized.items():
+            if key in text_keys:
+                if not isinstance(parameter.value, str) or not parameter.value.strip():
+                    raise ValueError("external field text parameter is blank")
+                continue
+            try:
+                numeric = float(parameter.value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("external field numeric parameter is invalid") from exc
+            if not isfinite(numeric) or numeric <= 0:
+                raise ValueError("external field numeric parameter must be positive")
+        return self
+
 
 class PressureSystemValue(V2PayloadBase):
     value: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     option: Literal['atmospheric_pressure', 'low_pressure', 'ultra_high_vacuum'] | None = None
 
     @model_validator(mode="after")
-    def _requires_numeric_value(self) -> Self:
-        if self.value is None:
-            raise ValueError("composite field requires a numeric value")
+    def _requires_value(self) -> Self:
+        if self.value is None or (isinstance(self.value, str) and not self.value.strip()):
+            raise ValueError("composite field requires a value")
         return self
 
     @model_validator(mode="after")
@@ -486,14 +604,26 @@ class PlasmaGasPressureValue(V2PayloadBase):
     option: Literal['Ar', 'ar_n2_other'] | None = None
 
     @model_validator(mode="after")
-    def _requires_numeric_value(self) -> Self:
-        if self.value is None:
-            raise ValueError("composite field requires a numeric value")
+    def _requires_value(self) -> Self:
+        if self.value is None or (isinstance(self.value, str) and not self.value.strip()):
+            raise ValueError("composite field requires a value")
         return self
 
 class SubstrateOrientationPolishValue(V2PayloadBase):
     value: str | None = None
     option: Literal['double_side_polished', 'single_side_polished'] | None = None
+
+    @model_validator(mode="after")
+    def _requires_value(self) -> Self:
+        if self.value is None or (isinstance(self.value, str) and not self.value.strip()):
+            raise ValueError("composite field requires a value")
+        return self
+
+    @model_validator(mode="after")
+    def _requires_option(self) -> Self:
+        if self.option is None:
+            raise ValueError("composite field requires an option")
+        return self
 
 
 class BasicInfoPayload(V2PayloadBase):
@@ -627,6 +757,44 @@ class EquipmentPayload(V2PayloadBase):
     temperature_sensors: Annotated[list[TemperatureSensorPayload], Field(min_length=1)]
     field_devices: list[Literal['electric_field', 'light', 'none', 'plasma']] | None = None
     setup_diagram: FileAssetReferencePayload | None = None
+    tube_usage_history: TubeUsageHistoryPayload
+
+    @model_validator(mode="after")
+    def _tube_shape_dimensions(self) -> Self:
+        shape = self.tube_material_shape
+        dimensions = self.tube_outer_diameter_wall_mm
+        if (shape is None) != (dimensions is None):
+            raise ValueError("tube material/shape and dimensions must be provided together")
+        if shape is None or dimensions is None:
+            return self
+        expected_fields = {
+            'round': {'outer_diameter_mm', 'wall_thickness_mm'},
+            'square': {'outer_side_mm', 'wall_thickness_mm'},
+            'rectangular': {'outer_width_mm', 'outer_height_mm', 'wall_thickness_mm'},
+            'other': {'dimension_description'},
+        }[shape.shape]
+        provided_fields = {
+            key
+            for key in (
+                'outer_diameter_mm',
+                'outer_side_mm',
+                'outer_width_mm',
+                'outer_height_mm',
+                'wall_thickness_mm',
+                'dimension_description',
+            )
+            if getattr(dimensions, key) is not None
+        }
+        if provided_fields != expected_fields:
+            raise ValueError("tube dimensions do not match tube cross-section shape")
+        return self
+
+    @model_validator(mode="after")
+    def _temperature_sensor_zone_coverage(self) -> Self:
+        zone_indices = sorted(sensor.zone_index for sensor in self.temperature_sensors)
+        if zone_indices != list(range(1, self.zone_count + 1)):
+            raise ValueError("temperature_sensors must cover each zone exactly once")
+        return self
 
 
 
@@ -644,7 +812,18 @@ class PrecursorItemPayload(V2PayloadBase):
     thermocouple_distance_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None
 
     @model_validator(mode="after")
+    def _thermocouple_distance_zone(self) -> Self:
+        if self.thermocouple_distance_mm is not None and self.source_zone_temperature is None:
+            raise ValueError("source_zone_temperature is required when thermocouple_distance_mm is provided")
+        return self
+
+    @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
+        if (
+            not _matches({'op': 'eq', 'value': 'solid'}, self.phase_state)
+            and not _missing(self.appearance)
+        ):
+            raise ValueError("appearance is not applicable")
         if (
             _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
             and _missing(self.amount)
@@ -655,6 +834,16 @@ class PrecursorItemPayload(V2PayloadBase):
             and not _missing(self.amount)
         ):
             raise ValueError("amount is not applicable")
+        if (
+            _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
+            and _missing(self.boat_crucible)
+        ):
+            raise ValueError("boat_crucible is conditionally required")
+        if (
+            not _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
+            and not _missing(self.boat_crucible)
+        ):
+            raise ValueError("boat_crucible is not applicable")
         return self
 
 
@@ -667,8 +856,11 @@ class SubstrateItemPayload(V2PayloadBase):
     material: NonBlankStr
     lot_ref: MaterialLotReferencePayload
     chemical_formula: NonBlankStr
-    crystal_orientation: NonBlankStr
-    miscut_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, lt=90)]
+    orientation_polish_availability: Literal['not_applicable', 'not_provided', 'reported']
+    crystal_orientation: str | None = None
+    miscut_availability: Literal['not_applicable', 'not_provided', 'reported']
+    miscut_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, lt=90)] | None = None
+    miscut_direction: str | None = None
     oxide_thickness_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     surface_roughness: SurfaceRoughnessPayload
     size_placement: SubstrateSizePlacementPayload
@@ -685,7 +877,40 @@ class SubstrateItemPayload(V2PayloadBase):
         return _validate_formula(value)
 
     @model_validator(mode="after")
+    def _miscut_direction(self) -> Self:
+        if (self.miscut_angle_deg or 0) > 0 and not (self.miscut_direction or '').strip():
+            raise ValueError("miscut_direction is required when miscut_angle_deg is greater than zero")
+        if self.miscut_angle_deg == 0 and (self.miscut_direction or '').strip():
+            raise ValueError("miscut_direction is not applicable when miscut_angle_deg is zero")
+        return self
+
+    @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
+        if (
+            _matches({'op': 'eq', 'value': 'reported'}, self.orientation_polish_availability)
+            and _missing(self.crystal_orientation)
+        ):
+            raise ValueError("crystal_orientation is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'reported'}, self.orientation_polish_availability)
+            and not _missing(self.crystal_orientation)
+        ):
+            raise ValueError("crystal_orientation is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'reported'}, self.miscut_availability)
+            and _missing(self.miscut_angle_deg)
+        ):
+            raise ValueError("miscut_angle_deg is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'reported'}, self.miscut_availability)
+            and not _missing(self.miscut_angle_deg)
+        ):
+            raise ValueError("miscut_angle_deg is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'reported'}, self.miscut_availability)
+            and not _missing(self.miscut_direction)
+        ):
+            raise ValueError("miscut_direction is not applicable")
         if (
             _matches({'op': 'eq', 'value': 'sio2_si'}, self.material)
             and _missing(self.oxide_thickness_nm)
@@ -858,11 +1083,6 @@ class ProcessEventItemPayload(V2PayloadBase):
             and _missing(self.description)
         ):
             raise ValueError("description is conditionally required")
-        if (
-            not _matches({'op': 'eq', 'value': 'other'}, self.termination_reason)
-            and not _missing(self.description)
-        ):
-            raise ValueError("description is not applicable")
         return self
 
 
@@ -899,10 +1119,30 @@ class MaterialLotVersionPayload(V2PayloadBase):
     label_attachment: FileAssetReferencePayload | None = None
     substrate_material: str | None = None
     substrate_oxide_thickness_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    substrate_orientation_polish_availability: Literal['not_applicable', 'not_provided', 'reported'] | None = None
     substrate_orientation_polish: SubstrateOrientationPolishValue | None = None
+    substrate_miscut_availability: Literal['not_applicable', 'not_provided', 'reported'] | None = None
+    substrate_miscut_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, lt=90)] | None = None
+    substrate_miscut_direction: str | None = None
+    substrate_surface_roughness: SurfaceRoughnessPayload | None = None
     substrate_size_spec: str | None = None
     gas_purity_grade: Literal['4N', '5N', '6N', 'industrial_grade'] | None = None
     gas_cylinder_number: str | None = None
+
+    @field_validator("chemical_formula")
+    @classmethod
+    def _chemical_formula(cls, value: str | None) -> str | None:
+        if value in (None, ""):
+            return value
+        return _validate_formula(value)
+
+    @model_validator(mode="after")
+    def _miscut_direction(self) -> Self:
+        if (self.substrate_miscut_angle_deg or 0) > 0 and not (self.substrate_miscut_direction or '').strip():
+            raise ValueError("substrate_miscut_direction is required when substrate_miscut_angle_deg is greater than zero")
+        if self.substrate_miscut_angle_deg == 0 and (self.substrate_miscut_direction or '').strip():
+            raise ValueError("substrate_miscut_direction is not applicable when substrate_miscut_angle_deg is zero")
+        return self
 
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
@@ -927,6 +1167,16 @@ class MaterialLotVersionPayload(V2PayloadBase):
         ):
             raise ValueError("purity is not applicable")
         if (
+            not _matches({'op': 'eq', 'value': 'chemical'}, self.lot_category)
+            and not _missing(self.particle_size_d50_um)
+        ):
+            raise ValueError("particle_size_d50_um is not applicable")
+        if (
+            not _matches({'op': 'ne', 'value': 'gas_cylinder'}, self.lot_category)
+            and not _missing(self.form_appearance)
+        ):
+            raise ValueError("form_appearance is not applicable")
+        if (
             _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
             and _missing(self.substrate_material)
         ):
@@ -947,15 +1197,75 @@ class MaterialLotVersionPayload(V2PayloadBase):
         ):
             raise ValueError("substrate_oxide_thickness_nm is not applicable")
         if (
-            _matches({'op': 'eq', 'value': 'gas_cylinder'}, self.lot_category)
-            and _missing(self.gas_purity_grade)
+            _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and _missing(self.substrate_orientation_polish_availability)
         ):
-            raise ValueError("gas_purity_grade is conditionally required")
+            raise ValueError("substrate_orientation_polish_availability is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and not _missing(self.substrate_orientation_polish_availability)
+        ):
+            raise ValueError("substrate_orientation_polish_availability is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'reported'}, self.substrate_orientation_polish_availability)
+            and _missing(self.substrate_orientation_polish)
+        ):
+            raise ValueError("substrate_orientation_polish is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'reported'}, self.substrate_orientation_polish_availability)
+            and not _missing(self.substrate_orientation_polish)
+        ):
+            raise ValueError("substrate_orientation_polish is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and _missing(self.substrate_miscut_availability)
+        ):
+            raise ValueError("substrate_miscut_availability is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and not _missing(self.substrate_miscut_availability)
+        ):
+            raise ValueError("substrate_miscut_availability is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'reported'}, self.substrate_miscut_availability)
+            and _missing(self.substrate_miscut_angle_deg)
+        ):
+            raise ValueError("substrate_miscut_angle_deg is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'reported'}, self.substrate_miscut_availability)
+            and not _missing(self.substrate_miscut_angle_deg)
+        ):
+            raise ValueError("substrate_miscut_angle_deg is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'reported'}, self.substrate_miscut_availability)
+            and not _missing(self.substrate_miscut_direction)
+        ):
+            raise ValueError("substrate_miscut_direction is not applicable")
+        if (
+            _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and _missing(self.substrate_surface_roughness)
+        ):
+            raise ValueError("substrate_surface_roughness is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and not _missing(self.substrate_surface_roughness)
+        ):
+            raise ValueError("substrate_surface_roughness is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
+            and not _missing(self.substrate_size_spec)
+        ):
+            raise ValueError("substrate_size_spec is not applicable")
         if (
             not _matches({'op': 'eq', 'value': 'gas_cylinder'}, self.lot_category)
             and not _missing(self.gas_purity_grade)
         ):
             raise ValueError("gas_purity_grade is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'gas_cylinder'}, self.lot_category)
+            and not _missing(self.gas_cylinder_number)
+        ):
+            raise ValueError("gas_cylinder_number is not applicable")
         return self
 
 
@@ -972,6 +1282,43 @@ class SetupVersionPayload(V2PayloadBase):
     tube_outer_diameter_wall_mm: TubeDimensionsPayload | None = None
     field_devices: list[Literal['electric_field', 'light', 'none', 'plasma']] | None = None
     setup_diagram: FileAssetReferencePayload | None = None
+
+    @model_validator(mode="after")
+    def _tube_shape_dimensions(self) -> Self:
+        shape = self.tube_material_shape
+        dimensions = self.tube_outer_diameter_wall_mm
+        if (shape is None) != (dimensions is None):
+            raise ValueError("tube material/shape and dimensions must be provided together")
+        if shape is None or dimensions is None:
+            return self
+        expected_fields = {
+            'round': {'outer_diameter_mm', 'wall_thickness_mm'},
+            'square': {'outer_side_mm', 'wall_thickness_mm'},
+            'rectangular': {'outer_width_mm', 'outer_height_mm', 'wall_thickness_mm'},
+            'other': {'dimension_description'},
+        }[shape.shape]
+        provided_fields = {
+            key
+            for key in (
+                'outer_diameter_mm',
+                'outer_side_mm',
+                'outer_width_mm',
+                'outer_height_mm',
+                'wall_thickness_mm',
+                'dimension_description',
+            )
+            if getattr(dimensions, key) is not None
+        }
+        if provided_fields != expected_fields:
+            raise ValueError("tube dimensions do not match tube cross-section shape")
+        return self
+
+    @model_validator(mode="after")
+    def _temperature_sensor_zone_coverage(self) -> Self:
+        zone_indices = sorted(sensor.zone_index for sensor in self.temperature_sensors)
+        if zone_indices != list(range(1, self.zone_count + 1)):
+            raise ValueError("temperature_sensors must cover each zone exactly once")
+        return self
 
 
 

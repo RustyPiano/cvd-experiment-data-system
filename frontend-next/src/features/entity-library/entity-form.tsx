@@ -56,11 +56,16 @@ import {
   isNoneOption,
   isOtherOptionMarker,
   isSelectWithOtherInput,
+  materialLotFormulaIsCompatible,
   parseEnumOptions,
   parseEntityJsonArray,
 } from './field-logic'
 import type { EntityFormValues, EntityVersionPayload } from './field-logic'
-import { isStructuredInput, structuredPayload } from '@/shared/structured-field'
+import {
+  isStructuredInput,
+  parseStructuredValue,
+  structuredPayload,
+} from '@/shared/structured-field'
 import { StructuredObjectControl } from '@/shared/ui/structured-object-control'
 import {
   numericInputAttributes,
@@ -76,6 +81,7 @@ import { listEntities } from './api'
 import type { EntityFileAssetRead } from './api'
 import {
   TemperatureSensorsEditor,
+  reconcileTemperatureSensors,
   temperatureSensorsAreValid,
 } from './temperature-sensors-editor'
 import type { TemperatureSensor } from './temperature-sensors-editor'
@@ -167,32 +173,60 @@ export function EntityForm({
   // 载荷逐键相同），省去 zod + 双重 as 断言。
   const resolver: Resolver<EntityFormValues> = (values) => {
     const errors: Record<string, FieldError> = {}
+    const rawZoneCount = values['zone_count']
+    const parsedZoneCount = Number(
+      Array.isArray(rawZoneCount) ? '' : rawZoneCount,
+    )
+    const zoneCount =
+      Number.isInteger(parsedZoneCount) && parsedZoneCount > 0
+        ? parsedZoneCount
+        : null
+    const resolvedValues: EntityFormValues = { ...values }
+    if (zoneCount != null) {
+      resolvedValues['temperature_sensors'] = JSON.stringify(
+        reconcileTemperatureSensors(
+          parseEntityJsonArray<TemperatureSensor>(
+            values['temperature_sensors'],
+          ),
+          zoneCount,
+        ),
+      )
+    }
+    const rawTubeShape = resolvedValues['tube_material_shape']
+    const tubeShape =
+      typeof rawTubeShape === 'string'
+        ? String(parseStructuredValue(rawTubeShape).shape ?? '')
+        : ''
     for (const field of fields) {
-      const required =
-        isFieldVisible(kind, field, values) &&
-        isEffectivelyRequired(kind, field, values)
-      const value = values[field.key]
+      if (!isFieldVisible(kind, field, resolvedValues)) continue
+      const required = isEffectivelyRequired(kind, field, resolvedValues)
+      const value = resolvedValues[field.key]
       const empty = Array.isArray(value)
         ? value.length === 0
         : (value ?? '').trim() === ''
       if (required && empty) {
         errors[field.key] = {
           type: 'required',
-          message: t('validation.required'),
+          message:
+            field.key === 'tube_outer_diameter_wall_mm'
+              ? t('validation.tubeDimensionsRequired')
+              : t('validation.required'),
         }
       } else if (!empty && field.key === 'temperature_sensors') {
-        const zoneCount = Number(
-          Array.isArray(values['zone_count']) ? '' : values['zone_count'],
-        )
         if (
           !temperatureSensorsAreValid(
             parseEntityJsonArray<TemperatureSensor>(value),
-            Number.isInteger(zoneCount) && zoneCount > 0 ? zoneCount : null,
+            zoneCount,
           )
         ) {
           errors[field.key] = {
             type: 'validate',
-            message: t('validation.structuredField'),
+            message:
+              zoneCount == null
+                ? t('validation.structuredField')
+                : t('validation.temperatureSensorsCoverage', {
+                    count: zoneCount,
+                  }),
           }
         }
       } else if (!empty && isEntityFileInput(field.input)) {
@@ -212,6 +246,7 @@ export function EntityForm({
           structuredPayload(
             field.key,
             Array.isArray(value) ? '' : (value ?? ''),
+            { tubeShape },
           )
         } catch {
           errors[field.key] = {
@@ -223,25 +258,39 @@ export function EntityForm({
         const compositeInput = isCompositeInput(field.input)
           ? field.input
           : null
+        const compositeParts = compositeInput
+          ? parseCompositeValue(
+              compositeInput,
+              value,
+              parseEnumOptions(field.input, field.options, field.key) ??
+                parseCompositeOptions(field.options),
+            )
+          : null
         const numericText =
           field.input === NUMERIC_INPUT
             ? value.trim()
             : compositeInput?.includes(NUMERIC_INPUT)
-              ? parseCompositeValue(
-                  compositeInput,
-                  value,
-                  parseEnumOptions(field.input, field.options) ??
-                    parseCompositeOptions(field.options),
-                ).freeValue.trim()
+              ? compositeParts?.freeValue.trim()
               : null
         if (
-          numericText === '' &&
-          compositeInput?.includes(NUMERIC_INPUT) &&
-          field.validation?.require_value
+          compositeParts &&
+          field.validation?.require_value &&
+          !compositeParts.freeValue.trim()
         ) {
           errors[field.key] = {
             type: 'required',
-            message: t('validation.numericValueRequired'),
+            message: compositeInput?.includes(NUMERIC_INPUT)
+              ? t('validation.numericValueRequired')
+              : t('validation.required'),
+          }
+        } else if (
+          compositeParts &&
+          field.validation?.require_option &&
+          !compositeParts.option
+        ) {
+          errors[field.key] = {
+            type: 'required',
+            message: t('validation.required'),
           }
         } else if (numericText) {
           const issue = numericValidationIssue(numericText, field.validation)
@@ -263,9 +312,19 @@ export function EntityForm({
         }
       }
     }
+    if (
+      kind === 'material_lot' &&
+      !errors['chemical_formula'] &&
+      !materialLotFormulaIsCompatible(resolvedValues)
+    ) {
+      errors['chemical_formula'] = {
+        type: 'validate',
+        message: t('validation.substrateFormulaMismatch'),
+      }
+    }
     return Object.keys(errors).length > 0
       ? { values: {}, errors }
-      : { values, errors: {} }
+      : { values: resolvedValues, errors: {} }
   }
 
   const form = useForm<EntityFormValues>({
@@ -425,11 +484,16 @@ function EntityFieldControl({
   onAttachmentUploadPendingChange: (fieldKey: string, pending: boolean) => void
 }) {
   const { i18n, t } = useTranslation()
+  const tubeShapeValue = values['tube_material_shape']
+  const tubeShape =
+    typeof tubeShapeValue === 'string'
+      ? String(parseStructuredValue(tubeShapeValue).shape ?? '')
+      : ''
   const label = localizedFieldLabel(field, i18n.language)
   const required = isEffectivelyRequired(kind, field, values)
   const allowsOther = isSelectWithOtherInput(field.input)
   const multiSelect = isMultiSelectInput(field.input)
-  const enumOptions = parseEnumOptions(field.input, field.options)
+  const enumOptions = parseEnumOptions(field.input, field.options, field.key)
     ?.filter((option) => !allowsOther || !isOtherOptionMarker(option))
     .concat(allowsOther ? historicalOptions : [])
     .filter((option, index, options) => options.indexOf(option) === index)
@@ -584,6 +648,7 @@ function EntityFieldControl({
               fieldKey={field.key}
               value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
               onChange={rhf.onChange}
+              tubeShape={tubeShape}
               disabled={disabled}
               invalid={fieldState.invalid}
               ariaDescribedBy={

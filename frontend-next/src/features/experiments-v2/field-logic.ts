@@ -26,7 +26,7 @@ import {
   parseCompositeOptions,
   parseCompositeValue,
 } from '@/shared/composite-field'
-import { canonicalOption } from '@/shared/field-i18n'
+import { canonicalFieldOption, canonicalOption } from '@/shared/field-i18n'
 import { normalizeChemicalFormula } from './formula'
 import { isoToDateTimeLocal, toIsoDateTime } from './datetime'
 import {
@@ -132,6 +132,15 @@ export function isConditionSatisfied(
 ): boolean {
   const refKey = resolveModuleConditionKey(moduleKey, condition.field)
   if (!refKey) return false
+  const driverField = getModuleFields(moduleKey).find(
+    (item) => item.key === refKey,
+  )
+  if (
+    driverField?.visibilityGated &&
+    !isFieldVisible(moduleKey, driverField, values)
+  ) {
+    return false
+  }
   const driver = values[refKey] ?? ''
   if (driver === '') return false
   return matchesCondition(condition, driver)
@@ -142,19 +151,16 @@ export function isFieldVisible(
   field: FieldMetadata,
   values: ModuleValues,
 ): boolean {
-  if (!field.visibilityGated) return true
-  const condition = field.requirement.condition
-  if (!condition) return true
-  const driverKey = resolveModuleConditionKey(moduleKey, condition.field)
-  const driverField = driverKey
-    ? getModuleFields(moduleKey).find((item) => item.key === driverKey)
-    : null
   if (
-    driverField?.visibilityGated &&
-    !isFieldVisible(moduleKey, driverField, values)
+    moduleKey === 'substrates' &&
+    field.key === 'miscut_direction' &&
+    Number(moduleValueAsString(values['miscut_angle_deg'])) <= 0
   ) {
     return false
   }
+  if (!field.visibilityGated) return true
+  const condition = field.requirement.condition
+  if (!condition) return true
   return isConditionSatisfied(condition, values, moduleKey)
 }
 
@@ -169,6 +175,16 @@ export function isEffectivelyRequired(
   field: FieldMetadata,
   values: ModuleValues,
 ): boolean {
+  if (
+    moduleKey === 'precursors' &&
+    field.key === 'source_zone_temperature' &&
+    moduleValueAsString(values['thermocouple_distance_mm']).trim() !== ''
+  ) {
+    return true
+  }
+  if (moduleKey === 'substrates' && field.key === 'miscut_direction') {
+    return Number(moduleValueAsString(values['miscut_angle_deg'])) > 0
+  }
   const level = field.requirement.level
   if (level === 'required') return true
   if (level === 'conditional_required') {
@@ -219,7 +235,9 @@ function fieldValueToPayload(
       : moduleValueAsString(value).split(',')
     return [
       ...new Set(
-        items.map((item) => canonicalOption(item.trim())).filter(Boolean),
+        items
+          .map((item) => canonicalFieldOption(field.key, item.trim()))
+          .filter(Boolean),
       ),
     ]
   }
@@ -247,8 +265,10 @@ function fieldValueToPayload(
   }
   if (isCompositeInput(field.input)) {
     const options =
-      parseEnumOptions(field.input, field.options) ??
-      parseCompositeOptions(field.options).map(canonicalOption)
+      parseEnumOptions(field.input, field.options, field.key) ??
+      parseCompositeOptions(field.options).map((item) =>
+        canonicalFieldOption(field.key, item),
+      )
     const parsed = parseCompositeValue(field.input, text, options)
     return {
       value: field.input.includes('数值')
@@ -259,7 +279,9 @@ function fieldValueToPayload(
       option: parsed.option || null,
     }
   }
-  if (/(下拉|多选)/.test(field.input)) return canonicalOption(text)
+  if (/(下拉|多选)/.test(field.input)) {
+    return canonicalFieldOption(field.key, text)
+  }
   return text
 }
 
@@ -283,18 +305,18 @@ function requiredFieldValueIsMissing(
       return true
     }
   }
-  if (
-    !field.validation?.require_value ||
-    !isCompositeInput(field.input) ||
-    !field.input.includes('数值')
-  ) {
-    return false
-  }
+  if (!isCompositeInput(field.input)) return false
   const text = moduleValueAsString(value)
   const options =
-    parseEnumOptions(field.input, field.options) ??
-    parseCompositeOptions(field.options).map(canonicalOption)
-  return parseCompositeValue(field.input, text, options).freeValue.trim() === ''
+    parseEnumOptions(field.input, field.options, field.key) ??
+    parseCompositeOptions(field.options).map((item) =>
+      canonicalFieldOption(field.key, item),
+    )
+  const parsed = parseCompositeValue(field.input, text, options)
+  return Boolean(
+    (field.validation?.require_value && !parsed.freeValue.trim()) ||
+    (field.validation?.require_option && !parsed.option),
+  )
 }
 
 /** 一行组分是否有实质内容（至少填了化学式）。 */
@@ -464,7 +486,21 @@ export function moduleValuesFromPayload(
     ) {
       values[field.key] = JSON.stringify(raw)
     } else if (raw != null && JSON_FIELD_KEYS.has(field.key)) {
-      values[field.key] = JSON.stringify(raw)
+      const normalized =
+        field.key === 'pretreatment_steps' && Array.isArray(raw)
+          ? raw.map((step) =>
+              step && typeof step === 'object' && 'type' in step
+                ? {
+                    ...step,
+                    type: canonicalFieldOption(
+                      'type',
+                      String((step as Record<string, unknown>).type ?? ''),
+                    ),
+                  }
+                : step,
+            )
+          : raw
+      values[field.key] = JSON.stringify(normalized)
     } else if (raw != null && isBooleanInput(field.input)) {
       values[field.key] = raw === true ? 'true' : 'false'
     } else if (
@@ -489,10 +525,10 @@ export function moduleValuesFromPayload(
     } else if (raw != null && isMultiValueInput(field.input)) {
       const items = Array.isArray(raw) ? raw : [raw]
       values[field.key] = items
-        .map((item) => canonicalOption(String(item)))
+        .map((item) => canonicalFieldOption(field.key, String(item)))
         .filter(Boolean)
     } else if (raw != null && /(下拉|多选)/.test(field.input)) {
-      values[field.key] = canonicalOption(String(raw))
+      values[field.key] = canonicalFieldOption(field.key, String(raw))
     } else {
       values[field.key] = raw == null ? '' : String(raw)
     }

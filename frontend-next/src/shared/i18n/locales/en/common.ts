@@ -30,6 +30,14 @@ export const common = {
     numberLt: 'Enter a value below {{limit}}',
     numericValueRequired: 'Enter a number, not only a type',
     structuredField: 'Complete the named values with valid numbers',
+    tubeDimensionsRequired:
+      'Complete the tube dimensions for the selected cross-section',
+    temperatureSensorsCoverage:
+      'This setup has {{count}} zones. Complete one sensor card for each zone 1–{{count}} (name, type, uncertainty, and source).',
+    substrateFormulaMismatch:
+      'The formula does not match the selected substrate material. Check the lot label.',
+    usageHistory:
+      'Enter the reset count (0 is allowed) and use number since reset (starting at 1).',
   },
   structuredFields: {
     select: 'Select',
@@ -52,12 +60,19 @@ export const common = {
     height: 'Height (mm)',
     diameter: 'Diameter (mm)',
     outerDiameter: 'Outer diameter (mm)',
+    outerSide: 'Outer side (mm)',
+    outerWidth: 'Outer width (mm)',
+    outerHeight: 'Outer height (mm)',
+    dimensionDescription: 'Dimension description',
     wallThickness: 'Wall thickness (mm)',
     thickness: 'Thickness (mm)',
     roughnessMetric: 'Roughness metric',
     roughnessRa: 'Arithmetic average roughness (Ra)',
     roughnessRms: 'Root mean square roughness (RMS)',
     roughnessValue: 'Roughness value (nm)',
+    roughnessAvailability: 'Roughness specification availability',
+    roughnessReported: 'Specification reported',
+    roughnessNotProvided: 'Supplier did not provide',
     placement: 'Placement',
     faceUp: 'Face up',
     faceDown: 'Face down',
@@ -65,8 +80,18 @@ export const common = {
     upright: 'Upright',
     otherPlacement: 'Other',
     zoneIndex: 'Zone number',
+    zoneOption: 'Zone {{index}}',
     temperature: 'Temperature (°C)',
+    temperatureBasis: 'Temperature basis',
+    setpoint: 'Setpoint',
+    measured: 'Measured value',
+    estimate: 'Estimate',
+    notProvided: 'Not provided',
     distance: 'Distance (mm)',
+    resetCount: 'Reset count',
+    useNumberSinceReset: 'Use number since reset',
+    selectTubeShapeFirst: 'Select the tube cross-section first.',
+    selectSetupFirst: 'Select an experimental setup first.',
   },
   structuredEditors: {
     treatmentSteps: {
@@ -122,6 +147,8 @@ export const common = {
       removePoint: 'Remove point',
       moveUp: 'Move up',
       moveDown: 'Move down',
+      selectSetupFirst:
+        'Select an experimental setup to create one program card per zone.',
     },
     gasFeeds: {
       addFeed: 'Add gas feed',
@@ -228,6 +255,25 @@ export const common = {
       startMinutes: 'Start time (min)',
       endMinutes: 'End time (min)',
       removeField: 'Remove applied field',
+      parameterGroups: {
+        plasma: 'Plasma parameters',
+        light: 'Light parameters',
+        electric_field: 'Electric-field parameters',
+      },
+      explicitParameters: {
+        plasmaPowerW: 'Power (W)',
+        plasmaGasSpecies: 'Gas',
+        plasmaPressurePa: 'Pressure (Pa)',
+        lightWavelengthNm: 'Wavelength (nm)',
+        lightPowerMw: 'Optical power (mW, choose one)',
+        lightIrradianceMwCm2: 'Irradiance (mW·cm⁻², choose one)',
+        lightSourceDistanceMm: 'Source distance (mm)',
+        electricVoltageV: 'Voltage (V, choose one)',
+        electricFieldStrengthVCm: 'Field strength (V·cm⁻¹, choose one)',
+        electricElectrodeGapMm: 'Electrode gap (mm)',
+        electricDirection: 'Direction',
+      },
+      otherParameters: 'Other parameters (optional)',
     },
     measuredTemperature: {
       files: 'Measured-temperature time-series files',
@@ -259,6 +305,8 @@ export const common = {
       removeSensor: 'Remove temperature sensor',
       moveUp: 'Move sensor up',
       moveDown: 'Move sensor down',
+      selectZoneCountFirst:
+        'Enter the setup zone count to create one sensor card per zone.',
     },
   },
   states: {
@@ -815,6 +863,7 @@ export const common = {
       retry: 'Retry',
       goToLibrary: 'Add one in reference data',
       create: 'Add {{name}}',
+      useLatest: 'Use latest version v{{version}}',
     },
     sections: {
       basicInfo: {
@@ -840,25 +889,37 @@ export const common = {
         displayPreview: 'Display string preview:',
         displayNote:
           'Preview only; the component rows remain the authoritative data.',
-        spaceGroupSymbol: 'Hermann–Mauguin symbol: {{symbol}}',
-        spaceGroupLookup: 'Open the space-group number and symbol lookup',
+        spaceGroupPlaceholder: 'Enter a number or symbol, e.g. 194',
+        spaceGroupHelp:
+          'Leave this blank if unknown; obtain it from XRD results, literature, or the Space group entry in a materials database.',
+        spaceGroupSymbol: 'Space-group symbol: {{symbol}}',
       },
       equipment: {
         title: 'Experimental setup',
         frozenNote:
           'Using experimental setup v{{version}}. The configuration below is saved with this run (read-only).',
+        tubeUsageHistory: 'Tube usage history',
+        tubeUsageHistoryHelp:
+          'Enter the current counts for this run, not a fixed Setup property.',
       },
       precursors: {
         title: 'Precursors',
         add: 'Add precursor',
         empty: 'No precursors recorded yet.',
         item: 'Precursor {{position}}',
+        selectLotFirst:
+          'Select the material lot first. Identity comes from the lot; record only this run’s phase, amount, treatment, boat history, and position here.',
       },
       substrates: {
         title: 'Substrates',
         add: 'Add substrate',
         empty: 'No substrates recorded yet.',
         item: 'Substrate {{position}}',
+        lotSizePrefix: 'Lot size: ',
+        selectLotFirst:
+          'Select the substrate lot first. Material, formula, orientation, miscut, and roughness come from the lot; record only this piece’s size, treatment, and position here.',
+        incompleteLot:
+          'This older lot version is missing: {{fields}}. Add a complete version in reference data, then select it again; run records cannot override these stable facts.',
       },
       processSteps: {
         title: 'Process',

@@ -113,14 +113,18 @@ def test_nested_structured_controlled_values_export_as_machine_codes() -> None:
                     "intervals": [{"start_min": 0, "end_min": 10, "flow_sccm": 20}],
                 }
             ],
-            "field_params": [{"field_type": "等离子"}],
+            "field_devices": ["等离子体"],
+            "field_params": [{"field_type": "等离子体"}],
+            "pretreatment_steps": [{"type": "等离子体"}],
             "tube_material_shape": {"material": "石英", "shape": "圆形"},
         }
     )
 
     assert normalized["gas_feeds"][0]["species"] == "H2"
     assert normalized["gas_feeds"][0]["measurement_source"] == "mfc"
+    assert normalized["field_devices"] == ["plasma"]
     assert normalized["field_params"][0]["field_type"] == "plasma"
+    assert normalized["pretreatment_steps"][0]["type"] == "plasma_treatment"
     assert normalized["tube_material_shape"] == {
         "material": "quartz",
         "shape": "round",

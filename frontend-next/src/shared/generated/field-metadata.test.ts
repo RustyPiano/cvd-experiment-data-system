@@ -8,12 +8,12 @@ import {
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('groups the 84 experiment fields into the expected module keys', () => {
+  it('groups the 88 experiment fields into the expected module keys', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(84)
+    expect(total).toBe(88)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',
@@ -36,17 +36,23 @@ describe('generated field-metadata', () => {
     expect(appearance?.labelEn).toBe('Appearance at time of use')
   })
 
-  it('marks substrate miscut as required and keeps Chinese labels free of machine-key glosses', () => {
+  it('conditions substrate specs on explicit availability and keeps Chinese labels free of machine-key glosses', () => {
     const miscut = experimentModules.substrates.find(
       (field) => field.key === 'miscut_angle_deg',
     )
-    expect(miscut?.requirement.level).toBe('required')
+    expect(miscut?.requirement.level).toBe('conditional_required')
     expect(miscut?.validation).toEqual({ ge: 0, lt: 90 })
+    expect(
+      experimentModules.substrates.find(
+        (field) => field.key === 'orientation_polish_availability',
+      )?.r0,
+    ).toBe(true)
 
     const instrument = entities.instrument
     expect(
       Object.fromEntries(instrument.map((field) => [field.key, field.labelZh])),
     ).toMatchObject({
+      name_type: '适用表征方法',
       vendor: '厂商',
       model: '型号',
       serial_number: '序列号',
@@ -63,6 +69,12 @@ describe('generated field-metadata', () => {
       value: 'gas',
     })
     expect(amount?.r0).toBe(true)
+
+    const description = experimentModules.process_events.find(
+      (field) => field.key === 'description',
+    )
+    expect(description?.requirement.otherwise).toBe('optional')
+    expect(description?.visibilityGated).toBeUndefined()
   })
 
   it("normalizes the '—' placeholder to null but keeps raw option strings", () => {
@@ -156,7 +168,7 @@ describe('generated field-metadata', () => {
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(44)
+    expect(total).toBe(49)
   })
 
   it('carries input types for every remaining scalar-plus-option field', () => {
