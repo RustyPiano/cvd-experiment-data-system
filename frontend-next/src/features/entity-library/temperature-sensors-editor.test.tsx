@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import {
+  reconcileTemperatureSensors,
   TemperatureSensorsEditor,
   temperatureSensorsAreValid,
 } from './temperature-sensors-editor'
@@ -13,11 +14,9 @@ import type {
 } from './temperature-sensors-editor'
 
 const labels: TemperatureSensorsEditorLabels = {
-  addSensor: 'Add sensor',
-  sensor: (position) => `Sensor ${position}`,
+  sensor: (zoneIndex) => `Temperature sensor for zone ${zoneIndex}`,
   sensorName: 'Sensor name',
   sensorType: 'Sensor type',
-  zoneIndex: 'Zone index',
   uncertaintyCelsius: 'Uncertainty (°C)',
   uncertaintySource: 'Uncertainty source',
   selectUncertaintySource: 'Select uncertainty source',
@@ -27,9 +26,7 @@ const labels: TemperatureSensorsEditorLabels = {
     repeatability: 'Repeatability',
     estimate: 'Estimate',
   },
-  removeSensor: 'Remove sensor',
-  moveUp: 'Move up',
-  moveDown: 'Move down',
+  selectZoneCountFirst: 'Set the zone count first',
 }
 
 function Wrapper({
@@ -54,14 +51,6 @@ function Wrapper({
   )
 }
 
-function topRows(container: HTMLElement): HTMLFieldSetElement[] {
-  return Array.from(
-    container.querySelectorAll(
-      ':scope > div:first-child > fieldset[data-row-id]',
-    ),
-  )
-}
-
 const sensorOne: TemperatureSensor = {
   sensor_name: 'Furnace TC 1',
   sensor_type: 'K-type thermocouple',
@@ -79,17 +68,24 @@ const sensorTwo: TemperatureSensor = {
 }
 
 describe('TemperatureSensorsEditor', () => {
-  it('captures the complete structured sensor record', async () => {
+  it('renders exactly one auto-numbered card per setup zone', async () => {
     const user = userEvent.setup()
-    render(<Wrapper zoneCount={1} />)
+    render(<Wrapper zoneCount={2} />)
 
-    await user.click(screen.getByRole('button', { name: 'Add sensor' }))
-    await user.type(screen.getByLabelText('Sensor name'), 'Furnace TC')
-    await user.type(screen.getByLabelText('Sensor type'), 'K-type')
-    await user.type(screen.getByLabelText('Zone index'), '1')
-    await user.type(screen.getByLabelText('Uncertainty (°C)'), '0.8')
+    expect(
+      screen.getByText('Temperature sensor for zone 1'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Temperature sensor for zone 2'),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Zone index')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add|remove/i })).toBeNull()
+
+    await user.type(screen.getAllByLabelText('Sensor name')[0], 'Furnace TC')
+    await user.type(screen.getAllByLabelText('Sensor type')[0], 'K-type')
+    await user.type(screen.getAllByLabelText('Uncertainty (°C)')[0], '0.8')
     await user.click(
-      screen.getByRole('combobox', { name: 'Uncertainty source' }),
+      screen.getAllByRole('combobox', { name: 'Uncertainty source' })[0],
     )
     await user.click(screen.getByRole('option', { name: 'Calibration' }))
 
@@ -97,35 +93,31 @@ describe('TemperatureSensorsEditor', () => {
       screen.getByTestId('value').textContent ?? '',
     ) as TemperatureSensor[]
     expect(value).toEqual([
-      {
+      expect.objectContaining({
         sensor_name: 'Furnace TC',
         sensor_type: 'K-type',
         zone_index: 1,
         uncertainty_C: 0.8,
         uncertainty_source: 'calibration',
-      },
+      }),
+      expect.objectContaining({ zone_index: 2 }),
     ])
-    expect(temperatureSensorsAreValid(value, 1)).toBe(true)
+    expect(temperatureSensorsAreValid(value, 2)).toBe(false)
   })
 
-  it('preserves sensor row identity while reordering', async () => {
-    const user = userEvent.setup()
-    const { container } = render(<Wrapper initial={[sensorOne, sensorTwo]} />)
-    const before = topRows(container).map((row) => row.dataset.rowId)
-
-    await user.click(
-      within(topRows(container)[0]).getByRole('button', {
-        name: 'Move down',
-      }),
-    )
-
-    const value = JSON.parse(
-      screen.getByTestId('value').textContent ?? '',
-    ) as TemperatureSensor[]
-    expect(value.map((sensor) => sensor.zone_index)).toEqual([2, 1])
-    expect(topRows(container).map((row) => row.dataset.rowId)).toEqual([
-      before[1],
-      before[0],
+  it('aligns legacy rows to the fixed zone order and drops extra zones', () => {
+    expect(
+      reconcileTemperatureSensors(
+        [
+          sensorTwo,
+          { ...sensorOne, zone_index: 4 },
+          { ...sensorOne, sensor_name: 'Exact zone 1' },
+        ],
+        2,
+      ),
+    ).toEqual([
+      { ...sensorOne, sensor_name: 'Exact zone 1', zone_index: 1 },
+      sensorTwo,
     ])
   })
 

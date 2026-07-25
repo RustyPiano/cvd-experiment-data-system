@@ -12,6 +12,7 @@ export type V2ExperimentRead = Schemas['V2ExperimentRead']
 export type V2ExperimentListResponse = Schemas['V2ExperimentListResponse']
 export type V2ModulePayloadRead = Schemas['V2ModulePayloadRead']
 export type V2SetupReferenceRequest = Schemas['V2SetupReferenceRequest']
+export type TubeUsageHistoryPayload = Schemas['TubeUsageHistoryPayload']
 
 // §7 表征 + 实测产物（走各自端点，非模块 payload；均以样品为关联主键）。
 export type SampleRead = Schemas['SampleRead']
@@ -172,11 +173,16 @@ export function setSetupReference(
   runId: string,
   setupId: string,
   version: number,
+  tubeUsageHistory: TubeUsageHistoryPayload,
   token: string,
 ) {
   return apiRequest<V2ExperimentRead>(`${BASE}/${runId}/setup-reference`, {
     method: 'PUT',
-    body: { setup_id: setupId, version } satisfies V2SetupReferenceRequest,
+    body: {
+      setup_id: setupId,
+      version,
+      tube_usage_history: tubeUsageHistory,
+    } satisfies V2SetupReferenceRequest,
     token,
   })
 }

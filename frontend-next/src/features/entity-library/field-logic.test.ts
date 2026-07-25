@@ -11,6 +11,7 @@ import {
   isNoneOption,
   isOtherOptionMarker,
   isSelectWithOtherInput,
+  materialLotFormulaIsCompatible,
   matchesCondition,
   parseEnumOptions,
   resolveConditionKey,
@@ -74,7 +75,6 @@ describe('getEntityFields', () => {
     expect(SYSTEM_FIELD_KEYS.has('version')).toBe(true)
     const keys = getEntityFields('material_lot').map((f) => f.key)
     expect(keys).not.toContain('version')
-    // material_lot has 22 registered fields incl. version → 21 editable
     expect(keys).toContain('lot_category')
     expect(keys).toContain('substance_name')
   })
@@ -152,12 +152,21 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
         values,
       ),
     ).toBe(true)
-    // ▸衬底 sub-field without an explicit condition is still gated by the group
     expect(
       isFieldVisible(
         'material_lot',
         field('material_lot', 'substrate_orientation_polish'),
         values,
+      ),
+    ).toBe(false)
+    expect(
+      isFieldVisible(
+        'material_lot',
+        field('material_lot', 'substrate_orientation_polish'),
+        {
+          ...values,
+          substrate_orientation_polish_availability: 'reported',
+        },
       ),
     ).toBe(true)
     // ▸气瓶 group hidden
@@ -224,6 +233,30 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
       }),
     ).toBe(false)
   })
+
+  it('shows particle/form fields only for applicable lot categories', () => {
+    const particle = field('material_lot', 'particle_size_d50_um')
+    const form = field('material_lot', 'form_appearance')
+
+    expect(
+      isFieldVisible('material_lot', particle, { lot_category: '化学品' }),
+    ).toBe(true)
+    expect(
+      isFieldVisible('material_lot', form, { lot_category: '化学品' }),
+    ).toBe(true)
+    expect(
+      isFieldVisible('material_lot', particle, { lot_category: '衬底' }),
+    ).toBe(false)
+    expect(isFieldVisible('material_lot', form, { lot_category: '衬底' })).toBe(
+      true,
+    )
+    expect(
+      isFieldVisible('material_lot', particle, { lot_category: '气瓶' }),
+    ).toBe(false)
+    expect(isFieldVisible('material_lot', form, { lot_category: '气瓶' })).toBe(
+      false,
+    )
+  })
 })
 
 describe('effective required-ness', () => {
@@ -250,6 +283,71 @@ describe('effective required-ness', () => {
     expect(
       isEffectivelyRequired('material_lot', substrate, {
         lot_category: '衬底',
+      }),
+    ).toBe(true)
+  })
+
+  it('requires substrate miscut direction only when the angle is positive', () => {
+    const direction = field('material_lot', 'substrate_miscut_direction')
+
+    expect(
+      isFieldVisible('material_lot', direction, {
+        lot_category: '衬底',
+        substrate_miscut_availability: 'reported',
+        substrate_miscut_angle_deg: '0.2',
+      }),
+    ).toBe(true)
+    expect(
+      isFieldVisible('material_lot', direction, {
+        lot_category: '衬底',
+        substrate_miscut_availability: 'reported',
+        substrate_miscut_angle_deg: '0',
+      }),
+    ).toBe(false)
+    expect(
+      isEffectivelyRequired('material_lot', direction, {
+        lot_category: '衬底',
+        substrate_miscut_angle_deg: '0.2',
+      }),
+    ).toBe(true)
+    expect(
+      isEffectivelyRequired('material_lot', direction, {
+        lot_category: '衬底',
+        substrate_miscut_angle_deg: '0',
+      }),
+    ).toBe(false)
+    expect(
+      buildSubmitPayload('material_lot', {
+        lot_category: '衬底',
+        substrate_miscut_availability: 'reported',
+        substrate_miscut_angle_deg: '0',
+        substrate_miscut_direction: 'toward a-axis',
+      }),
+    ).not.toHaveProperty('substrate_miscut_direction')
+  })
+})
+
+describe('material lot substrate formula', () => {
+  it('rejects known material/formula mismatches and keeps custom materials open', () => {
+    expect(
+      materialLotFormulaIsCompatible({
+        lot_category: '衬底',
+        substrate_material: '蓝宝石',
+        chemical_formula: 'MoS2',
+      }),
+    ).toBe(false)
+    expect(
+      materialLotFormulaIsCompatible({
+        lot_category: 'substrate',
+        substrate_material: 'sapphire_al2o3',
+        chemical_formula: 'Al₂O₃',
+      }),
+    ).toBe(true)
+    expect(
+      materialLotFormulaIsCompatible({
+        lot_category: 'substrate',
+        substrate_material: 'custom substrate',
+        chemical_formula: 'MoS2',
       }),
     ).toBe(true)
   })

@@ -307,7 +307,11 @@ def set_v2_setup_reference(
     current_user: CurrentUser,
 ) -> V2ExperimentRead:
     return V2ExperimentService(db).set_setup_reference(
-        run_id, payload.setup_id, payload.version, current_user
+        run_id,
+        payload.setup_id,
+        payload.version,
+        payload.tube_usage_history.model_dump(),
+        current_user,
     )
 
 

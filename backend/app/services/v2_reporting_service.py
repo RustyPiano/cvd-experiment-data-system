@@ -27,6 +27,7 @@ from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.services.experiment_guards import get_visible_experiment
+from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
@@ -445,8 +446,8 @@ class V2ReportingService:
 
     def _run_bundle(self, run: ExperimentRun) -> dict[str, Any]:
         modules = {
-            item.module_key: canonicalize_controlled_values(item.payload_json)
-            for item in run.module_payloads
+            module_key: canonicalize_controlled_values(payload)
+            for module_key, payload in effective_run_module_payloads(run).items()
         }
         operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
         samples = self._samples(run.id)
@@ -562,8 +563,8 @@ class V2ReportingService:
 
         for run in runs:
             modules = {
-                item.module_key: canonicalize_controlled_values(item.payload_json)
-                for item in run.module_payloads
+                module_key: canonicalize_controlled_values(payload)
+                for module_key, payload in effective_run_module_payloads(run).items()
             }
             operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
             samples = self._samples(run.id)

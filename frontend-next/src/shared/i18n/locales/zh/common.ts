@@ -32,6 +32,11 @@ export const common = {
     numberLt: '请输入小于 {{limit}} 的数值',
     numericValueRequired: '请输入数值，不能只选择类型',
     structuredField: '请完整填写具名参数，并使用有效数值',
+    tubeDimensionsRequired: '请按所选截面完整填写炉管尺寸',
+    temperatureSensorsCoverage:
+      '温区数为 {{count}}；请为温区 1–{{count}} 各完整填写一张传感器卡（名称、类型、不确定度及来源）。',
+    substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
+    usageHistory: '请填写清零次数（可为 0）和清零后第几次使用（从 1 开始）。',
   },
   structuredFields: {
     select: '请选择',
@@ -54,12 +59,19 @@ export const common = {
     height: '高度（mm）',
     diameter: '直径（mm）',
     outerDiameter: '外径（mm）',
+    outerSide: '外边长（mm）',
+    outerWidth: '外宽（mm）',
+    outerHeight: '外高（mm）',
+    dimensionDescription: '尺寸说明',
     wallThickness: '壁厚（mm）',
     thickness: '厚度（mm）',
     roughnessMetric: '粗糙度指标',
     roughnessRa: '算术平均粗糙度（Ra）',
     roughnessRms: '均方根粗糙度（RMS）',
     roughnessValue: '粗糙度数值（nm）',
+    roughnessAvailability: '批次是否提供粗糙度规格',
+    roughnessReported: '有规格数值',
+    roughnessNotProvided: '供应商未提供',
     placement: '放置方式',
     faceUp: '正放',
     faceDown: '倒扣',
@@ -67,8 +79,18 @@ export const common = {
     upright: '竖放',
     otherPlacement: '其他',
     zoneIndex: '温区编号',
+    zoneOption: '温区 {{index}}',
     temperature: '温度（°C）',
+    temperatureBasis: '温度依据',
+    setpoint: '设定值',
+    measured: '实测值',
+    estimate: '估计',
+    notProvided: '不单独填写',
     distance: '距离（mm）',
+    resetCount: '清零次数',
+    useNumberSinceReset: '清零后第几次使用',
+    selectTubeShapeFirst: '请先选择炉管截面形状。',
+    selectSetupFirst: '请先选择实验装置。',
   },
   structuredEditors: {
     treatmentSteps: {
@@ -124,6 +146,7 @@ export const common = {
       removePoint: '删除程序点',
       moveUp: '上移',
       moveDown: '下移',
+      selectSetupFirst: '请选择实验装置，系统将按装置温区逐区生成程序卡。',
     },
     gasFeeds: {
       addFeed: '新增气体供气',
@@ -229,6 +252,25 @@ export const common = {
       startMinutes: '开始时间（min）',
       endMinutes: '结束时间（min）',
       removeField: '删除实际外场',
+      parameterGroups: {
+        plasma: '等离子体参数',
+        light: '光照参数',
+        electric_field: '电场参数',
+      },
+      explicitParameters: {
+        plasmaPowerW: '功率（W）',
+        plasmaGasSpecies: '气体',
+        plasmaPressurePa: '压力（Pa）',
+        lightWavelengthNm: '波长（nm）',
+        lightPowerMw: '光功率（mW，二选一）',
+        lightIrradianceMwCm2: '辐照度（mW·cm⁻²，二选一）',
+        lightSourceDistanceMm: '光源距离（mm）',
+        electricVoltageV: '电压（V，二选一）',
+        electricFieldStrengthVCm: '场强（V·cm⁻¹，二选一）',
+        electricElectrodeGapMm: '电极间距（mm）',
+        electricDirection: '方向',
+      },
+      otherParameters: '其他参数（选填）',
     },
     measuredTemperature: {
       files: '实测温度时序文件',
@@ -260,6 +302,7 @@ export const common = {
       removeSensor: '删除温度传感器',
       moveUp: '上移传感器',
       moveDown: '下移传感器',
+      selectZoneCountFirst: '请先填写装置温区数，系统将逐区生成传感器卡。',
     },
   },
   states: {
@@ -775,6 +818,7 @@ export const common = {
       retry: '重试',
       goToLibrary: '前往基础资料维护添加',
       create: '新增{{name}}',
+      useLatest: '改用最新版本 v{{version}}',
     },
     sections: {
       basicInfo: {
@@ -798,25 +842,37 @@ export const common = {
         },
         displayPreview: '显示串预览：',
         displayNote: '仅用于前端预览；组成明细仍是权威数据。',
-        spaceGroupSymbol: 'Hermann–Mauguin 符号：{{symbol}}',
-        spaceGroupLookup: '打开空间群编号与符号查询',
+        spaceGroupPlaceholder: '输入编号或符号，例如 194',
+        spaceGroupHelp:
+          '不知道可留空；可从 XRD 结果、文献或材料数据库中的 Space group 获取。',
+        spaceGroupSymbol: '空间群符号：{{symbol}}',
       },
       equipment: {
         title: '实验装置',
         frozenNote:
           '正在使用实验装置 v{{version}}；以下配置已保存在本记录中（只读）。',
+        tubeUsageHistory: '炉管使用履历',
+        tubeUsageHistoryHelp:
+          '填写本次制备实验记录对应的当前计数，不属于装置固定配置。',
       },
       precursors: {
         title: '前驱体',
         add: '新增前驱体',
         empty: '尚未记录前驱体。',
         item: '前驱体 {{position}}',
+        selectLotFirst:
+          '请先选择物料批次；名称和化学标识从批次带出，本次实验只填写相态、用量、处理、舟履历和位置。',
       },
       substrates: {
         title: '衬底',
         add: '新增衬底',
         empty: '尚未记录衬底。',
         item: '衬底 {{position}}',
+        lotSizePrefix: '批次规格：',
+        selectLotFirst:
+          '请先选择衬底批次；材料、化学式、晶向、偏切和粗糙度从批次带出，本次实验只填写本片尺寸、处理和位置。',
+        incompleteLot:
+          '该旧批次缺少：{{fields}}。请到基础资料为该批次新增完整版本后再选择；这些稳定信息不能在本次实验中临时补填。',
       },
       processSteps: {
         title: '实验过程',

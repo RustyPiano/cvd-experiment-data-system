@@ -20,6 +20,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -41,6 +42,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD/其他"
@@ -62,6 +64,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -83,6 +86,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "CVD-YYYY-NNNN"
@@ -104,6 +108,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": "℃",
       "options": null
@@ -125,6 +130,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": {
         "ge": 0,
         "le": 100
@@ -149,6 +155,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "已完成实验前检查"
@@ -163,13 +170,14 @@
       "meaning": "规范显示串；复合体系须与组成明细一致、以组成明细为准（可自动生成）",
       "input": "文本",
       "example": "MoS2",
-      "help": "直接使用普通数字，无需输入下标；允许常见圆括号与结晶水点号（·）。选择结构类型后，按页面显示的对应规则填写，复合体系仍以组成明细为准。",
-      "help_en": "Use regular digits; subscripts are not required. Common parentheses and the hydrate dot (·) are allowed. Follow the selected structure rule; components remain authoritative for composite systems.",
+      "help": "用普通数字填写，例如 MoS2；复合体系再按下方“组成明细”逐项填写。",
+      "help_en": "Use plain digits, for example MoS2; for composite systems, complete the component rows below.",
       "machine_type": "string",
       "schema_path": "$.modules.target_product.properties.chemical_formula",
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "标准写法（渲染规则）"
@@ -191,6 +199,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "本征/掺杂/合金/垂直异质结/横向异质结/其他"
@@ -216,6 +225,7 @@
         "value": "intrinsic"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "每条:化学式/角色(主体材料·掺杂剂·合金组分·上层·下层·横向域)/浓度(at%)/层序(整数)"
@@ -237,6 +247,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": {
         "type": "integer",
         "ge": 1
@@ -254,13 +265,14 @@
       "meaning": "晶体对称性：International Tables 空间群号（1–230）",
       "input": "数值",
       "example": "194",
-      "help": "填写 International Tables 空间群号（1–230）；界面自动显示 Hermann–Mauguin 符号，不清楚可留空",
-      "help_en": "Enter the International Tables number (1–230); the Hermann–Mauguin symbol is displayed automatically. Leave blank if unknown",
+      "help": "输入编号或从列表选择；不知道可留空，可从XRD结果、文献或材料数据库的“Space group”获取。",
+      "help_en": "Enter a number or choose from the list. Leave blank if unknown; it is usually reported as “Space group” in XRD results, literature, or materials databases.",
       "machine_type": "integer",
       "schema_path": "$.modules.target_product.properties.bulk_space_group",
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -282,6 +294,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "连续膜/纳米片(flake)/纳米带/纳米管/纳米棒/纳米颗粒/其他"
@@ -303,6 +316,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "示例：希望获得高迁移率，计划通过FET测试评价"
@@ -324,6 +338,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -345,6 +360,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "装置库"
@@ -366,6 +382,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "受控+其他"
@@ -387,6 +404,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "热壁/冷壁"
@@ -408,6 +426,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": {
         "type": "integer",
         "ge": 1
@@ -432,6 +451,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "水平/垂直"
@@ -453,6 +473,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{material: 石英|刚玉|其他, material_other?, shape: 圆形|方形|矩形|其他, shape_other?}"
@@ -462,11 +483,11 @@
       "module": "设备",
       "module_key": "equipment",
       "key": "tube_outer_diameter_wall_mm",
-      "label": "炉管外径与壁厚",
-      "label_en": "Tube outer diameter and wall thickness",
-      "meaning": "管径规格与壁厚（内径自动算）",
-      "input": "具名尺寸对象",
-      "example": "1″(25.4)，壁厚2",
+      "label": "炉管尺寸",
+      "label_en": "Tube dimensions",
+      "meaning": "按截面形状记录外部尺寸和壁厚",
+      "input": "炉管尺寸对象",
+      "example": "{outer_width_mm: 50, outer_height_mm: 30, wall_thickness_mm: 2}",
       "help": null,
       "help_en": null,
       "machine_type": "object",
@@ -474,9 +495,10 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": "mm",
-      "options": "{outer_diameter_mm, wall_thickness_mm}"
+      "options": "{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}"
     },
     {
       "source_part": "experiment_record",
@@ -495,6 +517,7 @@
       "r0": false,
       "condition": null,
       "requirement": "definition",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "上游为负；下游为正；原点固定"
@@ -516,6 +539,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": "℃",
       "options": "{sensor_name, sensor_type, zone_index, uncertainty_C, uncertainty_source: 仪器|校准|重复性|估计}"
@@ -537,9 +561,10 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "无/等离子/光/电"
+      "options": "无/等离子体/光/电"
     },
     {
       "source_part": "experiment_record",
@@ -558,18 +583,41 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
     },
     {
       "source_part": "experiment_record",
+      "module": "设备",
+      "module_key": "equipment",
+      "key": "tube_usage_history",
+      "label": "炉管使用履历",
+      "label_en": "Tube usage history",
+      "meaning": "当前炉管的累计重置次数，以及本次实验是最近一次重置后的第几次使用",
+      "input": "使用履历对象",
+      "example": "{reset_count: 1, use_number_since_reset: 7}",
+      "help": "填本次实验对应的当前计数；从未重置可填“0、当前使用序号”。",
+      "help_en": "Enter the counts for this run. If the tube has never been reset, use reset count 0 and the current use number.",
+      "machine_type": "object",
+      "schema_path": "$.modules.equipment.properties.tube_usage_history",
+      "r0": false,
+      "condition": null,
+      "requirement": "required",
+      "otherwise": null,
+      "validation": null,
+      "unit": "次",
+      "options": "{reset_count, use_number_since_reset}"
+    },
+    {
+      "source_part": "experiment_record",
       "module": "前驱体",
       "module_key": "precursors",
       "key": "name_formula",
-      "label": "前驱体标识（名称或化学式）",
-      "label_en": "Precursor identity (name or formula)",
-      "meaning": "原料名称与化学式",
+      "label": "前驱体标识（来自批次）",
+      "label_en": "Precursor identity (from lot)",
+      "meaning": "从所选物料批次快照带出的原料名称或化学式",
       "input": "下拉+其他",
       "example": "MoO₃",
       "help": null,
@@ -579,6 +627,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "受控+其他"
@@ -600,6 +649,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "CAS 或 InChI"
@@ -621,6 +671,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "固/气/液"
@@ -646,6 +697,7 @@
         "value": "solid"
       },
       "requirement": "conditional_recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "白色粉末/白色晶粒/淡黄色粉末/结块或潮解/变色/其他"
@@ -667,6 +719,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{entity_id, version, snapshot}"
@@ -688,6 +741,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "主源/辅助剂/掺杂源/其他"
@@ -713,6 +767,7 @@
         "value": "gas"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
@@ -736,6 +791,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{type: 直接加载|熔融凝固|压片|旋涂|退火|研磨|其他, other_name?, parameters: 具名参数对象}"
@@ -747,40 +803,46 @@
       "key": "boat_crucible",
       "label": "舟或坩埚",
       "label_en": "Boat or crucible",
-      "meaning": "盛装容器材质与尺寸",
+      "meaning": "本前驱体所用盛装容器的材质、尺寸和使用履历",
       "input": "具名尺寸对象",
-      "example": "石英舟 90×15",
-      "help": null,
-      "help_en": null,
+      "example": "石英舟 90×15；重置1次；本次为重置后第7次使用",
+      "help": "重置指清洗或更换容器；本次使用序号从1开始累计。",
+      "help_en": "A reset means cleaning or replacing the container; count the current use from 1 after each reset.",
       "machine_type": "object",
       "schema_path": "$.modules.precursors.properties.items.items.properties.boat_crucible",
       "r0": false,
-      "condition": null,
-      "requirement": "recommended",
+      "condition": {
+        "field": "前驱体.相态",
+        "op": "ne",
+        "value": "gas"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": "mm",
-      "options": "{material: 石英舟|陶瓷(刚玉)舟|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?}"
+      "options": "{material: 石英舟|陶瓷(刚玉)舟|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?, reset_count, use_number_since_reset}"
     },
     {
       "source_part": "experiment_record",
       "module": "前驱体",
       "module_key": "precursors",
       "key": "source_zone_temperature",
-      "label": "所在温区与源温",
-      "label_en": "Source zone and temperature",
-      "meaning": "放第几温区、源温（若可设/可测）",
+      "label": "前驱体位置",
+      "label_en": "Precursor position",
+      "meaning": "前驱体所在温区；仅在位置温度不同于温区设定程序或另有测量/估计时补充温度及依据",
       "input": "温区温度对象",
-      "example": "温区1，设定~620",
-      "help": null,
-      "help_en": null,
+      "example": "温区1；位置温度620；依据=估计",
+      "help": "先选所在温区。若没有独立测量或估计，位置温度可留空，不要重复抄温度程序。",
+      "help_en": "Select the zone first. Leave the local temperature blank unless it was measured or estimated separately; do not copy the zone program.",
       "machine_type": "object",
       "schema_path": "$.modules.precursors.properties.items.items.properties.source_zone_temperature",
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": "℃",
-      "options": "{zone_index, temperature_C}"
+      "options": "{zone_index, temperature_C?, temperature_basis?: 实测值|估计}"
     },
     {
       "source_part": "experiment_record",
@@ -799,6 +861,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": "mm",
       "options": null
@@ -808,9 +871,9 @@
       "module": "衬底",
       "module_key": "substrates",
       "key": "material",
-      "label": "衬底材料",
+      "label": "衬底材料（来自批次）",
       "label_en": "Substrate material",
-      "meaning": "衬底种类",
+      "meaning": "衬底种类；引用批次后从冻结快照带出且不可在炉次中覆盖",
       "input": "下拉+其他",
       "example": "SiO₂/Si",
       "help": null,
@@ -820,6 +883,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "SiO₂/Si·蓝宝石(Al₂O₃)·石英·云母·Cu箔·Au箔·h-BN·其他"
@@ -841,6 +905,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{entity_id, version, snapshot}"
@@ -850,9 +915,9 @@
       "module": "衬底",
       "module_key": "substrates",
       "key": "chemical_formula",
-      "label": "衬底化学式",
+      "label": "衬底化学式（来自批次）",
       "label_en": "Substrate formula",
-      "meaning": "衬底材料的化学式；可从物料批次快照带出",
+      "meaning": "衬底材料的化学式；引用批次后从冻结快照带出且不可在炉次中覆盖",
       "input": "文本",
       "example": "Al₂O₃",
       "help": "使用普通数字填写；支持常见圆括号与结晶水点号（·）。",
@@ -862,6 +927,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "标准化学式"
@@ -870,19 +936,46 @@
       "source_part": "experiment_record",
       "module": "衬底",
       "module_key": "substrates",
+      "key": "orientation_polish_availability",
+      "label": "取向与抛光信息（来自批次）",
+      "label_en": "Orientation and polish availability",
+      "meaning": "批次是否提供且是否适用晶面取向与抛光规格；引用批次后只读",
+      "input": "下拉",
+      "example": "有规格数值",
+      "help": "这是物料批次中的供应商规格状态；本次实验只读带出。",
+      "help_en": "This status comes from the material-lot specification and is read-only in the run.",
+      "machine_type": "string",
+      "schema_path": "$.modules.substrates.properties.items.items.properties.orientation_polish_availability",
+      "r0": true,
+      "condition": null,
+      "requirement": "required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": "有规格数值·供应商未提供·不适用"
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "衬底",
+      "module_key": "substrates",
       "key": "crystal_orientation",
-      "label": "晶面取向",
+      "label": "晶面取向与抛光（来自批次）",
       "label_en": "Crystal orientation",
-      "meaning": "单晶衬底的晶面或晶轴取向",
+      "meaning": "单晶衬底的晶面或晶轴取向及抛光面；引用批次后只读",
       "input": "文本",
-      "example": "(100)",
+      "example": "c面；单面抛",
       "help": null,
       "help_en": null,
       "machine_type": "string",
       "schema_path": "$.modules.substrates.properties.items.items.properties.crystal_orientation",
-      "r0": true,
-      "condition": null,
-      "requirement": "required",
+      "r0": false,
+      "condition": {
+        "field": "衬底.取向与抛光信息（来自批次）",
+        "op": "eq",
+        "value": "reported"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "例如 (100)、c面、a面"
@@ -891,19 +984,46 @@
       "source_part": "experiment_record",
       "module": "衬底",
       "module_key": "substrates",
-      "key": "miscut_angle_deg",
-      "label": "偏转角",
-      "label_en": "Miscut angle",
-      "meaning": "晶面相对标称取向的偏转角",
-      "input": "数值",
-      "example": "0",
-      "help": null,
-      "help_en": null,
-      "machine_type": "number",
-      "schema_path": "$.modules.substrates.properties.items.items.properties.miscut_angle_deg",
+      "key": "miscut_availability",
+      "label": "偏切信息（来自批次）",
+      "label_en": "Miscut availability",
+      "meaning": "批次是否提供且是否适用相对标称晶面的偏切规格；引用批次后只读",
+      "input": "下拉",
+      "example": "供应商未提供",
+      "help": "有供应商偏切规格才选择“有规格数值”；未给或不适用请明确选择，不能用 0 代替未知。",
+      "help_en": "Choose “Specification reported” only when a miscut specification exists; zero means reported no miscut, not unknown.",
+      "machine_type": "string",
+      "schema_path": "$.modules.substrates.properties.items.items.properties.miscut_availability",
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": "有规格数值·供应商未提供·不适用"
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "衬底",
+      "module_key": "substrates",
+      "key": "miscut_angle_deg",
+      "label": "偏切角（相对标称晶面，来自批次）",
+      "label_en": "Miscut angle",
+      "meaning": "实际晶面相对标称晶面的偏切角；引用批次后只读",
+      "input": "数值",
+      "example": "0",
+      "help": "仅在供应商给出偏切规格时填写；明确无偏切填 0，有偏切还要填写晶轴方向。",
+      "help_en": "Enter this only for a reported supplier specification; use zero only for reported no miscut and add the direction for a positive angle.",
+      "machine_type": "number",
+      "schema_path": "$.modules.substrates.properties.items.items.properties.miscut_angle_deg",
+      "r0": false,
+      "condition": {
+        "field": "衬底.偏切信息（来自批次）",
+        "op": "eq",
+        "value": "reported"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "ge": 0,
         "lt": 90
@@ -915,10 +1035,36 @@
       "source_part": "experiment_record",
       "module": "衬底",
       "module_key": "substrates",
+      "key": "miscut_direction",
+      "label": "偏切方向（来自批次）",
+      "label_en": "Miscut direction",
+      "meaning": "偏切角所指的晶轴或晶向；引用批次后只读",
+      "input": "文本",
+      "example": "c面向a轴偏0.2°",
+      "help": "例：c 面向 a 轴偏 0.2°；只写方向，角度填在上一项。",
+      "help_en": "Example: c-plane toward the a-axis; enter the angle in the preceding field.",
+      "machine_type": "string",
+      "schema_path": "$.modules.substrates.properties.items.items.properties.miscut_direction",
+      "r0": false,
+      "condition": {
+        "field": "衬底.偏切信息（来自批次）",
+        "op": "eq",
+        "value": "reported"
+      },
+      "requirement": "optional",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": null
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "衬底",
+      "module_key": "substrates",
       "key": "oxide_thickness_nm",
-      "label": "氧化层厚度",
+      "label": "氧化层厚度（来自批次）",
       "label_en": "Oxide layer thickness",
-      "meaning": "SiO₂ 层厚度（决定光学判层数）",
+      "meaning": "SiO₂ 层厚度（决定光学判层数）；引用批次后只读",
       "input": "数值",
       "example": "285",
       "help": null,
@@ -927,11 +1073,12 @@
       "schema_path": "$.modules.substrates.properties.items.items.properties.oxide_thickness_nm",
       "r0": false,
       "condition": {
-        "field": "衬底.衬底材料",
+        "field": "衬底.衬底材料（来自批次）",
         "op": "eq",
         "value": "sio2_si"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
@@ -943,39 +1090,41 @@
       "module": "衬底",
       "module_key": "substrates",
       "key": "surface_roughness",
-      "label": "表面粗糙度指标与数值",
+      "label": "标称表面粗糙度（来自批次）",
       "label_en": "Surface roughness",
-      "meaning": "表面粗糙度的指标类型和对应数值",
+      "meaning": "供应商或批次规格中的标称粗糙度；本片实测粗糙度应记录在AFM结果",
       "input": "粗糙度对象",
-      "example": "{metric: RMS, value_nm: 0.5}",
-      "help": null,
-      "help_en": null,
+      "example": "{availability: reported, metric: RMS, value_nm: 0.5}",
+      "help": "选择“有规格数值”并填批次 Ra/RMS；供应商没给就选“供应商未提供”。本片 AFM 实测值填在表征结果。",
+      "help_en": "Choose “Specification reported” and enter the lot Ra/RMS, or “Supplier did not provide”. Record AFM measurements as characterization results.",
       "machine_type": "object",
       "schema_path": "$.modules.substrates.properties.items.items.properties.surface_roughness",
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": "nm",
-      "options": "{metric: Ra|RMS, value_nm}"
+      "options": "{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}"
     },
     {
       "source_part": "experiment_record",
       "module": "衬底",
       "module_key": "substrates",
       "key": "size_placement",
-      "label": "尺寸与放置方式",
-      "label_en": "Size and placement",
-      "meaning": "几何尺寸、放置方式及条件角度",
+      "label": "本片实际尺寸与放置方式",
+      "label_en": "Actual piece size and placement",
+      "meaning": "本次实验实际放入炉内的这一片衬底尺寸、放置方式及条件角度；批次来料规格另存于MaterialLot",
       "input": "衬底尺寸放置对象",
       "example": "{length_mm: 10, width_mm: 10, thickness_mm: 0.5, placement: 倾角, tilt_angle_deg: 15}",
-      "help": null,
-      "help_en": null,
+      "help": "填这次真正放进炉内的单片尺寸和摆放方式；整片晶圆或来料标称尺寸填在物料批次。",
+      "help_en": "Enter the dimensions and placement of the actual piece loaded for this run; record wafer or supplied-lot dimensions in the material lot.",
       "machine_type": "object",
       "schema_path": "$.modules.substrates.properties.items.items.properties.size_placement",
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": "mm",
       "options": "{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|倾角|竖放|其他, tilt_angle_deg?, placement_other?}"
@@ -997,6 +1146,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{type: 丙酮清洗|异丙醇清洗|氮气吹干|退火|等离子体|亲水处理|其他, other_name?, parameters: 具名参数对象}"
@@ -1018,6 +1168,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": {
         "ge": 0
       },
@@ -1041,6 +1192,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "空气/氮气/真空/其他"
@@ -1062,6 +1214,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": "mm",
       "options": "{zone_index, distance_mm}"
@@ -1083,6 +1236,7 @@
       "r0": true,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "预处理/反应条件/其他记录"
@@ -1108,6 +1262,7 @@
         "value": "preparation"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{operation_type: 抽气|气路置换|其他, target_absolute_pressure_Pa?, duration_min, cycle_count?, gases?, other_name?, parameters?}"
@@ -1133,6 +1288,7 @@
         "value": "reaction_conditions"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": "min·℃",
       "options": "{zones: [{zone_index, points: [{elapsed_min, setpoint_C}]}]}"
@@ -1154,6 +1310,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": "℃ 随时间",
       "options": "{file_asset_id, time_column, channels: [{zone_index, column_name}]}"
@@ -1179,6 +1336,7 @@
         "value": "reaction_conditions"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": "min·sccm",
       "options": "{species, other_name?, lot_ref, measurement_source: MFC|转子|其他, measurement_source_other?, intervals: [{start_min, end_min, flow_sccm}]}"
@@ -1204,6 +1362,7 @@
         "value": "reaction_conditions"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0,
         "require_value": true,
@@ -1246,6 +1405,7 @@
         "value": "reaction_conditions"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": "min·次",
       "options": "{duration_min, cycle_count?}"
@@ -1267,6 +1427,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": "℃·℃/min",
       "options": "{method: 随炉冷却|开盖冷却|移炉快速冷却|其他, lid_open_temperature_C?, cooling_rate_C_per_min?, method_other?}"
@@ -1278,9 +1439,9 @@
       "key": "field_params",
       "label": "实际外场程序",
       "label_en": "Applied external-field program",
-      "meaning": "本炉实际启用的外场、时间区间与具名参数",
+      "meaning": "本炉实际启用的外场、时间区间与按类型展开的参数",
       "input": "实际外场数组",
-      "example": "[{field_type: 等离子, start_min: 10, end_min: 40, parameters: [{name: power, value: 50, unit: W}]}]",
+      "example": "[{field_type: 等离子体, start_min: 10, end_min: 40, parameters: [{name: power_W, value: 50, unit: W}, {name: gas_species, value: Ar, unit: —}, {name: pressure_Pa, value: 50, unit: Pa}]}]",
       "help": null,
       "help_en": null,
       "machine_type": "array",
@@ -1288,9 +1449,10 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": "按参数",
-      "options": "{field_type: 等离子|光|电, start_min, end_min, parameters: [{name, value, unit}]}"
+      "options": "{field_type: 等离子体|光|电, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；other_parameters?}"
     },
     {
       "source_part": "experiment_record",
@@ -1313,6 +1475,7 @@
         "value": "other"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1338,6 +1501,7 @@
         "value": "other"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1359,6 +1523,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "系统生成"
@@ -1380,6 +1545,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "供电中断/供水中断/供气中断/管路堵塞/压力突变/信号异常/人工干预/设备报警/其他"
@@ -1401,6 +1567,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1422,6 +1589,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "是/否"
@@ -1447,6 +1615,7 @@
         "value": true
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "设备报警/人工停止/计划变更/其他"
@@ -1472,6 +1641,7 @@
         "value": "other"
       },
       "requirement": "conditional_required",
+      "otherwise": "optional",
       "validation": null,
       "unit": null,
       "options": null
@@ -1493,6 +1663,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1514,6 +1685,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "FileAsset UUID列表"
@@ -1523,9 +1695,9 @@
       "module": "表征",
       "module_key": "characterization",
       "key": "method_instrument",
-      "label": "表征方法与仪器",
-      "label_en": "Method and instrument",
-      "meaning": "表征手段 + 引用仪器",
+      "label": "表征方法",
+      "label_en": "Characterization method",
+      "meaning": "本次使用的表征手段；仪器通过独立仪器引用选择",
       "input": "下拉+其他",
       "example": "Raman",
       "help": null,
@@ -1534,7 +1706,8 @@
       "schema_path": "$.result_models.unified_result_write.properties.method_instrument",
       "r0": false,
       "condition": null,
-      "requirement": "recommended",
+      "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他"
@@ -1548,7 +1721,7 @@
       "label_en": "Test conditions",
       "meaning": "该表征的测试参数",
       "input": "文本/自由",
-      "example": "532nm / 1mW / 100×",
+      "example": "激光532 nm；功率1 mW；物镜100×",
       "help": null,
       "help_en": null,
       "machine_type": "string",
@@ -1556,6 +1729,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1577,6 +1751,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1598,6 +1773,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "无生长/不连续覆盖/厚层区域/可见颗粒沾污/衬底破损/变色/其他"
@@ -1619,6 +1795,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1640,6 +1817,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": {
         "type": "integer",
         "ge": 0
@@ -1664,6 +1842,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": {
         "ge": 0,
         "le": 100
@@ -1688,6 +1867,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
@@ -1711,6 +1891,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": {
         "ge": 0
       },
@@ -1734,6 +1915,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": {
         "item_required": [
           "metric_code",
@@ -1770,6 +1952,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "批次库"
@@ -1799,6 +1982,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
@@ -1830,6 +2014,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": "W·V",
       "options": "DC/RF"
@@ -1839,7 +2024,7 @@
       "module": "PVD",
       "module_key": "pvd",
       "key": "plasma_gas_pressure",
-      "label": "等离子气氛与工作气压",
+      "label": "等离子体气氛与工作气压",
       "label_en": "Plasma atmosphere and working pressure",
       "meaning": "溅射气体与气压",
       "input": "下拉+数值",
@@ -1859,6 +2044,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0,
         "require_value": true
@@ -1891,6 +2077,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
@@ -1922,6 +2109,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
@@ -1945,6 +2133,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "化学品/衬底/气瓶"
@@ -1966,6 +2155,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -1987,6 +2177,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2008,6 +2199,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "支持括号、化学计量数与水合点"
@@ -2036,6 +2228,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "CAS"
@@ -2057,6 +2250,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2078,6 +2272,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "受控+其他"
@@ -2099,6 +2294,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2120,6 +2316,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2148,6 +2345,7 @@
         ]
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0,
         "le": 100
@@ -2170,8 +2368,13 @@
       "machine_type": "number",
       "schema_path": "$.entities.material_lot.properties.particle_size_d50_um",
       "r0": false,
-      "condition": null,
+      "condition": {
+        "field": "MaterialLot.批次类别",
+        "op": "eq",
+        "value": "chemical"
+      },
       "requirement": "optional",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
@@ -2193,8 +2396,13 @@
       "machine_type": "string",
       "schema_path": "$.entities.material_lot.properties.form_appearance",
       "r0": false,
-      "condition": null,
+      "condition": {
+        "field": "MaterialLot.批次类别",
+        "op": "ne",
+        "value": "gas_cylinder"
+      },
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "粉末/颗粒/块/箔/靶/其他"
@@ -2216,6 +2424,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2237,6 +2446,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "干燥器/手套箱/常温避光/冷藏/其他"
@@ -2258,6 +2468,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{file_asset_id, sha256}"
@@ -2279,6 +2490,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{file_asset_id, sha256}"
@@ -2304,6 +2516,7 @@
         "value": "substrate"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "SiO₂/Si·蓝宝石(Al₂O₃)·石英·云母·Cu箔·Au箔·h-BN·其他"
@@ -2329,11 +2542,38 @@
         "value": "sio2_si"
       },
       "requirement": "conditional_required",
+      "otherwise": null,
       "validation": {
         "gt": 0
       },
       "unit": "nm",
       "options": null
+    },
+    {
+      "source_part": "entity",
+      "module": "MaterialLot",
+      "module_key": "material_lot",
+      "key": "substrate_orientation_polish_availability",
+      "label": "▸衬底·晶向与抛光信息",
+      "label_en": "Substrate · orientation and polish availability",
+      "meaning": "供应商是否提供且该衬底是否适用晶面取向与抛光规格",
+      "input": "下拉",
+      "example": "有规格数值",
+      "help": "单晶片且供应商给了晶面和抛光规格时选“有规格数值”；未给或不适用请明确选择。",
+      "help_en": "Choose “Specification reported” only when orientation and polish are supplied; otherwise select not provided or not applicable.",
+      "machine_type": "string",
+      "schema_path": "$.entities.material_lot.properties.substrate_orientation_polish_availability",
+      "r0": false,
+      "condition": {
+        "field": "MaterialLot.批次类别",
+        "op": "eq",
+        "value": "substrate"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": "有规格数值·供应商未提供·不适用"
     },
     {
       "source_part": "entity",
@@ -2345,18 +2585,22 @@
       "meaning": "取向与抛光面",
       "input": "文本+下拉",
       "example": "Si(100)；单面抛",
-      "help": null,
-      "help_en": null,
+      "help": "例：c 面；单面抛。晶面和抛光面都写清楚。",
+      "help_en": "Example: c-plane; single-side polished. State both orientation and polished side.",
       "machine_type": "object",
       "schema_path": "$.entities.material_lot.properties.substrate_orientation_polish",
       "r0": false,
       "condition": {
-        "field": "MaterialLot.批次类别",
+        "field": "MaterialLot.▸衬底·晶向与抛光信息",
         "op": "eq",
-        "value": "substrate"
+        "value": "reported"
       },
-      "requirement": "recommended",
-      "validation": null,
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": {
+        "require_value": true,
+        "require_option": true
+      },
       "unit": null,
       "options": "晶向；单面抛/双面抛"
     },
@@ -2364,14 +2608,121 @@
       "source_part": "entity",
       "module": "MaterialLot",
       "module_key": "material_lot",
+      "key": "substrate_miscut_availability",
+      "label": "▸衬底·偏切信息",
+      "label_en": "Substrate · miscut availability",
+      "meaning": "供应商是否提供且该衬底是否适用相对标称晶面的偏切规格",
+      "input": "下拉",
+      "example": "供应商未提供",
+      "help": "有偏切规格才选“有规格数值”；供应商没给或该材料不适用时请选择对应状态。",
+      "help_en": "Choose “Specification reported” only when a miscut specification exists; zero never represents unknown.",
+      "machine_type": "string",
+      "schema_path": "$.entities.material_lot.properties.substrate_miscut_availability",
+      "r0": false,
+      "condition": {
+        "field": "MaterialLot.批次类别",
+        "op": "eq",
+        "value": "substrate"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": "有规格数值·供应商未提供·不适用"
+    },
+    {
+      "source_part": "entity",
+      "module": "MaterialLot",
+      "module_key": "material_lot",
+      "key": "substrate_miscut_angle_deg",
+      "label": "▸衬底·偏切角",
+      "label_en": "Substrate · miscut angle",
+      "meaning": "实际晶面相对标称晶面的偏切角",
+      "input": "数值",
+      "example": "0.2",
+      "help": "无偏切填 0；有偏切时还要填写偏向哪个晶轴或方向。",
+      "help_en": "Enter 0 for no miscut; otherwise also state the crystallographic direction.",
+      "machine_type": "number",
+      "schema_path": "$.entities.material_lot.properties.substrate_miscut_angle_deg",
+      "r0": false,
+      "condition": {
+        "field": "MaterialLot.▸衬底·偏切信息",
+        "op": "eq",
+        "value": "reported"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": {
+        "ge": 0,
+        "lt": 90
+      },
+      "unit": "°",
+      "options": null
+    },
+    {
+      "source_part": "entity",
+      "module": "MaterialLot",
+      "module_key": "material_lot",
+      "key": "substrate_miscut_direction",
+      "label": "▸衬底·偏切方向",
+      "label_en": "Substrate · miscut direction",
+      "meaning": "偏切角所指的晶轴或晶向",
+      "input": "文本",
+      "example": "c面向a轴",
+      "help": "例：c 面向 a 轴；角度填在上一项。",
+      "help_en": "Example: c-plane toward the a-axis; enter the angle above.",
+      "machine_type": "string",
+      "schema_path": "$.entities.material_lot.properties.substrate_miscut_direction",
+      "r0": false,
+      "condition": {
+        "field": "MaterialLot.▸衬底·偏切信息",
+        "op": "eq",
+        "value": "reported"
+      },
+      "requirement": "optional",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": null
+    },
+    {
+      "source_part": "entity",
+      "module": "MaterialLot",
+      "module_key": "material_lot",
+      "key": "substrate_surface_roughness",
+      "label": "▸衬底·标称表面粗糙度",
+      "label_en": "Substrate · nominal surface roughness",
+      "meaning": "供应商或批次规格中的标称粗糙度",
+      "input": "粗糙度对象",
+      "example": "{availability: not_provided}",
+      "help": "有供应商或批次规格就选“有规格数值”并填 Ra/RMS；没有就明确选“供应商未提供”，不要填 0 或猜测值。",
+      "help_en": "Enter a reported supplier or lot Ra/RMS value, or explicitly choose “Supplier did not provide”; never use zero as an unknown value.",
+      "machine_type": "object",
+      "schema_path": "$.entities.material_lot.properties.substrate_surface_roughness",
+      "r0": false,
+      "condition": {
+        "field": "MaterialLot.批次类别",
+        "op": "eq",
+        "value": "substrate"
+      },
+      "requirement": "conditional_required",
+      "otherwise": null,
+      "validation": null,
+      "unit": "nm",
+      "options": "{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}"
+    },
+    {
+      "source_part": "entity",
+      "module": "MaterialLot",
+      "module_key": "material_lot",
       "key": "substrate_size_spec",
-      "label": "▸衬底·尺寸规格",
-      "label_en": "Substrate · size specification",
-      "meaning": "出厂几何",
+      "label": "▸衬底·来料尺寸规格",
+      "label_en": "Substrate · supplied-lot size",
+      "meaning": "供应商标称或该批次来料的原始几何；切割后本次实际单片尺寸属于实验记录",
       "input": "文本",
       "example": "10×10×0.5",
-      "help": null,
-      "help_en": null,
+      "help": "填供应商标签或该批次来料的标称尺寸；切割后放进炉内的实际尺寸在每次实验中填写。",
+      "help_en": "Enter the supplier-labelled or incoming lot size; record the actual cut piece loaded into each run in the experiment.",
       "machine_type": "string",
       "schema_path": "$.entities.material_lot.properties.substrate_size_spec",
       "r0": false,
@@ -2381,6 +2732,7 @@
         "value": "substrate"
       },
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": "mm",
       "options": "长×宽×厚"
@@ -2395,8 +2747,8 @@
       "meaning": "子类(批次类别=气瓶)；与base『纯度』分工",
       "input": "下拉",
       "example": "5N",
-      "help": null,
-      "help_en": null,
+      "help": "有供应商等级标签可填；数值纯度以“纯度（质量%）”为准。",
+      "help_en": "Enter the supplier grade if present; the numeric purity percentage is authoritative.",
       "machine_type": "string",
       "schema_path": "$.entities.material_lot.properties.gas_purity_grade",
       "r0": false,
@@ -2405,7 +2757,8 @@
         "op": "eq",
         "value": "gas_cylinder"
       },
-      "requirement": "conditional_required",
+      "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "6N/5N/4N/工业级"
@@ -2431,6 +2784,7 @@
         "value": "gas_cylinder"
       },
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2452,6 +2806,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2473,6 +2828,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2494,6 +2850,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2515,6 +2872,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "受控+其他"
@@ -2536,6 +2894,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "热壁/冷壁"
@@ -2557,6 +2916,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": {
         "type": "integer",
         "ge": 1
@@ -2581,6 +2941,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": "℃",
       "options": "{sensor_name, sensor_type, zone_index, uncertainty_C, uncertainty_source: 仪器|校准|重复性|估计}"
@@ -2602,6 +2963,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "水平/垂直"
@@ -2623,6 +2985,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{material: 石英|刚玉|其他, material_other?, shape: 圆形|方形|矩形|其他, shape_other?}"
@@ -2632,11 +2995,11 @@
       "module": "装置Setup",
       "module_key": "setup",
       "key": "tube_outer_diameter_wall_mm",
-      "label": "炉管外径与壁厚",
-      "label_en": "Tube outer diameter and wall thickness",
-      "meaning": "管规格",
-      "input": "具名尺寸对象",
-      "example": "1″，壁厚2",
+      "label": "炉管尺寸",
+      "label_en": "Tube dimensions",
+      "meaning": "按截面形状记录外部尺寸和壁厚",
+      "input": "炉管尺寸对象",
+      "example": "{outer_width_mm: 50, outer_height_mm: 30, wall_thickness_mm: 2}",
       "help": null,
       "help_en": null,
       "machine_type": "object",
@@ -2644,9 +3007,10 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": "mm",
-      "options": "{outer_diameter_mm, wall_thickness_mm}"
+      "options": "{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}"
     },
     {
       "source_part": "entity",
@@ -2665,6 +3029,7 @@
       "r0": false,
       "condition": null,
       "requirement": "definition",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "上游为负；下游为正；原点固定"
@@ -2686,9 +3051,10 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "无/光/电/等离子"
+      "options": "无/光/电/等离子体"
     },
     {
       "source_part": "entity",
@@ -2707,6 +3073,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "{file_asset_id, sha256, note}"
@@ -2728,6 +3095,7 @@
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2737,18 +3105,19 @@
       "module": "表征仪器",
       "module_key": "instrument",
       "key": "name_type",
-      "label": "仪器名称与类型",
-      "label_en": "Instrument name and type",
-      "meaning": "手段类型",
+      "label": "适用表征方法",
+      "label_en": "Applicable characterization method",
+      "meaning": "该仪器适用的表征方法，用于结果录入时筛选仪器",
       "input": "下拉+其他",
       "example": "Raman",
-      "help": null,
-      "help_en": null,
+      "help": "用于按表征方法筛选仪器；仪器身份由编号、厂商和型号表达。",
+      "help_en": "Used to filter instruments by characterization method; identify the instrument by its code, vendor, and model.",
       "machine_type": "string",
       "schema_path": "$.entities.instrument.properties.name_type",
       "r0": false,
       "condition": null,
       "requirement": "required",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": "光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他"
@@ -2770,6 +3139,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2791,6 +3161,7 @@
       "r0": false,
       "condition": null,
       "requirement": "recommended",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2812,6 +3183,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2833,6 +3205,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2854,6 +3227,7 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
@@ -2865,19 +3239,20 @@
       "key": "fixed_config",
       "label": "关键固定配置",
       "label_en": "Key fixed configuration",
-      "meaning": "随仪器固定的参数（可变测试条件在实验§7填）",
+      "meaning": "随仪器长期固定的硬件或能力；本次实际使用参数在表征结果的测试条件中填写",
       "input": "自由",
-      "example": "532nm激光",
-      "help": null,
-      "help_en": null,
+      "example": "CCD探测器；300、600、1800 lines·mm⁻¹光栅",
+      "help": "只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。",
+      "help_en": "Enter stable hardware or capabilities only; record settings used for a measurement in that result.",
       "machine_type": "string",
       "schema_path": "$.entities.instrument.properties.fixed_config",
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
-      "options": "如激光波长/物镜/探测器"
+      "options": "如探测器型号、光栅范围、可用激光与物镜范围"
     },
     {
       "source_part": "entity",
@@ -2896,10 +3271,11 @@
       "r0": false,
       "condition": null,
       "requirement": "optional",
+      "otherwise": null,
       "validation": null,
       "unit": null,
       "options": null
     }
   ],
-  "field_count": 128
+  "field_count": 137
 }

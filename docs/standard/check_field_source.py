@@ -33,8 +33,8 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 84
-EXPECTED_ENTITY_FIELDS = 44
+EXPECTED_FIELDS = 88
+EXPECTED_ENTITY_FIELDS = 49
 EXPECTED_R0 = 30
 
 errors: list[str] = []
@@ -128,6 +128,11 @@ for part, scope_of in (
         ):
             err(f"{where}: 条件级别缺少 condition 表达式")
         condition = req.get("condition")
+        otherwise = req.get("otherwise")
+        if otherwise is not None and (
+            otherwise != "optional" or level != "conditional_required"
+        ):
+            err(f"{where}: requirement.otherwise 仅支持 conditional_required + optional")
         if condition and not {"field", "op", "value"} <= set(condition):
             err(f"{where}: condition 缺少 field/op/value")
         elif condition:
@@ -186,6 +191,7 @@ for part, scope_of in (
                 "le",
                 "lt",
                 "require_value",
+                "require_option",
                 "item_required",
                 "finite_value",
                 "option_ranges",
@@ -195,6 +201,9 @@ for part, scope_of in (
                 err(f"{where}: validation 含未知约束 {sorted(unknown_validation)}")
             if validation.get("type") not in {None, "integer"}:
                 err(f"{where}: validation.type 仅支持 integer")
+            for flag in ("require_value", "require_option", "finite_value"):
+                if flag in validation and not isinstance(validation[flag], bool):
+                    err(f"{where}: validation.{flag} 必须为布尔值")
             for bound in ("ge", "gt", "le", "lt"):
                 if bound in validation and (
                     isinstance(validation[bound], bool)

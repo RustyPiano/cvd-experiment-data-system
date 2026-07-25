@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import {
+  reconcileTemperatureProgram,
   TemperatureProgramEditor,
   temperatureProgramIsValid,
 } from './temperature-program-editor'
@@ -13,10 +14,7 @@ import type {
 } from './temperature-program-editor'
 
 const labels: TemperatureProgramEditorLabels = {
-  addZone: 'Add zone',
-  zone: (position) => `Zone ${position}`,
-  zoneIndex: 'Zone index',
-  removeZone: 'Remove zone',
+  zone: (zoneIndex) => `Zone ${zoneIndex}`,
   addPoint: 'Add point',
   point: (position) => `Point ${position}`,
   elapsedMinutes: 'Elapsed (min)',
@@ -24,6 +22,7 @@ const labels: TemperatureProgramEditorLabels = {
   removePoint: 'Remove point',
   moveUp: 'Move up',
   moveDown: 'Move down',
+  selectSetupFirst: 'Select a setup first',
 }
 
 function Wrapper({
@@ -55,45 +54,34 @@ function topRows(container: HTMLElement): HTMLFieldSetElement[] {
 }
 
 describe('TemperatureProgramEditor', () => {
-  it('builds per-zone points and preserves row identity while reordering', async () => {
+  it('builds exactly one auto-numbered program card per setup zone', async () => {
     const user = userEvent.setup()
-    const { container } = render(<Wrapper />)
+    render(<Wrapper />)
 
-    await user.click(screen.getByRole('button', { name: 'Add zone' }))
-    await user.click(screen.getByRole('button', { name: 'Add zone' }))
     const setpoints = screen.getAllByLabelText('Setpoint (°C)')
     await user.type(setpoints[0], '25')
     await user.type(setpoints[1], '500')
 
-    const zonesBefore = topRows(container)
-    const zoneIdsBefore = zonesBefore.map((row) => row.dataset.rowId)
-    await user.click(
-      within(zonesBefore[0]).getAllByRole('button', {
-        name: 'Move down',
-      })[0],
-    )
-
     expect(JSON.parse(screen.getByTestId('value').textContent ?? '')).toEqual({
       zones: [
-        {
-          zone_index: 2,
-          points: [{ elapsed_min: 0, setpoint_C: 500 }],
-        },
         {
           zone_index: 1,
           points: [{ elapsed_min: 0, setpoint_C: 25 }],
         },
+        {
+          zone_index: 2,
+          points: [{ elapsed_min: 0, setpoint_C: 500 }],
+        },
       ],
     })
-    expect(topRows(container).map((row) => row.dataset.rowId)).toEqual([
-      zoneIdsBefore[1],
-      zoneIdsBefore[0],
-    ])
+    expect(screen.queryByLabelText('Zone index')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add zone' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove zone' })).toBeNull()
   })
 
   it('adds multiple ordered points for a hold or restarted segment', async () => {
     const user = userEvent.setup()
-    render(
+    const { container } = render(
       <Wrapper
         initial={{
           zones: [
@@ -106,9 +94,12 @@ describe('TemperatureProgramEditor', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Add point' }))
-    const elapsed = screen.getAllByLabelText('Elapsed (min)')
-    const setpoints = screen.getAllByLabelText('Setpoint (°C)')
+    const firstZone = topRows(container)[0]
+    await user.click(
+      within(firstZone).getByRole('button', { name: 'Add point' }),
+    )
+    const elapsed = within(firstZone).getAllByLabelText('Elapsed (min)')
+    const setpoints = within(firstZone).getAllByLabelText('Setpoint (°C)')
     await user.type(elapsed[1], '30')
     await user.type(setpoints[1], '750')
 
@@ -119,7 +110,42 @@ describe('TemperatureProgramEditor', () => {
       { elapsed_min: 0, setpoint_C: 25 },
       { elapsed_min: 30, setpoint_C: 750 },
     ])
-    expect(temperatureProgramIsValid(value)).toBe(true)
+    expect(temperatureProgramIsValid({ zones: [value.zones[0]] })).toBe(true)
+  })
+
+  it('reconciles legacy order to Setup coverage and discards extra zones', () => {
+    expect(
+      reconcileTemperatureProgram(
+        {
+          zones: [
+            {
+              zone_index: 2,
+              points: [{ elapsed_min: 0, setpoint_C: 500 }],
+            },
+            {
+              zone_index: 4,
+              points: [{ elapsed_min: 0, setpoint_C: 900 }],
+            },
+            {
+              zone_index: 1,
+              points: [{ elapsed_min: 0, setpoint_C: 250 }],
+            },
+          ],
+        },
+        2,
+      ),
+    ).toEqual({
+      zones: [
+        {
+          zone_index: 1,
+          points: [{ elapsed_min: 0, setpoint_C: 250 }],
+        },
+        {
+          zone_index: 2,
+          points: [{ elapsed_min: 0, setpoint_C: 500 }],
+        },
+      ],
+    })
   })
 
   it('accepts a single-point hold only when it starts at zero minutes', () => {

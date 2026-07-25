@@ -23,7 +23,7 @@ const NEW_RUN_FIELDS = new Set([
 
 function unsupportedSynthesisMethods(field: FieldMetadata) {
   if (field.key !== 'synthesis_method') return undefined
-  return parseEnumOptions(field.input, field.options)?.filter(
+  return parseEnumOptions(field.input, field.options, field.key)?.filter(
     (option) => option.startsWith('pvd_') || option === 'PLD',
   )
 }

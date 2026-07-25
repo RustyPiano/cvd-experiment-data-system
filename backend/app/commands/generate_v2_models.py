@@ -122,6 +122,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "from __future__ import annotations",
         "",
         "from datetime import date, datetime, time",
+        "from math import isfinite",
         "from typing import Annotated, Any, Literal, Self",
         "from uuid import UUID",
         "",
@@ -137,16 +138,19 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         f'V2_MODULE_PAYLOAD_SCHEMA_VERSION = "{SCHEMA_VERSION}"',
         f"_OPTION_ALIASES = {doc.get('option_codes', {})!r}",
+        f"_FIELD_OPTION_ALIASES = {doc.get('field_option_codes', {})!r}",
         f"_CONTROLLED_KEYS = frozenset({tuple(controlled_keys)!r})",
         "_STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type', 'uncertainty_source'))",
         f"_COMPOSITE_KEYS = frozenset({tuple(composite_keys)!r})",
         f"_MULTI_KEYS = frozenset({tuple(multi_keys)!r})",
         "",
         "",
-        "def _canonical(value: Any) -> Any:",
+        "def _canonical(value: Any, key: str | None = None) -> Any:",
         "    if isinstance(value, list):",
-        "        return [_canonical(item) for item in value]",
+        "        return [_canonical(item, key) for item in value]",
         "    if isinstance(value, str):",
+        "        if value in _FIELD_OPTION_ALIASES.get(key or '', {}):",
+        "            return _FIELD_OPTION_ALIASES[key or ''][value]",
         "        return _OPTION_ALIASES.get(value, value)",
         "    return value",
         "",
@@ -159,19 +163,19 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    normalized = dict(value)",
         "    for key, item in normalized.items():",
         "        if key in _COMPOSITE_KEYS:",
-        "            canonical = _canonical(item)",
+        "            canonical = _canonical(item, key)",
         "            if isinstance(item, dict):",
         "                normalized[key] = dict(item)",
-        '                normalized[key]["option"] = _canonical(item.get("option"))',
+        '                normalized[key]["option"] = _canonical(item.get("option"), key)',
         "            elif isinstance(item, (int, float)):",
         '                normalized[key] = {"value": item, "option": None}',
         "            elif canonical != item:",
         '                normalized[key] = {"value": None, "option": canonical}',
         "        elif key in _MULTI_KEYS:",
-        "            canonical = _canonical(item)",
+        "            canonical = _canonical(item, key)",
         "            normalized[key] = canonical if isinstance(canonical, list) else [canonical]",
         "        elif key in _CONTROLLED_KEYS or key in _STRUCTURED_CONTROLLED_KEYS:",
-        "            normalized[key] = _canonical(item)",
+        "            normalized[key] = _canonical(item, key)",
         "        elif isinstance(item, (dict, list)):",
         "            normalized[key] = _normalize_payload(item)",
         "    return normalized",
@@ -366,19 +370,53 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "",
         "class SurfaceRoughnessPayload(V2PayloadBase):",
-        "    metric: Literal['Ra', 'RMS']",
-        "    value_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]",
+        "    availability: Literal['reported', 'not_provided'] = 'reported'",
+        "    metric: Literal['Ra', 'RMS'] | None = None",
+        "    value_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] | None = None",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _availability(self) -> Self:",
+        "        has_specification = self.metric is not None or self.value_nm is not None",
+        "        if self.availability == 'reported' and (self.metric is None or self.value_nm is None):",
+        '            raise ValueError("reported roughness requires metric and value_nm")',
+        "        if self.availability == 'not_provided' and has_specification:",
+        '            raise ValueError("unreported roughness cannot include metric or value_nm")',
+        "        return self",
         "",
         "",
         "class TubeDimensionsPayload(V2PayloadBase):",
-        "    outer_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
-        "    wall_thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    outer_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    outer_side_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    outer_width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    outer_height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    wall_thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    dimension_description: NonBlankStr | None = None",
         "",
         '    @model_validator(mode="after")',
-        "    def _wall_fits(self) -> Self:",
-        "        if self.wall_thickness_mm * 2 >= self.outer_diameter_mm:",
-        '            raise ValueError("tube wall thickness must be less than the radius")',
+        "    def _shape_dimensions(self) -> Self:",
+        "        groups = (",
+        "            (self.outer_diameter_mm,),",
+        "            (self.outer_side_mm,),",
+        "            (self.outer_width_mm, self.outer_height_mm),",
+        "        )",
+        "        complete = [all(value is not None for value in group) for group in groups]",
+        "        if self.dimension_description is not None:",
+        "            if any(complete) or self.wall_thickness_mm is not None:",
+        '                raise ValueError("custom tube dimensions cannot mix with numeric dimensions")',
+        "            return self",
+        "        if sum(complete) != 1 or self.wall_thickness_mm is None:",
+        '            raise ValueError("tube dimensions must match one supported cross-section")',
+        "        selected = next(group for group, ready in zip(groups, complete, strict=True) if ready)",
+        "        if any(value is not None for group, ready in zip(groups, complete, strict=True) if not ready for value in group):",
+        '            raise ValueError("tube dimensions cannot mix cross-section fields")',
+        "        if any(self.wall_thickness_mm * 2 >= value for value in selected if value is not None):",
+        '            raise ValueError("tube wall thickness must be less than half every outer dimension")',
         "        return self",
+        "",
+        "",
+        "class TubeUsageHistoryPayload(V2PayloadBase):",
+        "    reset_count: Annotated[int, Field(strict=True, ge=0)]",
+        "    use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]",
         "",
         "",
         "class BoatCruciblePayload(V2PayloadBase):",
@@ -388,6 +426,8 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "    height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "    diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    reset_count: Annotated[int, Field(strict=True, ge=0)]",
+        "    use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]",
         "",
         '    @model_validator(mode="after")',
         "    def _has_dimensions(self) -> Self:",
@@ -417,7 +457,14 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "class SourceZoneTemperaturePayload(V2PayloadBase):",
         "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
-        "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
+        "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None",
+        "    temperature_basis: Literal['measured', 'estimate'] | None = None",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _temperature_basis(self) -> Self:",
+        "        if (self.temperature_C is None) != (self.temperature_basis is None):",
+        '            raise ValueError("temperature_C and temperature_basis must be provided together")',
+        "        return self",
         "",
         "",
         "class ZoneThermocoupleDistancePayload(V2PayloadBase):",
@@ -574,6 +621,77 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         '            raise ValueError("external field end_min must exceed start_min")',
         "        return self",
         "",
+        '    @model_validator(mode="after")',
+        "    def _typed_parameters(self) -> Self:",
+        "        aliases = {",
+        "            'plasma': {",
+        "                'powerw': 'power_W', 'power': 'power_W', 'plasmapower': 'power_W',",
+        "                'gasspecies': 'gas_species', 'gas': 'gas_species',",
+        "                'pressurepa': 'pressure_Pa', 'pressure': 'pressure_Pa', 'workingpressure': 'pressure_Pa',",
+        "            },",
+        "            'light': {",
+        "                'wavelengthnm': 'wavelength_nm', 'wavelength': 'wavelength_nm',",
+        "                'powermw': 'power_mW', 'power': 'power_mW', 'lightpower': 'power_mW',",
+        "                'irradiancemwcm2': 'irradiance_mW_cm2', 'irradiance': 'irradiance_mW_cm2', 'intensity': 'irradiance_mW_cm2',",
+        "                'sourcedistancemm': 'source_distance_mm', 'sourcedistance': 'source_distance_mm', 'lightsourcedistance': 'source_distance_mm',",
+        "            },",
+        "            'electric_field': {",
+        "                'voltagev': 'voltage_V', 'voltage': 'voltage_V',",
+        "                'fieldstrengthvcm': 'field_strength_V_cm', 'fieldstrength': 'field_strength_V_cm', 'electricfieldstrength': 'field_strength_V_cm',",
+        "                'electrodegapmm': 'electrode_gap_mm', 'electrodegap': 'electrode_gap_mm', 'gap': 'electrode_gap_mm',",
+        "                'direction': 'direction', 'fielddirection': 'direction',",
+        "            },",
+        "        }",
+        "        units = {",
+        "            'power_W': {'w'}, 'gas_species': {'—', '-'}, 'pressure_Pa': {'pa'},",
+        "            'wavelength_nm': {'nm'}, 'power_mW': {'mw'},",
+        "            'irradiance_mW_cm2': {'mw·cm⁻²', 'mw/cm²', 'mw/cm2'},",
+        "            'source_distance_mm': {'mm'}, 'voltage_V': {'v'},",
+        "            'field_strength_V_cm': {'v·cm⁻¹', 'v/cm'},",
+        "            'electrode_gap_mm': {'mm'}, 'direction': {'—', '-'},",
+        "        }",
+        "        all_aliases = {token for mapping in aliases.values() for token in mapping}",
+        "        recognized: dict[str, NamedParameterPayload] = {}",
+        "        for parameter in self.parameters:",
+        "            token = ''.join(character for character in parameter.name.casefold() if character.isalnum())",
+        "            key = aliases[self.field_type].get(token)",
+        "            if key is None:",
+        "                if token in all_aliases:",
+        '                    raise ValueError("external field contains parameters for another field type")',
+        "                continue",
+        "            if key in recognized:",
+        '                raise ValueError("external field parameter is duplicated")',
+        "            if parameter.unit.casefold() not in units[key]:",
+        '                raise ValueError("external field parameter unit is invalid")',
+        "            recognized[key] = parameter",
+        "        required = {",
+        "            'plasma': {'power_W', 'gas_species', 'pressure_Pa'},",
+        "            'light': {'wavelength_nm', 'source_distance_mm'},",
+        "            'electric_field': {'electrode_gap_mm', 'direction'},",
+        "        }[self.field_type]",
+        "        if not required.issubset(recognized):",
+        '            raise ValueError("external field required parameters are missing")',
+        "        alternatives = {",
+        "            'plasma': (),",
+        "            'light': ('power_mW', 'irradiance_mW_cm2'),",
+        "            'electric_field': ('voltage_V', 'field_strength_V_cm'),",
+        "        }[self.field_type]",
+        "        if alternatives and sum(key in recognized for key in alternatives) != 1:",
+        '            raise ValueError("external field requires exactly one magnitude parameter")',
+        "        text_keys = {'gas_species', 'direction'}",
+        "        for key, parameter in recognized.items():",
+        "            if key in text_keys:",
+        "                if not isinstance(parameter.value, str) or not parameter.value.strip():",
+        '                    raise ValueError("external field text parameter is blank")',
+        "                continue",
+        "            try:",
+        "                numeric = float(parameter.value)",
+        "            except (TypeError, ValueError) as exc:",
+        '                raise ValueError("external field numeric parameter is invalid") from exc',
+        "            if not isfinite(numeric) or numeric <= 0:",
+        '                raise ValueError("external field numeric parameter must be positive")',
+        "        return self",
+        "",
     ]
     for field in composite_fields.values():
         options = _controlled_options(doc, field)
@@ -591,9 +709,20 @@ def render_v2_models(doc: dict[str, Any]) -> str:
                 [
                     "",
                     '    @model_validator(mode="after")',
-                    "    def _requires_numeric_value(self) -> Self:",
-                    "        if self.value is None:",
-                    '            raise ValueError("composite field requires a numeric value")',
+                    "    def _requires_value(self) -> Self:",
+                    "        if self.value is None or (isinstance(self.value, str) and not self.value.strip()):",
+                    '            raise ValueError("composite field requires a value")',
+                    "        return self",
+                ]
+            )
+        if (field.get("validation") or {}).get("require_option"):
+            lines.extend(
+                [
+                    "",
+                    '    @model_validator(mode="after")',
+                    "    def _requires_option(self) -> Self:",
+                    "        if self.option is None:",
+                    '            raise ValueError("composite field requires an option")',
                     "        return self",
                 ]
             )
@@ -633,6 +762,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
                 "",
                 f"class {ENTITY_CLASS_NAMES[kind]}(V2PayloadBase):",
                 *_render_field_lines(doc, fields, indent="    "),
+                *_render_field_validators(fields, indent="    "),
                 *_render_condition_validator(doc, fields, indent="    "),
                 "",
             ]
@@ -809,6 +939,8 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "MaterialLotReferencePayload"
     if key == "tube_outer_diameter_wall_mm":
         return "TubeDimensionsPayload"
+    if key == "tube_usage_history":
+        return "TubeUsageHistoryPayload"
     if key == "tube_material_shape":
         return "TubeMaterialShapePayload"
     if key == "temperature_sensors":
@@ -821,7 +953,7 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "BoatCruciblePayload"
     if key == "size_placement":
         return "SubstrateSizePlacementPayload"
-    if key == "surface_roughness":
+    if key in {"surface_roughness", "substrate_surface_roughness"}:
         return "SurfaceRoughnessPayload"
     if key == "source_zone_temperature":
         return "SourceZoneTemperaturePayload"
@@ -947,6 +1079,90 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}    return _validate_formula(value)",
             ]
         )
+    keys = {field["key"] for field in fields}
+    miscut_pair = next(
+        (
+            (angle_key, direction_key)
+            for angle_key, direction_key in (
+                ("miscut_angle_deg", "miscut_direction"),
+                ("substrate_miscut_angle_deg", "substrate_miscut_direction"),
+            )
+            if {angle_key, direction_key} <= keys
+        ),
+        None,
+    )
+    if miscut_pair is not None:
+        angle_key, direction_key = miscut_pair
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _miscut_direction(self) -> Self:",
+                f"{indent}    if (self.{angle_key} or 0) > 0 and not (self.{direction_key} or '').strip():",
+                f'{indent}        raise ValueError("{direction_key} is required when {angle_key} is greater than zero")',
+                f"{indent}    if self.{angle_key} == 0 and (self.{direction_key} or '').strip():",
+                f'{indent}        raise ValueError("{direction_key} is not applicable when {angle_key} is zero")',
+                f"{indent}    return self",
+            ]
+        )
+    if {"tube_material_shape", "tube_outer_diameter_wall_mm"} <= keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _tube_shape_dimensions(self) -> Self:",
+                f"{indent}    shape = self.tube_material_shape",
+                f"{indent}    dimensions = self.tube_outer_diameter_wall_mm",
+                f"{indent}    if (shape is None) != (dimensions is None):",
+                f'{indent}        raise ValueError("tube material/shape and dimensions must be provided together")',
+                f"{indent}    if shape is None or dimensions is None:",
+                f"{indent}        return self",
+                f"{indent}    expected_fields = {{",
+                f"{indent}        'round': {{'outer_diameter_mm', 'wall_thickness_mm'}},",
+                f"{indent}        'square': {{'outer_side_mm', 'wall_thickness_mm'}},",
+                f"{indent}        'rectangular': {{'outer_width_mm', 'outer_height_mm', 'wall_thickness_mm'}},",
+                f"{indent}        'other': {{'dimension_description'}},",
+                f"{indent}    }}[shape.shape]",
+                f"{indent}    provided_fields = {{",
+                f"{indent}        key",
+                f"{indent}        for key in (",
+                f"{indent}            'outer_diameter_mm',",
+                f"{indent}            'outer_side_mm',",
+                f"{indent}            'outer_width_mm',",
+                f"{indent}            'outer_height_mm',",
+                f"{indent}            'wall_thickness_mm',",
+                f"{indent}            'dimension_description',",
+                f"{indent}        )",
+                f"{indent}        if getattr(dimensions, key) is not None",
+                f"{indent}    }}",
+                f"{indent}    if provided_fields != expected_fields:",
+                f'{indent}        raise ValueError("tube dimensions do not match tube cross-section shape")',
+                f"{indent}    return self",
+            ]
+        )
+    if {"zone_count", "temperature_sensors"} <= keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _temperature_sensor_zone_coverage(self) -> Self:",
+                f"{indent}    zone_indices = sorted(sensor.zone_index for sensor in self.temperature_sensors)",
+                f"{indent}    if zone_indices != list(range(1, self.zone_count + 1)):",
+                f'{indent}        raise ValueError("temperature_sensors must cover each zone exactly once")',
+                f"{indent}    return self",
+            ]
+        )
+    if {"source_zone_temperature", "thermocouple_distance_mm"} <= keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _thermocouple_distance_zone(self) -> Self:",
+                f"{indent}    if self.thermocouple_distance_mm is not None and self.source_zone_temperature is None:",
+                f'{indent}        raise ValueError("source_zone_temperature is required when thermocouple_distance_mm is provided")',
+                f"{indent}    return self",
+            ]
+        )
     datetime_keys = [
         field["key"] for field in fields if str(field.get("input") or "") == "日期时间"
     ]
@@ -1047,8 +1263,6 @@ def _render_condition_validator(
 ) -> list[str]:
     checks: list[str] = []
     for field in fields:
-        if field["requirement"]["level"] != "conditional_required":
-            continue
         condition = field["requirement"].get("condition")
         local_key = condition_local_key(field, condition, doc)
         if local_key is None:
@@ -1056,20 +1270,26 @@ def _render_condition_validator(
         op = condition["op"]
         expected = canonical_option_value(condition["value"], doc)
         matches = f"_matches({{'op': {op!r}, 'value': {expected!r}}}, self.{local_key})"
-        checks.extend(
-            [
-                f"{indent}    if (",
-                f"{indent}        {matches}",
-                f"{indent}        and _missing(self.{field['key']})",
-                f"{indent}    ):",
-                f'{indent}        raise ValueError("{field["key"]} is conditionally required")',
-                f"{indent}    if (",
-                f"{indent}        not {matches}",
-                f"{indent}        and not _missing(self.{field['key']})",
-                f"{indent}    ):",
-                f'{indent}        raise ValueError("{field["key"]} is not applicable")',
-            ]
-        )
+        if field["requirement"]["level"] == "conditional_required":
+            checks.extend(
+                [
+                    f"{indent}    if (",
+                    f"{indent}        {matches}",
+                    f"{indent}        and _missing(self.{field['key']})",
+                    f"{indent}    ):",
+                    f'{indent}        raise ValueError("{field["key"]} is conditionally required")',
+                ]
+            )
+        if field["requirement"].get("otherwise") != "optional":
+            checks.extend(
+                [
+                    f"{indent}    if (",
+                    f"{indent}        not {matches}",
+                    f"{indent}        and not _missing(self.{field['key']})",
+                    f"{indent}    ):",
+                    f'{indent}        raise ValueError("{field["key"]} is not applicable")',
+                ]
+            )
     if not checks:
         return []
     return [

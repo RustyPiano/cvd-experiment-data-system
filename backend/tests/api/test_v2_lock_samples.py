@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.experiment import ExperimentRun
+from app.services.sample_service import SampleService
 from tests.helpers.v2_payloads import substrate_item, substrate_lot_payload
 
 client = TestClient(app)
@@ -26,6 +27,9 @@ def _create_run(headers: dict[str, str], code: str) -> dict:
             "started_at": "2026-07-17T09:00:00",
             "synthesis_method": "PVD-热蒸发",
             "operator": "tester",
+            "ambient_temperature_C": 25.0,
+            "ambient_humidity_percent": 45.0,
+            "precheck_confirmed": True,
         },
         headers=headers,
     )
@@ -81,6 +85,45 @@ def _samples(headers: dict[str, str], run_id: str) -> list[dict]:
     response = client.get(f"/api/v1/samples?experiment_id={run_id}", headers=headers)
     assert response.status_code == 200, response.text
     return response.json()["items"]
+
+
+def test_growth_sample_snapshot_reprojects_frozen_lot_facts() -> None:
+    snapshot = SampleService._source_substrate_snapshot(
+        {
+            "source_id": "00000000-0000-0000-0000-000000000001",
+            "material": "sapphire_al2o3",
+            "chemical_formula": "Al2O3",
+            "crystal_orientation": "stale draft value",
+            "miscut_angle_deg": 1.5,
+            "oxide_thickness_nm": 285,
+            "surface_roughness": {"metric": "Ra", "value_nm": 99},
+            "lot_ref": {
+                "entity_id": "00000000-0000-0000-0000-000000000002",
+                "version": 1,
+                "snapshot": {
+                    "chemical_formula": "Al2O3",
+                    "attrs": {
+                        "substrate_material": "sapphire_al2o3",
+                        "substrate_orientation_polish": {
+                            "value": "c-plane",
+                            "option": "single_side_polished",
+                        },
+                        "substrate_miscut_angle_deg": 0.2,
+                        "substrate_surface_roughness": {
+                            "metric": "RMS",
+                            "value_nm": 0.5,
+                        },
+                    },
+                },
+            },
+        }
+    )
+
+    assert "source_id" not in snapshot
+    assert snapshot["crystal_orientation"] == "c-plane；single_side_polished"
+    assert snapshot["miscut_angle_deg"] == 0.2
+    assert snapshot["surface_roughness"] == {"metric": "RMS", "value_nm": 0.5}
+    assert "oxide_thickness_nm" not in snapshot
 
 
 def test_lock_generates_stable_growth_samples_and_relock_is_idempotent(

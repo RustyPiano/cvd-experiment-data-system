@@ -17,6 +17,8 @@ describe('structured scientific fields', () => {
           material: 'quartz_boat',
           length_mm: '90',
           width_mm: '15',
+          reset_count: '2',
+          use_number_since_reset: '3',
         }),
       ),
     ).toEqual({
@@ -26,13 +28,24 @@ describe('structured scientific fields', () => {
       width_mm: 15,
       height_mm: null,
       diameter_mm: null,
+      reset_count: 2,
+      use_number_since_reset: 3,
     })
     expect(
       structuredPayload(
         'source_zone_temperature',
-        encodeStructuredValue({ zone_index: '2', temperature_C: '620' }),
+        encodeStructuredValue({
+          zone_index: '2',
+          temperature_C: '620',
+          temperature_basis: 'measured',
+        }),
+        { zoneCount: 3 },
       ),
-    ).toEqual({ zone_index: 2, temperature_C: 620 })
+    ).toEqual({
+      zone_index: 2,
+      temperature_C: 620,
+      temperature_basis: 'measured',
+    })
   })
 
   it('backfills the legacy tube selector/value shape into named dimensions', () => {
@@ -48,6 +61,8 @@ describe('structured scientific fields', () => {
 
   it('recognizes the v3.7 tube and substrate structured inputs', () => {
     expect(isStructuredInput('管材质形状对象')).toBe(true)
+    expect(isStructuredInput('炉管尺寸对象')).toBe(true)
+    expect(isStructuredInput('使用履历对象')).toBe(true)
     expect(isStructuredInput('粗糙度对象')).toBe(true)
     expect(isStructuredInput('衬底尺寸放置对象')).toBe(true)
   })
@@ -58,13 +73,129 @@ describe('structured scientific fields', () => {
         'surface_roughness',
         encodeStructuredValue({ metric: 'RMS', value_nm: '0.5' }),
       ),
-    ).toEqual({ metric: 'RMS', value_nm: 0.5 })
+    ).toEqual({ availability: 'reported', metric: 'RMS', value_nm: 0.5 })
     expect(() =>
       structuredPayload(
         'surface_roughness',
         encodeStructuredValue({ metric: 'RMS', value_nm: '-0.1' }),
       ),
     ).toThrow(/non-negative/)
+    expect(
+      structuredPayload(
+        'substrate_surface_roughness',
+        encodeStructuredValue({ metric: 'Ra', value_nm: '0.25' }),
+      ),
+    ).toEqual({ availability: 'reported', metric: 'Ra', value_nm: 0.25 })
+    expect(
+      structuredPayload(
+        'surface_roughness',
+        encodeStructuredValue({ availability: 'not_provided' }),
+      ),
+    ).toEqual({ availability: 'not_provided' })
+    expect(() =>
+      structuredPayload(
+        'surface_roughness',
+        encodeStructuredValue({
+          availability: 'not_provided',
+          metric: 'RMS',
+          value_nm: '0.5',
+        }),
+      ),
+    ).toThrow(/cannot include/)
+  })
+
+  it('serializes tube dimensions according to the selected cross-section', () => {
+    expect(
+      structuredPayload(
+        'tube_outer_diameter_wall_mm',
+        encodeStructuredValue({
+          outer_side_mm: '50',
+          wall_thickness_mm: '2',
+        }),
+        { tubeShape: 'square' },
+      ),
+    ).toEqual({ outer_side_mm: 50, wall_thickness_mm: 2 })
+    expect(
+      structuredPayload(
+        'tube_outer_diameter_wall_mm',
+        encodeStructuredValue({
+          outer_width_mm: '60',
+          outer_height_mm: '40',
+          wall_thickness_mm: '2',
+          outer_diameter_mm: 'stale',
+        }),
+        { tubeShape: 'rectangular' },
+      ),
+    ).toEqual({
+      outer_width_mm: 60,
+      outer_height_mm: 40,
+      wall_thickness_mm: 2,
+    })
+    expect(
+      structuredPayload(
+        'tube_outer_diameter_wall_mm',
+        encodeStructuredValue({ dimension_description: 'hexagonal 40 mm' }),
+        { tubeShape: 'other' },
+      ),
+    ).toEqual({ dimension_description: 'hexagonal 40 mm' })
+  })
+
+  it('requires valid furnace and boat usage history counters', () => {
+    expect(
+      structuredPayload(
+        'tube_usage_history',
+        encodeStructuredValue({
+          reset_count: '0',
+          use_number_since_reset: '1',
+        }),
+      ),
+    ).toEqual({ reset_count: 0, use_number_since_reset: 1 })
+    expect(() =>
+      structuredPayload(
+        'tube_usage_history',
+        encodeStructuredValue({
+          reset_count: '-1',
+          use_number_since_reset: '1',
+        }),
+      ),
+    ).toThrow(/non-negative/)
+    expect(() =>
+      structuredPayload(
+        'boat_crucible',
+        encodeStructuredValue({
+          material: 'quartz_boat',
+          length_mm: '90',
+        }),
+      ),
+    ).toThrow(/reset_count/)
+  })
+
+  it('allows an optional independent precursor temperature only with its basis', () => {
+    expect(
+      structuredPayload(
+        'source_zone_temperature',
+        encodeStructuredValue({ zone_index: '1' }),
+        { zoneCount: 2 },
+      ),
+    ).toEqual({
+      zone_index: 1,
+      temperature_C: null,
+      temperature_basis: null,
+    })
+    expect(() =>
+      structuredPayload(
+        'source_zone_temperature',
+        encodeStructuredValue({ zone_index: '3' }),
+        { zoneCount: 2 },
+      ),
+    ).toThrow(/zone count/)
+    expect(() =>
+      structuredPayload(
+        'source_zone_temperature',
+        encodeStructuredValue({ zone_index: '1', temperature_C: '650' }),
+        { zoneCount: 2 },
+      ),
+    ).toThrow(/provided together/)
   })
 
   it('serializes tube material and shape as independent named values', () => {

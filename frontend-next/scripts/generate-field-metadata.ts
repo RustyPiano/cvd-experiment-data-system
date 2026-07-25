@@ -27,6 +27,7 @@ interface RawCondition {
 interface RawRequirement {
   raw: string
   level: string
+  otherwise?: 'optional'
   condition?: RawCondition
 }
 interface RawValidation {
@@ -36,6 +37,7 @@ interface RawValidation {
   le?: number
   lt?: number
   require_value?: boolean
+  require_option?: boolean
   item_required?: string[]
   finite_value?: boolean
   [key: string]: unknown
@@ -73,6 +75,8 @@ interface RawDoc {
   entity_keys: Record<string, string>
   option_labels_en: Record<string, string>
   option_codes: Record<string, string | boolean>
+  field_option_codes?: Record<string, Record<string, string>>
+  preferred_option_labels_zh?: Record<string, string>
   unit_labels_en: Record<string, string>
   field_ui_defaults: {
     input_placeholder: string
@@ -103,6 +107,7 @@ interface FieldMetadata {
   requirement: {
     raw: string
     level: string
+    otherwise: 'optional' | null
     condition: RawCondition | null
   }
   r0: boolean
@@ -139,7 +144,12 @@ function toFieldMetadata(
     unit: dashToNull(field.unit),
     options: dashToNull(field.options),
     validation: field.validation ?? null,
-    requirement: { raw: req.raw, level: req.level, condition },
+    requirement: {
+      raw: req.raw,
+      level: req.level,
+      otherwise: req.otherwise ?? null,
+      condition,
+    },
     r0: Boolean(field.r0),
     group: field.group ?? null,
     placeholderZh:
@@ -233,6 +243,9 @@ function preferredOptionLabels(language: 'zh' | 'en'): Record<string, string> {
     labels[code] =
       language === 'zh' ? labelZh : (doc.option_labels_en[labelZh] ?? labelZh)
   }
+  if (language === 'zh') {
+    Object.assign(labels, doc.preferred_option_labels_zh ?? {})
+  }
   return labels
 }
 
@@ -261,6 +274,7 @@ export interface FieldCondition {
 export interface FieldRequirement {
   raw: string
   level: RequirementLevel
+  otherwise: 'optional' | null
   condition: FieldCondition | null
 }
 
@@ -338,6 +352,7 @@ const content =
     `/** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,
     `/** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(preferredOptionLabels('en'), null, 2)}`,
     `/** 旧中文规范值 → 稳定字符串机器码；布尔复选映射不进入此表。 */\nexport const optionCodes: Record<string, string> = ${JSON.stringify(Object.fromEntries(Object.entries(doc.option_codes).filter((entry): entry is [string, string] => typeof entry[1] === 'string')), null, 2)}`,
+    `/** 字段专用兼容标签 → 机器码；优先于全局别名。 */\nexport const fieldOptionCodes: Record<string, Record<string, string>> = ${JSON.stringify(doc.field_option_codes ?? {}, null, 2)}`,
     `/** 规范单位 → 英文显示名 */\nexport const unitLabelsEn: Record<string, string> = ${JSON.stringify(doc.unit_labels_en, null, 2)}`,
     `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
     `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,

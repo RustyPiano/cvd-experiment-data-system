@@ -96,12 +96,20 @@ def entity_fields(doc: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     return [field for section in source["entities"]["sections"] for field in section["fields"]]
 
 
-def canonical_option_value(value: Any, doc: dict[str, Any] | None = None) -> Any:
+def canonical_option_value(
+    value: Any,
+    doc: dict[str, Any] | None = None,
+    *,
+    field_key: str | None = None,
+) -> Any:
     source = doc or load_field_source()
     if isinstance(value, list):
-        return [canonical_option_value(item, source) for item in value]
+        return [canonical_option_value(item, source, field_key=field_key) for item in value]
     if not isinstance(value, str):
         return value
+    field_aliases = source.get("field_option_codes", {}).get(field_key or "", {})
+    if value in field_aliases:
+        return field_aliases[value]
     return source.get("option_codes", {}).get(value, value)
 
 
@@ -184,7 +192,10 @@ def field_option_values(field_key: str, doc: dict[str, Any] | None = None) -> se
     if field is None:
         # 快速失败：键名拼错/YAML 改名时立刻暴露，而不是静默空集导致所有值被拒
         raise ValueError(f"field-source.yaml 中不存在字段 key: {field_key}")
-    return {canonical_option_value(value, source) for value in _option_tokens(field)}
+    return {
+        canonical_option_value(value, source, field_key=field_key)
+        for value in _option_tokens(field)
+    }
 
 
 def canonicalize_controlled_values(
@@ -221,7 +232,7 @@ def canonicalize_controlled_values(
         return value
     normalized_key = key.removeprefix("source_").removesuffix("_snapshot")
     if normalized_key in controlled_keys:
-        return canonical_option_value(value, source)
+        return canonical_option_value(value, source, field_key=normalized_key)
     return value
 
 

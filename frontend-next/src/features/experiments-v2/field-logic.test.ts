@@ -36,9 +36,9 @@ describe('resolveModuleConditionKey', () => {
     expect(resolveModuleConditionKey('precursors', '前驱体.相态')).toBe(
       'phase_state',
     )
-    expect(resolveModuleConditionKey('substrates', '衬底.衬底材料')).toBe(
-      'material',
-    )
+    expect(
+      resolveModuleConditionKey('substrates', '衬底.衬底材料（来自批次）'),
+    ).toBe('material')
   })
 })
 
@@ -95,6 +95,23 @@ describe('相态 = 固 → 外观描述 (appearance shown for solids, recommende
   })
 })
 
+describe('热电偶距离 → 前驱体所在温区', () => {
+  const sourceZone = field('precursors', 'source_zone_temperature')
+
+  it('requires a reference zone only when a distance is entered', () => {
+    expect(
+      isEffectivelyRequired('precursors', sourceZone, {
+        thermocouple_distance_mm: '-20',
+      }),
+    ).toBe(true)
+    expect(
+      isEffectivelyRequired('precursors', sourceZone, {
+        thermocouple_distance_mm: '',
+      }),
+    ).toBe(false)
+  })
+})
+
 describe('结构类型 → 组成明细 (structure_type drives components)', () => {
   const components = field('target_product', 'components')
 
@@ -142,6 +159,42 @@ describe('衬底材料 = SiO₂/Si → 氧化层厚度 (oxide thickness)', () =>
     expect(
       isEffectivelyRequired('substrates', oxide, { material: '蓝宝石' }),
     ).toBe(false)
+  })
+})
+
+describe('衬底偏转角 → 偏转方向 (miscut direction)', () => {
+  const direction = field('substrates', 'miscut_direction')
+
+  it('requires the direction only when the angle is positive', () => {
+    expect(
+      isFieldVisible('substrates', direction, {
+        miscut_availability: 'reported',
+        miscut_angle_deg: '0.2',
+      }),
+    ).toBe(true)
+    expect(
+      isFieldVisible('substrates', direction, {
+        miscut_availability: 'reported',
+        miscut_angle_deg: '0',
+      }),
+    ).toBe(false)
+    expect(
+      isEffectivelyRequired('substrates', direction, {
+        miscut_angle_deg: '0.2',
+      }),
+    ).toBe(true)
+    expect(
+      isEffectivelyRequired('substrates', direction, {
+        miscut_angle_deg: '0',
+      }),
+    ).toBe(false)
+    expect(
+      buildItemPayload('substrates', {
+        miscut_availability: 'reported',
+        miscut_angle_deg: '0',
+        miscut_direction: 'toward a-axis',
+      }).miscut_direction,
+    ).toBeNull()
   })
 })
 
@@ -264,8 +317,41 @@ describe('payload builders align with backend module contract', () => {
     ).toMatchObject({
       terminated_run: false,
       termination_reason: null,
-      description: null,
+      description: 'stale termination details',
     })
+  })
+
+  it('keeps event description optional except when termination reason is other', () => {
+    const description = field('process_events', 'description')
+    expect(
+      isFieldVisible('process_events', description, {
+        terminated_run: 'false',
+      }),
+    ).toBe(true)
+    expect(
+      isEffectivelyRequired('process_events', description, {
+        terminated_run: 'true',
+        termination_reason: 'equipment_alarm',
+      }),
+    ).toBe(false)
+    expect(
+      missingRequiredKeys('process_events', {
+        terminated_run: 'true',
+        termination_reason: 'other',
+      }),
+    ).toContain('description')
+    expect(
+      isEffectivelyRequired('process_events', description, {
+        terminated_run: 'false',
+        termination_reason: 'other',
+      }),
+    ).toBe(false)
+    expect(
+      missingRequiredKeys('process_events', {
+        terminated_run: 'false',
+        termination_reason: 'other',
+      }),
+    ).not.toContain('description')
   })
 
   it('clears external-field values when the selected setup has no field device', () => {
@@ -384,13 +470,17 @@ describe('payload builders align with backend module contract', () => {
     }
     const item = buildItemPayload('precursors', {
       lot_ref: JSON.stringify(reference),
+      phase_state: 'solid',
       boat_crucible: JSON.stringify({
         material: 'quartz_boat',
         length_mm: '90',
+        reset_count: '1',
+        use_number_since_reset: '7',
       }),
       source_zone_temperature: JSON.stringify({
         zone_index: '1',
         temperature_C: '620',
+        temperature_basis: 'estimate',
       }),
     })
 
@@ -402,10 +492,13 @@ describe('payload builders align with backend module contract', () => {
       width_mm: null,
       height_mm: null,
       diameter_mm: null,
+      reset_count: 1,
+      use_number_since_reset: 7,
     })
     expect(item.source_zone_temperature).toEqual({
       zone_index: 1,
       temperature_C: 620,
+      temperature_basis: 'estimate',
     })
     expect(
       JSON.parse(
@@ -421,13 +514,35 @@ describe('payload builders align with backend module contract', () => {
       surface_roughness: { metric: 'RMS', value_nm: 0.25 },
     })
     expect(JSON.parse(restored.surface_roughness as string)).toEqual({
+      availability: 'reported',
       metric: 'RMS',
       value_nm: 0.25,
     })
     expect(buildItemPayload('substrates', restored).surface_roughness).toEqual({
+      availability: 'reported',
       metric: 'RMS',
       value_nm: 0.25,
     })
+  })
+
+  it('restores the legacy 等离子 pretreatment as plasma_treatment', () => {
+    const restored = moduleValuesFromPayload('substrates', {
+      pretreatment_steps: [
+        {
+          type: '等离子',
+          parameters: {
+            power_W: 50,
+            gas_species: 'Ar',
+            pressure_Pa: 20,
+            duration_min: 5,
+          },
+        },
+      ],
+    })
+
+    expect(JSON.parse(restored.pretreatment_steps as string)[0].type).toBe(
+      'plasma_treatment',
+    )
   })
 
   it('round-trips the internal substrate source id without treating it as content', () => {
@@ -473,5 +588,41 @@ describe('missingRequiredKeys', () => {
         phase_state: '气',
       }),
     ).not.toContain('amount')
+  })
+
+  it('flags a missing precursor zone when thermocouple distance is present', () => {
+    expect(
+      missingRequiredKeys('precursors', {
+        thermocouple_distance_mm: '-20',
+      }),
+    ).toContain('source_zone_temperature')
+    expect(
+      missingRequiredKeys('precursors', {
+        thermocouple_distance_mm: '-20',
+        source_zone_temperature: JSON.stringify({ zone_index: 1 }),
+      }),
+    ).not.toContain('source_zone_temperature')
+  })
+
+  it('flags miscut direction when the substrate angle is positive', () => {
+    expect(
+      missingRequiredKeys('substrates', {
+        miscut_availability: 'reported',
+        miscut_angle_deg: '0.2',
+      }),
+    ).toContain('miscut_direction')
+    expect(
+      missingRequiredKeys('substrates', {
+        miscut_availability: 'reported',
+        miscut_angle_deg: '0',
+      }),
+    ).not.toContain('miscut_direction')
+    expect(
+      missingRequiredKeys('substrates', {
+        miscut_availability: 'reported',
+        miscut_angle_deg: '0.2',
+        miscut_direction: 'x面向x轴偏2°',
+      }),
+    ).not.toContain('miscut_direction')
   })
 })

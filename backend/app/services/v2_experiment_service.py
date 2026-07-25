@@ -41,10 +41,13 @@ from app.services.temperature_timeseries import (
     ensure_temperature_timeseries_metadata,
     temperature_timeseries_mapping_error,
 )
-from app.services.v2_entity_service import V2EntityService
+from app.services.v2_entity_service import SUBSTRATE_FORMULAS, V2EntityService
 from app.services.v2_entity_snapshot_service import (
+    MATERIAL_LOT_PROJECTED_FIELDS,
     apply_setup_reference,
+    material_lot_item_projection,
     material_lot_version_snapshot,
+    missing_material_lot_projection_fields,
     setup_equipment_projection,
 )
 from app.services.v2_field_source import (
@@ -79,14 +82,6 @@ PRECURSOR_FORMULA_ALIASES = {
     "硫": "S",
     "硒": "Se",
     "碲": "Te",
-}
-SUBSTRATE_FORMULAS = {
-    "sio2_si": {"Si", "SiO2"},
-    "sapphire_al2o3": {"Al2O3"},
-    "quartz": {"SiO2"},
-    "cu_foil": {"Cu"},
-    "au_foil": {"Au"},
-    "h-BN": {"BN"},
 }
 
 
@@ -258,7 +253,8 @@ class V2ExperimentService:
         )
         run = self._locked_run(run.id)
         self._require_status(run, ExperimentStatus.DRAFT)
-        self._require_r0(run)
+        validated_modules = self._validate_saved_modules_for_lock(run)
+        self._require_r0(run, validated_modules)
         try:
             self.samples.sync_growth_samples(run, self._substrate_items(run.id), current_user)
             run.locked_at = datetime.now(UTC)
@@ -308,6 +304,7 @@ class V2ExperimentService:
         run_id: UUID,
         setup_id: UUID,
         setup_version: int,
+        tube_usage_history: dict[str, Any],
         current_user: User,
     ) -> V2ExperimentRead:
         run = get_owned_experiment(
@@ -320,17 +317,25 @@ class V2ExperimentService:
             "setup_ref_version": run.setup_ref_version,
         }
         version = self.entities.get_version("setup", setup_id, setup_version)
-        self._validate_saved_zone_indices(
-            run.id,
-            version.zone_count,
-            field_devices=version.attrs.get("field_devices"),
-        )
+        equipment = setup_equipment_projection(version)
+        equipment.pop("setup_code", None)
+        equipment.pop("setup_name", None)
+        equipment = {key: value for key, value in equipment.items() if value is not None}
+        equipment["tube_usage_history"] = tube_usage_history
+        try:
+            equipment = validate_v2_module_payload("equipment", equipment)
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": self._validation_errors(exc, "equipment")},
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "equipment", "reason": "value"}]},
+            ) from exc
         apply_setup_reference(run, version)
-        self._save_v2_payload(
-            run.id,
-            "equipment",
-            setup_equipment_projection(version),
-        )
+        self._save_v2_payload(run.id, "equipment", equipment)
         self.audit.record_event(
             actor=current_user,
             entity_type="experiment_run",
@@ -366,6 +371,8 @@ class V2ExperimentService:
         try:
             payload_json = deepcopy(payload.payload_json)
             substrate_source_ids: list[object | None] = []
+            if module_key in {"precursors", "substrates"}:
+                payload_json = self._prefill_material_lot_fields(module_key, payload_json)
             if module_key == "substrates":
                 payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)
             validated = validate_v2_module_payload(module_key, payload_json)
@@ -559,6 +566,79 @@ class V2ExperimentService:
         payload.payload_json = payload_json
         return self.module_payloads.save(payload)
 
+    def _validate_saved_modules_for_lock(
+        self,
+        run: ExperimentRun,
+    ) -> dict[str, dict[str, Any]]:
+        validated_modules: dict[str, dict[str, Any]] = {}
+        for payload in self.module_payloads.list_by_run(run.id):
+            payload_json = deepcopy(payload.payload_json)
+            if payload.module_key == "equipment":
+                payload_json.pop("setup_code", None)
+                payload_json.pop("setup_name", None)
+                payload_json = {
+                    key: value for key, value in payload_json.items() if value is not None
+                }
+            elif payload.module_key == "substrates":
+                payload_json, _ = self._strip_substrate_source_ids(payload_json)
+            try:
+                if payload.module_key in {"precursors", "substrates"}:
+                    payload_json = self._prefill_material_lot_fields(
+                        payload.module_key,
+                        payload_json,
+                    )
+                validated = validate_v2_module_payload(payload.module_key, payload_json)
+                if payload.module_key == "process_steps":
+                    self._validate_process_step_cardinality(validated)
+                    self._validate_process_semantics(validated)
+                    validated = apply_derived_reaction_cycle_counts(validated)
+                    self._validate_process_zone_indices(run, validated)
+                    self._validate_process_duration_bounds(validated)
+                    self._validate_measured_temperature_reference(run, validated)
+                    validated = self._freeze_process_gas_references(validated)
+                    self._validate_external_field_requirement(run, validated)
+                elif payload.module_key == "process_events":
+                    self._validate_process_event_attachments(run, validated)
+                elif payload.module_key in {"precursors", "substrates", "pvd"}:
+                    validated = self._freeze_material_lot_references(
+                        payload.module_key,
+                        validated,
+                    )
+                    validate_v2_module_payload(payload.module_key, validated)
+                    if payload.module_key in {"precursors", "substrates"}:
+                        self._validate_zone_indices(run, payload.module_key, validated)
+                elif (
+                    payload.module_key == "target_product"
+                    and len(validated.get("chemical_formula") or "") > 64
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": "chemical_formula", "reason": "length"}]},
+                    )
+                validated_modules[payload.module_key] = validated
+            except ValidationError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": self._validation_errors(exc, payload.module_key)},
+                ) from exc
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": payload.module_key, "reason": "value"}]},
+                ) from exc
+        basic = validated_modules.get("basic_info") or {}
+        process = validated_modules.get("process_steps") or {}
+        events = validated_modules.get("process_events") or {}
+        self._validate_pressure_regime(basic.get("synthesis_method"), process)
+        if basic.get("started_at") is not None:
+            self._validate_process_event_timeline(
+                run.id,
+                started_at=normalize_offset_datetime(basic["started_at"]),
+                process_events=events,
+                invalid_key="occurred_at",
+            )
+        return validated_modules
+
     @staticmethod
     def _strip_substrate_source_ids(
         payload_json: dict[str, Any],
@@ -633,14 +713,18 @@ class V2ExperimentService:
         setup_available: bool,
     ) -> None:
         configured = (
-            {canonical_option_value(value) for value in field_devices if isinstance(value, str)}
+            {
+                canonical_option_value(value, field_key="field_devices")
+                for value in field_devices
+                if isinstance(value, str)
+            }
             if isinstance(field_devices, list)
             else set()
         )
         configured.discard("none")
         for step in payload_json.get("items") or []:
             for field in step.get("field_params") or []:
-                field_type = canonical_option_value(field.get("field_type"))
+                field_type = canonical_option_value(field.get("field_type"), field_key="field_type")
                 reason = "setup_required" if not setup_available else "setup_capability"
                 if field_type not in configured:
                     raise HTTPException(
@@ -921,24 +1005,63 @@ class V2ExperimentService:
             )
             if version.lot_category not in expected_categories:
                 self._raise_invalid_reference("lot_ref", "category")
+            snapshot = material_lot_version_snapshot(version)
             if module_key == "precursors":
                 self._validate_precursor_lot_identity(item, version)
-                item["cas_inchi"] = (
-                    " · ".join(
-                        str(version.attrs.get(key) or "").strip()
-                        for key in ("cas_number", "inchikey_cid")
-                        if str(version.attrs.get(key) or "").strip()
-                    )
-                    or None
-                )
             else:
                 self._validate_substrate_lot_identity(item, version)
+            for key in MATERIAL_LOT_PROJECTED_FIELDS[module_key]:
+                item.pop(key, None)
+            item.update(self._complete_material_lot_projection(module_key, snapshot))
             item["lot_ref"] = {
                 "entity_id": str(version.entity_id),
                 "version": version.version,
-                "snapshot": material_lot_version_snapshot(version),
+                "snapshot": snapshot,
             }
         return payload_json
+
+    def _prefill_material_lot_fields(
+        self,
+        module_key: str,
+        payload_json: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Supply lot-owned required values before validating the run payload."""
+        items = payload_json.get("items")
+        if not isinstance(items, list):
+            return payload_json
+        for item in items:
+            if not isinstance(item, dict) or item.get("lot_ref") is None:
+                continue
+            version = self._resolve_material_lot_reference(item["lot_ref"], "lot_ref")
+            projection = self._complete_material_lot_projection(
+                module_key,
+                material_lot_version_snapshot(version),
+            )
+            for key, value in projection.items():
+                if item.get(key) in (None, "", {}, []):
+                    item[key] = value
+        return payload_json
+
+    @staticmethod
+    def _complete_material_lot_projection(
+        module_key: str,
+        snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        missing = missing_material_lot_projection_fields(module_key, snapshot)
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "invalid": [
+                        {
+                            "key": "lot_ref",
+                            "reason": "incomplete_stable_facts",
+                            "missing": missing,
+                        }
+                    ]
+                },
+            )
+        return material_lot_item_projection(module_key, snapshot)
 
     def _resolve_material_lot_reference(self, reference: Any, key: str) -> Any:
         try:
@@ -981,7 +1104,7 @@ class V2ExperimentService:
     def _validate_substrate_lot_identity(self, item: dict[str, Any], version: Any) -> None:
         material = canonical_option_value(item.get("material"))
         lot_material = canonical_option_value(version.attrs.get("substrate_material"))
-        if lot_material != material:
+        if lot_material and lot_material != material:
             self._raise_invalid_reference("lot_ref", "identity")
 
         expected_formulas = SUBSTRATE_FORMULAS.get(material)
@@ -990,26 +1113,6 @@ class V2ExperimentService:
 
         if item.get("chemical_formula") != version.chemical_formula:
             self._raise_invalid_reference("lot_ref", "identity")
-
-    def _validate_saved_zone_indices(
-        self,
-        run_id: UUID,
-        zone_count: int,
-        *,
-        field_devices: Any = None,
-    ) -> None:
-        for module_key in ("precursors", "substrates"):
-            payload = self.module_payloads.get_by_run_and_key(run_id, module_key)
-            if payload is not None:
-                self._validate_zone_items(module_key, payload.payload_json, zone_count)
-        process_payload = self.module_payloads.get_by_run_and_key(run_id, "process_steps")
-        if process_payload is not None:
-            self._validate_process_zones_for_count(process_payload.payload_json, zone_count)
-            self._validate_field_devices(
-                process_payload.payload_json,
-                field_devices,
-                setup_available=True,
-            )
 
     def _validate_process_event_timeline(
         self,
@@ -1150,15 +1253,19 @@ class V2ExperimentService:
                 status_code=status.HTTP_409_CONFLICT, detail=f"Experiment must be {expected.value}"
             )
 
-    def _require_r0(self, run: ExperimentRun) -> None:
+    def _require_r0(
+        self,
+        run: ExperimentRun,
+        payloads: dict[str, dict[str, Any]],
+    ) -> None:
         process_payload = self.module_payloads.get_by_run_and_key(run.id, "process_steps")
         if process_payload is not None:
             self._validate_measured_temperature_reference(run, process_payload.payload_json)
-        r0_fields = [{**item, "requirement": "r0"} for item in missing_r0_fields(run)]
+        r0_fields = [{**item, "requirement": "r0"} for item in missing_r0_fields(run, payloads)]
         r0_keys = {item["key"] for item in r0_fields}
         required_fields = [
             {**item, "requirement": "required"}
-            for item in missing_required_fields(run)
+            for item in missing_required_fields(run, payloads)
             if item["key"] not in r0_keys
         ]
         missing_fields = [*r0_fields, *required_fields]
@@ -1233,7 +1340,10 @@ class V2ExperimentService:
         )
 
     @staticmethod
-    def _validation_errors(exc: ValidationError) -> list[dict[str, str]]:
+    def _validation_errors(
+        exc: ValidationError,
+        fallback_key: str = "payload",
+    ) -> list[dict[str, str]]:
         invalid = []
         for error in exc.errors():
             error_type = str(error["type"])
@@ -1245,6 +1355,13 @@ class V2ExperimentService:
                 else "value"
             )
             loc = error.get("loc") or ("payload",)
-            key = next((str(part) for part in reversed(loc) if isinstance(part, str)), "payload")
+            key = next(
+                (
+                    str(part)
+                    for part in reversed(loc)
+                    if isinstance(part, str) and part != "payload"
+                ),
+                fallback_key,
+            )
             invalid.append({"key": key, "reason": reason})
         return invalid

@@ -87,11 +87,18 @@ function renderCompositeCase(
 
   const onSubmit = vi.fn()
   const defaultData = {
-    lot_category: '衬底',
+    lot_category: 'substrate',
     substance_name: 'seed',
-    chemical_formula: 'MoO3',
+    chemical_formula: 'Al2O3',
     batch_number: 'seed',
     substrate_material: 'sapphire_al2o3',
+    substrate_orientation_polish_availability: 'reported',
+    substrate_miscut_availability: 'reported',
+    substrate_miscut_angle_deg: '0',
+    substrate_surface_roughness: JSON.stringify({
+      metric: 'RMS',
+      value_nm: 0.5,
+    }),
     [testCase.field.key]: initialValue,
   }
   const user = userEvent.setup()
@@ -197,15 +204,13 @@ describe('FieldControl dropdown with other value', () => {
     )!
     const view = renderControl('precursors', field)
 
-    await view.user.click(
-      screen.getByRole('combobox', { name: /名称或化学式/ }),
-    )
+    await view.user.click(screen.getByRole('combobox', { name: /前驱体标识/ }))
     expect(
       screen.queryByRole('option', { name: '受控+其他' }),
     ).not.toBeInTheDocument()
     await view.user.click(screen.getByRole('option', { name: '其他' }))
     await view.user.type(
-      screen.getByRole('textbox', { name: /名称或化学式.*其他内容/ }),
+      screen.getByRole('textbox', { name: /前驱体标识.*其他内容/ }),
       'MoO3',
     )
 
@@ -310,9 +315,9 @@ describe('FieldControl descriptions and numeric constraints', () => {
     )!
     renderControl('target_product', field, '250')
 
-    const input = screen.getByRole('spinbutton', { name: '体相空间群' })
+    const input = screen.getByRole('combobox', { name: '体相空间群' })
     const error = screen.getByText('请输入 1–230 的整数')
-    const help = screen.getByText(/填写 International Tables 空间群号/)
+    const help = screen.getByText(/不知道可留空/)
     const describedBy = input.getAttribute('aria-describedby')?.split(' ')
 
     expect(input).toHaveAttribute('aria-invalid', 'true')

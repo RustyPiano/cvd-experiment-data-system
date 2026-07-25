@@ -40,6 +40,10 @@ export function buildStructuredValueLabels(
     height_mm: t('structuredFields.height'),
     diameter_mm: t('structuredFields.diameter'),
     outer_diameter_mm: t('structuredFields.outerDiameter'),
+    outer_side_mm: t('structuredFields.outerSide'),
+    outer_width_mm: t('structuredFields.outerWidth'),
+    outer_height_mm: t('structuredFields.outerHeight'),
+    dimension_description: t('structuredFields.dimensionDescription'),
     wall_thickness_mm: t('structuredFields.wallThickness'),
     thickness_mm: t('structuredFields.thickness'),
     placement: t('structuredFields.placement'),
@@ -47,9 +51,13 @@ export function buildStructuredValueLabels(
     placement_other: t('structuredFields.otherPlacementName'),
     metric: t('structuredFields.roughnessMetric'),
     value_nm: t('structuredFields.roughnessValue'),
+    availability: t('structuredFields.roughnessAvailability'),
     zone_index: t('structuredFields.zoneIndex'),
     temperature_C: t('structuredFields.temperature'),
+    temperature_basis: t('structuredFields.temperatureBasis'),
     distance_mm: t('structuredFields.distance'),
+    reset_count: t('structuredFields.resetCount'),
+    use_number_since_reset: t('structuredFields.useNumberSinceReset'),
     sensor_name: t('structuredEditors.temperatureSensors.sensorName'),
     sensor_type: t('structuredEditors.temperatureSensors.sensorType'),
     uncertainty_C: t('structuredEditors.temperatureSensors.uncertaintyCelsius'),
@@ -117,11 +125,8 @@ export function buildTemperatureProgramEditorLabels(
   t: TFunction,
 ): TemperatureProgramEditorLabels {
   return {
-    addZone: t('structuredEditors.temperatureProgram.addZone'),
     zone: (position) =>
       t('structuredEditors.temperatureProgram.zone', { position }),
-    zoneIndex: t('structuredEditors.temperatureProgram.zoneIndex'),
-    removeZone: t('structuredEditors.temperatureProgram.removeZone'),
     addPoint: t('structuredEditors.temperatureProgram.addPoint'),
     point: (position) =>
       t('structuredEditors.temperatureProgram.point', { position }),
@@ -130,6 +135,9 @@ export function buildTemperatureProgramEditorLabels(
     removePoint: t('structuredEditors.temperatureProgram.removePoint'),
     moveUp: t('structuredEditors.temperatureProgram.moveUp'),
     moveDown: t('structuredEditors.temperatureProgram.moveDown'),
+    selectSetupFirst: t(
+      'structuredEditors.temperatureProgram.selectSetupFirst',
+    ),
   }
 }
 
@@ -292,6 +300,49 @@ export function buildFieldParamsEditorLabels(
     startMinutes: t('structuredEditors.fieldParams.startMinutes'),
     endMinutes: t('structuredEditors.fieldParams.endMinutes'),
     removeField: t('structuredEditors.fieldParams.removeField'),
+    parameterGroups: {
+      plasma: t('structuredEditors.fieldParams.parameterGroups.plasma'),
+      light: t('structuredEditors.fieldParams.parameterGroups.light'),
+      electric_field: t(
+        'structuredEditors.fieldParams.parameterGroups.electric_field',
+      ),
+    },
+    explicitParameters: {
+      plasmaPowerW: t(
+        'structuredEditors.fieldParams.explicitParameters.plasmaPowerW',
+      ),
+      plasmaGasSpecies: t(
+        'structuredEditors.fieldParams.explicitParameters.plasmaGasSpecies',
+      ),
+      plasmaPressurePa: t(
+        'structuredEditors.fieldParams.explicitParameters.plasmaPressurePa',
+      ),
+      lightWavelengthNm: t(
+        'structuredEditors.fieldParams.explicitParameters.lightWavelengthNm',
+      ),
+      lightPowerMw: t(
+        'structuredEditors.fieldParams.explicitParameters.lightPowerMw',
+      ),
+      lightIrradianceMwCm2: t(
+        'structuredEditors.fieldParams.explicitParameters.lightIrradianceMwCm2',
+      ),
+      lightSourceDistanceMm: t(
+        'structuredEditors.fieldParams.explicitParameters.lightSourceDistanceMm',
+      ),
+      electricVoltageV: t(
+        'structuredEditors.fieldParams.explicitParameters.electricVoltageV',
+      ),
+      electricFieldStrengthVCm: t(
+        'structuredEditors.fieldParams.explicitParameters.electricFieldStrengthVCm',
+      ),
+      electricElectrodeGapMm: t(
+        'structuredEditors.fieldParams.explicitParameters.electricElectrodeGapMm',
+      ),
+      electricDirection: t(
+        'structuredEditors.fieldParams.explicitParameters.electricDirection',
+      ),
+    },
+    otherParameters: t('structuredEditors.fieldParams.otherParameters'),
     parameters: buildNamedParameterEditorLabels(t),
   }
 }
@@ -318,12 +369,10 @@ export function buildTemperatureSensorsEditorLabels(
   t: TFunction,
 ): TemperatureSensorsEditorLabels {
   return {
-    addSensor: t('structuredEditors.temperatureSensors.addSensor'),
     sensor: (position) =>
       t('structuredEditors.temperatureSensors.sensor', { position }),
     sensorName: t('structuredEditors.temperatureSensors.sensorName'),
     sensorType: t('structuredEditors.temperatureSensors.sensorType'),
-    zoneIndex: t('structuredEditors.temperatureSensors.zoneIndex'),
     uncertaintyCelsius: t(
       'structuredEditors.temperatureSensors.uncertaintyCelsius',
     ),
@@ -347,8 +396,8 @@ export function buildTemperatureSensorsEditorLabels(
         'structuredEditors.temperatureSensors.uncertaintySourceOptions.estimate',
       ),
     },
-    removeSensor: t('structuredEditors.temperatureSensors.removeSensor'),
-    moveUp: t('structuredEditors.temperatureSensors.moveUp'),
-    moveDown: t('structuredEditors.temperatureSensors.moveDown'),
+    selectZoneCountFirst: t(
+      'structuredEditors.temperatureSensors.selectZoneCountFirst',
+    ),
   }
 }

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nextProvider } from 'react-i18next'
+import type * as RepeatableItemsModule from './components/repeatable-items-section'
+import type { V2EntityRead } from '@/features/entity-library/api'
 
 import i18n from '@/shared/i18n'
 import { HttpError } from '@/shared/api/http-error'
@@ -9,6 +11,7 @@ import { emptyModuleValues } from './field-logic'
 import type { ModuleSaveProps } from './form-types'
 import {
   ExperimentV2Form,
+  reconcileProcessTemperaturePrograms,
   shouldBlockExperimentLeave,
 } from './experiment-v2-form'
 
@@ -44,6 +47,7 @@ vi.mock('sonner', () => ({ toast }))
 type SectionProps = {
   save?: ModuleSaveProps
   onChange?: (key: string, value: string) => void
+  onSelectSetup?: (entityId: string, entity: V2EntityRead | null) => void
   footer?: ReactNode
 }
 
@@ -74,14 +78,42 @@ vi.mock('./components/target-product-section', () => ({
     sectionStub('target_product', save),
 }))
 vi.mock('./components/equipment-section', () => ({
-  EquipmentSection: ({ save }: SectionProps) => sectionStub('equipment', save),
+  EquipmentSection: ({ save, onSelectSetup }: SectionProps) => (
+    <div>
+      {sectionStub('equipment', save)}
+      <button
+        type="button"
+        onClick={() =>
+          onSelectSetup?.('setup-2', {
+            id: 'setup-2',
+            latest_version: {
+              version: 1,
+              data: {
+                setup_code: 'SET-2',
+                setup_name: 'Second setup',
+                zone_count: 2,
+              },
+            },
+          } as unknown as V2EntityRead)
+        }
+      >
+        select-setup-2
+      </button>
+    </div>
+  ),
 }))
-vi.mock('./components/repeatable-items-section', () => ({
-  RepeatableItemsSection: ({
-    moduleKey,
-    save,
-  }: SectionProps & { moduleKey: string }) => sectionStub(moduleKey, save),
-}))
+vi.mock('./components/repeatable-items-section', async () => {
+  const actual = await vi.importActual<typeof RepeatableItemsModule>(
+    './components/repeatable-items-section',
+  )
+  return {
+    ...actual,
+    RepeatableItemsSection: ({
+      moduleKey,
+      save,
+    }: SectionProps & { moduleKey: string }) => sectionStub(moduleKey, save),
+  }
+})
 vi.mock('./components/process-steps-section', () => ({
   ProcessStepsSection: ({ save }: SectionProps) =>
     sectionStub('process_steps', save),
@@ -89,11 +121,78 @@ vi.mock('./components/process-steps-section', () => ({
 }))
 vi.mock('./components/results-section', () => ({ ResultsSection: () => null }))
 
+describe('reconcileProcessTemperaturePrograms', () => {
+  it('keeps one temperature program row per selected setup zone', () => {
+    const steps = [
+      {
+        stage_type: 'reaction_conditions',
+        temperature_program: JSON.stringify({
+          zones: [
+            {
+              zone_index: 2,
+              points: [{ elapsed_min: 0, setpoint_C: 700 }],
+            },
+            {
+              zone_index: 1,
+              points: [{ elapsed_min: 0, setpoint_C: 650 }],
+            },
+            {
+              zone_index: 3,
+              points: [{ elapsed_min: 0, setpoint_C: 750 }],
+            },
+          ],
+        }),
+      },
+    ]
+
+    const reconciled = reconcileProcessTemperaturePrograms(steps, {
+      zone_count: 2,
+    })
+    expect(JSON.parse(String(reconciled[0].temperature_program))).toEqual({
+      zones: [
+        {
+          zone_index: 1,
+          points: [{ elapsed_min: 0, setpoint_C: 650 }],
+        },
+        {
+          zone_index: 2,
+          points: [{ elapsed_min: 0, setpoint_C: 700 }],
+        },
+      ],
+    })
+  })
+})
+
 function completeState() {
-  const lotRef = {
+  const precursorLotRef = {
     entity_id: '00000000-0000-4000-8000-000000000001',
     version: 1,
-    snapshot: { lot_code: 'LOT-1' },
+    snapshot: {
+      lot_category: 'chemical',
+      chemical_formula: 'MoO3',
+      attrs: { cas_number: '1313-27-5' },
+    },
+  }
+  const substrateLotRef = {
+    entity_id: '00000000-0000-4000-8000-000000000003',
+    version: 1,
+    snapshot: {
+      lot_category: 'substrate',
+      chemical_formula: 'Al2O3',
+      attrs: {
+        substrate_material: 'sapphire_al2o3',
+        substrate_orientation_polish: {
+          value: 'c-plane',
+          option: 'single_side_polished',
+        },
+        substrate_miscut_angle_deg: 0,
+        substrate_surface_roughness: {
+          availability: 'reported',
+          metric: 'RMS',
+          value_nm: 0.2,
+        },
+      },
+    },
   }
   return {
     basic_info: {
@@ -117,23 +216,30 @@ function completeState() {
       setupId: 'setup-1',
       version: 2,
       snapshot: null,
+      tubeUsageHistory: JSON.stringify({
+        reset_count: 0,
+        use_number_since_reset: 3,
+      }),
     },
     precursors: [
       {
         ...emptyModuleValues('precursors'),
         name_formula: 'MoO3',
         phase_state: '气',
-        lot_ref: JSON.stringify(lotRef),
+        lot_ref: JSON.stringify(precursorLotRef),
       },
     ],
     substrates: [
       {
         ...emptyModuleValues('substrates'),
         material: 'sapphire_al2o3',
-        lot_ref: JSON.stringify(lotRef),
+        lot_ref: JSON.stringify(substrateLotRef),
         chemical_formula: 'Al2O3',
+        orientation_polish_availability: 'reported',
         crystal_orientation: 'c-plane',
+        miscut_availability: 'reported',
         miscut_angle_deg: '0',
+        miscut_direction: '',
         surface_roughness: JSON.stringify({ metric: 'RMS', value_nm: 0.2 }),
         size_placement: JSON.stringify({
           length_mm: 10,
@@ -171,13 +277,14 @@ function completeState() {
 function renderForm(
   mode: 'new' | 'edit',
   onProcessDirtyChange?: (dirty: boolean) => void,
+  initialState = completeState(),
 ) {
   return render(
     <I18nextProvider i18n={i18n}>
       <ExperimentV2Form
         mode={mode}
         runId={mode === 'edit' ? 'run-existing' : undefined}
-        initialState={completeState()}
+        initialState={initialState}
         onProcessDirtyChange={onProcessDirtyChange}
       />
     </I18nextProvider>,
@@ -256,10 +363,60 @@ describe('ExperimentV2Form module saves', () => {
         'run-existing',
         'setup-1',
         2,
+        { reset_count: 0, use_number_since_reset: 3 },
         'token',
       ),
     )
     expect(api.upsertModule).not.toHaveBeenCalled()
+  })
+
+  it('requires tube history again after switching to another setup', async () => {
+    renderForm('edit')
+
+    fireEvent.click(screen.getByRole('button', { name: 'select-setup-2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-equipment' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        i18n.t('validation.usageHistory'),
+      ),
+    )
+    expect(api.setSetupReference).not.toHaveBeenCalled()
+  })
+
+  it('saves an old substrate draft from its authoritative lot snapshot', async () => {
+    const state = completeState()
+    state.substrates[0] = {
+      ...state.substrates[0],
+      material: 'forged',
+      chemical_formula: 'forged',
+      orientation_polish_availability: '',
+      miscut_availability: '',
+      miscut_direction: 'stale direction',
+    }
+    renderForm('edit', undefined, state)
+
+    fireEvent.click(screen.getByRole('button', { name: 'save-substrates' }))
+
+    await waitFor(() =>
+      expect(api.upsertModule).toHaveBeenCalledWith(
+        'run-existing',
+        'substrates',
+        {
+          items: [
+            expect.objectContaining({
+              material: 'sapphire_al2o3',
+              chemical_formula: 'Al2O3',
+              orientation_polish_availability: 'reported',
+              miscut_availability: 'reported',
+              miscut_angle_deg: 0,
+              miscut_direction: null,
+            }),
+          ],
+        },
+        'token',
+      ),
+    )
   })
 
   it('shows the failed module error and leaves it unsaved', async () => {

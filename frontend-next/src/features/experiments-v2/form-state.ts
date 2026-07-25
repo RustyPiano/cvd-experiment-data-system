@@ -9,6 +9,7 @@ import {
   moduleValuesFromPayload,
 } from './field-logic'
 import type { ExperimentV2FormState } from './form-types'
+import { structuredValueFromRaw } from '@/shared/structured-field'
 
 export function buildEmptyState(operator = ''): ExperimentV2FormState {
   const basicInfo = emptyModuleValues('basic_info')
@@ -17,7 +18,12 @@ export function buildEmptyState(operator = ''): ExperimentV2FormState {
     basic_info: basicInfo,
     target_product: emptyModuleValues('target_product'),
     components: [],
-    equipment: { setupId: '', version: null, snapshot: null },
+    equipment: {
+      setupId: '',
+      version: null,
+      snapshot: null,
+      tubeUsageHistory: '',
+    },
     precursors: [],
     substrates: [],
     process_steps: [],
@@ -51,6 +57,7 @@ export function buildStateFromLoaded(
   const subPayload = modules['substrates']?.payload_json ?? null
   const stepsPayload = modules['process_steps']?.payload_json ?? null
   const eventsPayload = modules['process_events']?.payload_json ?? null
+  const equipmentPayload = modules['equipment']?.payload_json ?? null
 
   const basicInfo = moduleValuesFromPayload('basic_info', basicPayload)
   basicInfo['started_at'] = isoToDateTimeLocal(
@@ -65,6 +72,10 @@ export function buildStateFromLoaded(
       setupId: run.setup_ref ?? '',
       version: run.setup_ref_version ?? null,
       snapshot: snapshotFromRun(run.setup_ref_snapshot_json),
+      tubeUsageHistory: structuredValueFromRaw(
+        'tube_usage_history',
+        equipmentPayload?.['tube_usage_history'],
+      ),
     },
     precursors: itemsFromPayload('precursors', precPayload),
     substrates: itemsFromPayload('substrates', subPayload),

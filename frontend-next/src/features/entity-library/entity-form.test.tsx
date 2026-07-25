@@ -238,6 +238,60 @@ describe('EntityForm — generated numeric validation', () => {
     expect(await screen.findByText('Enter an integer')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
+
+  it('ignores stale invalid values after their condition hides the field', async () => {
+    const onSubmit = vi.fn()
+    renderForm({
+      onSubmit,
+      defaultData: {
+        lot_category: 'substrate',
+        substance_name: 'Al2O3 substrate',
+        chemical_formula: 'Al2O3',
+        batch_number: 'SUB-1',
+        substrate_material: 'sapphire_al2o3',
+        substrate_orientation_polish_availability: 'not_provided',
+        substrate_miscut_availability: 'not_provided',
+        substrate_miscut_angle_deg: 120,
+        substrate_surface_roughness: { availability: 'not_provided' },
+      },
+    })
+
+    expect(
+      screen.queryByRole('spinbutton', { name: /偏切角/ }),
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty(
+      'substrate_miscut_angle_deg',
+    )
+  })
+
+  it('explains the missing dimensions before submitting a selected tube shape', async () => {
+    const onSubmit = vi.fn()
+    renderForm({
+      kind: 'setup',
+      onSubmit,
+      defaultData: {
+        setup_code: 'SETUP-001',
+        setup_name: 'Main setup',
+        zone_count: '1',
+        temperature_sensors: oneZoneTemperatureSensors,
+        orientation: '水平',
+        tube_material_shape: {
+          material: 'quartz',
+          shape: 'rectangular',
+        },
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    expect(
+      await screen.findByText('请按所选截面完整填写炉管尺寸'),
+    ).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
 })
 
 describe('EntityForm — first-class entity attachments', () => {

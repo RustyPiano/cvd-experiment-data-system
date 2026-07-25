@@ -11,10 +11,11 @@ import type {
   FieldCondition,
   FieldMetadata,
 } from '@/shared/generated/field-metadata'
-import { canonicalOption } from '@/shared/field-i18n'
+import { canonicalFieldOption, canonicalOption } from '@/shared/field-i18n'
 import type { EntityKind } from './config'
 import {
   isStructuredInput,
+  parseStructuredValue,
   structuredPayload,
   structuredValueFromRaw,
 } from '@/shared/structured-field'
@@ -24,10 +25,40 @@ import {
   entityFilePayload,
   isEntityFileInput,
 } from '@/shared/entity-file-reference'
+import { reconcileTemperatureSensors } from './temperature-sensors-editor'
+import type { TemperatureSensor } from './temperature-sensors-editor'
 
 export type EntityFieldValue = string | string[]
 export type EntityFormValues = Record<string, EntityFieldValue>
 export type EntityVersionPayload = Record<string, unknown>
+
+const SUBSTRATE_FORMULAS: Record<string, readonly string[]> = {
+  sio2_si: ['Si', 'SiO2'],
+  sapphire_al2o3: ['Al2O3'],
+  quartz: ['SiO2'],
+  cu_foil: ['Cu'],
+  au_foil: ['Au'],
+  'h-BN': ['BN'],
+}
+const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉'
+
+export function materialLotFormulaIsCompatible(
+  values: EntityFormValues,
+): boolean {
+  if (canonicalOption(String(values['lot_category'] ?? '')) !== 'substrate') {
+    return true
+  }
+  const material = canonicalFieldOption(
+    'substrate_material',
+    String(values['substrate_material'] ?? ''),
+  )
+  const expected = SUBSTRATE_FORMULAS[material]
+  if (!expected) return true
+  const formula = String(values['chemical_formula'] ?? '')
+    .replace(/\s+/g, '')
+    .replace(/[₀-₉]/g, (digit) => String(SUBSCRIPT_DIGITS.indexOf(digit)))
+  return expected.includes(formula)
+}
 
 /**
  * 版本号由后端版本表自增分配（V2EntityVersionRead.version），不是用户录入项，
@@ -61,17 +92,20 @@ export function getEntityFields(kind: EntityKind): FieldMetadata[] {
 export function parseEnumOptions(
   input: string,
   options: string | null,
+  fieldKey?: string,
 ): string[] | null {
   if (!/(下拉|多选)/.test(input) || !options) return null
+  const canonical = (value: string) =>
+    fieldKey ? canonicalFieldOption(fieldKey, value) : canonicalOption(value)
   if (isCompositeInput(input)) {
-    return parseCompositeOptions(options).map(canonicalOption)
+    return parseCompositeOptions(options).map(canonical)
   }
   const separator = options.includes('·') ? '·' : '/'
   const tokens = options
     .split(separator)
     .map((token) => token.trim())
     .filter(Boolean)
-  return tokens.length ? tokens.map(canonicalOption) : null
+  return tokens.length ? tokens.map(canonical) : null
 }
 
 export function isSelectWithOtherInput(input: string): boolean {
@@ -214,6 +248,10 @@ export function isFieldVisible(
     const refKey = resolveConditionKey(kind, condition.field)
     if (!refKey || !matchesCondition(condition, values[refKey])) return false
   }
+  if (kind === 'material_lot' && field.key === 'substrate_miscut_direction') {
+    const angle = values['substrate_miscut_angle_deg']
+    if (Array.isArray(angle) || Number(angle) <= 0) return false
+  }
 
   return true
 }
@@ -229,6 +267,17 @@ export function isEffectivelyRequired(
   field: FieldMetadata,
   values: EntityFormValues,
 ): boolean {
+  if (kind === 'setup' && field.key === 'tube_outer_diameter_wall_mm') {
+    const shape = values['tube_material_shape']
+    return (
+      typeof shape === 'string' &&
+      String(parseStructuredValue(shape).shape ?? '').trim() !== ''
+    )
+  }
+  if (kind === 'material_lot' && field.key === 'substrate_miscut_direction') {
+    const value = values['substrate_miscut_angle_deg']
+    return !Array.isArray(value) && Number(value) > 0
+  }
   const level = field.requirement.level
   if (level === 'required') return true
   if (level === 'conditional_required') {
@@ -247,10 +296,13 @@ export function buildDefaultValues(
     const raw = source?.[field.key]
     if (isMultiSelectInput(field.input)) {
       values[field.key] = Array.isArray(raw)
-        ? raw.map(String).filter(Boolean).map(canonicalOption)
+        ? raw
+            .map(String)
+            .filter(Boolean)
+            .map((item) => canonicalFieldOption(field.key, item))
         : raw == null || raw === ''
           ? []
-          : [canonicalOption(String(raw))]
+          : [canonicalFieldOption(field.key, String(raw))]
     } else if (
       raw != null &&
       isEntityJsonArrayField(field.key) &&
@@ -285,7 +337,7 @@ export function buildDefaultValues(
         raw == null
           ? ''
           : /下拉/.test(field.input)
-            ? canonicalOption(String(raw))
+            ? canonicalFieldOption(field.key, String(raw))
             : String(raw)
     }
   }
@@ -301,13 +353,28 @@ export function buildSubmitPayload(
   values: EntityFormValues,
 ): EntityVersionPayload {
   const payload: EntityVersionPayload = {}
+  const tubeShapeValue = values['tube_material_shape']
+  const tubeShape =
+    typeof tubeShapeValue === 'string'
+      ? String(parseStructuredValue(tubeShapeValue).shape ?? '')
+      : ''
+  const zoneCountValue = values['zone_count']
+  const parsedZoneCount = Number(
+    Array.isArray(zoneCountValue) ? '' : zoneCountValue,
+  )
+  const zoneCount =
+    Number.isInteger(parsedZoneCount) && parsedZoneCount > 0
+      ? parsedZoneCount
+      : null
   for (const field of getEntityFields(kind)) {
     if (!isFieldVisible(kind, field, values)) continue
     const value = values[field.key]
     if (Array.isArray(value)) {
       const normalized = [
         ...new Set(
-          value.map((item) => canonicalOption(item.trim())).filter(Boolean),
+          value
+            .map((item) => canonicalFieldOption(field.key, item.trim()))
+            .filter(Boolean),
         ),
       ]
       if (normalized.length > 0) payload[field.key] = normalized
@@ -318,12 +385,21 @@ export function buildSubmitPayload(
       if (isEntityFileInput(field.input)) {
         payload[field.key] = entityFilePayload(normalized, field.key)
       } else if (isEntityJsonArrayField(field.key)) {
-        payload[field.key] = JSON.parse(normalized) as unknown[]
+        const array = JSON.parse(normalized) as unknown[]
+        payload[field.key] =
+          field.key === 'temperature_sensors' && zoneCount != null
+            ? reconcileTemperatureSensors(
+                array as TemperatureSensor[],
+                zoneCount,
+              )
+            : array
       } else if (isStructuredInput(field.input)) {
-        payload[field.key] = structuredPayload(field.key, normalized)
+        payload[field.key] = structuredPayload(field.key, normalized, {
+          tubeShape,
+        })
       } else if (isCompositeInput(field.input)) {
-        const options = parseCompositeOptions(field.options).map(
-          canonicalOption,
+        const options = parseCompositeOptions(field.options).map((item) =>
+          canonicalFieldOption(field.key, item),
         )
         const parsed = parseCompositeValue(field.input, normalized, options)
         payload[field.key] = {
@@ -339,7 +415,7 @@ export function buildSubmitPayload(
           field.input === '数值'
             ? assertValidNumber(normalized, field.key, field.validation)
             : /(下拉|多选)/.test(field.input)
-              ? canonicalOption(normalized)
+              ? canonicalFieldOption(field.key, normalized)
               : normalized
       }
     }

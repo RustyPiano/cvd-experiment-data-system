@@ -1,4 +1,5 @@
 import {
+  fieldOptionCodes,
   optionCodes,
   optionLabelsEn,
   optionLabelsZh,
@@ -34,6 +35,11 @@ export function localizedOption(value: string, language: string): string {
 /** 旧中文选项值只在读取时兼容；所有新提交统一使用稳定 ASCII 机器码。 */
 export function canonicalOption(value: string): string {
   return optionCodes[value] ?? value
+}
+
+/** 字段专用别名优先，避免“等离子体”在装置能力与预处理之间串码。 */
+export function canonicalFieldOption(fieldKey: string, value: string): string {
+  return fieldOptionCodes[fieldKey]?.[value] ?? canonicalOption(value)
 }
 
 /** Localize scalar or multi-select values without collapsing arrays before lookup. */

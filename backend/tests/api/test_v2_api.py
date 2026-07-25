@@ -194,7 +194,11 @@ def test_v2_run_payload_validation_and_setup_snapshot(active_user, admin_user) -
 
     ref = client.put(
         f"/api/v1/experiments/{run_id}/setup-reference",
-        json={"setup_id": setup.json()["id"], "version": 1},
+        json={
+            "setup_id": setup.json()["id"],
+            "version": 1,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
+        },
         headers=owner_headers,
     )
     assert ref.status_code == 200, ref.text

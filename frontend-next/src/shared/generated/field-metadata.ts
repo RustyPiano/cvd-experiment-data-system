@@ -28,6 +28,7 @@ export interface FieldCondition {
 export interface FieldRequirement {
   raw: string
   level: RequirementLevel
+  otherwise: 'optional' | null
   condition: FieldCondition | null
 }
 
@@ -89,7 +90,7 @@ export interface StageType {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v3.7',
+  version: 'v3.11',
   status: 'DRAFT',
   source: 'docs/standard/field-source.yaml',
 }
@@ -108,6 +109,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -129,6 +131,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -149,6 +152,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -170,6 +174,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -191,6 +196,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -214,6 +220,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -234,6 +241,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -256,16 +264,16 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
       group: null,
       placeholderZh: '例如 MoS2',
       placeholderEn: 'e.g. MoS2',
-      helpZh:
-        '直接使用普通数字，无需输入下标；允许常见圆括号与结晶水点号（·）。选择结构类型后，按页面显示的对应规则填写，复合体系仍以组成明细为准。',
+      helpZh: '用普通数字填写，例如 MoS2；复合体系再按下方“组成明细”逐项填写。',
       helpEn:
-        'Use regular digits; subscripts are not required. Common parentheses and the hydrate dot (·) are allowed. Follow the selected structure rule; components remain authoritative for composite systems.',
+        'Use plain digits, for example MoS2; for composite systems, complete the component rows below.',
     },
     {
       key: 'structure_type',
@@ -278,6 +286,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -300,6 +309,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(结构类型≠本征)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '目标产物.结构类型',
           op: 'ne',
@@ -328,6 +338,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -348,6 +359,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -355,9 +367,9 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderZh: '例如 194',
       placeholderEn: 'e.g. 194',
       helpZh:
-        '填写 International Tables 空间群号（1–230）；界面自动显示 Hermann–Mauguin 符号，不清楚可留空',
+        '输入编号或从列表选择；不知道可留空，可从XRD结果、文献或材料数据库的“Space group”获取。',
       helpEn:
-        'Enter the International Tables number (1–230); the Hermann–Mauguin symbol is displayed automatically. Leave blank if unknown',
+        'Enter a number or choose from the list. Leave blank if unknown; it is usually reported as “Space group” in XRD results, literature, or materials databases.',
     },
     {
       key: 'target_morphology',
@@ -370,6 +382,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -390,6 +403,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -410,6 +424,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -432,6 +447,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -452,6 +468,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -472,6 +489,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -495,6 +513,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -515,6 +534,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -536,6 +556,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -547,15 +568,17 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'tube_outer_diameter_wall_mm',
-      labelZh: '炉管外径与壁厚',
-      labelEn: 'Tube outer diameter and wall thickness',
-      input: '具名尺寸对象',
+      labelZh: '炉管尺寸',
+      labelEn: 'Tube dimensions',
+      input: '炉管尺寸对象',
       unit: 'mm',
-      options: '{outer_diameter_mm, wall_thickness_mm}',
+      options:
+        '{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}',
       validation: null,
       requirement: {
-        raw: '推荐',
+        raw: '选择炉管材质与截面后必填',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -576,6 +599,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '定义项',
         level: 'definition',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -597,6 +621,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填(装置登记)',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -612,11 +637,12 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       labelEn: 'External field capabilities',
       input: '多选',
       unit: null,
-      options: '无/等离子/光/电',
+      options: '无/等离子体/光/电',
       validation: null,
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -637,6 +663,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -646,12 +673,34 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       helpZh: null,
       helpEn: null,
     },
+    {
+      key: 'tube_usage_history',
+      labelZh: '炉管使用履历',
+      labelEn: 'Tube usage history',
+      input: '使用履历对象',
+      unit: '次',
+      options: '{reset_count, use_number_since_reset}',
+      validation: null,
+      requirement: {
+        raw: '必填',
+        level: 'required',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: '填本次实验对应的当前计数；从未重置可填“0、当前使用序号”。',
+      helpEn:
+        'Enter the counts for this run. If the tube has never been reset, use reset count 0 and the current use number.',
+    },
   ],
   precursors: [
     {
       key: 'name_formula',
-      labelZh: '前驱体标识（名称或化学式）',
-      labelEn: 'Precursor identity (name or formula)',
+      labelZh: '前驱体标识（来自批次）',
+      labelEn: 'Precursor identity (from lot)',
       input: '下拉+其他',
       unit: null,
       options: '受控+其他',
@@ -659,6 +708,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -679,6 +729,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -701,6 +752,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -721,6 +773,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐(固态源)',
         level: 'conditional_recommended',
+        otherwise: null,
         condition: {
           field: '前驱体.相态',
           op: 'eq',
@@ -746,6 +799,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -766,6 +820,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -788,6 +843,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(非气态)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '前驱体.相态',
           op: 'ne',
@@ -814,6 +870,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -830,39 +887,49 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '具名尺寸对象',
       unit: 'mm',
       options:
-        '{material: 石英舟|陶瓷(刚玉)舟|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?}',
+        '{material: 石英舟|陶瓷(刚玉)舟|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?, reset_count, use_number_since_reset}',
       validation: null,
       requirement: {
-        raw: '推荐',
-        level: 'recommended',
-        condition: null,
+        raw: '条件必填(非气态)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: '前驱体.相态',
+          op: 'ne',
+          value: 'gas',
+        },
       },
       r0: false,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh: '重置指清洗或更换容器；本次使用序号从1开始累计。',
+      helpEn:
+        'A reset means cleaning or replacing the container; count the current use from 1 after each reset.',
+      visibilityGated: true,
     },
     {
       key: 'source_zone_temperature',
-      labelZh: '所在温区与源温',
-      labelEn: 'Source zone and temperature',
+      labelZh: '前驱体位置',
+      labelEn: 'Precursor position',
       input: '温区温度对象',
       unit: '℃',
-      options: '{zone_index, temperature_C}',
+      options: '{zone_index, temperature_C?, temperature_basis?: 实测值|估计}',
       validation: null,
       requirement: {
-        raw: '推荐',
+        raw: '推荐；填写距热电偶距离时必填',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '先选所在温区。若没有独立测量或估计，位置温度可留空，不要重复抄温度程序。',
+      helpEn:
+        'Select the zone first. Leave the local temperature blank unless it was measured or estimated separately; do not copy the zone program.',
     },
     {
       key: 'thermocouple_distance_mm',
@@ -875,6 +942,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -889,7 +957,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
   substrates: [
     {
       key: 'material',
-      labelZh: '衬底材料',
+      labelZh: '衬底材料（来自批次）',
       labelEn: 'Substrate material',
       input: '下拉+其他',
       unit: null,
@@ -898,6 +966,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -918,6 +987,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -929,7 +999,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'chemical_formula',
-      labelZh: '衬底化学式',
+      labelZh: '衬底化学式（来自批次）',
       labelEn: 'Substrate formula',
       input: '文本',
       unit: null,
@@ -938,6 +1008,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -949,28 +1020,79 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
         'Use regular digits; common parentheses and the hydrate dot (·) are supported.',
     },
     {
+      key: 'orientation_polish_availability',
+      labelZh: '取向与抛光信息（来自批次）',
+      labelEn: 'Orientation and polish availability',
+      input: '下拉',
+      unit: null,
+      options: '有规格数值·供应商未提供·不适用',
+      validation: null,
+      requirement: {
+        raw: '必填',
+        level: 'required',
+        otherwise: null,
+        condition: null,
+      },
+      r0: true,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
+      helpZh: '这是物料批次中的供应商规格状态；本次实验只读带出。',
+      helpEn:
+        'This status comes from the material-lot specification and is read-only in the run.',
+    },
+    {
       key: 'crystal_orientation',
-      labelZh: '晶面取向',
+      labelZh: '晶面取向与抛光（来自批次）',
       labelEn: 'Crystal orientation',
       input: '文本',
       unit: null,
       options: '例如 (100)、c面、a面',
       validation: null,
       requirement: {
-        raw: '必填',
-        level: 'required',
-        condition: null,
+        raw: '条件必填(批次有规格数值)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: '衬底.取向与抛光信息（来自批次）',
+          op: 'eq',
+          value: 'reported',
+        },
       },
-      r0: true,
+      r0: false,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
+      visibilityGated: true,
+    },
+    {
+      key: 'miscut_availability',
+      labelZh: '偏切信息（来自批次）',
+      labelEn: 'Miscut availability',
+      input: '下拉',
+      unit: null,
+      options: '有规格数值·供应商未提供·不适用',
+      validation: null,
+      requirement: {
+        raw: '必填',
+        level: 'required',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
+      helpZh:
+        '有供应商偏切规格才选择“有规格数值”；未给或不适用请明确选择，不能用 0 代替未知。',
+      helpEn:
+        'Choose “Specification reported” only when a miscut specification exists; zero means reported no miscut, not unknown.',
     },
     {
       key: 'miscut_angle_deg',
-      labelZh: '偏转角',
+      labelZh: '偏切角（相对标称晶面，来自批次）',
       labelEn: 'Miscut angle',
       input: '数值',
       unit: '°',
@@ -980,20 +1102,55 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
         lt: 90,
       },
       requirement: {
-        raw: '必填',
-        level: 'required',
-        condition: null,
+        raw: '条件必填(批次有规格数值)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: '衬底.偏切信息（来自批次）',
+          op: 'eq',
+          value: 'reported',
+        },
       },
       r0: false,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '仅在供应商给出偏切规格时填写；明确无偏切填 0，有偏切还要填写晶轴方向。',
+      helpEn:
+        'Enter this only for a reported supplier specification; use zero only for reported no miscut and add the direction for a positive angle.',
+      visibilityGated: true,
+    },
+    {
+      key: 'miscut_direction',
+      labelZh: '偏切方向（来自批次）',
+      labelEn: 'Miscut direction',
+      input: '文本',
+      unit: null,
+      options: null,
+      validation: null,
+      requirement: {
+        raw: '条件必填(偏切角>0)',
+        level: 'optional',
+        otherwise: null,
+        condition: {
+          field: '衬底.偏切信息（来自批次）',
+          op: 'eq',
+          value: 'reported',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: '例：c 面向 a 轴偏 0.2°；只写方向，角度填在上一项。',
+      helpEn:
+        'Example: c-plane toward the a-axis; enter the angle in the preceding field.',
+      visibilityGated: true,
     },
     {
       key: 'oxide_thickness_nm',
-      labelZh: '氧化层厚度',
+      labelZh: '氧化层厚度（来自批次）',
       labelEn: 'Oxide layer thickness',
       input: '数值',
       unit: 'nm',
@@ -1004,8 +1161,9 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(仅SiO₂/Si)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
-          field: '衬底.衬底材料',
+          field: '衬底.衬底材料（来自批次）',
           op: 'eq',
           value: 'sio2_si',
         },
@@ -1020,28 +1178,32 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'surface_roughness',
-      labelZh: '表面粗糙度指标与数值',
+      labelZh: '标称表面粗糙度（来自批次）',
       labelEn: 'Surface roughness',
       input: '粗糙度对象',
       unit: 'nm',
-      options: '{metric: Ra|RMS, value_nm}',
+      options:
+        '{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}',
       validation: null,
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '选择“有规格数值”并填批次 Ra/RMS；供应商没给就选“供应商未提供”。本片 AFM 实测值填在表征结果。',
+      helpEn:
+        'Choose “Specification reported” and enter the lot Ra/RMS, or “Supplier did not provide”. Record AFM measurements as characterization results.',
     },
     {
       key: 'size_placement',
-      labelZh: '尺寸与放置方式',
-      labelEn: 'Size and placement',
+      labelZh: '本片实际尺寸与放置方式',
+      labelEn: 'Actual piece size and placement',
       input: '衬底尺寸放置对象',
       unit: 'mm',
       options:
@@ -1050,14 +1212,17 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '填这次真正放进炉内的单片尺寸和摆放方式；整片晶圆或来料标称尺寸填在物料批次。',
+      helpEn:
+        'Enter the dimensions and placement of the actual piece loaded for this run; record wafer or supplied-lot dimensions in the material lot.',
     },
     {
       key: 'pretreatment_steps',
@@ -1071,6 +1236,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1093,6 +1259,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1113,6 +1280,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1133,6 +1301,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1156,6 +1325,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: true,
@@ -1177,6 +1347,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(预处理记录)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程步.记录类型',
           op: 'eq',
@@ -1201,6 +1372,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(反应条件记录)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程步.记录类型',
           op: 'eq',
@@ -1226,6 +1398,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1247,6 +1420,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(反应条件记录)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程步.记录类型',
           op: 'eq',
@@ -1288,6 +1462,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(反应条件记录)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程步.记录类型',
           op: 'eq',
@@ -1313,6 +1488,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(反应条件记录)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程步.记录类型',
           op: 'eq',
@@ -1338,6 +1514,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1354,11 +1531,12 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '实际外场数组',
       unit: '按参数',
       options:
-        '{field_type: 等离子|光|电, start_min, end_min, parameters: [{name, value, unit}]}',
+        '{field_type: 等离子体|光|电, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；other_parameters?}',
       validation: null,
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1379,6 +1557,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(其他记录)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程步.记录类型',
           op: 'eq',
@@ -1403,6 +1582,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(其他记录)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程步.记录类型',
           op: 'eq',
@@ -1429,6 +1609,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1450,6 +1631,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1470,6 +1652,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1490,6 +1673,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1510,6 +1694,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(导致实验终止)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '过程事件.是否导致实验终止',
           op: 'eq',
@@ -1533,8 +1718,9 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       options: null,
       validation: null,
       requirement: {
-        raw: '条件必填(终止原因=其他)',
+        raw: '选填；终止原因=其他时必填',
         level: 'conditional_required',
+        otherwise: 'optional',
         condition: {
           field: '过程事件.终止原因',
           op: 'eq',
@@ -1547,7 +1733,6 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
-      visibilityGated: true,
     },
     {
       key: 'action_taken',
@@ -1560,6 +1745,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1580,6 +1766,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1593,15 +1780,16 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
   characterization: [
     {
       key: 'method_instrument',
-      labelZh: '表征方法与仪器',
-      labelEn: 'Method and instrument',
+      labelZh: '表征方法',
+      labelEn: 'Characterization method',
       input: '下拉+其他',
       unit: null,
       options: '光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他',
       validation: null,
       requirement: {
-        raw: '推荐',
-        level: 'recommended',
+        raw: '必填',
+        level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1622,6 +1810,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1642,6 +1831,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1664,6 +1854,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1684,6 +1875,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1707,6 +1899,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1730,6 +1923,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1752,6 +1946,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1774,6 +1969,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1797,6 +1993,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1819,6 +2016,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(PVD)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '基本信息.合成方法',
           op: 'in',
@@ -1845,6 +2043,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(PVD)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '基本信息.合成方法',
           op: 'in',
@@ -1869,6 +2068,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(PVD)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '基本信息.合成方法',
           op: 'in',
@@ -1884,7 +2084,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'plasma_gas_pressure',
-      labelZh: '等离子气氛与工作气压',
+      labelZh: '等离子体气氛与工作气压',
       labelEn: 'Plasma atmosphere and working pressure',
       input: '下拉+数值',
       unit: 'Pa',
@@ -1896,6 +2096,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(PVD)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '基本信息.合成方法',
           op: 'in',
@@ -1922,6 +2123,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(PVD)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '基本信息.合成方法',
           op: 'in',
@@ -1948,6 +2150,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(PVD)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: '基本信息.合成方法',
           op: 'in',
@@ -1978,6 +2181,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -1998,6 +2202,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2018,6 +2223,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2038,6 +2244,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2058,6 +2265,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(化学品或气瓶)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.批次类别',
           op: 'in',
@@ -2082,6 +2290,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2104,6 +2313,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2124,6 +2334,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2146,6 +2357,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2171,6 +2383,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(化学品或气瓶)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.批次类别',
           op: 'in',
@@ -2197,7 +2410,12 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
-        condition: null,
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.批次类别',
+          op: 'eq',
+          value: 'chemical',
+        },
       },
       r0: false,
       group: null,
@@ -2217,7 +2435,12 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
-        condition: null,
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.批次类别',
+          op: 'ne',
+          value: 'gas_cylinder',
+        },
       },
       r0: false,
       group: null,
@@ -2237,6 +2460,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2257,6 +2481,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2277,6 +2502,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2297,6 +2523,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2317,6 +2544,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(衬底)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.批次类别',
           op: 'eq',
@@ -2343,6 +2571,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '条件必填(SiO₂/Si)',
         level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.▸衬底·材料',
           op: 'eq',
@@ -2357,16 +2586,17 @@ export const entities: Record<string, FieldMetadata[]> = {
       helpEn: null,
     },
     {
-      key: 'substrate_orientation_polish',
-      labelZh: '▸衬底·晶向与抛光',
-      labelEn: 'Substrate · orientation and polish',
-      input: '文本+下拉',
+      key: 'substrate_orientation_polish_availability',
+      labelZh: '▸衬底·晶向与抛光信息',
+      labelEn: 'Substrate · orientation and polish availability',
+      input: '下拉',
       unit: null,
-      options: '晶向；单面抛/双面抛',
+      options: '有规格数值·供应商未提供·不适用',
       validation: null,
       requirement: {
-        raw: '推荐',
-        level: 'recommended',
+        raw: '条件必填(衬底)',
+        level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.批次类别',
           op: 'eq',
@@ -2377,20 +2607,134 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请选择',
       placeholderEn: 'Select an option',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '单晶片且供应商给了晶面和抛光规格时选“有规格数值”；未给或不适用请明确选择。',
+      helpEn:
+        'Choose “Specification reported” only when orientation and polish are supplied; otherwise select not provided or not applicable.',
     },
     {
-      key: 'substrate_size_spec',
-      labelZh: '▸衬底·尺寸规格',
-      labelEn: 'Substrate · size specification',
-      input: '文本',
-      unit: 'mm',
-      options: '长×宽×厚',
+      key: 'substrate_orientation_polish',
+      labelZh: '▸衬底·晶向与抛光',
+      labelEn: 'Substrate · orientation and polish',
+      input: '文本+下拉',
+      unit: null,
+      options: '晶向；单面抛/双面抛',
+      validation: {
+        require_value: true,
+        require_option: true,
+      },
+      requirement: {
+        raw: '条件必填(有规格数值)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.▸衬底·晶向与抛光信息',
+          op: 'eq',
+          value: 'reported',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
+      helpZh: '例：c 面；单面抛。晶面和抛光面都写清楚。',
+      helpEn:
+        'Example: c-plane; single-side polished. State both orientation and polished side.',
+    },
+    {
+      key: 'substrate_miscut_availability',
+      labelZh: '▸衬底·偏切信息',
+      labelEn: 'Substrate · miscut availability',
+      input: '下拉',
+      unit: null,
+      options: '有规格数值·供应商未提供·不适用',
       validation: null,
       requirement: {
-        raw: '选填',
+        raw: '条件必填(衬底)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.批次类别',
+          op: 'eq',
+          value: 'substrate',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
+      helpZh:
+        '有偏切规格才选“有规格数值”；供应商没给或该材料不适用时请选择对应状态。',
+      helpEn:
+        'Choose “Specification reported” only when a miscut specification exists; zero never represents unknown.',
+    },
+    {
+      key: 'substrate_miscut_angle_deg',
+      labelZh: '▸衬底·偏切角',
+      labelEn: 'Substrate · miscut angle',
+      input: '数值',
+      unit: '°',
+      options: null,
+      validation: {
+        ge: 0,
+        lt: 90,
+      },
+      requirement: {
+        raw: '条件必填(有规格数值)',
+        level: 'conditional_required',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.▸衬底·偏切信息',
+          op: 'eq',
+          value: 'reported',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: '无偏切填 0；有偏切时还要填写偏向哪个晶轴或方向。',
+      helpEn:
+        'Enter 0 for no miscut; otherwise also state the crystallographic direction.',
+    },
+    {
+      key: 'substrate_miscut_direction',
+      labelZh: '▸衬底·偏切方向',
+      labelEn: 'Substrate · miscut direction',
+      input: '文本',
+      unit: null,
+      options: null,
+      validation: null,
+      requirement: {
+        raw: '条件必填(偏切角>0)',
         level: 'optional',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.▸衬底·偏切信息',
+          op: 'eq',
+          value: 'reported',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: '例：c 面向 a 轴；角度填在上一项。',
+      helpEn: 'Example: c-plane toward the a-axis; enter the angle above.',
+    },
+    {
+      key: 'substrate_surface_roughness',
+      labelZh: '▸衬底·标称表面粗糙度',
+      labelEn: 'Substrate · nominal surface roughness',
+      input: '粗糙度对象',
+      unit: 'nm',
+      options:
+        '{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}',
+      validation: null,
+      requirement: {
+        raw: '条件必填(衬底)',
+        level: 'conditional_required',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.批次类别',
           op: 'eq',
@@ -2401,8 +2745,37 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '有供应商或批次规格就选“有规格数值”并填 Ra/RMS；没有就明确选“供应商未提供”，不要填 0 或猜测值。',
+      helpEn:
+        'Enter a reported supplier or lot Ra/RMS value, or explicitly choose “Supplier did not provide”; never use zero as an unknown value.',
+    },
+    {
+      key: 'substrate_size_spec',
+      labelZh: '▸衬底·来料尺寸规格',
+      labelEn: 'Substrate · supplied-lot size',
+      input: '文本',
+      unit: 'mm',
+      options: '长×宽×厚',
+      validation: null,
+      requirement: {
+        raw: '选填',
+        level: 'optional',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.批次类别',
+          op: 'eq',
+          value: 'substrate',
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh:
+        '填供应商标签或该批次来料的标称尺寸；切割后放进炉内的实际尺寸在每次实验中填写。',
+      helpEn:
+        'Enter the supplier-labelled or incoming lot size; record the actual cut piece loaded into each run in the experiment.',
     },
     {
       key: 'gas_purity_grade',
@@ -2413,8 +2786,9 @@ export const entities: Record<string, FieldMetadata[]> = {
       options: '6N/5N/4N/工业级',
       validation: null,
       requirement: {
-        raw: '条件必填(气瓶)',
-        level: 'conditional_required',
+        raw: '选填',
+        level: 'optional',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.批次类别',
           op: 'eq',
@@ -2425,8 +2799,9 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请选择',
       placeholderEn: 'Select an option',
-      helpZh: null,
-      helpEn: null,
+      helpZh: '有供应商等级标签可填；数值纯度以“纯度（质量%）”为准。',
+      helpEn:
+        'Enter the supplier grade if present; the numeric purity percentage is authoritative.',
     },
     {
       key: 'gas_cylinder_number',
@@ -2439,6 +2814,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: {
           field: 'MaterialLot.批次类别',
           op: 'eq',
@@ -2465,6 +2841,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2485,6 +2862,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2505,6 +2883,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2525,6 +2904,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2545,6 +2925,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2568,6 +2949,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2589,6 +2971,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2609,6 +2992,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2630,6 +3014,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2641,15 +3026,17 @@ export const entities: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'tube_outer_diameter_wall_mm',
-      labelZh: '炉管外径与壁厚',
-      labelEn: 'Tube outer diameter and wall thickness',
-      input: '具名尺寸对象',
+      labelZh: '炉管尺寸',
+      labelEn: 'Tube dimensions',
+      input: '炉管尺寸对象',
       unit: 'mm',
-      options: '{outer_diameter_mm, wall_thickness_mm}',
+      options:
+        '{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}',
       validation: null,
       requirement: {
-        raw: '推荐',
+        raw: '选择炉管材质与截面后必填',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2670,6 +3057,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '定义项',
         level: 'definition',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2685,11 +3073,12 @@ export const entities: Record<string, FieldMetadata[]> = {
       labelEn: 'External field capabilities',
       input: '多选',
       unit: null,
-      options: '无/光/电/等离子',
+      options: '无/光/电/等离子体',
       validation: null,
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2710,6 +3099,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2732,6 +3122,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2743,8 +3134,8 @@ export const entities: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'name_type',
-      labelZh: '仪器名称与类型',
-      labelEn: 'Instrument name and type',
+      labelZh: '适用表征方法',
+      labelEn: 'Applicable characterization method',
       input: '下拉+其他',
       unit: null,
       options: '光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他',
@@ -2752,14 +3143,16 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '必填',
         level: 'required',
+        otherwise: null,
         condition: null,
       },
       r0: false,
       group: null,
       placeholderZh: '请选择',
       placeholderEn: 'Select an option',
-      helpZh: null,
-      helpEn: null,
+      helpZh: '用于按表征方法筛选仪器；仪器身份由编号、厂商和型号表达。',
+      helpEn:
+        'Used to filter instruments by characterization method; identify the instrument by its code, vendor, and model.',
     },
     {
       key: 'vendor',
@@ -2772,6 +3165,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2792,6 +3186,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '推荐',
         level: 'recommended',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2812,6 +3207,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2832,6 +3228,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2854,6 +3251,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2869,19 +3267,21 @@ export const entities: Record<string, FieldMetadata[]> = {
       labelEn: 'Key fixed configuration',
       input: '自由',
       unit: null,
-      options: '如激光波长/物镜/探测器',
+      options: '如探测器型号、光栅范围、可用激光与物镜范围',
       validation: null,
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh: '只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。',
+      helpEn:
+        'Enter stable hardware or capabilities only; record settings used for a measurement in that result.',
     },
     {
       key: 'last_calibration',
@@ -2894,6 +3294,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       requirement: {
         raw: '选填',
         level: 'optional',
+        otherwise: null,
         condition: null,
       },
       r0: false,
@@ -2931,11 +3332,13 @@ export const optionLabelsZh: Record<string, string> = {
   vertical: '垂直',
   quartz: '石英',
   alumina: '刚玉',
-  square: '方',
-  rectangular: '矩',
+  square: '方形',
+  rectangular: '矩形',
   custom: '自定义',
   none: '无',
-  plasma: '等离子',
+  plasma: '等离子体',
+  setpoint: '设定值',
+  measured: '实测值',
   light: '光',
   electric_field: '电',
   solid: '固',
@@ -3029,6 +3432,9 @@ export const optionLabelsZh: Record<string, string> = {
   refrigerated: '冷藏',
   single_side_polished: '单面抛',
   double_side_polished: '双面抛',
+  reported: '有规格数值',
+  not_provided: '供应商未提供',
+  not_applicable: '不适用',
   industrial_grade: '工业级',
   matrix: '主体材料',
   dopant: '掺杂剂',
@@ -3072,6 +3478,8 @@ export const optionLabelsEn: Record<string, string> = {
   custom: 'Custom',
   none: 'None',
   plasma: 'Plasma',
+  setpoint: 'Setpoint',
+  measured: 'Measured',
   light: 'Light',
   electric_field: 'Electric field',
   solid: 'Solid',
@@ -3165,6 +3573,9 @@ export const optionLabelsEn: Record<string, string> = {
   refrigerated: 'Refrigerated',
   single_side_polished: 'Single-side polished',
   double_side_polished: 'Double-side polished',
+  reported: 'Specification reported',
+  not_provided: 'Supplier did not provide',
+  not_applicable: 'Not applicable',
   industrial_grade: 'Industrial grade',
   matrix: 'Host material',
   dopant: 'Dopant',
@@ -3208,6 +3619,8 @@ export const optionCodes: Record<string, string> = {
   自定义: 'custom',
   无: 'none',
   等离子: 'plasma',
+  设定值: 'setpoint',
+  实测值: 'measured',
   光: 'light',
   电: 'electric_field',
   固: 'solid',
@@ -3308,6 +3721,9 @@ export const optionCodes: Record<string, string> = {
   冷藏: 'refrigerated',
   单面抛: 'single_side_polished',
   双面抛: 'double_side_polished',
+  有规格数值: 'reported',
+  供应商未提供: 'not_provided',
+  不适用: 'not_applicable',
   工业级: 'industrial_grade',
   主体材料: 'matrix',
   基体: 'matrix',
@@ -3320,6 +3736,22 @@ export const optionCodes: Record<string, string> = {
   'H₂': 'H2',
   'O₂': 'O2',
   'CH₄': 'CH4',
+}
+
+/** 字段专用兼容标签 → 机器码；优先于全局别名。 */
+export const fieldOptionCodes: Record<string, Record<string, string>> = {
+  field_devices: {
+    等离子: 'plasma',
+    等离子体: 'plasma',
+  },
+  field_type: {
+    等离子: 'plasma',
+    等离子体: 'plasma',
+  },
+  type: {
+    等离子: 'plasma_treatment',
+    等离子体: 'plasma_treatment',
+  },
 }
 
 /** 规范单位 → 英文显示名 */

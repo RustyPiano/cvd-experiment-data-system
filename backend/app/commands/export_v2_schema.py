@@ -138,6 +138,7 @@ def _field_dictionary_row(
         "r0": bool(field.get("r0")),
         "condition": condition,
         "requirement": requirement["level"],
+        "otherwise": requirement.get("otherwise"),
         "validation": field.get("validation"),
         "unit": None if field.get("unit") == "—" else field.get("unit"),
         "options": None if field.get("options") == "—" else field.get("options"),

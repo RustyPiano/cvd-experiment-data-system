@@ -36,6 +36,9 @@ def _create_run(
             "started_at": started_at,
             "synthesis_method": synthesis_method,
             "chemical_formula": "MoS2",
+            "ambient_temperature_C": 25.0,
+            "ambient_humidity_percent": 45.0,
+            "precheck_confirmed": True,
         },
         headers=headers,
     )
@@ -43,10 +46,19 @@ def _create_run(
     return response.json()["id"]
 
 
-def _create_setup(headers: dict[str, str], *, setup_code: str = "SETUP-SCIENCE") -> str:
+def _create_setup(
+    headers: dict[str, str],
+    *,
+    setup_code: str = "SETUP-SCIENCE",
+    zone_count: int = 2,
+) -> str:
     response = client.post(
         "/api/v1/setups",
-        json=setup_payload(setup_code=setup_code, setup_name="双温区管式炉"),
+        json=setup_payload(
+            setup_code=setup_code,
+            setup_name="管式炉",
+            zone_count=zone_count,
+        ),
         headers=headers,
     )
     assert response.status_code == 201, response.text
@@ -56,7 +68,11 @@ def _create_setup(headers: dict[str, str], *, setup_code: str = "SETUP-SCIENCE")
 def _set_setup(headers: dict[str, str], run_id: str, setup_id: str) -> None:
     response = client.put(
         f"/api/v1/experiments/{run_id}/setup-reference",
-        json={"setup_id": setup_id, "version": 1},
+        json={
+            "setup_id": setup_id,
+            "version": 1,
+            "tube_usage_history": {"reset_count": 0, "use_number_since_reset": 1},
+        },
         headers=headers,
     )
     assert response.status_code == 200, response.text
@@ -74,7 +90,17 @@ def _create_material_lot(
     if lot_category in {"chemical", "化学品", "gas_cylinder", "气瓶"}:
         extra.update(cas_number="TEST-CAS", purity=99.9)
     if lot_category in {"substrate", "衬底"}:
-        extra["substrate_material"] = substrate_material
+        extra.update(
+            substrate_material=substrate_material,
+            substrate_orientation_polish_availability="reported",
+            substrate_orientation_polish={
+                "value": "c-plane",
+                "option": "single_side_polished",
+            },
+            substrate_miscut_availability="reported",
+            substrate_miscut_angle_deg=0.0,
+            substrate_surface_roughness={"metric": "RMS", "value_nm": 0.5},
+        )
         if substrate_material == "sio2_si":
             extra["substrate_oxide_thickness_nm"] = 285.0
     elif lot_category in {"gas_cylinder", "气瓶"}:
@@ -226,20 +252,6 @@ def test_module_api_rejects_nonempty_fields_when_their_condition_is_false(
                 ]
             },
         ),
-        (
-            "process_events",
-            {
-                "items": [
-                    {
-                        "event_id": str(uuid4()),
-                        "event_type": "equipment_alarm",
-                        "occurred_at": "2026-07-24T10:00:00+08:00",
-                        "terminated_run": False,
-                        "description": "stale termination details",
-                    }
-                ]
-            },
-        ),
     )
 
     for module_key, payload_json in cases:
@@ -249,6 +261,29 @@ def test_module_api_rejects_nonempty_fields_when_their_condition_is_false(
             headers=headers,
         )
         assert response.status_code == 422, (module_key, response.text)
+
+    for termination in (
+        {"terminated_run": False},
+        {"terminated_run": True, "termination_reason": "equipment_alarm"},
+    ):
+        response = client.put(
+            f"/api/v1/experiments/{run_id}/modules/process_events",
+            json={
+                "payload_json": {
+                    "items": [
+                        {
+                            "event_id": str(uuid4()),
+                            "event_type": "equipment_alarm",
+                            "occurred_at": "2026-07-24T10:00:00+08:00",
+                            "description": "报警时炉压短时波动",
+                            **termination,
+                        }
+                    ]
+                }
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
 
 
 def test_entity_dates_and_file_references_are_validated_and_snapshotted(
@@ -473,6 +508,120 @@ def test_setup_requires_sensor_contract_and_rejects_removed_reference_fields(
     assert deleted_reference_fields.status_code == 422
 
 
+@pytest.mark.parametrize(
+    ("suffix", "shape", "dimensions"),
+    [
+        (
+            "ROUND",
+            {"material": "quartz", "shape": "round"},
+            {"outer_diameter_mm": 50.0, "wall_thickness_mm": 2.0},
+        ),
+        (
+            "SQUARE",
+            {"material": "quartz", "shape": "square"},
+            {"outer_side_mm": 40.0, "wall_thickness_mm": 2.0},
+        ),
+        (
+            "RECT",
+            {"material": "quartz", "shape": "rectangular"},
+            {
+                "outer_width_mm": 50.0,
+                "outer_height_mm": 30.0,
+                "wall_thickness_mm": 2.0,
+            },
+        ),
+        (
+            "OTHER",
+            {
+                "material": "other",
+                "material_other": "SiC",
+                "shape": "other",
+                "shape_other": "D-shaped",
+            },
+            {"dimension_description": "50 mm wide D-shaped section"},
+        ),
+    ],
+)
+def test_setup_accepts_dimensions_for_each_cross_section(
+    admin_user,
+    suffix: str,
+    shape: dict,
+    dimensions: dict,
+) -> None:
+    response = client.post(
+        "/api/v1/setups",
+        json=setup_payload(
+            setup_code=f"SETUP-{suffix}",
+            zone_count=2,
+            tube_material_shape=shape,
+            tube_outer_diameter_wall_mm=dimensions,
+        ),
+        headers=_headers(admin_user.email),
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["latest_version"]["data"]["tube_outer_diameter_wall_mm"] == dimensions
+
+
+def test_draft_can_switch_setup_before_reconciling_dependent_modules(
+    active_user,
+    admin_user,
+) -> None:
+    headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    one_zone = _create_setup(
+        admin_headers,
+        setup_code="SETUP-SWITCH-ONE",
+        zone_count=1,
+    )
+    two_zone = _create_setup(
+        admin_headers,
+        setup_code="SETUP-SWITCH-TWO",
+        zone_count=2,
+    )
+    gas_lot = _create_material_lot(
+        admin_headers,
+        lot_category="gas_cylinder",
+        formula="Ar",
+        batch_number="SWITCH-AR",
+    )
+    run_id = _create_run(headers, run_code="CVD-2026-0901")
+    _set_setup(headers, run_id, one_zone)
+    target = client.put(
+        f"/api/v1/experiments/{run_id}/modules/target_product",
+        json={"payload_json": target_product_payload()},
+        headers=headers,
+    )
+    assert target.status_code == 200, target.text
+    process = client.put(
+        f"/api/v1/experiments/{run_id}/modules/process_steps",
+        json={"payload_json": {"items": [reaction_step(gas_lot, zone_count=1)]}},
+        headers=headers,
+    )
+    assert process.status_code == 200, process.text
+
+    switched = client.put(
+        f"/api/v1/experiments/{run_id}/setup-reference",
+        json={
+            "setup_id": two_zone,
+            "version": 1,
+            "tube_usage_history": {
+                "reset_count": 0,
+                "use_number_since_reset": 2,
+            },
+        },
+        headers=headers,
+    )
+    assert switched.status_code == 200, switched.text
+
+    lock = client.post(
+        f"/api/v1/experiments/{run_id}/lock",
+        headers=headers,
+    )
+    assert lock.status_code == 422
+    assert "temperature_program" in lock.text
+
+
 def test_material_lot_positive_measurements_reject_zero(admin_user) -> None:
     headers = _headers(admin_user.email)
     invalid_payloads = (
@@ -514,10 +663,14 @@ def test_substrate_composite_fields_survive_controlled_value_validation(admin_us
             "chemical_formula": "Al2O3",
             "batch_number": "SAPPHIRE-COMPOSITE",
             "substrate_material": "sapphire_al2o3",
+            "substrate_orientation_polish_availability": "reported",
             "substrate_orientation_polish": {
                 "value": "c-plane",
                 "option": "single_side_polished",
             },
+            "substrate_miscut_availability": "reported",
+            "substrate_miscut_angle_deg": 0,
+            "substrate_surface_roughness": {"metric": "RMS", "value_nm": 0.5},
             "substrate_size_spec": "10 × 10 × 0.5",
         },
         headers=_headers(admin_user.email),
@@ -562,8 +715,118 @@ def test_material_lot_rejects_category_specific_fields(
     )
 
     assert response.status_code == 422
-    assert field in response.text
-    assert "not_applicable" in response.text
+
+
+@pytest.mark.parametrize("field", ("particle_size_d50_um", "form_appearance"))
+def test_gas_lot_rejects_non_gas_material_fields(admin_user, field: str) -> None:
+    response = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "gas_cylinder",
+            "substance_name": "Ar",
+            "chemical_formula": "Ar",
+            "cas_number": "7440-37-1",
+            "batch_number": f"GAS-WITH-{field}",
+            "purity": 99.999,
+            field: 10 if field == "particle_size_d50_um" else "powder",
+        },
+        headers=_headers(admin_user.email),
+    )
+
+    assert response.status_code == 422
+
+
+def test_substrate_lot_rejects_formula_that_conflicts_with_material(admin_user) -> None:
+    response = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "substrate",
+            "substance_name": "Sapphire substrate",
+            "chemical_formula": "MoS2",
+            "batch_number": "SAPPHIRE-WRONG-FORMULA",
+            "substrate_material": "sapphire_al2o3",
+            "substrate_orientation_polish_availability": "not_provided",
+            "substrate_miscut_availability": "not_applicable",
+            "substrate_surface_roughness": {"availability": "not_provided"},
+        },
+        headers=_headers(admin_user.email),
+    )
+
+    assert response.status_code == 422
+    assert "chemical_formula" in response.text
+    assert "identity" in response.text
+
+
+def test_foil_substrate_lot_can_mark_crystal_specs_not_applicable(admin_user) -> None:
+    response = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "substrate",
+            "substance_name": "Copper foil",
+            "chemical_formula": "Cu",
+            "batch_number": "CU-FOIL-NO-CRYSTAL-SPEC",
+            "substrate_material": "cu_foil",
+            "substrate_orientation_polish_availability": "not_applicable",
+            "substrate_miscut_availability": "not_applicable",
+            "substrate_surface_roughness": {"availability": "not_provided"},
+        },
+        headers=_headers(admin_user.email),
+    )
+
+    assert response.status_code == 201, response.text
+    data = response.json()["latest_version"]["data"]
+    assert data["substrate_orientation_polish"] is None
+    assert data["substrate_miscut_angle_deg"] is None
+
+
+def test_substrate_upsert_discards_forged_lot_owned_facts(
+    active_user,
+    admin_user,
+) -> None:
+    owner_headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    lot = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "substrate",
+            "substance_name": "Copper foil",
+            "chemical_formula": "Cu",
+            "batch_number": "CU-FOIL-FORGED-RUN-FACTS",
+            "substrate_material": "cu_foil",
+            "substrate_orientation_polish_availability": "not_applicable",
+            "substrate_miscut_availability": "not_applicable",
+            "substrate_surface_roughness": {"availability": "not_provided"},
+        },
+        headers=admin_headers,
+    )
+    assert lot.status_code == 201, lot.text
+    run_id = _create_run(owner_headers, run_code="CVD-2026-0801")
+
+    response = client.put(
+        f"/api/v1/experiments/{run_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    substrate_item(
+                        lot.json(),
+                        material="cu_foil",
+                        chemical_formula="Cu",
+                        crystal_orientation="forged-orientation",
+                        miscut_angle_deg=1.5,
+                        miscut_direction="x面向x轴偏1.5°",
+                    )
+                ]
+            }
+        },
+        headers=owner_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    item = response.json()["payload_json"]["items"][0]
+    assert item["orientation_polish_availability"] == "not_applicable"
+    assert item["miscut_availability"] == "not_applicable"
+    assert "crystal_orientation" not in item
+    assert "miscut_angle_deg" not in item
 
 
 def test_naive_run_time_is_stored_with_configured_utc_offset(active_user) -> None:
@@ -653,6 +916,12 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
                         "cas_inchi": "FORGED",
                         "phase_state": "solid",
                         "amount": 20,
+                        "boat_crucible": {
+                            "material": "quartz_boat",
+                            "length_mm": 90,
+                            "reset_count": 0,
+                            "use_number_since_reset": 1,
+                        },
                         "lot_ref": {
                             "entity_id": precursor_lot["id"],
                             "version": 1,
@@ -661,6 +930,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
                         "source_zone_temperature": {
                             "zone_index": 1,
                             "temperature_C": 620,
+                            "temperature_basis": "estimate",
                         },
                     }
                 ]
@@ -777,6 +1047,12 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
                         "name_formula": "三氧化钼",
                         "phase_state": "solid",
                         "amount": 20,
+                        "boat_crucible": {
+                            "material": "quartz_boat",
+                            "length_mm": 90,
+                            "reset_count": 0,
+                            "use_number_since_reset": 1,
+                        },
                         "lot_ref": {
                             "entity_id": precursor_lot["id"],
                             "version": 1,

@@ -1,7 +1,5 @@
-import { useId, useRef } from 'react'
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { useId } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -32,18 +30,14 @@ export interface TemperatureSensor {
 }
 
 export interface TemperatureSensorsEditorLabels {
-  addSensor: string
-  sensor: (position: number) => string
+  sensor: (zoneIndex: number) => string
   sensorName: string
   sensorType: string
-  zoneIndex: string
   uncertaintyCelsius: string
   uncertaintySource: string
   selectUncertaintySource: string
   uncertaintySourceOptions: Record<TemperatureUncertaintySource, string>
-  removeSensor: string
-  moveUp: string
-  moveDown: string
+  selectZoneCountFirst: string
 }
 
 export interface TemperatureSensorsEditorProps {
@@ -100,33 +94,55 @@ export function temperatureSensorsAreValid(
   )
 }
 
-function numberFromInput(value: string): number | null {
-  return value === '' ? null : Number(value)
+function emptySensor(zoneIndex: number): TemperatureSensor {
+  return {
+    sensor_name: '',
+    sensor_type: '',
+    zone_index: zoneIndex,
+    uncertainty_C: null,
+    uncertainty_source: '',
+  }
 }
 
-function useStableRowIds(length: number) {
-  const prefix = useId().replaceAll(':', '')
-  const sequence = useRef(0)
-  const ids = useRef<string[]>([])
-  while (ids.current.length < length) {
-    ids.current.push(`${prefix}-${sequence.current++}`)
+/**
+ * Setup 的温区数是传感器卡片的唯一结构来源。优先按既有 zone_index
+ * 对齐；旧数据缺号或重复时再按原顺序填入空缺温区，并始终重写自动编号。
+ */
+export function reconcileTemperatureSensors(
+  value: TemperatureSensor[],
+  zoneCount?: number | null,
+): TemperatureSensor[] {
+  if (zoneCount == null || !Number.isInteger(zoneCount) || zoneCount < 1) {
+    return []
   }
-  if (ids.current.length > length) ids.current.length = length
-  return {
-    ids: ids.current,
-    add() {
-      ids.current.push(`${prefix}-${sequence.current++}`)
-    },
-    remove(index: number) {
-      ids.current.splice(index, 1)
-    },
-    move(index: number, target: number) {
-      ;[ids.current[index], ids.current[target]] = [
-        ids.current[target],
-        ids.current[index],
-      ]
-    },
+
+  const assigned = new Map<number, TemperatureSensor>()
+  const usedRows = new Set<number>()
+  for (let zoneIndex = 1; zoneIndex <= zoneCount; zoneIndex += 1) {
+    const rowIndex = value.findIndex(
+      (sensor, index) =>
+        !usedRows.has(index) && sensor.zone_index === zoneIndex,
+    )
+    if (rowIndex >= 0) {
+      assigned.set(zoneIndex, value[rowIndex])
+      usedRows.add(rowIndex)
+    }
   }
+  const leftovers = value.filter((_, index) => !usedRows.has(index))
+  let fallbackIndex = 0
+
+  return Array.from({ length: zoneCount }, (_, index) => {
+    const zoneIndex = index + 1
+    const source = assigned.get(zoneIndex) ?? leftovers[fallbackIndex++]
+    return {
+      ...(source ?? emptySensor(zoneIndex)),
+      zone_index: zoneIndex,
+    }
+  })
+}
+
+function numberFromInput(value: string): number | null {
+  return value === '' ? null : Number(value)
 }
 
 export function TemperatureSensorsEditor({
@@ -138,86 +154,51 @@ export function TemperatureSensorsEditor({
   labels,
 }: TemperatureSensorsEditorProps) {
   const baseId = useId()
-  const stableSensors = useStableRowIds(value.length)
+  const sensors = reconcileTemperatureSensors(value, zoneCount)
 
   const update = (index: number, patch: Partial<TemperatureSensor>) => {
     onChange(
-      value.map((sensor, itemIndex) =>
+      sensors.map((sensor, itemIndex) =>
         itemIndex === index ? { ...sensor, ...patch } : sensor,
       ),
     )
   }
-  const move = (index: number, delta: number) => {
-    const target = index + delta
-    if (target < 0 || target >= value.length) return
-    const next = [...value]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    stableSensors.move(index, target)
-    onChange(next)
+
+  if (sensors.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {labels.selectZoneCountFirst}
+      </p>
+    )
   }
 
   return (
     <div
       className="flex flex-col gap-3"
       data-invalid={
-        (showErrors && !temperatureSensorsAreValid(value, zoneCount)) ||
+        (showErrors && !temperatureSensorsAreValid(sensors, zoneCount)) ||
         undefined
       }
     >
-      {value.map((sensor, index) => {
+      {sensors.map((sensor, index) => {
+        const zoneIndex = index + 1
         const invalid = !sensorIsValid(sensor, zoneCount)
         return (
           <fieldset
-            key={stableSensors.ids[index]}
-            data-row-id={stableSensors.ids[index]}
+            key={zoneIndex}
+            data-row-id={`zone-${zoneIndex}`}
             data-invalid={(showErrors && invalid) || undefined}
             className="grid gap-3 rounded-md border border-border p-4 sm:grid-cols-2"
           >
             <legend className="px-1 text-sm font-semibold">
-              {labels.sensor(index + 1)}
+              {labels.sensor(zoneIndex)}
             </legend>
-            <div className="col-span-full flex justify-end gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={labels.moveUp}
-                disabled={disabled || index === 0}
-                onClick={() => move(index, -1)}
-              >
-                <ArrowUp />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={labels.moveDown}
-                disabled={disabled || index === value.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                <ArrowDown />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={labels.removeSensor}
-                disabled={disabled}
-                onClick={() => {
-                  stableSensors.remove(index)
-                  onChange(value.filter((_, itemIndex) => itemIndex !== index))
-                }}
-              >
-                <Trash2 />
-              </Button>
-            </div>
-
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-${stableSensors.ids[index]}-name`}>
+              <Label htmlFor={`${baseId}-${zoneIndex}-name`}>
                 {labels.sensorName}
               </Label>
               <Input
-                id={`${baseId}-${stableSensors.ids[index]}-name`}
+                id={`${baseId}-${zoneIndex}-name`}
                 value={sensor.sensor_name}
                 aria-invalid={
                   (showErrors && !sensor.sensor_name.trim()) || undefined
@@ -229,11 +210,11 @@ export function TemperatureSensorsEditor({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-${stableSensors.ids[index]}-type`}>
+              <Label htmlFor={`${baseId}-${zoneIndex}-type`}>
                 {labels.sensorType}
               </Label>
               <Input
-                id={`${baseId}-${stableSensors.ids[index]}-type`}
+                id={`${baseId}-${zoneIndex}-type`}
                 value={sensor.sensor_type}
                 aria-invalid={
                   (showErrors && !sensor.sensor_type.trim()) || undefined
@@ -245,41 +226,11 @@ export function TemperatureSensorsEditor({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-${stableSensors.ids[index]}-zone`}>
-                {labels.zoneIndex}
-              </Label>
-              <Input
-                id={`${baseId}-${stableSensors.ids[index]}-zone`}
-                type="number"
-                inputMode="numeric"
-                step={1}
-                min={1}
-                max={zoneCount ?? undefined}
-                value={sensor.zone_index ?? ''}
-                aria-invalid={
-                  (showErrors &&
-                    (!isFiniteNumber(sensor.zone_index) ||
-                      !Number.isInteger(sensor.zone_index) ||
-                      sensor.zone_index < 1 ||
-                      (zoneCount != null && sensor.zone_index > zoneCount))) ||
-                  undefined
-                }
-                disabled={disabled}
-                onChange={(event) =>
-                  update(index, {
-                    zone_index: numberFromInput(event.target.value),
-                  })
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor={`${baseId}-${stableSensors.ids[index]}-uncertainty`}
-              >
+              <Label htmlFor={`${baseId}-${zoneIndex}-uncertainty`}>
                 {labels.uncertaintyCelsius}
               </Label>
               <Input
-                id={`${baseId}-${stableSensors.ids[index]}-uncertainty`}
+                id={`${baseId}-${zoneIndex}-uncertainty`}
                 type="number"
                 inputMode="decimal"
                 step="any"
@@ -299,8 +250,8 @@ export function TemperatureSensorsEditor({
                 }
               />
             </div>
-            <div className="flex flex-col gap-1 sm:col-span-2">
-              <Label htmlFor={`${baseId}-${stableSensors.ids[index]}-source`}>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${baseId}-${zoneIndex}-source`}>
                 {labels.uncertaintySource}
               </Label>
               <Select
@@ -313,7 +264,7 @@ export function TemperatureSensorsEditor({
                 }
               >
                 <SelectTrigger
-                  id={`${baseId}-${stableSensors.ids[index]}-source`}
+                  id={`${baseId}-${zoneIndex}-source`}
                   className="w-full"
                   aria-invalid={
                     (showErrors && !sensor.uncertainty_source) || undefined
@@ -335,30 +286,6 @@ export function TemperatureSensorsEditor({
           </fieldset>
         )
       })}
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          onClick={() => {
-            stableSensors.add()
-            onChange([
-              ...value,
-              {
-                sensor_name: '',
-                sensor_type: '',
-                zone_index: null,
-                uncertainty_C: null,
-                uncertainty_source: '',
-              },
-            ])
-          }}
-        >
-          <Plus data-icon="inline-start" />
-          {labels.addSensor}
-        </Button>
-      </div>
     </div>
   )
 }

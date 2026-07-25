@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.generated.v2_module_payload import TubeUsageHistoryPayload
 from app.services.v2_field_source import normalize_offset_datetime, validate_chemical_formula
 from app.services.v2_result_evidence import has_measured_product_evidence
 
@@ -139,6 +140,7 @@ class V2ModulePayloadRead(BaseModel):
 class V2SetupReferenceRequest(BaseModel):
     setup_id: UUID
     version: int
+    tube_usage_history: TubeUsageHistoryPayload
 
 
 class CharacterizationRecordCreate(BaseModel):

@@ -19,6 +19,10 @@ from app.repositories.sample_repository import SampleRepository
 from app.schemas.sample import SampleCreate, SampleListResponse, SampleRead, SampleUpdate
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import ensure_results_editable, get_visible_experiment
+from app.services.v2_entity_snapshot_service import (
+    MATERIAL_LOT_PROJECTED_FIELDS,
+    material_lot_item_projection,
+)
 
 
 class SampleService:
@@ -154,7 +158,7 @@ class SampleService:
             sample = by_source.get(source_id)
             if sample is None:
                 continue
-            snapshot = {key: value for key, value in item.items() if key != "source_id"}
+            snapshot = self._source_substrate_snapshot(item)
             if sample.source_substrate_snapshot_json != snapshot and self._has_result_evidence(
                 sample.id
             ):
@@ -185,7 +189,7 @@ class SampleService:
 
         for item in substrate_items:
             source_id = UUID(str(item["source_id"]))
-            snapshot = {key: value for key, value in item.items() if key != "source_id"}
+            snapshot = self._source_substrate_snapshot(item)
             sample = by_source.get(source_id)
             if sample is None:
                 sample = Sample(
@@ -240,6 +244,17 @@ class SampleService:
                 after_json=self._serialize_sample(sample),
                 reason="source_substrate_removed",
             )
+
+    @staticmethod
+    def _source_substrate_snapshot(item: dict[str, Any]) -> dict[str, Any]:
+        projected = dict(item)
+        reference = projected.get("lot_ref")
+        frozen_snapshot = reference.get("snapshot") if isinstance(reference, dict) else None
+        if isinstance(frozen_snapshot, dict):
+            for key in MATERIAL_LOT_PROJECTED_FIELDS["substrates"]:
+                projected.pop(key, None)
+            projected.update(material_lot_item_projection("substrates", frozen_snapshot))
+        return {key: value for key, value in projected.items() if key != "source_id"}
 
     def _validate_parent(self, experiment_id: UUID, parent_id: UUID | None) -> Sample | None:
         if parent_id is None:

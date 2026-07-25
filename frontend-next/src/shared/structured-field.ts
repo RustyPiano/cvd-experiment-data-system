@@ -2,6 +2,8 @@ import { canonicalOption } from '@/shared/field-i18n'
 
 const STRUCTURED_INPUTS = new Set([
   '\u5177\u540d\u5c3a\u5bf8\u5bf9\u8c61',
+  '\u7089\u7ba1\u5c3a\u5bf8\u5bf9\u8c61',
+  '\u4f7f\u7528\u5c65\u5386\u5bf9\u8c61',
   '\u6e29\u533a\u6e29\u5ea6\u5bf9\u8c61',
   '\u6e29\u533a\u8ddd\u79bb\u5bf9\u8c61',
   '\u7ba1\u6750\u8d28\u5f62\u72b6\u5bf9\u8c61',
@@ -20,6 +22,13 @@ const PLACEMENT_CODES = new Set([
   'other',
 ])
 const ROUGHNESS_METRICS = new Set(['Ra', 'RMS'])
+const ROUGHNESS_AVAILABILITIES = new Set(['reported', 'not_provided'])
+const TEMPERATURE_BASIS_CODES = new Set(['measured', 'estimate'])
+
+export interface StructuredFieldContext {
+  tubeShape?: string | null
+  zoneCount?: number | null
+}
 
 export function isStructuredInput(input: string): boolean {
   return STRUCTURED_INPUTS.has(input)
@@ -84,12 +93,15 @@ export function structuredValueFromRaw(fieldKey: string, raw: unknown): string {
       width_mm: value.width_mm,
       height_mm: value.height_mm,
       diameter_mm: value.diameter_mm,
+      reset_count: value.reset_count,
+      use_number_since_reset: value.use_number_since_reset,
     })
   }
   if (fieldKey === 'source_zone_temperature' && legacyComposite) {
     return encodeStructuredValue({
       zone_index: value.zone_index ?? legacyZoneIndex(value.option),
       temperature_C: value.temperature_C ?? value.value,
+      temperature_basis: value.temperature_basis,
     })
   }
   if (fieldKey === 'tube_material_shape' && legacyComposite) {
@@ -128,6 +140,20 @@ export function structuredValueFromRaw(fieldKey: string, raw: unknown): string {
       distance_mm: value.distance_mm ?? value.value,
     })
   }
+  if (
+    fieldKey === 'surface_roughness' ||
+    fieldKey === 'substrate_surface_roughness'
+  ) {
+    return encodeStructuredValue({
+      availability:
+        value.availability ??
+        (value.metric != null || value.value_nm != null
+          ? 'reported'
+          : undefined),
+      metric: value.metric,
+      value_nm: value.value_nm,
+    })
+  }
   return encodeStructuredValue(value)
 }
 
@@ -156,21 +182,90 @@ function optionalPositive(value: unknown, key: string): number | null {
 export function structuredPayload(
   fieldKey: string,
   value: string,
+  context: StructuredFieldContext = {},
 ): Record<string, unknown> | null {
   const object = parseStructuredValue(value)
   if (Object.keys(object).length === 0) return null
 
   if (fieldKey === 'tube_outer_diameter_wall_mm') {
-    const outer = finite(object.outer_diameter_mm, 'outer_diameter_mm', {
-      positive: true,
-    })
-    const wall = finite(object.wall_thickness_mm, 'wall_thickness_mm', {
-      positive: true,
-    })
-    if (wall * 2 >= outer) {
-      throw new RangeError('wall thickness must be less than the radius')
+    const requestedShape = canonicalOption(String(context.tubeShape ?? ''))
+    const shape = TUBE_SHAPE_CODES.has(requestedShape)
+      ? requestedShape
+      : object.outer_diameter_mm != null
+        ? 'round'
+        : ''
+    if (shape === 'round') {
+      const wall = finite(object.wall_thickness_mm, 'wall_thickness_mm', {
+        positive: true,
+      })
+      const outer = finite(object.outer_diameter_mm, 'outer_diameter_mm', {
+        positive: true,
+      })
+      if (wall * 2 >= outer) {
+        throw new RangeError('wall thickness must be less than the radius')
+      }
+      return { outer_diameter_mm: outer, wall_thickness_mm: wall }
     }
-    return { outer_diameter_mm: outer, wall_thickness_mm: wall }
+    if (shape === 'square') {
+      const wall = finite(object.wall_thickness_mm, 'wall_thickness_mm', {
+        positive: true,
+      })
+      const side = finite(object.outer_side_mm, 'outer_side_mm', {
+        positive: true,
+      })
+      if (wall * 2 >= side) {
+        throw new RangeError('wall thickness must be less than half the side')
+      }
+      return { outer_side_mm: side, wall_thickness_mm: wall }
+    }
+    if (shape === 'rectangular') {
+      const wall = finite(object.wall_thickness_mm, 'wall_thickness_mm', {
+        positive: true,
+      })
+      const width = finite(object.outer_width_mm, 'outer_width_mm', {
+        positive: true,
+      })
+      const height = finite(object.outer_height_mm, 'outer_height_mm', {
+        positive: true,
+      })
+      if (wall * 2 >= Math.min(width, height)) {
+        throw new RangeError(
+          'wall thickness must be less than half the shortest side',
+        )
+      }
+      return {
+        outer_width_mm: width,
+        outer_height_mm: height,
+        wall_thickness_mm: wall,
+      }
+    }
+    if (shape === 'other') {
+      const description = String(object.dimension_description ?? '').trim()
+      if (!description) {
+        throw new RangeError('dimension_description is required')
+      }
+      return {
+        dimension_description: description,
+      }
+    }
+    throw new RangeError('tube shape is required before dimensions')
+  }
+  if (fieldKey === 'tube_usage_history') {
+    const resetCount = finite(object.reset_count, 'reset_count', {
+      integer: true,
+    })
+    if (resetCount < 0) {
+      throw new RangeError('reset_count must be non-negative')
+    }
+    const useNumber = finite(
+      object.use_number_since_reset,
+      'use_number_since_reset',
+      { positive: true, integer: true },
+    )
+    return {
+      reset_count: resetCount,
+      use_number_since_reset: useNumber,
+    }
   }
   if (fieldKey === 'boat_crucible') {
     const material = canonicalOption(String(object.material ?? ''))
@@ -189,6 +284,17 @@ export function structuredPayload(
       width_mm: optionalPositive(object.width_mm, 'width_mm'),
       height_mm: optionalPositive(object.height_mm, 'height_mm'),
       diameter_mm: optionalPositive(object.diameter_mm, 'diameter_mm'),
+      reset_count: finite(object.reset_count, 'reset_count', {
+        integer: true,
+      }),
+      use_number_since_reset: finite(
+        object.use_number_since_reset,
+        'use_number_since_reset',
+        { positive: true, integer: true },
+      ),
+    }
+    if (result.reset_count < 0) {
+      throw new RangeError('reset_count must be non-negative')
     }
     if (
       [
@@ -254,7 +360,27 @@ export function structuredPayload(
       placement_other: placementOther || null,
     }
   }
-  if (fieldKey === 'surface_roughness') {
+  if (
+    fieldKey === 'surface_roughness' ||
+    fieldKey === 'substrate_surface_roughness'
+  ) {
+    const availability = canonicalOption(
+      String(
+        object.availability ??
+          (object.metric != null || object.value_nm != null ? 'reported' : ''),
+      ),
+    )
+    if (!ROUGHNESS_AVAILABILITIES.has(availability)) {
+      throw new RangeError('roughness availability is required')
+    }
+    if (availability === 'not_provided') {
+      if (object.metric != null || object.value_nm != null) {
+        throw new RangeError(
+          'unreported roughness cannot include metric or value_nm',
+        )
+      }
+      return { availability }
+    }
     const metric = String(object.metric ?? '')
     if (!ROUGHNESS_METRICS.has(metric)) {
       throw new RangeError('roughness metric is required')
@@ -263,15 +389,38 @@ export function structuredPayload(
     if (roughnessValue < 0) {
       throw new RangeError('value_nm must be non-negative')
     }
-    return { metric, value_nm: roughnessValue }
+    return { availability, metric, value_nm: roughnessValue }
   }
   if (fieldKey === 'source_zone_temperature') {
+    const zoneIndex = finite(object.zone_index, 'zone_index', {
+      positive: true,
+      integer: true,
+    })
+    if (
+      context.zoneCount != null &&
+      Number.isInteger(context.zoneCount) &&
+      zoneIndex > context.zoneCount
+    ) {
+      throw new RangeError('zone_index exceeds setup zone count')
+    }
+    const hasTemperature =
+      object.temperature_C != null && object.temperature_C !== ''
+    const basis = canonicalOption(String(object.temperature_basis ?? ''))
+    const hasBasis = basis !== ''
+    if (hasTemperature !== hasBasis) {
+      throw new RangeError(
+        'temperature_C and temperature_basis must be provided together',
+      )
+    }
+    if (hasBasis && !TEMPERATURE_BASIS_CODES.has(basis)) {
+      throw new RangeError('temperature_basis is invalid')
+    }
     return {
-      zone_index: finite(object.zone_index, 'zone_index', {
-        positive: true,
-        integer: true,
-      }),
-      temperature_C: finite(object.temperature_C, 'temperature_C'),
+      zone_index: zoneIndex,
+      temperature_C: hasTemperature
+        ? finite(object.temperature_C, 'temperature_C')
+        : null,
+      temperature_basis: hasBasis ? basis : null,
     }
   }
   if (fieldKey === 'zone_thermocouple_distance_mm') {
