@@ -25,6 +25,7 @@ function renderControl(
   field: FieldMetadata,
   initialValue: ModuleFieldValue = '',
   onChange = vi.fn(),
+  values: Record<string, ModuleFieldValue> = {},
 ) {
   function Wrapper() {
     const [value, setValue] = useState<ModuleFieldValue>(initialValue)
@@ -33,7 +34,7 @@ function renderControl(
         <FieldControl
           moduleKey={moduleKey}
           field={field}
-          values={{}}
+          values={values}
           value={value}
           onChange={(next) => {
             setValue(next)
@@ -90,7 +91,7 @@ function renderCompositeCase(
     substance_name: 'seed',
     chemical_formula: 'MoO3',
     batch_number: 'seed',
-    substrate_material: 'sapphire',
+    substrate_material: 'sapphire_al2o3',
     [testCase.field.key]: initialValue,
   }
   const user = userEvent.setup()
@@ -132,8 +133,6 @@ describe('FieldControl composite inputs', () => {
   it('enumerates every remaining scalar-plus-option field from generated metadata', () => {
     expect(compositeFields.map((item) => item.caseName).sort()).toEqual([
       'material_lot.substrate_orientation_polish',
-      'process_steps.cooling_params',
-      'process_steps.gas_flow_sccm',
       'process_steps.pressure_system',
       'pvd.plasma_gas_pressure',
     ])
@@ -199,14 +198,14 @@ describe('FieldControl dropdown with other value', () => {
     const view = renderControl('precursors', field)
 
     await view.user.click(
-      screen.getByRole('combobox', { name: /名称\/化学式/ }),
+      screen.getByRole('combobox', { name: /名称或化学式/ }),
     )
     expect(
       screen.queryByRole('option', { name: '受控+其他' }),
     ).not.toBeInTheDocument()
     await view.user.click(screen.getByRole('option', { name: '其他' }))
     await view.user.type(
-      screen.getByRole('textbox', { name: '名称/化学式的其他内容' }),
+      screen.getByRole('textbox', { name: /名称或化学式.*其他内容/ }),
       'MoO3',
     )
 
@@ -215,40 +214,81 @@ describe('FieldControl dropdown with other value', () => {
 })
 
 describe('FieldControl multi-value dropdown', () => {
-  it('selects, restores, and submits multiple gas species without collapsing them', async () => {
+  it('selects, restores, and submits multiple setup capabilities without collapsing them', async () => {
     await i18n.changeLanguage('zh')
-    const field = experimentModules.process_steps.find(
-      (item) => item.key === 'gas_species',
+    const field = experimentModules.equipment.find(
+      (item) => item.key === 'field_devices',
     )!
-    let view = renderControl('process_steps', field, [])
+    let view = renderControl('equipment', field, [])
 
-    expect(screen.getByRole('group', { name: '气体组分' })).toBeInTheDocument()
-    await view.user.click(screen.getByRole('checkbox', { name: 'Ar' }))
-    await view.user.click(screen.getByRole('checkbox', { name: 'H₂' }))
-    expect(view.onChange).toHaveBeenLastCalledWith(['Ar', 'H2'])
+    expect(screen.getByRole('group', { name: '外场能力' })).toBeInTheDocument()
+    await view.user.click(screen.getByRole('checkbox', { name: '光' }))
+    await view.user.click(screen.getByRole('checkbox', { name: '电' }))
+    expect(view.onChange).toHaveBeenLastCalledWith(['light', 'electric_field'])
     expect(
-      buildItemPayload('process_steps', {
-        stage_type: 'vent',
-        gas_species: view.onChange.mock.lastCall![0],
-      }).gas_species,
-    ).toEqual(['Ar', 'H2'])
+      buildItemPayload('equipment', {
+        field_devices: view.onChange.mock.lastCall![0],
+      }).field_devices,
+    ).toEqual(['light', 'electric_field'])
     view.unmount()
 
-    view = renderControl('process_steps', field, ['Ar', 'H2'])
-    expect(screen.getByRole('checkbox', { name: 'Ar' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'H₂' })).toBeChecked()
+    view = renderControl('equipment', field, ['light', 'electric_field'])
+    expect(screen.getByRole('checkbox', { name: '光' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: '电' })).toBeChecked()
     view.unmount()
 
     await i18n.changeLanguage('en')
-    renderControl('process_steps', field, ['Ar', 'H2'])
+    renderControl('equipment', field, ['light', 'electric_field'])
     expect(
-      screen.getByRole('group', { name: 'Gas species' }),
+      screen.getByRole('group', { name: 'External field capabilities' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'H₂' })).toBeChecked()
+    expect(
+      screen.getByRole('checkbox', { name: 'Electric field' }),
+    ).toBeChecked()
   })
 })
 
 describe('FieldControl descriptions and numeric constraints', () => {
+  it('shows bilingual upstream-negative and downstream-positive help on both distance controls', async () => {
+    await i18n.changeLanguage('zh')
+    const precursorDistance = experimentModules.precursors.find(
+      (item) => item.key === 'thermocouple_distance_mm',
+    )!
+    const precursor = renderControl('precursors', precursorDistance, '-20')
+    expect(
+      screen.getByText(/沿气流方向，上游填负值，下游填正值/),
+    ).toBeInTheDocument()
+    precursor.unmount()
+
+    await i18n.changeLanguage('en')
+    const substrateDistance = experimentModules.substrates.find(
+      (item) => item.key === 'zone_thermocouple_distance_mm',
+    )!
+    renderControl('substrates', substrateDistance, '')
+    expect(
+      screen.getByText(/upstream positions as negative.*downstream.*positive/i),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the precursor amount unit selected by phase instead of a slash-combined label', async () => {
+    await i18n.changeLanguage('zh')
+    const field = experimentModules.precursors.find(
+      (item) => item.key === 'amount',
+    )!
+
+    const solid = renderControl('precursors', field, '20', vi.fn(), {
+      phase_state: 'solid',
+    })
+    expect(screen.getByLabelText(/用量.*mg/)).toBeInTheDocument()
+    expect(screen.queryByText(/mg\(固\).*µL/)).not.toBeInTheDocument()
+    solid.unmount()
+
+    renderControl('precursors', field, '20', vi.fn(), {
+      phase_state: 'liquid',
+    })
+    expect(screen.getByLabelText(/用量.*µL/)).toBeInTheDocument()
+  })
+
   it('reports a non-finite number inline', async () => {
     await i18n.changeLanguage('en')
     const field = experimentModules.basic_info.find(

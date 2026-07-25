@@ -5,7 +5,14 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { FlaskConical, FlaskRound, LogOut, TestTube2 } from 'lucide-react'
+import {
+  ChevronRight,
+  FlaskConical,
+  FlaskRound,
+  LogOut,
+  Microscope,
+  TestTube2,
+} from 'lucide-react'
 
 import {
   ENTITY_KINDS,
@@ -44,7 +51,22 @@ import {
 import { ThemeToggle } from '@/shared/ui/theme-toggle'
 import { LanguageToggle } from '@/shared/ui/language-toggle'
 
-const navItems = [
+export const primaryNavItems = [
+  {
+    to: '/experiments' as const,
+    labelKey: 'experimentsV2.nav' as const,
+    icon: FlaskRound,
+    match: '/experiments',
+  },
+  {
+    to: '/characterizations' as const,
+    labelKey: 'characterizations.nav' as const,
+    icon: Microscope,
+    match: '/characterizations',
+  },
+]
+
+const supportingNavItems = [
   {
     to: '/samples' as const,
     labelKey: 'samples.list.title' as const,
@@ -52,13 +74,6 @@ const navItems = [
     match: '/samples',
   },
 ]
-
-const experimentsNavItem = {
-  to: '/experiments' as const,
-  labelKey: 'experimentsV2.nav' as const,
-  icon: FlaskRound,
-  match: '/experiments',
-}
 
 // 一等实体库（v2）导航项 —— 由 field-metadata 实体配置派生（单一源），文案走 i18n（D12）。
 const entityLibraryNavItems = ENTITY_KINDS.map((kind) => ({
@@ -71,9 +86,6 @@ const entityLibraryNavItems = ENTITY_KINDS.map((kind) => ({
 // Single source of truth for the header page title — keep in sync with the
 // sidebar by deriving from the same nav config instead of a parallel switch.
 function getEntityNavLabel(pathname: string, t: TFunction): string | null {
-  if (pathname.startsWith(experimentsNavItem.match)) {
-    return t(experimentsNavItem.labelKey)
-  }
   const item = entityLibraryNavItems.find((entry) =>
     pathname.startsWith(entry.match),
   )
@@ -81,7 +93,9 @@ function getEntityNavLabel(pathname: string, t: TFunction): string | null {
 }
 
 function getPageTitle(pathname: string, t: TFunction) {
-  const item = navItems.find((entry) => pathname.startsWith(entry.match))
+  const item = [...primaryNavItems, ...supportingNavItems].find((entry) =>
+    pathname.startsWith(entry.match),
+  )
   return item ? t(item.labelKey) : ''
 }
 
@@ -99,19 +113,32 @@ function SidebarBody({ pathname }: { pathname: string }) {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname.startsWith(experimentsNavItem.match)}
-                tooltip={t(experimentsNavItem.labelKey)}
-              >
-                <Link to={experimentsNavItem.to} onClick={closeOnMobile}>
-                  <experimentsNavItem.icon />
-                  <span>{t(experimentsNavItem.labelKey)}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            {navItems.map((item) => {
+            {primaryNavItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname.startsWith(item.match)}
+                    tooltip={t(item.labelKey)}
+                  >
+                    <Link to={item.to} onClick={closeOnMobile}>
+                      <Icon />
+                      <span>{t(item.labelKey)}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <SidebarGroup>
+        <SidebarGroupLabel>{t('appShell.relatedData')}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {supportingNavItems.map((item) => {
               const Icon = item.icon
               return (
                 <SidebarMenuItem key={item.to}>
@@ -228,7 +255,11 @@ export function AppShell({ children }: AppShellProps) {
         {t('appShell.skipToContent')}
       </a>
       {/* Sidebar */}
-      <Sidebar className="border-r border-sidebar-border bg-sidebar">
+      <Sidebar
+        className="border-r border-sidebar-border bg-sidebar"
+        mobileTitle={t('appShell.navigationTitle')}
+        mobileDescription={t('appShell.navigationDescription')}
+      >
         <SidebarHeader className="px-4 py-3">
           <div className="flex items-center gap-3">
             <span className="flex size-[38px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/95 to-primary text-primary-foreground shadow-sm">
@@ -307,8 +338,15 @@ export function AppShell({ children }: AppShellProps) {
             aria-label={t('appShell.toggleSidebar')}
           />
           <div className="h-4 w-px bg-border shrink-0" />
-          <nav className="flex items-center gap-1 text-sm font-medium text-foreground">
-            {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname, t)}
+          <nav
+            aria-label={t('appShell.breadcrumbLabel')}
+            className="flex items-center gap-1.5 text-sm"
+          >
+            <span className="text-muted-foreground">CVD Lab</span>
+            <ChevronRight className="size-3.5 text-muted-foreground" />
+            <span className="font-medium text-foreground" aria-current="page">
+              {getEntityNavLabel(pathname, t) ?? getPageTitle(pathname, t)}
+            </span>
           </nav>
           <div className="ml-auto flex items-center gap-1">
             <LanguageToggle />

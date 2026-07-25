@@ -7,10 +7,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_admin_user, get_current_user
 from app.db.session import get_db
 from app.models.experiment import ExperimentStatus
 from app.models.user import User
+from app.schemas.generated.v2_module_payload import (
+    InstrumentVersionPayload,
+    MaterialLotVersionPayload,
+    SetupVersionPayload,
+)
 from app.schemas.v2 import (
     CharacterizationRecordCreate,
     CharacterizationRecordListResponse,
@@ -23,7 +28,6 @@ from app.schemas.v2 import (
     V2EntityListResponse,
     V2EntityRead,
     V2EntityVersionListResponse,
-    V2EntityVersionPayload,
     V2EntityVersionRead,
     V2ExperimentCreate,
     V2ExperimentListResponse,
@@ -46,6 +50,7 @@ from app.services.v2_results_service import V2ResultsService
 router = APIRouter(prefix="/api/v1", tags=["v2"])
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentAdmin = Annotated[User, Depends(get_current_admin_user)]
 
 
 @router.get("/material-lots", response_model=V2EntityListResponse)
@@ -59,9 +64,9 @@ def list_material_lots(db: DbSession, _current_user: CurrentUser) -> V2EntityLis
     status_code=status.HTTP_201_CREATED,
 )
 def create_material_lot(
-    payload: V2EntityVersionPayload,
+    payload: MaterialLotVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ) -> V2EntityRead:
     return V2EntityService(db).create_entity("material_lot", payload, current_user)
 
@@ -85,9 +90,9 @@ def list_material_lot_versions(
 )
 def append_material_lot_version(
     entity_id: UUID,
-    payload: V2EntityVersionPayload,
+    payload: MaterialLotVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ) -> V2EntityVersionRead:
     return V2EntityService(db).append_version("material_lot", entity_id, payload, current_user)
 
@@ -99,9 +104,9 @@ def list_setups(db: DbSession, _current_user: CurrentUser) -> V2EntityListRespon
 
 @router.post("/setups", response_model=V2EntityRead, status_code=status.HTTP_201_CREATED)
 def create_setup(
-    payload: V2EntityVersionPayload,
+    payload: SetupVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ) -> V2EntityRead:
     return V2EntityService(db).create_entity("setup", payload, current_user)
 
@@ -125,9 +130,9 @@ def list_setup_versions(
 )
 def append_setup_version(
     entity_id: UUID,
-    payload: V2EntityVersionPayload,
+    payload: SetupVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ) -> V2EntityVersionRead:
     return V2EntityService(db).append_version("setup", entity_id, payload, current_user)
 
@@ -139,9 +144,9 @@ def list_instruments(db: DbSession, _current_user: CurrentUser) -> V2EntityListR
 
 @router.post("/instruments", response_model=V2EntityRead, status_code=status.HTTP_201_CREATED)
 def create_instrument(
-    payload: V2EntityVersionPayload,
+    payload: InstrumentVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ) -> V2EntityRead:
     return V2EntityService(db).create_entity("instrument", payload, current_user)
 
@@ -165,9 +170,9 @@ def list_instrument_versions(
 )
 def append_instrument_version(
     entity_id: UUID,
-    payload: V2EntityVersionPayload,
+    payload: InstrumentVersionPayload,
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentAdmin,
 ) -> V2EntityVersionRead:
     return V2EntityService(db).append_version("instrument", entity_id, payload, current_user)
 

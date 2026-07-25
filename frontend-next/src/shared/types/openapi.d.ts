@@ -760,6 +760,10 @@ export interface components {
       file_category?: string | null
       /** Asset Role */
       asset_role?: string | null
+      /** Binding Type */
+      binding_type?: string | null
+      /** Binding Id */
+      binding_id?: string | null
       /** Note */
       note?: string | null
       /** File Kind */
@@ -936,10 +940,43 @@ export interface components {
       /** Is Deleted */
       is_deleted: boolean
     }
+    /** FileAssetReferencePayload */
+    FileAssetReferencePayload: {
+      /**
+       * File Asset Id
+       * Format: uuid
+       */
+      file_asset_id: string
+      /** Sha256 */
+      sha256: string
+      /** Note */
+      note?: string | null
+    }
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
       detail?: components['schemas']['ValidationError'][]
+    }
+    /** InstrumentVersionPayload */
+    InstrumentVersionPayload: {
+      /** Instrument Code */
+      instrument_code: string
+      /** Name Type */
+      name_type: string
+      /** Vendor */
+      vendor?: string | null
+      /** Model */
+      model?: string | null
+      /** Serial Number */
+      serial_number?: string | null
+      /** Pid */
+      pid?: string | null
+      /** Location */
+      location?: string | null
+      /** Fixed Config */
+      fixed_config?: string | null
+      /** Last Calibration */
+      last_calibration?: string | null
     }
     /** LoginRequest */
     LoginRequest: {
@@ -947,6 +984,55 @@ export interface components {
       email: string
       /** Password */
       password: string
+    }
+    /** MaterialLotVersionPayload */
+    MaterialLotVersionPayload: {
+      /**
+       * Lot Category
+       * @enum {string}
+       */
+      lot_category: 'chemical' | 'gas_cylinder' | 'substrate'
+      /** Substance Name */
+      substance_name: string
+      /** Chemical Formula */
+      chemical_formula: string
+      /** Cas Number */
+      cas_number?: string | null
+      /** Inchikey Cid */
+      inchikey_cid?: string | null
+      /** Supplier */
+      supplier?: string | null
+      /** Catalog Number */
+      catalog_number?: string | null
+      /** Batch Number */
+      batch_number: string
+      /** Purity */
+      purity?: number | null
+      /** Particle Size D50 Um */
+      particle_size_d50_um?: number | null
+      /** Form Appearance */
+      form_appearance?: string | null
+      /** Opened Date */
+      opened_date?: string | null
+      /** Storage Method */
+      storage_method?: string | null
+      coa_attachment?: components['schemas']['FileAssetReferencePayload'] | null
+      label_attachment?:
+        | components['schemas']['FileAssetReferencePayload']
+        | null
+      /** Substrate Material */
+      substrate_material?: string | null
+      /** Substrate Oxide Thickness Nm */
+      substrate_oxide_thickness_nm?: number | null
+      substrate_orientation_polish?:
+        | components['schemas']['SubstrateOrientationPolishValue']
+        | null
+      /** Substrate Size Spec */
+      substrate_size_spec?: string | null
+      /** Gas Purity Grade */
+      gas_purity_grade?: ('4N' | '5N' | '6N' | 'industrial_grade') | null
+      /** Gas Cylinder Number */
+      gas_cylinder_number?: string | null
     }
     /** MeasuredProductCreate */
     MeasuredProductCreate: {
@@ -1142,6 +1228,35 @@ export interface components {
         [key: string]: unknown
       }
     }
+    /** SetupVersionPayload */
+    SetupVersionPayload: {
+      /** Setup Code */
+      setup_code: string
+      /** Setup Name */
+      setup_name: string
+      /** Brand Model */
+      brand_model?: string | null
+      /** Wall Type */
+      wall_type?: ('cold_wall' | 'hot_wall') | null
+      /** Zone Count */
+      zone_count: number
+      /** Temperature Sensors */
+      temperature_sensors: components['schemas']['TemperatureSensorPayload'][]
+      /**
+       * Orientation
+       * @enum {string}
+       */
+      orientation: 'horizontal' | 'vertical'
+      tube_material_shape?:
+        | components['schemas']['TubeMaterialShapePayload']
+        | null
+      tube_outer_diameter_wall_mm?:
+        | components['schemas']['TubeDimensionsPayload']
+        | null
+      /** Field Devices */
+      field_devices?: ('electric_field' | 'light' | 'none' | 'plasma')[] | null
+      setup_diagram?: components['schemas']['FileAssetReferencePayload'] | null
+    }
     /** SpectralMetric */
     SpectralMetric: {
       /** Metric Code */
@@ -1150,6 +1265,33 @@ export interface components {
       value: number
       /** Unit */
       unit: string
+    }
+    /** SubstrateOrientationPolishValue */
+    SubstrateOrientationPolishValue: {
+      /** Value */
+      value?: string | null
+      /** Option */
+      option?: ('double_side_polished' | 'single_side_polished') | null
+    }
+    /** TemperatureSensorPayload */
+    TemperatureSensorPayload: {
+      /** Sensor Name */
+      sensor_name: string
+      /** Sensor Type */
+      sensor_type: string
+      /** Zone Index */
+      zone_index: number
+      /** Uncertainty C */
+      uncertainty_C: number
+      /**
+       * Uncertainty Source
+       * @enum {string}
+       */
+      uncertainty_source:
+        | 'instrument'
+        | 'calibration'
+        | 'repeatability'
+        | 'estimate'
     }
     /** TokenResponse */
     TokenResponse: {
@@ -1160,6 +1302,30 @@ export interface components {
       /** Expires In */
       expires_in: number
       user: components['schemas']['UserRead']
+    }
+    /** TubeDimensionsPayload */
+    TubeDimensionsPayload: {
+      /** Outer Diameter Mm */
+      outer_diameter_mm: number
+      /** Wall Thickness Mm */
+      wall_thickness_mm: number
+    }
+    /** TubeMaterialShapePayload */
+    TubeMaterialShapePayload: {
+      /**
+       * Material
+       * @enum {string}
+       */
+      material: 'quartz' | 'alumina' | 'other'
+      /** Material Other */
+      material_other?: string | null
+      /**
+       * Shape
+       * @enum {string}
+       */
+      shape: 'round' | 'square' | 'rectangular' | 'other'
+      /** Shape Other */
+      shape_other?: string | null
     }
     /** UserRead */
     UserRead: {
@@ -1212,10 +1378,6 @@ export interface components {
       /** Total */
       total: number
     }
-    /** V2EntityVersionPayload */
-    V2EntityVersionPayload: {
-      [key: string]: unknown
-    }
     /** V2EntityVersionRead */
     V2EntityVersionRead: {
       /**
@@ -1249,6 +1411,12 @@ export interface components {
       started_at: string
       /** Synthesis Method */
       synthesis_method: string
+      /** Ambient Temperature C */
+      ambient_temperature_C?: number | null
+      /** Ambient Humidity Percent */
+      ambient_humidity_percent?: number | null
+      /** Precheck Confirmed */
+      precheck_confirmed?: boolean | null
       /** Run Code */
       run_code?: string | null
       /** Chemical Formula */
@@ -1408,10 +1576,16 @@ export interface components {
       } | null
       /** Method Instrument */
       method_instrument: string | null
+      /** Method Other */
+      method_other: string | null
       /** Test Conditions */
       test_conditions: string | null
+      /** File Asset Ids */
+      file_asset_ids: string[]
       /** Observed Phenomena */
       observed_phenomena: string[] | null
+      /** Observed Phenomena Other */
+      observed_phenomena_other: string | null
       /** Detected Phase Stacking */
       detected_phase_stacking: string | null
       /** Layer Count */
@@ -1465,12 +1639,18 @@ export interface components {
        * @enum {string}
        */
       kind: 'direct_observation' | 'characterization'
+      /** File Asset Ids */
+      file_asset_ids?: string[]
       /** Instrument Id */
       instrument_id?: string | null
       /** Instrument Version */
       instrument_version?: number | null
       /** Method Instrument */
       method_instrument?: string | null
+      /** Method Other */
+      method_other?: string | null
+      /** Observed Phenomena Other */
+      observed_phenomena_other?: string | null
       /** Test Conditions */
       test_conditions?: string | null
     }
@@ -1806,6 +1986,8 @@ export interface operations {
         method?: string | null
         file_category?: string | null
         asset_role?: string | null
+        binding_type?: string | null
+        binding_id?: string | null
       }
       header?: never
       path?: never
@@ -2122,7 +2304,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['V2EntityVersionPayload']
+        'application/json': components['schemas']['MaterialLotVersionPayload']
       }
     }
     responses: {
@@ -2219,7 +2401,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['V2EntityVersionPayload']
+        'application/json': components['schemas']['MaterialLotVersionPayload']
       }
     }
     responses: {
@@ -2272,7 +2454,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['V2EntityVersionPayload']
+        'application/json': components['schemas']['SetupVersionPayload']
       }
     }
     responses: {
@@ -2369,7 +2551,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['V2EntityVersionPayload']
+        'application/json': components['schemas']['SetupVersionPayload']
       }
     }
     responses: {
@@ -2422,7 +2604,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['V2EntityVersionPayload']
+        'application/json': components['schemas']['InstrumentVersionPayload']
       }
     }
     responses: {
@@ -2519,7 +2701,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['V2EntityVersionPayload']
+        'application/json': components['schemas']['InstrumentVersionPayload']
       }
     }
     responses: {

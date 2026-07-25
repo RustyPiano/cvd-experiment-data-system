@@ -8,12 +8,12 @@ import {
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('groups the 81 experiment fields into the expected module keys', () => {
+  it('groups the 84 experiment fields into the expected module keys', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(81)
+    expect(total).toBe(84)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',
@@ -34,6 +34,24 @@ describe('generated field-metadata', () => {
     )
     expect(appearance?.labelZh).toBe('外观描述')
     expect(appearance?.labelEn).toBe('Appearance at time of use')
+  })
+
+  it('marks substrate miscut as required and keeps Chinese labels free of machine-key glosses', () => {
+    const miscut = experimentModules.substrates.find(
+      (field) => field.key === 'miscut_angle_deg',
+    )
+    expect(miscut?.requirement.level).toBe('required')
+    expect(miscut?.validation).toEqual({ ge: 0, lt: 90 })
+
+    const instrument = entities.instrument
+    expect(
+      Object.fromEntries(instrument.map((field) => [field.key, field.labelZh])),
+    ).toMatchObject({
+      vendor: '厂商',
+      model: '型号',
+      serial_number: '序列号',
+      pid: '仪器持久标识',
+    })
   })
 
   it('emits conditional-required expressions with canonical values', () => {
@@ -88,11 +106,11 @@ describe('generated field-metadata', () => {
     expect(unitLabelsEn['按指标']).toBe('per metric')
   })
 
-  it('keeps the R0 minimal-reproducible set at 18 fields', () => {
+  it('keeps the R0 minimal-reproducible set at 30 fields', () => {
     const r0 = Object.values(experimentModules)
       .flat()
       .filter((f) => f.r0)
-    expect(r0).toHaveLength(18)
+    expect(r0).toHaveLength(30)
   })
 
   it('tags every process_steps field with a valid stage param group', () => {
@@ -103,11 +121,22 @@ describe('generated field-metadata', () => {
     }
   })
 
-  it('exposes the 11 stage types with their param groups (§5 dynamic form)', () => {
-    expect(stageTypes).toHaveLength(11)
-    const growth = stageTypes.find((s) => s.name === 'growth')
-    expect(growth?.shows).toContain('temperature')
-    expect(growth?.requiredExtra).toEqual(['pressure_system'])
+  it('exposes the three record types with their param groups (§5 dynamic form)', () => {
+    expect(stageTypes.map((stage) => stage.name)).toEqual([
+      'preparation',
+      'reaction_conditions',
+      'other',
+    ])
+    const reaction = stageTypes.find(
+      (stage) => stage.name === 'reaction_conditions',
+    )
+    expect(reaction?.shows).toEqual(['reaction', 'external_field'])
+    expect(reaction?.requiredExtra).toEqual([
+      'temperature_program',
+      'gas_feeds',
+      'pressure_system',
+      'duration_cycles',
+    ])
     // every `shows` group must be a declared stageGroups key
     const groupNames = new Set(Object.keys(stageGroups))
     for (const stage of stageTypes) {
@@ -127,10 +156,10 @@ describe('generated field-metadata', () => {
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(48)
+    expect(total).toBe(44)
   })
 
-  it('carries input types for all six scalar-plus-option fields', () => {
+  it('carries input types for every remaining scalar-plus-option field', () => {
     const compositeInputs = new Set([
       '数值+下拉',
       '下拉+数值',
@@ -145,10 +174,10 @@ describe('generated field-metadata', () => {
       .flat()
       .filter((field) => compositeInputs.has(field.input))
 
-    expect(compositeFields).toHaveLength(6)
-    expect(compositeFields.map((field) => field.key)).toContain('gas_flow_sccm')
-    expect(compositeFields.map((field) => field.key)).toContain(
+    expect(compositeFields.map((field) => field.key).sort()).toEqual([
+      'plasma_gas_pressure',
       'pressure_system',
-    )
+      'substrate_orientation_polish',
+    ])
   })
 })

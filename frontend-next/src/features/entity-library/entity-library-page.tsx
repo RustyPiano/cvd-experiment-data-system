@@ -56,8 +56,13 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
   const { session } = useAuth()
   const token = session.accessToken || ''
   const viewerKey = session.currentUser?.id ?? 'anonymous'
+  const canMaintain = session.currentUser?.role === 'admin'
   const config = entityConfigs[kind]
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
+  const entityListTitle = t(`entityLibrary.${config.i18nKey}.listTitle`)
+  const createLabel = t('entityLibrary.form.createTitle', {
+    name: entityName,
+  })
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createDirty, setCreateDirty] = useState(false)
@@ -121,16 +126,18 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={entityName}
+        title={entityListTitle}
         subtitle={t(`entityLibrary.${config.i18nKey}.subtitle`)}
         actions={
-          <Button
-            aria-label={`${t('entityLibrary.actions.create')}${entityName}`}
-            onClick={() => void requestCreateOpen(true)}
-          >
-            <Plus className="size-4" />
-            {t('entityLibrary.actions.create')}
-          </Button>
+          canMaintain ? (
+            <Button
+              aria-label={createLabel}
+              onClick={() => void requestCreateOpen(true)}
+            >
+              <Plus data-icon="inline-start" />
+              {t('entityLibrary.actions.create')}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -152,7 +159,21 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
           {isLoading ? (
             <LoadingState />
           ) : isError ? null : entities.length === 0 ? (
-            <EmptyState description={t('entityLibrary.list.empty')} />
+            <EmptyState
+              description={t('entityLibrary.list.empty')}
+              action={
+                canMaintain ? (
+                  <Button
+                    variant="outline"
+                    aria-label={createLabel}
+                    onClick={() => void requestCreateOpen(true)}
+                  >
+                    <Plus data-icon="inline-start" />
+                    {t('entityLibrary.actions.create')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -228,16 +249,14 @@ export function EntityLibraryPage({ kind }: { kind: EntityKind }) {
       </Card>
 
       <Dialog
-        open={createOpen}
+        open={canMaintain && createOpen}
         onOpenChange={(open) => void requestCreateOpen(open)}
       >
         <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {t('entityLibrary.form.createTitle', { name: entityName })}
-            </DialogTitle>
+            <DialogTitle>{createLabel}</DialogTitle>
             <DialogDescription className="sr-only">
-              {t('entityLibrary.form.createTitle', { name: entityName })}
+              {t('entityLibrary.form.createDescription')}
             </DialogDescription>
           </DialogHeader>
           <div className="-mx-6 max-h-[65vh] overflow-y-auto px-6 py-2">

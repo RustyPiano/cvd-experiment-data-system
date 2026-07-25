@@ -121,12 +121,12 @@ export function ExperimentV2ListPage() {
               disabled={exportMutation.isPending}
               onClick={() => exportMutation.mutate()}
             >
-              <Download className="size-4" />
+              <Download data-icon="inline-start" />
               {t('experimentsV2.list.export')}
             </Button>
             <Button asChild>
               <Link to="/experiments/new">
-                <Plus className="size-4" />
+                <Plus data-icon="inline-start" />
                 {t('experimentsV2.list.create')}
               </Link>
             </Button>
@@ -212,11 +212,11 @@ export function ExperimentV2ListPage() {
           </div>
           <div className="flex items-end gap-2">
             <Button type="button" onClick={applyFilters}>
-              <Search className="size-4" />
+              <Search data-icon="inline-start" />
               {t('experimentsV2.list.filters.apply')}
             </Button>
             <Button type="button" variant="outline" onClick={clearFilters}>
-              <X className="size-4" />
+              <X data-icon="inline-start" />
               {t('experimentsV2.list.filters.clear')}
             </Button>
           </div>
@@ -284,6 +284,25 @@ export function ExperimentV2ListPage() {
                   ? 'experimentsV2.list.filteredEmpty'
                   : 'experimentsV2.list.empty',
               )}
+              action={
+                isFiltered ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={clearFilters}
+                  >
+                    <X data-icon="inline-start" />
+                    {t('experimentsV2.list.filters.clear')}
+                  </Button>
+                ) : (
+                  <Button asChild>
+                    <Link to="/experiments/new">
+                      <Plus data-icon="inline-start" />
+                      {t('experimentsV2.list.create')}
+                    </Link>
+                  </Button>
+                )
+              }
             />
           ) : (
             <div className="overflow-x-auto">

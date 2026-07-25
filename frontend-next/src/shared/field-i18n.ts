@@ -67,15 +67,29 @@ export function localizedNamedValue(
   language: string,
   labels: Readonly<Record<string, string>>,
 ): string {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (Array.isArray(value)) {
+    return value
+      .map(
+        (item, index) =>
+          `${index + 1}. ${localizedNamedValue(item, language, labels)}`,
+      )
+      .join('\n')
+  }
+  if (!value || typeof value !== 'object') {
     return localizedValue(value, language)
   }
   const colon = isEnglish(language) ? ': ' : '：'
   return Object.entries(value)
-    .filter(([, item]) => item != null && item !== '')
+    .filter(
+      ([key, item]) => Boolean(labels[key]) && item != null && item !== '',
+    )
     .map(
       ([key, item]) =>
-        `${labels[key] ?? key}${colon}${localizedValue(item, language)}`,
+        `${labels[key]}${colon}${
+          item && typeof item === 'object'
+            ? localizedNamedValue(item, language, labels)
+            : localizedValue(item, language)
+        }`,
     )
     .join(' · ')
 }
@@ -86,6 +100,21 @@ export function localizedUnit(
 ): string | null {
   if (!unit || !isEnglish(language)) return unit
   return unitLabelsEn[unit] ?? unit
+}
+
+export function localizedParenthetical(
+  value: string,
+  language: string,
+): string {
+  return isEnglish(language) ? `(${value})` : `（${value}）`
+}
+
+export function localizedUnitLabel(
+  unit: string | null,
+  language: string,
+): string | null {
+  const localized = localizedUnit(unit, language)
+  return localized ? localizedParenthetical(localized, language) : null
 }
 
 export function localizedFieldPlaceholder(

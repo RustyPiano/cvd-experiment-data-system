@@ -14,6 +14,7 @@ from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
     condition_local_key,
+    entity_fields_by_key,
     field_option_values,
     load_field_source,
     payload_fields_by_module,
@@ -38,17 +39,14 @@ ITEM_CLASS_NAMES = {
     "process_events": "ProcessEventItemPayload",
 }
 STAGE_CLASS_NAMES = {
-    "抽气": "EvacuationStepPayload",
-    "漏检": "LeakCheckStepPayload",
-    "吹扫": "PurgeStepPayload",
-    "预处理": "PretreatmentStepPayload",
-    "升温": "RampStepPayload",
-    "温度稳定": "TemperatureStabilizationStepPayload",
-    "反应生长": "GrowthStepPayload",
-    "后退火": "PostAnnealStepPayload",
-    "降温": "CoolingStepPayload",
-    "放气": "VentStepPayload",
-    "卸样": "UnloadStepPayload",
+    "预处理": "PreparationStepPayload",
+    "反应条件": "ReactionConditionsStepPayload",
+    "其他记录": "OtherStepPayload",
+}
+ENTITY_CLASS_NAMES = {
+    "material_lot": "MaterialLotVersionPayload",
+    "setup": "SetupVersionPayload",
+    "instrument": "InstrumentVersionPayload",
 }
 
 
@@ -73,13 +71,23 @@ def generate_v2_models(
 
 
 def render_v2_models(doc: dict[str, Any]) -> str:
+    module_fields = [field for fields in payload_fields_by_module(doc).values() for field in fields]
+    entity_fields = {
+        kind: [field for field in fields if field["key"] not in {"version", "coordinate_system"}]
+        for kind, fields in entity_fields_by_key(doc).items()
+    }
+    all_field_groups = [
+        *payload_fields_by_module(doc).values(),
+        *entity_fields.values(),
+    ]
     all_payload_fields = [
-        field for fields in payload_fields_by_module(doc).values() for field in fields
+        *module_fields,
+        *(field for fields in entity_fields.values() for field in fields),
     ]
     controlled_keys = sorted(
         {
             field["key"]
-            for fields in payload_fields_by_module(doc).values()
+            for fields in all_field_groups
             for field in fields
             if any(token in str(field.get("input") or "") for token in ("下拉", "多选"))
         }
@@ -88,7 +96,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
     composite_keys = sorted(
         {
             field["key"]
-            for fields in payload_fields_by_module(doc).values()
+            for fields in all_field_groups
             for field in fields
             if str(field.get("input") or "") in {"数值+下拉", "下拉+数值", "文本+下拉", "下拉+文本"}
         }
@@ -102,7 +110,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
     multi_keys = sorted(
         {
             field["key"]
-            for fields in payload_fields_by_module(doc).values()
+            for fields in all_field_groups
             for field in fields
             if any(token in str(field.get("input") or "") for token in ("多选", "多条"))
         }
@@ -130,6 +138,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         f'V2_MODULE_PAYLOAD_SCHEMA_VERSION = "{SCHEMA_VERSION}"',
         f"_OPTION_ALIASES = {doc.get('option_codes', {})!r}",
         f"_CONTROLLED_KEYS = frozenset({tuple(controlled_keys)!r})",
+        "_STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type', 'uncertainty_source'))",
         f"_COMPOSITE_KEYS = frozenset({tuple(composite_keys)!r})",
         f"_MULTI_KEYS = frozenset({tuple(multi_keys)!r})",
         "",
@@ -161,7 +170,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "        elif key in _MULTI_KEYS:",
         "            canonical = _canonical(item)",
         "            normalized[key] = canonical if isinstance(canonical, list) else [canonical]",
-        "        elif key in _CONTROLLED_KEYS:",
+        "        elif key in _CONTROLLED_KEYS or key in _STRUCTURED_CONTROLLED_KEYS:",
         "            normalized[key] = _canonical(item)",
         "        elif isinstance(item, (dict, list)):",
         "            normalized[key] = _normalize_payload(item)",
@@ -170,6 +179,14 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "class V2PayloadBase(BaseModel):",
         '    model_config = ConfigDict(extra="forbid")',
+        "",
+        '    @model_validator(mode="before")',
+        "    @classmethod",
+        "    def _canonicalize(cls, value: Any) -> Any:",
+        "        return _normalize_payload(value)",
+        "",
+        "",
+        "NonBlankStr = Annotated[str, Field(min_length=1, pattern=r'\\S')]",
         "",
         "",
         "class ComponentPayload(V2PayloadBase):",
@@ -191,6 +208,168 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    snapshot: dict[str, Any] | None = None",
         "",
         "",
+        "class FileAssetReferencePayload(V2PayloadBase):",
+        "    file_asset_id: UUID",
+        "    sha256: Annotated[str, Field(pattern=r'^[0-9a-f]{64}$')]",
+        "    note: str | None = None",
+        "",
+        "",
+        "class NamedParameterPayload(V2PayloadBase):",
+        "    name: NonBlankStr",
+        "    value: Annotated[float, Field(strict=True, allow_inf_nan=False)] | NonBlankStr",
+        "    unit: NonBlankStr",
+        "",
+        "",
+        "class EmptyParametersPayload(V2PayloadBase):",
+        "    pass",
+        "",
+        "",
+        "class OptionalDurationParametersPayload(V2PayloadBase):",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "",
+        "",
+        "class MeltSolidifyParametersPayload(OptionalDurationParametersPayload):",
+        "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
+        "",
+        "",
+        "class SpinCoatParametersPayload(V2PayloadBase):",
+        "    speed_rpm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    duration_s: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "",
+        "",
+        "class AnnealParametersPayload(V2PayloadBase):",
+        "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    atmosphere: str | None = None",
+        "",
+        "",
+        "class NamedParameterListPayload(V2PayloadBase):",
+        "    items: Annotated[list[NamedParameterPayload], Field(min_length=1)]",
+        "",
+        "",
+        "class DirectLoadTreatmentPayload(V2PayloadBase):",
+        "    type: Literal['direct_load']",
+        "    parameters: EmptyParametersPayload",
+        "",
+        "",
+        "class MeltSolidifyTreatmentPayload(V2PayloadBase):",
+        "    type: Literal['melt_solidify']",
+        "    parameters: MeltSolidifyParametersPayload",
+        "",
+        "",
+        "class SpinCoatTreatmentPayload(V2PayloadBase):",
+        "    type: Literal['spin_coat']",
+        "    parameters: SpinCoatParametersPayload",
+        "",
+        "",
+        "class AnnealTreatmentPayload(V2PayloadBase):",
+        "    type: Literal['anneal']",
+        "    parameters: AnnealParametersPayload",
+        "",
+        "",
+        "class GrindTreatmentPayload(V2PayloadBase):",
+        "    type: Literal['grind']",
+        "    parameters: OptionalDurationParametersPayload",
+        "",
+        "",
+        "class PelletizeTreatmentPayload(V2PayloadBase):",
+        "    type: Literal['pelletize']",
+        "    parameters: NamedParameterListPayload",
+        "",
+        "",
+        "class OtherTreatmentPayload(V2PayloadBase):",
+        "    type: Literal['other']",
+        "    other_name: NonBlankStr",
+        "    parameters: NamedParameterListPayload",
+        "",
+        "",
+        "PrecursorTreatmentPayload = Annotated[",
+        "    DirectLoadTreatmentPayload",
+        "    | MeltSolidifyTreatmentPayload",
+        "    | SpinCoatTreatmentPayload",
+        "    | AnnealTreatmentPayload",
+        "    | GrindTreatmentPayload",
+        "    | PelletizeTreatmentPayload",
+        "    | OtherTreatmentPayload,",
+        "    Field(discriminator='type'),",
+        "]",
+        "",
+        "",
+        "class CleaningPretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['acetone_clean', 'isopropanol_clean', 'nitrogen_dry']",
+        "    parameters: OptionalDurationParametersPayload",
+        "",
+        "",
+        "class AnnealPretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['anneal']",
+        "    parameters: AnnealParametersPayload",
+        "",
+        "",
+        "class PlasmaTreatmentParametersPayload(V2PayloadBase):",
+        "    power_W: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    gas_species: NonBlankStr",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    pressure_Pa: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "",
+        "",
+        "class PlasmaPretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['plasma_treatment']",
+        "    parameters: PlasmaTreatmentParametersPayload",
+        "",
+        "",
+        "class HydrophilicTreatmentParametersPayload(OptionalDurationParametersPayload):",
+        "    method: str | None = None",
+        "",
+        "",
+        "class HydrophilicPretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['hydrophilic_treatment']",
+        "    parameters: HydrophilicTreatmentParametersPayload",
+        "",
+        "",
+        "class OtherPretreatmentPayload(V2PayloadBase):",
+        "    type: Literal['other']",
+        "    other_name: NonBlankStr",
+        "    parameters: NamedParameterListPayload",
+        "",
+        "",
+        "SubstratePretreatmentPayload = Annotated[",
+        "    CleaningPretreatmentPayload",
+        "    | AnnealPretreatmentPayload",
+        "    | PlasmaPretreatmentPayload",
+        "    | HydrophilicPretreatmentPayload",
+        "    | OtherPretreatmentPayload,",
+        "    Field(discriminator='type'),",
+        "]",
+        "",
+        "",
+        "class TubeMaterialShapePayload(V2PayloadBase):",
+        "    material: Literal['quartz', 'alumina', 'other']",
+        "    material_other: str | None = None",
+        "    shape: Literal['round', 'square', 'rectangular', 'other']",
+        "    shape_other: str | None = None",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _other_values(self) -> Self:",
+        "        if (self.material == 'other') != bool((self.material_other or '').strip()):",
+        '            raise ValueError("material_other is required only for other material")',
+        "        if (self.shape == 'other') != bool((self.shape_other or '').strip()):",
+        '            raise ValueError("shape_other is required only for other shape")',
+        "        return self",
+        "",
+        "",
+        "class TemperatureSensorPayload(V2PayloadBase):",
+        "    sensor_name: NonBlankStr",
+        "    sensor_type: NonBlankStr",
+        "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
+        "    uncertainty_C: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]",
+        "    uncertainty_source: Literal['instrument', 'calibration', 'repeatability', 'estimate']",
+        "",
+        "",
+        "class SurfaceRoughnessPayload(V2PayloadBase):",
+        "    metric: Literal['Ra', 'RMS']",
+        "    value_nm: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]",
+        "",
+        "",
         "class TubeDimensionsPayload(V2PayloadBase):",
         "    outer_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
         "    wall_thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
@@ -204,6 +383,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "class BoatCruciblePayload(V2PayloadBase):",
         "    material: Literal['quartz_boat', 'alumina_boat', 'other']",
+        "    material_other: str | None = None",
         "    length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "    height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
@@ -211,6 +391,8 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         '    @model_validator(mode="after")',
         "    def _has_dimensions(self) -> Self:",
+        "        if (self.material == 'other') != bool((self.material_other or '').strip()):",
+        '            raise ValueError("material_other is required only for other material")',
         "        if all(value is None for value in (self.length_mm, self.width_mm, self.height_mm, self.diameter_mm)):",
         '            raise ValueError("boat/crucible requires at least one named dimension")',
         "        return self",
@@ -220,7 +402,17 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
         "    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
         "    thickness_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
-        "    placement: Literal['face_up', 'face_down', 'tilted', 'upright', 'other'] | None = None",
+        "    placement: Literal['face_up', 'face_down', 'tilted', 'upright', 'other']",
+        "    tilt_angle_deg: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0, le=90)] | None = None",
+        "    placement_other: str | None = None",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _placement_details(self) -> Self:",
+        "        if (self.placement == 'tilted') != (self.tilt_angle_deg is not None):",
+        '            raise ValueError("tilt_angle_deg is required only for tilted placement")',
+        "        if (self.placement == 'other') != bool((self.placement_other or '').strip()):",
+        '            raise ValueError("placement_other is required only for other placement")',
+        "        return self",
         "",
         "",
         "class SourceZoneTemperaturePayload(V2PayloadBase):",
@@ -231,6 +423,156 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "class ZoneThermocoupleDistancePayload(V2PayloadBase):",
         "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
         "    distance_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
+        "",
+        "",
+        "class PumpDownOperationPayload(V2PayloadBase):",
+        "    operation_type: Literal['pump_down']",
+        "    target_absolute_pressure_Pa: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "",
+        "",
+        "class GasExchangeGasPayload(V2PayloadBase):",
+        "    species: Literal['Ar', 'N2', 'H2', 'O2', 'CH4', 'other']",
+        "    other_name: str | None = None",
+        "    lot_ref: MaterialLotReferencePayload",
+        "    flow_sccm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _other_gas_name(self) -> Self:",
+        "        if (self.species == 'other') != bool((self.other_name or '').strip()):",
+        '            raise ValueError("other_name is required only for other gas")',
+        "        return self",
+        "",
+        "",
+        "class GasExchangeOperationPayload(V2PayloadBase):",
+        "    operation_type: Literal['gas_exchange']",
+        "    cycle_count: Annotated[int, Field(strict=True, ge=1)]",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    gases: Annotated[list[GasExchangeGasPayload], Field(min_length=1)]",
+        "",
+        "",
+        "class OtherPreparationOperationPayload(V2PayloadBase):",
+        "    operation_type: Literal['other']",
+        "    other_name: NonBlankStr",
+        "    parameters: Annotated[list[NamedParameterPayload], Field(min_length=1)]",
+        "",
+        "",
+        "PreparationOperationPayload = Annotated[",
+        "    PumpDownOperationPayload | GasExchangeOperationPayload | OtherPreparationOperationPayload,",
+        "    Field(discriminator='operation_type'),",
+        "]",
+        "",
+        "",
+        "class TemperaturePointPayload(V2PayloadBase):",
+        "    elapsed_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]",
+        "    setpoint_C: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=-273.15)]",
+        "",
+        "",
+        "class TemperatureZoneProgramPayload(V2PayloadBase):",
+        "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
+        "    points: Annotated[list[TemperaturePointPayload], Field(min_length=1)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _strict_time_order(self) -> Self:",
+        "        elapsed = [point.elapsed_min for point in self.points]",
+        "        if any(current <= previous for previous, current in zip(elapsed, elapsed[1:], strict=False)):",
+        '            raise ValueError("temperature program elapsed_min values must strictly increase")',
+        "        return self",
+        "",
+        "",
+        "class TemperatureProgramPayload(V2PayloadBase):",
+        "    zones: Annotated[list[TemperatureZoneProgramPayload], Field(min_length=1)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _unique_zones(self) -> Self:",
+        "        indices = [zone.zone_index for zone in self.zones]",
+        "        if len(indices) != len(set(indices)):",
+        '            raise ValueError("temperature program zone_index values must be unique")',
+        "        return self",
+        "",
+        "",
+        "class MeasuredTemperatureChannelPayload(V2PayloadBase):",
+        "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
+        "    column_name: NonBlankStr",
+        "",
+        "",
+        "class MeasuredTemperatureReferencePayload(V2PayloadBase):",
+        "    file_asset_id: UUID",
+        "    time_column: NonBlankStr",
+        "    channels: Annotated[list[MeasuredTemperatureChannelPayload], Field(min_length=1)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _unique_channels(self) -> Self:",
+        "        zones = [channel.zone_index for channel in self.channels]",
+        "        columns = [channel.column_name for channel in self.channels]",
+        "        if len(zones) != len(set(zones)) or len(columns) != len(set(columns)):",
+        '            raise ValueError("measured temperature channels must use unique zones and columns")',
+        "        return self",
+        "",
+        "",
+        "class GasSupplyIntervalPayload(V2PayloadBase):",
+        "    start_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]",
+        "    end_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    flow_sccm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _positive_interval(self) -> Self:",
+        "        if self.end_min <= self.start_min:",
+        '            raise ValueError("gas supply interval end_min must exceed start_min")',
+        "        return self",
+        "",
+        "",
+        "class GasFeedPayload(V2PayloadBase):",
+        "    species: Literal['Ar', 'N2', 'H2', 'O2', 'CH4', 'other']",
+        "    other_name: str | None = None",
+        "    lot_ref: MaterialLotReferencePayload",
+        "    measurement_source: Literal['mfc', 'rotameter', 'other'] | None = None",
+        "    measurement_source_other: str | None = None",
+        "    intervals: Annotated[list[GasSupplyIntervalPayload], Field(min_length=1)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _details_and_intervals(self) -> Self:",
+        "        if (self.species == 'other') != bool((self.other_name or '').strip()):",
+        '            raise ValueError("other_name is required only for other gas")',
+        "        if (self.measurement_source == 'other') != bool((self.measurement_source_other or '').strip()):",
+        '            raise ValueError("measurement_source_other is required only for other source")',
+        "        ordered = sorted(self.intervals, key=lambda item: item.start_min)",
+        "        if any(current.start_min < previous.end_min for previous, current in zip(ordered, ordered[1:], strict=False)):",
+        '            raise ValueError("gas supply intervals cannot overlap")',
+        "        return self",
+        "",
+        "",
+        "class DurationCyclesPayload(V2PayloadBase):",
+        "    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    cycle_count: Annotated[int, Field(strict=True, ge=1)] | None = None",
+        "",
+        "",
+        "class CoolingParametersPayload(V2PayloadBase):",
+        "    method: Literal['furnace_cooling', 'open_lid_cooling', 'rapid_furnace_move_cooling', 'other']",
+        "    lid_open_temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None",
+        "    cooling_rate_C_per_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    method_other: str | None = None",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _lid_open_temperature(self) -> Self:",
+        "        if (self.method == 'open_lid_cooling') != (self.lid_open_temperature_C is not None):",
+        '            raise ValueError("lid_open_temperature_C is required only for open-lid cooling")',
+        "        if (self.method == 'other') != bool((self.method_other or '').strip()):",
+        '            raise ValueError("method_other is required only for other cooling")',
+        "        return self",
+        "",
+        "",
+        "class ActualFieldPayload(V2PayloadBase):",
+        "    field_type: Literal['plasma', 'light', 'electric_field']",
+        "    start_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]",
+        "    end_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    parameters: Annotated[list[NamedParameterPayload], Field(min_length=1)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _positive_interval(self) -> Self:",
+        "        if self.end_min <= self.start_min:",
+        '            raise ValueError("external field end_min must exceed start_min")',
+        "        return self",
         "",
     ]
     for field in composite_fields.values():
@@ -284,11 +626,27 @@ def render_v2_models(doc: dict[str, Any]) -> str:
             continue
         lines.extend(_render_module_model(doc, module_key, grouped[module_key]))
 
+    for kind, fields in entity_fields.items():
+        lines.extend(
+            [
+                "",
+                "",
+                f"class {ENTITY_CLASS_NAMES[kind]}(V2PayloadBase):",
+                *_render_field_lines(doc, fields, indent="    "),
+                *_render_condition_validator(doc, fields, indent="    "),
+                "",
+            ]
+        )
+
     lines.extend(
         [
             "",
             "V2_MODULE_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {",
             *[f'    "{key}": {MODULE_CLASS_NAMES[key]},' for key in PAYLOAD_MODULE_KEYS],
+            "}",
+            "",
+            "V2_ENTITY_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {",
+            *[f'    "{kind}": {ENTITY_CLASS_NAMES[kind]},' for kind in ENTITY_CLASS_NAMES],
             "}",
             "",
             "",
@@ -435,8 +793,11 @@ def _field_is_required(field: dict[str, Any]) -> bool:
 
 def _field_line(doc: dict[str, Any], field: dict[str, Any], *, required: bool, indent: str) -> str:
     type_expr = _type_expr(doc, field)
-    default = "" if required else " = None"
-    return f"{indent}{field['key']}: {type_expr} | None{default}"
+    if required:
+        if type_expr == "str":
+            type_expr = "NonBlankStr"
+        return f"{indent}{field['key']}: {type_expr}"
+    return f"{indent}{field['key']}: {type_expr} | None = None"
 
 
 def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
@@ -448,16 +809,54 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "MaterialLotReferencePayload"
     if key == "tube_outer_diameter_wall_mm":
         return "TubeDimensionsPayload"
+    if key == "tube_material_shape":
+        return "TubeMaterialShapePayload"
+    if key == "temperature_sensors":
+        return "Annotated[list[TemperatureSensorPayload], Field(min_length=1)]"
+    if key == "treatment_steps":
+        return "list[PrecursorTreatmentPayload]"
+    if key == "pretreatment_steps":
+        return "list[SubstratePretreatmentPayload]"
     if key == "boat_crucible":
         return "BoatCruciblePayload"
     if key == "size_placement":
         return "SubstrateSizePlacementPayload"
+    if key == "surface_roughness":
+        return "SurfaceRoughnessPayload"
     if key == "source_zone_temperature":
         return "SourceZoneTemperaturePayload"
     if key == "zone_thermocouple_distance_mm":
         return "ZoneThermocoupleDistancePayload"
+    if key == "preparation_operations":
+        return "list[PreparationOperationPayload]"
+    if key == "temperature_program":
+        return "TemperatureProgramPayload"
+    if key == "measured_temperature":
+        return "MeasuredTemperatureReferencePayload"
+    if key == "gas_feeds":
+        return "list[GasFeedPayload]"
+    if key == "duration_cycles":
+        return "DurationCyclesPayload"
+    if key == "cooling_params":
+        return "CoolingParametersPayload"
+    if key == "field_params":
+        return "list[ActualFieldPayload]"
+    if key in {"setup_diagram", "coa_attachment", "label_attachment"}:
+        return "FileAssetReferencePayload"
+    if key == "attachment_file_ids" or input_type == "FileAsset引用数组":
+        return "list[UUID]"
+    if key in {"event_id"}:
+        return "UUID"
+    if key == "precheck_confirmed":
+        return "Literal[True]"
+    if key == "terminated_run" or input_type in {"复选", "复选确认"}:
+        return "bool"
+    if key in {"other_stage_name", "notes"}:
+        return "NonBlankStr"
     if key == "bulk_space_group":
         return "Annotated[int, Field(strict=True, ge=1, le=230)]"
+    if input_type == "系统生成":
+        return "NonBlankStr"
     if input_type == "数值":
         return _number_type_expr(field)
     if input_type == "日期时间":
@@ -466,10 +865,6 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "date"
     if input_type == "时间":
         return "time"
-    if input_type in {"数组", "数组(时序)"}:
-        # The current UI still records these as a file/reference description. Keep the
-        # trust-boundary type explicit until the dedicated uploader lands.
-        return "str"
     options = _controlled_options(doc, field)
     if any(token in input_type for token in ("多选", "多条")):
         if options:
@@ -480,7 +875,20 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return _composite_class_name(key)
     if options and "其他" not in input_type:
         return "Literal[" + ", ".join(repr(value) for value in options) + "]"
-    return "str"
+    if "下拉" in input_type and "其他" in input_type:
+        return "str"
+    if input_type in {
+        "文本",
+        "自由",
+        "文本/自由",
+        "自由+数值",
+        "固定定义",
+        "引用",
+        "实体版本引用",
+        "物料化学式",
+    }:
+        return "str"
+    raise ValueError(f"Unsupported input type {input_type!r} for field {key!r}")
 
 
 def _number_type_expr(field: dict[str, Any]) -> str:
@@ -571,15 +979,16 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f'{indent}    if self.structure_type == "doped":',
                 f'{indent}        matrix = [part for part in parts if part.role == "matrix"]',
                 f'{indent}        dopants = [part for part in parts if part.role == "dopant"]',
-                f"{indent}        if len(parts) != 2 or len(matrix) != 1 or len(dopants) != 1:",
-                f'{indent}            raise ValueError("doped target components require exactly one matrix and one dopant")',
+                f"{indent}        if len(matrix) != 1 or not dopants or len(parts) != len(dopants) + 1:",
+                f'{indent}            raise ValueError("doped target components require one host material and at least one dopant")',
                 f"{indent}        if any(part.layer_order is not None for part in parts) or matrix[0].concentration_at_percent is not None:",
-                f'{indent}            raise ValueError("doped target cannot use layer order or matrix concentration")',
-                f"{indent}        concentration = dopants[0].concentration_at_percent",
-                f"{indent}        if concentration is not None and not 0 < concentration < 100:",
+                f'{indent}            raise ValueError("doped target cannot use layer order or host material concentration")',
+                f"{indent}        concentrations = [part.concentration_at_percent for part in dopants]",
+                f"{indent}        if any(value is not None and not 0 < value < 100 for value in concentrations):",
                 f'{indent}            raise ValueError("dopant concentration must be between 0 and 100 at%")',
-                f'{indent}        if self.chemical_formula != f"{{dopants[0].formula}}:{{matrix[0].formula}}":',
-                f'{indent}            raise ValueError("doped formula is inconsistent with components")',
+                f"{indent}        known_total = sum(value for value in concentrations if value is not None)",
+                f"{indent}        if known_total >= 100:",
+                f'{indent}            raise ValueError("known dopant concentrations must total less than 100 at%")',
                 f"{indent}        return self",
                 f'{indent}    if self.structure_type == "alloy":',
                 f'{indent}        if len(parts) < 2 or any(part.role != "alloy_component" for part in parts):',
@@ -646,16 +1055,19 @@ def _render_condition_validator(
             continue
         op = condition["op"]
         expected = canonical_option_value(condition["value"], doc)
+        matches = f"_matches({{'op': {op!r}, 'value': {expected!r}}}, self.{local_key})"
         checks.extend(
             [
                 f"{indent}    if (",
-                (
-                    f"{indent}        _matches({{'op': {op!r}, 'value': {expected!r}}}, "
-                    f"self.{local_key})"
-                ),
+                f"{indent}        {matches}",
                 f"{indent}        and _missing(self.{field['key']})",
                 f"{indent}    ):",
                 f'{indent}        raise ValueError("{field["key"]} is conditionally required")',
+                f"{indent}    if (",
+                f"{indent}        not {matches}",
+                f"{indent}        and not _missing(self.{field['key']})",
+                f"{indent}    ):",
+                f'{indent}        raise ValueError("{field["key"]} is not applicable")',
             ]
         )
     if not checks:

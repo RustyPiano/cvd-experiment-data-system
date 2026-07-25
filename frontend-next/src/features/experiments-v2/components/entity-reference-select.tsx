@@ -30,15 +30,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { snapshotValue } from './reference-snapshot'
 
-function entityLabel(entity: V2EntityRead, kind: EntityKind): string {
+function entityLabel(
+  entityId: string,
+  kind: EntityKind,
+  data: Record<string, unknown>,
+  version: number | null | undefined,
+): string {
   const config = entityConfigs[kind]
-  const data = entity.latest_version?.data ?? {}
-  const name = data[config.primaryKey]
-  const code = data[config.codeKey]
-  const version = entity.latest_version?.version
+  const name =
+    snapshotValue(data, config.primaryKey) ??
+    snapshotValue(data, `${config.primaryKey}_snapshot`)
+  const code =
+    snapshotValue(data, config.codeKey) ??
+    snapshotValue(data, `${config.codeKey}_snapshot`)
   const nameText =
-    name == null || name === '' ? entity.id.slice(0, 8) : String(name)
+    name == null || name === '' ? entityId.slice(0, 8) : String(name)
   const codeText = code == null || code === '' ? '' : ` · ${String(code)}`
   return `${nameText}${codeText}${version != null ? ` · v${version}` : ''}`
 }
@@ -49,17 +57,24 @@ export function EntityReferenceSelect({
   onChange,
   disabled,
   triggerId,
+  filter,
+  selectedVersion,
+  selectedSnapshot,
 }: {
   kind: EntityKind
   value: string
   onChange: (entityId: string, entity: V2EntityRead | null) => void
   disabled?: boolean
   triggerId?: string
+  filter?: (entity: V2EntityRead) => boolean
+  selectedVersion?: number | null
+  selectedSnapshot?: Record<string, unknown> | null
 }) {
   const { t } = useTranslation()
   const { session } = useAuth()
   const token = session.accessToken || ''
   const viewerKey = session.currentUser?.id ?? 'anonymous'
+  const canMaintain = session.currentUser?.role === 'admin'
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [createDirty, setCreateDirty] = useState(false)
@@ -71,7 +86,17 @@ export function EntityReferenceSelect({
     queryFn: () => listEntities(kind, token),
     enabled: session.isAuthenticated && !!token,
   })
-  const entities = data?.items ?? []
+  const allEntities = data?.items ?? []
+  const filteredEntities = allEntities.filter((entity) =>
+    filter ? filter(entity) : true,
+  )
+  const selectedEntity = allEntities.find((entity) => entity.id === value)
+  const entities =
+    selectedEntity &&
+    selectedSnapshot &&
+    !filteredEntities.some((entity) => entity.id === selectedEntity.id)
+      ? [selectedEntity, ...filteredEntities]
+      : filteredEntities
   const createMutation = useMutation({
     mutationFn: (payload: EntityVersionPayload) =>
       createEntity(kind, payload, token),
@@ -116,25 +141,43 @@ export function EntityReferenceSelect({
             />
           </SelectTrigger>
           <SelectContent>
+            {value &&
+            selectedSnapshot &&
+            !entities.some((entity) => entity.id === value) ? (
+              <SelectItem value={value}>
+                {entityLabel(value, kind, selectedSnapshot, selectedVersion)}
+              </SelectItem>
+            ) : null}
             {entities.map((entity) => (
               <SelectItem key={entity.id} value={entity.id}>
-                {entityLabel(entity, kind)}
+                {entityLabel(
+                  entity.id,
+                  kind,
+                  entity.id === value && selectedSnapshot
+                    ? selectedSnapshot
+                    : (entity.latest_version?.data ?? {}),
+                  entity.id === value && selectedSnapshot
+                    ? selectedVersion
+                    : entity.latest_version?.version,
+                )}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label={t('experimentsV2.reference.create', {
-            name: entityName,
-          })}
-          disabled={disabled}
-          onClick={() => requestCreateOpen(true)}
-        >
-          <Plus />
-        </Button>
+        {canMaintain ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={t('experimentsV2.reference.create', {
+              name: entityName,
+            })}
+            disabled={disabled}
+            onClick={() => requestCreateOpen(true)}
+          >
+            <Plus />
+          </Button>
+        ) : null}
       </div>
       {isError ? (
         <div className="flex items-center gap-2 text-xs text-destructive">
@@ -153,7 +196,7 @@ export function EntityReferenceSelect({
           {t('experimentsV2.reference.empty')}
         </p>
       ) : null}
-      <Dialog open={createOpen} onOpenChange={requestCreateOpen}>
+      <Dialog open={canMaintain && createOpen} onOpenChange={requestCreateOpen}>
         <DialogContent className="max-h-[85vh] gap-0 overflow-hidden sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -169,6 +212,7 @@ export function EntityReferenceSelect({
                 kind={kind}
                 mode="create"
                 nextVersion={1}
+                token={token}
                 submitting={createMutation.isPending}
                 onSubmit={(payload) => createMutation.mutate(payload)}
                 onCancel={() => requestCreateOpen(false)}

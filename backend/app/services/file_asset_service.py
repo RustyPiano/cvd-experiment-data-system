@@ -23,7 +23,13 @@ from app.services.experiment_guards import (
     get_visible_experiment,
 )
 from app.services.file_storage_service import FileStorageService
+from app.services.temperature_timeseries import (
+    TemperatureTimeseriesError,
+    ensure_temperature_timeseries_metadata,
+    parse_temperature_timeseries,
+)
 from app.services.v2_field_source import canonical_option_value, field_option_values
+from app.services.v2_result_status_service import refresh_result_missing_todo
 
 
 def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
@@ -74,6 +80,13 @@ def normalize_file_note(note: str | None) -> str | None:
     return normalized or None
 
 
+def _raise_invalid_temperature_timeseries(exc: TemperatureTimeseriesError) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={"invalid": [{"key": "temperature_timeseries", "reason": exc.reason}]},
+    ) from exc
+
+
 class FileAssetService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -93,6 +106,8 @@ class FileAssetService:
         method: str | None = None,
         file_category: str | None = None,
         asset_role: str | None = None,
+        binding_type: str | None = None,
+        binding_id: str | None = None,
     ) -> FileAssetListResponse:
         items = self.files.list_visible(
             current_user=current_user,
@@ -103,6 +118,15 @@ class FileAssetService:
             file_category=file_category,
             asset_role=asset_role,
         )
+        if binding_type is not None or binding_id is not None:
+            items = [
+                item
+                for item in items
+                if item.metadata_json.get("binding_type") == binding_type
+                and item.metadata_json.get("binding_id") == binding_id
+            ]
+        if self._backfill_temperature_metadata(items):
+            self.db.commit()
         return FileAssetListResponse(
             items=[to_file_asset_read_model(item) for item in items],
             total=len(items),
@@ -110,6 +134,8 @@ class FileAssetService:
 
     def get_file(self, file_id: UUID, current_user: User) -> FileAssetRead:
         file_asset = self._get_visible_file(file_id, current_user)
+        if self._backfill_temperature_metadata([file_asset]):
+            self.db.commit()
         return to_file_asset_read_model(file_asset)
 
     def upload_file(
@@ -123,14 +149,19 @@ class FileAssetService:
         method: str | None = None,
         file_category: str | None = None,
         asset_role: str | None = None,
+        binding_type: str | None = None,
+        binding_id: str | None = None,
         note: str | None = None,
     ) -> FileAssetRead:
         normalized_note = normalize_file_note(note)
         resolved_asset_role = self._normalize_asset_role(asset_role)
-        if characterization_record_id is not None and resolved_asset_role == "setup_diagram":
+        if (
+            characterization_record_id is not None
+            and resolved_asset_role != "characterization_file"
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Setup diagram cannot be linked to a characterization record",
+                detail="Only characterization files can link to a characterization record",
             )
         experiment = get_locked_visible_experiment(
             self.experiments,
@@ -160,15 +191,31 @@ class FileAssetService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Sample must belong to the same experiment",
                 )
-        if resolved_asset_role == "setup_diagram" and sample_id is not None:
+        if (
+            resolved_asset_role
+            in {
+                "setup_diagram",
+                "process_event_attachment",
+                "temperature_timeseries",
+            }
+            and sample_id is not None
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Setup diagram cannot be linked to a sample",
+                detail="This file role cannot be linked to a sample",
             )
+        if resolved_asset_role == "direct_observation_file" and sample_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Direct observation files require a sample",
+            )
+        binding_metadata = self._validate_binding(
+            resolved_asset_role,
+            binding_type,
+            binding_id,
+        )
 
-        if resolved_asset_role == "setup_diagram":
-            resolved_method = "setup_diagram"
-        else:
+        if resolved_asset_role == "characterization_file":
             resolved_method = self._normalize_method(method)
             if characterization_record_id is not None:
                 if resolved_method is None:
@@ -183,10 +230,18 @@ class FileAssetService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="File method is required",
                 )
+        else:
+            resolved_method = resolved_asset_role
+        original_name = self.storage.normalize_original_name(upload.filename or "upload.bin")
         content = self._read_upload_content(upload)
+        timeseries_metadata: dict[str, object] = {}
+        if resolved_asset_role == "temperature_timeseries":
+            try:
+                timeseries_metadata = parse_temperature_timeseries(content, original_name)
+            except TemperatureTimeseriesError as exc:
+                _raise_invalid_temperature_timeseries(exc)
         resolved_category = self._normalize_file_category(file_category)
         file_id = uuid4()
-        original_name = self.storage.normalize_original_name(upload.filename or "upload.bin")
         relative_path, sha256 = self.storage.persist(
             experiment_run_code=experiment.run_code,
             file_id=file_id,
@@ -200,6 +255,8 @@ class FileAssetService:
                 "duplicate_in_experiment": True,
                 "duplicate_of_file_id": str(duplicate.id),
             }
+        metadata_json.update(binding_metadata)
+        metadata_json.update(timeseries_metadata)
         file_asset = FileAsset(
             id=file_id,
             experiment_run_id=experiment.id,
@@ -245,31 +302,49 @@ class FileAssetService:
 
     def delete_file(self, file_id: UUID, current_user: User) -> None:
         file_asset = self._get_editable_file(file_id, current_user)
-        before = serialize_file_asset(file_asset)
-        file_asset.deleted_at = datetime.now(UTC)
-        file_asset.deleted_by_id = current_user.id
-        saved = self.files.save(file_asset)
-        self.audit.record_event(
-            actor=current_user,
-            entity_type="file_asset",
-            entity_id=saved.id,
-            action="delete",
-            before_json=before,
-            after_json=serialize_file_asset(saved),
-        )
-        self.audit.record_event(
-            actor=current_user,
-            entity_type="experiment_run",
-            entity_id=saved.experiment_run_id,
-            action="delete_file",
-            before_json=before,
-            after_json=serialize_file_asset(saved),
-        )
+        self._soft_delete_files([file_asset], current_user)
         try:
+            if file_asset.asset_role == "direct_observation_file":
+                experiment = self.experiments.get_by_id(file_asset.experiment_run_id)
+                if experiment is not None:
+                    refresh_result_missing_todo(self.db, experiment)
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
+
+    def soft_delete_unreferenced_process_files(
+        self,
+        *,
+        experiment_id: UUID,
+        asset_role: str,
+        referenced_file_ids: set[UUID],
+        current_user: User,
+        retained_binding_ids: set[str] | None = None,
+    ) -> None:
+        if asset_role not in {"process_event_attachment", "temperature_timeseries"}:
+            raise ValueError("Only process-bound files can be pruned")
+        experiment = get_locked_visible_experiment(
+            self.experiments,
+            experiment_id,
+            current_user,
+        )
+        ensure_files_editable(experiment, asset_role)
+        files = self.files.list_visible(
+            current_user=current_user,
+            experiment_id=experiment_id,
+            asset_role=asset_role,
+        )
+        self._soft_delete_files(
+            [
+                file
+                for file in files
+                if file.id not in referenced_file_ids
+                and str(file.metadata_json.get("binding_id") or "")
+                not in (retained_binding_ids or set())
+            ],
+            current_user,
+        )
 
     def resolve_download(self, file_id: UUID, current_user: User) -> tuple[Path, FileAsset]:
         file_asset = self._get_visible_file(file_id, current_user)
@@ -307,6 +382,19 @@ class FileAssetService:
             )
         return bytes(content)
 
+    def _backfill_temperature_metadata(self, files: list[FileAsset]) -> bool:
+        changed = False
+        for file_asset in files:
+            if file_asset.asset_role != "temperature_timeseries":
+                continue
+            try:
+                changed = (
+                    ensure_temperature_timeseries_metadata(file_asset, self.storage) or changed
+                )
+            except TemperatureTimeseriesError as exc:
+                _raise_invalid_temperature_timeseries(exc)
+        return changed
+
     def _get_visible_file(self, file_id: UUID, current_user: User) -> FileAsset:
         file_asset = self.files.get_by_id(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
@@ -329,6 +417,31 @@ class FileAssetService:
     def to_read_model(self, file_asset: FileAsset) -> FileAssetRead:
         return to_file_asset_read_model(file_asset)
 
+    def _soft_delete_files(self, files: list[FileAsset], current_user: User) -> None:
+        deleted_at = datetime.now(UTC)
+        for file_asset in files:
+            before = serialize_file_asset(file_asset)
+            file_asset.deleted_at = deleted_at
+            file_asset.deleted_by_id = current_user.id
+            saved = self.files.save(file_asset)
+            after = serialize_file_asset(saved)
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="file_asset",
+                entity_id=saved.id,
+                action="delete",
+                before_json=before,
+                after_json=after,
+            )
+            self.audit.record_event(
+                actor=current_user,
+                entity_type="experiment_run",
+                entity_id=saved.experiment_run_id,
+                action="delete_file",
+                before_json=before,
+                after_json=after,
+            )
+
     def _normalize_method(self, method: str | None) -> str | None:
         normalized = canonical_option_value((method or "").strip())
         if not normalized:
@@ -342,12 +455,55 @@ class FileAssetService:
 
     def _normalize_asset_role(self, value: str | None) -> str:
         normalized = (value or "characterization_file").strip()
-        if normalized not in {"characterization_file", "setup_diagram"}:
+        if normalized not in {
+            "characterization_file",
+            "setup_diagram",
+            "process_event_attachment",
+            "temperature_timeseries",
+            "direct_observation_file",
+        }:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid asset role",
             )
         return normalized
+
+    def _validate_binding(
+        self,
+        asset_role: str,
+        binding_type: str | None,
+        binding_id: str | None,
+    ) -> dict[str, str]:
+        expected_type = {
+            "process_event_attachment": "process_event",
+            "temperature_timeseries": "process_step",
+        }.get(asset_role)
+        if expected_type is None:
+            if binding_type is not None or binding_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="This file role does not accept a process binding",
+                )
+            return {}
+        if binding_type != expected_type or not (normalized_id := (binding_id or "").strip()):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="A valid process binding is required for this file role",
+            )
+        try:
+            valid_id = (
+                str(UUID(normalized_id)) == normalized_id
+                if asset_role == "process_event_attachment"
+                else normalized_id == "reaction_conditions"
+            )
+        except ValueError:
+            valid_id = False
+        if not valid_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid process binding",
+            )
+        return {"binding_type": expected_type, "binding_id": normalized_id}
 
     def _normalize_file_category(self, file_category: str | None) -> str:
         normalized = (file_category or "raw").strip().lower()

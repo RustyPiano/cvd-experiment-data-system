@@ -49,10 +49,16 @@ def test_scientific_field_examples_and_meanings_are_machine_unambiguous() -> Non
     parsed_start = datetime.fromisoformat(started_at["example"])
     assert parsed_start.utcoffset() is not None
 
-    gas_flow = fields["gas_flow_sccm"]
-    assert "阶段记录值" in gas_flow["meaning"]
-    assert "流量计类型" in gas_flow["meaning"]
-    assert "设定+实测" not in gas_flow["note"]
+    gas_feeds = fields["gas_feeds"]
+    assert gas_feeds["input"] == "逐气体供气数组"
+    assert "每种气体独立" in gas_feeds["meaning"]
+    assert "lot_ref.snapshot" in gas_feeds["note"]
+    assert "end_min必须大于start_min" in gas_feeds["note"]
+
+    temperature_program = fields["temperature_program"]
+    assert temperature_program["input"] == "分温区温度程序"
+    assert "严格递增" in temperature_program["note"]
+    assert "拒绝任意字符串" in temperature_program["note"]
 
     pressure = fields["pressure_system"]
     assert "绝对压力" in pressure["label"]
@@ -70,7 +76,7 @@ def test_scientific_field_examples_and_meanings_are_machine_unambiguous() -> Non
         assert isinstance(metric["unit"], str) and metric["unit"].strip()
 
 
-def test_material_lot_purity_and_setup_pump_contracts_are_unambiguous() -> None:
+def test_material_lot_evidence_and_setup_structures_are_unambiguous() -> None:
     doc = v2_field_source.load_field_source()
     fields = {field["key"]: field for field in v2_field_source.entity_fields(doc)}
 
@@ -82,11 +88,40 @@ def test_material_lot_purity_and_setup_pump_contracts_are_unambiguous() -> None:
     assert "原始证书" in purity["note"]
     assert purity["example"] == "99.995（派生显示4N5）"
 
-    pump = fields["pump_model_base_pressure"]
-    assert pump["input"] == "文本+数值"
-    assert pump["options"] == "{option:泵型号文本,value:极限绝对压力}"
-    assert "option=泵型号文本" in pump["meaning"]
-    assert "value=极限绝对压力" in pump["meaning"]
-    assert pump["unit"] == "Pa"
-    assert pump["validation"] == {"gt": 0, "require_value": True}
-    assert json.loads(pump["example"]) == {"option": "Edwards RV12", "value": 2.0}
+    label_attachment = fields["label_attachment"]
+    assert label_attachment["input"] == "FileAsset引用"
+    assert "原始照片" in label_attachment["meaning"]
+    assert "与CoA分开" in label_attachment["note"]
+
+    sensors = fields["temperature_sensors"]
+    assert sensors["input"] == "温度传感器数组"
+    assert "uncertainty_source" in sensors["options"]
+
+    tube = fields["tube_material_shape"]
+    assert tube["input"] == "管材质形状对象"
+    assert "独立保存" in tube["note"]
+    assert v2_field_source.field_option_values("tube_material_shape", doc) == set()
+
+
+def test_nested_structured_controlled_values_export_as_machine_codes() -> None:
+    normalized = v2_field_source.canonicalize_controlled_values(
+        {
+            "gas_feeds": [
+                {
+                    "species": "H₂",
+                    "measurement_source": "MFC",
+                    "intervals": [{"start_min": 0, "end_min": 10, "flow_sccm": 20}],
+                }
+            ],
+            "field_params": [{"field_type": "等离子"}],
+            "tube_material_shape": {"material": "石英", "shape": "圆形"},
+        }
+    )
+
+    assert normalized["gas_feeds"][0]["species"] == "H2"
+    assert normalized["gas_feeds"][0]["measurement_source"] == "mfc"
+    assert normalized["field_params"][0]["field_type"] == "plasma"
+    assert normalized["tube_material_shape"] == {
+        "material": "quartz",
+        "shape": "round",
+    }

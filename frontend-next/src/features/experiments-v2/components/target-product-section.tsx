@@ -72,7 +72,6 @@ export function TargetProductSection({
       id="module-target_product"
       index="§1b"
       title={t('experimentsV2.sections.targetProduct.title')}
-      subtitle={t('experimentsV2.sections.targetProduct.subtitle')}
       onSave={save?.onSave}
       saving={save?.saving}
       saved={save?.saved}
@@ -88,23 +87,35 @@ export function TargetProductSection({
           .filter((field) => field.key !== 'components')
           .filter((field) => isFieldVisible('target_product', field, values))
           .map((field) => (
-            <FieldControl
-              key={field.key}
-              moduleKey="target_product"
-              field={field}
-              values={values}
-              value={values[field.key] ?? ''}
-              onChange={(value) => onChange(field.key, value)}
-              disabled={disabled}
-              showError={showErrors}
-              hint={
-                field.key === 'bulk_space_group' && spaceGroupSymbol
-                  ? t('experimentsV2.sections.targetProduct.spaceGroupSymbol', {
-                      symbol: spaceGroupSymbol,
-                    })
-                  : undefined
-              }
-            />
+            <div key={field.key} className="flex flex-col gap-1">
+              <FieldControl
+                moduleKey="target_product"
+                field={field}
+                values={values}
+                value={values[field.key] ?? ''}
+                onChange={(value) => onChange(field.key, value)}
+                disabled={disabled}
+                showError={showErrors}
+                hint={
+                  field.key === 'bulk_space_group' && spaceGroupSymbol
+                    ? t(
+                        'experimentsV2.sections.targetProduct.spaceGroupSymbol',
+                        { symbol: spaceGroupSymbol },
+                      )
+                    : undefined
+                }
+              />
+              {field.key === 'bulk_space_group' ? (
+                <a
+                  className="text-xs text-primary underline-offset-4 hover:underline"
+                  href="https://www.cryst.ehu.es/cryst/get_gen.html"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t('experimentsV2.sections.targetProduct.spaceGroupLookup')}
+                </a>
+              ) : null}
+            </div>
           ))}
       </div>
 

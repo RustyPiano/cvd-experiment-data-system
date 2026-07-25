@@ -9,12 +9,20 @@ import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
-import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -94,28 +102,34 @@ export function SampleListPage() {
               className="w-72"
               aria-label={t('samples.list.searchLabel')}
             />
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="sample-role-filter">
                 {t('samples.list.roleFilter')}
-              </span>
-              {roleFilters.map((role) => (
-                <button
-                  key={role || 'all'}
-                  type="button"
-                  aria-pressed={roleFilter === role}
-                  onClick={() => setRoleFilter(role)}
-                  className={cn(
-                    'rounded-md px-2.5 py-1 text-sm transition-colors',
-                    roleFilter === role
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {role
-                    ? t(`experimentsV2.sections.results.roles.${role}`)
-                    : t('samples.list.allRoles')}
-                </button>
-              ))}
+              </Label>
+              <Select
+                value={roleFilter || 'all'}
+                onValueChange={(value) =>
+                  setRoleFilter(value === 'all' ? '' : value)
+                }
+              >
+                <SelectTrigger id="sample-role-filter" className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">
+                      {t('samples.list.allRoles')}
+                    </SelectItem>
+                    {roleFilters
+                      .filter((role) => role !== '')
+                      .map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {t(`experimentsV2.sections.results.roles.${role}`)}
+                        </SelectItem>
+                      ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

@@ -1,7 +1,17 @@
+from uuid import uuid4
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.user import User, UserRole
+from tests.helpers.v2_payloads import (
+    basic_info_payload,
+    reaction_step,
+    setup_payload,
+    substrate_item,
+    target_product_payload,
+)
 
 client = TestClient(app)
 
@@ -36,15 +46,7 @@ def _create_run(
 def _create_setup(headers: dict[str, str], *, setup_code: str = "SETUP-SCIENCE") -> str:
     response = client.post(
         "/api/v1/setups",
-        json={
-            "setup_code": setup_code,
-            "setup_name": "双温区管式炉",
-            "zone_count": 2,
-            "orientation": "horizontal",
-            "coordinate_system": "上游负/下游正",
-            "flow_reference_temperature_C": 20,
-            "flow_reference_pressure_Pa": 101325,
-        },
+        json=setup_payload(setup_code=setup_code, setup_name="双温区管式炉"),
         headers=headers,
     )
     assert response.status_code == 201, response.text
@@ -66,8 +68,17 @@ def _create_material_lot(
     lot_category: str,
     formula: str,
     batch_number: str,
-    substrate_material: str = "sapphire",
+    substrate_material: str = "sapphire_al2o3",
 ) -> dict:
+    extra: dict = {}
+    if lot_category in {"chemical", "化学品", "gas_cylinder", "气瓶"}:
+        extra.update(cas_number="TEST-CAS", purity=99.9)
+    if lot_category in {"substrate", "衬底"}:
+        extra["substrate_material"] = substrate_material
+        if substrate_material == "sio2_si":
+            extra["substrate_oxide_thickness_nm"] = 285.0
+    elif lot_category in {"gas_cylinder", "气瓶"}:
+        extra["gas_purity_grade"] = "industrial_grade"
     response = client.post(
         "/api/v1/material-lots",
         json={
@@ -75,11 +86,7 @@ def _create_material_lot(
             "substance_name": formula,
             "chemical_formula": formula,
             "batch_number": batch_number,
-            **(
-                {"substrate_material": substrate_material}
-                if lot_category in {"substrate", "衬底"}
-                else {}
-            ),
+            **extra,
         },
         headers=headers,
     )
@@ -87,8 +94,10 @@ def _create_material_lot(
     return response.json()
 
 
-def test_material_lot_formula_accepts_common_grouped_and_hydrated_formulas(active_user) -> None:
-    headers = _headers(active_user.email)
+def test_material_lot_formula_accepts_common_grouped_and_hydrated_formulas(
+    admin_user,
+) -> None:
+    headers = _headers(admin_user.email)
 
     for index, formula in enumerate(
         ("(NH4)6Mo7O24·4H2O", "Na2WO4·2H2O", "Fe2(SO4)3"),
@@ -100,7 +109,9 @@ def test_material_lot_formula_accepts_common_grouped_and_hydrated_formulas(activ
                 "lot_category": "chemical",
                 "substance_name": formula,
                 "chemical_formula": formula,
+                "cas_number": "TEST-CAS",
                 "batch_number": f"HYDRATE-{index}",
+                "purity": 99.9,
             },
             headers=headers,
         )
@@ -108,10 +119,141 @@ def test_material_lot_formula_accepts_common_grouped_and_hydrated_formulas(activ
         assert response.json()["latest_version"]["data"]["chemical_formula"] == formula
 
 
+def test_target_and_substrate_api_accept_grouped_hydrated_formulas(
+    active_user,
+    admin_user,
+) -> None:
+    headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    run_id = _create_run(headers, run_code="CVD-2026-0989")
+
+    target = client.put(
+        f"/api/v1/experiments/{run_id}/modules/target_product",
+        json={
+            "payload_json": target_product_payload(
+                chemical_formula="(NH4)6Mo7O24∙4H2O",
+            )
+        },
+        headers=headers,
+    )
+    assert target.status_code == 200, target.text
+    assert target.json()["payload_json"]["chemical_formula"] == "(NH4)6Mo7O24·4H2O"
+
+    substrate_lot = _create_material_lot(
+        admin_headers,
+        lot_category="substrate",
+        formula="Na2WO4·2H2O",
+        batch_number="HYDRATED-SUBSTRATE",
+        substrate_material="hydrated_tungstate",
+    )
+    substrate = client.put(
+        f"/api/v1/experiments/{run_id}/modules/substrates",
+        json={
+            "payload_json": {
+                "items": [
+                    substrate_item(
+                        substrate_lot,
+                        material="hydrated_tungstate",
+                        chemical_formula="Na2WO4⋅2H2O",
+                        crystal_orientation="polycrystalline",
+                    )
+                ]
+            }
+        },
+        headers=headers,
+    )
+    assert substrate.status_code == 200, substrate.text
+    assert substrate.json()["payload_json"]["items"][0]["chemical_formula"] == "Na2WO4·2H2O"
+
+
+def test_module_api_rejects_nonempty_fields_when_their_condition_is_false(
+    active_user,
+) -> None:
+    headers = _headers(active_user.email)
+    run_id = _create_run(headers, run_code="CVD-2026-0990")
+    cases = (
+        (
+            "precursors",
+            {
+                "items": [
+                    {
+                        "name_formula": "NH3",
+                        "phase_state": "gas",
+                        "lot_ref": {
+                            "entity_id": str(uuid4()),
+                            "version": 1,
+                        },
+                        "amount": 20,
+                    }
+                ]
+            },
+        ),
+        (
+            "substrates",
+            {
+                "items": [
+                    {
+                        "material": "sapphire_al2o3",
+                        "lot_ref": {
+                            "entity_id": str(uuid4()),
+                            "version": 1,
+                        },
+                        "chemical_formula": "Al2O3",
+                        "crystal_orientation": "c-plane",
+                        "miscut_angle_deg": 0,
+                        "oxide_thickness_nm": 285,
+                        "surface_roughness": {"metric": "RMS", "value_nm": 0.5},
+                        "size_placement": {
+                            "length_mm": 10,
+                            "width_mm": 10,
+                            "placement": "face_up",
+                        },
+                    }
+                ]
+            },
+        ),
+        (
+            "process_events",
+            {
+                "items": [
+                    {
+                        "event_id": str(uuid4()),
+                        "event_type": "equipment_alarm",
+                        "occurred_at": "2026-07-24T10:00:00+08:00",
+                        "terminated_run": False,
+                        "termination_reason": "other",
+                    }
+                ]
+            },
+        ),
+        (
+            "process_events",
+            {
+                "items": [
+                    {
+                        "event_id": str(uuid4()),
+                        "event_type": "equipment_alarm",
+                        "occurred_at": "2026-07-24T10:00:00+08:00",
+                        "terminated_run": False,
+                        "description": "stale termination details",
+                    }
+                ]
+            },
+        ),
+    )
+
+    for module_key, payload_json in cases:
+        response = client.put(
+            f"/api/v1/experiments/{run_id}/modules/{module_key}",
+            json={"payload_json": payload_json},
+            headers=headers,
+        )
+        assert response.status_code == 422, (module_key, response.text)
+
+
 def test_entity_dates_and_file_references_are_validated_and_snapshotted(
     active_user, admin_user, db_session
 ) -> None:
-    headers = _headers(active_user.email)
     admin_headers = _headers(admin_user.email)
     other = User(
         email="entity-file-other@example.com",
@@ -133,7 +275,7 @@ def test_entity_dates_and_file_references_are_validated_and_snapshotted(
             "batch_number": "BAD-DATE",
             "opened_date": "not-a-date",
         },
-        headers=headers,
+        headers=admin_headers,
     )
     assert invalid_date.status_code == 422
 
@@ -146,13 +288,13 @@ def test_entity_dates_and_file_references_are_validated_and_snapshotted(
             "batch_number": "BAD-FILE",
             "coa_attachment": "coa.pdf",
         },
-        headers=headers,
+        headers=admin_headers,
     )
     assert invalid_attachment.status_code == 422
 
     upload = client.post(
         "/api/v1/entity-files",
-        headers=headers,
+        headers=admin_headers,
         data={"note": "supplier certificate"},
         files={"file": ("coa.pdf", b"certificate-bytes", "application/pdf")},
     )
@@ -181,7 +323,7 @@ def test_entity_dates_and_file_references_are_validated_and_snapshotted(
                 "sha256": "0" * 64,
             },
         },
-        headers=headers,
+        headers=admin_headers,
     )
     assert wrong_sha.status_code == 422
 
@@ -191,14 +333,16 @@ def test_entity_dates_and_file_references_are_validated_and_snapshotted(
             "lot_category": "chemical",
             "substance_name": "MoO3",
             "chemical_formula": "MoO3",
+            "cas_number": "TEST-CAS",
             "batch_number": "GOOD-FILE",
+            "purity": 99.9,
             "opened_date": "2026-07-24",
             "coa_attachment": {
                 "file_asset_id": asset["id"],
                 "sha256": asset["sha256"],
             },
         },
-        headers=headers,
+        headers=admin_headers,
     )
     assert valid.status_code == 201, valid.text
     saved = valid.json()["latest_version"]["data"]["coa_attachment"]
@@ -213,7 +357,6 @@ def test_entity_dates_and_file_references_are_validated_and_snapshotted(
     assert bound.json()["entity_type"] == "material_lot"
     assert bound.json()["entity_id"] == valid.json()["id"]
     assert bound.json()["entity_version"] == 1
-    assert client.delete(f"/api/v1/entity-files/{asset['id']}", headers=headers).status_code == 409
     assert (
         client.delete(f"/api/v1/entity-files/{asset['id']}", headers=admin_headers).status_code
         == 409
@@ -223,7 +366,6 @@ def test_entity_dates_and_file_references_are_validated_and_snapshotted(
 def test_unbound_entity_file_can_only_be_read_or_deleted_by_uploader_or_admin(
     active_user, admin_user, db_session
 ) -> None:
-    owner_headers = _headers(active_user.email)
     admin_headers = _headers(admin_user.email)
     other = User(
         email="unbound-file-other@example.com",
@@ -237,7 +379,7 @@ def test_unbound_entity_file_can_only_be_read_or_deleted_by_uploader_or_admin(
     other_headers = _headers(other.email)
     upload = client.post(
         "/api/v1/entity-files",
-        headers=owner_headers,
+        headers=admin_headers,
         files={"file": ("draft.pdf", b"draft", "application/pdf")},
     )
     assert upload.status_code == 201, upload.text
@@ -245,7 +387,7 @@ def test_unbound_entity_file_can_only_be_read_or_deleted_by_uploader_or_admin(
 
     assert client.get(f"/api/v1/entity-files/{file_id}", headers=other_headers).status_code == 404
     assert (
-        client.delete(f"/api/v1/entity-files/{file_id}", headers=other_headers).status_code == 404
+        client.delete(f"/api/v1/entity-files/{file_id}", headers=other_headers).status_code == 403
     )
     assert client.get(f"/api/v1/entity-files/{file_id}", headers=admin_headers).status_code == 200
     assert (
@@ -253,8 +395,8 @@ def test_unbound_entity_file_can_only_be_read_or_deleted_by_uploader_or_admin(
     )
 
 
-def test_appending_entity_version_binds_uploaded_reference_to_new_version(active_user) -> None:
-    headers = _headers(active_user.email)
+def test_appending_entity_version_binds_uploaded_reference_to_new_version(admin_user) -> None:
+    headers = _headers(admin_user.email)
     lot = _create_material_lot(
         headers,
         lot_category="chemical",
@@ -275,7 +417,9 @@ def test_appending_entity_version_binds_uploaded_reference_to_new_version(active
             "lot_category": "chemical",
             "substance_name": "MoO3",
             "chemical_formula": "MoO3",
+            "cas_number": "TEST-CAS",
             "batch_number": "APPEND-FILE-V2",
+            "purity": 99.9,
             "coa_attachment": {
                 "file_asset_id": asset["id"],
                 "sha256": asset["sha256"],
@@ -293,59 +437,44 @@ def test_appending_entity_version_binds_uploaded_reference_to_new_version(active
     assert bound.json()["entity_version"] == 2
 
 
-def test_setup_requires_versioned_sccm_reference_state(active_user) -> None:
-    headers = _headers(active_user.email)
-
-    missing_reference = client.post(
+def test_setup_requires_sensor_contract_and_rejects_removed_reference_fields(
+    admin_user,
+) -> None:
+    headers = _headers(admin_user.email)
+    missing_sensors = client.post(
         "/api/v1/setups",
         json={
             "setup_code": "SETUP-NO-REF",
-            "setup_name": "未注明参考状态",
+            "setup_name": "未注明传感器",
             "zone_count": 2,
             "orientation": "horizontal",
-            "coordinate_system": "上游负/下游正",
         },
         headers=headers,
     )
-    assert missing_reference.status_code == 422
-    assert set(missing_reference.json()["detail"]["missing"]) >= {
-        "flow_reference_temperature_C",
-        "flow_reference_pressure_Pa",
-    }
+    assert missing_sensors.status_code == 422
+    assert "temperature_sensors" in missing_sensors.text
 
     invalid_zone_count = client.post(
         "/api/v1/setups",
-        json={
-            "setup_code": "SETUP-ZERO-ZONES",
-            "setup_name": "无温区",
-            "zone_count": 0,
-            "orientation": "horizontal",
-            "coordinate_system": "上游负/下游正",
-            "flow_reference_temperature_C": 20,
-            "flow_reference_pressure_Pa": 101325,
-        },
+        json=setup_payload(setup_code="SETUP-ZERO-ZONES", zone_count=0),
         headers=headers,
     )
     assert invalid_zone_count.status_code == 422
 
-    absolute_zero_reference = client.post(
+    deleted_reference_fields = client.post(
         "/api/v1/setups",
         json={
-            "setup_code": "SETUP-ZERO-KELVIN",
-            "setup_name": "不可能的 sccm 参考态",
-            "zone_count": 1,
-            "orientation": "horizontal",
-            "coordinate_system": "上游负/下游正",
+            **setup_payload(setup_code="SETUP-OLD-REF", zone_count=1),
             "flow_reference_temperature_C": -273.15,
             "flow_reference_pressure_Pa": 101325,
         },
         headers=headers,
     )
-    assert absolute_zero_reference.status_code == 422
+    assert deleted_reference_fields.status_code == 422
 
 
-def test_material_lot_positive_measurements_reject_zero(active_user) -> None:
-    headers = _headers(active_user.email)
+def test_material_lot_positive_measurements_reject_zero(admin_user) -> None:
+    headers = _headers(admin_user.email)
     invalid_payloads = (
         {
             "lot_category": "chemical",
@@ -374,6 +503,67 @@ def test_material_lot_positive_measurements_reject_zero(active_user) -> None:
     for payload in invalid_payloads:
         response = client.post("/api/v1/material-lots", json=payload, headers=headers)
         assert response.status_code == 422, response.text
+
+
+def test_substrate_composite_fields_survive_controlled_value_validation(admin_user) -> None:
+    response = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "substrate",
+            "substance_name": "Sapphire substrate",
+            "chemical_formula": "Al2O3",
+            "batch_number": "SAPPHIRE-COMPOSITE",
+            "substrate_material": "sapphire_al2o3",
+            "substrate_orientation_polish": {
+                "value": "c-plane",
+                "option": "single_side_polished",
+            },
+            "substrate_size_spec": "10 × 10 × 0.5",
+        },
+        headers=_headers(admin_user.email),
+    )
+
+    assert response.status_code == 201, response.text
+    data = response.json()["latest_version"]["data"]
+    assert data["substrate_orientation_polish"] == {
+        "value": "c-plane",
+        "option": "single_side_polished",
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        (
+            "substrate_orientation_polish",
+            {"value": "c-plane", "option": "single_side_polished"},
+        ),
+        ("substrate_size_spec", "10×10×0.5"),
+        ("gas_cylinder_number", "GC-Ar-07"),
+    ),
+)
+def test_material_lot_rejects_category_specific_fields(
+    admin_user,
+    field: str,
+    value: object,
+) -> None:
+    response = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "chemical",
+            "substance_name": "MoO3",
+            "chemical_formula": "MoO3",
+            "cas_number": "TEST-CAS",
+            "batch_number": f"WRONG-CATEGORY-{field}",
+            "purity": 99.9,
+            field: value,
+        },
+        headers=_headers(admin_user.email),
+    )
+
+    assert response.status_code == 422
+    assert field in response.text
+    assert "not_applicable" in response.text
 
 
 def test_naive_run_time_is_stored_with_configured_utc_offset(active_user) -> None:
@@ -432,23 +622,26 @@ def test_composite_formula_is_not_silently_classified_as_intrinsic(active_user) 
 
 def test_material_lot_references_are_verified_and_frozen_for_precursor_and_substrate(
     active_user,
+    admin_user,
 ) -> None:
     headers = _headers(active_user.email)
-    setup_id = _create_setup(headers)
+    admin_headers = _headers(admin_user.email)
+    setup_id = _create_setup(admin_headers)
     run_id = _create_run(headers, run_code="CVD-2026-0803")
     _set_setup(headers, run_id, setup_id)
     precursor_lot = _create_material_lot(
-        headers,
+        admin_headers,
         lot_category="chemical",
         formula="MoO3",
         batch_number="LOT-MOO3",
     )
     substrate_lot = _create_material_lot(
-        headers,
+        admin_headers,
         lot_category="substrate",
         formula="Al2O3",
         batch_number="LOT-SAPPHIRE",
     )
+    valid_substrate = substrate_item(substrate_lot)
 
     precursor = client.put(
         f"/api/v1/experiments/{run_id}/modules/precursors",
@@ -457,6 +650,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
                 "items": [
                     {
                         "name_formula": "MoO3",
+                        "cas_inchi": "FORGED",
                         "phase_state": "solid",
                         "amount": 20,
                         "lot_ref": {
@@ -476,6 +670,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
     )
     assert precursor.status_code == 200, precursor.text
     precursor_ref = precursor.json()["payload_json"]["items"][0]["lot_ref"]
+    assert precursor.json()["payload_json"]["items"][0]["cas_inchi"] == "TEST-CAS"
     assert precursor_ref["entity_id"] == precursor_lot["id"]
     assert precursor_ref["version"] == 1
     assert precursor_ref["snapshot"]["chemical_formula"] == "MoO3"
@@ -487,7 +682,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
             "payload_json": {
                 "items": [
                     {
-                        "material": "sapphire_al2o3",
+                        **valid_substrate,
                         "lot_ref": {
                             "entity_id": substrate_lot["id"],
                             "version": 1,
@@ -511,7 +706,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
             "payload_json": {
                 "items": [
                     {
-                        "material": "sapphire_al2o3",
+                        **valid_substrate,
                         "lot_ref": {
                             "entity_id": substrate_lot["id"],
                             "version": 1,
@@ -600,6 +795,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
             "payload_json": {
                 "items": [
                     {
+                        **valid_substrate,
                         "material": "quartz",
                         "lot_ref": {
                             "entity_id": substrate_lot["id"],
@@ -614,15 +810,18 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
     assert substrate_material_mismatch.status_code == 422
 
 
-def test_custom_substrate_lot_reference_accepts_matching_other_material(active_user) -> None:
+def test_custom_substrate_lot_reference_accepts_matching_other_material(
+    active_user, admin_user
+) -> None:
     headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
     run_id = _create_run(headers, run_code="CVD-2026-0811")
     custom_lot = _create_material_lot(
-        headers,
+        admin_headers,
         lot_category="substrate",
         formula="SiC",
         batch_number="LOT-CUSTOM-SIC",
-        substrate_material="other",
+        substrate_material="SiC",
     )
 
     response = client.put(
@@ -630,13 +829,12 @@ def test_custom_substrate_lot_reference_accepts_matching_other_material(active_u
         json={
             "payload_json": {
                 "items": [
-                    {
-                        "material": "other",
-                        "lot_ref": {
-                            "entity_id": custom_lot["id"],
-                            "version": 1,
-                        },
-                    }
+                    substrate_item(
+                        custom_lot,
+                        material="SiC",
+                        chemical_formula="SiC",
+                        crystal_orientation="polycrystalline",
+                    )
                 ]
             }
         },
@@ -646,18 +844,21 @@ def test_custom_substrate_lot_reference_accepts_matching_other_material(active_u
     assert response.status_code == 200, response.text
 
 
-def test_pvd_target_lot_snapshot_is_always_rebuilt_server_side(active_user) -> None:
+def test_pvd_target_lot_snapshot_is_always_rebuilt_server_side(active_user, admin_user) -> None:
     headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
     target_lot = client.post(
         "/api/v1/material-lots",
         json={
             "lot_category": "chemical",
             "substance_name": "MoS2 sputtering target",
             "chemical_formula": "MoS2",
+            "cas_number": "TEST-CAS",
             "batch_number": "TARGET-T01",
+            "purity": 99.9,
             "form_appearance": "target",
         },
-        headers=headers,
+        headers=admin_headers,
     )
     assert target_lot.status_code == 201, target_lot.text
     run_id = _create_run(
@@ -694,25 +895,30 @@ def test_pvd_target_lot_snapshot_is_always_rebuilt_server_side(active_user) -> N
     assert snapshot["batch_number"] == "TARGET-T01"
 
 
-def test_apcvd_lpcvd_pressure_regime_is_checked_in_both_save_orders(active_user) -> None:
+def test_apcvd_lpcvd_pressure_regime_is_checked_in_both_save_orders(
+    active_user, admin_user
+) -> None:
     headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
     run_id = _create_run(headers, run_code="CVD-2026-0804", synthesis_method="APCVD")
+    setup_id = _create_setup(admin_headers, setup_code="SETUP-PRESSURE-ORDER")
+    _set_setup(headers, run_id, setup_id)
+    gas_lot = _create_material_lot(
+        admin_headers,
+        lot_category="gas_cylinder",
+        formula="Ar",
+        batch_number="AR-PRESSURE-ORDER",
+    )
 
     low_pressure_growth = client.put(
         f"/api/v1/experiments/{run_id}/modules/process_steps",
         json={
             "payload_json": {
                 "items": [
-                    {
-                        "stage_type": "growth",
-                        "temperature_program": "25->750",
-                        "gas_species": ["Ar"],
-                        "gas_flow_sccm": {"value": 80, "option": "MFC"},
-                        "pressure_system": {
-                            "value": 100,
-                            "option": "low_pressure",
-                        },
-                    }
+                    reaction_step(
+                        gas_lot,
+                        pressure_system={"value": 100.0, "option": "low_pressure"},
+                    )
                 ]
             }
         },
@@ -725,16 +931,13 @@ def test_apcvd_lpcvd_pressure_regime_is_checked_in_both_save_orders(active_user)
         json={
             "payload_json": {
                 "items": [
-                    {
-                        "stage_type": "growth",
-                        "temperature_program": "25->750",
-                        "gas_species": ["Ar"],
-                        "gas_flow_sccm": {"value": 80, "option": "MFC"},
-                        "pressure_system": {
+                    reaction_step(
+                        gas_lot,
+                        pressure_system={
                             "value": 101325,
                             "option": "atmospheric_pressure",
                         },
-                    }
+                    )
                 ]
             }
         },
@@ -745,20 +948,30 @@ def test_apcvd_lpcvd_pressure_regime_is_checked_in_both_save_orders(active_user)
     incompatible_method_update = client.put(
         f"/api/v1/experiments/{run_id}/modules/basic_info",
         json={
-            "payload_json": {
-                "started_at": "2026-07-24T09:00:00+08:00",
-                "synthesis_method": "LPCVD",
-                "operator": "ignored",
-                "run_code": "CVD-2026-0804",
-            }
+            "payload_json": basic_info_payload(
+                started_at="2026-07-24T09:00:00+08:00",
+                synthesis_method="LPCVD",
+                operator="ignored",
+                run_code="CVD-2026-0804",
+            )
         },
         headers=headers,
     )
     assert incompatible_method_update.status_code == 422
 
 
-def test_pressure_category_requires_a_physically_compatible_absolute_value(active_user) -> None:
+def test_pressure_category_requires_a_physically_compatible_absolute_value(
+    active_user, admin_user
+) -> None:
     headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+    setup_id = _create_setup(admin_headers, setup_code="SETUP-PRESSURE-RANGE")
+    gas_lot = _create_material_lot(
+        admin_headers,
+        lot_category="gas_cylinder",
+        formula="Ar",
+        batch_number="AR-PRESSURE-RANGE",
+    )
     cases = (
         ("CVD-2026-0809", "APCVD", 1, "atmospheric_pressure"),
         ("CVD-2026-0810", "LPCVD", 101325, "low_pressure"),
@@ -769,21 +982,19 @@ def test_pressure_category_requires_a_physically_compatible_absolute_value(activ
             run_code=run_code,
             synthesis_method=method,
         )
+        _set_setup(headers, run_id, setup_id)
         response = client.put(
             f"/api/v1/experiments/{run_id}/modules/process_steps",
             json={
                 "payload_json": {
                     "items": [
-                        {
-                            "stage_type": "growth",
-                            "temperature_program": "25->750",
-                            "gas_species": ["Ar"],
-                            "gas_flow_sccm": {"value": 80, "option": "MFC"},
-                            "pressure_system": {
+                        reaction_step(
+                            gas_lot,
+                            pressure_system={
                                 "value": pressure_value,
                                 "option": pressure_option,
                             },
-                        }
+                        )
                     ]
                 }
             },
@@ -806,12 +1017,16 @@ def test_process_events_cannot_precede_started_at_in_either_save_order(active_us
             "payload_json": {
                 "items": [
                     {
-                        "event_part": "开始升温",
+                        "event_id": str(uuid4()),
+                        "event_type": "manual_intervention",
                         "occurred_at": "2026-07-24T01:30:00+01:00",
+                        "terminated_run": False,
                     },
                     {
-                        "event_part": "提前发生",
+                        "event_id": str(uuid4()),
+                        "event_type": "signal_anomaly",
                         "occurred_at": "2026-07-24T08:59:59+08:00",
+                        "terminated_run": False,
                     },
                 ]
             }
@@ -827,12 +1042,16 @@ def test_process_events_cannot_precede_started_at_in_either_save_order(active_us
             "payload_json": {
                 "items": [
                     {
-                        "event_part": "开始升温",
+                        "event_id": str(uuid4()),
+                        "event_type": "manual_intervention",
                         "occurred_at": "2026-07-24T09:00:00+08:00",
+                        "terminated_run": False,
                     },
                     {
-                        "event_part": "结束生长",
+                        "event_id": str(uuid4()),
+                        "event_type": "manual_intervention",
                         "occurred_at": "2026-07-24T03:00:00+01:00",
+                        "terminated_run": False,
                     },
                 ]
             }
@@ -844,12 +1063,11 @@ def test_process_events_cannot_precede_started_at_in_either_save_order(active_us
     start_after_saved_event = client.put(
         f"/api/v1/experiments/{run_id}/modules/basic_info",
         json={
-            "payload_json": {
-                "started_at": "2026-07-24T10:00:00+08:00",
-                "synthesis_method": "APCVD",
-                "operator": "ignored",
-                "run_code": "ignored",
-            }
+            "payload_json": basic_info_payload(
+                started_at="2026-07-24T10:00:00+08:00",
+                operator="ignored",
+                run_code="ignored",
+            )
         },
         headers=headers,
     )
@@ -867,8 +1085,10 @@ def test_process_event_rejects_date_without_time(active_user) -> None:
             "payload_json": {
                 "items": [
                     {
-                        "event_part": "日期不是时刻",
+                        "event_id": str(uuid4()),
+                        "event_type": "manual_intervention",
                         "occurred_at": "2026-07-24",
+                        "terminated_run": False,
                     }
                 ]
             }

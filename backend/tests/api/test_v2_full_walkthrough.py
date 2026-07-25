@@ -5,10 +5,22 @@
 降温参数）→ 样品 → 表征记录（仪器引用）→ 实测产物 → check-r0 合规报告 compliant。
 """
 
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 from app.commands.check_r0 import build_r0_reports
 from app.main import app
+from tests.helpers.v2_payloads import (
+    basic_info_payload,
+    gas_lot_payload,
+    lot_reference,
+    reaction_step,
+    setup_payload,
+    substrate_item,
+    substrate_lot_payload,
+    target_product_payload,
+)
 
 client = TestClient(app)
 
@@ -19,8 +31,9 @@ def _auth_headers(email: str, password: str = "Password123!") -> dict[str, str]:
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-def test_full_v2_run_walkthrough(active_user, db_session) -> None:
+def test_full_v2_run_walkthrough(active_user, admin_user, db_session) -> None:
     headers = _auth_headers(active_user.email)
+    admin_headers = _auth_headers(admin_user.email)
 
     lot = client.post(
         "/api/v1/material-lots",
@@ -28,35 +41,49 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
             "lot_category": "化学品",
             "substance_name": "三氧化钼",
             "chemical_formula": "MoO3",
+            "cas_number": "1313-27-5",
             "batch_number": "B202405",
             "supplier": "阿拉丁",
-            "purity": "99.95",
+            "purity": 99.95,
         },
-        headers=headers,
+        headers=admin_headers,
     )
     assert lot.status_code == 201, lot.text
 
+    substrate_lot = client.post(
+        "/api/v1/material-lots",
+        json=substrate_lot_payload(
+            batch_number="WAFER-B202405",
+            material="sio2_si",
+            chemical_formula="SiO2",
+        ),
+        headers=admin_headers,
+    )
+    assert substrate_lot.status_code == 201, substrate_lot.text
+
+    gas_lot = client.post(
+        "/api/v1/material-lots",
+        json=gas_lot_payload(batch_number="AR-B202405"),
+        headers=admin_headers,
+    )
+    assert gas_lot.status_code == 201, gas_lot.text
+
     setup = client.post(
         "/api/v1/setups",
-        json={
-            "setup_code": "CVD-炉1",
-            "setup_name": "1号双温区管式炉",
-            "zone_count": 2,
-            "orientation": "水平",
-            "coordinate_system": "原点=温区2热电偶；上游负/下游正",
-            "flow_reference_temperature_C": 20,
-            "flow_reference_pressure_Pa": 101325,
-            "field_devices": "等离子",
-            "wall_type": "热壁",
-        },
-        headers=headers,
+        json=setup_payload(
+            setup_code="CVD-炉1",
+            setup_name="1号双温区管式炉",
+            field_devices=["plasma"],
+            wall_type="hot_wall",
+        ),
+        headers=admin_headers,
     )
     assert setup.status_code == 201, setup.text
 
     instrument = client.post(
         "/api/v1/instruments",
         json={"instrument_code": "RAMAN-1", "name_type": "Raman", "vendor": "Horiba"},
-        headers=headers,
+        headers=admin_headers,
     )
     assert instrument.status_code == 201, instrument.text
 
@@ -91,40 +118,37 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
 
     upsert(
         "basic_info",
-        {
-            "started_at": "2026-07-08T09:30:00",
-            "synthesis_method": "APCVD",
-            "operator": "李俊杰",
-            "run_code": "CVD-2026-0200",
-            "ambient_temperature_C": 25,
-            "ambient_humidity_percent": 45,
-        },
+        basic_info_payload(
+            started_at="2026-07-08T09:30:00",
+            operator="李俊杰",
+            run_code="CVD-2026-0200",
+        ),
     )
     upsert(
         "target_product",
-        {
-            "chemical_formula": "MoS2/WS2",
-            "structure_type": "垂直异质结",
-            "components": [
-                {"formula": "WS2", "role": "上层", "layer_order": 2},
-                {"formula": "MoS2", "role": "下层", "layer_order": 1},
+        target_product_payload(
+            chemical_formula="MoS2/WS2",
+            structure_type="vertical_heterostructure",
+            components=[
+                {"formula": "MoS2", "role": "bottom_layer", "layer_order": 1},
+                {"formula": "WS2", "role": "top_layer", "layer_order": 2},
             ],
-            "target_layer_count": 1,
-            "target_morphology": "连续膜",
-        },
+            target_layer_count=1,
+        ),
     )
     upsert(
         "precursors",
         {
             "items": [
                 {
-                    "name_formula": "三氧化钼 / MoO3",
+                    "name_formula": "MoO3",
                     "cas_inchi": "1313-27-5",
-                    "phase_state": "固",
-                    "appearance": "白色粉末",
-                    "role": "主源",
+                    "phase_state": "solid",
+                    "appearance": "white_powder",
+                    "lot_ref": lot_reference(lot.json()),
+                    "role": "main_precursor",
                     "amount": 20,
-                    "treatment_steps": "直接加载",
+                    "treatment_steps": [{"type": "direct_load", "parameters": {}}],
                     "boat_crucible": {
                         "material": "quartz_boat",
                         "length_mm": 90,
@@ -143,12 +167,21 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
         "substrates",
         {
             "items": [
-                {
-                    "material": "SiO₂/Si",
-                    "formula_orientation": "Si(100)",
-                    "oxide_thickness_nm": 285,
-                    "pretreatment_steps": "丙酮→异丙醇→N₂吹干",
-                }
+                substrate_item(
+                    substrate_lot.json(),
+                    material="sio2_si",
+                    chemical_formula="SiO2",
+                    crystal_orientation="(100)",
+                    oxide_thickness_nm=285.0,
+                    pretreatment_steps=[
+                        {"type": "acetone_clean", "parameters": {"duration_min": 10.0}},
+                        {
+                            "type": "isopropanol_clean",
+                            "parameters": {"duration_min": 10.0},
+                        },
+                        {"type": "nitrogen_dry", "parameters": {"duration_min": 2.0}},
+                    ],
+                )
             ]
         },
     )
@@ -157,29 +190,28 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
         {
             "items": [
                 {
-                    "stage_type": "升温",
-                    "temperature_program": "温区2：25→750@20℃/min",
-                    "gas_species": "Ar",
-                    "gas_flow_sccm": {"value": 80, "option": "MFC"},
-                    "pressure_system": {"value": 101325, "option": "atmospheric_pressure"},
+                    "stage_type": "preparation",
+                    "preparation_operations": [
+                        {
+                            "operation_type": "pump_down",
+                            "target_absolute_pressure_Pa": 100.0,
+                            "duration_min": 15.0,
+                        }
+                    ],
                 },
-                {
-                    "stage_type": "反应生长",
-                    "temperature_program": "750 保温15min",
-                    "gas_species": "Ar",
-                    "gas_flow_sccm": {"value": 80, "option": "MFC"},
-                    "pressure_system": {"value": 100000, "option": "atmospheric_pressure"},
-                    "field_params": 50,
-                    "duration_cycles": 15,
-                },
-                {
-                    "stage_type": "降温",
-                    "temperature_program": "自然降温",
-                    "cooling_params": {"value": None, "option": "furnace_cooling"},
-                    "gas_species": "Ar",
-                    "gas_flow_sccm": {"value": 50, "option": "MFC"},
-                    "pressure_system": {"value": 101325, "option": "atmospheric_pressure"},
-                },
+                reaction_step(
+                    gas_lot.json(),
+                    duration_min=15.0,
+                    cooling_params={"method": "furnace_cooling"},
+                    field_params=[
+                        {
+                            "field_type": "plasma",
+                            "start_min": 2.0,
+                            "end_min": 12.0,
+                            "parameters": [{"name": "power", "value": 50.0, "unit": "W"}],
+                        }
+                    ],
+                ),
             ]
         },
     )
@@ -188,9 +220,11 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
         {
             "items": [
                 {
-                    "event_part": "气流中断（Ar气路）",
-                    "occurred_at": "2026-07-08T10:28:00+08:00",
-                    "description_action": "Ar瓶压不足，已更换",
+                    "event_id": str(uuid4()),
+                    "event_type": "gas_interruption",
+                    "occurred_at": "2026-07-08T09:40:00+08:00",
+                    "terminated_run": False,
+                    "action_taken": "更换气瓶",
                 }
             ]
         },
@@ -260,6 +294,18 @@ def test_full_v2_run_walkthrough(active_user, db_session) -> None:
         headers=headers,
     )
     assert supplemented.status_code == 201, supplemented.text
+    refreshed = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
+    assert refreshed.json()["result_missing_todo"] is True
+
+    replacement = client.post(
+        f"/api/v1/samples/{sample_id}/measured-products",
+        json={
+            "characterization_record_id": supplemented.json()["id"],
+            "observed_phenomena": ["不连续覆盖"],
+        },
+        headers=headers,
+    )
+    assert replacement.status_code == 201, replacement.text
     refreshed = client.get(f"/api/v1/experiments/{run_id}", headers=headers)
     assert refreshed.json()["result_missing_todo"] is False
     reports = build_r0_reports(db_session, run_code="CVD-2026-0200")

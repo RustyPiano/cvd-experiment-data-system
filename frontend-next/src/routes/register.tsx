@@ -6,6 +6,7 @@ import { RegisterForm } from '@/features/auth/register-form'
 import { getStoredSession } from '@/features/auth/session'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { LanguageToggle } from '@/shared/ui/language-toggle'
+import { ThemeToggle } from '@/shared/ui/theme-toggle'
 
 export const Route = createFileRoute('/register')({
   beforeLoad: () => {
@@ -20,8 +21,9 @@ function RegisterPage() {
   const { t } = useTranslation()
   return (
     <div className="relative flex min-h-svh items-center justify-center bg-background p-4">
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-4 flex items-center gap-1">
         <LanguageToggle />
+        <ThemeToggle />
       </div>
       <div className="w-full max-w-sm">
         <Card className="shadow-lg">

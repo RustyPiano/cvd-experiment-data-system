@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+from collections import Counter
 from copy import deepcopy
 from datetime import UTC, date, datetime
 from typing import Any
@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
 from app.models.user import User, UserRole
 from app.repositories.experiment_repository import ExperimentRepository
@@ -32,23 +33,37 @@ from app.services.experiment_guards import (
     get_owned_experiment,
     get_visible_experiment,
 )
+from app.services.file_asset_service import FileAssetService
+from app.services.file_storage_service import FileStorageService
 from app.services.sample_service import SampleService
+from app.services.temperature_timeseries import (
+    TemperatureTimeseriesError,
+    ensure_temperature_timeseries_metadata,
+    temperature_timeseries_mapping_error,
+)
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import (
     apply_setup_reference,
     material_lot_version_snapshot,
+    setup_equipment_projection,
 )
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
     experiment_fields,
     load_field_source,
-    missing,
     module_key_for_field,
     normalize_offset_datetime,
-    stage_types_with_group,
     validate_chemical_formula,
     validate_material_formula,
+)
+from app.services.v2_process_semantics import (
+    apply_derived_reaction_cycle_counts,
+    process_duration_violations,
+    process_step_order_is_valid,
+    reaction_cycle_counts_are_consistent,
+    temperature_programs_start_at_zero,
+    valid_frozen_gas_reference,
 )
 from app.services.v2_r0_service import missing_r0_fields, missing_required_fields
 from app.services.v2_result_status_service import (
@@ -64,15 +79,6 @@ PRECURSOR_FORMULA_ALIASES = {
     "硫": "S",
     "硒": "Se",
     "碲": "Te",
-}
-SUBSTRATE_MATERIAL_ALIASES = {
-    "sio2_si": {"sio2_si"},
-    "sapphire_al2o3": {"sapphire", "sapphire_al2o3"},
-    "quartz": {"quartz"},
-    "mica": {"mica"},
-    "cu_foil": {"cu_foil"},
-    "au_foil": {"au_foil"},
-    "h-BN": {"h-BN"},
 }
 SUBSTRATE_FORMULAS = {
     "sio2_si": {"Si", "SiO2"},
@@ -92,6 +98,7 @@ class V2ExperimentService:
         self.entities = V2EntityService(db)
         self.samples = SampleService(db)
         self.audit = AuditService(db)
+        self.file_storage = FileStorageService()
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
         started_at = normalize_offset_datetime(payload.started_at)
@@ -135,15 +142,24 @@ class V2ExperimentService:
                         status_code=status.HTTP_409_CONFLICT,
                         detail="Run code already exists",
                     ) from exc
+        basic_info = {
+            "started_at": started_at.isoformat(),
+            "synthesis_method": canonical_option_value(payload.synthesis_method),
+            "operator": current_user.name,
+            "run_code": run.run_code,
+        }
+        for key in (
+            "ambient_temperature_C",
+            "ambient_humidity_percent",
+            "precheck_confirmed",
+        ):
+            value = getattr(payload, key)
+            if value is not None:
+                basic_info[key] = value
         self._save_v2_payload(
             run.id,
             "basic_info",
-            {
-                "started_at": started_at.isoformat(),
-                "synthesis_method": canonical_option_value(payload.synthesis_method),
-                "operator": current_user.name,
-                "run_code": run.run_code,
-            },
+            basic_info,
         )
         if chemical_formula:
             self._save_v2_payload(
@@ -304,19 +320,16 @@ class V2ExperimentService:
             "setup_ref_version": run.setup_ref_version,
         }
         version = self.entities.get_version("setup", setup_id, setup_version)
-        self._validate_saved_zone_indices(run.id, version.zone_count)
+        self._validate_saved_zone_indices(
+            run.id,
+            version.zone_count,
+            field_devices=version.attrs.get("field_devices"),
+        )
         apply_setup_reference(run, version)
         self._save_v2_payload(
             run.id,
             "equipment",
-            {
-                "setup_ref": str(version.entity_id),
-                "brand_model": version.attrs.get("brand_model"),
-                "wall_type": version.attrs.get("wall_type"),
-                "zone_count": version.zone_count,
-                "orientation": version.orientation,
-                "coordinate_system": version.coordinate_system,
-            },
+            setup_equipment_projection(version),
         )
         self.audit.record_event(
             actor=current_user,
@@ -345,6 +358,11 @@ class V2ExperimentService:
         )
         run = self._locked_run(run.id)
         ensure_process_editable(run)
+        if module_key == "equipment":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Equipment is a read-only projection of the referenced Setup version",
+            )
         try:
             payload_json = deepcopy(payload.payload_json)
             substrate_source_ids: list[object | None] = []
@@ -389,6 +407,13 @@ class V2ExperimentService:
                 process_payload.payload_json if process_payload else {},
             )
         if module_key == "process_steps":
+            self._validate_process_step_cardinality(validated)
+            self._validate_process_semantics(validated)
+            validated = apply_derived_reaction_cycle_counts(validated)
+            self._validate_process_zone_indices(run, validated)
+            self._validate_process_duration_bounds(validated)
+            self._validate_measured_temperature_reference(run, validated)
+            validated = self._freeze_process_gas_references(validated)
             self._validate_external_field_requirement(run, validated)
             basic_payload = self.module_payloads.get_by_run_and_key(run.id, "basic_info")
             self._validate_pressure_regime(
@@ -401,6 +426,7 @@ class V2ExperimentService:
                 process_events=validated,
                 invalid_key="occurred_at",
             )
+            self._validate_process_event_attachments(run, validated)
         if module_key in {"precursors", "substrates", "pvd"}:
             validated = self._freeze_material_lot_references(module_key, validated)
         if module_key in {"precursors", "substrates"}:
@@ -425,6 +451,13 @@ class V2ExperimentService:
                 substrate_source_ids,
             )
         saved = self._save_v2_payload(run.id, module_key, validated)
+        if module_key in {"process_steps", "process_events"}:
+            self._prune_unreferenced_process_files(
+                run.id,
+                module_key,
+                validated,
+                current_user,
+            )
         # Audit only the module key: payload snapshots are too noisy for routine upserts.
         self.audit.record_event(
             actor=current_user,
@@ -584,32 +617,276 @@ class V2ExperimentService:
     def _validate_external_field_requirement(
         self, run: ExperimentRun, payload_json: dict[str, Any]
     ) -> None:
-        # Cross-entity condition from YAML:
-        # field_params is required when 装置Setup.外场装置 != 无. The generated
-        # module model cannot see the referenced Setup snapshot, so service layer owns it.
         snapshot = run.setup_ref_snapshot_json or {}
         attrs = snapshot.get("attrs_snapshot") or {}
-        field_devices = attrs.get("field_devices")
-        if (
-            isinstance(field_devices, list)
-            and any(value in {"none", "无"} for value in field_devices)
-            and field_devices not in (["none"], ["无"])
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="无 must be the only external field device selection",
-            )
-        if missing(field_devices) or field_devices in ("none", "无", ["none"], ["无"]):
-            return
-        external_stage_types = stage_types_with_group("external_field")
+        self._validate_field_devices(
+            payload_json,
+            attrs.get("field_devices"),
+            setup_available=bool(run.setup_ref_snapshot_json),
+        )
+
+    @staticmethod
+    def _validate_field_devices(
+        payload_json: dict[str, Any],
+        field_devices: Any,
+        *,
+        setup_available: bool,
+    ) -> None:
+        configured = (
+            {canonical_option_value(value) for value in field_devices if isinstance(value, str)}
+            if isinstance(field_devices, list)
+            else set()
+        )
+        configured.discard("none")
         for step in payload_json.get("items") or []:
-            if step.get("stage_type") in external_stage_types and missing(step.get("field_params")):
+            for field in step.get("field_params") or []:
+                field_type = canonical_option_value(field.get("field_type"))
+                reason = "setup_required" if not setup_available else "setup_capability"
+                if field_type not in configured:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": "field_params", "reason": reason}]},
+                    )
+
+    @staticmethod
+    def _validate_process_step_cardinality(payload_json: dict[str, Any]) -> None:
+        counts = Counter(
+            item.get("stage_type")
+            for item in payload_json.get("items") or []
+            if isinstance(item, dict)
+        )
+        for stage_type in ("preparation", "reaction_conditions"):
+            count = counts[stage_type]
+            if count > 1:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=(
-                        "field_params is required when referenced setup has external field devices"
-                    ),
+                    detail={"invalid": [{"key": "stage_type", "reason": "duplicate"}]},
                 )
+
+    @staticmethod
+    def _validate_process_semantics(payload_json: dict[str, Any]) -> None:
+        invalid: list[dict[str, str]] = []
+        if not process_step_order_is_valid(payload_json):
+            invalid.append({"key": "stage_type", "reason": "order"})
+        if not temperature_programs_start_at_zero(payload_json):
+            invalid.append({"key": "temperature_program", "reason": "start_at_zero"})
+        if not reaction_cycle_counts_are_consistent(payload_json):
+            invalid.append({"key": "duration_cycles", "reason": "gas_intervals"})
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": invalid},
+            )
+
+    def _validate_process_zone_indices(
+        self,
+        run: ExperimentRun,
+        payload_json: dict[str, Any],
+    ) -> None:
+        zone_count = (run.setup_ref_snapshot_json or {}).get("zone_count_snapshot")
+        self._validate_process_zones_for_count(
+            payload_json,
+            zone_count if isinstance(zone_count, int) else None,
+        )
+
+    @staticmethod
+    def _validate_process_zones_for_count(
+        payload_json: dict[str, Any],
+        zone_count: int | None,
+    ) -> None:
+        indexed_groups: list[tuple[str, list[Any]]] = []
+        for step in payload_json.get("items") or []:
+            if not isinstance(step, dict) or step.get("stage_type") != "reaction_conditions":
+                continue
+            temperature_program = step.get("temperature_program") or {}
+            indexed_groups.append(("temperature_program", temperature_program.get("zones") or []))
+            measured = step.get("measured_temperature") or {}
+            indexed_groups.append(("measured_temperature", measured.get("channels") or []))
+        for key, items in indexed_groups:
+            if items and zone_count is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": key, "reason": "setup_required"}]},
+                )
+            zone_indices = [item.get("zone_index") for item in items if isinstance(item, dict)]
+            if (
+                key == "temperature_program"
+                and zone_count is not None
+                and set(zone_indices) != set(range(1, zone_count + 1))
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": key, "reason": "zone_count"}]},
+                )
+            for item in items:
+                zone_index = item.get("zone_index") if isinstance(item, dict) else None
+                if not isinstance(zone_index, int):
+                    continue
+                if zone_count is not None and zone_index > zone_count:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": key, "reason": "zone_count"}]},
+                    )
+
+    @staticmethod
+    def _validate_process_duration_bounds(payload_json: dict[str, Any]) -> None:
+        violations = process_duration_violations(payload_json)
+        if violations:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": key, "reason": "duration_min"} for key in violations]},
+            )
+
+    def _validate_measured_temperature_reference(
+        self,
+        run: ExperimentRun,
+        payload_json: dict[str, Any],
+    ) -> None:
+        for step in payload_json.get("items") or []:
+            measured = step.get("measured_temperature") if isinstance(step, dict) else None
+            if not isinstance(measured, dict):
+                continue
+            file_id = measured.get("file_asset_id")
+            try:
+                file_asset = self.db.get(FileAsset, UUID(str(file_id)))
+            except (TypeError, ValueError, AttributeError):
+                file_asset = None
+            reason = None
+            if file_asset is None:
+                reason = "reference"
+            elif file_asset.experiment_run_id != run.id:
+                reason = "same_run"
+            elif file_asset.deleted_at is not None:
+                reason = "inactive"
+            elif file_asset.asset_role != "temperature_timeseries":
+                reason = "role"
+            elif (
+                file_asset.metadata_json.get("binding_type") != "process_step"
+                or str(file_asset.metadata_json.get("binding_id") or "") != "reaction_conditions"
+            ):
+                reason = "process_binding"
+            if reason is None:
+                try:
+                    ensure_temperature_timeseries_metadata(file_asset, self.file_storage)
+                except TemperatureTimeseriesError as exc:
+                    reason = f"file_{exc.reason}"
+                else:
+                    reason = temperature_timeseries_mapping_error(
+                        file_asset.metadata_json,
+                        measured,
+                    )
+            if reason is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "measured_temperature", "reason": reason}]},
+                )
+
+    def _freeze_process_gas_references(
+        self,
+        payload_json: dict[str, Any],
+    ) -> dict[str, Any]:
+        references: list[dict[str, Any]] = []
+        for step in payload_json.get("items") or []:
+            if not isinstance(step, dict):
+                continue
+            if step.get("stage_type") == "reaction_conditions":
+                references.extend(
+                    feed for feed in step.get("gas_feeds") or [] if isinstance(feed, dict)
+                )
+            elif step.get("stage_type") == "preparation":
+                for operation in step.get("preparation_operations") or []:
+                    if (
+                        isinstance(operation, dict)
+                        and operation.get("operation_type") == "gas_exchange"
+                    ):
+                        references.extend(
+                            gas for gas in operation.get("gases") or [] if isinstance(gas, dict)
+                        )
+        for item in references:
+            version = self._resolve_material_lot_reference(item.get("lot_ref"), "lot_ref")
+            if version.lot_category != "gas_cylinder":
+                self._raise_invalid_reference("lot_ref", "category")
+            item["lot_ref"] = {
+                "entity_id": str(version.entity_id),
+                "version": version.version,
+                "snapshot": material_lot_version_snapshot(version),
+            }
+            if not valid_frozen_gas_reference(item):
+                self._raise_invalid_reference("lot_ref", "identity")
+        return payload_json
+
+    def _prune_unreferenced_process_files(
+        self,
+        run_id: UUID,
+        module_key: str,
+        payload_json: dict[str, Any],
+        current_user: User,
+    ) -> None:
+        if module_key == "process_events":
+            asset_role = "process_event_attachment"
+            retained_binding_ids = {
+                str(event.get("event_id"))
+                for event in payload_json.get("items") or []
+                if isinstance(event, dict)
+            }
+            raw_ids = (
+                raw_id
+                for event in payload_json.get("items") or []
+                if isinstance(event, dict)
+                for raw_id in event.get("attachment_file_ids") or []
+            )
+        else:
+            asset_role = "temperature_timeseries"
+            retained_binding_ids = None
+            raw_ids = (
+                measured["file_asset_id"]
+                for step in payload_json.get("items") or []
+                if isinstance(step, dict)
+                and step.get("stage_type") == "reaction_conditions"
+                and isinstance((measured := step.get("measured_temperature")), dict)
+            )
+        FileAssetService(self.db).soft_delete_unreferenced_process_files(
+            experiment_id=run_id,
+            asset_role=asset_role,
+            referenced_file_ids={UUID(str(raw_id)) for raw_id in raw_ids},
+            retained_binding_ids=retained_binding_ids,
+            current_user=current_user,
+        )
+
+    def _validate_process_event_attachments(
+        self,
+        run: ExperimentRun,
+        payload_json: dict[str, Any],
+    ) -> None:
+        for event in payload_json.get("items") or []:
+            if not isinstance(event, dict):
+                continue
+            event_id = str(event.get("event_id") or "")
+            for raw_file_id in event.get("attachment_file_ids") or []:
+                try:
+                    file_asset = self.db.get(FileAsset, UUID(str(raw_file_id)))
+                except (TypeError, ValueError, AttributeError):
+                    file_asset = None
+                metadata = file_asset.metadata_json if file_asset is not None else {}
+                reason = None
+                if file_asset is None:
+                    reason = "reference"
+                elif file_asset.experiment_run_id != run.id:
+                    reason = "same_run"
+                elif file_asset.deleted_at is not None:
+                    reason = "inactive"
+                elif file_asset.asset_role != "process_event_attachment":
+                    reason = "role"
+                elif (
+                    metadata.get("binding_type") != "process_event"
+                    or str(metadata.get("binding_id") or "") != event_id
+                ):
+                    reason = "event_binding"
+                if reason is not None:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": "attachment_file_ids", "reason": reason}]},
+                    )
 
     def _freeze_material_lot_references(
         self,
@@ -646,6 +923,14 @@ class V2ExperimentService:
                 self._raise_invalid_reference("lot_ref", "category")
             if module_key == "precursors":
                 self._validate_precursor_lot_identity(item, version)
+                item["cas_inchi"] = (
+                    " · ".join(
+                        str(version.attrs.get(key) or "").strip()
+                        for key in ("cas_number", "inchikey_cid")
+                        if str(version.attrs.get(key) or "").strip()
+                    )
+                    or None
+                )
             else:
                 self._validate_substrate_lot_identity(item, version)
             item["lot_ref"] = {
@@ -696,33 +981,35 @@ class V2ExperimentService:
     def _validate_substrate_lot_identity(self, item: dict[str, Any], version: Any) -> None:
         material = canonical_option_value(item.get("material"))
         lot_material = canonical_option_value(version.attrs.get("substrate_material"))
-        accepted_lot_materials = SUBSTRATE_MATERIAL_ALIASES.get(material, {material})
-        if lot_material not in accepted_lot_materials:
+        if lot_material != material:
             self._raise_invalid_reference("lot_ref", "identity")
 
         expected_formulas = SUBSTRATE_FORMULAS.get(material)
         if expected_formulas is not None and version.chemical_formula not in expected_formulas:
             self._raise_invalid_reference("lot_ref", "identity")
 
-        orientation = str(item.get("formula_orientation") or "").strip()
-        match = re.match(r"^((?:[A-Z][a-z]?(?:\d+(?:\.\d+)?)?)+)", orientation)
-        if match:
-            try:
-                orientation_formula = validate_chemical_formula(match.group(1))
-            except ValueError:
-                orientation_formula = None
-            if (
-                orientation_formula is not None
-                and expected_formulas is not None
-                and orientation_formula not in expected_formulas
-            ):
-                self._raise_invalid_reference("lot_ref", "identity")
+        if item.get("chemical_formula") != version.chemical_formula:
+            self._raise_invalid_reference("lot_ref", "identity")
 
-    def _validate_saved_zone_indices(self, run_id: UUID, zone_count: int) -> None:
+    def _validate_saved_zone_indices(
+        self,
+        run_id: UUID,
+        zone_count: int,
+        *,
+        field_devices: Any = None,
+    ) -> None:
         for module_key in ("precursors", "substrates"):
             payload = self.module_payloads.get_by_run_and_key(run_id, module_key)
             if payload is not None:
                 self._validate_zone_items(module_key, payload.payload_json, zone_count)
+        process_payload = self.module_payloads.get_by_run_and_key(run_id, "process_steps")
+        if process_payload is not None:
+            self._validate_process_zones_for_count(process_payload.payload_json, zone_count)
+            self._validate_field_devices(
+                process_payload.payload_json,
+                field_devices,
+                setup_available=True,
+            )
 
     def _validate_process_event_timeline(
         self,
@@ -820,7 +1107,7 @@ class V2ExperimentService:
         )
         option_ranges = (pressure_field.get("validation") or {}).get("option_ranges") or {}
         for step in process_payload.get("items") or []:
-            if step.get("stage_type") != "growth":
+            if step.get("stage_type") != "reaction_conditions":
                 continue
             pressure = step.get("pressure_system") or {}
             if pressure.get("option") != expected:
@@ -864,6 +1151,9 @@ class V2ExperimentService:
             )
 
     def _require_r0(self, run: ExperimentRun) -> None:
+        process_payload = self.module_payloads.get_by_run_and_key(run.id, "process_steps")
+        if process_payload is not None:
+            self._validate_measured_temperature_reference(run, process_payload.payload_json)
         r0_fields = [{**item, "requirement": "r0"} for item in missing_r0_fields(run)]
         r0_keys = {item["key"] for item in r0_fields}
         required_fields = [

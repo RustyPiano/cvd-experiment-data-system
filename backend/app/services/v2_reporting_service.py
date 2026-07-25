@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
 import zipfile
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ from app.commands.export_v2_schema import (
     STANDARD_ID,
     STANDARD_VERSION,
     build_v2_field_dictionary,
+    build_v2_json_schema,
 )
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
@@ -151,6 +153,75 @@ def _result_rows(
     ]
 
 
+def derive_gas_flow_shares(gas_feeds: Any) -> list[dict[str, Any]]:
+    """Slice gas feeds at every boundary and derive per-feed flow shares."""
+    if not isinstance(gas_feeds, list):
+        return []
+
+    valid_intervals: list[tuple[int, dict[str, Any], float, float, float]] = []
+    boundaries: set[float] = set()
+    for feed_index, feed in enumerate(gas_feeds, 1):
+        if not isinstance(feed, dict):
+            continue
+        for interval in feed.get("intervals") or []:
+            if not isinstance(interval, dict):
+                continue
+            start = interval.get("start_min")
+            end = interval.get("end_min")
+            flow = interval.get("flow_sccm")
+            if not all(
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+                for value in (start, end, flow)
+            ):
+                continue
+            start_value, end_value, flow_value = float(start), float(end), float(flow)
+            if start_value < 0 or end_value <= start_value or flow_value < 0:
+                continue
+            boundaries.update((start_value, end_value))
+            valid_intervals.append((feed_index, feed, start_value, end_value, flow_value))
+
+    rows: list[dict[str, Any]] = []
+    ordered = sorted(boundaries)
+    segment_index = 0
+    for start, end in zip(ordered, ordered[1:], strict=False):
+        if end <= start:
+            continue
+        flows: dict[int, float] = {}
+        feeds: dict[int, dict[str, Any]] = {}
+        for feed_index, feed, interval_start, interval_end, flow in valid_intervals:
+            if interval_start <= start and interval_end >= end and flow > 0:
+                flows[feed_index] = flows.get(feed_index, 0.0) + flow
+                feeds[feed_index] = feed
+        total = sum(flows.values())
+        if total <= 0:
+            continue
+        segment_index += 1
+        for feed_index in sorted(flows):
+            feed = feeds[feed_index]
+            reference = feed.get("lot_ref")
+            reference = reference if isinstance(reference, dict) else {}
+            species = str(feed.get("species") or "")
+            gas = str(feed.get("other_name") or "").strip() if species == "other" else species
+            flow = flows[feed_index]
+            rows.append(
+                {
+                    "interval_index": segment_index,
+                    "interval_start_min": start,
+                    "interval_end_min": end,
+                    "gas_feed_index": feed_index,
+                    "gas": gas,
+                    "gas_lot_entity_id": str(reference.get("entity_id") or ""),
+                    "gas_lot_version": reference.get("version") or "",
+                    "flow_sccm": flow,
+                    "total_flow_sccm": total,
+                    "flow_percent": flow / total * 100,
+                }
+            )
+    return rows
+
+
 class V2ReportingService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -226,6 +297,7 @@ class V2ReportingService:
         }
         tables = self._csv_tables(runs)
         field_dictionary = build_v2_field_dictionary(load_field_source())
+        json_schema = build_v2_json_schema()
         dictionary_fields = [
             "source_part",
             "module",
@@ -233,6 +305,13 @@ class V2ReportingService:
             "key",
             "label",
             "label_en",
+            "meaning",
+            "input",
+            "example",
+            "help",
+            "help_en",
+            "machine_type",
+            "schema_path",
             "r0",
             "requirement",
             "condition",
@@ -258,6 +337,11 @@ class V2ReportingService:
             "exported_at": datetime.now(UTC).isoformat(),
             "run_count": len(runs),
             "tables": [*tables, "field_dictionary.csv"],
+            "artifacts": [
+                "records.json",
+                "cvd-2d-process-v2.schema.json",
+                "cvd-2d-field-dictionary-v2.json",
+            ],
             "module_details": {
                 "path_notation": "JSONPath-like",
                 "array_index_base": 0,
@@ -277,6 +361,17 @@ class V2ReportingService:
                     "empty list, and empty object."
                 ),
             },
+            "derived_tables": {
+                "gas_flow_shares.csv": {
+                    "source": "records.json $.runs[*].modules.process_steps.items[*].gas_feeds",
+                    "reconstruction_key": [
+                        "experiment_id",
+                        "process_step_index",
+                        "interval_index",
+                        "gas_feed_index",
+                    ],
+                }
+            },
         }
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -289,6 +384,14 @@ class V2ReportingService:
             archive.writestr(
                 "records.json",
                 json.dumps(records, ensure_ascii=False, indent=2).encode("utf-8"),
+            )
+            archive.writestr(
+                "cvd-2d-process-v2.schema.json",
+                json.dumps(json_schema, ensure_ascii=False, indent=2).encode("utf-8"),
+            )
+            archive.writestr(
+                "cvd-2d-field-dictionary-v2.json",
+                json.dumps(field_dictionary, ensure_ascii=False, indent=2).encode("utf-8"),
             )
             archive.writestr(
                 "schema_manifest.json",
@@ -428,16 +531,6 @@ class V2ReportingService:
                     "id": str(run.setup_ref) if run.setup_ref else None,
                     "version": run.setup_ref_version,
                     "snapshot": run.setup_ref_snapshot_json,
-                    "flow_reference_temperature_C": (
-                        ((run.setup_ref_snapshot_json or {}).get("attrs_snapshot") or {}).get(
-                            "flow_reference_temperature_C"
-                        )
-                    ),
-                    "flow_reference_pressure_Pa": (
-                        ((run.setup_ref_snapshot_json or {}).get("attrs_snapshot") or {}).get(
-                            "flow_reference_pressure_Pa"
-                        )
-                    ),
                 },
             },
             "modules": modules,
@@ -465,6 +558,7 @@ class V2ReportingService:
         sample_rows: list[dict[str, Any]] = []
         result_rows: list[dict[str, Any]] = []
         file_rows: list[dict[str, Any]] = []
+        gas_flow_share_rows: list[dict[str, Any]] = []
 
         for run in runs:
             modules = {
@@ -506,16 +600,6 @@ class V2ReportingService:
                 "setup_zone_count": setup_snapshot.get("zone_count_snapshot"),
                 "setup_orientation": setup_snapshot.get("orientation_snapshot"),
                 "setup_coordinate_system": setup_snapshot.get("coordinate_system_snapshot"),
-                "setup_flow_reference_temperature_C": (
-                    setup_attrs.get("flow_reference_temperature_C")
-                    if isinstance(setup_attrs, dict)
-                    else None
-                ),
-                "setup_flow_reference_pressure_Pa": (
-                    setup_attrs.get("flow_reference_pressure_Pa")
-                    if isinstance(setup_attrs, dict)
-                    else None
-                ),
                 "created_at": run.created_at,
                 "locked_at": run.locked_at,
                 "setup_detail_path": "",
@@ -544,6 +628,25 @@ class V2ReportingService:
                 modules.get("process_steps"),
                 process_keys,
             )
+            for step_index, step in enumerate(
+                (modules.get("process_steps") or {}).get("items", []), 1
+            ):
+                if not isinstance(step, dict):
+                    continue
+                for row in derive_gas_flow_shares(step.get("gas_feeds")):
+                    relation_key = (
+                        f"{run.id}:process_steps:{step_index}:"
+                        f"{row['interval_index']}:{row['gas_feed_index']}"
+                    )
+                    gas_flow_share_rows.append(
+                        {
+                            "experiment_id": str(run.id),
+                            "run_code": run.run_code,
+                            "process_step_index": step_index,
+                            **row,
+                            "relation_key": relation_key,
+                        }
+                    )
             for module_key in (
                 "basic_info",
                 "target_product",
@@ -696,6 +799,9 @@ class V2ReportingService:
                         "run_code": run.run_code,
                         "sample_code": sample.sample_code if sample else "",
                         "result_code": result_code,
+                        "file_id": str(file.id),
+                        "binding_type": file.metadata_json.get("binding_type"),
+                        "binding_id": file.metadata_json.get("binding_id"),
                         "filename": file.original_name,
                         "method": canonical_option_value(file.method),
                         "file_category": file.file_category,
@@ -746,8 +852,6 @@ class V2ReportingService:
                     "setup_zone_count",
                     "setup_orientation",
                     "setup_coordinate_system",
-                    "setup_flow_reference_temperature_C",
-                    "setup_flow_reference_pressure_Pa",
                     "setup_detail_path",
                     "setup_detail_value",
                     "created_at",
@@ -788,6 +892,25 @@ class V2ReportingService:
                     "nested_value",
                 ],
                 process_rows,
+            ),
+            "gas_flow_shares.csv": (
+                [
+                    "experiment_id",
+                    "run_code",
+                    "process_step_index",
+                    "interval_index",
+                    "interval_start_min",
+                    "interval_end_min",
+                    "gas_feed_index",
+                    "gas",
+                    "gas_lot_entity_id",
+                    "gas_lot_version",
+                    "flow_sccm",
+                    "total_flow_sccm",
+                    "flow_percent",
+                    "relation_key",
+                ],
+                gas_flow_share_rows,
             ),
             "samples.csv": (
                 [
@@ -831,6 +954,9 @@ class V2ReportingService:
                     "run_code",
                     "sample_code",
                     "result_code",
+                    "file_id",
+                    "binding_type",
+                    "binding_id",
                     "filename",
                     "method",
                     "file_category",

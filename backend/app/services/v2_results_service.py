@@ -72,6 +72,7 @@ class V2ResultsService:
         run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
+        direct_files = self._direct_observation_files(payload, sample.id, run.id)
 
         record = None
         if payload.kind == "characterization":
@@ -85,7 +86,7 @@ class V2ResultsService:
         product = MeasuredProduct(
             sample_id=sample.id,
             characterization_record_id=record.id if record else None,
-            **self._measured_values(payload),
+            **self._measured_values(payload, direct_files),
         )
         saved = self.results.save_measured_product(product)
         if record:
@@ -133,6 +134,7 @@ class V2ResultsService:
         run = self._locked_run(sample.experiment_run_id, current_user)
         ensure_results_editable(run)
         self._validate_observed_phenomena(payload.observed_phenomena)
+        direct_files = self._direct_observation_files(payload, sample.id, run.id)
         record = (
             self.results.get_characterization_record(product.characterization_record_id)
             if product.characterization_record_id
@@ -169,7 +171,7 @@ class V2ResultsService:
                 after_json=self._characterization_snapshot(saved_record),
             )
 
-        for key, value in self._measured_values(payload).items():
+        for key, value in self._measured_values(payload, direct_files).items():
             setattr(product, key, value)
         saved = self.results.save_measured_product(product)
         self.audit.record_event(
@@ -221,6 +223,11 @@ class V2ResultsService:
                 ),
             )
         if record and self.files.has_active_for_characterization_record(record.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Delete active attachments before deleting the result",
+            )
+        if not record and self._has_active_direct_observation_files(product):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Delete active attachments before deleting the result",
@@ -516,6 +523,7 @@ class V2ResultsService:
             field_name: changes.get(field_name, getattr(product, field_name, None))
             for field_name in MEASURED_PRODUCT_EVIDENCE_FIELDS
         }
+        projected_values["attrs"] = changes.get("attrs", product.attrs)
         if not has_measured_product_evidence(projected_values):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -574,6 +582,12 @@ class V2ResultsService:
             record.instrument_snapshot_json,
             record.method_instrument,
         )
+        attrs = dict(record.attrs or {})
+        if payload.method_other:
+            attrs["method_other"] = payload.method_other
+        else:
+            attrs.pop("method_other", None)
+        record.attrs = attrs
 
     def _instrument_snapshot(
         self,
@@ -594,7 +608,15 @@ class V2ResultsService:
         return instrument_version_snapshot(version)
 
     @staticmethod
-    def _measured_values(payload: V2ResultWrite) -> dict:
+    def _measured_values(
+        payload: V2ResultWrite,
+        direct_files: list[FileAsset] | None = None,
+    ) -> dict:
+        attrs = {}
+        if direct_files:
+            attrs["evidence_file_ids"] = [str(file.id) for file in direct_files]
+        if payload.observed_phenomena_other:
+            attrs["observed_phenomena_other"] = payload.observed_phenomena_other
         return {
             "observed_phenomena": payload.observed_phenomena,
             "detected_phase_stacking": payload.detected_phase_stacking,
@@ -607,6 +629,7 @@ class V2ResultsService:
                 if payload.key_spectral_metrics is not None
                 else None
             ),
+            "attrs": attrs,
         }
 
     def _result_read(self, product: MeasuredProduct) -> V2ResultRead:
@@ -626,12 +649,15 @@ class V2ResultsService:
             method_instrument=(
                 canonical_option_value(record.method_instrument) if record else None
             ),
+            method_other=(record.attrs or {}).get("method_other") if record else None,
             test_conditions=record.test_conditions if record else None,
+            file_asset_ids=self._active_direct_observation_file_ids(product),
             observed_phenomena=(
                 [canonical_option_value(value) for value in product.observed_phenomena]
                 if product.observed_phenomena
                 else product.observed_phenomena
             ),
+            observed_phenomena_other=(product.attrs or {}).get("observed_phenomena_other"),
             detected_phase_stacking=product.detected_phase_stacking,
             layer_count=product.layer_count,
             coverage_percent=product.coverage_percent,
@@ -643,6 +669,58 @@ class V2ResultsService:
             created_at=product.created_at,
             updated_at=product.updated_at,
         )
+
+    def _direct_observation_files(
+        self,
+        payload: V2ResultWrite,
+        sample_id: UUID,
+        run_id: UUID,
+    ) -> list[FileAsset]:
+        if payload.kind != "direct_observation":
+            return []
+        files: list[FileAsset] = []
+        for file_id in dict.fromkeys(payload.file_asset_ids):
+            asset = self.files.get_by_id(file_id)
+            if (
+                asset is None
+                or asset.deleted_at is not None
+                or asset.experiment_run_id != run_id
+                or asset.sample_id != sample_id
+                or asset.asset_role != "direct_observation_file"
+                or asset.characterization_record_id is not None
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={"invalid": [{"key": "file_asset_ids", "reason": "reference"}]},
+                )
+            files.append(asset)
+        return files
+
+    def _has_active_direct_observation_files(
+        self,
+        product: MeasuredProduct,
+    ) -> bool:
+        return bool(self._active_direct_observation_file_ids(product))
+
+    def _active_direct_observation_file_ids(
+        self,
+        product: MeasuredProduct,
+    ) -> list[UUID]:
+        active: list[UUID] = []
+        for raw_id in (product.attrs or {}).get("evidence_file_ids", []):
+            try:
+                file_id = UUID(str(raw_id))
+                asset = self.files.get_by_id(file_id)
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if (
+                asset is not None
+                and asset.deleted_at is None
+                and asset.asset_role == "direct_observation_file"
+                and asset.sample_id == product.sample_id
+            ):
+                active.append(file_id)
+        return active
 
     @staticmethod
     def _characterization_read(record: CharacterizationRecord) -> CharacterizationRecordRead:

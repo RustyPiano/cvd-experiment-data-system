@@ -2,25 +2,85 @@
 // stageTypes.shows 对应参数组字段（common 恒显）。降温组仅『降温』出现且条件必填、反应生长
 // 压力体系必填、外场组仅当 §2 已选 Setup 且快照 field_devices≠无 时出现（跨实体条件）。
 // 步序可上下移动；payload 形状对齐后端 discriminated union（stage_type + 该阶段允许键）。
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import {
+  canonicalOption,
+  localizedFieldLabel,
+  localizedUnit,
+} from '@/shared/field-i18n'
+import {
+  buildCoolingParamsEditorLabels,
+  buildDurationCyclesEditorLabels,
+  buildFieldParamsEditorLabels,
+  buildGasFeedsEditorLabels,
+  buildMeasuredTemperatureEditorLabels,
+  buildPreparationOperationsEditorLabels,
+  buildTemperatureProgramEditorLabels,
+} from '@/shared/structured-editor-labels'
 import type { ModuleFieldValue, ModuleValues } from '../field-logic'
 import {
+  derivedReactionCycleCount,
   emptyModuleValues,
   getModuleFields,
+  isRetiredProcessStage,
   isProcessStepFieldRequired,
   isProcessStepFieldVisible,
   moduleValueAsString,
+  processStepOrderIsValid,
 } from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
+import { FieldLabel } from './field-bits'
+import { GasFeedsEditor } from './gas-feeds-editor'
+import type { GasFeed } from './gas-feeds-editor'
 import { ModuleCard } from './module-card'
+import {
+  CoolingParamsEditor,
+  DurationCyclesEditor,
+  FieldParamsEditor,
+  MeasuredTemperatureEditor,
+  PreparationOperationsEditor,
+  actualFieldTypes,
+} from './process-detail-editors'
+import type {
+  ActualField,
+  ActualFieldType,
+  CoolingParams,
+  DurationCycles,
+  MeasuredTemperatureReference,
+  PreparationOperation,
+} from './process-detail-editors'
+import { TemperatureProgramEditor } from './temperature-program-editor'
+import type { TemperatureProgram } from './temperature-program-editor'
 
 const STAGE_TYPE_KEY = 'stage_type'
 
+function jsonValue<T>(value: ModuleFieldValue | undefined, fallback: T): T {
+  try {
+    return JSON.parse(moduleValueAsString(value) || '') as T
+  } catch {
+    return fallback
+  }
+}
+
+export function setupFieldTypes(
+  snapshot: Record<string, unknown> | null,
+): ActualFieldType[] {
+  const raw = snapshot?.['field_devices']
+  const values = Array.isArray(raw) ? raw : raw == null ? [] : [raw]
+  return values
+    .map((value) => canonicalOption(String(value)))
+    .filter((value): value is ActualFieldType =>
+      actualFieldTypes.includes(value as ActualFieldType),
+    )
+}
+
 export function ProcessStepsSection({
+  runId,
   steps,
   setupSnapshot,
   onStepsChange,
@@ -28,6 +88,7 @@ export function ProcessStepsSection({
   showErrors,
   save,
 }: {
+  runId: string
   steps: ModuleValues[]
   /** §2 被引用装置版本快照（读 field_devices 判外场组显隐）。 */
   setupSnapshot: Record<string, unknown> | null
@@ -36,9 +97,22 @@ export function ProcessStepsSection({
   showErrors?: boolean
   save?: ModuleSaveProps
 }) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const fields = getModuleFields('process_steps')
   const stageTypeField = fields.find((field) => field.key === STAGE_TYPE_KEY)
+  const zoneCountValue = Number(setupSnapshot?.['zone_count'])
+  const zoneCount =
+    Number.isInteger(zoneCountValue) && zoneCountValue > 0
+      ? zoneCountValue
+      : null
+  const allowedFieldTypes = setupFieldTypes(setupSnapshot)
+  const usedPrimaryStages = new Set(
+    steps
+      .map((step) => canonicalOption(moduleValueAsString(step[STAGE_TYPE_KEY])))
+      .filter((stage) =>
+        ['preparation', 'reaction_conditions'].includes(stage),
+      ),
+  )
 
   const setStepValue = (
     stepIndex: number,
@@ -51,16 +125,124 @@ export function ProcessStepsSection({
       ),
     )
   }
-  const addStep = () =>
-    onStepsChange([...steps, emptyModuleValues('process_steps')])
+  const addStep = () => {
+    const step = emptyModuleValues('process_steps')
+    step[STAGE_TYPE_KEY] = !usedPrimaryStages.has('preparation')
+      ? 'preparation'
+      : !usedPrimaryStages.has('reaction_conditions')
+        ? 'reaction_conditions'
+        : 'other'
+    onStepsChange([...steps, step])
+  }
   const removeStep = (stepIndex: number) =>
     onStepsChange(steps.filter((_, i) => i !== stepIndex))
-  const moveStep = (stepIndex: number, delta: number) => {
+  const movementKeepsPrimaryOrder = (stepIndex: number, delta: number) => {
     const target = stepIndex + delta
-    if (target < 0 || target >= steps.length) return
+    if (target < 0 || target >= steps.length) return false
+    const next = [...steps]
+    ;[next[stepIndex], next[target]] = [next[target], next[stepIndex]]
+    return !processStepOrderIsValid(steps) || processStepOrderIsValid(next)
+  }
+  const moveStep = (stepIndex: number, delta: number) => {
+    if (!movementKeepsPrimaryOrder(stepIndex, delta)) return
+    const target = stepIndex + delta
     const next = [...steps]
     ;[next[stepIndex], next[target]] = [next[target], next[stepIndex]]
     onStepsChange(next)
+  }
+  const structuredEditor = (
+    key: string,
+    value: ModuleFieldValue | undefined,
+    onChange: (value: string) => void,
+    step: ModuleValues,
+  ) => {
+    switch (key) {
+      case 'preparation_operations':
+        return (
+          <PreparationOperationsEditor
+            value={jsonValue<PreparationOperation[]>(value, [])}
+            onChange={(next) => onChange(JSON.stringify(next))}
+            disabled={disabled}
+            showErrors={showErrors}
+            labels={buildPreparationOperationsEditorLabels(t)}
+          />
+        )
+      case 'temperature_program':
+        return (
+          <TemperatureProgramEditor
+            value={jsonValue<TemperatureProgram>(value, { zones: [] })}
+            onChange={(next) => onChange(JSON.stringify(next))}
+            zoneCount={zoneCount}
+            disabled={disabled}
+            showErrors={showErrors}
+            labels={buildTemperatureProgramEditorLabels(t)}
+          />
+        )
+      case 'measured_temperature':
+        return (
+          <MeasuredTemperatureEditor
+            runId={runId}
+            value={jsonValue<MeasuredTemperatureReference | null>(value, null)}
+            onChange={(next) => onChange(JSON.stringify(next))}
+            zoneCount={zoneCount}
+            disabled={disabled}
+            showErrors={showErrors}
+            saved={save?.saved}
+            labels={buildMeasuredTemperatureEditorLabels(t)}
+          />
+        )
+      case 'gas_feeds':
+        return (
+          <GasFeedsEditor
+            value={jsonValue<GasFeed[]>(value, [])}
+            onChange={(next) => onChange(JSON.stringify(next))}
+            disabled={disabled}
+            showErrors={showErrors}
+            labels={buildGasFeedsEditorLabels(t)}
+          />
+        )
+      case 'duration_cycles': {
+        const cycleCount = derivedReactionCycleCount(
+          jsonValue<unknown>(step['gas_feeds'], []),
+        )
+        return (
+          <DurationCyclesEditor
+            value={jsonValue<DurationCycles>(value, {
+              duration_min: null,
+              cycle_count: null,
+            })}
+            derivedCycleCount={cycleCount}
+            onChange={(next) => onChange(JSON.stringify(next))}
+            disabled={disabled}
+            showErrors={showErrors}
+            labels={buildDurationCyclesEditorLabels(t)}
+          />
+        )
+      }
+      case 'cooling_params':
+        return (
+          <CoolingParamsEditor
+            value={jsonValue<CoolingParams | null>(value, null)}
+            onChange={(next) => onChange(JSON.stringify(next))}
+            disabled={disabled}
+            showErrors={showErrors}
+            labels={buildCoolingParamsEditorLabels(t)}
+          />
+        )
+      case 'field_params':
+        return (
+          <FieldParamsEditor
+            value={jsonValue<ActualField[]>(value, [])}
+            onChange={(next) => onChange(JSON.stringify(next))}
+            allowedTypes={allowedFieldTypes}
+            disabled={disabled}
+            showErrors={showErrors}
+            labels={buildFieldParamsEditorLabels(t)}
+          />
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -68,7 +250,6 @@ export function ProcessStepsSection({
       id="module-process_steps"
       index="§5"
       title={t('experimentsV2.sections.processSteps.title')}
-      subtitle={t('experimentsV2.sections.processSteps.subtitle')}
       onSave={save?.onSave}
       saving={save?.saving}
       saved={save?.saved}
@@ -83,6 +264,7 @@ export function ProcessStepsSection({
       <div className="flex flex-col gap-4">
         {steps.map((step, stepIndex) => {
           const stageType = moduleValueAsString(step[STAGE_TYPE_KEY])
+          const isLegacyStage = isRetiredProcessStage(stageType)
           return (
             <div
               key={stepIndex}
@@ -99,7 +281,9 @@ export function ProcessStepsSection({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={disabled || stepIndex === 0}
+                    disabled={
+                      disabled || !movementKeepsPrimaryOrder(stepIndex, -1)
+                    }
                     aria-label={t('experimentsV2.sections.processSteps.moveUp')}
                     onClick={() => moveStep(stepIndex, -1)}
                   >
@@ -109,7 +293,9 @@ export function ProcessStepsSection({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={disabled || stepIndex === steps.length - 1}
+                    disabled={
+                      disabled || !movementKeepsPrimaryOrder(stepIndex, 1)
+                    }
                     aria-label={t(
                       'experimentsV2.sections.processSteps.moveDown',
                     )}
@@ -130,6 +316,20 @@ export function ProcessStepsSection({
                 </div>
               </div>
 
+              {isLegacyStage ? (
+                <Alert variant="destructive" className="mb-4">
+                  <TriangleAlert />
+                  <AlertTitle>
+                    {t('experimentsV2.sections.processSteps.legacyStageTitle')}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      'experimentsV2.sections.processSteps.legacyStageDescription',
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               {stageTypeField ? (
                 <FieldControl
                   moduleKey="process_steps"
@@ -137,11 +337,30 @@ export function ProcessStepsSection({
                   values={step}
                   value={stageType}
                   onChange={(value) =>
-                    setStepValue(stepIndex, STAGE_TYPE_KEY, value)
+                    onStepsChange(
+                      steps.map((item, index) =>
+                        index === stepIndex
+                          ? {
+                              ...emptyModuleValues('process_steps'),
+                              [STAGE_TYPE_KEY]: value,
+                            }
+                          : item,
+                      ),
+                    )
                   }
                   disabled={disabled}
-                  showError={showErrors && Boolean(stageType)}
+                  showError={showErrors}
                   requiredOverride
+                  hiddenOptions={steps
+                    .filter((_, index) => index !== stepIndex)
+                    .map((item) =>
+                      canonicalOption(
+                        moduleValueAsString(item[STAGE_TYPE_KEY]),
+                      ),
+                    )
+                    .filter((stage) =>
+                      ['preparation', 'reaction_conditions'].includes(stage),
+                    )}
                 />
               ) : null}
 
@@ -157,26 +376,54 @@ export function ProcessStepsSection({
                         step,
                       ),
                     )
-                    .map((field) => (
-                      <FieldControl
-                        key={field.key}
-                        moduleKey="process_steps"
-                        field={field}
-                        values={step}
-                        value={step[field.key] ?? ''}
-                        onChange={(value) =>
-                          setStepValue(stepIndex, field.key, value)
-                        }
-                        disabled={disabled}
-                        showError={showErrors}
-                        requiredOverride={isProcessStepFieldRequired(
-                          field,
-                          stageType,
-                          setupSnapshot,
-                          step,
-                        )}
-                      />
-                    ))}
+                    .map((field) => {
+                      const required = isProcessStepFieldRequired(
+                        field,
+                        stageType,
+                        setupSnapshot,
+                        step,
+                      )
+                      const editor = structuredEditor(
+                        field.key,
+                        step[field.key],
+                        (value) => setStepValue(stepIndex, field.key, value),
+                        step,
+                      )
+                      if (editor) {
+                        return (
+                          <div
+                            key={field.key}
+                            className="flex flex-col gap-2 sm:col-span-2"
+                          >
+                            <FieldLabel
+                              labelZh={localizedFieldLabel(
+                                field,
+                                i18n.language,
+                              )}
+                              unit={localizedUnit(field.unit, i18n.language)}
+                              required={required}
+                              r0={field.r0}
+                            />
+                            {editor}
+                          </div>
+                        )
+                      }
+                      return (
+                        <FieldControl
+                          key={field.key}
+                          moduleKey="process_steps"
+                          field={field}
+                          values={step}
+                          value={step[field.key] ?? ''}
+                          onChange={(value) =>
+                            setStepValue(stepIndex, field.key, value)
+                          }
+                          disabled={disabled}
+                          showError={showErrors}
+                          requiredOverride={required}
+                        />
+                      )
+                    })}
                 </div>
               ) : null}
             </div>

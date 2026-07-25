@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.experiment import ExperimentRun
+from tests.helpers.v2_payloads import substrate_item, substrate_lot_payload
 
 client = TestClient(app)
 
@@ -32,10 +33,44 @@ def _create_run(headers: dict[str, str], code: str) -> dict:
     return response.json()
 
 
-def _save_substrates(headers: dict[str, str], run_id: str, items: list[dict]) -> list[dict]:
+def _save_substrates(
+    headers: dict[str, str],
+    admin_headers: dict[str, str],
+    run_id: str,
+    items: list[dict],
+) -> list[dict]:
+    completed: list[dict] = []
+    for index, item in enumerate(items, start=1):
+        if item.get("lot_ref"):
+            completed.append(item)
+            continue
+        raw_material = item.get("material")
+        is_sio2 = raw_material in {"SiO2/Si", "SiO₂/Si", "sio2_si"}
+        material = "sio2_si" if is_sio2 else "sapphire_al2o3"
+        formula = "SiO2" if is_sio2 else "Al2O3"
+        lot_material = "sio2_si" if is_sio2 else "sapphire_al2o3"
+        lot = client.post(
+            "/api/v1/material-lots",
+            json=substrate_lot_payload(
+                batch_number=f"{run_id[-8:]}-{index}",
+                material=lot_material,
+                chemical_formula=formula,
+            ),
+            headers=admin_headers,
+        )
+        assert lot.status_code == 201, lot.text
+        overrides = {key: value for key, value in item.items() if key != "material"}
+        completed.append(
+            substrate_item(
+                lot.json(),
+                material=material,
+                chemical_formula=formula,
+                **overrides,
+            )
+        )
     response = client.put(
         f"/api/v1/experiments/{run_id}/modules/substrates",
-        json={"payload_json": {"items": items}},
+        json={"payload_json": {"items": completed}},
         headers=headers,
     )
     assert response.status_code == 200, response.text
@@ -56,6 +91,7 @@ def test_lock_generates_stable_growth_samples_and_relock_is_idempotent(
     run = _create_run(owner, "CVD-2026-9101")
     substrate_items = _save_substrates(
         owner,
+        admin,
         run["id"],
         [{"material": "蓝宝石"}, {"material": "SiO2/Si", "oxide_thickness_nm": 285}],
     )
@@ -90,6 +126,7 @@ def test_relock_rejects_removed_source_substrate_with_result(
     run = _create_run(owner, "CVD-2026-9102")
     items = _save_substrates(
         owner,
+        admin,
         run["id"],
         [{"material": "蓝宝石"}, {"material": "SiO2/Si"}],
     )
@@ -102,7 +139,7 @@ def test_relock_rejects_removed_source_substrate_with_result(
     )
     assert result.status_code == 201, result.text
     assert client.post(f"/api/v1/experiments/{run['id']}/unlock", headers=admin).status_code == 200
-    _save_substrates(owner, run["id"], [items[1]])
+    _save_substrates(owner, admin, run["id"], [items[1]])
 
     rejected = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
 
@@ -119,7 +156,7 @@ def test_relock_rejects_changed_source_substrate_with_result(
     owner = _headers(active_user.email)
     admin = _headers(admin_user.email)
     run = _create_run(owner, "CVD-2026-9106")
-    items = _save_substrates(owner, run["id"], [{"material": "蓝宝石"}])
+    items = _save_substrates(owner, admin, run["id"], [{"material": "蓝宝石"}])
     assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner).status_code == 200
     sample = _samples(owner, run["id"])[0]
     original_snapshot = sample["source_substrate_snapshot_json"]
@@ -132,8 +169,17 @@ def test_relock_rejects_changed_source_substrate_with_result(
     assert client.post(f"/api/v1/experiments/{run['id']}/unlock", headers=admin).status_code == 200
     _save_substrates(
         owner,
+        admin,
         run["id"],
-        [{**items[0], "material": "SiO2/Si", "oxide_thickness_nm": 285}],
+        [
+            {
+                **items[0],
+                "size_placement": {
+                    **items[0]["size_placement"],
+                    "length_mm": 12.0,
+                },
+            }
+        ],
     )
 
     rejected = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
@@ -154,6 +200,7 @@ def test_relock_soft_deletes_and_restores_source_sample_without_evidence(
     run = _create_run(owner, "CVD-2026-9104")
     items = _save_substrates(
         owner,
+        admin,
         run["id"],
         [{"material": "蓝宝石"}, {"material": "SiO2/Si"}],
     )
@@ -161,12 +208,12 @@ def test_relock_soft_deletes_and_restores_source_sample_without_evidence(
     original = _samples(owner, run["id"])
 
     assert client.post(f"/api/v1/experiments/{run['id']}/unlock", headers=admin).status_code == 200
-    _save_substrates(owner, run["id"], [items[1]])
+    _save_substrates(owner, admin, run["id"], [items[1]])
     assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner).status_code == 200
     assert [sample["id"] for sample in _samples(owner, run["id"])] == [original[1]["id"]]
 
     assert client.post(f"/api/v1/experiments/{run['id']}/unlock", headers=admin).status_code == 200
-    _save_substrates(owner, run["id"], items)
+    _save_substrates(owner, admin, run["id"], items)
     assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner).status_code == 200
     restored = _samples(owner, run["id"])
     assert [(sample["id"], sample["sample_code"]) for sample in restored] == [
@@ -174,10 +221,13 @@ def test_relock_soft_deletes_and_restores_source_sample_without_evidence(
     ]
 
 
-def test_manual_sample_types_reject_growth_and_require_parent_for_derived(active_user) -> None:
+def test_manual_sample_types_reject_growth_and_require_parent_for_derived(
+    active_user, admin_user
+) -> None:
     headers = _headers(active_user.email)
+    admin = _headers(admin_user.email)
     run = _create_run(headers, "CVD-2026-9103")
-    _save_substrates(headers, run["id"], [{"material": "蓝宝石"}])
+    _save_substrates(headers, admin, run["id"], [{"material": "蓝宝石"}])
     assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=headers).status_code == 200
     parent = _samples(headers, run["id"])[0]
 
@@ -210,7 +260,7 @@ def test_relock_rejects_removing_a_source_sample_with_a_derived_child(
     owner = _headers(active_user.email)
     admin = _headers(admin_user.email)
     run = _create_run(owner, "CVD-2026-9105")
-    items = _save_substrates(owner, run["id"], [{"material": "蓝宝石"}])
+    items = _save_substrates(owner, admin, run["id"], [{"material": "蓝宝石"}])
     assert client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner).status_code == 200
     parent = _samples(owner, run["id"])[0]
     derived = client.post(
@@ -220,7 +270,7 @@ def test_relock_rejects_removing_a_source_sample_with_a_derived_child(
     )
     assert derived.status_code == 201, derived.text
     assert client.post(f"/api/v1/experiments/{run['id']}/unlock", headers=admin).status_code == 200
-    _save_substrates(owner, run["id"], [])
+    _save_substrates(owner, admin, run["id"], [])
 
     rejected = client.post(f"/api/v1/experiments/{run['id']}/lock", headers=owner)
 

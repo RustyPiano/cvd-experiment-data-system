@@ -33,9 +33,9 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 81
-EXPECTED_ENTITY_FIELDS = 48
-EXPECTED_R0 = 18
+EXPECTED_FIELDS = 84
+EXPECTED_ENTITY_FIELDS = 44
+EXPECTED_R0 = 30
 
 errors: list[str] = []
 
@@ -157,13 +157,19 @@ for part, scope_of in (
                 else:
                     separator = "·" if "·" in raw_options else "/"
                     options = {
-                        item.strip() for item in raw_options.split(separator) if item.strip()
+                        doc.get("option_codes", {}).get(item.strip(), item.strip())
+                        for item in raw_options.split(separator)
+                        if item.strip()
                     }
-                    values = (
+                    raw_values = (
                         condition["value"]
                         if isinstance(condition["value"], list)
                         else [condition["value"]]
                     )
+                    values = [
+                        doc.get("option_codes", {}).get(value, value)
+                        for value in raw_values
+                    ]
                     unknown = [value for value in values if value not in options]
                     if unknown:
                         err(f"{where}: condition 值 {unknown!r} 不在驱动字段 options 词表内")

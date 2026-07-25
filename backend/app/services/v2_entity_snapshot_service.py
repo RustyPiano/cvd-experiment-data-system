@@ -3,6 +3,8 @@ from __future__ import annotations
 from app.models.experiment import ExperimentRun
 from app.models.v2_entities import InstrumentVersion, MaterialLotVersion, SetupVersion
 
+FIXED_COORDINATE_SYSTEM = "上游为负，下游为正"
+
 
 def setup_version_snapshot(version: SetupVersion) -> dict:
     return {
@@ -12,8 +14,21 @@ def setup_version_snapshot(version: SetupVersion) -> dict:
         "setup_name_snapshot": version.setup_name,
         "zone_count_snapshot": version.zone_count,
         "orientation_snapshot": version.orientation,
-        "coordinate_system_snapshot": version.coordinate_system,
+        "coordinate_system_snapshot": FIXED_COORDINATE_SYSTEM,
         "attrs_snapshot": version.attrs,
+    }
+
+
+def setup_equipment_projection(version: SetupVersion) -> dict:
+    """Build the run-level read-only projection from the frozen Setup version."""
+    return {
+        "setup_ref": str(version.entity_id),
+        "setup_code": version.setup_code,
+        "setup_name": version.setup_name,
+        "zone_count": version.zone_count,
+        "orientation": version.orientation,
+        "coordinate_system": FIXED_COORDINATE_SYSTEM,
+        **version.attrs,
     }
 
 

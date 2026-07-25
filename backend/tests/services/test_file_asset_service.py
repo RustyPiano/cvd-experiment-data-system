@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, UploadFile
+from openpyxl import Workbook
 
 from app.models.experiment import ExperimentRun
 from app.models.sample import Sample, SampleRole
@@ -15,6 +16,17 @@ from app.services.v2_field_source import field_option_values
 
 def build_upload(filename: str, content: bytes) -> UploadFile:
     return UploadFile(file=BytesIO(content), filename=filename)
+
+
+def build_xlsx(rows: list[list[object]]) -> bytes:
+    workbook = Workbook()
+    sheet = workbook.active
+    for row in rows:
+        sheet.append(row)
+    output = BytesIO()
+    workbook.save(output)
+    workbook.close()
+    return output.getvalue()
 
 
 def test_characterization_methods_come_from_field_source() -> None:
@@ -129,6 +141,90 @@ def test_upload_rejects_note_beyond_database_limit(active_user, db_session) -> N
         )
 
     assert exc_info.value.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("filename", "content", "columns", "row_count"),
+    [
+        (
+            "temperatures.csv",
+            b"elapsed_min,zone_1_C,comment\n0,25,start\n1,30,heat\n",
+            ["elapsed_min", "zone_1_C", "comment"],
+            2,
+        ),
+        (
+            "temperatures.xlsx",
+            build_xlsx(
+                [
+                    ["elapsed_min", "zone_1_C", "comment"],
+                    [0, 25, "start"],
+                    [1, 30, "heat"],
+                ]
+            ),
+            ["elapsed_min", "zone_1_C", "comment"],
+            2,
+        ),
+    ],
+)
+def test_temperature_timeseries_upload_parses_columns(
+    active_user,
+    db_session,
+    filename,
+    content,
+    columns,
+    row_count,
+) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+
+    created = service.upload_file(
+        experiment_id=experiment.id,
+        upload=build_upload(filename, content),
+        current_user=active_user,
+        asset_role="temperature_timeseries",
+        binding_type="process_step",
+        binding_id="reaction_conditions",
+    )
+
+    assert created.metadata_json["columns"] == columns
+    assert created.metadata_json["numeric_columns"] == ["elapsed_min", "zone_1_C"]
+    assert created.metadata_json["numeric_column_pairs"] == [["elapsed_min", "zone_1_C"]]
+    assert created.metadata_json["row_count"] == row_count
+
+
+@pytest.mark.parametrize(
+    ("filename", "content"),
+    [
+        ("temperatures.jpg", b"elapsed_min,zone_1_C\n0,25\n"),
+        ("temperatures.xlsx", b"not-an-xlsx"),
+        ("temperatures.csv", b"elapsed_min\n0\n"),
+        ("temperatures.csv", b"elapsed_min,zone_1_C\n0,hot\n"),
+        ("temperatures.csv", b"elapsed_min,\n0,25\n"),
+        ("temperatures.csv", b"elapsed_min,elapsed_min\n0,25\n"),
+        ("temperatures.csv", b"elapsed_min,zone_1_C\n0,\n,25\n"),
+    ],
+)
+def test_temperature_timeseries_upload_rejects_invalid_files(
+    active_user,
+    db_session,
+    filename,
+    content,
+) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.upload_file(
+            experiment_id=experiment.id,
+            upload=build_upload(filename, content),
+            current_user=active_user,
+            asset_role="temperature_timeseries",
+            binding_type="process_step",
+            binding_id="reaction_conditions",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert not any(path.is_file() for path in service.storage.root.rglob("*"))
 
 
 def test_upload_file_cleans_up_disk_when_audit_fails(active_user, db_session, monkeypatch) -> None:

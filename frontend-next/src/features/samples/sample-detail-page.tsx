@@ -34,10 +34,19 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  localizedNamedValue,
   localizedFieldLabel,
+  isEnglish,
   localizedOption,
+  localizedUnitLabel,
   localizedValue,
 } from '@/shared/field-i18n'
+import { entities } from '@/shared/generated/field-metadata'
+import {
+  buildStructuredValueLabels,
+  buildTreatmentStepsEditorLabels,
+} from '@/shared/structured-editor-labels'
+import type { TFunction } from 'i18next'
 
 const routeApi = getRouteApi('/_authed/samples/$sampleId')
 
@@ -47,16 +56,140 @@ function formatBytes(sizeBytes: number) {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`
 }
 
-function displayValue(value: unknown, language: string): string {
+const STRUCTURED_SOURCE_FIELDS = new Set([
+  'surface_roughness',
+  'size_placement',
+  'zone_thermocouple_distance_mm',
+])
+
+const TREATMENT_PARAMETER_KEYS = [
+  'temperature_C',
+  'duration_min',
+  'duration_s',
+  'speed_rpm',
+  'atmosphere',
+  'power_W',
+  'gas_species',
+  'pressure_Pa',
+  'method',
+] as const
+
+const TREATMENT_PARAMETER_UNITS: Partial<
+  Record<(typeof TREATMENT_PARAMETER_KEYS)[number], string>
+> = {
+  temperature_C: '℃',
+  duration_min: 'min',
+  duration_s: 's',
+  speed_rpm: 'rpm',
+  power_W: 'W',
+  pressure_Pa: 'Pa',
+}
+
+const MATERIAL_LOT_FIELDS = new Map(
+  (entities.material_lot ?? []).map((field) => [field.key, field]),
+)
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function hasDisplayValue(value: unknown): boolean {
+  return value != null && value !== ''
+}
+
+function displayMaterialLotReference(
+  value: unknown,
+  language: string,
+  t: TFunction,
+): string {
+  const reference = asRecord(value)
+  const snapshot = asRecord(reference?.snapshot)
+  if (!reference || !snapshot) return '—'
+  const attrs = asRecord(snapshot.attrs) ?? {}
+  const safeSnapshot = Object.fromEntries(
+    [
+      'substance_name',
+      'chemical_formula',
+      'supplier',
+      'catalog_number',
+      'batch_number',
+    ]
+      .map((key) => [key, snapshot[key] ?? attrs[key]])
+      .filter(([, item]) => hasDisplayValue(item)),
+  )
+  const version = reference.version ?? snapshot.version
+  if (hasDisplayValue(version)) {
+    safeSnapshot.frozen_version = `v${String(version)}`
+  }
+  const labels = Object.fromEntries(
+    [...MATERIAL_LOT_FIELDS.entries()].map(([key, field]) => [
+      key,
+      localizedFieldLabel(field, language),
+    ]),
+  )
+  labels.frozen_version = t('samples.detail.frozenVersion')
+  return localizedNamedValue(safeSnapshot, language, labels) || '—'
+}
+
+function displayTreatmentSteps(
+  value: unknown,
+  language: string,
+  t: TFunction,
+): string {
+  if (!Array.isArray(value)) return '—'
+  if (value.every((item) => !item || typeof item !== 'object')) {
+    return localizedValue(value, language) || '—'
+  }
+  const labels = buildTreatmentStepsEditorLabels(t)
+  const namedLabels: Record<string, string> = {
+    type: labels.type,
+    other_name: labels.otherName,
+    parameters: t('samples.detail.parameters'),
+    items: t('samples.detail.namedParameters'),
+    name: labels.parameterName,
+    value: labels.parameterValue,
+    unit: labels.parameterUnit,
+  }
+  for (const key of TREATMENT_PARAMETER_KEYS) {
+    const unit = TREATMENT_PARAMETER_UNITS[key]
+    namedLabels[key] = `${labels.fields[key]}${
+      unit
+        ? `${isEnglish(language) ? ' ' : ''}${localizedUnitLabel(
+            unit,
+            language,
+          )}`
+        : ''
+    }`
+  }
+  return localizedNamedValue(value, language, namedLabels) || '—'
+}
+
+function displayValue(
+  fieldKey: string,
+  value: unknown,
+  language: string,
+  t: TFunction,
+): string {
   if (value == null || value === '') return '—'
+  if (fieldKey === 'lot_ref') {
+    return displayMaterialLotReference(value, language, t)
+  }
+  if (fieldKey === 'pretreatment_steps') {
+    return displayTreatmentSteps(value, language, t)
+  }
+  if (STRUCTURED_SOURCE_FIELDS.has(fieldKey)) {
+    return (
+      localizedNamedValue(value, language, buildStructuredValueLabels(t)) || '—'
+    )
+  }
   if (Array.isArray(value)) return localizedValue(value, language)
   if (typeof value === 'object') {
     if ('value' in value || 'option' in value) {
       return localizedValue(value, language)
     }
-    return Object.entries(value)
-      .map(([key, item]) => `${key}: ${localizedValue(item, language)}`)
-      .join('；')
+    return '—'
   }
   return localizedValue(value, language)
 }
@@ -248,7 +381,7 @@ export function SampleDetailPage() {
                 <DetailRow
                   key={row.key}
                   label={row.label}
-                  value={displayValue(row.value, i18n.language)}
+                  value={displayValue(row.key, row.value, i18n.language, t)}
                 />
               ))}
             </dl>

@@ -73,7 +73,7 @@ describe('TargetProductSection composition guide', () => {
     await user.click(screen.getByRole('combobox', { name: /结构类型/ }))
     await user.click(screen.getByRole('option', { name: '掺杂' }))
 
-    expect(screen.getByText(/掺杂剂:基体/)).toBeInTheDocument()
+    expect(screen.getByText(/不强制把掺杂剂与主体材料拼成/)).toBeInTheDocument()
     expect(screen.queryByText(/不填组成明细/)).not.toBeInTheDocument()
 
     await user.type(
@@ -101,7 +101,9 @@ describe('TargetProductSection composition guide', () => {
     ])
 
     expect(screen.getByText('填写规则')).toBeInTheDocument()
-    expect(screen.getByText(/Nb:MoS2/)).toHaveTextContent('掺杂剂:基体')
+    expect(screen.getByText(/主体材料和一个或多个掺杂剂/)).toHaveTextContent(
+      '角色术语待组内最终统一',
+    )
     expect(
       screen.queryByRole('spinbutton', { name: '层序' }),
     ).not.toBeInTheDocument()

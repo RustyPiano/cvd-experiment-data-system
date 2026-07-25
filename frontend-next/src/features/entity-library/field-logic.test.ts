@@ -11,6 +11,7 @@ import {
   isNoneOption,
   isOtherOptionMarker,
   isSelectWithOtherInput,
+  matchesCondition,
   parseEnumOptions,
   resolveConditionKey,
 } from './field-logic'
@@ -44,7 +45,7 @@ describe('parseEnumOptions', () => {
     ['target_morphology', 'nanoflake'],
     ['appearance', 'caked_or_deliquescent'],
     ['material', 'sapphire_al2o3'],
-    ['event_part', 'other_addable'],
+    ['stage_type', 'other'],
   ])('keeps the real %s option %s', (key, option) => {
     const item = Object.values(experimentModules)
       .flat()
@@ -77,6 +78,12 @@ describe('getEntityFields', () => {
     expect(keys).toContain('lot_category')
     expect(keys).toContain('substance_name')
   })
+
+  it('allows a real custom substrate material name instead of literal other', () => {
+    expect(
+      isSelectWithOtherInput(field('material_lot', 'substrate_material').input),
+    ).toBe(true)
+  })
 })
 
 describe('resolveConditionKey', () => {
@@ -87,6 +94,18 @@ describe('resolveConditionKey', () => {
     expect(resolveConditionKey('material_lot', 'MaterialLot.▸衬底·材料')).toBe(
       'substrate_material',
     )
+  })
+})
+
+describe('matchesCondition', () => {
+  it('matches boolean conditions against checkbox form strings', () => {
+    const condition = {
+      field: '过程事件.是否导致实验终止',
+      op: 'eq' as const,
+      value: true,
+    }
+    expect(matchesCondition(condition, 'true')).toBe(true)
+    expect(matchesCondition(condition, 'false')).toBe(false)
   })
 })
 
@@ -287,23 +306,41 @@ describe('buildSubmitPayload', () => {
     expect(payload.zone_count).toBe(3)
   })
 
-  it('serializes pump model text and ultimate absolute pressure as one composite', () => {
+  it('round-trips structured temperature sensors', () => {
     const defaults = buildDefaultValues('setup', {
-      pump_model_base_pressure: {
-        option: 'Edwards RV12',
-        value: 2,
-      },
+      temperature_sensors: [
+        {
+          sensor_name: 'TC-1',
+          sensor_type: 'K',
+          zone_index: 1,
+          uncertainty_C: 1.5,
+          uncertainty_source: 'calibration',
+        },
+      ],
     })
-    expect(defaults.pump_model_base_pressure).toBe('Edwards RV12；2')
+    expect(JSON.parse(defaults.temperature_sensors as string)).toEqual([
+      {
+        sensor_name: 'TC-1',
+        sensor_type: 'K',
+        zone_index: 1,
+        uncertainty_C: 1.5,
+        uncertainty_source: 'calibration',
+      },
+    ])
     expect(
       buildSubmitPayload('setup', {
-        pump_model_base_pressure: defaults.pump_model_base_pressure,
+        temperature_sensors: defaults.temperature_sensors,
       }),
     ).toEqual({
-      pump_model_base_pressure: {
-        option: 'Edwards RV12',
-        value: 2,
-      },
+      temperature_sensors: [
+        {
+          sensor_name: 'TC-1',
+          sensor_type: 'K',
+          zone_index: 1,
+          uncertainty_C: 1.5,
+          uncertainty_source: 'calibration',
+        },
+      ],
     })
   })
 
@@ -346,9 +383,9 @@ describe('buildSubmitPayload', () => {
   it('rejects non-finite and out-of-range numeric entity values', () => {
     expect(() =>
       buildSubmitPayload('setup', {
-        flow_reference_pressure_Pa: '0',
+        zone_count: '0',
       }),
-    ).toThrowError(/flow_reference_pressure_Pa.*gt/)
+    ).toThrowError(/zone_count.*ge/)
     expect(() =>
       buildSubmitPayload('setup', {
         zone_count: '2.5',

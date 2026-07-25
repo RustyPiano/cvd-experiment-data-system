@@ -8,8 +8,8 @@
 #     uv run --project backend python docs/standard/check_field_source.py   # 校验 xlsx 与 YAML 一致（CI 强制）
 # 依赖由项目 UV 环境管理，禁止使用 pip 单独安装。
 #
-# 四个 sheet：字段草案（实验记录 81 字段/9 模块）、一等实体字段表（MaterialLot/
-# 装置Setup/表征仪器）、v2→v3变更说明、待明确清单。
+# 四个 sheet：字段草案（实验记录 84 字段/10 模块）、一等实体字段表（MaterialLot、
+# 装置 Setup、表征仪器，共 44 字段）、v2→v3变更说明、待明确清单。
 # 全流程背景与进度见 docs/standard/STATUS.md；技术决策见 docs/engineering/v2-implementation-plan.md。
 # ============================================================================
 import json

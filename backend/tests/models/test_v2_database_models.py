@@ -16,6 +16,12 @@ from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.services.v2_entity_snapshot_service import apply_setup_reference
 
 FIELD_SOURCE = Path(__file__).resolve().parents[3] / "docs" / "standard" / "field-source.yaml"
+STRUCTURED_ATTR_INPUTS = {
+    "FileAsset引用",
+    "管材质形状对象",
+    "温度传感器数组",
+}
+PUBLISHED_INTERNAL_COLUMNS = {"coordinate_system"}
 
 
 def _entity_fields(module_name: str) -> list[dict]:
@@ -32,7 +38,9 @@ def _required_entity_keys(module_name: str) -> set[str]:
     return {
         field["key"]
         for field in _entity_fields(module_name)
-        if field["requirement"]["level"] == "required" and field.get("storage") != "attrs"
+        if field["requirement"]["level"] == "required"
+        and field.get("storage") != "attrs"
+        and field["input"] not in STRUCTURED_ATTR_INPUTS
     }
 
 
@@ -57,14 +65,17 @@ def test_entity_version_tables_use_field_source_required_keys_as_columns(
         if field["key"] not in required_keys
         and field["key"] != "version"
         and field.get("storage") != "attrs"
+        and field["input"] not in STRUCTURED_ATTR_INPUTS
     }
     attrs_keys = {
-        field["key"] for field in _entity_fields(module_name) if field.get("storage") == "attrs"
+        field["key"]
+        for field in _entity_fields(module_name)
+        if field.get("storage") == "attrs" or field["input"] in STRUCTURED_ATTR_INPUTS
     }
 
     assert {"entity_id", "version", "attrs"}.issubset(columns)
     assert required_keys.issubset(columns)
-    assert optional_keys.isdisjoint(columns)
+    assert (optional_keys - PUBLISHED_INTERNAL_COLUMNS).isdisjoint(columns)
     assert attrs_keys.isdisjoint(columns)
 
 
@@ -184,6 +195,6 @@ def test_setup_reference_freezes_version_snapshot_on_experiment_run(
         "setup_name_snapshot": "1号双温区管式炉",
         "zone_count_snapshot": 2,
         "orientation_snapshot": "水平",
-        "coordinate_system_snapshot": "原点=温区2热电偶；下游为正",
+        "coordinate_system_snapshot": "上游为负，下游为正",
         "attrs_snapshot": {"brand_model": "合肥科晶 OTF-1200X"},
     }

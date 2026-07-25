@@ -11,6 +11,7 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { triggerBlobDownload } from '@/shared/lib/download'
 import { useAuth } from '@/features/auth/use-auth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -33,12 +34,18 @@ import { RunAuditSection } from './components/run-audit-section'
 import { ExperimentV2Form } from './experiment-v2-form'
 import { buildStateFromLoaded } from './form-state'
 import { getModuleFields } from './field-logic'
-import { localizedFieldLabel } from '@/shared/field-i18n'
+import {
+  isEnglish,
+  localizedFieldLabel,
+  localizedParenthetical,
+} from '@/shared/field-i18n'
 import {
   availableStatusActions,
   isProcessReadOnly,
   isResultsReadOnly,
+  statusBadgeVariant,
   statusBannerKey,
+  statusLabelKey,
   statusTransitionInvalidationKeys,
 } from './status-logic'
 import type { StatusAction } from './status-logic'
@@ -196,18 +203,78 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={t('experimentsV2.edit.title')}
+        title={data?.run.run_code ?? t('experimentsV2.edit.title')}
         subtitle={t('experimentsV2.edit.subtitle')}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!data || exportMutation.isPending}
-            onClick={() => exportMutation.mutate()}
-          >
-            <Download className="size-4" />
-            {t('experimentsV2.export.run')}
-          </Button>
+          <>
+            {data ? (
+              <Badge variant={statusBadgeVariant(data.run.status)}>
+                {t(statusLabelKey(data.run.status))}
+              </Badge>
+            ) : null}
+            {data?.run.result_missing_todo ? (
+              <Badge variant="destructive">
+                {t('experimentsV2.status.resultMissing')}
+              </Badge>
+            ) : null}
+            {data?.run.not_characterized_at ? (
+              <Badge variant="outline">
+                {t('experimentsV2.status.notCharacterized')}
+              </Badge>
+            ) : null}
+            {data
+              ? availableStatusActions(
+                  data.run.status,
+                  canEditProcess,
+                  isAdmin,
+                ).map((action) => (
+                  <Button
+                    key={action}
+                    variant={
+                      action === 'lock'
+                        ? 'default'
+                        : action === 'invalidate'
+                          ? 'destructive'
+                          : 'outline'
+                    }
+                    disabled={
+                      mutation.isPending || (action === 'lock' && processDirty)
+                    }
+                    onClick={() => act(action)}
+                  >
+                    {t(`experimentsV2.actions.${action}`)}
+                  </Button>
+                ))
+              : null}
+            {data?.run.status === 'locked' &&
+            (data.run.result_missing_todo ||
+              Boolean(data.run.not_characterized_at)) ? (
+              <Button
+                variant="outline"
+                disabled={notCharacterizedMutation.isPending}
+                onClick={() =>
+                  notCharacterizedMutation.mutate(
+                    data.run.not_characterized_at === null,
+                  )
+                }
+              >
+                {t(
+                  data.run.not_characterized_at
+                    ? 'experimentsV2.actions.clearNotCharacterized'
+                    : 'experimentsV2.actions.markNotCharacterized',
+                )}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!data || exportMutation.isPending}
+              onClick={() => exportMutation.mutate()}
+            >
+              <Download data-icon="inline-start" />
+              {t('experimentsV2.export.run')}
+            </Button>
+          </>
         }
       />
       {isError ? (
@@ -231,43 +298,6 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         <LoadingState />
       ) : (
         <>
-          <div className="flex flex-wrap gap-2">
-            {availableStatusActions(
-              data.run.status,
-              canEditProcess,
-              isAdmin,
-            ).map((action) => (
-              <Button
-                key={action}
-                variant={action === 'invalidate' ? 'destructive' : 'outline'}
-                disabled={
-                  mutation.isPending || (action === 'lock' && processDirty)
-                }
-                onClick={() => act(action)}
-              >
-                {t(`experimentsV2.actions.${action}`)}
-              </Button>
-            ))}
-            {data.run.status === 'locked' &&
-            (data.run.result_missing_todo ||
-              Boolean(data.run.not_characterized_at)) ? (
-              <Button
-                variant="outline"
-                disabled={notCharacterizedMutation.isPending}
-                onClick={() =>
-                  notCharacterizedMutation.mutate(
-                    data.run.not_characterized_at === null,
-                  )
-                }
-              >
-                {t(
-                  data.run.not_characterized_at
-                    ? 'experimentsV2.actions.clearNotCharacterized'
-                    : 'experimentsV2.actions.markNotCharacterized',
-                )}
-              </Button>
-            ) : null}
-          </div>
           {processDirty ? (
             <Alert>
               <AlertDescription>
@@ -311,11 +341,13 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                             ? localizedFieldLabel(field, i18n.language)
                             : item.label
                         })()}
-                        （
-                        {t(
-                          `experimentsV2.sections.${MODULE_TITLE_KEYS[item.module as keyof typeof MODULE_TITLE_KEYS] ?? 'unknown'}.title`,
+                        {isEnglish(i18n.language) ? ' ' : null}
+                        {localizedParenthetical(
+                          t(
+                            `experimentsV2.sections.${MODULE_TITLE_KEYS[item.module as keyof typeof MODULE_TITLE_KEYS] ?? 'unknown'}.title`,
+                          ),
+                          i18n.language,
                         )}
-                        ）
                       </button>
                     </li>
                   ))}

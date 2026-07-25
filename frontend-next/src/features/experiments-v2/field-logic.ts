@@ -42,6 +42,23 @@ export { matchesCondition, parseEnumOptions }
 export type ModuleFieldValue = string | string[]
 export type ModuleValues = Record<string, ModuleFieldValue>
 
+const JSON_FIELD_KEYS = new Set([
+  'treatment_steps',
+  'pretreatment_steps',
+  'preparation_operations',
+  'temperature_program',
+  'measured_temperature',
+  'gas_feeds',
+  'duration_cycles',
+  'cooling_params',
+  'field_params',
+  'attachment_file_ids',
+])
+
+function isBooleanInput(input: string): boolean {
+  return input === '复选' || input === '复选确认'
+}
+
 export function isMultiValueInput(input: string): boolean {
   return input.includes('多选') || input.includes('多条')
 }
@@ -128,6 +145,16 @@ export function isFieldVisible(
   if (!field.visibilityGated) return true
   const condition = field.requirement.condition
   if (!condition) return true
+  const driverKey = resolveModuleConditionKey(moduleKey, condition.field)
+  const driverField = driverKey
+    ? getModuleFields(moduleKey).find((item) => item.key === driverKey)
+    : null
+  if (
+    driverField?.visibilityGated &&
+    !isFieldVisible(moduleKey, driverField, values)
+  ) {
+    return false
+  }
   return isConditionSatisfied(condition, values, moduleKey)
 }
 
@@ -198,6 +225,10 @@ function fieldValueToPayload(
   }
   const text = emptyToNull(value)
   if (text == null) return null
+  if (isBooleanInput(field.input)) return text === 'true'
+  if (JSON_FIELD_KEYS.has(field.key)) {
+    return JSON.parse(text) as unknown
+  }
   if (field.input === '实体版本引用') {
     try {
       const reference: unknown = JSON.parse(text)
@@ -241,6 +272,17 @@ function requiredFieldValueIsMissing(
   value: ModuleFieldValue | undefined,
 ): boolean {
   if (moduleValueIsEmpty(value)) return true
+  if (field.input === '复选确认') {
+    return moduleValueAsString(value) !== 'true'
+  }
+  if (JSON_FIELD_KEYS.has(field.key)) {
+    try {
+      const parsed: unknown = JSON.parse(moduleValueAsString(value))
+      return parsed == null || (Array.isArray(parsed) && parsed.length === 0)
+    } catch {
+      return true
+    }
+  }
   if (
     !field.validation?.require_value ||
     !isCompositeInput(field.input) ||
@@ -421,6 +463,10 @@ export function moduleValuesFromPayload(
       typeof raw === 'object'
     ) {
       values[field.key] = JSON.stringify(raw)
+    } else if (raw != null && JSON_FIELD_KEYS.has(field.key)) {
+      values[field.key] = JSON.stringify(raw)
+    } else if (raw != null && isBooleanInput(field.input)) {
+      values[field.key] = raw === true ? 'true' : 'false'
     } else if (
       raw != null &&
       isStructuredInput(field.input) &&
@@ -503,6 +549,10 @@ const EXTERNAL_FIELD_GROUP = 'external_field'
 export function getStageType(name: string): StageType | undefined {
   const code = canonicalOption(name)
   return stageTypes.find((stage) => stage.name === code)
+}
+
+export function isRetiredProcessStage(name: string): boolean {
+  return name.trim() !== '' && getStageType(name) == null
 }
 
 /** 该阶段可见的参数组集合（common 恒含 + shows）。未知阶段仅 common。 */
@@ -594,6 +644,33 @@ export function isProcessStepActive(step: ModuleValues): boolean {
   return moduleValueAsString(step['stage_type']).trim() !== ''
 }
 
+export function processStepOrderIsValid(steps: ModuleValues[]): boolean {
+  const primaryStages = steps
+    .map((step) =>
+      canonicalOption(moduleValueAsString(step['stage_type']).trim()),
+    )
+    .filter(
+      (stage) => stage === 'preparation' || stage === 'reaction_conditions',
+    )
+  return (
+    !primaryStages.includes('preparation') ||
+    !primaryStages.includes('reaction_conditions') ||
+    primaryStages.indexOf('preparation') <
+      primaryStages.indexOf('reaction_conditions')
+  )
+}
+
+export function derivedReactionCycleCount(gasFeeds: unknown): number | null {
+  if (!Array.isArray(gasFeeds)) return null
+  let maximum = 0
+  for (const feed of gasFeeds) {
+    if (!feed || typeof feed !== 'object') continue
+    const intervals = (feed as Record<string, unknown>)['intervals']
+    if (Array.isArray(intervals)) maximum = Math.max(maximum, intervals.length)
+  }
+  return maximum || null
+}
+
 /**
  * 单条过程步 payload：stage_type + 该阶段允许的字段键（common ∪ shows 组）。
  * 键集与后端 discriminated union（同 stage_types 源生成）逐阶段对齐；未选阶段返回 null。
@@ -606,7 +683,8 @@ export function buildProcessStepPayload(
     moduleValueAsString(step['stage_type']).trim(),
   )
   const stage = getStageType(stageType)
-  if (!stage) return null
+  if (!stageType) return null
+  if (!stage) throw new RangeError(`Unknown process record type: ${stageType}`)
   const allowed = visibleGroupsForStage(stageType)
   const payload: Record<string, unknown> = {}
   for (const field of getModuleFields('process_steps')) {
@@ -618,6 +696,16 @@ export function buildProcessStepPayload(
         : isProcessStepFieldVisible(field, stageType, setupSnapshot, step)
           ? fieldValueToPayload(field, step[field.key])
           : null
+  }
+  if (
+    stageType === 'reaction_conditions' &&
+    payload['duration_cycles'] &&
+    typeof payload['duration_cycles'] === 'object'
+  ) {
+    payload['duration_cycles'] = {
+      ...(payload['duration_cycles'] as Record<string, unknown>),
+      cycle_count: derivedReactionCycleCount(payload['gas_feeds']),
+    }
   }
   return payload
 }

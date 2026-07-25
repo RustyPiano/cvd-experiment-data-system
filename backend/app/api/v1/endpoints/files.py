@@ -27,6 +27,8 @@ def list_files(
     method: Annotated[str | None, Query()] = None,
     file_category: Annotated[str | None, Query()] = None,
     asset_role: Annotated[str | None, Query()] = None,
+    binding_type: Annotated[str | None, Query(max_length=64)] = None,
+    binding_id: Annotated[str | None, Query(max_length=64)] = None,
     legacy_file_kind: Annotated[
         str | None,
         Query(alias="file_kind", include_in_schema=False),
@@ -40,6 +42,8 @@ def list_files(
         method=method or legacy_file_kind,
         file_category=file_category,
         asset_role=asset_role,
+        binding_type=binding_type,
+        binding_id=binding_id,
     )
 
 
@@ -58,6 +62,8 @@ def upload_file(
     method: Annotated[str | None, Form()] = None,
     file_category: Annotated[str | None, Form()] = None,
     asset_role: Annotated[str | None, Form()] = None,
+    binding_type: Annotated[str | None, Form(max_length=64)] = None,
+    binding_id: Annotated[str | None, Form(max_length=64)] = None,
     note: Annotated[str | None, Form(max_length=FILE_NOTE_MAX_LENGTH)] = None,
     legacy_file_kind: Annotated[
         str | None,
@@ -73,6 +79,8 @@ def upload_file(
         method=method or legacy_file_kind,
         file_category=file_category,
         asset_role=asset_role,
+        binding_type=binding_type,
+        binding_id=binding_id,
         note=note,
     )
 

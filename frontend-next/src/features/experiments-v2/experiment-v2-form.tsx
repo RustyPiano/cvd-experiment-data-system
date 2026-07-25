@@ -13,6 +13,14 @@ import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
 import { useAuth } from '@/features/auth/use-auth'
 import type { V2EntityRead } from '@/features/entity-library/api'
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import type {
   ComponentRow,
   ModuleFieldValue,
@@ -20,6 +28,7 @@ import type {
 } from './field-logic'
 import {
   buildFlatModulePayload,
+  buildItemPayload,
   buildItemsModulePayload,
   buildProcessStepsPayload,
   buildTargetProductPayload,
@@ -33,6 +42,7 @@ import {
   missingRequiredKeys,
   moduleValueAsString,
   moduleValueIsEmpty,
+  processStepOrderIsValid,
 } from './field-logic'
 import { toIsoDateTime } from './datetime'
 import { createRun, setSetupReference, upsertModule } from './api'
@@ -42,11 +52,51 @@ import { BasicInfoSection } from './components/basic-info-section'
 import { TargetProductSection } from './components/target-product-section'
 import { EquipmentSection } from './components/equipment-section'
 import { RepeatableItemsSection } from './components/repeatable-items-section'
-import { ProcessStepsSection } from './components/process-steps-section'
+import {
+  ProcessStepsSection,
+  setupFieldTypes,
+} from './components/process-steps-section'
 import { ResultsSection } from './components/results-section'
-import { localizedFieldLabel } from '@/shared/field-i18n'
+import { canonicalOption, localizedFieldLabel } from '@/shared/field-i18n'
+import { gasFeedsAreValid } from './components/gas-feeds-editor'
+import type { GasFeed } from './components/gas-feeds-editor'
+import {
+  coolingParamsAreValid,
+  durationCyclesAreValid,
+  fieldParamsAreValid,
+  measuredTemperatureIsValid,
+  preparationOperationsAreValid,
+} from './components/process-detail-editors'
+import type {
+  ActualField,
+  CoolingParams,
+  DurationCycles,
+  MeasuredTemperatureReference,
+  PreparationOperation,
+} from './components/process-detail-editors'
+import { temperatureProgramIsValid } from './components/temperature-program-editor'
+import type { TemperatureProgram } from './components/temperature-program-editor'
+import { treatmentStepsAreValid } from './components/treatment-steps-editor'
+import type { TreatmentStep } from './components/treatment-steps-editor'
 
-const ESSENTIAL_RUN_KEYS = ['started_at', 'synthesis_method']
+const ESSENTIAL_RUN_KEYS = [
+  'started_at',
+  'synthesis_method',
+  'ambient_temperature_C',
+  'ambient_humidity_percent',
+  'precheck_confirmed',
+]
+
+const FORM_SECTION_LINKS = [
+  { id: 'module-basic_info', index: '§1', titleKey: 'basicInfo' },
+  { id: 'module-target_product', index: '§1b', titleKey: 'targetProduct' },
+  { id: 'module-equipment', index: '§2', titleKey: 'equipment' },
+  { id: 'module-precursors', index: '§3', titleKey: 'precursors' },
+  { id: 'module-substrates', index: '§4', titleKey: 'substrates' },
+  { id: 'module-process_steps', index: '§5', titleKey: 'processSteps' },
+  { id: 'module-process_events', index: '§6', titleKey: 'processEvents' },
+  { id: 'module-results', index: '§7–8', titleKey: 'results' },
+] as const
 
 export function shouldBlockExperimentLeave(
   dirtyCount: number,
@@ -90,9 +140,29 @@ function targetProductMissing(
 }
 
 function itemsMissing(moduleKey: string, items: ModuleValues[]): boolean {
-  return items
-    .filter(itemHasAnyValue)
-    .some((item) => missingRequiredKeys(moduleKey, item).length > 0)
+  return items.filter(itemHasAnyValue).some((item) => {
+    if (missingRequiredKeys(moduleKey, item).length > 0) return true
+    try {
+      buildItemPayload(moduleKey, item)
+      const treatmentKey =
+        moduleKey === 'precursors'
+          ? 'treatment_steps'
+          : moduleKey === 'substrates'
+            ? 'pretreatment_steps'
+            : null
+      if (!treatmentKey) return false
+      const raw = moduleValueAsString(item[treatmentKey])
+      return (
+        raw.trim() !== '' &&
+        !treatmentStepsAreValid(
+          moduleKey === 'precursors' ? 'precursor' : 'substrate',
+          JSON.parse(raw) as TreatmentStep[],
+        )
+      )
+    } catch {
+      return true
+    }
+  })
 }
 
 /** §5 过程步：已选阶段的步中有必填空缺（外场组显隐依赖 §2 装置快照）。 */
@@ -100,9 +170,89 @@ function processStepsMissing(
   steps: ModuleValues[],
   setupSnapshot: Record<string, unknown> | null,
 ): boolean {
-  return steps
-    .filter(isProcessStepActive)
-    .some((step) => missingProcessStepKeys(step, setupSnapshot).length > 0)
+  const active = steps.filter(isProcessStepActive)
+  for (const primary of ['preparation', 'reaction_conditions']) {
+    if (
+      active.filter(
+        (step) =>
+          canonicalOption(moduleValueAsString(step['stage_type'])) === primary,
+      ).length > 1
+    ) {
+      return true
+    }
+  }
+  if (!processStepOrderIsValid(active)) return true
+  const zoneCountValue = Number(setupSnapshot?.['zone_count'])
+  const zoneCount =
+    Number.isInteger(zoneCountValue) && zoneCountValue > 0
+      ? zoneCountValue
+      : null
+  const allowedFieldTypes = setupFieldTypes(setupSnapshot)
+  return active.some((step) => {
+    if (missingProcessStepKeys(step, setupSnapshot).length > 0) return true
+    try {
+      buildProcessStepsPayload([step], setupSnapshot)
+      const stageType = canonicalOption(moduleValueAsString(step['stage_type']))
+      if (stageType === 'preparation') {
+        return !preparationOperationsAreValid(
+          JSON.parse(
+            moduleValueAsString(step['preparation_operations']),
+          ) as PreparationOperation[],
+        )
+      }
+      if (stageType !== 'reaction_conditions') return false
+      const optional = <T,>(key: string): T | null => {
+        const raw = moduleValueAsString(step[key])
+        return raw.trim() ? (JSON.parse(raw) as T) : null
+      }
+      const temperatureProgram = JSON.parse(
+        moduleValueAsString(step['temperature_program']),
+      ) as TemperatureProgram
+      const gasFeeds = JSON.parse(
+        moduleValueAsString(step['gas_feeds']),
+      ) as GasFeed[]
+      const durationCycles = JSON.parse(
+        moduleValueAsString(step['duration_cycles']),
+      ) as DurationCycles
+      const fieldParams = optional<ActualField[]>('field_params') ?? []
+      const duration = durationCycles.duration_min
+      const timelineExceedsDuration =
+        typeof duration === 'number' &&
+        (temperatureProgram.zones.some((zone) =>
+          zone.points.some(
+            (point) =>
+              typeof point.elapsed_min === 'number' &&
+              point.elapsed_min > duration,
+          ),
+        ) ||
+          gasFeeds.some((feed) =>
+            feed.intervals.some(
+              (interval) =>
+                typeof interval.end_min === 'number' &&
+                interval.end_min > duration,
+            ),
+          ) ||
+          fieldParams.some(
+            (field) =>
+              typeof field.end_min === 'number' && field.end_min > duration,
+          ))
+      return (
+        !temperatureProgramIsValid(temperatureProgram, zoneCount) ||
+        !gasFeedsAreValid(gasFeeds) ||
+        !durationCyclesAreValid(durationCycles) ||
+        timelineExceedsDuration ||
+        !measuredTemperatureIsValid(
+          optional<MeasuredTemperatureReference>('measured_temperature'),
+          zoneCount,
+        ) ||
+        !coolingParamsAreValid(optional<CoolingParams>('cooling_params')) ||
+        (allowedFieldTypes.length > 0 &&
+          !fieldParamsAreValid(fieldParams, allowedFieldTypes))
+      )
+    } catch {
+      return true
+    }
+  })
 }
 
 type ModuleContext = {
@@ -125,7 +275,9 @@ const MODULE_SPECS: ModuleSpec[] = [
     missing: ({ mode, state }) =>
       mode === 'new'
         ? ESSENTIAL_RUN_KEYS.some((key) =>
-            moduleValueIsEmpty(state.basic_info[key]),
+            key === 'precheck_confirmed'
+              ? moduleValueAsString(state.basic_info[key]) !== 'true'
+              : moduleValueIsEmpty(state.basic_info[key]),
           )
         : missingRequiredKeys('basic_info', state.basic_info).length > 0,
     payload: ({ state, runCode }) => {
@@ -179,7 +331,8 @@ const MODULE_SPECS: ModuleSpec[] = [
   {
     key: 'process_events',
     active: ({ state }) => state.process_events.some(itemHasAnyValue),
-    missing: () => false,
+    missing: ({ state }) =>
+      itemsMissing('process_events', state.process_events),
     payload: ({ state }) =>
       buildItemsModulePayload('process_events', state.process_events),
   },
@@ -308,6 +461,14 @@ export function ExperimentV2Form({
     synthesis_method: moduleValueAsString(
       state.basic_info['synthesis_method'],
     ).trim(),
+    ambient_temperature_C: Number(
+      moduleValueAsString(state.basic_info['ambient_temperature_C']),
+    ),
+    ambient_humidity_percent: Number(
+      moduleValueAsString(state.basic_info['ambient_humidity_percent']),
+    ),
+    precheck_confirmed:
+      moduleValueAsString(state.basic_info['precheck_confirmed']) === 'true',
   })
 
   const moduleContext = (
@@ -316,7 +477,7 @@ export function ExperimentV2Form({
   ) => ({
     mode: formMode,
     state,
-    runCode: createdRunCode,
+    runCode: createdRunCode ?? (formMode === 'edit' ? runCode : undefined),
   })
 
   // ── 编辑态：分模块保存 ──
@@ -440,7 +601,13 @@ export function ExperimentV2Form({
       : undefined
 
   return (
-    <div className="flex flex-col gap-6">
+    <div
+      className={cn(
+        'flex flex-col gap-6',
+        mode === 'edit' &&
+          'xl:grid xl:grid-cols-[minmax(0,1fr)_15rem] xl:items-start',
+      )}
+    >
       <RouteLeaveGuard
         when={shouldBlockExperimentLeave(
           dirtyKeys.size + Number(resultsDirty),
@@ -448,122 +615,156 @@ export function ExperimentV2Form({
         )}
         message={t('experimentsV2.form.leaveWarning')}
       />
-      <fieldset disabled={processReadOnly} className="contents">
-        {mode === 'edit' && runCode ? (
-          <p className="text-sm text-muted-foreground">
-            {t('experimentsV2.form.editingRun', { runCode })}
-          </p>
-        ) : null}
+      <div className="flex min-w-0 flex-col gap-6">
         {mode === 'edit' ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground xl:hidden">
             {t('experimentsV2.form.requiredHint')}
           </p>
         ) : null}
-
-        <BasicInfoSection
-          values={state.basic_info}
-          onChange={setBasicInfo}
-          disabled={creating}
-          showErrors={showErrors}
-          save={saveProps('basic_info')}
-          editMode={mode === 'edit'}
-        />
-        {mode === 'edit' ? (
-          <>
-            <TargetProductSection
-              values={state.target_product}
-              onChange={setTargetProduct}
-              components={state.components}
-              onComponentsChange={setComponents}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('target_product')}
-            />
-            <EquipmentSection
-              equipment={state.equipment}
-              onSelectSetup={selectSetup}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('equipment')}
-            />
-            <RepeatableItemsSection
-              moduleKey="precursors"
-              index="§3"
-              title={t('experimentsV2.sections.precursors.title')}
-              subtitle={t('experimentsV2.sections.precursors.subtitle')}
-              addLabel={t('experimentsV2.sections.precursors.add')}
-              emptyHint={t('experimentsV2.sections.precursors.empty')}
-              itemLabel={(position) =>
-                t('experimentsV2.sections.precursors.item', { position })
-              }
-              items={state.precursors}
-              onItemsChange={setPrecursors}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('precursors')}
-            />
-            <RepeatableItemsSection
-              moduleKey="substrates"
-              index="§4"
-              title={t('experimentsV2.sections.substrates.title')}
-              subtitle={t('experimentsV2.sections.substrates.subtitle')}
-              addLabel={t('experimentsV2.sections.substrates.add')}
-              emptyHint={t('experimentsV2.sections.substrates.empty')}
-              itemLabel={(position) =>
-                t('experimentsV2.sections.substrates.item', { position })
-              }
-              items={state.substrates}
-              onItemsChange={setSubstrates}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('substrates')}
-            />
-            <ProcessStepsSection
-              steps={state.process_steps}
-              setupSnapshot={state.equipment.snapshot}
-              onStepsChange={setProcessSteps}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('process_steps')}
-            />
-            <RepeatableItemsSection
-              moduleKey="process_events"
-              index="§6"
-              title={t('experimentsV2.sections.processEvents.title')}
-              subtitle={t('experimentsV2.sections.processEvents.subtitle')}
-              addLabel={t('experimentsV2.sections.processEvents.add')}
-              emptyHint={t('experimentsV2.sections.processEvents.empty')}
-              itemLabel={(position) =>
-                t('experimentsV2.sections.processEvents.item', { position })
-              }
-              items={state.process_events}
-              onItemsChange={setProcessEvents}
-              disabled={creating}
-              showErrors={showErrors}
-              save={saveProps('process_events')}
-            />
-          </>
-        ) : null}
-      </fieldset>
-      {mode === 'edit' ? (
-        <ResultsSection
-          runId={runId}
-          readOnly={resultsReadOnly}
-          onDirtyChange={setResultsDirty}
-        />
-      ) : null}
-
-      {mode === 'new' ? (
-        <div className="flex justify-end">
-          <Button
-            type="button"
+        <fieldset disabled={processReadOnly} className="contents">
+          <BasicInfoSection
+            values={state.basic_info}
+            onChange={setBasicInfo}
             disabled={creating}
-            onClick={() => void createAndSave()}
-          >
-            {creating ? <Loader2 className="size-4 animate-spin" /> : null}
-            {t('experimentsV2.form.createAction')}
-          </Button>
-        </div>
+            showErrors={showErrors}
+            save={saveProps('basic_info')}
+            editMode={mode === 'edit'}
+            footer={
+              mode === 'new' ? (
+                <Button
+                  type="button"
+                  disabled={creating}
+                  onClick={() => void createAndSave()}
+                >
+                  {creating ? (
+                    <Loader2
+                      data-icon="inline-start"
+                      className="animate-spin"
+                    />
+                  ) : null}
+                  {t('experimentsV2.form.createAction')}
+                </Button>
+              ) : undefined
+            }
+          />
+          {mode === 'edit' ? (
+            <>
+              <TargetProductSection
+                values={state.target_product}
+                onChange={setTargetProduct}
+                components={state.components}
+                onComponentsChange={setComponents}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('target_product')}
+              />
+              <EquipmentSection
+                equipment={state.equipment}
+                onSelectSetup={selectSetup}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('equipment')}
+              />
+              <RepeatableItemsSection
+                moduleKey="precursors"
+                index="§3"
+                title={t('experimentsV2.sections.precursors.title')}
+                addLabel={t('experimentsV2.sections.precursors.add')}
+                emptyHint={t('experimentsV2.sections.precursors.empty')}
+                itemLabel={(position) =>
+                  t('experimentsV2.sections.precursors.item', { position })
+                }
+                items={state.precursors}
+                onItemsChange={setPrecursors}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('precursors')}
+              />
+              <RepeatableItemsSection
+                moduleKey="substrates"
+                index="§4"
+                title={t('experimentsV2.sections.substrates.title')}
+                addLabel={t('experimentsV2.sections.substrates.add')}
+                emptyHint={t('experimentsV2.sections.substrates.empty')}
+                itemLabel={(position) =>
+                  t('experimentsV2.sections.substrates.item', { position })
+                }
+                items={state.substrates}
+                onItemsChange={setSubstrates}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('substrates')}
+              />
+              <ProcessStepsSection
+                runId={runId ?? ''}
+                steps={state.process_steps}
+                setupSnapshot={state.equipment.snapshot}
+                onStepsChange={setProcessSteps}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('process_steps')}
+              />
+              <RepeatableItemsSection
+                moduleKey="process_events"
+                runId={runId}
+                index="§6"
+                title={t('experimentsV2.sections.processEvents.title')}
+                addLabel={t('experimentsV2.sections.processEvents.add')}
+                emptyHint={t('experimentsV2.sections.processEvents.empty')}
+                itemLabel={(position) =>
+                  t('experimentsV2.sections.processEvents.item', { position })
+                }
+                items={state.process_events}
+                onItemsChange={setProcessEvents}
+                disabled={creating}
+                showErrors={showErrors}
+                save={saveProps('process_events')}
+              />
+            </>
+          ) : null}
+        </fieldset>
+        {mode === 'edit' ? (
+          <ResultsSection
+            runId={runId}
+            readOnly={resultsReadOnly}
+            onDirtyChange={setResultsDirty}
+          />
+        ) : null}
+      </div>
+      {mode === 'edit' ? (
+        <Card className="sticky top-[84px] hidden xl:block">
+          <CardHeader>
+            <CardTitle>{t('experimentsV2.form.sectionNavigation')}</CardTitle>
+            <CardDescription>
+              {t('experimentsV2.form.requiredHint')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <nav
+              aria-label={t('experimentsV2.form.sectionNavigation')}
+              className="flex flex-col gap-1"
+            >
+              {FORM_SECTION_LINKS.map((section) => (
+                <Button
+                  key={section.id}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  asChild
+                >
+                  <a href={`#${section.id}`}>
+                    <span className="w-7 shrink-0 text-xs text-muted-foreground">
+                      {section.index}
+                    </span>
+                    <span className="truncate">
+                      {t(`experimentsV2.sections.${section.titleKey}.title`)}
+                    </span>
+                  </a>
+                </Button>
+              ))}
+            </nav>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   )

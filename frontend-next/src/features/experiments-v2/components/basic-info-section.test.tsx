@@ -38,7 +38,7 @@ describe('BasicInfoSection run code', () => {
 
   it('disables run_code after creation and explains why', () => {
     renderSection(true)
-    const input = screen.getByLabelText(/\u7089\u6b21\u7f16\u53f7/)
+    const input = screen.getByLabelText(/制备记录编号/)
     expect(input).toBeDisabled()
     expect(input).toHaveAttribute('title', '编号创建后不可修改')
     expect(
@@ -46,7 +46,7 @@ describe('BasicInfoSection run code', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('asks only for time, method, and operator before creating a run', () => {
+  it('asks for the complete pre-run record before creating a run', () => {
     renderSection(false)
     expect(
       screen.getByLabelText(/\u5b9e\u9a8c\u65f6\u95f4/),
@@ -55,12 +55,18 @@ describe('BasicInfoSection run code', () => {
       screen.getByLabelText(/\u5408\u6210\u65b9\u6cd5/),
     ).toBeInTheDocument()
     expect(screen.getByLabelText(/\u5b9e\u9a8c\u4eba/)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/制备记录编号/)).not.toBeInTheDocument()
     expect(
-      screen.queryByLabelText(/\u7089\u6b21\u7f16\u53f7/),
-    ).not.toBeInTheDocument()
+      screen.getByLabelText(/\u73af\u5883\u6e29\u5ea6/),
+    ).toBeInTheDocument()
     expect(
-      screen.queryByLabelText(/\u73af\u5883\u6e29\u5ea6/),
-    ).not.toBeInTheDocument()
+      screen.getByLabelText(/\u73af\u5883\u6e7f\u5ea6/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', {
+        name: /\u5b9e\u9a8c\u524d\u68c0\u67e5\u786e\u8ba4/,
+      }),
+    ).toBeInTheDocument()
   })
 
   it('does not expose PVD-family methods in the CVD-only interface', async () => {
