@@ -17,10 +17,11 @@ from app.models.file_asset import FileAsset
 from app.models.sample import Sample
 from app.models.v2_entities import MaterialLotVersion
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
-from app.schemas.v2 import V2EntityVersionPayload
+from app.schemas.generated.v2_module_payload import MaterialLotVersionPayload
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_field_source import SCHEMA_VERSION
 from app.services.v2_reporting_service import V2ReportingService
+from tests.helpers.v2_payloads import chemical_lot_payload
 
 
 def test_postgres_search_indexes_and_version_triggers(db_session) -> None:
@@ -219,17 +220,14 @@ def test_postgres_entity_file_can_only_be_bound_once(db_session, active_user) ->
 
     def bind_file(batch_number: str) -> int:
         with Session(bind=bind) as session:
-            payload = V2EntityVersionPayload.model_validate(
-                {
-                    "lot_category": "chemical",
-                    "substance_name": "MoO3",
-                    "chemical_formula": "MoO3",
-                    "batch_number": batch_number,
-                    "coa_attachment": {
+            payload = MaterialLotVersionPayload.model_validate(
+                chemical_lot_payload(
+                    batch_number=batch_number,
+                    coa_attachment={
                         "file_asset_id": str(file_id),
                         "sha256": "b" * 64,
                     },
-                }
+                )
             )
             barrier.wait()
             try:
