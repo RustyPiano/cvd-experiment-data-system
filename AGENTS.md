@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库与香港生产均为 v2 单轨；2026-07-24 导师线上走查的 M-01—M-24、会外审计 A-01—A-09 与最终审计 F-01—F-12 已在本地完成全门禁和真实主线验收，未闭环 P0/P1 = 0；本轮改动尚未部署生产，下一步是向大导汇报并确认 11 项专业标准**。字段单一源 = `docs/standard/field-source.yaml`；本轮计划 = `docs/product/2026-07-24-meeting-remediation-plan.md`；本轮报告 = `docs/reviews/2026-07-24-teacher-meeting-remediation.md`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库与香港生产均为 v2 单轨；2026-07-24 导师线上走查的 M-01—M-24、会外审计 A-01—A-09 与最终审计 F-01—F-12 已完成全门禁、真实主线验收并经 PR #1 发布香港生产，当前应用提交为 `57a25b7`，未闭环 P0/P1 = 0；下一步是向大导汇报并确认 11 项专业标准**。字段单一源 = `docs/standard/field-source.yaml`；本轮计划 = `docs/product/2026-07-24-meeting-remediation-plan.md`；本轮报告 = `docs/reviews/2026-07-24-teacher-meeting-remediation.md`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
 
 ## 项目概览
 
@@ -56,7 +56,7 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 - **字段改动只改 `docs/standard/field-source.yaml`**，然后重跑生成器（后端 `generate_v2_models`/`export_v2_schema`、前端 `gen:fields`、xlsx `build_field_tables.py`）+ `check_field_source.py` 校验；生成物漂移 = CI 红。
 - **生产基线已发布**：不得修改或 squash `20260711_0001`；任何数据库结构变化都新增 Alembic revision，并同时验证空库升级与现有生产 revision 前滚。
 - **当前代码**状态流：draft → locked（admin 可 unlock 回 draft）；draft 可作废为 invalid；lock 过必填门并在同一事务中按衬底生成 growth 样品；locked 锁工艺但允许全组成员补结果，invalid 全部只读；每次转移写审计。
-- **产品重构进度**：阶段 0–4、2026-07-24 全库加固复核与批8香港生产切换均已完成；旧 v1 数据库离线归档为 `cvd_v1_archive_20260724`。其后导师线上走查触发的新一轮本地整改已完成全门禁、独立终审与创建—锁定—样品—结果/附件—导出/R0 真实主线验收，未闭环 P0/P1 = 0；本轮尚未部署生产，下一步按报告汇报并确认 11 项专业标准。
+- **产品重构进度**：阶段 0–4、2026-07-24 全库加固复核与批8香港生产切换均已完成；旧 v1 数据库离线归档为 `cvd_v1_archive_20260724`。其后导师线上走查触发的新一轮整改已完成全门禁、独立终审与创建—锁定—样品—结果/附件—导出/R0 真实主线验收，并已发布香港生产（`57a25b7`），未闭环 P0/P1 = 0；下一步按报告汇报并确认 11 项专业标准。
 - 实验不做物理删除；文件删除走软删除标记。
 
 ## 安全与 PR
