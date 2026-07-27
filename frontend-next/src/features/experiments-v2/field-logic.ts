@@ -154,7 +154,7 @@ export function isFieldVisible(
 ): boolean {
   if (
     moduleKey === 'target_product' &&
-    field.key === 'bulk_space_group' &&
+    ['bulk_space_group', 'target_layer_count'].includes(field.key) &&
     ['vertical_heterostructure', 'lateral_heterostructure'].includes(
       canonicalOption(moduleValueAsString(values['structure_type'])),
     )

@@ -810,7 +810,7 @@ export const common = {
     formula: {
       parsedElements: '识别元素：{{elements}}',
       unknownSymbols: '非法元素符号：{{symbols}}',
-      invalidSyntax: '请使用元素符号、普通数字、常见圆括号与体系分隔符',
+      invalidSyntax: '请检查元素符号、化学计量和分隔符格式',
       noElement: '未识别到有效元素符号',
     },
     components: {
@@ -830,7 +830,15 @@ export const common = {
       alloySiteElement: '混合占位元素',
       nominalContent: '名义含量（at.%）',
       siteFraction: '占位比例（%）',
-      bulkSpaceGroup: '体相空间群（选填）',
+      bulkSpaceGroup: '该材料的体相空间群',
+      placeholders: {
+        dopant: '例如 Pt',
+        alloy: '例如 Mo 或 W',
+        materialFirst: '例如 MoS2',
+        materialNext: '例如 WS2',
+        nominalContent: '例如 0.5',
+        siteFraction: '例如 50',
+      },
     },
     reference: {
       placeholder: '请选择',
@@ -852,11 +860,16 @@ export const common = {
         alloyFormula: '合金化学式',
         derivedFormula: '体系显示式（系统生成）',
         componentTitles: {
-          doped: '主体材料与掺杂元素',
+          doped: '掺杂元素',
           alloy: '混合占位元素与比例',
           vertical_heterostructure: '材料层（从衬底向上）',
           lateral_heterostructure: '横向材料区域',
-          other: '组成明细',
+          other: '组成材料',
+        },
+        formulaPlaceholders: {
+          material: '例如 MoS2',
+          alloy: '例如 Mo0.5W0.5S2',
+          heterostructure: '添加材料层或区域后自动生成',
         },
         guideTitle: '填写规则',
         guides: {
@@ -869,13 +882,18 @@ export const common = {
             '例：MoS2/WS2。从贴近衬底的材料开始逐层添加；显示式由系统生成。',
           lateral: '例：MoS2-WS2。逐个填写横向材料区域；显示式由系统生成。',
           other:
-            '其他：用普通数字填写课题组约定的化学式，并在组成明细中逐条记录组分；只填写适用的浓度或层序，关系在备注中说明。',
+            '例：核壳结构或超晶格。填写体系化学式，并逐条记录组成材料及适用的角色、含量或层序。',
         },
+        dopedPreview: '{{dopants}} 掺杂 {{host}}',
         displayPreview: '显示串预览：',
         displayNote: '仅用于前端预览；组成明细仍是权威数据。',
-        spaceGroupPlaceholder: '输入编号或符号，例如 194',
+        spaceGroupPlaceholder: '搜索编号或符号，例如 194 或 P6₃/mmc',
         spaceGroupHelp:
-          '不知道可留空；可从 XRD 结果、文献或材料数据库中的 Space group 获取。',
+          '输入化学式后，先从常见物相中选择；没有合适候选时，可搜索全部空间群编号或符号。',
+        spaceGroupCandidateLabel: '根据 {{formula}} 选择常见体相',
+        spaceGroupCandidatePlaceholder: '选择 {{formula}} 的常见体相',
+        spaceGroupCandidateHelp:
+          '请选择计划制备的物相；选中后自动填入空间群编号。',
         spaceGroupSymbol: '空间群符号：{{symbol}}',
       },
       equipment: {

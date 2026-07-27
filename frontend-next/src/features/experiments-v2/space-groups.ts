@@ -67,6 +67,12 @@ export interface SpaceGroupOption {
   datalistValue: string
 }
 
+export interface BulkSpaceGroupSuggestion {
+  phase: string
+  number: number
+  symbol: string
+}
+
 export const spaceGroupOptions: readonly SpaceGroupOption[] =
   HERMANN_MAUGUIN_SYMBOLS.map((symbol, index) => {
     const number = index + 1
@@ -77,6 +83,23 @@ export const spaceGroupOptions: readonly SpaceGroupOption[] =
       datalistValue: `${number} · ${displayed}`,
     }
   })
+
+// 只收录本项目当前示例中的常见层状 TMD 体相，不做自动判定。
+// 来源：NIST JARVIS bulk entries JVASP-51/55/57/72/75/231。
+const COMMON_BULK_PHASES: Readonly<
+  Record<string, readonly Omit<BulkSpaceGroupSuggestion, 'symbol'>[]>
+> = {
+  MoS2: [
+    { phase: '2H', number: 194 },
+    { phase: '3R', number: 160 },
+  ],
+  WS2: [{ phase: '2H', number: 194 }],
+  MoSe2: [
+    { phase: '2H', number: 194 },
+    { phase: '3R', number: 160 },
+  ],
+  WSe2: [{ phase: '2H', number: 194 }],
+}
 
 const SPACE_GROUP_BY_SYMBOL = new Map(
   spaceGroupOptions.map((option) => [
@@ -114,4 +137,17 @@ export function spaceGroupNumber(value: unknown): number | undefined {
 export function hermannMauguinSymbol(value: unknown): string | undefined {
   const number = spaceGroupNumber(value)
   return number == null ? undefined : spaceGroupOptions[number - 1]?.symbol
+}
+
+export function suggestedBulkSpaceGroups(
+  formula: unknown,
+): readonly BulkSpaceGroupSuggestion[] {
+  const normalized = String(formula ?? '')
+    .trim()
+    .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => ASCII_DIGITS[digit])
+    .replace(/\s+/g, '')
+  return (COMMON_BULK_PHASES[normalized] ?? []).map((suggestion) => ({
+    ...suggestion,
+    symbol: spaceGroupOptions[suggestion.number - 1].symbol,
+  }))
 }

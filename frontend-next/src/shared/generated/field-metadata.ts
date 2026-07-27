@@ -90,7 +90,7 @@ export interface StageType {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v3.12',
+  version: 'v3.13',
   status: 'DRAFT',
   source: 'docs/standard/field-source.yaml',
 }
@@ -272,9 +272,9 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderZh: '例如 MoS2',
       placeholderEn: 'e.g. MoS2',
       helpZh:
-        '用普通数字填写，例如 MoS2；垂直或横向异质结构由下方材料层或区域自动生成。',
+        '选择结构类型后显示对应示例；垂直或横向异质结构由下方材料层或区域自动生成。',
       helpEn:
-        'Use plain digits, for example MoS2. Vertical and lateral heterostructure formulas are generated from the material layers or regions below.',
+        'The example follows the selected structure type. Vertical and lateral heterostructure formulas are generated from the material layers or regions below.',
     },
     {
       key: 'structure_type',
@@ -305,7 +305,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '数组items[]',
       unit: null,
       options:
-        '每条:化学式/角色(主体材料·掺杂剂·合金组分·材料层·上层·下层·横向域)/名义含量或占位比例(%)/层序(整数)/体相空间群(1-230)',
+        '掺杂=掺杂元素+名义含量；合金=混合占位元素+占位比例；垂直异质结=材料层+层序+体相空间群；横向异质结=材料区域+体相空间群；其他=组成材料+适用属性；机器角色(主体材料·掺杂剂·合金组分·材料层·上层·下层·横向域)',
       validation: null,
       requirement: {
         raw: '条件必填(结构类型≠本征)',
@@ -327,8 +327,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'target_layer_count',
-      labelZh: '目标层数',
-      labelEn: 'Target layer count',
+      labelZh: '目标原子层数',
+      labelEn: 'Target atomic-layer count',
       input: '数值',
       unit: '层',
       options: null,
@@ -348,34 +348,35 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
+      visibilityGated: true,
     },
     {
       key: 'bulk_space_group',
-      labelZh: '体相空间群',
-      labelEn: 'Bulk space group',
+      labelZh: '目标体相空间群',
+      labelEn: 'Target bulk space group',
       input: '数值',
       unit: null,
       options: null,
       validation: null,
       requirement: {
-        raw: '选填',
-        level: 'optional',
+        raw: '推荐',
+        level: 'recommended',
         otherwise: null,
         condition: null,
       },
       r0: false,
       group: null,
-      placeholderZh: '例如 194',
-      placeholderEn: 'e.g. 194',
+      placeholderZh: '搜索编号或符号，例如 194 或 P6₃/mmc',
+      placeholderEn: 'Search by number or symbol, e.g. 194 or P6₃/mmc',
       helpZh:
-        '输入编号或从列表选择；不知道可留空，可从XRD结果、文献或材料数据库的“Space group”获取。',
+        '输入化学式后，先从常见物相中选择；没有合适候选时，可搜索全部空间群编号或符号。',
       helpEn:
-        'Enter a number or choose from the list. Leave blank if unknown; it is usually reported as “Space group” in XRD results, literature, or materials databases.',
+        'After entering the formula, choose a common phase first. If none fits, search all space-group numbers or symbols.',
       visibilityGated: true,
     },
     {
       key: 'target_morphology',
-      labelZh: '样品形态',
+      labelZh: '目标形态',
       labelEn: 'Target morphology',
       input: '下拉+其他',
       unit: null,

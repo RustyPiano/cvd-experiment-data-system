@@ -63,19 +63,31 @@ export function TargetProductSection({
     !components.some(isNonEmptyComponent)
   const guide = structureGuideKey(structureType)
   const spaceGroupSymbol = hermannMauguinSymbol(values['bulk_space_group'])
-
-  const displayPreview = useMemo(() => {
-    const chemicalFormula = moduleValueAsString(values['chemical_formula'])
-    return renderFormulaDisplay(
-      chemicalFormula,
-      structureType,
-      components.filter(isNonEmptyComponent),
-    )
-  }, [values, structureType, components])
   const derivedFormula = [
     'vertical_heterostructure',
     'lateral_heterostructure',
   ].includes(structureType)
+
+  const displayPreview = useMemo(() => {
+    const chemicalFormula = moduleValueAsString(values['chemical_formula'])
+    const preview = renderFormulaDisplay(
+      derivedFormula ? '' : chemicalFormula,
+      structureType,
+      components.filter(isNonEmptyComponent),
+    )
+    if (structureType !== 'doped') return preview
+    const dopants = components
+      .filter(isNonEmptyComponent)
+      .map((component) => component.formula.trim())
+      .filter(Boolean)
+      .join('、')
+    return dopants && chemicalFormula
+      ? t('experimentsV2.sections.targetProduct.dopedPreview', {
+          dopants,
+          host: chemicalFormula,
+        })
+      : preview
+  }, [values, structureType, components, derivedFormula, t])
   const displayValues = derivedFormula
     ? { ...values, chemical_formula: displayPreview }
     : values
@@ -95,6 +107,14 @@ export function TargetProductSection({
       labelEn: t(`experimentsV2.sections.targetProduct.${key}`),
     }
   }
+  const formulaPlaceholder =
+    structureType === 'alloy'
+      ? t('experimentsV2.sections.targetProduct.formulaPlaceholders.alloy')
+      : derivedFormula
+        ? t(
+            'experimentsV2.sections.targetProduct.formulaPlaceholders.heterostructure',
+          )
+        : t('experimentsV2.sections.targetProduct.formulaPlaceholders.material')
 
   return (
     <ModuleCard
@@ -122,21 +142,33 @@ export function TargetProductSection({
                 field={dynamicField(field)}
                 values={displayValues}
                 value={displayValues[field.key] ?? ''}
-                onChange={(value) => onChange(field.key, value)}
+                onChange={(value) => {
+                  if (
+                    field.key === 'structure_type' &&
+                    canonicalOption(moduleValueAsString(value)) !==
+                      structureType
+                  ) {
+                    onComponentsChange([])
+                  }
+                  onChange(field.key, value)
+                }}
                 disabled={disabled}
                 readOnly={derivedFormula && field.key === 'chemical_formula'}
                 showError={showErrors}
+                hideHelp={field.key === 'chemical_formula'}
                 helpOverride={
                   field.key === 'bulk_space_group'
                     ? t('experimentsV2.sections.targetProduct.spaceGroupHelp')
                     : undefined
                 }
                 placeholderOverride={
-                  field.key === 'bulk_space_group'
-                    ? t(
-                        'experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
-                      )
-                    : undefined
+                  field.key === 'chemical_formula'
+                    ? formulaPlaceholder
+                    : field.key === 'bulk_space_group'
+                      ? t(
+                          'experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
+                        )
+                      : undefined
                 }
                 hint={
                   field.key === 'bulk_space_group' && spaceGroupSymbol
@@ -146,6 +178,9 @@ export function TargetProductSection({
                       )
                     : undefined
                 }
+                spaceGroupFormula={moduleValueAsString(
+                  values['chemical_formula'],
+                )}
               />
             </div>
           ))}

@@ -16,7 +16,7 @@ import type { ComponentRow } from '../field-logic'
 import { emptyComponentRow, getComponentRoleOptions } from '../field-logic'
 import { FormulaInput } from './formula-input'
 import { canonicalOption, localizedOption } from '@/shared/field-i18n'
-import { spaceGroupNumber, spaceGroupOptions } from '../space-groups'
+import { SpaceGroupInput } from './space-group-input'
 
 export function ComponentsEditor({
   rows,
@@ -65,6 +65,19 @@ export function ComponentsEditor({
       : structure === 'alloy'
         ? t('experimentsV2.components.alloySiteElement')
         : t('experimentsV2.components.formula')
+  const formulaPlaceholder = (index: number) =>
+    structure === 'doped'
+      ? t('experimentsV2.components.placeholders.dopant')
+      : structure === 'alloy'
+        ? t('experimentsV2.components.placeholders.alloy')
+        : structure === 'vertical_heterostructure' ||
+            structure === 'lateral_heterostructure'
+          ? t(
+              index === 0
+                ? 'experimentsV2.components.placeholders.materialFirst'
+                : 'experimentsV2.components.placeholders.materialNext',
+            )
+          : t('experimentsV2.components.placeholders.materialFirst')
 
   const updateRow = (index: number, patch: Partial<ComponentRow>) => {
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -112,6 +125,7 @@ export function ComponentsEditor({
               value={row.formula}
               onChange={(value) => updateRow(index, { formula: value })}
               disabled={disabled}
+              placeholder={formulaPlaceholder(index)}
             />
           </div>
           {structure === 'other' ? (
@@ -171,7 +185,11 @@ export function ComponentsEditor({
                   })
                 }
                 disabled={disabled}
-                placeholder="at%"
+                placeholder={t(
+                  structure === 'alloy'
+                    ? 'experimentsV2.components.placeholders.siteFraction'
+                    : 'experimentsV2.components.placeholders.nominalContent',
+                )}
               />
             </div>
           ) : null}
@@ -183,29 +201,18 @@ export function ComponentsEditor({
               >
                 {t('experimentsV2.components.bulkSpaceGroup')}
               </label>
-              <Input
+              <SpaceGroupInput
                 id={`component-${index}-space-group`}
-                list={`component-${index}-space-group-options`}
                 value={row.bulk_space_group ?? ''}
-                onChange={(event) =>
-                  updateRow(index, { bulk_space_group: event.target.value })
+                formula={row.formula}
+                onChange={(value) =>
+                  updateRow(index, { bulk_space_group: value })
                 }
-                onBlur={() => {
-                  const number = spaceGroupNumber(row.bulk_space_group)
-                  if (number != null) {
-                    updateRow(index, { bulk_space_group: String(number) })
-                  }
-                }}
                 disabled={disabled}
                 placeholder={t(
                   'experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
                 )}
               />
-              <datalist id={`component-${index}-space-group-options`}>
-                {spaceGroupOptions.map((option) => (
-                  <option key={option.number} value={option.datalistValue} />
-                ))}
-              </datalist>
             </div>
           ) : null}
           {showLayerOrder ? (

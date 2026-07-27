@@ -51,7 +51,8 @@ import {
   numericInputAttributes,
   numericValidationIssue,
 } from '@/shared/field-validation'
-import { spaceGroupNumber, spaceGroupOptions } from '../space-groups'
+import { spaceGroupNumber } from '../space-groups'
+import { SpaceGroupInput } from './space-group-input'
 
 // 跨模块用多行输入的字段键（长文本/描述/清单）。
 const TEXTAREA_KEYS = new Set([
@@ -87,6 +88,7 @@ export function FieldControl({
   helpOverride,
   placeholderOverride,
   structuredZoneCount,
+  spaceGroupFormula,
 }: {
   moduleKey: string
   field: FieldMetadata
@@ -110,6 +112,7 @@ export function FieldControl({
   helpOverride?: string
   placeholderOverride?: string
   structuredZoneCount?: number | null
+  spaceGroupFormula?: string
 }) {
   const { i18n, t } = useTranslation()
   const controlId = useId()
@@ -387,39 +390,16 @@ export function FieldControl({
           </SelectContent>
         </Select>
       ) : field.key === 'bulk_space_group' ? (
-        <>
-          <Input
-            id={controlId}
-            type="text"
-            inputMode="text"
-            list={`${controlId}-options`}
-            value={textValue}
-            onChange={(event) => {
-              const next = event.target.value
-              const number = next.includes('·')
-                ? spaceGroupNumber(next)
-                : undefined
-              onChange(number == null ? next : String(number))
-            }}
-            onBlur={() => {
-              const number = spaceGroupNumber(textValue)
-              if (number != null && textValue !== String(number)) {
-                onChange(String(number))
-              }
-            }}
-            disabled={disabled || readOnly}
-            autoComplete="off"
-            placeholder={placeholder}
-            aria-invalid={invalid}
-            aria-describedby={describedBy}
-            className={cn(invalid && 'border-destructive')}
-          />
-          <datalist id={`${controlId}-options`}>
-            {spaceGroupOptions.map((option) => (
-              <option key={option.number} value={option.datalistValue} />
-            ))}
-          </datalist>
-        </>
+        <SpaceGroupInput
+          id={controlId}
+          value={textValue}
+          formula={spaceGroupFormula}
+          onChange={(next) => onChange(next)}
+          disabled={disabled || readOnly}
+          invalid={invalid}
+          ariaDescribedBy={describedBy}
+          placeholder={placeholder}
+        />
       ) : DATETIME_KEYS.has(field.key) ? (
         <Input
           id={controlId}
