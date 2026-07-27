@@ -128,9 +128,24 @@ describe('TargetProductSection composition guide', () => {
         .getAttribute('aria-describedby')
         ?.split(' '),
     ).toContain(symbol.id)
+  })
 
-    await user.click(screen.getByRole('combobox', { name: /结构类型/ }))
-    await user.click(screen.getByRole('option', { name: '垂直异质结' }))
+  it('derives heterostructure formula only from its material rows', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TargetProductSection
+          values={{
+            ...emptyModuleValues('target_product'),
+            structure_type: 'vertical_heterostructure',
+            chemical_formula: 'MoS2',
+          }}
+          onChange={vi.fn()}
+          components={[]}
+          onComponentsChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    )
+
     expect(screen.getByRole('textbox', { name: /体系显示式/ })).toHaveValue('')
     expect(
       screen.queryByRole('combobox', { name: '目标体相空间群' }),
