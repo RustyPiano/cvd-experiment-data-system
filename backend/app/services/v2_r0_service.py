@@ -20,9 +20,9 @@ from app.services.v2_field_source import (
     module_key_for_field,
 )
 from app.services.v2_process_semantics import (
+    gas_feeds_are_unique,
     process_duration_violations,
     process_step_order_is_valid,
-    reaction_cycle_counts_are_consistent,
     temperature_programs_start_at_zero,
     valid_frozen_gas_reference,
 )
@@ -260,9 +260,9 @@ def _process_semantic_checks(
         ),
         _semantic_item(
             "process_steps",
-            "reaction_cycle_count",
-            "反应循环次数由单一气体最大供气区间数派生",
-            reaction_cycle_counts_are_consistent(process_payload),
+            "unique_gas_feeds",
+            "同一反应中每种气体只记录一次",
+            gas_feeds_are_unique(process_payload),
             applicable=bool(reaction_items),
         ),
         _semantic_item(

@@ -22,7 +22,11 @@ import { FieldControl } from './field-control'
 import { FieldLabel } from './field-bits'
 import { ComponentsEditor } from './components-editor'
 import { ModuleCard } from './module-card'
-import { localizedFieldLabel, localizedUnit } from '@/shared/field-i18n'
+import {
+  canonicalOption,
+  localizedFieldLabel,
+  localizedUnit,
+} from '@/shared/field-i18n'
 
 export function TargetProductSection({
   values,
@@ -44,7 +48,9 @@ export function TargetProductSection({
   const { i18n, t } = useTranslation()
   const fields = getModuleFields('target_product')
   const componentsField = fields.find((field) => field.key === 'components')
-  const structureType = moduleValueAsString(values['structure_type'])
+  const structureType = canonicalOption(
+    moduleValueAsString(values['structure_type']),
+  )
   const showComponents =
     componentsField != null &&
     isFieldVisible('target_product', componentsField, values)
@@ -66,6 +72,29 @@ export function TargetProductSection({
       components.filter(isNonEmptyComponent),
     )
   }, [values, structureType, components])
+  const derivedFormula = [
+    'vertical_heterostructure',
+    'lateral_heterostructure',
+  ].includes(structureType)
+  const displayValues = derivedFormula
+    ? { ...values, chemical_formula: displayPreview }
+    : values
+  const dynamicField = (field: (typeof fields)[number]) => {
+    if (field.key !== 'chemical_formula') return field
+    const key =
+      structureType === 'doped'
+        ? 'dopedFormula'
+        : structureType === 'alloy'
+          ? 'alloyFormula'
+          : derivedFormula
+            ? 'derivedFormula'
+            : 'intrinsicFormula'
+    return {
+      ...field,
+      labelZh: t(`experimentsV2.sections.targetProduct.${key}`),
+      labelEn: t(`experimentsV2.sections.targetProduct.${key}`),
+    }
+  }
 
   return (
     <ModuleCard
@@ -90,11 +119,12 @@ export function TargetProductSection({
             <div key={field.key} className="flex flex-col gap-1">
               <FieldControl
                 moduleKey="target_product"
-                field={field}
-                values={values}
-                value={values[field.key] ?? ''}
+                field={dynamicField(field)}
+                values={displayValues}
+                value={displayValues[field.key] ?? ''}
                 onChange={(value) => onChange(field.key, value)}
                 disabled={disabled}
+                readOnly={derivedFormula && field.key === 'chemical_formula'}
                 showError={showErrors}
                 helpOverride={
                   field.key === 'bulk_space_group'
@@ -133,7 +163,15 @@ export function TargetProductSection({
       {showComponents && componentsField ? (
         <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
           <FieldLabel
-            labelZh={localizedFieldLabel(componentsField, i18n.language)}
+            labelZh={t(
+              `experimentsV2.sections.targetProduct.componentTitles.${structureType}`,
+              {
+                defaultValue: localizedFieldLabel(
+                  componentsField,
+                  i18n.language,
+                ),
+              },
+            )}
             unit={localizedUnit(componentsField.unit, i18n.language)}
             required={componentsRequired}
             r0={componentsField.r0}

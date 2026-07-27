@@ -95,12 +95,7 @@ export function materialLotProjection(
         name_formula:
           snapshotText(snapshot, 'chemical_formula') ||
           snapshotText(snapshot, 'substance_name'),
-        cas_inchi: [
-          snapshotText(snapshot, 'cas_number'),
-          snapshotText(snapshot, 'inchikey_cid'),
-        ]
-          .filter(Boolean)
-          .join(' · '),
+        cas_inchi: snapshotText(snapshot, 'cas_number'),
       }).filter(([, value]) => value !== ''),
     )
   }
@@ -468,6 +463,13 @@ export function RepeatableItemsSection({
                           <EntityReferenceSelect
                             kind={referenceKind}
                             value={reference?.entity_id ?? ''}
+                            allowedLotCategories={
+                              moduleKey === 'substrates'
+                                ? ['substrate']
+                                : moduleKey === 'precursors'
+                                  ? ['chemical', 'gas_cylinder']
+                                  : undefined
+                            }
                             selectedVersion={reference?.version}
                             selectedSnapshot={reference?.snapshot}
                             filter={(entity) =>

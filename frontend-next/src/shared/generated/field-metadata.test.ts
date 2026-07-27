@@ -8,12 +8,12 @@ import {
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('groups the 88 experiment fields into the expected module keys', () => {
+  it('groups the 89 experiment fields into the expected module keys', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(88)
+    expect(total).toBe(89)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',
@@ -168,7 +168,7 @@ describe('generated field-metadata', () => {
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(49)
+    expect(total).toBe(48)
   })
 
   it('carries input types for every remaining scalar-plus-option field', () => {

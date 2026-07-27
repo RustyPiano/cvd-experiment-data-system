@@ -77,6 +77,7 @@
                     "matrix",
                     "dopant",
                     "alloy_component",
+                    "material_layer",
                     "top_layer",
                     "bottom_layer",
                     "lateral_domain"
@@ -116,6 +117,20 @@
               ],
               "default": null,
               "title": "Layer Order"
+            },
+            "bulk_space_group": {
+              "anyOf": [
+                {
+                  "maximum": 230,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Bulk Space Group"
             }
           },
           "required": [
@@ -266,10 +281,18 @@
           "additionalProperties": false,
           "properties": {
             "sensor_name": {
-              "minLength": 1,
-              "pattern": "\\S",
-              "title": "Sensor Name",
-              "type": "string"
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Sensor Name"
             },
             "sensor_type": {
               "minLength": 1,
@@ -288,22 +311,28 @@
               "type": "number"
             },
             "uncertainty_source": {
-              "enum": [
-                "instrument",
-                "calibration",
-                "repeatability",
-                "estimate"
+              "anyOf": [
+                {
+                  "enum": [
+                    "instrument",
+                    "calibration",
+                    "repeatability",
+                    "estimate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ],
-              "title": "Uncertainty Source",
-              "type": "string"
+              "default": null,
+              "title": "Uncertainty Source"
             }
           },
           "required": [
-            "sensor_name",
             "sensor_type",
             "zone_index",
-            "uncertainty_C",
-            "uncertainty_source"
+            "uncertainty_C"
           ],
           "title": "TemperatureSensorPayload",
           "type": "object"
@@ -1046,22 +1075,14 @@
               "$ref": "#/$defs/MaterialLotReferencePayload"
             },
             "role": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "additive",
-                    "dopant_source",
-                    "main_precursor",
-                    "other"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "additive",
+                "dopant_source",
+                "main_precursor",
+                "other"
               ],
-              "default": null,
-              "title": "Role"
+              "title": "Role",
+              "type": "string"
             },
             "amount": {
               "anyOf": [
@@ -1163,7 +1184,8 @@
           "required": [
             "name_formula",
             "phase_state",
-            "lot_ref"
+            "lot_ref",
+            "role"
           ],
           "title": "PrecursorItemPayload",
           "type": "object"
@@ -1600,6 +1622,12 @@
             "lot_ref": {
               "$ref": "#/$defs/MaterialLotReferencePayload"
             },
+            "piece_label": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Piece Label",
+              "type": "string"
+            },
             "chemical_formula": {
               "minLength": 1,
               "pattern": "\\S",
@@ -1764,6 +1792,7 @@
           "required": [
             "material",
             "lot_ref",
+            "piece_label",
             "chemical_formula",
             "orientation_polish_availability",
             "miscut_availability",
@@ -3106,18 +3135,6 @@
           "default": null,
           "title": "Cas Number"
         },
-        "inchikey_cid": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Inchikey Cid"
-        },
         "supplier": {
           "anyOf": [
             {
@@ -3162,6 +3179,18 @@
           "default": null,
           "title": "Purity"
         },
+        "form_appearance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Form Appearance"
+        },
         "particle_size_d50_um": {
           "anyOf": [
             {
@@ -3174,18 +3203,6 @@
           ],
           "default": null,
           "title": "Particle Size D50 Um"
-        },
-        "form_appearance": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Form Appearance"
         },
         "opened_date": {
           "anyOf": [
@@ -3432,10 +3449,18 @@
           "additionalProperties": false,
           "properties": {
             "sensor_name": {
-              "minLength": 1,
-              "pattern": "\\S",
-              "title": "Sensor Name",
-              "type": "string"
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Sensor Name"
             },
             "sensor_type": {
               "minLength": 1,
@@ -3454,22 +3479,28 @@
               "type": "number"
             },
             "uncertainty_source": {
-              "enum": [
-                "instrument",
-                "calibration",
-                "repeatability",
-                "estimate"
+              "anyOf": [
+                {
+                  "enum": [
+                    "instrument",
+                    "calibration",
+                    "repeatability",
+                    "estimate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ],
-              "title": "Uncertainty Source",
-              "type": "string"
+              "default": null,
+              "title": "Uncertainty Source"
             }
           },
           "required": [
-            "sensor_name",
             "sensor_type",
             "zone_index",
-            "uncertainty_C",
-            "uncertainty_source"
+            "uncertainty_C"
           ],
           "title": "TemperatureSensorPayload",
           "type": "object"
@@ -3617,12 +3648,6 @@
       },
       "additionalProperties": false,
       "properties": {
-        "setup_code": {
-          "minLength": 1,
-          "pattern": "\\S",
-          "title": "Setup Code",
-          "type": "string"
-        },
         "setup_name": {
           "minLength": 1,
           "pattern": "\\S",
@@ -3640,6 +3665,12 @@
           ],
           "default": null,
           "title": "Brand Model"
+        },
+        "setup_code": {
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Setup Code",
+          "type": "string"
         },
         "wall_type": {
           "anyOf": [
@@ -3734,8 +3765,8 @@
         }
       },
       "required": [
-        "setup_code",
         "setup_name",
+        "setup_code",
         "zone_count",
         "temperature_sensors",
         "orientation"

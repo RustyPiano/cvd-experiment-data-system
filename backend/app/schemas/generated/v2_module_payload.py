@@ -12,16 +12,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.services.v2_field_source import (
     condition_matches as _matches,
-    formula_element_symbols as _formula_elements,
     missing as _missing,
     normalize_offset_datetime as _normalize_datetime,
     validate_chemical_formula as _validate_formula,
 )
 
 V2_MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
-_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主源': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '倾角': 'tilted', '竖放': 'upright', '清洗': 'clean', '丙酮清洗': 'acetone_clean', '异丙醇清洗': 'isopropanol_clean', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '亲水处理': 'hydrophilic_treatment', '亲水化': 'hydrophilic_treatment', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气路置换': 'gas_exchange', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4'}
+_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主源': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '倾角': 'tilted', '竖放': 'upright', '清洗': 'clean', '丙酮清洗': 'acetone_clean', '异丙醇清洗': 'isopropanol_clean', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '亲水处理': 'hydrophilic_treatment', '亲水化': 'hydrophilic_treatment', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气路置换': 'gas_exchange', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4'}
 _FIELD_OPTION_ALIASES = {'field_devices': {'等离子': 'plasma', '等离子体': 'plasma'}, 'field_type': {'等离子': 'plasma', '等离子体': 'plasma'}, 'type': {'等离子': 'plasma_treatment', '等离子体': 'plasma_treatment'}}
-_CONTROLLED_KEYS = frozenset(('appearance', 'brand_model', 'event_type', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'lot_category', 'material', 'miscut_availability', 'name_formula', 'name_type', 'orientation', 'orientation_polish_availability', 'phase_state', 'plasma_gas_pressure', 'pressure_system', 'role', 'stage_type', 'storage_method', 'structure_type', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'synthesis_method', 'target_morphology', 'termination_reason', 'wall_type'))
+_CONTROLLED_KEYS = frozenset(('appearance', 'brand_model', 'event_type', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'lot_category', 'material', 'miscut_availability', 'name_formula', 'name_type', 'orientation', 'orientation_polish_availability', 'phase_state', 'plasma_gas_pressure', 'pressure_system', 'role', 'stage_type', 'storage_method', 'structure_type', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'target_morphology', 'termination_reason', 'wall_type'))
 _STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type', 'uncertainty_source'))
 _COMPOSITE_KEYS = frozenset(('plasma_gas_pressure', 'pressure_system', 'substrate_orientation_polish'))
 _MULTI_KEYS = frozenset(('field_devices',))
@@ -77,9 +76,10 @@ NonBlankStr = Annotated[str, Field(min_length=1, pattern=r'\S')]
 
 class ComponentPayload(V2PayloadBase):
     formula: str
-    role: Literal['matrix', 'dopant', 'alloy_component', 'top_layer', 'bottom_layer', 'lateral_domain'] | None = None
+    role: Literal['matrix', 'dopant', 'alloy_component', 'material_layer', 'top_layer', 'bottom_layer', 'lateral_domain'] | None = None
     concentration_at_percent: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, le=100)] | None = None
     layer_order: Annotated[int, Field(strict=True, ge=1)] | None = None
+    bulk_space_group: Annotated[int, Field(strict=True, ge=1, le=230)] | None = None
 
     @field_validator("formula")
     @classmethod
@@ -243,11 +243,11 @@ class TubeMaterialShapePayload(V2PayloadBase):
 
 
 class TemperatureSensorPayload(V2PayloadBase):
-    sensor_name: NonBlankStr
+    sensor_name: NonBlankStr | None = None
     sensor_type: NonBlankStr
     zone_index: Annotated[int, Field(strict=True, ge=1)]
     uncertainty_C: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]
-    uncertainty_source: Literal['instrument', 'calibration', 'repeatability', 'estimate']
+    uncertainty_source: Literal['instrument', 'calibration', 'repeatability', 'estimate'] | None = None
 
 
 class SurfaceRoughnessPayload(V2PayloadBase):
@@ -585,6 +585,12 @@ class PressureSystemValue(V2PayloadBase):
         return self
 
     @model_validator(mode="after")
+    def _requires_option(self) -> Self:
+        if self.option is None:
+            raise ValueError("composite field requires an option")
+        return self
+
+    @model_validator(mode="after")
     def _option_specific_range(self) -> Self:
         bounds = {'atmospheric_pressure': {'ge': 80000, 'le': 120000}, 'low_pressure': {'gt': 1e-06, 'lt': 80000}, 'ultra_high_vacuum': {'gt': 0, 'le': 1e-06}}.get(self.option)
         if bounds is None or self.value is None:
@@ -677,6 +683,8 @@ class TargetProductPayload(V2PayloadBase):
                 raise ValueError("doped target components require one host material and at least one dopant")
             if any(part.layer_order is not None for part in parts) or matrix[0].concentration_at_percent is not None:
                 raise ValueError("doped target cannot use layer order or host material concentration")
+            if matrix[0].formula != self.chemical_formula:
+                raise ValueError("doped target formula must match the host material formula")
             concentrations = [part.concentration_at_percent for part in dopants]
             if any(value is not None and not 0 < value < 100 for value in concentrations):
                 raise ValueError("dopant concentration must be between 0 and 100 at%")
@@ -692,10 +700,6 @@ class TargetProductPayload(V2PayloadBase):
                 raise ValueError("alloy component formulas must be unique")
             if any(part.layer_order is not None for part in parts):
                 raise ValueError("alloy target cannot use layer order")
-            target_elements = _formula_elements(self.chemical_formula)
-            component_elements = set().union(*(_formula_elements(part.formula) for part in parts))
-            if component_elements != target_elements:
-                raise ValueError("alloy formula is inconsistent with components")
             concentrations = [part.concentration_at_percent for part in parts]
             if any(value is not None for value in concentrations):
                 if any(value is None for value in concentrations):
@@ -706,14 +710,10 @@ class TargetProductPayload(V2PayloadBase):
         if self.structure_type == "vertical_heterostructure":
             orders = [part.layer_order for part in parts]
             roles = {part.role for part in parts}
-            if len(parts) < 2 or not {"bottom_layer", "top_layer"} <= roles or not roles <= {"bottom_layer", "top_layer"}:
-                raise ValueError("vertical heterostructure requires bottom and top layers")
+            if len(parts) < 2 or not roles <= {"material_layer", "bottom_layer", "top_layer"}:
+                raise ValueError("vertical heterostructure requires at least two material layers")
             if any(order is None for order in orders) or sorted(orders) != list(range(1, len(parts) + 1)):
                 raise ValueError("vertical layer order must be unique and contiguous from 1")
-            bottom_orders = [part.layer_order for part in parts if part.role == "bottom_layer"]
-            top_orders = [part.layer_order for part in parts if part.role == "top_layer"]
-            if max(bottom_orders) >= min(top_orders):
-                raise ValueError("bottom layers must precede top layers")
             if any(part.concentration_at_percent is not None for part in parts):
                 raise ValueError("vertical heterostructure cannot use concentration")
             expected = "/".join(part.formula for part in sorted(parts, key=lambda part: part.layer_order or 0))
@@ -804,7 +804,7 @@ class PrecursorItemPayload(V2PayloadBase):
     phase_state: Literal['gas', 'liquid', 'solid']
     appearance: str | None = None
     lot_ref: MaterialLotReferencePayload
-    role: Literal['additive', 'dopant_source', 'main_precursor', 'other'] | None = None
+    role: Literal['additive', 'dopant_source', 'main_precursor', 'other']
     amount: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     treatment_steps: list[PrecursorTreatmentPayload] | None = None
     boat_crucible: BoatCruciblePayload | None = None
@@ -855,6 +855,7 @@ class PrecursorsPayload(V2PayloadBase):
 class SubstrateItemPayload(V2PayloadBase):
     material: NonBlankStr
     lot_ref: MaterialLotReferencePayload
+    piece_label: NonBlankStr
     chemical_formula: NonBlankStr
     orientation_polish_availability: Literal['not_applicable', 'not_provided', 'reported']
     crystal_orientation: str | None = None
@@ -1106,13 +1107,12 @@ class MaterialLotVersionPayload(V2PayloadBase):
     substance_name: NonBlankStr
     chemical_formula: NonBlankStr
     cas_number: str | None = None
-    inchikey_cid: str | None = None
     supplier: str | None = None
     catalog_number: str | None = None
     batch_number: NonBlankStr
     purity: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0, le=100)] | None = None
-    particle_size_d50_um: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     form_appearance: str | None = None
+    particle_size_d50_um: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     opened_date: date | None = None
     storage_method: str | None = None
     coa_attachment: FileAssetReferencePayload | None = None
@@ -1167,15 +1167,15 @@ class MaterialLotVersionPayload(V2PayloadBase):
         ):
             raise ValueError("purity is not applicable")
         if (
-            not _matches({'op': 'eq', 'value': 'chemical'}, self.lot_category)
-            and not _missing(self.particle_size_d50_um)
-        ):
-            raise ValueError("particle_size_d50_um is not applicable")
-        if (
             not _matches({'op': 'ne', 'value': 'gas_cylinder'}, self.lot_category)
             and not _missing(self.form_appearance)
         ):
             raise ValueError("form_appearance is not applicable")
+        if (
+            not _matches({'op': 'in', 'value': ['powder', 'granules']}, self.form_appearance)
+            and not _missing(self.particle_size_d50_um)
+        ):
+            raise ValueError("particle_size_d50_um is not applicable")
         if (
             _matches({'op': 'eq', 'value': 'substrate'}, self.lot_category)
             and _missing(self.substrate_material)
@@ -1271,9 +1271,9 @@ class MaterialLotVersionPayload(V2PayloadBase):
 
 
 class SetupVersionPayload(V2PayloadBase):
-    setup_code: NonBlankStr
     setup_name: NonBlankStr
     brand_model: str | None = None
+    setup_code: NonBlankStr
     wall_type: Literal['cold_wall', 'hot_wall'] | None = None
     zone_count: Annotated[int, Field(strict=True, ge=1)]
     temperature_sensors: Annotated[list[TemperatureSensorPayload], Field(min_length=1)]

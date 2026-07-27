@@ -72,7 +72,7 @@ describe('TargetProductSection composition guide', () => {
       </I18nextProvider>,
     )
 
-    expect(screen.getByText(/不填组成明细/)).toBeInTheDocument()
+    expect(screen.getByText(/只填写目标材料化学式/)).toBeInTheDocument()
     expect(
       screen.queryByRole('group', { name: '结构类型' }),
     ).not.toBeInTheDocument()
@@ -80,8 +80,10 @@ describe('TargetProductSection composition guide', () => {
     await user.click(screen.getByRole('combobox', { name: /结构类型/ }))
     await user.click(screen.getByRole('option', { name: '掺杂' }))
 
-    expect(screen.getByText(/不强制把掺杂剂与主体材料拼成/)).toBeInTheDocument()
-    expect(screen.queryByText(/不填组成明细/)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/填写主体材料 MoS2、掺杂元素 Pt/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/只填写目标材料化学式/)).not.toBeInTheDocument()
 
     await user.type(
       screen.getByRole('combobox', { name: '体相空间群' }),
@@ -112,9 +114,9 @@ describe('TargetProductSection composition guide', () => {
     ])
 
     expect(screen.getByText('填写规则')).toBeInTheDocument()
-    expect(screen.getByText(/主体材料和一个或多个掺杂剂/)).toHaveTextContent(
-      '角色术语待组内最终统一',
-    )
+    expect(
+      screen.getByText(/填写主体材料 MoS2、掺杂元素 Pt/),
+    ).toHaveTextContent('已知的名义含量')
     expect(
       screen.queryByRole('spinbutton', { name: '层序' }),
     ).not.toBeInTheDocument()
@@ -124,7 +126,7 @@ describe('TargetProductSection composition guide', () => {
     renderSection('本征')
 
     expect(
-      screen.getByText(/本征：只填目标材料化学式.*不填组成明细/),
+      screen.getByText(/例：MoS2。只填写目标材料化学式/),
     ).toBeInTheDocument()
     const spaceGroupInput = screen.getByRole('combobox', {
       name: '体相空间群',

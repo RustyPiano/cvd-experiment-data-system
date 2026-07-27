@@ -34,7 +34,7 @@ export const common = {
     structuredField: '请完整填写具名参数，并使用有效数值',
     tubeDimensionsRequired: '请按所选截面完整填写炉管尺寸',
     temperatureSensorsCoverage:
-      '温区数为 {{count}}；请为温区 1–{{count}} 各完整填写一张传感器卡（名称、类型、不确定度及来源）。',
+      '温区数为 {{count}}；请为温区 1–{{count}} 分别填写传感器类型和温度测量误差。',
     substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
     usageHistory: '请填写清零次数（可为 0）和清零后第几次使用（从 1 开始）。',
   },
@@ -286,11 +286,18 @@ export const common = {
     },
     temperatureSensors: {
       addSensor: '新增温度传感器',
-      sensor: '温度传感器 {{position}}',
+      sensor: '温区 {{position}}',
       sensorName: '传感器名称',
       sensorType: '传感器类型',
+      sensorTypeOptions: {
+        kThermocouple: 'K 型热电偶',
+        sThermocouple: 'S 型热电偶',
+        rThermocouple: 'R 型热电偶',
+        bThermocouple: 'B 型热电偶',
+        infraredPyrometer: '红外测温仪',
+      },
       zoneIndex: '温区编号',
-      uncertaintyCelsius: '测量不确定度（°C）',
+      uncertaintyCelsius: '温度测量误差（°C）',
       uncertaintySource: '不确定度来源',
       selectUncertaintySource: '请选择不确定度来源',
       uncertaintySourceOptions: {
@@ -685,8 +692,11 @@ export const common = {
       success: '状态已更新',
       error: '状态更新失败',
       missingTitle: '请先补齐以下字段：',
-      saveBeforeLock: '还有未保存的工艺修改；请先保存对应部分，再锁定工艺。',
+      saveBeforeLock: '还有未保存的修改；请先保存对应部分，再导出或锁定工艺。',
       requirement: { required: '必填', r0: '锁定前必填' },
+      lockTitle: '确认锁定工艺？',
+      lockDescription:
+        '锁定后工艺参数不可编辑，并按衬底生成样品；结果仍可继续补录。请确认各节均已保存。',
       invalidateTitle: '作废制备实验记录',
       invalidateDescription:
         '作废后该制备实验记录不可编辑且不可恢复。请输入作废原因。',
@@ -786,6 +796,8 @@ export const common = {
       moduleSaveSuccess: '本节已保存',
       saveError: '保存失败',
       fixRequired: '请先补齐必填项',
+      incompleteItem:
+        '{{module}}第 {{position}} 条填写不完整，请检查该条标红项',
       selectSetupFirst: '请先选择实验装置',
       createAction: '开始记录',
       createSuccess: '已创建制备实验记录',
@@ -810,6 +822,15 @@ export const common = {
       role: '角色',
       concentration: '浓度（at%）',
       layerOrder: '层序',
+      item: '组分 {{position}}',
+      layer: '材料层 {{position}}（从衬底向上）',
+      region: '横向区域 {{position}}',
+      dopant: '掺杂元素 {{position}}',
+      dopantElement: '掺杂元素',
+      alloySiteElement: '混合占位元素',
+      nominalContent: '名义含量（at.%）',
+      siteFraction: '占位比例（%）',
+      bulkSpaceGroup: '体相空间群（选填）',
     },
     reference: {
       placeholder: '请选择',
@@ -826,17 +847,27 @@ export const common = {
       },
       targetProduct: {
         title: '目标产物',
+        intrinsicFormula: '目标材料化学式',
+        dopedFormula: '主体材料化学式',
+        alloyFormula: '合金化学式',
+        derivedFormula: '体系显示式（系统生成）',
+        componentTitles: {
+          doped: '主体材料与掺杂元素',
+          alloy: '混合占位元素与比例',
+          vertical_heterostructure: '材料层（从衬底向上）',
+          lateral_heterostructure: '横向材料区域',
+          other: '组成明细',
+        },
         guideTitle: '填写规则',
         guides: {
-          intrinsic: '本征：只填目标材料化学式，例如 MoS2；不填组成明细。',
+          intrinsic: '例：MoS2。只填写目标材料化学式。',
           doped:
-            '掺杂：化学式填写实验采用的材料式；组成明细单独填写一条主体材料和一个或多个掺杂剂，已知名义掺杂量时再填浓度（at%），层序留空。系统不强制把掺杂剂与主体材料拼成一种写法；角色术语待组内最终统一。',
+            '例：Pt 掺杂 MoS2。填写主体材料 MoS2、掺杂元素 Pt 和已知的名义含量。',
           alloy:
-            '合金：化学式填名义化学计量，例如 Mo0.5W0.5S2。每种合金元素或组分各填一行，角色选“合金组分”；已知时填名义浓度（at%），层序留空。',
+            '例：Mo0.5W0.5S2。填写合金化学式，并分别填写 Mo、W 的占位比例 50%。',
           vertical:
-            '垂直异质结：化学式按“下层与上层”填写，例如 MoS2/WS2。每层一行，角色选“下层”或“上层”；层序 1 表示最靠近衬底，向上递增，下层层序必须早于上层，浓度留空。',
-          lateral:
-            '横向异质结：化学式用“-”连接，例如 MoS2-WS2。每个横向域各填一行，角色选“横向域”；浓度和层序留空。',
+            '例：MoS2/WS2。从贴近衬底的材料开始逐层添加；显示式由系统生成。',
+          lateral: '例：MoS2-WS2。逐个填写横向材料区域；显示式由系统生成。',
           other:
             '其他：用普通数字填写课题组约定的化学式，并在组成明细中逐条记录组分；只填写适用的浓度或层序，关系在备注中说明。',
         },
@@ -876,9 +907,12 @@ export const common = {
       },
       processSteps: {
         title: '实验过程',
-        add: '新增过程记录',
+        add: '新增其他记录',
         empty: '尚未记录实验过程。',
         item: '过程记录 {{position}}',
+        preparation: '实验前操作',
+        reaction: '反应条件',
+        other: '其他记录 {{position}}',
         moveUp: '上移',
         moveDown: '下移',
         legacyStageTitle: '这条记录来自已停用的旧版过程结构',

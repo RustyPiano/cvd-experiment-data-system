@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.11
+  version: v3.12
   status: DRAFT
-  updated: '2026-07-25'
+  updated: '2026-07-27'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -173,6 +173,7 @@ option_labels_en:
   基体: Matrix
   掺杂剂: Dopant
   合金组分: Alloy component
+  材料层: Material layer
   上层: Top layer
   下层: Bottom layer
   横向域: Lateral domain
@@ -317,6 +318,7 @@ option_codes:
   基体: matrix
   掺杂剂: dopant
   合金组分: alloy_component
+  材料层: material_layer
   上层: top_layer
   下层: bottom_layer
   横向域: lateral_domain
@@ -421,16 +423,16 @@ experiment_record:
       label: 合成方法
       label_en: Synthesis method
       key: synthesis_method
-      meaning: 本次用的气相沉积方法；顶层选择器，决定是否启用§8 PVD模块
-      input: 下拉+其他
-      options: CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD/其他
+      meaning: 本系统当前记录的顶层制备方法；压力、等离子体、金属有机源和盐辅助均由对应实验事实单独表达
+      input: 固定定义
+      options: CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: 常压CVD(APCVD)
-      source: v3新增
-      note: ★v3新增；可挂CHMO本体ID
+      example: CVD
+      source: 2026-07-27终版整改
+      note: 新记录固定为CVD；历史APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD值继续兼容读取
       r0: true
     - module: 基本信息
       label: 实验人
@@ -524,7 +526,7 @@ experiment_record:
       key: chemical_formula
       placeholder: 例如 MoS2
       placeholder_en: e.g. MoS2
-      meaning: 规范显示串；复合体系须与组成明细一致、以组成明细为准（可自动生成）
+      meaning: 本征、掺杂和合金体系的目标化学式；异质结构由材料层或区域自动生成显示式
       input: 文本
       options: 标准写法（渲染规则）
       unit: —
@@ -534,8 +536,8 @@ experiment_record:
       example: MoS2
       source: 2026-07-24导师走查
       note: ★R0；复合体系权威在『组成明细』；录入使用普通数字；允许常见圆括号、组成分组与结晶水点号
-      help: 用普通数字填写，例如 MoS2；复合体系再按下方“组成明细”逐项填写。
-      help_en: Use plain digits, for example MoS2; for composite systems, complete the component rows below.
+      help: 用普通数字填写，例如 MoS2；垂直或横向异质结构由下方材料层或区域自动生成。
+      help_en: Use plain digits, for example MoS2. Vertical and lateral heterostructure formulas are generated from the material layers or regions below.
       r0: true
     - module: 目标产物
       label: 结构类型
@@ -560,9 +562,9 @@ experiment_record:
       key: components
       ui:
         visibility_gated: true
-      meaning: 逐组分结构化（复合体系的权威数据源）
+      meaning: 按结构类型记录主体与掺杂元素、合金混合位点，或异质结构的材料层与区域
       input: 数组items[]
-      options: 每条:化学式/角色(主体材料·掺杂剂·合金组分·上层·下层·横向域)/浓度(at%)/层序(整数)
+      options: 每条:化学式/角色(主体材料·掺杂剂·合金组分·材料层·上层·下层·横向域)/名义含量或占位比例(%)/层序(整数)/体相空间群(1-230)
       unit: —
       requirement:
         raw: 条件必填(结构类型≠本征)
@@ -571,9 +573,9 @@ experiment_record:
           field: 目标产物.结构类型
           op: ne
           value: 本征
-      example: '{WS2,上层,层序2};{MoS2,下层,层序1}'
-      source: 复审
-      note: ★v3.2b升为权威源+条件必填；数量拆浓度/层序；掺杂浓度已知时须0<at%<100，允许一个或多个掺杂剂，不强制“掺杂剂:主体材料”字符串；垂直结构下层层序须早于上层；杜绝退回字符串（复审N2）
+      example: '{MoS2,材料层,层序1,空间群194};{WS2,材料层,层序2,空间群194}'
+      source: 复审·2026-07-27终版整改
+      note: 掺杂记录一条主体材料和一个或多个掺杂元素；合金组分只表示混合占位元素及比例；垂直结构按从衬底向上顺序记录材料层，横向结构逐区域记录；上层/下层只用于历史兼容
       r0: true
     - module: 目标产物
       label: 目标层数
@@ -596,7 +598,9 @@ experiment_record:
       label: 体相空间群
       label_en: Bulk space group
       key: bulk_space_group
-      meaning: 晶体对称性：International Tables 空间群号（1–230）
+      meaning: 非异质结构目标材料的晶体对称性：International Tables 空间群号（1–230）；异质结构改在每层或区域填写
+      ui:
+        visibility_gated: true
       input: 数值
       options: —
       unit: —
@@ -605,7 +609,7 @@ experiment_record:
         level: optional
       example: '194'
       source: 复审
-      note: ★v3：从『层群/点群/多型』改回体相空间群；手性/扭转角/堆垛→备注
+      note: 本征、掺杂、合金和其他结构可选；垂直或横向异质结构在组成明细逐层或逐区域填写
       placeholder: 例如 194
       placeholder_en: e.g. 194
       help: 输入编号或从列表选择；不知道可留空，可从XRD结果、文献或材料数据库的“Space group”获取。
@@ -774,19 +778,19 @@ experiment_record:
       source: 复审
       note: ★v3：从逐次填『原点+轴向』改为全局定死，防选反
     - module: 设备
-      label: 温度传感器与不确定度
-      label_en: Temperature sensors and uncertainty
+      label: 各温区温度传感器
+      label_en: Temperature sensors by zone
       key: temperature_sensors
-      meaning: 所引用装置版本中各温区的测温传感器与不确定度，只读带出
+      meaning: 所引用装置版本中每个温区的传感器类型和温度测量误差，只读带出
       input: 温度传感器数组
-      options: '{sensor_name, sensor_type, zone_index, uncertainty_C, uncertainty_source: 仪器|校准|重复性|估计}'
+      options: '{sensor_type, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}'
       unit: ℃
       requirement:
         raw: 必填(装置登记)
         level: required
-      example: K型热电偶，温区1，±1℃
+      example: 温区1：K型热电偶，温度测量误差±1℃
       source: 2026-07-24导师走查
-      note: 实验中不重复填写，由Setup版本快照冻结
+      note: 实验中不重复填写，由Setup版本快照冻结；旧名称和误差来源只读兼容，新表单不再要求
       r0: true
     - module: 设备
       label: 外场能力
@@ -850,12 +854,12 @@ experiment_record:
       note: 选择物料批次后只读带出，不在炉次中建立第二套身份
       r0: true
     - module: 前驱体
-      label: 化学标识（来自批次）
-      label_en: Chemical identifiers (from lot)
+      label: CAS号（来自批次）
+      label_en: CAS number (from lot)
       key: cas_inchi
-      meaning: 从所选物料批次快照带出的 CAS 号和公共数据库标识
+      meaning: 从所选物料批次快照带出的 CAS 号
       input: 文本
-      options: CAS 或 InChI
+      options: CAS
       unit: —
       requirement:
         raw: 选填
@@ -925,8 +929,8 @@ experiment_record:
       options: 主源/辅助剂/掺杂源/其他
       unit: —
       requirement:
-        raw: 选填
-        level: optional
+        raw: 必填
+        level: required
       example: 主源
       source: 建议
       note: 界面中文(英文)
@@ -1053,6 +1057,22 @@ experiment_record:
       source: 2026-07-24导师走查
       note: 必须引用衬底类别的不可变物料版本
       r0: true
+    - module: 衬底
+      label: 本次样片标记
+      label_en: Piece label for this run
+      key: piece_label
+      meaning: 区分同一物料批次在本炉次中放入的不同衬底片
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: S1
+      source: 2026-07-27终版整改
+      note: 只需在同一炉次内唯一；例如S1、S2或左、右
+      help: 同一批次放入多片时分别标记，例如 S1、S2；该标记会跟随自动生成的样品。
+      help_en: Label each piece from the same lot, for example S1 and S2; the label follows the generated sample.
     - module: 衬底
       label: 衬底化学式（来自批次）
       label_en: Substrate formula
@@ -1391,6 +1411,7 @@ experiment_record:
       validation:
         gt: 0
         require_value: true
+        require_option: true
         option_ranges:
           atmospheric_pressure:
             ge: 80000
@@ -1415,14 +1436,14 @@ experiment_record:
       help_en: Enter working pressure relative to absolute vacuum, not gauge pressure relative to atmosphere
       r0: true
     - module: 过程步
-      label: 时长与循环次数
-      label_en: Duration and cycle count
+      label: 反应持续时间
+      label_en: Reaction duration
       key: duration_cycles
       group: reaction
-      meaning: 反应条件持续时长及可选循环次数
+      meaning: 从统一实验时间零点起计的反应条件持续时间
       input: 时长循环对象
-      options: '{duration_min, cycle_count?}'
-      unit: min·次
+      options: '{duration_min；旧记录可含cycle_count}'
+      unit: min
       requirement:
         raw: 条件必填(反应条件记录)
         level: conditional_required
@@ -1430,9 +1451,9 @@ experiment_record:
           field: 过程步.记录类型
           op: eq
           value: 反应条件
-      example: '{duration_min: 45, cycle_count: 2}'
-      source: 2026-07-24导师走查
-      note: duration_min>0；cycle_count为可选正整数
+      example: '{duration_min: 45}'
+      source: 2026-07-24导师走查·2026-07-27终版整改
+      note: duration_min>0；历史cycle_count只读兼容，新记录不再把供气区间数解释为反应循环次数
       r0: true
     - module: 步·降温
       label: 降温参数
@@ -1945,10 +1966,10 @@ entities:
       source: ★锁版使能(Fable三轮B2)
       note: 改则新版本，旧引用不受影响
     - module: MaterialLot
-      label: 物质名称
+      label: 物质名称（中文）
       label_en: Substance name
       key: substance_name
-      meaning: 化学身份：名称
+      meaning: 物料标签或CoA上的中文名称；与化学式、CAS号分别记录
       input: 文本
       options: —
       unit: —
@@ -1957,7 +1978,9 @@ entities:
         level: required
       example: 三氧化钼
       source: review§4.1A
-      note: ''
+      note: 不用化学式代替名称；英文标签可按课题组常用中文名填写
+      help: 填物料标签或CoA对应的中文名称，例如“三氧化钼”；化学式和CAS号填在后两项。
+      help_en: Enter the Chinese substance name used by the group; record the formula and CAS number in the next fields.
     - module: MaterialLot
       label: 化学式
       label_en: Chemical formula
@@ -1992,22 +2015,6 @@ entities:
       example: 1313-27-5
       source: review
       note: ''
-    - module: MaterialLot
-      label: 公共数据库标识
-      label_en: Public database identifier
-      key: inchikey_cid
-      meaning: 可选唯一标识
-      input: 文本
-      options: —
-      unit: —
-      requirement:
-        raw: 选填
-        level: optional
-      example: —
-      source: review
-      note: 可填写 InChIKey 或 PubChem CID；没有可靠值时留空
-      help: 用于跨数据库检索，可填写 InChIKey 或 PubChem CID；没有可靠值时留空。
-      help_en: Enter an InChIKey or PubChem CID for cross-database lookup; leave blank when unavailable.
     - module: MaterialLot
       label: 供应商
       label_en: Supplier
@@ -2078,26 +2085,6 @@ entities:
       source: review
       note: 原始证书中的N值或其他纯度表述保留在CoA/附件说明中
     - module: MaterialLot
-      label: 粒径D50
-      label_en: Particle size D50
-      key: particle_size_d50_um
-      meaning: 中位径（影响挥发/成核）
-      input: 数值
-      options: x50严谨；目数可接受
-      unit: µm
-      validation:
-        gt: 0
-      requirement:
-        raw: 选填
-        level: optional
-        condition:
-          field: MaterialLot.批次类别
-          op: eq
-          value: 化学品
-      example: '10'
-      source: review
-      note: 仅用于固体或液体化学前驱体的来料粒径；气瓶与衬底不适用
-    - module: MaterialLot
       label: 形态与性状
       label_en: Form and appearance
       key: form_appearance
@@ -2115,6 +2102,32 @@ entities:
       example: 粉末
       source: review
       note: 外观=性状；气瓶不使用粉末/箔/靶等物料形态
+    - module: MaterialLot
+      label: 粒径D50
+      label_en: Particle size D50
+      key: particle_size_d50_um
+      ui:
+        visibility_gated: true
+      meaning: 供应商或CoA报告的来料中位粒径；影响挥发和成核
+      input: 数值
+      options: 供应商或CoA报告的D50
+      unit: µm
+      validation:
+        gt: 0
+      requirement:
+        raw: 条件选填(粉末或颗粒)
+        level: conditional_recommended
+        condition:
+          field: MaterialLot.形态与性状
+          op: in
+          value:
+          - 粉末
+          - 颗粒
+      example: '10'
+      source: review
+      note: 仅在来料形态为粉末或颗粒且供应商/CoA有报告时填写；无报告留空，不用目数或猜测值代替
+      help: 只抄供应商标签或CoA上的D50；没有D50报告就留空。
+      help_en: Copy D50 only from the supplier label or CoA; leave blank when no D50 is reported.
     - module: MaterialLot
       label: 开封日期
       label_en: Date opened
@@ -2396,20 +2409,6 @@ entities:
   - title: 实体② 装置库 Setup（一台炉登记一次，实验 §2 引用；坐标系随引用冻结）
     fields:
     - module: 装置Setup
-      label: 装置编号
-      label_en: Setup code
-      key: setup_code
-      meaning: 唯一编号
-      input: 文本
-      options: —
-      unit: —
-      requirement:
-        raw: 必填
-        level: required
-      example: CVD-炉1
-      source: review§4.1B
-      note: ''
-    - module: 装置Setup
       label: 装置名称
       label_en: Setup name
       key: setup_name
@@ -2452,6 +2451,20 @@ entities:
       source: 会议
       note: ''
     - module: 装置Setup
+      label: 实验室装置编号
+      label_en: Laboratory setup ID
+      key: setup_code
+      meaning: 课题组在实验室内唯一识别这台装置的固定编号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: CVD-炉1
+      source: review§4.1B·2026-07-27终版整改
+      note: 登记后作为装置身份使用；版本更新不应改成另一台装置的编号
+    - module: 装置Setup
       label: 壁型
       label_en: Wall type
       key: wall_type
@@ -2483,19 +2496,19 @@ entities:
       source: 会议
       note: ''
     - module: 装置Setup
-      label: 温度传感器与不确定度
-      label_en: Temperature sensors and uncertainty
+      label: 各温区温度传感器
+      label_en: Temperature sensors by zone
       key: temperature_sensors
-      meaning: 装置各温区的测温传感器、测量不确定度及其来源
+      meaning: 装置每个温区的传感器类型和用户可直接理解的温度测量误差
       input: 温度传感器数组
-      options: '{sensor_name, sensor_type, zone_index, uncertainty_C, uncertainty_source: 仪器|校准|重复性|估计}'
+      options: '{sensor_type, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}'
       unit: ℃
       requirement:
         raw: 必填
         level: required
-      example: '[{sensor_name: 炉温热电偶1, sensor_type: K型热电偶, zone_index: 1, uncertainty_C: 1, uncertainty_source: 校准}]'
-      source: 2026-07-24导师走查
-      note: 随Setup版本冻结，实验选择装置后自动带出
+      example: '[{sensor_type: K型热电偶, zone_index: 1, uncertainty_C: 1}]'
+      source: 2026-07-24导师走查·2026-07-27终版整改
+      note: 温区数决定卡片数量；不让用户另起传感器名称，不要求填写难以理解的误差来源；旧字段只读兼容
     - module: 装置Setup
       label: 炉体方向
       label_en: Furnace orientation
@@ -2941,13 +2954,17 @@ changelog:
     - §6/实体
     - 事件具体说明始终可选填写、终止原因=其他时升级为必填；仪器字段改称“适用表征方法”；补明热电偶距离与前驱体温区、炉管截面与尺寸的联动必填规则
     - 2026-07-25逐字稿与语义终审
+  - - v3.12
+    - §1–§5/实体
+    - 制备终版整改：新记录固定CVD顶层方法；目标产物按掺杂、合金、材料层和区域填写；Setup逐温区只填传感器类型与温度测量误差；前驱体角色与样片标记必填；压力类别和值成对；反应删除伪循环派生
+    - 2026-07-27终版整改
   - - ''
     - ''
     - ''
     - ''
   - - R0
     - 硬必填核心(30项，含条件必填)
-    - v3.7新增环境温湿度、预检、目标形态、Setup测温传感器、前驱体与衬底批次、衬底化学式/晶向/粗糙度/尺寸放置、预处理操作；过程R0改为结构化温度程序、逐气体供气、绝对压力及时长循环
+    - v3.7新增环境温湿度、预检、目标形态、Setup测温传感器、前驱体与衬底批次、衬底化学式/晶向/粗糙度/尺寸放置、预处理操作；过程R0改为结构化温度程序、逐气体供气、绝对压力及反应时长
     - 必填集
 open_items:
   headers:

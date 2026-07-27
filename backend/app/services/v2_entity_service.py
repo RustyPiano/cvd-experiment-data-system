@@ -481,7 +481,7 @@ class V2EntityService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"invalid": [{"key": key, "reason": "value"}]},
             ) from exc
-        return [sensor.model_dump() for sensor in sensors]
+        return [sensor.model_dump(exclude_none=True) for sensor in sensors]
 
     def _file_asset_snapshot(
         self,

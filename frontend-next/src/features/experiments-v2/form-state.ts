@@ -14,6 +14,7 @@ import { structuredValueFromRaw } from '@/shared/structured-field'
 export function buildEmptyState(operator = ''): ExperimentV2FormState {
   const basicInfo = emptyModuleValues('basic_info')
   basicInfo['operator'] = operator
+  basicInfo['synthesis_method'] = 'CVD'
   return {
     basic_info: basicInfo,
     target_product: emptyModuleValues('target_product'),
@@ -26,9 +27,38 @@ export function buildEmptyState(operator = ''): ExperimentV2FormState {
     },
     precursors: [],
     substrates: [],
-    process_steps: [],
+    process_steps: primaryProcessSteps([]),
     process_events: [],
   }
+}
+
+function primaryProcessSteps(steps: ReturnType<typeof itemsFromPayload>) {
+  const primary = new Map(
+    steps
+      .filter((step) =>
+        ['preparation', 'reaction_conditions'].includes(
+          moduleValueAsString(step['stage_type']),
+        ),
+      )
+      .map((step) => [moduleValueAsString(step['stage_type']), step]),
+  )
+  const others = steps.filter(
+    (step) =>
+      !['preparation', 'reaction_conditions'].includes(
+        moduleValueAsString(step['stage_type']),
+      ),
+  )
+  return [
+    primary.get('preparation') ?? {
+      ...emptyModuleValues('process_steps'),
+      stage_type: 'preparation',
+    },
+    primary.get('reaction_conditions') ?? {
+      ...emptyModuleValues('process_steps'),
+      stage_type: 'reaction_conditions',
+    },
+    ...others,
+  ]
 }
 
 /** 把 run 的引用快照（*_snapshot + attrs_snapshot）归一为「直取键」，与选中实体版本 data 同形。 */
@@ -79,7 +109,9 @@ export function buildStateFromLoaded(
     },
     precursors: itemsFromPayload('precursors', precPayload),
     substrates: itemsFromPayload('substrates', subPayload),
-    process_steps: itemsFromPayload('process_steps', stepsPayload),
+    process_steps: primaryProcessSteps(
+      itemsFromPayload('process_steps', stepsPayload),
+    ),
     process_events: itemsFromPayload('process_events', eventsPayload),
   }
 }

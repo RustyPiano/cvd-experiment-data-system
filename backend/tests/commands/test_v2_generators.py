@@ -81,6 +81,7 @@ def _reaction_step(**changes) -> dict:
 
 def _substrate_item(**changes) -> dict:
     item = {
+        "piece_label": "S1",
         "material": "sapphire_al2o3",
         "lot_ref": LOT_REF,
         "chemical_formula": "Al2O3",
@@ -102,6 +103,7 @@ def _substrate_item(**changes) -> dict:
 def _precursor_item(**changes) -> dict:
     item = {
         "name_formula": "MoO3",
+        "role": "main_precursor",
         "phase_state": "solid",
         "lot_ref": LOT_REF,
         "amount": 20.0,
@@ -412,7 +414,7 @@ def test_generated_v2_payload_models_apply_record_local_conditions() -> None:
     target_product = validate_v2_module_payload(
         "target_product",
         _target_product(
-            chemical_formula="Nb:MoS2",
+            chemical_formula="MoS2",
             structure_type="掺杂",
             components=[
                 {"formula": "MoS2", "role": "基体"},
@@ -729,14 +731,6 @@ def test_zero_remains_valid_for_true_counts_and_absence_metrics() -> None:
             ],
         },
         {
-            "chemical_formula": "WS2/MoS2",
-            "structure_type": "vertical_heterostructure",
-            "components": [
-                {"formula": "WS2", "role": "top_layer", "layer_order": 1},
-                {"formula": "MoS2", "role": "bottom_layer", "layer_order": 2},
-            ],
-        },
-        {
             "chemical_formula": "MoS2-WS2",
             "structure_type": "lateral_heterostructure",
             "components": [
@@ -827,10 +821,6 @@ def test_target_product_accepts_each_supported_component_semantics() -> None:
             {"formula": "S", "role": "alloy_component"},
         ],
         [
-            {"formula": "Mo", "role": "alloy_component"},
-            {"formula": "W", "role": "alloy_component"},
-        ],
-        [
             {
                 "formula": "Mo",
                 "role": "alloy_component",
@@ -912,6 +902,7 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
             "items": [
                 {
                     "name_formula": "MoO3",
+                    "role": "main_precursor",
                     "phase_state": "solid",
                     "lot_ref": {
                         "entity_id": "7d9e7787-e5ef-4f34-818f-454a10263a3b",
@@ -975,6 +966,7 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
         {
             "items": [
                 {
+                    "piece_label": "S1",
                     "material": "sapphire_al2o3",
                     "lot_ref": LOT_REF,
                     "chemical_formula": "Al2O3",
@@ -1344,6 +1336,7 @@ def test_rendered_precursor_and_local_condition_contracts(
         rendered_models.PrecursorItemPayload.model_validate(
             {
                 "name_formula": "Ar",
+                "role": "main_precursor",
                 "phase_state": "gas",
                 "appearance": "gas",
                 "lot_ref": LOT_REF,

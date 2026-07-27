@@ -1,13 +1,8 @@
 // 基本信息：元数据驱动。PVD 方法暂不在用户界面开放。
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import type { ModuleFieldValue, ModuleValues } from '../field-logic'
-import {
-  getModuleFields,
-  isFieldVisible,
-  parseEnumOptions,
-} from '../field-logic'
+import { getModuleFields, isFieldVisible } from '../field-logic'
 import type { ModuleSaveProps } from '../form-types'
 import { FieldControl } from './field-control'
 import { ModuleCard } from './module-card'
@@ -20,13 +15,6 @@ const NEW_RUN_FIELDS = new Set([
   'ambient_humidity_percent',
   'precheck_confirmed',
 ])
-
-function unsupportedSynthesisMethods(field: FieldMetadata) {
-  if (field.key !== 'synthesis_method') return undefined
-  return parseEnumOptions(field.input, field.options, field.key)?.filter(
-    (option) => option.startsWith('pvd_') || option === 'PLD',
-  )
-}
 
 export function BasicInfoSection({
   values,
@@ -79,13 +67,16 @@ export function BasicInfoSection({
                 value={values[field.key] ?? ''}
                 onChange={(value) => onChange(field.key, value)}
                 disabled={disabled}
-                readOnly={field.key === 'run_code' || field.key === 'operator'}
+                readOnly={
+                  field.key === 'run_code' ||
+                  field.key === 'operator' ||
+                  field.key === 'synthesis_method'
+                }
                 hint={
                   field.key === 'run_code'
                     ? t('experimentsV2.form.runCodeLocked')
                     : undefined
                 }
-                hiddenOptions={unsupportedSynthesisMethods(field)}
                 hideHelp={field.key === 'run_code'}
                 showError={showErrors}
               />

@@ -64,6 +64,7 @@ def _save_substrates(
         )
         assert lot.status_code == 201, lot.text
         overrides = {key: value for key, value in item.items() if key != "material"}
+        overrides.setdefault("piece_label", f"S{index}")
         completed.append(
             substrate_item(
                 lot.json(),

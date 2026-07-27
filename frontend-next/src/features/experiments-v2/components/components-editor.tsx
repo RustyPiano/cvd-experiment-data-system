@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -15,6 +16,7 @@ import type { ComponentRow } from '../field-logic'
 import { emptyComponentRow, getComponentRoleOptions } from '../field-logic'
 import { FormulaInput } from './formula-input'
 import { canonicalOption, localizedOption } from '@/shared/field-i18n'
+import { spaceGroupNumber, spaceGroupOptions } from '../space-groups'
 
 export function ComponentsEditor({
   rows,
@@ -34,14 +36,51 @@ export function ComponentsEditor({
   const roleOptions = getComponentRoleOptions()
   const structure = canonicalOption(structureType)
   const showConcentration = ['doped', 'alloy', 'other'].includes(structure)
-  const showLayerOrder = ['vertical_heterostructure', 'other'].includes(
-    structure,
-  )
+  const showLayerOrder = structure === 'other'
+  const showSpaceGroup = [
+    'vertical_heterostructure',
+    'lateral_heterostructure',
+  ].includes(structure)
+  const defaultRole = () =>
+    structure === 'doped'
+      ? 'dopant'
+      : structure === 'alloy'
+        ? 'alloy_component'
+        : structure === 'vertical_heterostructure'
+          ? 'material_layer'
+          : structure === 'lateral_heterostructure'
+            ? 'lateral_domain'
+            : ''
+  const rowTitle = (index: number) =>
+    structure === 'vertical_heterostructure'
+      ? t('experimentsV2.components.layer', { position: index + 1 })
+      : structure === 'lateral_heterostructure'
+        ? t('experimentsV2.components.region', { position: index + 1 })
+        : structure === 'doped'
+          ? t('experimentsV2.components.dopant', { position: index + 1 })
+          : t('experimentsV2.components.item', { position: index + 1 })
+  const formulaLabel = () =>
+    structure === 'doped'
+      ? t('experimentsV2.components.dopantElement')
+      : structure === 'alloy'
+        ? t('experimentsV2.components.alloySiteElement')
+        : t('experimentsV2.components.formula')
 
   const updateRow = (index: number, patch: Partial<ComponentRow>) => {
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
   }
-  const addRow = () => onChange([...rows, emptyComponentRow()])
+  const addRow = () => {
+    const index = rows.length
+    onChange([
+      ...rows,
+      {
+        ...emptyComponentRow(),
+        role: defaultRole(),
+        layer_order:
+          structure === 'vertical_heterostructure' ? String(index + 1) : '',
+      },
+    ])
+  }
   const removeRow = (index: number) =>
     onChange(rows.filter((_, i) => i !== index))
 
@@ -58,14 +97,15 @@ export function ComponentsEditor({
       {rows.map((row, index) => (
         <div
           key={index}
-          className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[2fr_1.4fr_1fr_1fr_auto]"
+          className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[2fr_1fr_auto]"
         >
+          <p className="text-sm font-medium sm:col-span-3">{rowTitle(index)}</p>
           <div className="flex flex-col gap-1">
             <label
               htmlFor={`component-${index}-formula`}
               className="text-xs font-medium text-muted-foreground"
             >
-              {t('experimentsV2.components.formula')}
+              {formulaLabel()}
             </label>
             <FormulaInput
               id={`component-${index}-formula`}
@@ -74,39 +114,50 @@ export function ComponentsEditor({
               disabled={disabled}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor={`component-${index}-role`}
-              className="text-xs font-medium text-muted-foreground"
-            >
-              {t('experimentsV2.components.role')}
-            </label>
-            <Select
-              value={row.role || ''}
-              onValueChange={(value) => updateRow(index, { role: value })}
-              disabled={disabled}
-            >
-              <SelectTrigger id={`component-${index}-role`} className="w-full">
-                <SelectValue
-                  placeholder={t('experimentsV2.form.selectPlaceholder')}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {roleOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {localizedOption(option, i18n.language)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {structure === 'other' ? (
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor={`component-${index}-role`}
+                className="text-xs font-medium text-muted-foreground"
+              >
+                {t('experimentsV2.components.role')}
+              </label>
+              <Select
+                value={row.role || ''}
+                onValueChange={(value) => updateRow(index, { role: value })}
+                disabled={disabled}
+              >
+                <SelectTrigger
+                  id={`component-${index}-role`}
+                  className="w-full"
+                >
+                  <SelectValue
+                    placeholder={t('experimentsV2.form.selectPlaceholder')}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {roleOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {localizedOption(option, i18n.language)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           {showConcentration ? (
             <div className="flex flex-col gap-1">
               <label
                 htmlFor={`component-${index}-concentration`}
                 className="text-xs font-medium text-muted-foreground"
               >
-                {t('experimentsV2.components.concentration')}
+                {t(
+                  structure === 'alloy'
+                    ? 'experimentsV2.components.siteFraction'
+                    : 'experimentsV2.components.nominalContent',
+                )}
               </label>
               <Input
                 id={`component-${index}-concentration`}
@@ -122,6 +173,39 @@ export function ComponentsEditor({
                 disabled={disabled}
                 placeholder="at%"
               />
+            </div>
+          ) : null}
+          {showSpaceGroup ? (
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor={`component-${index}-space-group`}
+                className="text-xs font-medium text-muted-foreground"
+              >
+                {t('experimentsV2.components.bulkSpaceGroup')}
+              </label>
+              <Input
+                id={`component-${index}-space-group`}
+                list={`component-${index}-space-group-options`}
+                value={row.bulk_space_group ?? ''}
+                onChange={(event) =>
+                  updateRow(index, { bulk_space_group: event.target.value })
+                }
+                onBlur={() => {
+                  const number = spaceGroupNumber(row.bulk_space_group)
+                  if (number != null) {
+                    updateRow(index, { bulk_space_group: String(number) })
+                  }
+                }}
+                disabled={disabled}
+                placeholder={t(
+                  'experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
+                )}
+              />
+              <datalist id={`component-${index}-space-group-options`}>
+                {spaceGroupOptions.map((option) => (
+                  <option key={option.number} value={option.datalistValue} />
+                ))}
+              </datalist>
             </div>
           ) : null}
           {showLayerOrder ? (

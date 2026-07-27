@@ -14,6 +14,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -85,10 +95,12 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const { session } = useAuth()
   const token = session.accessToken || ''
   const queryClient = useQueryClient()
+  const [locking, setLocking] = useState(false)
   const [invalidating, setInvalidating] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
   const [reason, setReason] = useState('')
   const [processDirty, setProcessDirty] = useState(false)
+  const [formDirty, setFormDirty] = useState(false)
   const [missing, setMissing] = useState<
     Array<{
       key: string
@@ -123,6 +135,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       reason?: string
     }) => transitionRun(runId, action, token, invalidReason),
     onSuccess: (run) => {
+      setLocking(false)
       setInvalidating(false)
       setUnlocking(false)
       setReason('')
@@ -186,7 +199,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const act = (action: StatusAction) => {
     if (action === 'invalidate') setInvalidating(true)
     else if (action === 'unlock') setUnlocking(true)
-    else mutation.mutate({ action })
+    else setLocking(true)
   }
   const isAdmin = session.currentUser?.role === 'admin'
   const canEditProcess = Boolean(
@@ -268,7 +281,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             <Button
               type="button"
               variant="outline"
-              disabled={!data || exportMutation.isPending}
+              disabled={!data || exportMutation.isPending || formDirty}
               onClick={() => exportMutation.mutate()}
             >
               <Download data-icon="inline-start" />
@@ -298,7 +311,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         <LoadingState />
       ) : (
         <>
-          {processDirty ? (
+          {formDirty ? (
             <Alert>
               <AlertDescription>
                 {t('experimentsV2.actions.saveBeforeLock')}
@@ -364,10 +377,34 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
             resultsReadOnly={isResultsReadOnly(data.run.status, canEditResults)}
             onProcessDirtyChange={setProcessDirty}
+            onDirtyChange={setFormDirty}
           />
           <RunAuditSection runId={runId} token={token} />
         </>
       )}
+      <AlertDialog open={locking} onOpenChange={setLocking}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('experimentsV2.actions.lockTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('experimentsV2.actions.lockDescription')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mutation.isPending}>
+              {t('actions.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate({ action: 'lock' })}
+            >
+              {t('experimentsV2.actions.lock')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog open={invalidating} onOpenChange={setInvalidating}>
         <DialogContent>
           <DialogHeader>

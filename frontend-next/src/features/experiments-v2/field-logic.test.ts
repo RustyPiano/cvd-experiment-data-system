@@ -215,6 +215,7 @@ describe('parseComponentRoles', () => {
       'matrix',
       'dopant',
       'alloy_component',
+      'material_layer',
       'top_layer',
       'bottom_layer',
       'lateral_domain',
@@ -281,10 +282,18 @@ describe('payload builders align with backend module contract', () => {
     expect(payload.chemical_formula).toBe('MoS2')
     expect(payload.components).toEqual([
       {
+        formula: 'MoS2',
+        role: 'matrix',
+        concentration_at_percent: null,
+        layer_order: null,
+        bulk_space_group: null,
+      },
+      {
         formula: 'Nb',
         role: 'dopant',
         concentration_at_percent: 0.5,
         layer_order: null,
+        bulk_space_group: null,
       },
     ])
   })
@@ -380,7 +389,7 @@ describe('payload builders align with backend module contract', () => {
       [
         {
           formula: 'MoS2',
-          role: 'bottom_layer',
+          role: '',
           concentration_at_percent: '25',
           layer_order: '1',
         },
@@ -390,9 +399,10 @@ describe('payload builders align with backend module contract', () => {
     expect(vertical.components).toEqual([
       {
         formula: 'MoS2',
-        role: 'bottom_layer',
+        role: 'material_layer',
         concentration_at_percent: null,
         layer_order: 1,
+        bulk_space_group: null,
       },
     ])
   })
@@ -429,9 +439,13 @@ describe('payload builders align with backend module contract', () => {
   it('canonicalizes legacy component roles when entering edit state', () => {
     expect(
       componentsFromPayload({
-        components: [{ formula: 'MoS2', role: '基体' }],
+        structure_type: 'doped',
+        components: [
+          { formula: 'MoS2', role: '基体' },
+          { formula: 'Nb', role: '掺杂剂' },
+        ],
       }),
-    ).toEqual([expect.objectContaining({ formula: 'MoS2', role: 'matrix' })])
+    ).toEqual([expect.objectContaining({ formula: 'Nb', role: 'dopant' })])
   })
 
   it('item payload carries every field key; empty rows are filtered out', () => {

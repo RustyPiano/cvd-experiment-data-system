@@ -61,10 +61,9 @@ from app.services.v2_field_source import (
     validate_material_formula,
 )
 from app.services.v2_process_semantics import (
-    apply_derived_reaction_cycle_counts,
+    gas_feeds_are_unique,
     process_duration_violations,
     process_step_order_is_valid,
-    reaction_cycle_counts_are_consistent,
     temperature_programs_start_at_zero,
     valid_frozen_gas_reference,
 )
@@ -416,7 +415,6 @@ class V2ExperimentService:
         if module_key == "process_steps":
             self._validate_process_step_cardinality(validated)
             self._validate_process_semantics(validated)
-            validated = apply_derived_reaction_cycle_counts(validated)
             self._validate_process_zone_indices(run, validated)
             self._validate_process_duration_bounds(validated)
             self._validate_measured_temperature_reference(run, validated)
@@ -438,6 +436,8 @@ class V2ExperimentService:
             validated = self._freeze_material_lot_references(module_key, validated)
         if module_key in {"precursors", "substrates"}:
             self._validate_zone_indices(run, module_key, validated)
+        if module_key == "substrates":
+            self._validate_substrate_piece_labels(validated)
         if module_key == "target_product":
             chemical_formula = validated.get("chemical_formula")
             if chemical_formula is not None and not isinstance(chemical_formula, str):
@@ -591,7 +591,6 @@ class V2ExperimentService:
                 if payload.module_key == "process_steps":
                     self._validate_process_step_cardinality(validated)
                     self._validate_process_semantics(validated)
-                    validated = apply_derived_reaction_cycle_counts(validated)
                     self._validate_process_zone_indices(run, validated)
                     self._validate_process_duration_bounds(validated)
                     self._validate_measured_temperature_reference(run, validated)
@@ -607,6 +606,8 @@ class V2ExperimentService:
                     validate_v2_module_payload(payload.module_key, validated)
                     if payload.module_key in {"precursors", "substrates"}:
                         self._validate_zone_indices(run, payload.module_key, validated)
+                    if payload.module_key == "substrates":
+                        self._validate_substrate_piece_labels(validated)
                 elif (
                     payload.module_key == "target_product"
                     and len(validated.get("chemical_formula") or "") > 64
@@ -748,14 +749,27 @@ class V2ExperimentService:
                 )
 
     @staticmethod
+    def _validate_substrate_piece_labels(payload_json: dict[str, Any]) -> None:
+        labels = [
+            str(item.get("piece_label") or "").strip().casefold()
+            for item in payload_json.get("items") or []
+            if isinstance(item, dict)
+        ]
+        if len(labels) != len(set(labels)):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "piece_label", "reason": "duplicate"}]},
+            )
+
+    @staticmethod
     def _validate_process_semantics(payload_json: dict[str, Any]) -> None:
         invalid: list[dict[str, str]] = []
         if not process_step_order_is_valid(payload_json):
             invalid.append({"key": "stage_type", "reason": "order"})
         if not temperature_programs_start_at_zero(payload_json):
             invalid.append({"key": "temperature_program", "reason": "start_at_zero"})
-        if not reaction_cycle_counts_are_consistent(payload_json):
-            invalid.append({"key": "duration_cycles", "reason": "gas_intervals"})
+        if not gas_feeds_are_unique(payload_json):
+            invalid.append({"key": "gas_feeds", "reason": "duplicate"})
         if invalid:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -1199,8 +1213,6 @@ class V2ExperimentService:
             "APCVD": "atmospheric_pressure",
             "LPCVD": "low_pressure",
         }.get(synthesis_method)
-        if expected is None:
-            return
         doc = load_field_source()
         pressure_field = next(
             field
@@ -1213,7 +1225,7 @@ class V2ExperimentService:
             if step.get("stage_type") != "reaction_conditions":
                 continue
             pressure = step.get("pressure_system") or {}
-            if pressure.get("option") != expected:
+            if expected is not None and pressure.get("option") != expected:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail={

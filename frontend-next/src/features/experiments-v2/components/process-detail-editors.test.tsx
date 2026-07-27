@@ -182,7 +182,6 @@ const preparationLabels: PreparationOperationsEditorLabels = {
 
 const durationLabels: DurationCyclesEditorLabels = {
   durationMinutes: 'Reaction duration (min)',
-  cycleCount: 'Reaction cycle count',
 }
 
 const coolingLabels: CoolingParamsEditorLabels = {
@@ -263,11 +262,7 @@ function PreparationWrapper() {
   )
 }
 
-function DurationWrapper({
-  derivedCycleCount,
-}: {
-  derivedCycleCount?: number | null
-}) {
+function DurationWrapper() {
   const [value, setValue] = useState<DurationCycles>({
     duration_min: null,
     cycle_count: null,
@@ -277,7 +272,6 @@ function DurationWrapper({
       <DurationCyclesEditor
         value={value}
         onChange={setValue}
-        derivedCycleCount={derivedCycleCount}
         showErrors
         labels={durationLabels}
       />
@@ -445,26 +439,16 @@ describe('PreparationOperationsEditor', () => {
 })
 
 describe('DurationCyclesEditor and CoolingParamsEditor', () => {
-  it('records positive duration and optional integral cycles', async () => {
+  it('records the positive reaction duration without inventing cycles', async () => {
     const user = userEvent.setup()
     render(<DurationWrapper />)
     await user.type(screen.getByLabelText('Reaction duration (min)'), '45')
-    await user.type(screen.getByLabelText('Reaction cycle count'), '2')
 
     const value = outputValue<DurationCycles>()
-    expect(value).toEqual({ duration_min: 45, cycle_count: 2 })
+    expect(value).toEqual({ duration_min: 45 })
     expect(durationCyclesAreValid(value)).toBe(true)
     expect(durationCyclesAreValid({ duration_min: 0, cycle_count: 1.5 })).toBe(
       false,
-    )
-  })
-
-  it('shows the gas-derived reaction cycle count as read-only', () => {
-    render(<DurationWrapper derivedCycleCount={3} />)
-
-    expect(screen.getByLabelText('Reaction cycle count')).toHaveValue(3)
-    expect(screen.getByLabelText('Reaction cycle count')).toHaveAttribute(
-      'readonly',
     )
   })
 

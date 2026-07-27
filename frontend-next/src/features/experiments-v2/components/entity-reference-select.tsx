@@ -60,6 +60,7 @@ export function EntityReferenceSelect({
   filter,
   selectedVersion,
   selectedSnapshot,
+  allowedLotCategories,
 }: {
   kind: EntityKind
   value: string
@@ -69,6 +70,7 @@ export function EntityReferenceSelect({
   filter?: (entity: V2EntityRead) => boolean
   selectedVersion?: number | null
   selectedSnapshot?: Record<string, unknown> | null
+  allowedLotCategories?: readonly string[]
 }) {
   const { t } = useTranslation()
   const { session } = useAuth()
@@ -233,6 +235,7 @@ export function EntityReferenceSelect({
                 mode="create"
                 nextVersion={1}
                 token={token}
+                allowedLotCategories={allowedLotCategories}
                 submitting={createMutation.isPending}
                 onSubmit={(payload) => createMutation.mutate(payload)}
                 onCancel={() => requestCreateOpen(false)}

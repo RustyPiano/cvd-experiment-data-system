@@ -10,7 +10,6 @@ import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
   buildProcessStepPayload,
   buildProcessStepsPayload,
-  derivedReactionCycleCount,
   hasExternalFieldSetup,
   isProcessStepFieldRequired,
   isProcessStepFieldVisible,
@@ -211,37 +210,13 @@ describe('§5 payload 键集对齐 discriminated union（同 stage_types 源）'
     ).toBe(false)
   })
 
-  it.each([1, 2, 3])(
-    '按单一气体的 %i 个供气区间覆盖提交循环数',
-    (intervalCount) => {
-      const intervals = Array.from({ length: intervalCount }, (_, index) => ({
-        start_min: index * 10,
-        end_min: index * 10 + 5,
-        flow_sccm: 80,
-      }))
-      const payload = buildProcessStepPayload({
-        stage_type: 'reaction_conditions',
-        gas_feeds: JSON.stringify([{ species: 'Ar', intervals }]),
-        duration_cycles: JSON.stringify({
-          duration_min: 60,
-          cycle_count: 99,
-        }),
-      }) as Record<string, unknown>
+  it('保留反应时长，不再由供气区间派生循环数', () => {
+    const payload = buildProcessStepPayload({
+      stage_type: 'reaction_conditions',
+      gas_feeds: JSON.stringify([{ species: 'Ar', intervals: [{}, {}, {}] }]),
+      duration_cycles: JSON.stringify({ duration_min: 60 }),
+    }) as Record<string, unknown>
 
-      expect(payload.duration_cycles).toEqual({
-        duration_min: 60,
-        cycle_count: intervalCount,
-      })
-    },
-  )
-
-  it('循环数取单一气体供气区间数的最大值，无供气时为空', () => {
-    expect(
-      derivedReactionCycleCount([
-        { intervals: [{}, {}] },
-        { intervals: [{}, {}, {}] },
-      ]),
-    ).toBe(3)
-    expect(derivedReactionCycleCount([])).toBeNull()
+    expect(payload.duration_cycles).toEqual({ duration_min: 60 })
   })
 })

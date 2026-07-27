@@ -27,7 +27,7 @@ import {
   parseCompositeValue,
 } from '@/shared/composite-field'
 import { canonicalFieldOption, canonicalOption } from '@/shared/field-i18n'
-import { normalizeChemicalFormula } from './formula'
+import { normalizeChemicalFormula, renderFormulaDisplay } from './formula'
 import { isoToDateTimeLocal, toIsoDateTime } from './datetime'
 import {
   isStructuredInput,
@@ -81,6 +81,7 @@ export interface ComponentRow {
   role: string
   concentration_at_percent: string
   layer_order: string
+  bulk_space_group?: string
 }
 
 const STRUCTURE_GUIDES = {
@@ -151,6 +152,15 @@ export function isFieldVisible(
   field: FieldMetadata,
   values: ModuleValues,
 ): boolean {
+  if (
+    moduleKey === 'target_product' &&
+    field.key === 'bulk_space_group' &&
+    ['vertical_heterostructure', 'lateral_heterostructure'].includes(
+      canonicalOption(moduleValueAsString(values['structure_type'])),
+    )
+  ) {
+    return false
+  }
   if (
     moduleKey === 'substrates' &&
     field.key === 'miscut_direction' &&
@@ -332,6 +342,7 @@ function numericOrNull(value: string, fieldKey: string): number | null {
 function toComponentObject(
   row: ComponentRow,
   structureType: string,
+  index: number,
 ): Record<string, unknown> {
   const keepsConcentration =
     structureType === 'doped' ||
@@ -339,14 +350,35 @@ function toComponentObject(
     structureType === 'other'
   const keepsLayerOrder =
     structureType === 'vertical_heterostructure' || structureType === 'other'
+  const defaultRole =
+    structureType === 'doped'
+      ? 'dopant'
+      : structureType === 'alloy'
+        ? 'alloy_component'
+        : structureType === 'vertical_heterostructure'
+          ? 'material_layer'
+          : structureType === 'lateral_heterostructure'
+            ? 'lateral_domain'
+            : null
   return {
     formula: normalizeChemicalFormula(row.formula),
-    role: row.role.trim() ? canonicalOption(row.role.trim()) : null,
+    role:
+      structureType === 'other' && row.role.trim()
+        ? canonicalOption(row.role.trim())
+        : defaultRole,
     concentration_at_percent: keepsConcentration
       ? numericOrNull(row.concentration_at_percent, 'concentration_at_percent')
       : null,
     layer_order: keepsLayerOrder
-      ? numericOrNull(row.layer_order, 'layer_order')
+      ? structureType === 'vertical_heterostructure'
+        ? index + 1
+        : numericOrNull(row.layer_order, 'layer_order')
+      : null,
+    bulk_space_group: [
+      'vertical_heterostructure',
+      'lateral_heterostructure',
+    ].includes(structureType)
+      ? numericOrNull(row.bulk_space_group ?? '', 'bulk_space_group')
       : null,
   }
 }
@@ -380,15 +412,37 @@ export function buildTargetProductPayload(
     structureType !== '' &&
     structureType !== 'intrinsic' &&
     structureType !== '本征'
-  const rows = active
+  const componentRows = active
     ? components
         .filter(isNonEmptyComponent)
-        .map((row) => toComponentObject(row, structureType))
+        .map((row, index) => toComponentObject(row, structureType, index))
     : []
+  const chemicalFormula = moduleValueAsString(values['chemical_formula'])
+  const rows =
+    structureType === 'doped' && chemicalFormula.trim()
+      ? [
+          {
+            formula: normalizeChemicalFormula(chemicalFormula),
+            role: 'matrix',
+            concentration_at_percent: null,
+            layer_order: null,
+            bulk_space_group: null,
+          },
+          ...componentRows,
+        ]
+      : componentRows
+  const storedFormula = [
+    'vertical_heterostructure',
+    'lateral_heterostructure',
+  ].includes(structureType)
+    ? renderFormulaDisplay('', structureType, rows)
+    : chemicalFormula
   const payload: Record<string, unknown> = {}
   for (const field of getModuleFields('target_product')) {
     if (field.key === 'components') {
       payload.components = rows.length > 0 ? rows : null
+    } else if (field.key === 'chemical_formula') {
+      payload.chemical_formula = normalizeChemicalFormula(storedFormula)
     } else {
       payload[field.key] = fieldValueToPayload(field, values[field.key])
     }
@@ -467,6 +521,7 @@ export function emptyComponentRow(): ComponentRow {
     role: '',
     concentration_at_percent: '',
     layer_order: '',
+    bulk_space_group: '',
   }
 }
 
@@ -542,16 +597,26 @@ export function componentsFromPayload(
 ): ComponentRow[] {
   const raw = payload?.['components']
   if (!Array.isArray(raw)) return []
-  return raw.map((item) => {
-    const row = (item ?? {}) as Record<string, unknown>
-    const pick = (key: string) => (row[key] == null ? '' : String(row[key]))
-    return {
-      formula: pick('formula'),
-      role: canonicalOption(pick('role')),
-      concentration_at_percent: pick('concentration_at_percent'),
-      layer_order: pick('layer_order'),
-    }
-  })
+  const structureType = canonicalOption(
+    String(payload?.['structure_type'] ?? ''),
+  )
+  return raw
+    .filter((item) => {
+      if (structureType !== 'doped') return true
+      const row = (item ?? {}) as Record<string, unknown>
+      return canonicalOption(String(row['role'] ?? '')) !== 'matrix'
+    })
+    .map((item) => {
+      const row = (item ?? {}) as Record<string, unknown>
+      const pick = (key: string) => (row[key] == null ? '' : String(row[key]))
+      return {
+        formula: pick('formula'),
+        role: canonicalOption(pick('role')),
+        concentration_at_percent: pick('concentration_at_percent'),
+        layer_order: pick('layer_order'),
+        bulk_space_group: pick('bulk_space_group'),
+      }
+    })
 }
 
 /** 从后端读回的 items 数组还原重复条目取值。 */
@@ -696,17 +761,6 @@ export function processStepOrderIsValid(steps: ModuleValues[]): boolean {
   )
 }
 
-export function derivedReactionCycleCount(gasFeeds: unknown): number | null {
-  if (!Array.isArray(gasFeeds)) return null
-  let maximum = 0
-  for (const feed of gasFeeds) {
-    if (!feed || typeof feed !== 'object') continue
-    const intervals = (feed as Record<string, unknown>)['intervals']
-    if (Array.isArray(intervals)) maximum = Math.max(maximum, intervals.length)
-  }
-  return maximum || null
-}
-
 /**
  * 单条过程步 payload：stage_type + 该阶段允许的字段键（common ∪ shows 组）。
  * 键集与后端 discriminated union（同 stage_types 源生成）逐阶段对齐；未选阶段返回 null。
@@ -732,16 +786,6 @@ export function buildProcessStepPayload(
         : isProcessStepFieldVisible(field, stageType, setupSnapshot, step)
           ? fieldValueToPayload(field, step[field.key])
           : null
-  }
-  if (
-    stageType === 'reaction_conditions' &&
-    payload['duration_cycles'] &&
-    typeof payload['duration_cycles'] === 'object'
-  ) {
-    payload['duration_cycles'] = {
-      ...(payload['duration_cycles'] as Record<string, unknown>),
-      cycle_count: derivedReactionCycleCount(payload['gas_feeds']),
-    }
   }
   return payload
 }
