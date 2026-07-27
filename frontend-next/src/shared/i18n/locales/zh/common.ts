@@ -36,7 +36,8 @@ export const common = {
     temperatureSensorsCoverage:
       '温区数为 {{count}}；请为温区 1–{{count}} 分别填写传感器类型和温度测量误差。',
     substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
-    usageHistory: '请填写清零次数（可为 0）和清零后第几次使用（从 1 开始）。',
+    usageHistory:
+      '请填写累计清洗或更换次数（可为 0）和本次为最近一次清洗或更换后的第几炉（从 1 开始）。',
   },
   structuredFields: {
     select: '请选择',
@@ -87,8 +88,8 @@ export const common = {
     estimate: '估计',
     notProvided: '不单独填写',
     distance: '距离（mm）',
-    resetCount: '清零次数',
-    useNumberSinceReset: '清零后第几次使用',
+    resetCount: '累计清洗或更换次数',
+    useNumberSinceReset: '最近一次清洗或更换后的第几炉',
     selectTubeShapeFirst: '请先选择炉管截面形状。',
     selectSetupFirst: '请先选择实验装置。',
   },
@@ -296,8 +297,11 @@ export const common = {
         bThermocouple: 'B 型热电偶',
         infraredPyrometer: '红外测温仪',
       },
+      selectSensorType: '请选择传感器类型',
+      otherSensorType: '其他',
+      otherSensorTypePlaceholder: '请填写具体传感器类型',
       zoneIndex: '温区编号',
-      uncertaintyCelsius: '温度测量误差（°C）',
+      uncertaintyCelsius: '温度测量误差（±°C）',
       uncertaintySource: '不确定度来源',
       selectUncertaintySource: '请选择不确定度来源',
       uncertaintySourceOptions: {
@@ -842,7 +846,10 @@ export const common = {
     },
     reference: {
       placeholder: '请选择',
+      setupPlaceholder: '请选择本次实验使用的装置',
       empty: '基础资料维护中暂无可选记录。',
+      emptySetupAdmin: '还没有登记实验装置，请先新增一台。',
+      emptySetupMember: '还没有可选实验装置，请联系管理员先登记。',
       loadError: '基础资料加载失败',
       retry: '重试',
       goToLibrary: '前往基础资料维护添加',
@@ -899,7 +906,8 @@ export const common = {
       equipment: {
         title: '实验装置',
         frozenNote:
-          '正在使用实验装置 v{{version}}；以下配置已保存在本记录中（只读）。',
+          '已保存当前装置配置（v{{version}}）；以后更新装置资料不会改变本记录。',
+        sensorSummary: '温区 {{zone}}：{{type}} · 温度测量误差 ±{{error}} °C',
         tubeUsageHistory: '炉管使用履历',
         tubeUsageHistoryHelp:
           '填写本次制备实验记录对应的当前计数，不属于装置固定配置。',

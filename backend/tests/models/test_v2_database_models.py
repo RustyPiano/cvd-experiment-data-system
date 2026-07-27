@@ -170,7 +170,7 @@ def test_setup_reference_freezes_version_snapshot_on_experiment_run(
         schema_version="cvd_v2",
         experiment_date=date(2026, 7, 8),
     )
-    setup = Setup()
+    setup = Setup(setup_code="CVD-炉1")
     db_session.add_all([run, setup])
     db_session.flush()
     version = SetupVersion(

@@ -1,6 +1,7 @@
 // §2 设备：装置引用选择器（从 entity-library 的 setups 取列表）。选中后展示快照只读投影
 // （壁型 / 温区数 / 坐标系等），标注「随引用冻结」。设备模块字段由后端从被引用 Setup 版本
 // 回填（写引用即冻结快照），前端不直接 upsert equipment 模块。
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/use-auth'
 import { entities } from '@/shared/generated/field-metadata'
@@ -15,6 +16,7 @@ import {
   localizedFieldHelp,
   localizedFieldLabel,
   localizedNamedValue,
+  localizedOption,
   localizedValue,
   localizedUnit,
 } from '@/shared/field-i18n'
@@ -25,8 +27,19 @@ import { EntityFileDisplay } from '@/features/entity-library/entity-file-control
 import { StructuredObjectControl } from '@/shared/ui/structured-object-control'
 
 const PROJECTION_FIELDS = (entities['setup'] ?? []).filter(
-  (field) => field.key !== 'version',
+  (field) =>
+    !['version', 'setup_name', 'setup_code', 'coordinate_system'].includes(
+      field.key,
+    ),
 )
+
+function hasProjectionValue(value: unknown): boolean {
+  return !(
+    value == null ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  )
+}
 
 function projectionValue(
   value: unknown,
@@ -56,6 +69,7 @@ export function EquipmentSection({
 }) {
   const { i18n, t } = useTranslation()
   const { session } = useAuth()
+  const setupSelectId = useId()
   const setupRefField = getModuleFields('equipment').find(
     (field) => field.key === 'setup_ref',
   )
@@ -95,6 +109,7 @@ export function EquipmentSection({
             unit={localizedUnit(setupRefField.unit, i18n.language)}
             required
             r0={setupRefField.r0}
+            htmlFor={setupSelectId}
           />
         ) : null}
         <EntityReferenceSelect
@@ -104,7 +119,13 @@ export function EquipmentSection({
           selectedSnapshot={equipment.snapshot}
           onChange={onSelectSetup}
           disabled={disabled}
+          triggerId={setupSelectId}
         />
+        {setupRefField ? (
+          <p className="text-xs text-muted-foreground">
+            {localizedFieldHelp(setupRefField, i18n.language)}
+          </p>
+        ) : null}
         {setupMissing ? (
           <p className="text-xs text-destructive">{t('validation.required')}</p>
         ) : null}
@@ -154,7 +175,9 @@ export function EquipmentSection({
             </AlertDescription>
           </Alert>
           <dl className="grid gap-x-6 gap-y-2 rounded-md border border-border p-4 sm:grid-cols-2">
-            {PROJECTION_FIELDS.map((field) => {
+            {PROJECTION_FIELDS.filter((field) =>
+              hasProjectionValue(snapshot[field.key]),
+            ).map((field) => {
               const raw = snapshot[field.key]
               const value = projectionValue(
                 raw,
@@ -168,13 +191,39 @@ export function EquipmentSection({
                     {localizedFieldLabel(field, i18n.language)}
                   </dt>
                   <dd className="whitespace-pre-wrap text-sm text-foreground">
-                    {isEntityFileInput(field.input) && raw ? (
+                    {field.key === 'temperature_sensors' &&
+                    Array.isArray(raw) ? (
+                      <ul className="flex flex-col gap-1">
+                        {raw.map((sensor, index) => {
+                          const item = sensor as Record<string, unknown>
+                          const type =
+                            item['sensor_type'] === 'other'
+                              ? String(item['sensor_type_other'] ?? '')
+                              : localizedOption(
+                                  String(item['sensor_type'] ?? ''),
+                                  i18n.language,
+                                )
+                          return (
+                            <li key={String(item['zone_index'] ?? index)}>
+                              {t(
+                                'experimentsV2.sections.equipment.sensorSummary',
+                                {
+                                  zone: String(item['zone_index'] ?? index + 1),
+                                  type,
+                                  error: String(item['uncertainty_C'] ?? ''),
+                                },
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : isEntityFileInput(field.input) && raw ? (
                       <EntityFileDisplay
                         value={raw}
                         token={session.accessToken || ''}
                       />
                     ) : (
-                      value || '—'
+                      value
                     )}
                   </dd>
                 </div>

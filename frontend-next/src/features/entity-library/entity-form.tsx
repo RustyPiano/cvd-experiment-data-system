@@ -432,7 +432,12 @@ export function EntityForm({
                 field={field}
                 values={values}
                 control={form.control}
-                disabled={formBusy}
+                disabled={
+                  formBusy ||
+                  (mode === 'newVersion' &&
+                    kind === 'setup' &&
+                    field.key === 'setup_code')
+                }
                 token={token}
                 historicalOptions={historicalSelectOptions[field.key] ?? []}
                 allowedOptions={

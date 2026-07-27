@@ -2,18 +2,42 @@ import { useId } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const commonSensorTypes = [
-  'kThermocouple',
-  'sThermocouple',
-  'rThermocouple',
-  'bThermocouple',
-  'infraredPyrometer',
+  { value: 'k_thermocouple', label: 'kThermocouple' },
+  { value: 's_thermocouple', label: 'sThermocouple' },
+  { value: 'r_thermocouple', label: 'rThermocouple' },
+  { value: 'b_thermocouple', label: 'bThermocouple' },
+  { value: 'infrared_pyrometer', label: 'infraredPyrometer' },
 ] as const
+const commonSensorTypeValues = new Set<string>(
+  commonSensorTypes.map(({ value }) => value),
+)
+type SensorTypeLabelKey = (typeof commonSensorTypes)[number]['label']
+const legacySensorTypes: Record<string, string> = {
+  K: 'k_thermocouple',
+  'K-type thermocouple': 'k_thermocouple',
+  S: 's_thermocouple',
+  'S-type thermocouple': 's_thermocouple',
+  R: 'r_thermocouple',
+  'R-type thermocouple': 'r_thermocouple',
+  B: 'b_thermocouple',
+  'B-type thermocouple': 'b_thermocouple',
+  'Infrared pyrometer': 'infrared_pyrometer',
+}
 
 export interface TemperatureSensor {
   sensor_name?: string
   sensor_type: string
+  sensor_type_other?: string
   zone_index: number | null
   uncertainty_C: number | null
   uncertainty_source?: string
@@ -22,7 +46,10 @@ export interface TemperatureSensor {
 export interface TemperatureSensorsEditorLabels {
   sensor: (zoneIndex: number) => string
   sensorType: string
-  sensorTypeOptions: Record<(typeof commonSensorTypes)[number], string>
+  sensorTypeOptions: Record<SensorTypeLabelKey, string>
+  selectSensorType: string
+  otherSensorType: string
+  otherSensorTypePlaceholder: string
   uncertaintyCelsius: string
   selectZoneCountFirst: string
 }
@@ -44,8 +71,12 @@ function sensorIsValid(
   sensor: TemperatureSensor,
   zoneCount?: number | null,
 ): boolean {
+  const typeIsValid =
+    commonSensorTypeValues.has(sensor.sensor_type) ||
+    (sensor.sensor_type === 'other' &&
+      Boolean(sensor.sensor_type_other?.trim()))
   return (
-    sensor.sensor_type.trim() !== '' &&
+    typeIsValid &&
     isFiniteNumber(sensor.zone_index) &&
     Number.isInteger(sensor.zone_index) &&
     sensor.zone_index >= 1 &&
@@ -53,6 +84,21 @@ function sensorIsValid(
     isFiniteNumber(sensor.uncertainty_C) &&
     sensor.uncertainty_C >= 0
   )
+}
+
+function normalizeSensorType(sensor: TemperatureSensor): TemperatureSensor {
+  const sensorType = legacySensorTypes[sensor.sensor_type] ?? sensor.sensor_type
+  if (commonSensorTypeValues.has(sensorType)) {
+    return { ...sensor, sensor_type: sensorType, sensor_type_other: undefined }
+  }
+  if (sensorType === 'other' || !sensorType.trim()) {
+    return { ...sensor, sensor_type: sensorType }
+  }
+  return {
+    ...sensor,
+    sensor_type: 'other',
+    sensor_type_other: sensor.sensor_type_other?.trim() || sensorType,
+  }
 }
 
 export function temperatureSensorsAreValid(
@@ -115,10 +161,10 @@ export function reconcileTemperatureSensors(
   return Array.from({ length: zoneCount }, (_, index) => {
     const zoneIndex = index + 1
     const source = assigned.get(zoneIndex) ?? leftovers[fallbackIndex++]
-    return {
+    return normalizeSensorType({
       ...(source ?? emptySensor(zoneIndex)),
       zone_index: zoneIndex,
-    }
+    })
   })
 }
 
@@ -178,23 +224,63 @@ export function TemperatureSensorsEditor({
               <Label htmlFor={`${baseId}-${zoneIndex}-type`}>
                 {labels.sensorType}
               </Label>
-              <Input
-                id={`${baseId}-${zoneIndex}-type`}
-                list={`${baseId}-${zoneIndex}-sensor-types`}
+              <Select
                 value={sensor.sensor_type}
-                aria-invalid={
-                  (showErrors && !sensor.sensor_type.trim()) || undefined
-                }
                 disabled={disabled}
-                onChange={(event) =>
-                  update(index, { sensor_type: event.target.value })
+                onValueChange={(sensorType) =>
+                  update(index, {
+                    sensor_type: sensorType,
+                    sensor_type_other:
+                      sensorType === 'other'
+                        ? (sensor.sensor_type_other ?? '')
+                        : undefined,
+                  })
                 }
-              />
-              <datalist id={`${baseId}-${zoneIndex}-sensor-types`}>
-                {commonSensorTypes.map((type) => (
-                  <option key={type} value={labels.sensorTypeOptions[type]} />
-                ))}
-              </datalist>
+              >
+                <SelectTrigger
+                  id={`${baseId}-${zoneIndex}-type`}
+                  aria-invalid={
+                    (showErrors &&
+                      !commonSensorTypeValues.has(sensor.sensor_type) &&
+                      sensor.sensor_type !== 'other') ||
+                    undefined
+                  }
+                >
+                  <SelectValue placeholder={labels.selectSensorType} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {commonSensorTypes.map(
+                      ({ value: sensorTypeValue, label }) => (
+                        <SelectItem
+                          key={sensorTypeValue}
+                          value={sensorTypeValue}
+                        >
+                          {labels.sensorTypeOptions[label]}
+                        </SelectItem>
+                      ),
+                    )}
+                    <SelectItem value="other">
+                      {labels.otherSensorType}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {sensor.sensor_type === 'other' ? (
+                <Input
+                  aria-label={labels.otherSensorType}
+                  value={sensor.sensor_type_other ?? ''}
+                  placeholder={labels.otherSensorTypePlaceholder}
+                  aria-invalid={
+                    (showErrors && !sensor.sensor_type_other?.trim()) ||
+                    undefined
+                  }
+                  disabled={disabled}
+                  onChange={(event) =>
+                    update(index, { sensor_type_other: event.target.value })
+                  }
+                />
+              ) : null}
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${zoneIndex}-uncertainty`}>

@@ -1286,6 +1286,7 @@ def test_rendered_equipment_and_setup_models_enforce_shape_and_zone_contracts(
     setup = {
         "setup_code": "SETUP-1",
         "setup_name": "Two-zone furnace",
+        "field_devices": ["none"],
         **{
             key: value
             for key, value in equipment.items()
@@ -1301,7 +1302,7 @@ def test_rendered_equipment_and_setup_models_enforce_shape_and_zone_contracts(
 
         unpaired = deepcopy(payload)
         unpaired.pop("tube_outer_diameter_wall_mm")
-        with pytest.raises(ValueError, match="must be provided together"):
+        with pytest.raises(ValueError, match="must be provided together|Field required"):
             model.model_validate(unpaired)
 
         wrong_shape = deepcopy(payload)

@@ -300,6 +300,20 @@
               "title": "Sensor Type",
               "type": "string"
             },
+            "sensor_type_other": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Sensor Type Other"
+            },
             "zone_index": {
               "minimum": 1,
               "title": "Zone Index",
@@ -3468,6 +3482,20 @@
               "title": "Sensor Type",
               "type": "string"
             },
+            "sensor_type_other": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Sensor Type Other"
+            },
             "zone_index": {
               "minimum": 1,
               "title": "Zone Index",
@@ -3672,22 +3700,6 @@
           "title": "Setup Code",
           "type": "string"
         },
-        "wall_type": {
-          "anyOf": [
-            {
-              "enum": [
-                "cold_wall",
-                "hot_wall"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Wall Type"
-        },
         "zone_count": {
           "minimum": 1,
           "title": "Zone Count",
@@ -3710,47 +3722,39 @@
           "type": "string"
         },
         "tube_material_shape": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TubeMaterialShapePayload"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/TubeMaterialShapePayload"
         },
         "tube_outer_diameter_wall_mm": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TubeDimensionsPayload"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/TubeDimensionsPayload"
         },
-        "field_devices": {
+        "wall_type": {
           "anyOf": [
             {
-              "items": {
-                "enum": [
-                  "electric_field",
-                  "light",
-                  "none",
-                  "plasma"
-                ],
-                "type": "string"
-              },
-              "type": "array"
+              "enum": [
+                "cold_wall",
+                "hot_wall"
+              ],
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Field Devices"
+          "title": "Wall Type"
+        },
+        "field_devices": {
+          "items": {
+            "enum": [
+              "electric_field",
+              "light",
+              "none",
+              "plasma"
+            ],
+            "type": "string"
+          },
+          "title": "Field Devices",
+          "type": "array"
         },
         "setup_diagram": {
           "anyOf": [
@@ -3769,7 +3773,10 @@
         "setup_code",
         "zone_count",
         "temperature_sensors",
-        "orientation"
+        "orientation",
+        "tube_material_shape",
+        "tube_outer_diameter_wall_mm",
+        "field_devices"
       ],
       "title": "SetupVersionPayload",
       "type": "object"

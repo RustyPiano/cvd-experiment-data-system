@@ -70,8 +70,10 @@ class MaterialLotVersion(Base):
 
 class Setup(Base):
     __tablename__ = "setups"
+    __table_args__ = (UniqueConstraint("setup_code", name="uq_setups_setup_code"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    setup_code: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

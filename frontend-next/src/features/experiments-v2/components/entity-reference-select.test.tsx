@@ -146,7 +146,7 @@ it('shows a retryable error instead of treating a failed query as an empty libra
     await screen.findByText('Failed to load reference data'),
   ).toBeInTheDocument()
   expect(
-    screen.queryByText('No records are available in reference data.'),
+    screen.queryByText('No experimental setup is registered. Add one first.'),
   ).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(entityApi.listEntities).toHaveBeenCalledTimes(2))

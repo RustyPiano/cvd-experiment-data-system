@@ -60,6 +60,9 @@ export function buildStructuredValueLabels(
     use_number_since_reset: t('structuredFields.useNumberSinceReset'),
     sensor_name: t('structuredEditors.temperatureSensors.sensorName'),
     sensor_type: t('structuredEditors.temperatureSensors.sensorType'),
+    sensor_type_other: t(
+      'structuredEditors.temperatureSensors.otherSensorType',
+    ),
     uncertainty_C: t('structuredEditors.temperatureSensors.uncertaintyCelsius'),
     uncertainty_source: t(
       'structuredEditors.temperatureSensors.uncertaintySource',
@@ -388,6 +391,13 @@ export function buildTemperatureSensorsEditorLabels(
         'structuredEditors.temperatureSensors.sensorTypeOptions.infraredPyrometer',
       ),
     },
+    selectSensorType: t(
+      'structuredEditors.temperatureSensors.selectSensorType',
+    ),
+    otherSensorType: t('structuredEditors.temperatureSensors.otherSensorType'),
+    otherSensorTypePlaceholder: t(
+      'structuredEditors.temperatureSensors.otherSensorTypePlaceholder',
+    ),
     uncertaintyCelsius: t(
       'structuredEditors.temperatureSensors.uncertaintyCelsius',
     ),

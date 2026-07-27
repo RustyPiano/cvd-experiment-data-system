@@ -49,7 +49,7 @@ def test_database_rejects_bulk_version_updates(
     version_model,
     values,
 ) -> None:
-    entity = entity_model()
+    entity = entity_model(**({"setup_code": values["setup_code"]} if entity_model is Setup else {}))
     db_session.add(entity)
     db_session.flush()
     version = version_model(entity_id=entity.id, version=1, attrs={}, **values)
@@ -101,7 +101,7 @@ def test_database_rejects_bulk_version_deletes(
     version_model,
     values,
 ) -> None:
-    entity = entity_model()
+    entity = entity_model(**({"setup_code": values["setup_code"]} if entity_model is Setup else {}))
     db_session.add(entity)
     db_session.flush()
     version = version_model(entity_id=entity.id, version=1, attrs={}, **values)

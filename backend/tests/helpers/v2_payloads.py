@@ -48,7 +48,7 @@ def temperature_sensor(
 ) -> dict[str, Any]:
     payload = {
         "sensor_name": sensor_name or f"TC-{zone_index}",
-        "sensor_type": "K",
+        "sensor_type": "k_thermocouple",
         "zone_index": zone_index,
         "uncertainty_C": 1.0,
         "uncertainty_source": "calibration",
@@ -77,6 +77,12 @@ def setup_payload(
             temperature_sensor(zone_index=index) for index in range(1, sensor_count + 1)
         ],
         "orientation": "horizontal",
+        "tube_material_shape": {"material": "quartz", "shape": "round"},
+        "tube_outer_diameter_wall_mm": {
+            "outer_diameter_mm": 25.0,
+            "wall_thickness_mm": 2.0,
+        },
+        "field_devices": ["none"],
     }
     payload.update(overrides)
     return payload

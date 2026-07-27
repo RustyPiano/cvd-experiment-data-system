@@ -37,7 +37,7 @@ export const common = {
     substrateFormulaMismatch:
       'The formula does not match the selected substrate material. Check the lot label.',
     usageHistory:
-      'Enter the reset count (0 is allowed) and use number since reset (starting at 1).',
+      'Enter the cumulative cleaning or replacement count (0 is allowed) and this run’s number since the latest cleaning or replacement.',
   },
   structuredFields: {
     select: 'Select',
@@ -88,8 +88,8 @@ export const common = {
     estimate: 'Estimate',
     notProvided: 'Not provided',
     distance: 'Distance (mm)',
-    resetCount: 'Reset count',
-    useNumberSinceReset: 'Use number since reset',
+    resetCount: 'Cleaning or replacement count',
+    useNumberSinceReset: 'Run number since cleaning or replacement',
     selectTubeShapeFirst: 'Select the tube cross-section first.',
     selectSetupFirst: 'Select an experimental setup first.',
   },
@@ -299,8 +299,11 @@ export const common = {
         bThermocouple: 'B-type thermocouple',
         infraredPyrometer: 'Infrared pyrometer',
       },
+      selectSensorType: 'Select a sensor type',
+      otherSensorType: 'Other',
+      otherSensorTypePlaceholder: 'Enter the sensor type',
       zoneIndex: 'Zone number',
-      uncertaintyCelsius: 'Temperature measurement error (°C)',
+      uncertaintyCelsius: 'Temperature measurement error (±°C)',
       uncertaintySource: 'Uncertainty source',
       selectUncertaintySource: 'Select an uncertainty source',
       uncertaintySourceOptions: {
@@ -886,7 +889,11 @@ export const common = {
     },
     reference: {
       placeholder: 'Select',
+      setupPlaceholder: 'Select the setup used for this run',
       empty: 'No records are available in reference data.',
+      emptySetupAdmin: 'No experimental setup is registered. Add one first.',
+      emptySetupMember:
+        'No experimental setup is available. Ask an administrator to register one.',
       loadError: 'Failed to load reference data',
       retry: 'Retry',
       goToLibrary: 'Add one in reference data',
@@ -946,7 +953,9 @@ export const common = {
       equipment: {
         title: 'Experimental setup',
         frozenNote:
-          'Using experimental setup v{{version}}. The configuration below is saved with this run (read-only).',
+          'This setup configuration (v{{version}}) is saved with the run; later setup updates will not change it.',
+        sensorSummary:
+          'Zone {{zone}}: {{type}} · temperature measurement error ±{{error}} °C',
         tubeUsageHistory: 'Tube usage history',
         tubeUsageHistoryHelp:
           'Enter the current counts for this run, not a fixed Setup property.',

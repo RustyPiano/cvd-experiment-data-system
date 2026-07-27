@@ -15,8 +15,8 @@ class V2EntityRepository:
         self.entity_model = entity_model
         self.version_model = version_model
 
-    def create_entity(self) -> Any:
-        entity = self.entity_model()
+    def create_entity(self, **values: Any) -> Any:
+        entity = self.entity_model(**values)
         self.db.add(entity)
         self.db.flush()
         self.db.refresh(entity)

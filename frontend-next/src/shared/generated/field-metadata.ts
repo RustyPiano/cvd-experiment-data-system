@@ -90,7 +90,7 @@ export interface StageType {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v3.13',
+  version: 'v3.14',
   status: 'DRAFT',
   source: 'docs/standard/field-source.yaml',
 }
@@ -441,8 +441,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
   equipment: [
     {
       key: 'setup_ref',
-      labelZh: '装置（引用）',
-      labelEn: 'Setup (reference)',
+      labelZh: '实验装置',
+      labelEn: 'Experimental setup',
       input: '引用',
       unit: null,
       options: '装置库',
@@ -457,8 +457,10 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '选择本次实验实际使用的装置；装置参数会自动带出，不需要重复填写。',
+      helpEn:
+        'Select the setup used for this run. Its registered configuration is filled automatically.',
     },
     {
       key: 'brand_model',
@@ -694,9 +696,9 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: '填本次实验对应的当前计数；从未重置可填“0、当前使用序号”。',
+      helpZh: '填本次实验对应的当前计数；从未清洗或更换可填“0、当前使用序号”。',
       helpEn:
-        'Enter the counts for this run. If the tube has never been reset, use reset count 0 and the current use number.',
+        'Enter the counts for this run. If the tube has never been cleaned or replaced, use count 0 and the current use number.',
     },
   ],
   precursors: [
@@ -2854,10 +2856,11 @@ export const entities: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      placeholderZh: '例如：一英寸水平双温区管式炉',
+      placeholderEn: 'Example: 1-inch horizontal two-zone tube furnace',
+      helpZh: '用结构和用途命名，避免只写“1号炉”或“我的炉子”。',
+      helpEn:
+        'Name the setup by its structure and purpose; avoid labels such as “Furnace 1”.',
     },
     {
       key: 'version',
@@ -2884,9 +2887,9 @@ export const entities: Record<string, FieldMetadata[]> = {
       key: 'brand_model',
       labelZh: '品牌与型号',
       labelEn: 'Brand and model',
-      input: '下拉+其他',
+      input: '文本',
       unit: null,
-      options: '受控+其他',
+      options: null,
       validation: null,
       requirement: {
         raw: '推荐',
@@ -2896,8 +2899,8 @@ export const entities: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: null,
-      placeholderZh: '请选择',
-      placeholderEn: 'Select an option',
+      placeholderZh: '例如：合肥科晶 OTF-1200X',
+      placeholderEn: 'Example: HF-Kejing OTF-1200X',
       helpZh: null,
       helpEn: null,
     },
@@ -2917,31 +2920,11 @@ export const entities: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-    },
-    {
-      key: 'wall_type',
-      labelZh: '壁型',
-      labelEn: 'Wall type',
-      input: '下拉',
-      unit: null,
-      options: '热壁/冷壁',
-      validation: null,
-      requirement: {
-        raw: '推荐',
-        level: 'recommended',
-        otherwise: null,
-        condition: null,
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请选择',
-      placeholderEn: 'Select an option',
-      helpZh: null,
-      helpEn: null,
+      placeholderZh: '例如：CVD-01',
+      placeholderEn: 'Example: CVD-01',
+      helpZh: '用于区分课题组内同品牌、同型号的不同物理装置；登记后不可修改。',
+      helpEn:
+        'Distinguishes physical setups of the same brand and model in the lab; it cannot be changed after registration.',
     },
     {
       key: 'zone_count',
@@ -2974,7 +2957,7 @@ export const entities: Record<string, FieldMetadata[]> = {
       input: '温度传感器数组',
       unit: '℃',
       options:
-        '{sensor_type, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}',
+        '{sensor_type: k_thermocouple|s_thermocouple|r_thermocouple|b_thermocouple|infrared_pyrometer|other, sensor_type_other?, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}',
       validation: null,
       requirement: {
         raw: '必填',
@@ -3020,8 +3003,8 @@ export const entities: Record<string, FieldMetadata[]> = {
         '{material: 石英|刚玉|其他, material_other?, shape: 圆形|方形|矩形|其他, shape_other?}',
       validation: null,
       requirement: {
-        raw: '推荐',
-        level: 'recommended',
+        raw: '必填',
+        level: 'required',
         otherwise: null,
         condition: null,
       },
@@ -3042,8 +3025,8 @@ export const entities: Record<string, FieldMetadata[]> = {
         '{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}',
       validation: null,
       requirement: {
-        raw: '选择炉管材质与截面后必填',
-        level: 'recommended',
+        raw: '必填；按炉管截面填写',
+        level: 'required',
         otherwise: null,
         condition: null,
       },
@@ -3051,6 +3034,27 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
+      key: 'wall_type',
+      labelZh: '壁型',
+      labelEn: 'Wall type',
+      input: '下拉',
+      unit: null,
+      options: '热壁/冷壁',
+      validation: null,
+      requirement: {
+        raw: '推荐',
+        level: 'recommended',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请选择',
+      placeholderEn: 'Select an option',
       helpZh: null,
       helpEn: null,
     },
@@ -3084,8 +3088,8 @@ export const entities: Record<string, FieldMetadata[]> = {
       options: '无/光/电/等离子体',
       validation: null,
       requirement: {
-        raw: '选填',
-        level: 'optional',
+        raw: '必填',
+        level: 'required',
         otherwise: null,
         condition: null,
       },
@@ -3455,6 +3459,11 @@ export const optionLabelsZh: Record<string, string> = {
   H2: 'H₂',
   O2: 'O₂',
   CH4: 'CH₄',
+  k_thermocouple: 'K 型热电偶',
+  s_thermocouple: 'S 型热电偶',
+  r_thermocouple: 'R 型热电偶',
+  b_thermocouple: 'B 型热电偶',
+  infrared_pyrometer: '红外测温仪',
 }
 
 /** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */
@@ -3597,6 +3606,11 @@ export const optionLabelsEn: Record<string, string> = {
   H2: 'H₂',
   O2: 'O₂',
   CH4: 'CH₄',
+  k_thermocouple: 'K-type thermocouple',
+  s_thermocouple: 'S-type thermocouple',
+  r_thermocouple: 'R-type thermocouple',
+  b_thermocouple: 'B-type thermocouple',
+  infrared_pyrometer: 'Infrared pyrometer',
 }
 
 /** 旧中文规范值 → 稳定字符串机器码；布尔复选映射不进入此表。 */
@@ -3747,6 +3761,11 @@ export const optionCodes: Record<string, string> = {
   'H₂': 'H2',
   'O₂': 'O2',
   'CH₄': 'CH4',
+  K型热电偶: 'k_thermocouple',
+  S型热电偶: 's_thermocouple',
+  R型热电偶: 'r_thermocouple',
+  B型热电偶: 'b_thermocouple',
+  红外测温仪: 'infrared_pyrometer',
 }
 
 /** 字段专用兼容标签 → 机器码；优先于全局别名。 */

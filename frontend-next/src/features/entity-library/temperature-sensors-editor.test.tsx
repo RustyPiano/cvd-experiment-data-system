@@ -23,7 +23,10 @@ const labels: TemperatureSensorsEditorLabels = {
     bThermocouple: 'B-type thermocouple',
     infraredPyrometer: 'Infrared pyrometer',
   },
-  uncertaintyCelsius: 'Temperature error (°C)',
+  selectSensorType: 'Select sensor type',
+  otherSensorType: 'Other',
+  otherSensorTypePlaceholder: 'Enter sensor type',
+  uncertaintyCelsius: 'Temperature error (±°C)',
   selectZoneCountFirst: 'Set the zone count first',
 }
 
@@ -51,7 +54,7 @@ function Wrapper({
 
 const sensorOne: TemperatureSensor = {
   sensor_name: 'Furnace TC 1',
-  sensor_type: 'K-type thermocouple',
+  sensor_type: 'k_thermocouple',
   zone_index: 1,
   uncertainty_C: 1,
   uncertainty_source: 'calibration',
@@ -59,7 +62,7 @@ const sensorOne: TemperatureSensor = {
 
 const sensorTwo: TemperatureSensor = {
   sensor_name: 'Furnace TC 2',
-  sensor_type: 'K-type thermocouple',
+  sensor_type: 'k_thermocouple',
   zone_index: 2,
   uncertainty_C: 1.5,
   uncertainty_source: 'repeatability',
@@ -79,9 +82,14 @@ describe('TemperatureSensorsEditor', () => {
     expect(screen.queryByLabelText('Zone index')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add|remove/i })).toBeNull()
 
-    await user.type(screen.getAllByLabelText('Sensor type')[0], 'K-type')
+    await user.click(
+      screen.getAllByRole('combobox', { name: 'Sensor type' })[0],
+    )
+    await user.click(
+      screen.getByRole('option', { name: 'K-type thermocouple' }),
+    )
     await user.type(
-      screen.getAllByLabelText('Temperature error (°C)')[0],
+      screen.getAllByLabelText('Temperature error (±°C)')[0],
       '0.8',
     )
 
@@ -90,7 +98,7 @@ describe('TemperatureSensorsEditor', () => {
     ) as TemperatureSensor[]
     expect(value).toEqual([
       expect.objectContaining({
-        sensor_type: 'K-type',
+        sensor_type: 'k_thermocouple',
         zone_index: 1,
         uncertainty_C: 0.8,
       }),

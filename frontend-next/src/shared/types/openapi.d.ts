@@ -998,8 +998,6 @@ export interface components {
       chemical_formula: string
       /** Cas Number */
       cas_number?: string | null
-      /** Inchikey Cid */
-      inchikey_cid?: string | null
       /** Supplier */
       supplier?: string | null
       /** Catalog Number */
@@ -1008,10 +1006,10 @@ export interface components {
       batch_number: string
       /** Purity */
       purity?: number | null
-      /** Particle Size D50 Um */
-      particle_size_d50_um?: number | null
       /** Form Appearance */
       form_appearance?: string | null
+      /** Particle Size D50 Um */
+      particle_size_d50_um?: number | null
       /** Opened Date */
       opened_date?: string | null
       /** Storage Method */
@@ -1245,14 +1243,12 @@ export interface components {
     }
     /** SetupVersionPayload */
     SetupVersionPayload: {
-      /** Setup Code */
-      setup_code: string
       /** Setup Name */
       setup_name: string
       /** Brand Model */
       brand_model?: string | null
-      /** Wall Type */
-      wall_type?: ('cold_wall' | 'hot_wall') | null
+      /** Setup Code */
+      setup_code: string
       /** Zone Count */
       zone_count: number
       /** Temperature Sensors */
@@ -1262,14 +1258,12 @@ export interface components {
        * @enum {string}
        */
       orientation: 'horizontal' | 'vertical'
-      tube_material_shape?:
-        | components['schemas']['TubeMaterialShapePayload']
-        | null
-      tube_outer_diameter_wall_mm?:
-        | components['schemas']['TubeDimensionsPayload']
-        | null
+      tube_material_shape: components['schemas']['TubeMaterialShapePayload']
+      tube_outer_diameter_wall_mm: components['schemas']['TubeDimensionsPayload']
+      /** Wall Type */
+      wall_type?: ('cold_wall' | 'hot_wall') | null
       /** Field Devices */
-      field_devices?: ('electric_field' | 'light' | 'none' | 'plasma')[] | null
+      field_devices: ('electric_field' | 'light' | 'none' | 'plasma')[]
       setup_diagram?: components['schemas']['FileAssetReferencePayload'] | null
     }
     /** SpectralMetric */
@@ -1304,22 +1298,19 @@ export interface components {
     /** TemperatureSensorPayload */
     TemperatureSensorPayload: {
       /** Sensor Name */
-      sensor_name: string
+      sensor_name?: string | null
       /** Sensor Type */
       sensor_type: string
+      /** Sensor Type Other */
+      sensor_type_other?: string | null
       /** Zone Index */
       zone_index: number
       /** Uncertainty C */
       uncertainty_C: number
-      /**
-       * Uncertainty Source
-       * @enum {string}
-       */
-      uncertainty_source:
-        | 'instrument'
-        | 'calibration'
-        | 'repeatability'
-        | 'estimate'
+      /** Uncertainty Source */
+      uncertainty_source?:
+        | ('instrument' | 'calibration' | 'repeatability' | 'estimate')
+        | null
     }
     /** TokenResponse */
     TokenResponse: {

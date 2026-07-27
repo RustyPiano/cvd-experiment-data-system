@@ -208,6 +208,73 @@ def test_setup_requires_structured_sensors_and_rejects_deleted_fields(admin_user
     assert deleted_coordinate_field.status_code == 422
 
 
+def test_setup_code_is_unique_and_immutable(admin_user) -> None:
+    headers = _headers(admin_user.email)
+    created = client.post(
+        "/api/v1/setups",
+        json=setup_payload(setup_code="SETUP-IDENTITY"),
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+
+    duplicate = client.post(
+        "/api/v1/setups",
+        json=setup_payload(setup_code="SETUP-IDENTITY"),
+        headers=headers,
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == {"invalid": [{"key": "setup_code", "reason": "duplicate"}]}
+
+    changed = client.post(
+        f"/api/v1/setups/{created.json()['id']}/versions",
+        json=setup_payload(setup_code="SETUP-CHANGED"),
+        headers=headers,
+    )
+    assert changed.status_code == 422
+    assert changed.json()["detail"] == {"invalid": [{"key": "setup_code", "reason": "immutable"}]}
+
+    same_identity = client.post(
+        f"/api/v1/setups/{created.json()['id']}/versions",
+        json=setup_payload(setup_code="SETUP-IDENTITY", setup_name="Updated furnace"),
+        headers=headers,
+    )
+    assert same_identity.status_code == 201, same_identity.text
+    assert same_identity.json()["version"] == 2
+
+
+def test_setup_sensor_type_uses_controlled_value_or_named_other(admin_user) -> None:
+    headers = _headers(admin_user.email)
+    named_other = client.post(
+        "/api/v1/setups",
+        json=setup_payload(
+            setup_code="SETUP-OTHER-SENSOR",
+            zone_count=1,
+            temperature_sensors=[
+                temperature_sensor(
+                    sensor_type="other",
+                    sensor_type_other="N 型热电偶",
+                )
+            ],
+        ),
+        headers=headers,
+    )
+    assert named_other.status_code == 201, named_other.text
+    sensor = named_other.json()["latest_version"]["data"]["temperature_sensors"][0]
+    assert sensor["sensor_type"] == "other"
+    assert sensor["sensor_type_other"] == "N 型热电偶"
+
+    unnamed_other = client.post(
+        "/api/v1/setups",
+        json=setup_payload(
+            setup_code="SETUP-UNNAMED-SENSOR",
+            zone_count=1,
+            temperature_sensors=[temperature_sensor(sensor_type="other")],
+        ),
+        headers=headers,
+    )
+    assert unnamed_other.status_code == 422
+
+
 def test_empty_entity_composite_cannot_bypass_shape_and_option_validation(
     admin_user,
 ) -> None:
@@ -410,7 +477,7 @@ def test_setup_without_external_field_allows_process_without_field_program(
     active_user, db_session
 ) -> None:
     headers = _headers(active_user.email)
-    setup = Setup()
+    setup = Setup(setup_code="SETUP-MIXED")
     db_session.add(setup)
     db_session.flush()
     db_session.add(

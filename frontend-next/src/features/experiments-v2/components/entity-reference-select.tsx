@@ -145,7 +145,11 @@ export function EntityReferenceSelect({
         >
           <SelectTrigger id={triggerId} className="min-w-0 flex-1">
             <SelectValue
-              placeholder={t('experimentsV2.reference.placeholder')}
+              placeholder={t(
+                kind === 'setup'
+                  ? 'experimentsV2.reference.setupPlaceholder'
+                  : 'experimentsV2.reference.placeholder',
+              )}
             />
           </SelectTrigger>
           <SelectContent>
@@ -215,7 +219,13 @@ export function EntityReferenceSelect({
         </div>
       ) : !isLoading && entities.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          {t('experimentsV2.reference.empty')}
+          {t(
+            kind === 'setup'
+              ? canMaintain
+                ? 'experimentsV2.reference.emptySetupAdmin'
+                : 'experimentsV2.reference.emptySetupMember'
+              : 'experimentsV2.reference.empty',
+          )}
         </p>
       ) : null}
       <Dialog open={canMaintain && createOpen} onOpenChange={requestCreateOpen}>

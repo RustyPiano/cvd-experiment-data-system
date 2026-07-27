@@ -74,12 +74,25 @@ const unboundAttachment = {
 const oneZoneTemperatureSensors = [
   {
     sensor_name: 'TC-1',
-    sensor_type: 'K',
+    sensor_type: 'k_thermocouple',
     zone_index: 1,
     uncertainty_C: 1,
     uncertainty_source: 'calibration',
   },
 ]
+const oneZoneSetupData = {
+  setup_code: 'SETUP-001',
+  setup_name: 'Main setup',
+  zone_count: '1',
+  temperature_sensors: oneZoneTemperatureSensors,
+  orientation: 'horizontal',
+  tube_material_shape: { material: 'quartz', shape: 'round' },
+  tube_outer_diameter_wall_mm: {
+    outer_diameter_mm: 25,
+    wall_thickness_mm: 2,
+  },
+  field_devices: ['none'],
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -151,12 +164,12 @@ describe('EntityForm — required markers (导师 B93 明显标识)', () => {
   })
 })
 
-describe('EntityForm — select with other accessibility', () => {
-  it('associates the field label with the custom select trigger', () => {
+describe('EntityForm — setup identity inputs', () => {
+  it('lets the first setup enter its brand and model directly', () => {
     renderForm({ kind: 'setup' })
 
     expect(
-      screen.getByRole('combobox', { name: '品牌与型号' }),
+      screen.getByRole('textbox', { name: '品牌与型号' }),
     ).toBeInTheDocument()
   })
 
@@ -198,11 +211,7 @@ describe('EntityForm — multi-select values', () => {
       kind: 'setup',
       onSubmit,
       defaultData: {
-        setup_code: 'SETUP-001',
-        setup_name: 'Main setup',
-        zone_count: '1',
-        temperature_sensors: oneZoneTemperatureSensors,
-        orientation: '水平',
+        ...oneZoneSetupData,
       },
     })
 

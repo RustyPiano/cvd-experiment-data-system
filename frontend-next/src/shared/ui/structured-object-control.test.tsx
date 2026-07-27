@@ -157,16 +157,26 @@ describe('StructuredObjectControl v3.7 objects', () => {
       <ControlledObject fieldKey="tube_usage_history" />,
     )
 
-    await user.type(screen.getByLabelText(/^Reset count/), '0')
-    await user.type(screen.getByLabelText(/^Use number since reset/), '1')
+    await user.type(
+      screen.getByLabelText(/^Cleaning or replacement count/),
+      '0',
+    )
+    await user.type(
+      screen.getByLabelText(/^Run number since cleaning or replacement/),
+      '1',
+    )
     expect(
       parseStructuredValue(screen.getByTestId('value').textContent ?? ''),
     ).toEqual({ reset_count: '0', use_number_since_reset: '1' })
 
     unmount()
     render(<ControlledObject fieldKey="boat_crucible" />)
-    expect(screen.getByLabelText(/^Reset count/)).toBeInTheDocument()
-    expect(screen.getByLabelText(/^Use number since reset/)).toBeInTheDocument()
+    expect(
+      screen.getByLabelText(/^Cleaning or replacement count/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText(/^Run number since cleaning or replacement/),
+    ).toBeInTheDocument()
   })
 
   it('selects a valid setup zone and records an optional temperature basis', async () => {

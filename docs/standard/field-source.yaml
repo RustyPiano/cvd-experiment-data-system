@@ -5,7 +5,7 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.13
+  version: v3.14
   status: DRAFT
   updated: '2026-07-28'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
@@ -177,6 +177,11 @@ option_labels_en:
   上层: Top layer
   下层: Bottom layer
   横向域: Lateral domain
+  K型热电偶: K-type thermocouple
+  S型热电偶: S-type thermocouple
+  R型热电偶: R-type thermocouple
+  B型热电偶: B-type thermocouple
+  红外测温仪: Infrared pyrometer
 option_codes:
   盐辅助CVD: salt_assisted_cvd
   PVD-磁控溅射: pvd_magnetron_sputtering
@@ -326,6 +331,11 @@ option_codes:
   H₂: H2
   O₂: O2
   CH₄: CH4
+  K型热电偶: k_thermocouple
+  S型热电偶: s_thermocouple
+  R型热电偶: r_thermocouple
+  B型热电偶: b_thermocouple
+  红外测温仪: infrared_pyrometer
 field_option_codes:
   field_devices:
     等离子: plasma
@@ -344,6 +354,11 @@ preferred_option_labels_zh:
   round: 圆形
   square: 方形
   rectangular: 矩形
+  k_thermocouple: K 型热电偶
+  s_thermocouple: S 型热电偶
+  r_thermocouple: R 型热电偶
+  b_thermocouple: B 型热电偶
+  infrared_pyrometer: 红外测温仪
 unit_labels_en:
   mg 或 µL（按相态）: mg or µL (by phase)
   ℃: °C
@@ -662,8 +677,8 @@ experiment_record:
   - title: §2 实验装置与设计（装置固定配置由Setup快照只读带出；本炉的炉管使用履历由用户填写）
     fields:
     - module: 设备
-      label: 装置（引用）
-      label_en: Setup (reference)
+      label: 实验装置
+      label_en: Experimental setup
       key: setup_ref
       meaning: 选择已登记的装置
       input: 引用
@@ -675,6 +690,8 @@ experiment_record:
       example: 1号双温区管式炉
       source: 会议
       note: ''
+      help: 选择本次实验实际使用的装置；装置参数会自动带出，不需要重复填写。
+      help_en: Select the setup used for this run. Its registered configuration is filled automatically.
       r0: true
     - module: 设备
       label: 品牌与型号
@@ -826,7 +843,7 @@ experiment_record:
       label: 炉管使用履历
       label_en: Tube usage history
       key: tube_usage_history
-      meaning: 当前炉管的累计重置次数，以及本次实验是最近一次重置后的第几次使用
+      meaning: 当前炉管的累计清洗或更换次数，以及本次实验是最近一次清洗或更换后的第几次使用
       input: 使用履历对象
       options: '{reset_count, use_number_since_reset}'
       unit: 次
@@ -835,9 +852,9 @@ experiment_record:
         level: required
       example: '{reset_count: 1, use_number_since_reset: 7}'
       source: 6/24决定·用户复核2026-07-24
-      note: 每炉手填；清洗或更换炉管后重置次数加1，本次使用序号从1重新累计
-      help: 填本次实验对应的当前计数；从未重置可填“0、当前使用序号”。
-      help_en: Enter the counts for this run. If the tube has never been reset, use reset count 0 and the current use number.
+      note: 每炉手填；清洗或更换炉管后累计次数加1，本次使用序号从1重新累计
+      help: 填本次实验对应的当前计数；从未清洗或更换可填“0、当前使用序号”。
+      help_en: Enter the counts for this run. If the tube has never been cleaned or replaced, use count 0 and the current use number.
   - title: §3 前驱体（用了哪些原料：主源、辅助剂等，可多个；每个一组）
     fields:
     - module: 前驱体
@@ -2424,6 +2441,10 @@ entities:
       example: 1号双温区管式炉
       source: 会议
       note: ''
+      placeholder: 例如：一英寸水平双温区管式炉
+      placeholder_en: 'Example: 1-inch horizontal two-zone tube furnace'
+      help: 用结构和用途命名，避免只写“1号炉”或“我的炉子”。
+      help_en: Name the setup by its structure and purpose; avoid labels such as “Furnace 1”.
     - module: 装置Setup
       label: 版本号
       label_en: Version number
@@ -2443,8 +2464,8 @@ entities:
       label_en: Brand and model
       key: brand_model
       meaning: 设备品牌型号
-      input: 下拉+其他
-      options: 受控+其他
+      input: 文本
+      options: —
       unit: —
       requirement:
         raw: 推荐
@@ -2452,6 +2473,8 @@ entities:
       example: 合肥科晶 OTF-1200X
       source: 会议
       note: ''
+      placeholder: 例如：合肥科晶 OTF-1200X
+      placeholder_en: 'Example: HF-Kejing OTF-1200X'
     - module: 装置Setup
       label: 实验室装置编号
       label_en: Laboratory setup ID
@@ -2466,20 +2489,10 @@ entities:
       example: CVD-炉1
       source: review§4.1B·2026-07-27终版整改
       note: 登记后作为装置身份使用；版本更新不应改成另一台装置的编号
-    - module: 装置Setup
-      label: 壁型
-      label_en: Wall type
-      key: wall_type
-      meaning: 热壁/冷壁
-      input: 下拉
-      options: 热壁/冷壁
-      unit: —
-      requirement:
-        raw: 推荐
-        level: recommended
-      example: 热壁
-      source: 复审
-      note: ''
+      placeholder: 例如：CVD-01
+      placeholder_en: 'Example: CVD-01'
+      help: 用于区分课题组内同品牌、同型号的不同物理装置；登记后不可修改。
+      help_en: Distinguishes physical setups of the same brand and model in the lab; it cannot be changed after registration.
     - module: 装置Setup
       label: 温区数
       label_en: Number of heating zones
@@ -2503,7 +2516,7 @@ entities:
       key: temperature_sensors
       meaning: 装置每个温区的传感器类型和用户可直接理解的温度测量误差
       input: 温度传感器数组
-      options: '{sensor_type, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}'
+      options: '{sensor_type: k_thermocouple|s_thermocouple|r_thermocouple|b_thermocouple|infrared_pyrometer|other, sensor_type_other?, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}'
       unit: ℃
       requirement:
         raw: 必填
@@ -2534,8 +2547,8 @@ entities:
       options: '{material: 石英|刚玉|其他, material_other?, shape: 圆形|方形|矩形|其他, shape_other?}'
       unit: —
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 必填
+        level: required
       example: '{material: 石英, shape: 圆形}'
       source: 2026-07-24导师走查
       note: 材质与截面形状独立保存，禁止把“刚玉；圆”当作一个选项
@@ -2543,16 +2556,31 @@ entities:
       label: 炉管尺寸
       label_en: Tube dimensions
       key: tube_outer_diameter_wall_mm
+      storage: attrs
       meaning: 按截面形状记录外部尺寸和壁厚
       input: 炉管尺寸对象
       options: '{圆形: outer_diameter_mm+wall_thickness_mm; 方形: outer_side_mm+wall_thickness_mm; 矩形: outer_width_mm+outer_height_mm+wall_thickness_mm; 其他: dimension_description}'
       unit: mm
       requirement:
-        raw: 选择炉管材质与截面后必填
-        level: recommended
+        raw: 必填；按炉管截面填写
+        level: required
       example: '{outer_width_mm: 50, outer_height_mm: 30, wall_thickness_mm: 2}'
       source: 会议·用户复核2026-07-24
       note: 选择材质与截面后必须按形状完整填写；圆形填外径+壁厚，方形填外边长+壁厚，矩形填外宽+外高+壁厚，其他截面填写具名尺寸说明
+    - module: 装置Setup
+      label: 壁型
+      label_en: Wall type
+      key: wall_type
+      meaning: 热壁/冷壁
+      input: 下拉
+      options: 热壁/冷壁
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: 热壁
+      source: 复审
+      note: 放在装置身份、温区与炉管结构之后，避免打断由粗到细的登记顺序
     - module: 装置Setup
       label: 坐标系定义
       label_en: Coordinate system definition
@@ -2571,13 +2599,14 @@ entities:
       label: 外场能力
       label_en: External field capabilities
       key: field_devices
+      storage: attrs
       meaning: 装置具备的光、电或等离子体能力
       input: 多选
       options: 无/光/电/等离子体
       unit: —
       requirement:
-        raw: 选填
-        level: optional
+        raw: 必填
+        level: required
       example: 无
       source: 2026-07-24导师走查
       note: 这里只登记能力；每炉实际使用情况在反应条件中记录
