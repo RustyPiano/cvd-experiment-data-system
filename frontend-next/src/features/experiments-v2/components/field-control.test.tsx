@@ -315,9 +315,9 @@ describe('FieldControl descriptions and numeric constraints', () => {
     )!
     renderControl('target_product', field, '250')
 
-    const input = screen.getByRole('combobox', { name: '体相空间群' })
+    const input = screen.getByRole('combobox', { name: '目标体相空间群' })
     const error = screen.getByText('请输入 1–230 的整数')
-    const help = screen.getByText(/不知道可留空/)
+    const help = screen.getByText(/先从常见物相中选择/)
     const describedBy = input.getAttribute('aria-describedby')?.split(' ')
 
     expect(input).toHaveAttribute('aria-invalid', 'true')
@@ -348,7 +348,7 @@ describe('FieldControl descriptions and numeric constraints', () => {
     renderControl('target_product', field, '1.5')
 
     const input = screen.getByRole('spinbutton', {
-      name: /Target layer count/,
+      name: /Target atomic-layer count/,
     })
     expect(input).toHaveAttribute('step', '1')
     expect(screen.getByText('Enter an integer')).toBeInTheDocument()

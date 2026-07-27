@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.12
+  version: v3.13
   status: DRAFT
-  updated: '2026-07-27'
+  updated: '2026-07-28'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -535,9 +535,9 @@ experiment_record:
         level: required
       example: MoS2
       source: 2026-07-24导师走查
-      note: ★R0；复合体系权威在『组成明细』；录入使用普通数字；允许常见圆括号、组成分组与结晶水点号
-      help: 用普通数字填写，例如 MoS2；垂直或横向异质结构由下方材料层或区域自动生成。
-      help_en: Use plain digits, for example MoS2. Vertical and lateral heterostructure formulas are generated from the material layers or regions below.
+      note: ★R0；复合体系权威在『组成明细』；系统静默归一化粘贴的下标数字；允许常见圆括号、组成分组与结晶水点号
+      help: 选择结构类型后显示对应示例；垂直或横向异质结构由下方材料层或区域自动生成。
+      help_en: The example follows the selected structure type. Vertical and lateral heterostructure formulas are generated from the material layers or regions below.
       r0: true
     - module: 目标产物
       label: 结构类型
@@ -562,9 +562,9 @@ experiment_record:
       key: components
       ui:
         visibility_gated: true
-      meaning: 按结构类型记录主体与掺杂元素、合金混合位点，或异质结构的材料层与区域
+      meaning: 按结构类型记录掺杂元素、合金混合位点，或异质结构的材料层与区域；掺杂主体直接取上方主体材料化学式
       input: 数组items[]
-      options: 每条:化学式/角色(主体材料·掺杂剂·合金组分·材料层·上层·下层·横向域)/名义含量或占位比例(%)/层序(整数)/体相空间群(1-230)
+      options: 掺杂=掺杂元素+名义含量；合金=混合占位元素+占位比例；垂直异质结=材料层+层序+体相空间群；横向异质结=材料区域+体相空间群；其他=组成材料+适用属性；机器角色(主体材料·掺杂剂·合金组分·材料层·上层·下层·横向域)
       unit: —
       requirement:
         raw: 条件必填(结构类型≠本征)
@@ -575,13 +575,15 @@ experiment_record:
           value: 本征
       example: '{MoS2,材料层,层序1,空间群194};{WS2,材料层,层序2,空间群194}'
       source: 复审·2026-07-27终版整改
-      note: 掺杂记录一条主体材料和一个或多个掺杂元素；合金组分只表示混合占位元素及比例；垂直结构按从衬底向上顺序记录材料层，横向结构逐区域记录；上层/下层只用于历史兼容
+      note: 掺杂界面只填一个或多个掺杂元素，保存时由主体材料化学式自动加入主体记录；合金组分只表示混合占位元素及比例；垂直结构按从衬底向上顺序记录材料层，横向结构逐区域记录；上层/下层只用于历史兼容
       r0: true
     - module: 目标产物
-      label: 目标层数
-      label_en: Target layer count
+      label: 目标原子层数
+      label_en: Target atomic-layer count
       key: target_layer_count
-      meaning: 期望层数
+      meaning: 单一材料体系期望的原子层数；异质结构按材料层或区域记录，不显示本全局字段
+      ui:
+        visibility_gated: true
       input: 数值
       options: —
       unit: 层
@@ -595,8 +597,8 @@ experiment_record:
       source: 会议
       note: 目标与实测分开
     - module: 目标产物
-      label: 体相空间群
-      label_en: Bulk space group
+      label: 目标体相空间群
+      label_en: Target bulk space group
       key: bulk_space_group
       meaning: 非异质结构目标材料的晶体对称性：International Tables 空间群号（1–230）；异质结构改在每层或区域填写
       ui:
@@ -605,17 +607,17 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 选填
-        level: optional
+        raw: 推荐
+        level: recommended
       example: '194'
       source: 复审
-      note: 本征、掺杂、合金和其他结构可选；垂直或横向异质结构在组成明细逐层或逐区域填写
-      placeholder: 例如 194
-      placeholder_en: e.g. 194
-      help: 输入编号或从列表选择；不知道可留空，可从XRD结果、文献或材料数据库的“Space group”获取。
-      help_en: Enter a number or choose from the list. Leave blank if unknown; it is usually reported as “Space group” in XRD results, literature, or materials databases.
+      note: 本征、掺杂、合金和其他结构推荐填写；垂直或横向异质结构在组成明细逐层或逐区域填写；常见体相候选仅作快速录入，不自动判定物相
+      placeholder: 搜索编号或符号，例如 194 或 P6₃/mmc
+      placeholder_en: Search by number or symbol, e.g. 194 or P6₃/mmc
+      help: 输入化学式后，先从常见物相中选择；没有合适候选时，可搜索全部空间群编号或符号。
+      help_en: After entering the formula, choose a common phase first. If none fits, search all space-group numbers or symbols.
     - module: 目标产物
-      label: 样品形态
+      label: 目标形态
       label_en: Target morphology
       key: target_morphology
       meaning: 目标形态
@@ -2958,6 +2960,10 @@ changelog:
     - §1–§5/实体
     - 制备终版整改：新记录固定CVD顶层方法；目标产物按掺杂、合金、材料层和区域填写；Setup逐温区只填传感器类型与温度测量误差；前驱体角色与样片标记必填；压力类别和值成对；反应删除伪循环派生
     - 2026-07-27终版整改
+  - - v3.13
+    - §1b
+    - 目标产物复核：化学式示例按结构类型变化；删除“普通数字”用户文案；掺杂区只显示掺杂元素；空间群按化学式给出经核对的常见体相候选并保留230项搜索；异质结构逐层或逐区域填写空间群
+    - 2026-07-28用户逐项复核
   - - ''
     - ''
     - ''

@@ -101,7 +101,7 @@ describe('i18n scaffolding', () => {
     expect(zh).not.toContain('炉次')
   })
 
-  it('uses slashes only in scientific units and chemical formulas', () => {
+  it('uses slashes only in scientific notation', () => {
     const slashEntries = (['en', 'zh'] as const)
       .flatMap((language) =>
         stringEntries(i18n.getResourceBundle(language, 'common'))
@@ -115,17 +115,21 @@ describe('i18n scaffolding', () => {
 
     expect(slashEntries.map(([path]) => path)).toEqual([
       'en.experimentsV2.sections.targetProduct.guides.vertical',
+      'en.experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
       'en.structuredEditors.coolingParams.coolingRateCPerMin',
       'zh.experimentsV2.sections.targetProduct.guides.vertical',
+      'zh.experimentsV2.sections.targetProduct.spaceGroupPlaceholder',
       'zh.structuredEditors.coolingParams.coolingRateCPerMin',
     ])
     for (const [, value] of slashEntries) {
       expect(value.match(/[／/]/g)).toHaveLength(1)
     }
     expect(slashEntries[0]?.[1]).toContain('MoS2/WS2')
-    expect(slashEntries[1]?.[1]).toContain('°C/min')
-    expect(slashEntries[2]?.[1]).toContain('MoS2/WS2')
-    expect(slashEntries[3]?.[1]).toContain('°C/min')
+    expect(slashEntries[1]?.[1]).toContain('P6₃/mmc')
+    expect(slashEntries[2]?.[1]).toContain('°C/min')
+    expect(slashEntries[3]?.[1]).toContain('MoS2/WS2')
+    expect(slashEntries[4]?.[1]).toContain('P6₃/mmc')
+    expect(slashEntries[5]?.[1]).toContain('°C/min')
   })
 
   it('keeps retired implementation wording out of visible copy', () => {

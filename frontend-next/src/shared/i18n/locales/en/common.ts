@@ -853,8 +853,7 @@ export const common = {
     formula: {
       parsedElements: 'Elements: {{elements}}',
       unknownSymbols: 'Invalid element symbols: {{symbols}}',
-      invalidSyntax:
-        'Use element symbols, plain digits, common parentheses, and system separators',
+      invalidSyntax: 'Check element symbols, stoichiometry, and separators',
       noElement: 'No valid element symbol recognized',
     },
     components: {
@@ -875,7 +874,15 @@ export const common = {
       alloySiteElement: 'Mixed-site element',
       nominalContent: 'Nominal content (at.%)',
       siteFraction: 'Site fraction (%)',
-      bulkSpaceGroup: 'Bulk space group (optional)',
+      bulkSpaceGroup: 'Bulk space group of this material',
+      placeholders: {
+        dopant: 'e.g. Pt',
+        alloy: 'e.g. Mo or W',
+        materialFirst: 'e.g. MoS2',
+        materialNext: 'e.g. WS2',
+        nominalContent: 'e.g. 0.5',
+        siteFraction: 'e.g. 50',
+      },
     },
     reference: {
       placeholder: 'Select',
@@ -897,11 +904,16 @@ export const common = {
         alloyFormula: 'Alloy formula',
         derivedFormula: 'System display formula (generated)',
         componentTitles: {
-          doped: 'Host material and dopants',
+          doped: 'Dopant elements',
           alloy: 'Mixed-site elements and fractions',
           vertical_heterostructure: 'Material layers (from substrate upward)',
           lateral_heterostructure: 'Lateral material regions',
-          other: 'Composition details',
+          other: 'Constituent materials',
+        },
+        formulaPlaceholders: {
+          material: 'e.g. MoS2',
+          alloy: 'e.g. Mo0.5W0.5S2',
+          heterostructure: 'Generated after adding layers or regions',
         },
         guideTitle: 'How to fill this section',
         guides: {
@@ -915,14 +927,20 @@ export const common = {
           lateral:
             'Example: MoS2-WS2. Add each lateral material region; the display formula is generated.',
           other:
-            'Other: enter the group-approved formula with regular digits and add one row per component. Fill only applicable concentration or layer order values and explain the relationship in Notes.',
+            'Example: a core-shell structure or superlattice. Enter the system formula and add each constituent material with any applicable role, content, or layer order.',
         },
+        dopedPreview: '{{dopants}}-doped {{host}}',
         displayPreview: 'Display string preview:',
         displayNote:
           'Preview only; the component rows remain the authoritative data.',
-        spaceGroupPlaceholder: 'Enter a number or symbol, e.g. 194',
+        spaceGroupPlaceholder:
+          'Search by number or symbol, e.g. 194 or P6₃/mmc',
         spaceGroupHelp:
-          'Leave this blank if unknown; obtain it from XRD results, literature, or the Space group entry in a materials database.',
+          'After entering the formula, choose a common phase first. If none fits, search all space-group numbers or symbols.',
+        spaceGroupCandidateLabel: 'Choose a common bulk phase for {{formula}}',
+        spaceGroupCandidatePlaceholder: 'Choose a common phase for {{formula}}',
+        spaceGroupCandidateHelp:
+          'Choose the intended phase; its space-group number is filled automatically.',
         spaceGroupSymbol: 'Space-group symbol: {{symbol}}',
       },
       equipment: {
