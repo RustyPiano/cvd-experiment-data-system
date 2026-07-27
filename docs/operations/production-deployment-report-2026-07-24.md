@@ -88,6 +88,9 @@
 - 制备模块终版经 PR #4 合并；PR 运行 `30267512472` 与 `main` 运行 `30267648721` 的五项 required checks 全部通过。普通 `./deploy.sh` 从 `cd39f30` 前滚到 `ff9d8b0`，没有新增迁移，也没有使用批8能力或 schema guard 旁路。
 - 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260727_205327`；`database.sql` 与 `storage.tar.gz` 双哈希通过，目录权限为 `0700`、文件权限为 `0600`。
 - 部署后服务器仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 保持 `20260711_0001 (head)`；公网 `/health`、首页、`runtime-config.js` 和匿名 401 边界通过。浏览器插件因用户侧域名禁用策略未执行登录态页面复验，留给用户在线审阅。
+- 目标产物复核版经 PR #6 合并；PR 运行 `30285604420` 与 `main` 运行 `30285756021` 的五项 required checks 全部通过。普通 `./deploy.sh` 从 `ff9d8b0` 前滚到 `6a58716`，没有新增迁移，也没有使用批8能力或 schema guard 旁路。
+- 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260728_004202`；`database.sql` SHA-256 为 `94b9e0e6a4e110b12ab78faae69a5625c557abcecd462c945a3527297009c84c`，`storage.tar.gz` SHA-256 为 `57ab41746f7353e80997348b388f73f63bb74684ab9daf8bfed7bbe0bd420e17`。
+- 部署后服务器仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 保持 `20260711_0001 (head)`；公网 `/health`、首页、`runtime-config.js` 和匿名 401 边界通过，生产静态产物中已确认包含新的体相选择文案。
 
 ## 尚待真实数据验收
 
