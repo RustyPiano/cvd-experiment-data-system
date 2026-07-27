@@ -1147,7 +1147,10 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f'{indent}@model_validator(mode="after")',
                 f"{indent}def _temperature_sensor_zone_coverage(self) -> Self:",
                 f"{indent}    zone_indices = sorted(sensor.zone_index for sensor in self.temperature_sensors)",
-                f"{indent}    if zone_indices != list(range(1, self.zone_count + 1)):",
+                f"{indent}    if len(zone_indices) != self.zone_count or any(",
+                f"{indent}        zone_index != expected",
+                f"{indent}        for expected, zone_index in enumerate(zone_indices, start=1)",
+                f"{indent}    ):",
                 f'{indent}        raise ValueError("temperature_sensors must cover each zone exactly once")',
                 f"{indent}    return self",
             ]

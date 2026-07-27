@@ -792,7 +792,10 @@ class EquipmentPayload(V2PayloadBase):
     @model_validator(mode="after")
     def _temperature_sensor_zone_coverage(self) -> Self:
         zone_indices = sorted(sensor.zone_index for sensor in self.temperature_sensors)
-        if zone_indices != list(range(1, self.zone_count + 1)):
+        if len(zone_indices) != self.zone_count or any(
+            zone_index != expected
+            for expected, zone_index in enumerate(zone_indices, start=1)
+        ):
             raise ValueError("temperature_sensors must cover each zone exactly once")
         return self
 
@@ -1316,7 +1319,10 @@ class SetupVersionPayload(V2PayloadBase):
     @model_validator(mode="after")
     def _temperature_sensor_zone_coverage(self) -> Self:
         zone_indices = sorted(sensor.zone_index for sensor in self.temperature_sensors)
-        if zone_indices != list(range(1, self.zone_count + 1)):
+        if len(zone_indices) != self.zone_count or any(
+            zone_index != expected
+            for expected, zone_index in enumerate(zone_indices, start=1)
+        ):
             raise ValueError("temperature_sensors must cover each zone exactly once")
         return self
 
