@@ -2,7 +2,7 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `57a25b7ce4f0f92aca894ea69e3be7719a039bfb`。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `ff9d8b051f8a311bbeb1c8955a1eb78fdcd47bdc`。
 - 初始切换的 GitHub Actions 运行 `30076866424` 与本轮整改发布运行 `30139599899` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；`main` 已设置同名 required checks，并禁止强推和删除。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧版数据没有删除。旧数据库已离线归档为 `cvd_v1_archive_20260724`，新 v2 使用全新的 `cvd` 数据库。
@@ -85,6 +85,9 @@
 - 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260725_100220`；目录/文件权限、非空普通文件及 `database.sql`、`storage.tar.gz` 两项 SHA-256 均复验通过。
 - 部署后仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 保持 `20260711_0001 (head)`；本机与公网 `/health`、首页、`runtime-config.js` 和匿名 401 边界通过。
 - 管理员真实浏览器只读复验通过：两条既有草稿 `CVD-2026-0001`、`CVD-2026-0002` 可读且状态未变，新建、表征、物料、装置、仪器和中英文切换正常，console 0 warning/error；未创建或保存验收数据。
+- 制备模块终版经 PR #4 合并；PR 运行 `30267512472` 与 `main` 运行 `30267648721` 的五项 required checks 全部通过。普通 `./deploy.sh` 从 `cd39f30` 前滚到 `ff9d8b0`，没有新增迁移，也没有使用批8能力或 schema guard 旁路。
+- 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260727_205327`；`database.sql` 与 `storage.tar.gz` 双哈希通过，目录权限为 `0700`、文件权限为 `0600`。
+- 部署后服务器仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 保持 `20260711_0001 (head)`；公网 `/health`、首页、`runtime-config.js` 和匿名 401 边界通过。浏览器插件因用户侧域名禁用策略未执行登录态页面复验，留给用户在线审阅。
 
 ## 尚待真实数据验收
 
