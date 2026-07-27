@@ -90,7 +90,7 @@ export interface StageType {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v3.11',
+  version: 'v3.12',
   status: 'DRAFT',
   source: 'docs/standard/field-source.yaml',
 }
@@ -123,10 +123,10 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       key: 'synthesis_method',
       labelZh: '合成方法',
       labelEn: 'Synthesis method',
-      input: '下拉+其他',
+      input: '固定定义',
       unit: null,
       options:
-        'CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD/其他',
+        'CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD',
       validation: null,
       requirement: {
         raw: '必填',
@@ -136,8 +136,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       },
       r0: true,
       group: null,
-      placeholderZh: '请选择',
-      placeholderEn: 'Select an option',
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
     },
@@ -271,9 +271,10 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '例如 MoS2',
       placeholderEn: 'e.g. MoS2',
-      helpZh: '用普通数字填写，例如 MoS2；复合体系再按下方“组成明细”逐项填写。',
+      helpZh:
+        '用普通数字填写，例如 MoS2；垂直或横向异质结构由下方材料层或区域自动生成。',
       helpEn:
-        'Use plain digits, for example MoS2; for composite systems, complete the component rows below.',
+        'Use plain digits, for example MoS2. Vertical and lateral heterostructure formulas are generated from the material layers or regions below.',
     },
     {
       key: 'structure_type',
@@ -304,7 +305,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '数组items[]',
       unit: null,
       options:
-        '每条:化学式/角色(主体材料·掺杂剂·合金组分·上层·下层·横向域)/浓度(at%)/层序(整数)',
+        '每条:化学式/角色(主体材料·掺杂剂·合金组分·材料层·上层·下层·横向域)/名义含量或占位比例(%)/层序(整数)/体相空间群(1-230)',
       validation: null,
       requirement: {
         raw: '条件必填(结构类型≠本征)',
@@ -370,6 +371,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
         '输入编号或从列表选择；不知道可留空，可从XRD结果、文献或材料数据库的“Space group”获取。',
       helpEn:
         'Enter a number or choose from the list. Leave blank if unknown; it is usually reported as “Space group” in XRD results, literature, or materials databases.',
+      visibilityGated: true,
     },
     {
       key: 'target_morphology',
@@ -611,12 +613,12 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'temperature_sensors',
-      labelZh: '温度传感器与不确定度',
-      labelEn: 'Temperature sensors and uncertainty',
+      labelZh: '各温区温度传感器',
+      labelEn: 'Temperature sensors by zone',
       input: '温度传感器数组',
       unit: '℃',
       options:
-        '{sensor_name, sensor_type, zone_index, uncertainty_C, uncertainty_source: 仪器|校准|重复性|估计}',
+        '{sensor_type, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}',
       validation: null,
       requirement: {
         raw: '必填(装置登记)',
@@ -720,11 +722,11 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'cas_inchi',
-      labelZh: '化学标识（来自批次）',
-      labelEn: 'Chemical identifiers (from lot)',
+      labelZh: 'CAS号（来自批次）',
+      labelEn: 'CAS number (from lot)',
       input: '文本',
       unit: null,
-      options: 'CAS 或 InChI',
+      options: 'CAS',
       validation: null,
       requirement: {
         raw: '选填',
@@ -818,8 +820,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       options: '主源/辅助剂/掺杂源/其他',
       validation: null,
       requirement: {
-        raw: '选填',
-        level: 'optional',
+        raw: '必填',
+        level: 'required',
         otherwise: null,
         condition: null,
       },
@@ -996,6 +998,29 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
+    },
+    {
+      key: 'piece_label',
+      labelZh: '本次样片标记',
+      labelEn: 'Piece label for this run',
+      input: '文本',
+      unit: null,
+      options: null,
+      validation: null,
+      requirement: {
+        raw: '必填',
+        level: 'required',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh:
+        '同一批次放入多片时分别标记，例如 S1、S2；该标记会跟随自动生成的样品。',
+      helpEn:
+        'Label each piece from the same lot, for example S1 and S2; the label follows the generated sample.',
     },
     {
       key: 'chemical_formula',
@@ -1444,6 +1469,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       validation: {
         gt: 0,
         require_value: true,
+        require_option: true,
         option_ranges: {
           atmospheric_pressure: {
             ge: 80000,
@@ -1479,11 +1505,11 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'duration_cycles',
-      labelZh: '时长与循环次数',
-      labelEn: 'Duration and cycle count',
+      labelZh: '反应持续时间',
+      labelEn: 'Reaction duration',
       input: '时长循环对象',
-      unit: 'min·次',
-      options: '{duration_min, cycle_count?}',
+      unit: 'min',
+      options: '{duration_min；旧记录可含cycle_count}',
       validation: null,
       requirement: {
         raw: '条件必填(反应条件记录)',
@@ -2214,7 +2240,7 @@ export const entities: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'substance_name',
-      labelZh: '物质名称',
+      labelZh: '物质名称（中文）',
       labelEn: 'Substance name',
       input: '文本',
       unit: null,
@@ -2230,8 +2256,10 @@ export const entities: Record<string, FieldMetadata[]> = {
       group: null,
       placeholderZh: '请输入',
       placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
+      helpZh:
+        '填物料标签或CoA对应的中文名称，例如“三氧化钼”；化学式和CAS号填在后两项。',
+      helpEn:
+        'Enter the Chinese substance name used by the group; record the formula and CAS number in the next fields.',
     },
     {
       key: 'chemical_formula',
@@ -2278,29 +2306,6 @@ export const entities: Record<string, FieldMetadata[]> = {
       placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
-    },
-    {
-      key: 'inchikey_cid',
-      labelZh: '公共数据库标识',
-      labelEn: 'Public database identifier',
-      input: '文本',
-      unit: null,
-      options: null,
-      validation: null,
-      requirement: {
-        raw: '选填',
-        level: 'optional',
-        otherwise: null,
-        condition: null,
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh:
-        '用于跨数据库检索，可填写 InChIKey 或 PubChem CID；没有可靠值时留空。',
-      helpEn:
-        'Enter an InChIKey or PubChem CID for cross-database lookup; leave blank when unavailable.',
     },
     {
       key: 'supplier',
@@ -2398,33 +2403,6 @@ export const entities: Record<string, FieldMetadata[]> = {
       helpEn: null,
     },
     {
-      key: 'particle_size_d50_um',
-      labelZh: '粒径D50',
-      labelEn: 'Particle size D50',
-      input: '数值',
-      unit: 'µm',
-      options: 'x50严谨；目数可接受',
-      validation: {
-        gt: 0,
-      },
-      requirement: {
-        raw: '选填',
-        level: 'optional',
-        otherwise: null,
-        condition: {
-          field: 'MaterialLot.批次类别',
-          op: 'eq',
-          value: 'chemical',
-        },
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-    },
-    {
       key: 'form_appearance',
       labelZh: '形态与性状',
       labelEn: 'Form and appearance',
@@ -2448,6 +2426,35 @@ export const entities: Record<string, FieldMetadata[]> = {
       placeholderEn: 'Select an option',
       helpZh: null,
       helpEn: null,
+    },
+    {
+      key: 'particle_size_d50_um',
+      labelZh: '粒径D50',
+      labelEn: 'Particle size D50',
+      input: '数值',
+      unit: 'µm',
+      options: '供应商或CoA报告的D50',
+      validation: {
+        gt: 0,
+      },
+      requirement: {
+        raw: '条件选填(粉末或颗粒)',
+        level: 'conditional_recommended',
+        otherwise: null,
+        condition: {
+          field: 'MaterialLot.形态与性状',
+          op: 'in',
+          value: ['powder', 'granules'],
+        },
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: '只抄供应商标签或CoA上的D50；没有D50报告就留空。',
+      helpEn:
+        'Copy D50 only from the supplier label or CoA; leave blank when no D50 is reported.',
+      visibilityGated: true,
     },
     {
       key: 'opened_date',
@@ -2831,27 +2838,6 @@ export const entities: Record<string, FieldMetadata[]> = {
   ],
   setup: [
     {
-      key: 'setup_code',
-      labelZh: '装置编号',
-      labelEn: 'Setup code',
-      input: '文本',
-      unit: null,
-      options: null,
-      validation: null,
-      requirement: {
-        raw: '必填',
-        level: 'required',
-        otherwise: null,
-        condition: null,
-      },
-      r0: false,
-      group: null,
-      placeholderZh: '请输入',
-      placeholderEn: 'Enter a value',
-      helpZh: null,
-      helpEn: null,
-    },
-    {
       key: 'setup_name',
       labelZh: '装置名称',
       labelEn: 'Setup name',
@@ -2915,6 +2901,27 @@ export const entities: Record<string, FieldMetadata[]> = {
       helpEn: null,
     },
     {
+      key: 'setup_code',
+      labelZh: '实验室装置编号',
+      labelEn: 'Laboratory setup ID',
+      input: '文本',
+      unit: null,
+      options: null,
+      validation: null,
+      requirement: {
+        raw: '必填',
+        level: 'required',
+        otherwise: null,
+        condition: null,
+      },
+      r0: false,
+      group: null,
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
+      helpZh: null,
+      helpEn: null,
+    },
+    {
       key: 'wall_type',
       labelZh: '壁型',
       labelEn: 'Wall type',
@@ -2961,12 +2968,12 @@ export const entities: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'temperature_sensors',
-      labelZh: '温度传感器与不确定度',
-      labelEn: 'Temperature sensors and uncertainty',
+      labelZh: '各温区温度传感器',
+      labelEn: 'Temperature sensors by zone',
       input: '温度传感器数组',
       unit: '℃',
       options:
-        '{sensor_name, sensor_type, zone_index, uncertainty_C, uncertainty_source: 仪器|校准|重复性|估计}',
+        '{sensor_type, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}',
       validation: null,
       requirement: {
         raw: '必填',
@@ -3439,6 +3446,7 @@ export const optionLabelsZh: Record<string, string> = {
   matrix: '主体材料',
   dopant: '掺杂剂',
   alloy_component: '合金组分',
+  material_layer: '材料层',
   top_layer: '上层',
   bottom_layer: '下层',
   lateral_domain: '横向域',
@@ -3580,6 +3588,7 @@ export const optionLabelsEn: Record<string, string> = {
   matrix: 'Host material',
   dopant: 'Dopant',
   alloy_component: 'Alloy component',
+  material_layer: 'Material layer',
   top_layer: 'Top layer',
   bottom_layer: 'Bottom layer',
   lateral_domain: 'Lateral domain',
@@ -3729,6 +3738,7 @@ export const optionCodes: Record<string, string> = {
   基体: 'matrix',
   掺杂剂: 'dopant',
   合金组分: 'alloy_component',
+  材料层: 'material_layer',
   上层: 'top_layer',
   下层: 'bottom_layer',
   横向域: 'lateral_domain',

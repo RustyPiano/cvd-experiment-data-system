@@ -130,6 +130,25 @@ describe('EntityForm — required markers (导师 B93 明显标识)', () => {
     // but always-visible required fields are present
     expect(screen.getByText('批次类别')).toBeInTheDocument()
   })
+
+  it('limits inline material creation to the categories allowed by its run section', () => {
+    const { unmount } = renderForm({
+      allowedLotCategories: ['chemical', 'gas_cylinder'],
+    })
+
+    const category = screen.getByRole('combobox', { name: /^批次类别/ })
+    expect(
+      Array.from(
+        category.parentElement?.querySelectorAll('option') ?? [],
+        (option) => option.value,
+      ),
+    ).toEqual(['', 'chemical', 'gas_cylinder'])
+
+    unmount()
+    renderForm({ allowedLotCategories: ['substrate'] })
+    expect(screen.queryByText('批次类别')).toBeNull()
+    expect(screen.getByText('材料')).toBeInTheDocument()
+  })
 })
 
 describe('EntityForm — select with other accessibility', () => {

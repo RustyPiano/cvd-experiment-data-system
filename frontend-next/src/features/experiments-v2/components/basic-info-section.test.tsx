@@ -24,6 +24,7 @@ function renderSection(editMode: boolean, operator = '') {
         values={{
           ...emptyModuleValues('basic_info'),
           run_code: 'CVD-2026-0001',
+          synthesis_method: 'CVD',
           operator,
         }}
         onChange={vi.fn()}
@@ -69,19 +70,13 @@ describe('BasicInfoSection run code', () => {
     ).toBeInTheDocument()
   })
 
-  it('does not expose PVD-family methods in the CVD-only interface', async () => {
-    const user = userEvent.setup()
+  it('shows CVD as a fixed method', () => {
     renderSection(false)
 
-    await user.click(screen.getAllByRole('combobox')[0])
-
-    expect(screen.getByRole('option', { name: 'APCVD' })).toBeInTheDocument()
-    expect(
-      screen.queryByRole('option', { name: 'PVD-磁控溅射' }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('option', { name: 'PLD' }),
-    ).not.toBeInTheDocument()
+    const method = screen.getByRole('textbox', { name: /合成方法/ })
+    expect(method).toHaveValue('CVD')
+    expect(method).toBeDisabled()
+    expect(screen.queryByRole('option')).not.toBeInTheDocument()
   })
 
   it('shows the signed-in operator as a fixed value', () => {
@@ -96,6 +91,7 @@ describe('BasicInfoSection run code', () => {
     function StatefulSection() {
       const [values, setValues] = useState({
         ...emptyModuleValues('basic_info'),
+        synthesis_method: 'CVD',
         operator: '成员 A',
       })
       return (
@@ -117,8 +113,7 @@ describe('BasicInfoSection run code', () => {
     fireEvent.input(startedAt, {
       target: { value: '2026-07-24T14:20' },
     })
-    await user.click(screen.getByRole('combobox', { name: /合成方法/ }))
-    await user.click(screen.getByRole('option', { name: 'CVD' }))
+    await user.click(screen.getByRole('checkbox', { name: /实验前检查确认/ }))
 
     expect(startedAt).toHaveValue('2026-07-24T14:20')
   })

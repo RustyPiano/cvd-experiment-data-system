@@ -15,17 +15,15 @@ import type {
 
 const labels: TemperatureSensorsEditorLabels = {
   sensor: (zoneIndex) => `Temperature sensor for zone ${zoneIndex}`,
-  sensorName: 'Sensor name',
   sensorType: 'Sensor type',
-  uncertaintyCelsius: 'Uncertainty (°C)',
-  uncertaintySource: 'Uncertainty source',
-  selectUncertaintySource: 'Select uncertainty source',
-  uncertaintySourceOptions: {
-    instrument: 'Instrument specification',
-    calibration: 'Calibration',
-    repeatability: 'Repeatability',
-    estimate: 'Estimate',
+  sensorTypeOptions: {
+    kThermocouple: 'K-type thermocouple',
+    sThermocouple: 'S-type thermocouple',
+    rThermocouple: 'R-type thermocouple',
+    bThermocouple: 'B-type thermocouple',
+    infraredPyrometer: 'Infrared pyrometer',
   },
+  uncertaintyCelsius: 'Temperature error (°C)',
   selectZoneCountFirst: 'Set the zone count first',
 }
 
@@ -81,24 +79,20 @@ describe('TemperatureSensorsEditor', () => {
     expect(screen.queryByLabelText('Zone index')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add|remove/i })).toBeNull()
 
-    await user.type(screen.getAllByLabelText('Sensor name')[0], 'Furnace TC')
     await user.type(screen.getAllByLabelText('Sensor type')[0], 'K-type')
-    await user.type(screen.getAllByLabelText('Uncertainty (°C)')[0], '0.8')
-    await user.click(
-      screen.getAllByRole('combobox', { name: 'Uncertainty source' })[0],
+    await user.type(
+      screen.getAllByLabelText('Temperature error (°C)')[0],
+      '0.8',
     )
-    await user.click(screen.getByRole('option', { name: 'Calibration' }))
 
     const value = JSON.parse(
       screen.getByTestId('value').textContent ?? '',
     ) as TemperatureSensor[]
     expect(value).toEqual([
       expect.objectContaining({
-        sensor_name: 'Furnace TC',
         sensor_type: 'K-type',
         zone_index: 1,
         uncertainty_C: 0.8,
-        uncertainty_source: 'calibration',
       }),
       expect.objectContaining({ zone_index: 2 }),
     ])

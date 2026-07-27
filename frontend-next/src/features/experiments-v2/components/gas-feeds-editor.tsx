@@ -188,8 +188,14 @@ export function deriveGasFlowShareSegments(
 export function gasFeedsAreValid(value: GasFeed[]): boolean {
   const validSpecies = new Set(gasSpecies)
   const validMeasurementSources = new Set(gasMeasurementSources)
+  const identities = value.map((feed) =>
+    feed.species === 'other'
+      ? `other:${normalizedGasIdentity(feed.other_name)}`
+      : feed.species,
+  )
   return (
     value.length > 0 &&
+    new Set(identities).size === identities.length &&
     value.every(
       (feed) =>
         Boolean(feed.species && validSpecies.has(feed.species)) &&

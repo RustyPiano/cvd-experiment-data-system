@@ -240,6 +240,12 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
 
     expect(
       isFieldVisible('material_lot', particle, { lot_category: '化学品' }),
+    ).toBe(false)
+    expect(
+      isFieldVisible('material_lot', particle, {
+        lot_category: '化学品',
+        form_appearance: '粉末',
+      }),
     ).toBe(true)
     expect(
       isFieldVisible('material_lot', form, { lot_category: '化学品' }),

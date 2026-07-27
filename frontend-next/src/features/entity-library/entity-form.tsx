@@ -105,6 +105,8 @@ type EntityFormProps = {
   nextVersion: number
   /** newVersion 模式下的旧版本数据快照，用于预填。 */
   defaultData?: Record<string, unknown> | null
+  /** 从实验记录就地新增物料时，只开放该入口适用的批次类别。 */
+  allowedLotCategories?: readonly string[]
   submitting: boolean
   token?: string
   onSubmit: (payload: EntityVersionPayload) => void
@@ -119,6 +121,7 @@ export function EntityForm({
   mode,
   nextVersion,
   defaultData,
+  allowedLotCategories,
   submitting,
   token = '',
   onSubmit,
@@ -130,8 +133,14 @@ export function EntityForm({
   const { t } = useTranslation()
   const fields = useMemo(() => getEntityFields(kind), [kind])
   const defaultValues = useMemo(
-    () => buildDefaultValues(kind, defaultData),
-    [defaultData, kind],
+    () =>
+      buildDefaultValues(
+        kind,
+        kind === 'material_lot' && allowedLotCategories?.length === 1
+          ? { ...defaultData, lot_category: allowedLotCategories[0] }
+          : defaultData,
+      ),
+    [allowedLotCategories, defaultData, kind],
   )
   const historicalEntities = useQuery({
     queryKey: ['v2-entity', kind, 'select-history', token],
@@ -411,7 +420,12 @@ export function EntityForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           {fields.map((field) =>
-            isFieldVisible(kind, field, values) ? (
+            isFieldVisible(kind, field, values) &&
+            !(
+              kind === 'material_lot' &&
+              field.key === 'lot_category' &&
+              allowedLotCategories?.length === 1
+            ) ? (
               <EntityFieldControl
                 key={field.key}
                 kind={kind}
@@ -421,6 +435,11 @@ export function EntityForm({
                 disabled={formBusy}
                 token={token}
                 historicalOptions={historicalSelectOptions[field.key] ?? []}
+                allowedOptions={
+                  field.key === 'lot_category'
+                    ? allowedLotCategories
+                    : undefined
+                }
                 initialValue={
                   typeof defaultValues[field.key] === 'string'
                     ? (defaultValues[field.key] as string)
@@ -463,6 +482,7 @@ function EntityFieldControl({
   disabled,
   token,
   historicalOptions,
+  allowedOptions,
   initialValue,
   onPendingFileChange,
   onAttachmentDraftDirtyChange,
@@ -475,6 +495,7 @@ function EntityFieldControl({
   disabled: boolean
   token: string
   historicalOptions: readonly string[]
+  allowedOptions?: readonly string[]
   initialValue: string
   onPendingFileChange: (
     fieldKey: string,
@@ -495,6 +516,7 @@ function EntityFieldControl({
   const multiSelect = isMultiSelectInput(field.input)
   const enumOptions = parseEnumOptions(field.input, field.options, field.key)
     ?.filter((option) => !allowsOther || !isOtherOptionMarker(option))
+    .filter((option) => !allowedOptions || allowedOptions.includes(option))
     .concat(allowsOther ? historicalOptions : [])
     .filter((option, index, options) => options.indexOf(option) === index)
   const compositeInput = isCompositeInput(field.input) ? field.input : null

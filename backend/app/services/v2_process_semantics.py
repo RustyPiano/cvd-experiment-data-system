@@ -118,41 +118,21 @@ def temperature_programs_start_at_zero(payload_json: dict[str, Any]) -> bool:
     return True
 
 
-def derived_reaction_cycle_count(gas_feeds: Any) -> int | None:
-    if not isinstance(gas_feeds, list):
-        return None
-    maximum = max(
-        (
-            len(feed.get("intervals") or [])
-            for feed in gas_feeds
-            if isinstance(feed, dict) and isinstance(feed.get("intervals"), list)
-        ),
-        default=0,
-    )
-    return maximum or None
-
-
-def reaction_cycle_counts_are_consistent(payload_json: dict[str, Any]) -> bool:
+def gas_feeds_are_unique(payload_json: dict[str, Any]) -> bool:
     for step in payload_json.get("items") or []:
         if not isinstance(step, dict) or step.get("stage_type") != "reaction_conditions":
             continue
-        duration_cycles = step.get("duration_cycles")
-        if not isinstance(duration_cycles, dict):
-            return False
-        explicit = duration_cycles.get("cycle_count")
-        if explicit is not None and explicit != derived_reaction_cycle_count(step.get("gas_feeds")):
+        identities = [
+            (
+                feed.get("species"),
+                _identity(feed.get("other_name")) if feed.get("species") == "other" else "",
+            )
+            for feed in step.get("gas_feeds") or []
+            if isinstance(feed, dict)
+        ]
+        if len(identities) != len(set(identities)):
             return False
     return True
-
-
-def apply_derived_reaction_cycle_counts(payload_json: dict[str, Any]) -> dict[str, Any]:
-    for step in payload_json.get("items") or []:
-        if not isinstance(step, dict) or step.get("stage_type") != "reaction_conditions":
-            continue
-        duration_cycles = step.get("duration_cycles")
-        if isinstance(duration_cycles, dict):
-            duration_cycles["cycle_count"] = derived_reaction_cycle_count(step.get("gas_feeds"))
-    return payload_json
 
 
 def _snapshot_value(snapshot: dict[str, Any], key: str) -> Any:

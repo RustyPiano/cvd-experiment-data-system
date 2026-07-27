@@ -37,6 +37,7 @@ vi.mock('@/components/ui/select', () => ({
     <div>{children}</div>
   ),
   SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectGroup: ({ children }: { children: ReactNode }) => <>{children}</>,
   SelectTrigger: ({ children }: { children: ReactNode }) => (
     <button>{children}</button>
   ),
@@ -45,14 +46,14 @@ vi.mock('@/components/ui/select', () => ({
 
 describe('FieldControl ordinary Select', () => {
   it('always receives a string value, including the empty initial state', () => {
-    const field = experimentModules.basic_info.find(
-      (item) => item.key === 'synthesis_method',
+    const field = experimentModules.target_product.find(
+      (item) => item.key === 'structure_type',
     )!
 
     render(
       <I18nextProvider i18n={i18n}>
         <FieldControl
-          moduleKey="basic_info"
+          moduleKey="target_product"
           field={field}
           values={{}}
           value=""

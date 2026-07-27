@@ -24,7 +24,7 @@ describe('materialLotAutofill', () => {
       }),
     ).toEqual({
       name_formula: 'MoO3',
-      cas_inchi: '1313-27-5 · JKQOBWVOAYFWKG-UHFFFAOYSA-N',
+      cas_inchi: '1313-27-5',
       phase_state: 'solid',
     })
   })

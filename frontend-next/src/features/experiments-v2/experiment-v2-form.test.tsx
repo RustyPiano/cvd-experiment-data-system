@@ -119,7 +119,17 @@ vi.mock('./components/process-steps-section', () => ({
     sectionStub('process_steps', save),
   setupFieldTypes: () => [],
 }))
-vi.mock('./components/results-section', () => ({ ResultsSection: () => null }))
+vi.mock('./components/results-section', () => ({
+  ResultsSection: ({
+    onDirtyChange,
+  }: {
+    onDirtyChange?: (dirty: boolean) => void
+  }) => (
+    <button type="button" onClick={() => onDirtyChange?.(true)}>
+      dirty-results
+    </button>
+  ),
+}))
 
 describe('reconcileProcessTemperaturePrograms', () => {
   it('keeps one temperature program row per selected setup zone', () => {
@@ -225,6 +235,7 @@ function completeState() {
       {
         ...emptyModuleValues('precursors'),
         name_formula: 'MoO3',
+        role: 'main_precursor',
         phase_state: '气',
         lot_ref: JSON.stringify(precursorLotRef),
       },
@@ -232,6 +243,7 @@ function completeState() {
     substrates: [
       {
         ...emptyModuleValues('substrates'),
+        piece_label: 'S1',
         material: 'sapphire_al2o3',
         lot_ref: JSON.stringify(substrateLotRef),
         chemical_formula: 'Al2O3',
@@ -278,6 +290,7 @@ function renderForm(
   mode: 'new' | 'edit',
   onProcessDirtyChange?: (dirty: boolean) => void,
   initialState = completeState(),
+  onDirtyChange?: (dirty: boolean) => void,
 ) {
   return render(
     <I18nextProvider i18n={i18n}>
@@ -286,6 +299,7 @@ function renderForm(
         runId={mode === 'edit' ? 'run-existing' : undefined}
         initialState={initialState}
         onProcessDirtyChange={onProcessDirtyChange}
+        onDirtyChange={onDirtyChange}
       />
     </I18nextProvider>,
   )
@@ -382,6 +396,30 @@ describe('ExperimentV2Form module saves', () => {
       ),
     )
     expect(api.setSetupReference).not.toHaveBeenCalled()
+  })
+
+  it('identifies the exact incomplete repeatable item', async () => {
+    const state = completeState()
+    state.precursors.push({
+      ...emptyModuleValues('precursors'),
+      name_formula: 'WO3',
+      role: '',
+      phase_state: '',
+      lot_ref: '',
+    })
+    renderForm('edit', undefined, state)
+
+    fireEvent.click(screen.getByRole('button', { name: 'save-precursors' }))
+
+    expect(
+      await screen.findByText(
+        i18n.t('experimentsV2.form.incompleteItem', {
+          module: i18n.t('experimentsV2.sections.precursors.title'),
+          position: 2,
+        }),
+      ),
+    ).toBeInTheDocument()
+    expect(api.upsertModule).not.toHaveBeenCalled()
   })
 
   it('saves an old substrate draft from its authoritative lot snapshot', async () => {
@@ -484,6 +522,15 @@ describe('ExperimentV2Form module saves', () => {
     await waitFor(() =>
       expect(onProcessDirtyChange).toHaveBeenLastCalledWith(false),
     )
+  })
+
+  it('reports unsaved result changes so export cannot use stale data', async () => {
+    const onDirtyChange = vi.fn()
+    renderForm('edit', undefined, completeState(), onDirtyChange)
+
+    fireEvent.click(screen.getByRole('button', { name: 'dirty-results' }))
+
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true))
   })
 })
 

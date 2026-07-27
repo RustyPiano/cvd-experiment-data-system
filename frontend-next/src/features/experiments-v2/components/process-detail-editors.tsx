@@ -120,13 +120,11 @@ export interface DurationCycles {
 
 export interface DurationCyclesEditorLabels {
   durationMinutes: string
-  cycleCount: string
 }
 
 export interface DurationCyclesEditorProps {
   value: DurationCycles
   onChange: (value: DurationCycles) => void
-  derivedCycleCount?: number | null
   disabled?: boolean
   showErrors?: boolean
   labels: DurationCyclesEditorLabels
@@ -1253,16 +1251,13 @@ export function durationCyclesAreValid(value: DurationCycles): boolean {
 export function DurationCyclesEditor({
   value,
   onChange,
-  derivedCycleCount,
   disabled,
   showErrors,
   labels,
 }: DurationCyclesEditorProps) {
   const baseId = useId()
-  const cycleCount =
-    derivedCycleCount === undefined ? value.cycle_count : derivedCycleCount
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div>
       <div className="flex flex-col gap-1">
         <Label htmlFor={`${baseId}-duration`}>{labels.durationMinutes}</Label>
         <Input
@@ -1278,34 +1273,7 @@ export function DurationCyclesEditor({
           disabled={disabled}
           onChange={(event) =>
             onChange({
-              ...value,
-              cycle_count: cycleCount,
               duration_min: numberFromInput(event.target.value),
-            })
-          }
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={`${baseId}-cycles`}>{labels.cycleCount}</Label>
-        <Input
-          id={`${baseId}-cycles`}
-          type="number"
-          inputMode="numeric"
-          step={1}
-          min={1}
-          value={cycleCount ?? ''}
-          readOnly={derivedCycleCount !== undefined}
-          aria-invalid={
-            (showErrors &&
-              cycleCount != null &&
-              (!Number.isInteger(cycleCount) || cycleCount < 1)) ||
-            undefined
-          }
-          disabled={disabled}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              cycle_count: numberFromInput(event.target.value),
             })
           }
         />

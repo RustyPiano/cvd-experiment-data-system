@@ -2,41 +2,28 @@ import { useId } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
-export const temperatureUncertaintySources = [
-  'instrument',
-  'calibration',
-  'repeatability',
-  'estimate',
+const commonSensorTypes = [
+  'kThermocouple',
+  'sThermocouple',
+  'rThermocouple',
+  'bThermocouple',
+  'infraredPyrometer',
 ] as const
 
-export type TemperatureUncertaintySource =
-  (typeof temperatureUncertaintySources)[number]
-
 export interface TemperatureSensor {
-  sensor_name: string
+  sensor_name?: string
   sensor_type: string
   zone_index: number | null
   uncertainty_C: number | null
-  uncertainty_source: TemperatureUncertaintySource | ''
+  uncertainty_source?: string
 }
 
 export interface TemperatureSensorsEditorLabels {
   sensor: (zoneIndex: number) => string
-  sensorName: string
   sensorType: string
+  sensorTypeOptions: Record<(typeof commonSensorTypes)[number], string>
   uncertaintyCelsius: string
-  uncertaintySource: string
-  selectUncertaintySource: string
-  uncertaintySourceOptions: Record<TemperatureUncertaintySource, string>
   selectZoneCountFirst: string
 }
 
@@ -58,17 +45,13 @@ function sensorIsValid(
   zoneCount?: number | null,
 ): boolean {
   return (
-    sensor.sensor_name.trim() !== '' &&
     sensor.sensor_type.trim() !== '' &&
     isFiniteNumber(sensor.zone_index) &&
     Number.isInteger(sensor.zone_index) &&
     sensor.zone_index >= 1 &&
     (zoneCount == null || sensor.zone_index <= zoneCount) &&
     isFiniteNumber(sensor.uncertainty_C) &&
-    sensor.uncertainty_C >= 0 &&
-    temperatureUncertaintySources.includes(
-      sensor.uncertainty_source as TemperatureUncertaintySource,
-    )
+    sensor.uncertainty_C >= 0
   )
 }
 
@@ -96,11 +79,9 @@ export function temperatureSensorsAreValid(
 
 function emptySensor(zoneIndex: number): TemperatureSensor {
   return {
-    sensor_name: '',
     sensor_type: '',
     zone_index: zoneIndex,
     uncertainty_C: null,
-    uncertainty_source: '',
   }
 }
 
@@ -194,27 +175,12 @@ export function TemperatureSensorsEditor({
               {labels.sensor(zoneIndex)}
             </legend>
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-${zoneIndex}-name`}>
-                {labels.sensorName}
-              </Label>
-              <Input
-                id={`${baseId}-${zoneIndex}-name`}
-                value={sensor.sensor_name}
-                aria-invalid={
-                  (showErrors && !sensor.sensor_name.trim()) || undefined
-                }
-                disabled={disabled}
-                onChange={(event) =>
-                  update(index, { sensor_name: event.target.value })
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${zoneIndex}-type`}>
                 {labels.sensorType}
               </Label>
               <Input
                 id={`${baseId}-${zoneIndex}-type`}
+                list={`${baseId}-${zoneIndex}-sensor-types`}
                 value={sensor.sensor_type}
                 aria-invalid={
                   (showErrors && !sensor.sensor_type.trim()) || undefined
@@ -224,6 +190,11 @@ export function TemperatureSensorsEditor({
                   update(index, { sensor_type: event.target.value })
                 }
               />
+              <datalist id={`${baseId}-${zoneIndex}-sensor-types`}>
+                {commonSensorTypes.map((type) => (
+                  <option key={type} value={labels.sensorTypeOptions[type]} />
+                ))}
+              </datalist>
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${zoneIndex}-uncertainty`}>
@@ -249,39 +220,6 @@ export function TemperatureSensorsEditor({
                   })
                 }
               />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-${zoneIndex}-source`}>
-                {labels.uncertaintySource}
-              </Label>
-              <Select
-                value={sensor.uncertainty_source}
-                disabled={disabled}
-                onValueChange={(source) =>
-                  update(index, {
-                    uncertainty_source: source as TemperatureUncertaintySource,
-                  })
-                }
-              >
-                <SelectTrigger
-                  id={`${baseId}-${zoneIndex}-source`}
-                  className="w-full"
-                  aria-invalid={
-                    (showErrors && !sensor.uncertainty_source) || undefined
-                  }
-                >
-                  <SelectValue placeholder={labels.selectUncertaintySource} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {temperatureUncertaintySources.map((source) => (
-                      <SelectItem key={source} value={source}>
-                        {labels.uncertaintySourceOptions[source]}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
             </div>
           </fieldset>
         )

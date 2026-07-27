@@ -17,8 +17,7 @@ describe('structured editor label factories', () => {
       zone: '温区 2',
       gas: '气体供气 2',
       argon: '氩气（Ar）',
-      sensor: '温度传感器 2',
-      calibration: '校准',
+      sensor: '温区 2',
     },
     {
       language: 'en',
@@ -27,21 +26,11 @@ describe('structured editor label factories', () => {
       zone: 'Temperature zone 2',
       gas: 'Gas feed 2',
       argon: 'Argon (Ar)',
-      sensor: 'Temperature sensor 2',
-      calibration: 'Calibration',
+      sensor: 'Zone 2',
     },
   ])(
     'maps every editor through the $language resource',
-    ({
-      language,
-      treatmentStep,
-      spinCoat,
-      zone,
-      gas,
-      argon,
-      sensor,
-      calibration,
-    }) => {
+    ({ language, treatmentStep, spinCoat, zone, gas, argon, sensor }) => {
       const t = i18n.getFixedT(language)
       const treatment = buildTreatmentStepsEditorLabels(t)
       const temperature = buildTemperatureProgramEditorLabels(t)
@@ -57,8 +46,6 @@ describe('structured editor label factories', () => {
       expect(gasFeeds.speciesOptions.Ar).toBe(argon)
       expect(Object.keys(gasFeeds.speciesOptions)).toHaveLength(6)
       expect(sensors.sensor(2)).toBe(sensor)
-      expect(sensors.uncertaintySourceOptions.calibration).toBe(calibration)
-      expect(Object.keys(sensors.uncertaintySourceOptions)).toHaveLength(4)
     },
   )
 })

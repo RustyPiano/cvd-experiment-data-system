@@ -33,7 +33,7 @@ export const common = {
     tubeDimensionsRequired:
       'Complete the tube dimensions for the selected cross-section',
     temperatureSensorsCoverage:
-      'This setup has {{count}} zones. Complete one sensor card for each zone 1–{{count}} (name, type, uncertainty, and source).',
+      'This setup has {{count}} zones. Enter the sensor type and temperature error for each zone 1–{{count}}.',
     substrateFormulaMismatch:
       'The formula does not match the selected substrate material. Check the lot label.',
     usageHistory:
@@ -289,11 +289,18 @@ export const common = {
     },
     temperatureSensors: {
       addSensor: 'Add temperature sensor',
-      sensor: 'Temperature sensor {{position}}',
+      sensor: 'Zone {{position}}',
       sensorName: 'Sensor name',
       sensorType: 'Sensor type',
+      sensorTypeOptions: {
+        kThermocouple: 'K-type thermocouple',
+        sThermocouple: 'S-type thermocouple',
+        rThermocouple: 'R-type thermocouple',
+        bThermocouple: 'B-type thermocouple',
+        infraredPyrometer: 'Infrared pyrometer',
+      },
       zoneIndex: 'Zone number',
-      uncertaintyCelsius: 'Measurement uncertainty (°C)',
+      uncertaintyCelsius: 'Temperature measurement error (°C)',
       uncertaintySource: 'Uncertainty source',
       selectUncertaintySource: 'Select an uncertainty source',
       uncertaintySourceOptions: {
@@ -724,8 +731,11 @@ export const common = {
       error: 'Failed to update status',
       missingTitle: 'Complete these fields first:',
       saveBeforeLock:
-        'Process changes are still unsaved. Save the affected sections before locking.',
+        'Changes are still unsaved. Save the affected sections before exporting or locking.',
       requirement: { required: 'Required', r0: 'Required before locking' },
+      lockTitle: 'Lock the process?',
+      lockDescription:
+        'Locking makes process parameters read-only and generates samples from the substrates. Results can still be added. Confirm that every section is saved.',
       invalidateTitle: 'Invalidate run',
       invalidateDescription:
         'After invalidation, this run cannot be edited or restored. Enter the reason for invalidation.',
@@ -829,6 +839,8 @@ export const common = {
       moduleSaveSuccess: 'Section saved',
       saveError: 'Failed to save',
       fixRequired: 'Please complete the required fields first',
+      incompleteItem:
+        '{{module}} item {{position}} is incomplete. Check the highlighted fields in that item.',
       selectSetupFirst: 'Select an experimental setup first',
       createAction: 'Start recording run',
       createSuccess: 'Run created',
@@ -855,6 +867,15 @@ export const common = {
       role: 'Role',
       concentration: 'Concentration (at%)',
       layerOrder: 'Layer order',
+      item: 'Component {{position}}',
+      layer: 'Material layer {{position}} (from substrate upward)',
+      region: 'Lateral region {{position}}',
+      dopant: 'Dopant {{position}}',
+      dopantElement: 'Dopant element',
+      alloySiteElement: 'Mixed-site element',
+      nominalContent: 'Nominal content (at.%)',
+      siteFraction: 'Site fraction (%)',
+      bulkSpaceGroup: 'Bulk space group (optional)',
     },
     reference: {
       placeholder: 'Select',
@@ -871,18 +892,28 @@ export const common = {
       },
       targetProduct: {
         title: 'Target product',
+        intrinsicFormula: 'Target material formula',
+        dopedFormula: 'Host material formula',
+        alloyFormula: 'Alloy formula',
+        derivedFormula: 'System display formula (generated)',
+        componentTitles: {
+          doped: 'Host material and dopants',
+          alloy: 'Mixed-site elements and fractions',
+          vertical_heterostructure: 'Material layers (from substrate upward)',
+          lateral_heterostructure: 'Lateral material regions',
+          other: 'Composition details',
+        },
         guideTitle: 'How to fill this section',
         guides: {
-          intrinsic:
-            'Intrinsic: enter only the target material formula, such as MoS2; do not add composition rows.',
+          intrinsic: 'Example: MoS2. Enter only the target material formula.',
           doped:
-            'Doped: enter the material formula used in the experiment. Record one host material and one or more dopants as separate composition rows; add nominal concentrations when known and leave layer order blank. The system does not force one combined dopant notation, and the final role term remains to be aligned by the group.',
+            'Example: Pt-doped MoS2. Enter host MoS2, dopant Pt, and the nominal content when known.',
           alloy:
-            'Alloy: enter the nominal stoichiometry, such as Mo0.5W0.5S2. Add one row for each alloy element or component and select Alloy component. Enter nominal concentration (at%) when known and leave layer order blank.',
+            'Example: Mo0.5W0.5S2. Enter the alloy formula and 50% site fractions for Mo and W.',
           vertical:
-            'Vertical heterostructure: use “bottom and top”, such as MoS2/WS2. Add one row per layer, select Bottom layer or Top layer, and number layers from the substrate upward starting at 1; every bottom-layer order must precede every top-layer order. Leave concentration blank.',
+            'Example: MoS2/WS2. Add layers from the substrate upward; the display formula is generated.',
           lateral:
-            'Lateral heterostructure: join domains with “-”, such as MoS2-WS2. Add one row per domain and select Lateral domain. Leave concentration and layer order blank.',
+            'Example: MoS2-WS2. Add each lateral material region; the display formula is generated.',
           other:
             'Other: enter the group-approved formula with regular digits and add one row per component. Fill only applicable concentration or layer order values and explain the relationship in Notes.',
         },
@@ -923,9 +954,12 @@ export const common = {
       },
       processSteps: {
         title: 'Process',
-        add: 'Add process record',
+        add: 'Add other record',
         empty: 'No process records yet.',
         item: 'Process record {{position}}',
+        preparation: 'Pre-run operations',
+        reaction: 'Reaction conditions',
+        other: 'Other record {{position}}',
         moveUp: 'Move up',
         moveDown: 'Move down',
         legacyStageTitle: 'This record uses a retired process structure',

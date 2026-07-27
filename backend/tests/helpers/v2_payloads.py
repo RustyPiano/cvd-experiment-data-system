@@ -164,6 +164,7 @@ def substrate_item(
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = {
+        "piece_label": "S1",
         "material": material,
         "lot_ref": lot_reference(lot),
         "chemical_formula": chemical_formula,

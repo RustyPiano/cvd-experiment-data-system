@@ -914,6 +914,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
                     {
                         "name_formula": "MoO3",
                         "cas_inchi": "FORGED",
+                        "role": "main_precursor",
                         "phase_state": "solid",
                         "amount": 20,
                         "boat_crucible": {
@@ -1045,6 +1046,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
                 "items": [
                     {
                         "name_formula": "三氧化钼",
+                        "role": "main_precursor",
                         "phase_state": "solid",
                         "amount": 20,
                         "boat_crucible": {

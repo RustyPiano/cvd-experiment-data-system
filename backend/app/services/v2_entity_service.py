@@ -474,14 +474,16 @@ class V2EntityService:
             if len(sensors) != len(raw) or len(zones) != len(set(zones)):
                 raise ValueError
             maximum_zone = int(zone_count)
-            if set(zones) != set(range(1, maximum_zone + 1)):
+            if len(zones) != maximum_zone or any(
+                zone != expected for expected, zone in enumerate(sorted(zones), start=1)
+            ):
                 raise ValueError
         except (TypeError, ValueError, ValidationError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"invalid": [{"key": key, "reason": "value"}]},
             ) from exc
-        return [sensor.model_dump() for sensor in sensors]
+        return [sensor.model_dump(exclude_none=True) for sensor in sensors]
 
     def _file_asset_snapshot(
         self,

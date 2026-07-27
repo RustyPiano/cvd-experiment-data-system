@@ -164,10 +164,10 @@ describe('structured sample provenance', () => {
     render(<SampleDetailPage />)
 
     expect(
-      screen.getByText(/物质名称：High-purity sapphire wafer/),
+      screen.getByText(/物质名称（中文）：High-purity sapphire wafer/),
     ).toHaveTextContent('生产批号：LOT-SAP-01')
     expect(
-      screen.getByText(/物质名称：High-purity sapphire wafer/),
+      screen.getByText(/物质名称（中文）：High-purity sapphire wafer/),
     ).toHaveTextContent('冻结版本：v3')
     expect(screen.getByText(/粗糙度指标：RMS/)).toHaveTextContent(
       '粗糙度数值（nm）：0.42',

@@ -40,14 +40,14 @@ def material_lot_item_projection(module_key: str, snapshot: dict) -> dict:
         formula = _material_lot_snapshot_value(snapshot, "chemical_formula")
         substance_name = _material_lot_snapshot_value(snapshot, "substance_name")
         identity = formula if _present_snapshot_value(formula) else substance_name
-        cas_parts = [
-            str(value).strip()
-            for key in ("cas_number", "inchikey_cid")
-            if _present_snapshot_value(value := _material_lot_snapshot_value(snapshot, key))
-        ]
+        cas_number = _material_lot_snapshot_value(snapshot, "cas_number")
         return {
             **({"name_formula": identity} if _present_snapshot_value(identity) else {}),
-            **({"cas_inchi": " · ".join(cas_parts)} if cas_parts else {}),
+            **(
+                {"cas_inchi": str(cas_number).strip()}
+                if _present_snapshot_value(cas_number)
+                else {}
+            ),
         }
 
     if module_key != "substrates":

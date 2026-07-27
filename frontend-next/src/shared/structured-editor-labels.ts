@@ -251,7 +251,6 @@ export function buildDurationCyclesEditorLabels(
 ): DurationCyclesEditorLabels {
   return {
     durationMinutes: t('structuredEditors.durationCycles.durationMinutes'),
-    cycleCount: t('structuredEditors.durationCycles.cycleCount'),
   }
 }
 
@@ -371,31 +370,27 @@ export function buildTemperatureSensorsEditorLabels(
   return {
     sensor: (position) =>
       t('structuredEditors.temperatureSensors.sensor', { position }),
-    sensorName: t('structuredEditors.temperatureSensors.sensorName'),
     sensorType: t('structuredEditors.temperatureSensors.sensorType'),
+    sensorTypeOptions: {
+      kThermocouple: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.kThermocouple',
+      ),
+      sThermocouple: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.sThermocouple',
+      ),
+      rThermocouple: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.rThermocouple',
+      ),
+      bThermocouple: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.bThermocouple',
+      ),
+      infraredPyrometer: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.infraredPyrometer',
+      ),
+    },
     uncertaintyCelsius: t(
       'structuredEditors.temperatureSensors.uncertaintyCelsius',
     ),
-    uncertaintySource: t(
-      'structuredEditors.temperatureSensors.uncertaintySource',
-    ),
-    selectUncertaintySource: t(
-      'structuredEditors.temperatureSensors.selectUncertaintySource',
-    ),
-    uncertaintySourceOptions: {
-      instrument: t(
-        'structuredEditors.temperatureSensors.uncertaintySourceOptions.instrument',
-      ),
-      calibration: t(
-        'structuredEditors.temperatureSensors.uncertaintySourceOptions.calibration',
-      ),
-      repeatability: t(
-        'structuredEditors.temperatureSensors.uncertaintySourceOptions.repeatability',
-      ),
-      estimate: t(
-        'structuredEditors.temperatureSensors.uncertaintySourceOptions.estimate',
-      ),
-    },
     selectZoneCountFirst: t(
       'structuredEditors.temperatureSensors.selectZoneCountFirst',
     ),

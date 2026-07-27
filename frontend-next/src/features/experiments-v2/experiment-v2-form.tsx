@@ -128,6 +128,9 @@ function targetProductMissing(
   values: ModuleValues,
   components: ComponentRow[],
 ): boolean {
+  const structureType = canonicalOption(
+    moduleValueAsString(values['structure_type']),
+  )
   for (const field of getModuleFields('target_product')) {
     if (field.key === 'components') {
       if (
@@ -137,6 +140,15 @@ function targetProductMissing(
       ) {
         return true
       }
+      continue
+    }
+    if (
+      field.key === 'chemical_formula' &&
+      ['vertical_heterostructure', 'lateral_heterostructure'].includes(
+        structureType,
+      )
+    ) {
+      if (components.filter(isNonEmptyComponent).length < 2) return true
       continue
     }
     if (
@@ -150,47 +162,64 @@ function targetProductMissing(
   return false
 }
 
+function itemMissing(
+  moduleKey: string,
+  item: ModuleValues,
+  zoneCount?: number | null,
+): boolean {
+  if (missingRequiredKeys(moduleKey, item).length > 0) return true
+  try {
+    buildItemPayload(moduleKey, item)
+    if (
+      moduleKey === 'precursors' &&
+      moduleValueAsString(item['source_zone_temperature']).trim()
+    ) {
+      structuredPayload(
+        'source_zone_temperature',
+        moduleValueAsString(item['source_zone_temperature']),
+        { zoneCount },
+      )
+    }
+    const treatmentKey =
+      moduleKey === 'precursors'
+        ? 'treatment_steps'
+        : moduleKey === 'substrates'
+          ? 'pretreatment_steps'
+          : null
+    if (!treatmentKey) return false
+    const raw = moduleValueAsString(item[treatmentKey])
+    return (
+      raw.trim() !== '' &&
+      !treatmentStepsAreValid(
+        moduleKey === 'precursors' ? 'precursor' : 'substrate',
+        JSON.parse(raw) as TreatmentStep[],
+      )
+    )
+  } catch {
+    return true
+  }
+}
+
+function firstInvalidItemPosition(
+  moduleKey: string,
+  items: ModuleValues[],
+  zoneCount?: number | null,
+): number | null {
+  for (const [index, rawItem] of items.entries()) {
+    const item = materialLotProjectedItem(moduleKey, rawItem)
+    if (itemHasAnyValue(item) && itemMissing(moduleKey, item, zoneCount)) {
+      return index + 1
+    }
+  }
+  return null
+}
+
 function itemsMissing(
   moduleKey: string,
   items: ModuleValues[],
   zoneCount?: number | null,
 ): boolean {
-  return items
-    .map((item) => materialLotProjectedItem(moduleKey, item))
-    .filter(itemHasAnyValue)
-    .some((item) => {
-      if (missingRequiredKeys(moduleKey, item).length > 0) return true
-      try {
-        buildItemPayload(moduleKey, item)
-        if (
-          moduleKey === 'precursors' &&
-          moduleValueAsString(item['source_zone_temperature']).trim()
-        ) {
-          structuredPayload(
-            'source_zone_temperature',
-            moduleValueAsString(item['source_zone_temperature']),
-            { zoneCount },
-          )
-        }
-        const treatmentKey =
-          moduleKey === 'precursors'
-            ? 'treatment_steps'
-            : moduleKey === 'substrates'
-              ? 'pretreatment_steps'
-              : null
-        if (!treatmentKey) return false
-        const raw = moduleValueAsString(item[treatmentKey])
-        return (
-          raw.trim() !== '' &&
-          !treatmentStepsAreValid(
-            moduleKey === 'precursors' ? 'precursor' : 'substrate',
-            JSON.parse(raw) as TreatmentStep[],
-          )
-        )
-      } catch {
-        return true
-      }
-    })
+  return firstInvalidItemPosition(moduleKey, items, zoneCount) !== null
 }
 
 function authoritativeItems(
@@ -342,6 +371,7 @@ type ModuleSpec = {
   key: string
   active: (context: ModuleContext) => boolean
   missing: (context: ModuleContext) => boolean
+  invalidItemPosition?: (context: ModuleContext) => number | null
   payload?: (context: ModuleContext) => Record<string, unknown>
 }
 
@@ -396,6 +426,14 @@ const MODULE_SPECS: ModuleSpec[] = [
         Number.isInteger(value) && value > 0 ? value : null,
       )
     },
+    invalidItemPosition: ({ state }) => {
+      const value = Number(state.equipment.snapshot?.['zone_count'])
+      return firstInvalidItemPosition(
+        'precursors',
+        state.precursors,
+        Number.isInteger(value) && value > 0 ? value : null,
+      )
+    },
     payload: ({ state }) =>
       buildItemsModulePayload(
         'precursors',
@@ -406,6 +444,8 @@ const MODULE_SPECS: ModuleSpec[] = [
     key: 'substrates',
     active: ({ state }) => state.substrates.some(itemHasAnyValue),
     missing: ({ state }) => itemsMissing('substrates', state.substrates),
+    invalidItemPosition: ({ state }) =>
+      firstInvalidItemPosition('substrates', state.substrates),
     payload: ({ state }) =>
       buildItemsModulePayload(
         'substrates',
@@ -425,6 +465,8 @@ const MODULE_SPECS: ModuleSpec[] = [
     active: ({ state }) => state.process_events.some(itemHasAnyValue),
     missing: ({ state }) =>
       itemsMissing('process_events', state.process_events),
+    invalidItemPosition: ({ state }) =>
+      firstInvalidItemPosition('process_events', state.process_events),
     payload: ({ state }) =>
       buildItemsModulePayload('process_events', state.process_events),
   },
@@ -458,6 +500,7 @@ export function ExperimentV2Form({
   processReadOnly = false,
   resultsReadOnly = false,
   onProcessDirtyChange,
+  onDirtyChange,
 }: {
   mode: 'new' | 'edit'
   runId?: string
@@ -467,6 +510,7 @@ export function ExperimentV2Form({
   processReadOnly?: boolean
   resultsReadOnly?: boolean
   onProcessDirtyChange?: (dirty: boolean) => void
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const { i18n, t } = useTranslation()
   const navigate = useNavigate()
@@ -495,6 +539,10 @@ export function ExperimentV2Form({
   useEffect(() => {
     onProcessDirtyChange?.(dirtyKeys.size > 0)
   }, [dirtyKeys, onProcessDirtyChange])
+
+  useEffect(() => {
+    onDirtyChange?.(dirtyKeys.size > 0 || resultsDirty)
+  }, [dirtyKeys, onDirtyChange, resultsDirty])
 
   const markDirty = (moduleKey: string) => {
     revisions.current[moduleKey] = (revisions.current[moduleKey] ?? 0) + 1
@@ -625,16 +673,26 @@ export function ExperimentV2Form({
     if (!spec) return
     const context = moduleContext('edit')
     if (spec.missing(context)) {
-      setShowErrors(true)
-      toast.error(
-        t(
-          moduleKey === 'equipment' && !state.equipment.setupId
-            ? 'experimentsV2.form.selectSetupFirst'
-            : moduleKey === 'equipment'
-              ? 'validation.usageHistory'
-              : 'experimentsV2.form.fixRequired',
-        ),
+      const invalidItemPosition = spec.invalidItemPosition?.(context)
+      const section = FORM_SECTION_LINKS.find(
+        (item) => item.id === `module-${moduleKey}`,
       )
+      const message =
+        invalidItemPosition && section
+          ? t('experimentsV2.form.incompleteItem', {
+              module: t(`experimentsV2.sections.${section.titleKey}.title`),
+              position: invalidItemPosition,
+            })
+          : t(
+              moduleKey === 'equipment' && !state.equipment.setupId
+                ? 'experimentsV2.form.selectSetupFirst'
+                : moduleKey === 'equipment'
+                  ? 'validation.usageHistory'
+                  : 'experimentsV2.form.fixRequired',
+            )
+      setShowErrors(true)
+      setModuleErrors((prev) => ({ ...prev, [moduleKey]: message }))
+      toast.error(message)
       return
     }
 

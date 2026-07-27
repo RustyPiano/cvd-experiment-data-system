@@ -16,7 +16,7 @@ from app.services.v2_entity_service import V2EntityService
 from app.services.v2_experiment_service import V2ExperimentService
 from app.services.v2_field_source import SCHEMA_VERSION
 from app.services.v2_process_semantics import (
-    derived_reaction_cycle_count,
+    gas_feeds_are_unique,
     gas_identity_matches,
 )
 from app.services.v2_r0_service import missing_r0_fields
@@ -294,11 +294,9 @@ def test_temperature_program_accepts_single_zero_point_and_rejects_nonzero_start
     ]
 
 
-@pytest.mark.parametrize("interval_count", [1, 2, 3])
-def test_reaction_cycle_count_is_derived_from_gas_intervals(
+def test_reaction_duration_does_not_invent_cycles_from_gas_intervals(
     db_session,
     active_user,
-    interval_count: int,
 ) -> None:
     run = _run(db_session, active_user)
     gas = _gas_lot(db_session)
@@ -306,8 +304,7 @@ def test_reaction_cycle_count_is_derived_from_gas_intervals(
     payload = _process_payload(gas)
     reaction = payload["items"][1]
     reaction["gas_feeds"][0]["intervals"] = [
-        {"start_min": index * 10, "end_min": index * 10 + 5, "flow_sccm": 80}
-        for index in range(interval_count)
+        {"start_min": index * 10, "end_min": index * 10 + 5, "flow_sccm": 80} for index in range(3)
     ]
 
     saved = service.upsert_module(
@@ -316,36 +313,13 @@ def test_reaction_cycle_count_is_derived_from_gas_intervals(
         V2ModulePayloadUpsert(payload_json=payload),
         active_user,
     )
-    assert saved.payload_json["items"][1]["duration_cycles"]["cycle_count"] == interval_count
-
-    reaction["duration_cycles"]["cycle_count"] = interval_count + 1
-    with pytest.raises(HTTPException) as exc_info:
-        service.upsert_module(
-            run.id,
-            "process_steps",
-            V2ModulePayloadUpsert(payload_json=payload),
-            active_user,
-        )
-    assert exc_info.value.detail["invalid"] == [
-        {"key": "duration_cycles", "reason": "gas_intervals"}
-    ]
+    duration = saved.payload_json["items"][1]["duration_cycles"]
+    assert duration["duration_min"] == 60.0
+    assert duration["cycle_count"] is None
+    assert gas_feeds_are_unique(saved.payload_json)
 
 
-def test_reaction_cycle_count_uses_largest_single_gas_interval_count() -> None:
-    assert (
-        derived_reaction_cycle_count(
-            [
-                {"intervals": [{}, {}]},
-                {"intervals": [{}, {}, {}]},
-                {"intervals": [{}]},
-            ]
-        )
-        == 3
-    )
-    assert derived_reaction_cycle_count([]) is None
-
-
-def test_lock_r0_rechecks_process_order_temperature_start_and_cycle_count(
+def test_lock_r0_rechecks_process_order_temperature_start_and_duplicate_gas(
     db_session,
     active_user,
 ) -> None:
@@ -363,7 +337,7 @@ def test_lock_r0_rechecks_process_order_temperature_start_and_cycle_count(
     preparation, reaction, *other = changed_payload["items"]
     changed_payload["items"] = [reaction, *other, preparation]
     reaction["temperature_program"]["zones"][0]["points"][0]["elapsed_min"] = 5
-    reaction["duration_cycles"]["cycle_count"] = 2
+    reaction["gas_feeds"].append(deepcopy(reaction["gas_feeds"][0]))
     saved.payload_json = changed_payload
     service.module_payloads.save(saved)
     db_session.commit()
@@ -373,7 +347,7 @@ def test_lock_r0_rechecks_process_order_temperature_start_and_cycle_count(
     assert {
         "process_step_order",
         "temperature_program_start",
-        "reaction_cycle_count",
+        "unique_gas_feeds",
     } <= missing_keys
 
     with pytest.raises(HTTPException) as exc_info:
@@ -382,7 +356,7 @@ def test_lock_r0_rechecks_process_order_temperature_start_and_cycle_count(
     assert {
         "stage_type",
         "temperature_program",
-        "duration_cycles",
+        "gas_feeds",
     } <= lock_missing_keys
 
 
@@ -1302,6 +1276,7 @@ def test_substrate_save_can_derive_lot_owned_required_fields(
             payload_json={
                 "items": [
                     {
+                        "piece_label": "S1",
                         "lot_ref": _lot_ref(lot),
                         "size_placement": {
                             "length_mm": 10,
