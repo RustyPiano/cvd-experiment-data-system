@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库与香港生产均为 v2 单轨；M-01—M-24、A-01—A-09 与 F-01—F-12 已随 `57a25b7` 发布；U-01—U-32 为后续本地终审批次；2026-07-27 制备模块终版第一批已完成本地实现、全门禁和真实页面关键分支验收，未提交、未部署；下一步先由用户逐条审阅，再完成计划中的交互收口并交俊杰、博研试填**。字段单一源 = `docs/standard/field-source.yaml`；本轮计划 = `docs/product/2026-07-27-preparation-module-finalization-plan.md`；历史报告 = `docs/reviews/2026-07-24-teacher-meeting-remediation.md`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库与香港生产均为 v2 单轨；2026-07-27 制备模块终版及此前 M/A/F、U 批次已随 `ff9d8b0` 发布，字段源为 v3.12；下一步由用户在线逐条审阅，再交俊杰、博研按真实炉次试填**。字段单一源 = `docs/standard/field-source.yaml`；本轮计划 = `docs/product/2026-07-27-preparation-module-finalization-plan.md`；历史报告 = `docs/reviews/2026-07-24-teacher-meeting-remediation.md`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
 
 ## 项目概览
 
