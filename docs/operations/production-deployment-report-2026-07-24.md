@@ -2,8 +2,8 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `f0dfe931fdadd9f354c38eff27630de90de14bdd`。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与最新发布运行 `30337068506` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；`main` 已设置同名 required checks，并禁止强推和删除。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `07eccde2607d7fd8bc61cc55f13e0daa89a627ee`。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与最新发布运行 `30352259683` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；`main` 已设置同名 required checks，并禁止强推和删除。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧版数据没有删除。旧数据库已离线归档为 `cvd_v1_archive_20260724`，新 v2 使用全新的 `cvd` 数据库。
 - 用户指定的管理员账号已创建，API 与真实浏览器登录均通过。
@@ -94,6 +94,9 @@
 - 实验装置 v3.16 经 `main` Actions `30337068506` 五项全绿后，按普通 `./deploy.sh` 从 `00c1952` 前滚到 `f0dfe93`；没有新增迁移，也没有使用批8能力或 schema guard 旁路。
 - 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260728_150718`；`database.sql` SHA-256 为 `b649b3f0d843bdb335edf2badcdf272dc31b8f19a93c6191195063015feca3c6`，`storage.tar.gz` SHA-256 为 `1b5dc9a93983548bb546241e5aadc8ab239ecf0b6df302587421cf261f8fa6d9`，目录权限为 `0700`、文件权限为 `0600`。
 - 部署后服务器仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 为 `20260728_0002 (head)`；公网 `/health`、首页、`runtime-config.js`、匿名 401 边界及“制造商或品牌”“实验室装置编号（资产编号）”“标称测温精度”静态产物通过。浏览器插件因用户侧域名禁用策略未执行页面复验。
+- 实验装置 v3.17 与前驱体 v3.18 经 `main` Actions `30352259683` 五项全绿后，按普通 `./deploy.sh` 从 `f0dfe93` 前滚到 `07eccde`；没有新增迁移，也没有使用批8能力或 schema guard 旁路。
+- 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260728_185046`；`database.sql` SHA-256 为 `b43411151e7c825dc06d56b1d4c9fddf946bcf39d7dcee94e78c0bfb174850cc`，`storage.tar.gz` SHA-256 为 `3ee1e34946f254970cedf0b85546d8e6cd05352e508af2593c75cc8c2d6894c9`，目录权限为 `0700`、文件权限为 `0600`。
+- 部署后服务器仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 保持 `20260728_0002 (head)`；公网 `/health`、首页和匿名 401 边界通过。浏览器只读验收因用户侧域名禁用策略未执行，未写入生产验收数据。
 
 ## 尚待真实数据验收
 
