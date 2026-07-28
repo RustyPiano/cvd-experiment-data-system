@@ -27,7 +27,11 @@ import type { EntityKind } from './config'
 import { entityConfigs, entityRoutes } from './config'
 import { appendEntityVersion, getEntity, listEntityVersions } from './api'
 import type { EntityFileAssetRead, EntityVersionPayload } from './api'
-import { getEntityFields, isFieldVisible } from './field-logic'
+import {
+  buildDefaultValues,
+  getEntityFields,
+  isFieldVisible,
+} from './field-logic'
 import { EntityForm } from './entity-form'
 import {
   localizedFieldLabel,
@@ -167,12 +171,7 @@ export function EntityDetailPage({
     localizedValue(activeData[config.primaryKey], i18n.language) ||
     entity.id.slice(0, 8)
   const structuredLabels = buildStructuredValueLabels(t)
-  const visibilityValues = Object.fromEntries(
-    Object.entries(activeData).map(([key, value]) => [
-      key,
-      value == null ? '' : String(value),
-    ]),
-  )
+  const visibilityValues = buildDefaultValues(kind, activeData)
 
   return (
     <div className="flex flex-col gap-6">

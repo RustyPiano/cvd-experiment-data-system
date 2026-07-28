@@ -37,6 +37,7 @@ const versions = [
     data: {
       setup_code: 'SETUP-01',
       setup_name: 'Main setup',
+      tube_material_shape: { material: 'quartz', shape: 'round' },
       tube_outer_diameter_wall_mm: {
         outer_diameter_mm: 50,
         wall_thickness_mm: 2,
@@ -51,6 +52,7 @@ const versions = [
     data: {
       setup_code: 'SETUP-01',
       setup_name: 'Main setup',
+      tube_material_shape: { material: 'quartz', shape: 'round' },
       tube_outer_diameter_wall_mm: {
         outer_diameter_mm: 40,
         wall_thickness_mm: 1.5,
