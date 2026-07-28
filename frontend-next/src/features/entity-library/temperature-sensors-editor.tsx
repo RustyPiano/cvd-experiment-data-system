@@ -12,35 +12,25 @@ import {
 } from '@/components/ui/select'
 
 const commonSensorTypes = [
-  { value: 'k_thermocouple', label: 'kThermocouple' },
-  { value: 's_thermocouple', label: 'sThermocouple' },
-  { value: 'r_thermocouple', label: 'rThermocouple' },
-  { value: 'b_thermocouple', label: 'bThermocouple' },
-  { value: 'infrared_pyrometer', label: 'infraredPyrometer' },
+  { value: 'thermocouple', label: 'thermocouple' },
+  { value: 'rtd', label: 'rtd' },
+  { value: 'infrared_thermometer', label: 'infraredThermometer' },
+  {
+    value: 'fiber_optic_temperature_sensor',
+    label: 'fiberOpticTemperatureSensor',
+  },
+  { value: 'thermistor', label: 'thermistor' },
 ] as const
 const commonSensorTypeValues = new Set<string>(
   commonSensorTypes.map(({ value }) => value),
 )
 type SensorTypeLabelKey = (typeof commonSensorTypes)[number]['label']
-const legacySensorTypes: Record<string, string> = {
-  K: 'k_thermocouple',
-  'K-type thermocouple': 'k_thermocouple',
-  S: 's_thermocouple',
-  'S-type thermocouple': 's_thermocouple',
-  R: 'r_thermocouple',
-  'R-type thermocouple': 'r_thermocouple',
-  B: 'b_thermocouple',
-  'B-type thermocouple': 'b_thermocouple',
-  'Infrared pyrometer': 'infrared_pyrometer',
-}
 
 export interface TemperatureSensor {
-  sensor_name?: string
   sensor_type: string
   sensor_type_other?: string
   zone_index: number | null
-  uncertainty_C: number | null
-  uncertainty_source?: string
+  nominal_accuracy_C?: number | null
 }
 
 export interface TemperatureSensorsEditorLabels {
@@ -50,7 +40,7 @@ export interface TemperatureSensorsEditorLabels {
   selectSensorType: string
   otherSensorType: string
   otherSensorTypePlaceholder: string
-  uncertaintyCelsius: string
+  nominalAccuracyCelsius: string
   selectZoneCountFirst: string
 }
 
@@ -81,24 +71,10 @@ function sensorIsValid(
     Number.isInteger(sensor.zone_index) &&
     sensor.zone_index >= 1 &&
     (zoneCount == null || sensor.zone_index <= zoneCount) &&
-    isFiniteNumber(sensor.uncertainty_C) &&
-    sensor.uncertainty_C >= 0
+    (sensor.nominal_accuracy_C == null ||
+      (isFiniteNumber(sensor.nominal_accuracy_C) &&
+        sensor.nominal_accuracy_C >= 0))
   )
-}
-
-function normalizeSensorType(sensor: TemperatureSensor): TemperatureSensor {
-  const sensorType = legacySensorTypes[sensor.sensor_type] ?? sensor.sensor_type
-  if (commonSensorTypeValues.has(sensorType)) {
-    return { ...sensor, sensor_type: sensorType, sensor_type_other: undefined }
-  }
-  if (sensorType === 'other' || !sensorType.trim()) {
-    return { ...sensor, sensor_type: sensorType }
-  }
-  return {
-    ...sensor,
-    sensor_type: 'other',
-    sensor_type_other: sensor.sensor_type_other?.trim() || sensorType,
-  }
 }
 
 export function temperatureSensorsAreValid(
@@ -127,13 +103,13 @@ function emptySensor(zoneIndex: number): TemperatureSensor {
   return {
     sensor_type: '',
     zone_index: zoneIndex,
-    uncertainty_C: null,
+    nominal_accuracy_C: null,
   }
 }
 
 /**
  * Setup 的温区数是传感器卡片的唯一结构来源。优先按既有 zone_index
- * 对齐；旧数据缺号或重复时再按原顺序填入空缺温区，并始终重写自动编号。
+ * 对齐；缺号或重复时再按原顺序填入空缺温区，并始终重写自动编号。
  */
 export function reconcileTemperatureSensors(
   value: TemperatureSensor[],
@@ -161,10 +137,10 @@ export function reconcileTemperatureSensors(
   return Array.from({ length: zoneCount }, (_, index) => {
     const zoneIndex = index + 1
     const source = assigned.get(zoneIndex) ?? leftovers[fallbackIndex++]
-    return normalizeSensorType({
+    return {
       ...(source ?? emptySensor(zoneIndex)),
       zone_index: zoneIndex,
-    })
+    }
   })
 }
 
@@ -283,26 +259,27 @@ export function TemperatureSensorsEditor({
               ) : null}
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor={`${baseId}-${zoneIndex}-uncertainty`}>
-                {labels.uncertaintyCelsius}
+              <Label htmlFor={`${baseId}-${zoneIndex}-accuracy`}>
+                {labels.nominalAccuracyCelsius}
               </Label>
               <Input
-                id={`${baseId}-${zoneIndex}-uncertainty`}
+                id={`${baseId}-${zoneIndex}-accuracy`}
                 type="number"
                 inputMode="decimal"
                 step="any"
                 min={0}
-                value={sensor.uncertainty_C ?? ''}
+                value={sensor.nominal_accuracy_C ?? ''}
                 aria-invalid={
                   (showErrors &&
-                    (!isFiniteNumber(sensor.uncertainty_C) ||
-                      sensor.uncertainty_C < 0)) ||
+                    sensor.nominal_accuracy_C != null &&
+                    (!isFiniteNumber(sensor.nominal_accuracy_C) ||
+                      sensor.nominal_accuracy_C < 0)) ||
                   undefined
                 }
                 disabled={disabled}
                 onChange={(event) =>
                   update(index, {
-                    uncertainty_C: numberFromInput(event.target.value),
+                    nominal_accuracy_C: numberFromInput(event.target.value),
                   })
                 }
               />

@@ -85,13 +85,6 @@ SUBSTRATE_FORMULAS = {
     "au_foil": {"Au"},
     "h-BN": {"BN"},
 }
-TEMPERATURE_SENSOR_TYPES = {
-    "k_thermocouple",
-    "s_thermocouple",
-    "r_thermocouple",
-    "b_thermocouple",
-    "infrared_pyrometer",
-}
 
 
 class V2EntityService:
@@ -169,12 +162,19 @@ class V2EntityService:
         entity = repo.get_entity(entity_id)
         if entity is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
-        if kind == "setup" and str(payload.model_dump().get("setup_code") or "").strip() != (
-            entity.setup_code
+        new_setup_code = (
+            str(payload.model_dump().get("setup_code") or "").strip() if kind == "setup" else None
+        )
+        setup_code_changed = kind == "setup" and new_setup_code != entity.setup_code
+        if setup_code_changed and self.db.scalar(
+            select(Setup.id).where(
+                Setup.setup_code == new_setup_code,
+                Setup.id != entity_id,
+            )
         ):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={"invalid": [{"key": "setup_code", "reason": "immutable"}]},
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"invalid": [{"key": "setup_code", "reason": "duplicate"}]},
             )
         version = self._build_version(
             kind,
@@ -183,6 +183,8 @@ class V2EntityService:
             payload,
             current_user,
         )
+        if setup_code_changed:
+            entity.setup_code = new_setup_code
         try:
             repo.save_version(version)
             AuditService(self.db).record_event(
@@ -200,6 +202,11 @@ class V2EntityService:
             self.db.commit()
         except IntegrityError as exc:
             self.db.rollback()
+            if setup_code_changed:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"invalid": [{"key": "setup_code", "reason": "duplicate"}]},
+                ) from exc
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Version already exists"
             ) from exc
@@ -490,16 +497,7 @@ class V2EntityService:
             self._raise_invalid(key, "type")
         try:
             sensors = [
-                TemperatureSensorPayload.model_validate(
-                    {
-                        **self._normalize_temperature_sensor_type(item),
-                        "uncertainty_source": canonical_option_value(
-                            item.get("uncertainty_source"),
-                            self.doc,
-                            field_key="uncertainty_source",
-                        ),
-                    }
-                )
+                TemperatureSensorPayload.model_validate(item)
                 for item in raw
                 if isinstance(item, dict)
             ]
@@ -517,23 +515,6 @@ class V2EntityService:
                 detail={"invalid": [{"key": key, "reason": "value"}]},
             ) from exc
         return [sensor.model_dump(exclude_none=True) for sensor in sensors]
-
-    def _normalize_temperature_sensor_type(self, item: dict[str, Any]) -> dict[str, Any]:
-        sensor_type = canonical_option_value(
-            item.get("sensor_type"),
-            self.doc,
-            field_key="sensor_type",
-        )
-        other_type = item.get("sensor_type_other")
-        if sensor_type not in TEMPERATURE_SENSOR_TYPES | {"other"}:
-            other_type = str(sensor_type or "").strip()
-            sensor_type = "other"
-        normalized = {**item, "sensor_type": sensor_type}
-        if sensor_type == "other":
-            normalized["sensor_type_other"] = other_type
-        else:
-            normalized.pop("sensor_type_other", None)
-        return normalized
 
     def _file_asset_snapshot(
         self,

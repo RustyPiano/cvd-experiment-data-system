@@ -34,7 +34,7 @@ export const common = {
     structuredField: '请完整填写具名参数，并使用有效数值',
     tubeDimensionsRequired: '请按所选截面完整填写炉管尺寸',
     temperatureSensorsCoverage:
-      '温区数为 {{count}}；请为温区 1–{{count}} 分别填写传感器类型和温度测量误差。',
+      '请为温区 1–{{count}} 分别选择传感器类别；已填写的标称测温精度须为非负数。',
     substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
     usageHistory:
       '请填写累计清洗或更换次数（可为 0）和本次为最近一次清洗或更换后的第几炉（从 1 开始）。',
@@ -288,28 +288,19 @@ export const common = {
     temperatureSensors: {
       addSensor: '新增温度传感器',
       sensor: '温区 {{position}}',
-      sensorName: '传感器名称',
-      sensorType: '传感器类型',
+      sensorType: '传感器类别',
       sensorTypeOptions: {
-        kThermocouple: 'K 型热电偶',
-        sThermocouple: 'S 型热电偶',
-        rThermocouple: 'R 型热电偶',
-        bThermocouple: 'B 型热电偶',
-        infraredPyrometer: '红外测温仪',
+        thermocouple: '热电偶',
+        rtd: '热电阻（RTD）',
+        infraredThermometer: '红外测温仪',
+        fiberOpticTemperatureSensor: '光纤温度传感器',
+        thermistor: '热敏电阻',
       },
-      selectSensorType: '请选择传感器类型',
+      selectSensorType: '请选择传感器类别',
       otherSensorType: '其他',
-      otherSensorTypePlaceholder: '请填写具体传感器类型',
+      otherSensorTypePlaceholder: '请填写具体传感器类别',
       zoneIndex: '温区编号',
-      uncertaintyCelsius: '温度测量误差（±°C）',
-      uncertaintySource: '不确定度来源',
-      selectUncertaintySource: '请选择不确定度来源',
-      uncertaintySourceOptions: {
-        instrument: '仪器规格',
-        calibration: '校准',
-        repeatability: '重复性',
-        estimate: '估计',
-      },
+      nominalAccuracyCelsius: '标称测温精度（±℃）',
       removeSensor: '删除温度传感器',
       moveUp: '上移传感器',
       moveDown: '下移传感器',
@@ -526,7 +517,6 @@ export const common = {
       createTitle: '新建{{name}}',
       createDescription: '填写基础资料；保存后会创建第一个版本。',
       newVersionTitle: '编辑{{name}}（生成新版本）',
-      requiredHint: '带 * 为保存前必填。',
       newVersionBanner:
         '保存后将生成 v{{version}}；历史版本以及已使用它的制备实验记录不会改变。',
       selectPlaceholder: '请选择',
@@ -905,12 +895,9 @@ export const common = {
       },
       equipment: {
         title: '实验装置',
-        frozenNote:
-          '已保存当前装置配置（v{{version}}）；以后更新装置资料不会改变本记录。',
-        sensorSummary: '温区 {{zone}}：{{type}} · 温度测量误差 ±{{error}} °C',
+        sensorSummary: '温区 {{zone}}：{{type}} · 标称测温精度 ±{{accuracy}} ℃',
+        sensorSummaryWithoutAccuracy: '温区 {{zone}}：{{type}}',
         tubeUsageHistory: '炉管使用履历',
-        tubeUsageHistoryHelp:
-          '填写本次制备实验记录对应的当前计数，不属于装置固定配置。',
       },
       precursors: {
         title: '前驱体',

@@ -1212,18 +1212,13 @@ def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() ->
         "field_devices": ["等离子体"],
         "temperature_sensors": [
             {
-                "sensor_name": "TC-1",
-                "sensor_type": "K",
+                "sensor_type": "thermocouple",
                 "zone_index": 1,
-                "uncertainty_C": 1.0,
-                "uncertainty_source": "校准",
+                "nominal_accuracy_C": 1.0,
             },
             {
-                "sensor_name": "TC-2",
-                "sensor_type": "K",
+                "sensor_type": "thermocouple",
                 "zone_index": 2,
-                "uncertainty_C": 1.0,
-                "uncertainty_source": "校准",
             },
         ],
         "setup_diagram": {
@@ -1240,7 +1235,7 @@ def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() ->
         "shape": "round",
         "shape_other": None,
     }
-    assert validated["temperature_sensors"][0]["uncertainty_source"] == "calibration"
+    assert validated["temperature_sensors"][0]["sensor_type"] == "thermocouple"
     assert validated["field_devices"] == ["plasma"]
     with pytest.raises(ValueError):
         validate_v2_module_payload(
@@ -1250,7 +1245,7 @@ def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() ->
     with pytest.raises(ValueError):
         validate_v2_module_payload("equipment", {**payload, "temperature_sensors": []})
     invalid_source = deepcopy(payload)
-    invalid_source["temperature_sensors"][0]["uncertainty_source"] = "other"
+    invalid_source["temperature_sensors"][0]["sensor_type"] = "k_thermocouple"
     with pytest.raises(ValueError):
         validate_v2_module_payload("equipment", invalid_source)
 
@@ -1260,11 +1255,9 @@ def test_rendered_equipment_and_setup_models_enforce_shape_and_zone_contracts(
 ) -> None:
     sensors = [
         {
-            "sensor_name": f"TC-{zone_index}",
-            "sensor_type": "K",
+            "sensor_type": "thermocouple",
             "zone_index": zone_index,
-            "uncertainty_C": 1.0,
-            "uncertainty_source": "calibration",
+            "nominal_accuracy_C": 1.0,
         }
         for zone_index in (1, 2)
     ]

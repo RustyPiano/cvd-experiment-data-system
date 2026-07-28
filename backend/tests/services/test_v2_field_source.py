@@ -95,7 +95,8 @@ def test_material_lot_evidence_and_setup_structures_are_unambiguous() -> None:
 
     sensors = fields["temperature_sensors"]
     assert sensors["input"] == "温度传感器数组"
-    assert "uncertainty_source" in sensors["options"]
+    assert "thermocouple|rtd|infrared_thermometer" in sensors["options"]
+    assert "uncertainty_source" not in sensors["options"]
 
     tube = fields["tube_material_shape"]
     assert tube["input"] == "管材质形状对象"

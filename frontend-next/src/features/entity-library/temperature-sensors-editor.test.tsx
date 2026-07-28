@@ -15,18 +15,18 @@ import type {
 
 const labels: TemperatureSensorsEditorLabels = {
   sensor: (zoneIndex) => `Temperature sensor for zone ${zoneIndex}`,
-  sensorType: 'Sensor type',
+  sensorType: 'Sensor category',
   sensorTypeOptions: {
-    kThermocouple: 'K-type thermocouple',
-    sThermocouple: 'S-type thermocouple',
-    rThermocouple: 'R-type thermocouple',
-    bThermocouple: 'B-type thermocouple',
-    infraredPyrometer: 'Infrared pyrometer',
+    thermocouple: 'Thermocouple',
+    rtd: 'Resistance temperature detector (RTD)',
+    infraredThermometer: 'Infrared thermometer',
+    fiberOpticTemperatureSensor: 'Fiber-optic temperature sensor',
+    thermistor: 'Thermistor',
   },
-  selectSensorType: 'Select sensor type',
+  selectSensorType: 'Select sensor category',
   otherSensorType: 'Other',
   otherSensorTypePlaceholder: 'Enter sensor type',
-  uncertaintyCelsius: 'Temperature error (±°C)',
+  nominalAccuracyCelsius: 'Nominal temperature accuracy (±°C)',
   selectZoneCountFirst: 'Set the zone count first',
 }
 
@@ -53,19 +53,14 @@ function Wrapper({
 }
 
 const sensorOne: TemperatureSensor = {
-  sensor_name: 'Furnace TC 1',
-  sensor_type: 'k_thermocouple',
+  sensor_type: 'thermocouple',
   zone_index: 1,
-  uncertainty_C: 1,
-  uncertainty_source: 'calibration',
+  nominal_accuracy_C: 1,
 }
 
 const sensorTwo: TemperatureSensor = {
-  sensor_name: 'Furnace TC 2',
-  sensor_type: 'k_thermocouple',
+  sensor_type: 'thermocouple',
   zone_index: 2,
-  uncertainty_C: 1.5,
-  uncertainty_source: 'repeatability',
 }
 
 describe('TemperatureSensorsEditor', () => {
@@ -83,13 +78,21 @@ describe('TemperatureSensorsEditor', () => {
     expect(screen.queryByRole('button', { name: /add|remove/i })).toBeNull()
 
     await user.click(
-      screen.getAllByRole('combobox', { name: 'Sensor type' })[0],
+      screen.getAllByRole('combobox', { name: 'Sensor category' })[0],
     )
-    await user.click(
-      screen.getByRole('option', { name: 'K-type thermocouple' }),
-    )
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual([
+      'Thermocouple',
+      'Resistance temperature detector (RTD)',
+      'Infrared thermometer',
+      'Fiber-optic temperature sensor',
+      'Thermistor',
+      'Other',
+    ])
+    await user.click(screen.getByRole('option', { name: 'Thermocouple' }))
     await user.type(
-      screen.getAllByLabelText('Temperature error (±°C)')[0],
+      screen.getAllByLabelText('Nominal temperature accuracy (±°C)')[0],
       '0.8',
     )
 
@@ -98,37 +101,47 @@ describe('TemperatureSensorsEditor', () => {
     ) as TemperatureSensor[]
     expect(value).toEqual([
       expect.objectContaining({
-        sensor_type: 'k_thermocouple',
+        sensor_type: 'thermocouple',
         zone_index: 1,
-        uncertainty_C: 0.8,
+        nominal_accuracy_C: 0.8,
       }),
       expect.objectContaining({ zone_index: 2 }),
     ])
     expect(temperatureSensorsAreValid(value, 2)).toBe(false)
   })
 
-  it('aligns legacy rows to the fixed zone order and drops extra zones', () => {
+  it('aligns rows to the fixed zone order and drops extra zones', () => {
     expect(
       reconcileTemperatureSensors(
         [
           sensorTwo,
           { ...sensorOne, zone_index: 4 },
-          { ...sensorOne, sensor_name: 'Exact zone 1' },
+          { ...sensorOne, nominal_accuracy_C: 0.5 },
         ],
         2,
       ),
     ).toEqual([
-      { ...sensorOne, sensor_name: 'Exact zone 1', zone_index: 1 },
+      { ...sensorOne, nominal_accuracy_C: 0.5, zone_index: 1 },
       sensorTwo,
     ])
   })
 
-  it('enforces setup zone bounds and non-negative uncertainty', () => {
+  it('allows missing nominal accuracy and rejects negative values', () => {
+    expect(temperatureSensorsAreValid([sensorOne], 1)).toBe(true)
+    expect(
+      temperatureSensorsAreValid(
+        [{ ...sensorOne, nominal_accuracy_C: null }],
+        1,
+      ),
+    ).toBe(true)
     expect(
       temperatureSensorsAreValid([{ ...sensorOne, zone_index: 3 }], 2),
     ).toBe(false)
     expect(
-      temperatureSensorsAreValid([{ ...sensorOne, uncertainty_C: -0.1 }], 2),
+      temperatureSensorsAreValid(
+        [{ ...sensorOne, nominal_accuracy_C: -0.1 }],
+        1,
+      ),
     ).toBe(false)
   })
 })

@@ -58,14 +58,12 @@ export function buildStructuredValueLabels(
     distance_mm: t('structuredFields.distance'),
     reset_count: t('structuredFields.resetCount'),
     use_number_since_reset: t('structuredFields.useNumberSinceReset'),
-    sensor_name: t('structuredEditors.temperatureSensors.sensorName'),
     sensor_type: t('structuredEditors.temperatureSensors.sensorType'),
     sensor_type_other: t(
       'structuredEditors.temperatureSensors.otherSensorType',
     ),
-    uncertainty_C: t('structuredEditors.temperatureSensors.uncertaintyCelsius'),
-    uncertainty_source: t(
-      'structuredEditors.temperatureSensors.uncertaintySource',
+    nominal_accuracy_C: t(
+      'structuredEditors.temperatureSensors.nominalAccuracyCelsius',
     ),
   }
 }
@@ -375,20 +373,18 @@ export function buildTemperatureSensorsEditorLabels(
       t('structuredEditors.temperatureSensors.sensor', { position }),
     sensorType: t('structuredEditors.temperatureSensors.sensorType'),
     sensorTypeOptions: {
-      kThermocouple: t(
-        'structuredEditors.temperatureSensors.sensorTypeOptions.kThermocouple',
+      thermocouple: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.thermocouple',
       ),
-      sThermocouple: t(
-        'structuredEditors.temperatureSensors.sensorTypeOptions.sThermocouple',
+      rtd: t('structuredEditors.temperatureSensors.sensorTypeOptions.rtd'),
+      infraredThermometer: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.infraredThermometer',
       ),
-      rThermocouple: t(
-        'structuredEditors.temperatureSensors.sensorTypeOptions.rThermocouple',
+      fiberOpticTemperatureSensor: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.fiberOpticTemperatureSensor',
       ),
-      bThermocouple: t(
-        'structuredEditors.temperatureSensors.sensorTypeOptions.bThermocouple',
-      ),
-      infraredPyrometer: t(
-        'structuredEditors.temperatureSensors.sensorTypeOptions.infraredPyrometer',
+      thermistor: t(
+        'structuredEditors.temperatureSensors.sensorTypeOptions.thermistor',
       ),
     },
     selectSensorType: t(
@@ -398,8 +394,8 @@ export function buildTemperatureSensorsEditorLabels(
     otherSensorTypePlaceholder: t(
       'structuredEditors.temperatureSensors.otherSensorTypePlaceholder',
     ),
-    uncertaintyCelsius: t(
-      'structuredEditors.temperatureSensors.uncertaintyCelsius',
+    nominalAccuracyCelsius: t(
+      'structuredEditors.temperatureSensors.nominalAccuracyCelsius',
     ),
     selectZoneCountFirst: t(
       'structuredEditors.temperatureSensors.selectZoneCountFirst',

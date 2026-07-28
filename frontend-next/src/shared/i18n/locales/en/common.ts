@@ -33,7 +33,7 @@ export const common = {
     tubeDimensionsRequired:
       'Complete the tube dimensions for the selected cross-section',
     temperatureSensorsCoverage:
-      'This setup has {{count}} zones. Enter the sensor type and temperature error for each zone 1–{{count}}.',
+      'Select a sensor category for each zone 1–{{count}}. Any entered nominal accuracy must be non-negative.',
     substrateFormulaMismatch:
       'The formula does not match the selected substrate material. Check the lot label.',
     usageHistory:
@@ -290,28 +290,19 @@ export const common = {
     temperatureSensors: {
       addSensor: 'Add temperature sensor',
       sensor: 'Zone {{position}}',
-      sensorName: 'Sensor name',
-      sensorType: 'Sensor type',
+      sensorType: 'Sensor category',
       sensorTypeOptions: {
-        kThermocouple: 'K-type thermocouple',
-        sThermocouple: 'S-type thermocouple',
-        rThermocouple: 'R-type thermocouple',
-        bThermocouple: 'B-type thermocouple',
-        infraredPyrometer: 'Infrared pyrometer',
+        thermocouple: 'Thermocouple',
+        rtd: 'Resistance temperature detector (RTD)',
+        infraredThermometer: 'Infrared thermometer',
+        fiberOpticTemperatureSensor: 'Fiber-optic temperature sensor',
+        thermistor: 'Thermistor',
       },
-      selectSensorType: 'Select a sensor type',
+      selectSensorType: 'Select a sensor category',
       otherSensorType: 'Other',
-      otherSensorTypePlaceholder: 'Enter the sensor type',
+      otherSensorTypePlaceholder: 'Enter the sensor category',
       zoneIndex: 'Zone number',
-      uncertaintyCelsius: 'Temperature measurement error (±°C)',
-      uncertaintySource: 'Uncertainty source',
-      selectUncertaintySource: 'Select an uncertainty source',
-      uncertaintySourceOptions: {
-        instrument: 'Instrument specification',
-        calibration: 'Calibration',
-        repeatability: 'Repeatability',
-        estimate: 'Estimate',
-      },
+      nominalAccuracyCelsius: 'Nominal temperature accuracy (±°C)',
       removeSensor: 'Remove temperature sensor',
       moveUp: 'Move sensor up',
       moveDown: 'Move sensor down',
@@ -554,7 +545,6 @@ export const common = {
       createDescription:
         'Enter the reference details. Saving creates the first version.',
       newVersionTitle: 'Edit {{name}} (new version)',
-      requiredHint: 'Fields marked * are required before saving.',
       newVersionBanner:
         'Saving creates v{{version}}. Historical versions and runs already using them stay unchanged.',
       selectPlaceholder: 'Select',
@@ -952,13 +942,10 @@ export const common = {
       },
       equipment: {
         title: 'Experimental setup',
-        frozenNote:
-          'This setup configuration (v{{version}}) is saved with the run; later setup updates will not change it.',
         sensorSummary:
-          'Zone {{zone}}: {{type}} · temperature measurement error ±{{error}} °C',
+          'Zone {{zone}}: {{type}} · nominal temperature accuracy ±{{accuracy}} °C',
+        sensorSummaryWithoutAccuracy: 'Zone {{zone}}: {{type}}',
         tubeUsageHistory: 'Tube usage history',
-        tubeUsageHistoryHelp:
-          'Enter the current counts for this run, not a fixed Setup property.',
       },
       precursors: {
         title: 'Precursors',

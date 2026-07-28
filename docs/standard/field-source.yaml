@@ -5,7 +5,7 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.14
+  version: v3.16
   status: DRAFT
   updated: '2026-07-28'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
@@ -177,11 +177,14 @@ option_labels_en:
   上层: Top layer
   下层: Bottom layer
   横向域: Lateral domain
-  K型热电偶: K-type thermocouple
-  S型热电偶: S-type thermocouple
-  R型热电偶: R-type thermocouple
-  B型热电偶: B-type thermocouple
-  红外测温仪: Infrared pyrometer
+  热电偶: Thermocouple
+  热电阻（RTD）: Resistance temperature detector (RTD)
+  红外测温仪: Infrared thermometer
+  光纤温度传感器: Fiber-optic temperature sensor
+  热敏电阻: Thermistor
+  商业设备: Commercial equipment
+  实验室自制: Lab-built
+  改造设备: Modified equipment
 option_codes:
   盐辅助CVD: salt_assisted_cvd
   PVD-磁控溅射: pvd_magnetron_sputtering
@@ -331,11 +334,14 @@ option_codes:
   H₂: H2
   O₂: O2
   CH₄: CH4
-  K型热电偶: k_thermocouple
-  S型热电偶: s_thermocouple
-  R型热电偶: r_thermocouple
-  B型热电偶: b_thermocouple
-  红外测温仪: infrared_pyrometer
+  热电偶: thermocouple
+  热电阻（RTD）: rtd
+  红外测温仪: infrared_thermometer
+  光纤温度传感器: fiber_optic_temperature_sensor
+  热敏电阻: thermistor
+  商业设备: commercial
+  实验室自制: lab_built
+  改造设备: modified
 field_option_codes:
   field_devices:
     等离子: plasma
@@ -354,11 +360,14 @@ preferred_option_labels_zh:
   round: 圆形
   square: 方形
   rectangular: 矩形
-  k_thermocouple: K 型热电偶
-  s_thermocouple: S 型热电偶
-  r_thermocouple: R 型热电偶
-  b_thermocouple: B 型热电偶
-  infrared_pyrometer: 红外测温仪
+  thermocouple: 热电偶
+  rtd: 热电阻（RTD）
+  infrared_thermometer: 红外测温仪
+  fiber_optic_temperature_sensor: 光纤温度传感器
+  thermistor: 热敏电阻
+  commercial: 商业设备
+  lab_built: 实验室自制
+  modified: 改造设备
 unit_labels_en:
   mg 或 µL（按相态）: mg or µL (by phase)
   ℃: °C
@@ -690,23 +699,49 @@ experiment_record:
       example: 1号双温区管式炉
       source: 会议
       note: ''
-      help: 选择本次实验实际使用的装置；装置参数会自动带出，不需要重复填写。
-      help_en: Select the setup used for this run. Its registered configuration is filled automatically.
       r0: true
     - module: 设备
-      label: 品牌与型号
-      label_en: Brand and model
-      key: brand_model
-      meaning: 设备品牌与型号
-      input: 下拉+其他
-      options: 受控+其他
+      label: 装置来源
+      label_en: Setup source
+      key: setup_origin
+      meaning: 装置是商业购买、实验室自制还是在既有设备上改造
+      input: 下拉
+      options: 商业设备/实验室自制/改造设备
       unit: —
       requirement:
-        raw: 推荐
-        level: recommended
-      example: 合肥科晶 OTF-1200X
-      source: 会议
-      note: ''
+        raw: 选填
+        level: optional
+      example: 商业设备
+      source: 2026-07-28用户逐项复核
+      note: 由所引用Setup版本只读带出
+    - module: 设备
+      label: 制造商或品牌
+      label_en: Manufacturer or brand
+      key: manufacturer_brand
+      meaning: 设备制造商或品牌，独立于型号保存以支持筛选和统计
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 合肥科晶
+      source: 2026-07-28用户逐项复核
+      note: 由所引用Setup版本只读带出
+    - module: 设备
+      label: 型号
+      label_en: Model
+      key: model
+      meaning: 制造商给出的设备型号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: OTF-1200X
+      source: 2026-07-28用户逐项复核
+      note: 由所引用Setup版本只读带出
     - module: 设备
       label: 壁型
       label_en: Furnace wall type
@@ -800,16 +835,16 @@ experiment_record:
       label: 各温区温度传感器
       label_en: Temperature sensors by zone
       key: temperature_sensors
-      meaning: 所引用装置版本中每个温区的传感器类型和温度测量误差，只读带出
+      meaning: 所引用装置版本中每个温区的传感器类别和资料标明的标称测温精度，只读带出
       input: 温度传感器数组
-      options: '{sensor_type, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}'
+      options: '{sensor_type, zone_index, nominal_accuracy_C?}'
       unit: ℃
       requirement:
         raw: 必填(装置登记)
         level: required
-      example: 温区1：K型热电偶，温度测量误差±1℃
+      example: 温区1：热电偶，标称测温精度±1℃
       source: 2026-07-24导师走查
-      note: 实验中不重复填写，由Setup版本快照冻结；旧名称和误差来源只读兼容，新表单不再要求
+      note: 实验中不重复填写，由Setup版本快照冻结
       r0: true
     - module: 设备
       label: 外场能力
@@ -853,8 +888,6 @@ experiment_record:
       example: '{reset_count: 1, use_number_since_reset: 7}'
       source: 6/24决定·用户复核2026-07-24
       note: 每炉手填；清洗或更换炉管后累计次数加1，本次使用序号从1重新累计
-      help: 填本次实验对应的当前计数；从未清洗或更换可填“0、当前使用序号”。
-      help_en: Enter the counts for this run. If the tube has never been cleaned or replaced, use count 0 and the current use number.
   - title: §3 前驱体（用了哪些原料：主源、辅助剂等，可多个；每个一组）
     fields:
     - module: 前驱体
@@ -2443,8 +2476,6 @@ entities:
       note: ''
       placeholder: 例如：一英寸水平双温区管式炉
       placeholder_en: 'Example: 1-inch horizontal two-zone tube furnace'
-      help: 用结构和用途命名，避免只写“1号炉”或“我的炉子”。
-      help_en: Name the setup by its structure and purpose; avoid labels such as “Furnace 1”.
     - module: 装置Setup
       label: 版本号
       label_en: Version number
@@ -2460,26 +2491,56 @@ entities:
       source: ★锁版使能(Fable三轮B2)
       note: 对标 v1 setup_version_snapshot
     - module: 装置Setup
-      label: 品牌与型号
-      label_en: Brand and model
-      key: brand_model
-      meaning: 设备品牌型号
+      label: 装置来源
+      label_en: Setup source
+      key: setup_origin
+      meaning: 装置是商业购买、实验室自制还是在既有设备上改造
+      input: 下拉
+      options: 商业设备/实验室自制/改造设备
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 商业设备
+      source: 2026-07-28用户逐项复核
+      note: ''
+    - module: 装置Setup
+      label: 制造商或品牌
+      label_en: Manufacturer or brand
+      key: manufacturer_brand
+      meaning: 设备制造商或品牌，独立于型号保存以支持筛选和统计
       input: 文本
       options: —
       unit: —
       requirement:
-        raw: 推荐
-        level: recommended
-      example: 合肥科晶 OTF-1200X
-      source: 会议
+        raw: 选填
+        level: optional
+      example: 合肥科晶
+      source: 2026-07-28用户逐项复核
       note: ''
-      placeholder: 例如：合肥科晶 OTF-1200X
-      placeholder_en: 'Example: HF-Kejing OTF-1200X'
+      placeholder: 例如：合肥科晶
+      placeholder_en: 'Example: HF-Kejing'
     - module: 装置Setup
-      label: 实验室装置编号
-      label_en: Laboratory setup ID
+      label: 型号
+      label_en: Model
+      key: model
+      meaning: 制造商给出的设备型号
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: OTF-1200X
+      source: 2026-07-28用户逐项复核
+      note: ''
+      placeholder: 例如：OTF-1200X
+      placeholder_en: 'Example: OTF-1200X'
+    - module: 装置Setup
+      label: 实验室装置编号（资产编号）
+      label_en: Laboratory setup or asset ID
       key: setup_code
-      meaning: 课题组在实验室内唯一识别这台装置的固定编号
+      meaning: 课题组用于识别这台装置的唯一业务编号；系统内部身份使用不可变UUID
       input: 文本
       options: —
       unit: —
@@ -2488,11 +2549,9 @@ entities:
         level: required
       example: CVD-炉1
       source: review§4.1B·2026-07-27终版整改
-      note: 登记后作为装置身份使用；版本更新不应改成另一台装置的编号
+      note: 要求唯一；仅管理员可通过新版本纠正录入错误，历史版本保留原编号
       placeholder: 例如：CVD-01
       placeholder_en: 'Example: CVD-01'
-      help: 用于区分课题组内同品牌、同型号的不同物理装置；登记后不可修改。
-      help_en: Distinguishes physical setups of the same brand and model in the lab; it cannot be changed after registration.
     - module: 装置Setup
       label: 温区数
       label_en: Number of heating zones
@@ -2514,16 +2573,16 @@ entities:
       label: 各温区温度传感器
       label_en: Temperature sensors by zone
       key: temperature_sensors
-      meaning: 装置每个温区的传感器类型和用户可直接理解的温度测量误差
+      meaning: 装置每个温区的传感器类别，以及设备资料明确给出时的标称测温精度
       input: 温度传感器数组
-      options: '{sensor_type: k_thermocouple|s_thermocouple|r_thermocouple|b_thermocouple|infrared_pyrometer|other, sensor_type_other?, zone_index, uncertainty_C；旧记录可含sensor_name与uncertainty_source}'
+      options: '{sensor_type: thermocouple|rtd|infrared_thermometer|fiber_optic_temperature_sensor|thermistor|other, sensor_type_other?, zone_index, nominal_accuracy_C?}'
       unit: ℃
       requirement:
         raw: 必填
         level: required
-      example: '[{sensor_type: K型热电偶, zone_index: 1, uncertainty_C: 1}]'
-      source: 2026-07-24导师走查·2026-07-27终版整改
-      note: 温区数决定卡片数量；不让用户另起传感器名称，不要求填写难以理解的误差来源；旧字段只读兼容
+      example: '[{sensor_type: 热电偶, zone_index: 1, nominal_accuracy_C: 1}]'
+      source: 2026-07-24导师走查·2026-07-27终版整改·2026-07-28用户复核
+      note: 温区数决定卡片数量；传感器类别必填；标称测温精度仅在设备资料明确提供时填写，不要求用户估算
     - module: 装置Setup
       label: 炉体方向
       label_en: Furnace orientation
@@ -2993,10 +3052,14 @@ changelog:
     - §1b
     - 目标产物复核：化学式示例按结构类型变化；删除“普通数字”用户文案；掺杂区只显示掺杂元素；空间群按化学式给出经核对的常见体相候选并保留230项搜索；异质结构逐层或逐区域填写空间群
     - 2026-07-28用户逐项复核
-  - - ''
-    - ''
-    - ''
-    - ''
+  - - v3.15
+    - 实体/设备
+    - 温度传感器由热电偶分型号改为按测温原理选择类别：热电偶、热电阻（RTD）、红外测温仪、光纤温度传感器、热敏电阻、其他
+    - 2026-07-28用户逐项复核
+  - - v3.16
+    - 实体/设备
+    - Setup拆分制造商或品牌与型号，增加装置来源；实验室装置编号保持唯一但允许管理员通过新版本纠错；温区标称测温精度改为选填
+    - 2026-07-28用户逐项复核
   - - R0
     - 硬必填核心(30项，含条件必填)
     - v3.7新增环境温湿度、预检、目标形态、Setup测温传感器、前驱体与衬底批次、衬底化学式/晶向/粗糙度/尺寸放置、预处理操作；过程R0改为结构化温度程序、逐气体供气、绝对压力及反应时长

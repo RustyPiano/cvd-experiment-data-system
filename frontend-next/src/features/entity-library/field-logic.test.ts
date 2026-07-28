@@ -265,6 +265,25 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
   })
 })
 
+describe('setup conditional visibility', () => {
+  it('shows sensor and dimension fields only after their drivers are set', () => {
+    const sensors = field('setup', 'temperature_sensors')
+    const dimensions = field('setup', 'tube_outer_diameter_wall_mm')
+
+    expect(isFieldVisible('setup', sensors, {})).toBe(false)
+    expect(isFieldVisible('setup', sensors, { zone_count: '2' })).toBe(true)
+    expect(isFieldVisible('setup', dimensions, {})).toBe(false)
+    expect(
+      isFieldVisible('setup', dimensions, {
+        tube_material_shape: JSON.stringify({
+          material: 'quartz',
+          shape: 'round',
+        }),
+      }),
+    ).toBe(true)
+  })
+})
+
 describe('effective required-ness', () => {
   it('keeps plain required fields required regardless of values', () => {
     expect(
@@ -401,6 +420,10 @@ describe('buildSubmitPayload', () => {
       setup_name: 'Tube furnace',
       zone_count: '3',
       orientation: 'horizontal',
+      tube_material_shape: JSON.stringify({
+        material: 'quartz',
+        shape: 'round',
+      }),
       tube_outer_diameter_wall_mm: defaults.tube_outer_diameter_wall_mm,
     })
     expect(payload.tube_outer_diameter_wall_mm).toEqual({
@@ -414,35 +437,31 @@ describe('buildSubmitPayload', () => {
     const defaults = buildDefaultValues('setup', {
       temperature_sensors: [
         {
-          sensor_name: 'TC-1',
-          sensor_type: 'K',
+          sensor_type: 'thermocouple',
           zone_index: 1,
-          uncertainty_C: 1.5,
-          uncertainty_source: 'calibration',
+          nominal_accuracy_C: 1.5,
         },
       ],
     })
     expect(JSON.parse(defaults.temperature_sensors as string)).toEqual([
       {
-        sensor_name: 'TC-1',
-        sensor_type: 'K',
+        sensor_type: 'thermocouple',
         zone_index: 1,
-        uncertainty_C: 1.5,
-        uncertainty_source: 'calibration',
+        nominal_accuracy_C: 1.5,
       },
     ])
     expect(
       buildSubmitPayload('setup', {
+        zone_count: '1',
         temperature_sensors: defaults.temperature_sensors,
       }),
     ).toEqual({
+      zone_count: 1,
       temperature_sensors: [
         {
-          sensor_name: 'TC-1',
-          sensor_type: 'K',
+          sensor_type: 'thermocouple',
           zone_index: 1,
-          uncertainty_C: 1.5,
-          uncertainty_source: 'calibration',
+          nominal_accuracy_C: 1.5,
         },
       ],
     })

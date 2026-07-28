@@ -73,11 +73,8 @@ const unboundAttachment = {
 
 const oneZoneTemperatureSensors = [
   {
-    sensor_name: 'TC-1',
-    sensor_type: 'k_thermocouple',
+    sensor_type: 'thermocouple',
     zone_index: 1,
-    uncertainty_C: 1,
-    uncertainty_source: 'calibration',
   },
 ]
 const oneZoneSetupData = {
@@ -165,12 +162,35 @@ describe('EntityForm — required markers (导师 B93 明显标识)', () => {
 })
 
 describe('EntityForm — setup identity inputs', () => {
-  it('lets the first setup enter its brand and model directly', () => {
+  it('keeps source, manufacturer, model, and asset ID as separate inputs', async () => {
     renderForm({ kind: 'setup' })
 
     expect(
-      screen.getByRole('textbox', { name: '品牌与型号' }),
+      await screen.findByRole('combobox', { name: '装置来源' }),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', { name: '制造商或品牌' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '型号' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', {
+        name: /实验室装置编号（资产编号）.*必填/,
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('allows an administrator to correct the asset ID in a new version', async () => {
+    renderForm({
+      kind: 'setup',
+      mode: 'newVersion',
+      defaultData: oneZoneSetupData,
+    })
+
+    expect(
+      await screen.findByRole('textbox', {
+        name: /实验室装置编号（资产编号）.*必填/,
+      }),
+    ).toBeEnabled()
   })
 
   it('reuses non-empty values from the latest entity versions as options', async () => {

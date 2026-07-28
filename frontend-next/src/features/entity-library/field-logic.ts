@@ -252,6 +252,19 @@ export function isFieldVisible(
     const angle = values['substrate_miscut_angle_deg']
     if (Array.isArray(angle) || Number(angle) <= 0) return false
   }
+  if (kind === 'setup' && field.key === 'temperature_sensors') {
+    const zoneCount = values['zone_count']
+    const parsed = Number(Array.isArray(zoneCount) ? '' : zoneCount)
+    if (!Number.isInteger(parsed) || parsed <= 0) return false
+  }
+  if (kind === 'setup' && field.key === 'tube_outer_diameter_wall_mm') {
+    const value = values['tube_material_shape']
+    const shape =
+      typeof value === 'string'
+        ? String(parseStructuredValue(value).shape ?? '')
+        : ''
+    if (!shape) return false
+  }
 
   return true
 }

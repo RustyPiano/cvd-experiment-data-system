@@ -1245,8 +1245,12 @@ export interface components {
     SetupVersionPayload: {
       /** Setup Name */
       setup_name: string
-      /** Brand Model */
-      brand_model?: string | null
+      /** Setup Origin */
+      setup_origin?: ('commercial' | 'lab_built' | 'modified') | null
+      /** Manufacturer Brand */
+      manufacturer_brand?: string | null
+      /** Model */
+      model?: string | null
       /** Setup Code */
       setup_code: string
       /** Zone Count */
@@ -1297,20 +1301,23 @@ export interface components {
     }
     /** TemperatureSensorPayload */
     TemperatureSensorPayload: {
-      /** Sensor Name */
-      sensor_name?: string | null
-      /** Sensor Type */
-      sensor_type: string
+      /**
+       * Sensor Type
+       * @enum {string}
+       */
+      sensor_type:
+        | 'thermocouple'
+        | 'rtd'
+        | 'infrared_thermometer'
+        | 'fiber_optic_temperature_sensor'
+        | 'thermistor'
+        | 'other'
       /** Sensor Type Other */
       sensor_type_other?: string | null
       /** Zone Index */
       zone_index: number
-      /** Uncertainty C */
-      uncertainty_C: number
-      /** Uncertainty Source */
-      uncertainty_source?:
-        | ('instrument' | 'calibration' | 'repeatability' | 'estimate')
-        | null
+      /** Nominal Accuracy C */
+      nominal_accuracy_C?: number | null
     }
     /** TokenResponse */
     TokenResponse: {

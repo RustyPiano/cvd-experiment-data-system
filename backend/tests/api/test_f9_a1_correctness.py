@@ -152,7 +152,7 @@ def test_entity_numeric_and_string_length_validation(admin_user) -> None:
         "/api/v1/setups",
         json=setup_payload(
             setup_code="SETUP-5",
-            temperature_sensors=[temperature_sensor(uncertainty_C="NaN")],
+            temperature_sensors=[temperature_sensor(nominal_accuracy_C="NaN")],
             zone_count=1,
         ),
         headers=headers,
@@ -208,7 +208,7 @@ def test_setup_requires_structured_sensors_and_rejects_deleted_fields(admin_user
     assert deleted_coordinate_field.status_code == 422
 
 
-def test_setup_code_is_unique_and_immutable(admin_user) -> None:
+def test_setup_code_is_unique_and_admin_correctable(admin_user) -> None:
     headers = _headers(admin_user.email)
     created = client.post(
         "/api/v1/setups",
@@ -225,21 +225,38 @@ def test_setup_code_is_unique_and_immutable(admin_user) -> None:
     assert duplicate.status_code == 409
     assert duplicate.json()["detail"] == {"invalid": [{"key": "setup_code", "reason": "duplicate"}]}
 
+    occupied = client.post(
+        "/api/v1/setups",
+        json=setup_payload(setup_code="SETUP-OCCUPIED"),
+        headers=headers,
+    )
+    assert occupied.status_code == 201, occupied.text
+
     changed = client.post(
         f"/api/v1/setups/{created.json()['id']}/versions",
         json=setup_payload(setup_code="SETUP-CHANGED"),
         headers=headers,
     )
-    assert changed.status_code == 422
-    assert changed.json()["detail"] == {"invalid": [{"key": "setup_code", "reason": "immutable"}]}
+    assert changed.status_code == 201, changed.text
+    assert changed.json()["version"] == 2
 
-    same_identity = client.post(
+    versions = client.get(
         f"/api/v1/setups/{created.json()['id']}/versions",
-        json=setup_payload(setup_code="SETUP-IDENTITY", setup_name="Updated furnace"),
         headers=headers,
     )
-    assert same_identity.status_code == 201, same_identity.text
-    assert same_identity.json()["version"] == 2
+    assert versions.status_code == 200, versions.text
+    assert [item["data"]["setup_code"] for item in versions.json()["items"]] == [
+        "SETUP-IDENTITY",
+        "SETUP-CHANGED",
+    ]
+
+    collision = client.post(
+        f"/api/v1/setups/{created.json()['id']}/versions",
+        json=setup_payload(setup_code="SETUP-OCCUPIED"),
+        headers=headers,
+    )
+    assert collision.status_code == 409
+    assert collision.json()["detail"] == {"invalid": [{"key": "setup_code", "reason": "duplicate"}]}
 
 
 def test_setup_sensor_type_uses_controlled_value_or_named_other(admin_user) -> None:
@@ -273,6 +290,17 @@ def test_setup_sensor_type_uses_controlled_value_or_named_other(admin_user) -> N
         headers=headers,
     )
     assert unnamed_other.status_code == 422
+
+    old_subtype = client.post(
+        "/api/v1/setups",
+        json=setup_payload(
+            setup_code="SETUP-OLD-SENSOR-SUBTYPE",
+            zone_count=1,
+            temperature_sensors=[temperature_sensor(sensor_type="k_thermocouple")],
+        ),
+        headers=headers,
+    )
+    assert old_subtype.status_code == 422
 
 
 def test_empty_entity_composite_cannot_bypass_shape_and_option_validation(

@@ -43,15 +43,11 @@ def target_product_payload(
 def temperature_sensor(
     *,
     zone_index: int = 1,
-    sensor_name: str | None = None,
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = {
-        "sensor_name": sensor_name or f"TC-{zone_index}",
-        "sensor_type": "k_thermocouple",
+        "sensor_type": "thermocouple",
         "zone_index": zone_index,
-        "uncertainty_C": 1.0,
-        "uncertainty_source": "calibration",
     }
     payload.update(overrides)
     return payload

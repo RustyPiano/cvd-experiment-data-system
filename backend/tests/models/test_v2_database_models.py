@@ -181,7 +181,11 @@ def test_setup_reference_freezes_version_snapshot_on_experiment_run(
         zone_count=2,
         orientation="水平",
         coordinate_system="原点=温区2热电偶；下游为正",
-        attrs={"brand_model": "合肥科晶 OTF-1200X"},
+        attrs={
+            "setup_origin": "commercial",
+            "manufacturer_brand": "合肥科晶",
+            "model": "OTF-1200X",
+        },
     )
 
     apply_setup_reference(run, version)
@@ -196,5 +200,9 @@ def test_setup_reference_freezes_version_snapshot_on_experiment_run(
         "zone_count_snapshot": 2,
         "orientation_snapshot": "水平",
         "coordinate_system_snapshot": "上游为负，下游为正",
-        "attrs_snapshot": {"brand_model": "合肥科晶 OTF-1200X"},
+        "attrs_snapshot": {
+            "setup_origin": "commercial",
+            "manufacturer_brand": "合肥科晶",
+            "model": "OTF-1200X",
+        },
     }

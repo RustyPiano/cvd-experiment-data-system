@@ -280,23 +280,15 @@
         "TemperatureSensorPayload": {
           "additionalProperties": false,
           "properties": {
-            "sensor_name": {
-              "anyOf": [
-                {
-                  "minLength": 1,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Sensor Name"
-            },
             "sensor_type": {
-              "minLength": 1,
-              "pattern": "\\S",
+              "enum": [
+                "thermocouple",
+                "rtd",
+                "infrared_thermometer",
+                "fiber_optic_temperature_sensor",
+                "thermistor",
+                "other"
+              ],
               "title": "Sensor Type",
               "type": "string"
             },
@@ -319,34 +311,23 @@
               "title": "Zone Index",
               "type": "integer"
             },
-            "uncertainty_C": {
-              "minimum": 0,
-              "title": "Uncertainty C",
-              "type": "number"
-            },
-            "uncertainty_source": {
+            "nominal_accuracy_C": {
               "anyOf": [
                 {
-                  "enum": [
-                    "instrument",
-                    "calibration",
-                    "repeatability",
-                    "estimate"
-                  ],
-                  "type": "string"
+                  "minimum": 0,
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
               "default": null,
-              "title": "Uncertainty Source"
+              "title": "Nominal Accuracy C"
             }
           },
           "required": [
             "sensor_type",
-            "zone_index",
-            "uncertainty_C"
+            "zone_index"
           ],
           "title": "TemperatureSensorPayload",
           "type": "object"
@@ -521,7 +502,24 @@
           "title": "Setup Ref",
           "type": "string"
         },
-        "brand_model": {
+        "setup_origin": {
+          "anyOf": [
+            {
+              "enum": [
+                "commercial",
+                "lab_built",
+                "modified"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setup Origin"
+        },
+        "manufacturer_brand": {
           "anyOf": [
             {
               "type": "string"
@@ -531,7 +529,19 @@
             }
           ],
           "default": null,
-          "title": "Brand Model"
+          "title": "Manufacturer Brand"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
         },
         "wall_type": {
           "anyOf": [
@@ -3462,23 +3472,15 @@
         "TemperatureSensorPayload": {
           "additionalProperties": false,
           "properties": {
-            "sensor_name": {
-              "anyOf": [
-                {
-                  "minLength": 1,
-                  "pattern": "\\S",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Sensor Name"
-            },
             "sensor_type": {
-              "minLength": 1,
-              "pattern": "\\S",
+              "enum": [
+                "thermocouple",
+                "rtd",
+                "infrared_thermometer",
+                "fiber_optic_temperature_sensor",
+                "thermistor",
+                "other"
+              ],
               "title": "Sensor Type",
               "type": "string"
             },
@@ -3501,34 +3503,23 @@
               "title": "Zone Index",
               "type": "integer"
             },
-            "uncertainty_C": {
-              "minimum": 0,
-              "title": "Uncertainty C",
-              "type": "number"
-            },
-            "uncertainty_source": {
+            "nominal_accuracy_C": {
               "anyOf": [
                 {
-                  "enum": [
-                    "instrument",
-                    "calibration",
-                    "repeatability",
-                    "estimate"
-                  ],
-                  "type": "string"
+                  "minimum": 0,
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
               "default": null,
-              "title": "Uncertainty Source"
+              "title": "Nominal Accuracy C"
             }
           },
           "required": [
             "sensor_type",
-            "zone_index",
-            "uncertainty_C"
+            "zone_index"
           ],
           "title": "TemperatureSensorPayload",
           "type": "object"
@@ -3682,7 +3673,24 @@
           "title": "Setup Name",
           "type": "string"
         },
-        "brand_model": {
+        "setup_origin": {
+          "anyOf": [
+            {
+              "enum": [
+                "commercial",
+                "lab_built",
+                "modified"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setup Origin"
+        },
+        "manufacturer_brand": {
           "anyOf": [
             {
               "type": "string"
@@ -3692,7 +3700,19 @@
             }
           ],
           "default": null,
-          "title": "Brand Model"
+          "title": "Manufacturer Brand"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
         },
         "setup_code": {
           "minLength": 1,

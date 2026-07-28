@@ -412,11 +412,8 @@ def test_setup_sensors_and_temperature_program_cover_every_zone(
     entity_service = V2EntityService(db_session)
     sensors = [
         {
-            "sensor_name": "TC-1",
-            "sensor_type": "K",
+            "sensor_type": "thermocouple",
             "zone_index": 1,
-            "uncertainty_C": 1.0,
-            "uncertainty_source": "calibration",
         }
     ]
     with pytest.raises(HTTPException):

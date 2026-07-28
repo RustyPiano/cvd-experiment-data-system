@@ -414,10 +414,6 @@ export function EntityForm({
           </Alert>
         ) : null}
 
-        <p className="text-xs text-muted-foreground">
-          {t('entityLibrary.form.requiredHint')}
-        </p>
-
         <div className="grid gap-4 sm:grid-cols-2">
           {fields.map((field) =>
             isFieldVisible(kind, field, values) &&
@@ -432,12 +428,7 @@ export function EntityForm({
                 field={field}
                 values={values}
                 control={form.control}
-                disabled={
-                  formBusy ||
-                  (mode === 'newVersion' &&
-                    kind === 'setup' &&
-                    field.key === 'setup_code')
-                }
+                disabled={formBusy}
                 token={token}
                 historicalOptions={historicalSelectOptions[field.key] ?? []}
                 allowedOptions={

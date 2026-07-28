@@ -6,14 +6,12 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/use-auth'
 import { entities } from '@/shared/generated/field-metadata'
 import type { V2EntityRead } from '@/features/entity-library/api'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getModuleFields } from '../field-logic'
 import type { EquipmentRef, ModuleSaveProps } from '../form-types'
 import { FieldLabel } from './field-bits'
 import { EntityReferenceSelect } from './entity-reference-select'
 import { ModuleCard } from './module-card'
 import {
-  localizedFieldHelp,
   localizedFieldLabel,
   localizedNamedValue,
   localizedOption,
@@ -121,11 +119,6 @@ export function EquipmentSection({
           disabled={disabled}
           triggerId={setupSelectId}
         />
-        {setupRefField ? (
-          <p className="text-xs text-muted-foreground">
-            {localizedFieldHelp(setupRefField, i18n.language)}
-          </p>
-        ) : null}
         {setupMissing ? (
           <p className="text-xs text-destructive">{t('validation.required')}</p>
         ) : null}
@@ -153,11 +146,6 @@ export function EquipmentSection({
           disabled={disabled}
           invalid={showTubeUsageHistoryError}
         />
-        <p className="text-xs text-muted-foreground">
-          {tubeUsageHistoryField
-            ? localizedFieldHelp(tubeUsageHistoryField, i18n.language)
-            : t('experimentsV2.sections.equipment.tubeUsageHistoryHelp')}
-        </p>
         {showTubeUsageHistoryError ? (
           <p className="text-xs text-destructive">
             {t('validation.usageHistory')}
@@ -167,13 +155,6 @@ export function EquipmentSection({
 
       {equipment.setupId ? (
         <div className="flex flex-col gap-2">
-          <Alert>
-            <AlertDescription>
-              {t('experimentsV2.sections.equipment.frozenNote', {
-                version: equipment.version ?? '',
-              })}
-            </AlertDescription>
-          </Alert>
           <dl className="grid gap-x-6 gap-y-2 rounded-md border border-border p-4 sm:grid-cols-2">
             {PROJECTION_FIELDS.filter((field) =>
               hasProjectionValue(snapshot[field.key]),
@@ -203,14 +184,17 @@ export function EquipmentSection({
                                   String(item['sensor_type'] ?? ''),
                                   i18n.language,
                                 )
+                          const accuracy = item['nominal_accuracy_C']
                           return (
                             <li key={String(item['zone_index'] ?? index)}>
                               {t(
-                                'experimentsV2.sections.equipment.sensorSummary',
+                                accuracy == null
+                                  ? 'experimentsV2.sections.equipment.sensorSummaryWithoutAccuracy'
+                                  : 'experimentsV2.sections.equipment.sensorSummary',
                                 {
                                   zone: String(item['zone_index'] ?? index + 1),
                                   type,
-                                  error: String(item['uncertainty_C'] ?? ''),
+                                  accuracy: String(accuracy ?? ''),
                                 },
                               )}
                             </li>
