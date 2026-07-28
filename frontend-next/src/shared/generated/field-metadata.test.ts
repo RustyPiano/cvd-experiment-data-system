@@ -8,12 +8,12 @@ import {
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('groups the 91 experiment fields into the expected module keys', () => {
+  it('groups the 93 experiment fields into the expected module keys', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(91)
+    expect(total).toBe(93)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',
@@ -32,8 +32,8 @@ describe('generated field-metadata', () => {
     const appearance = experimentModules.precursors.find(
       (f) => f.key === 'appearance',
     )
-    expect(appearance?.labelZh).toBe('外观描述')
-    expect(appearance?.labelEn).toBe('Appearance at time of use')
+    expect(appearance?.labelZh).toBe('使用前状态')
+    expect(appearance?.labelEn).toBe('Condition before use')
   })
 
   it('conditions substrate specs on explicit availability and keeps Chinese labels free of machine-key glosses', () => {
@@ -64,7 +64,7 @@ describe('generated field-metadata', () => {
     const amount = experimentModules.precursors.find((f) => f.key === 'amount')
     expect(amount?.requirement.level).toBe('conditional_required')
     expect(amount?.requirement.condition).toEqual({
-      field: '前驱体.相态',
+      field: '前驱体.本次使用形态',
       op: 'ne',
       value: 'gas',
     })
@@ -118,11 +118,11 @@ describe('generated field-metadata', () => {
     expect(unitLabelsEn['按指标']).toBe('per metric')
   })
 
-  it('keeps the R0 minimal-reproducible set at 30 fields', () => {
+  it('keeps the R0 minimal-reproducible set at 29 fields', () => {
     const r0 = Object.values(experimentModules)
       .flat()
       .filter((f) => f.r0)
-    expect(r0).toHaveLength(30)
+    expect(r0).toHaveLength(29)
   })
 
   it('tags every process_steps field with a valid stage param group', () => {
@@ -168,7 +168,7 @@ describe('generated field-metadata', () => {
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(50)
+    expect(total).toBe(53)
   })
 
   it('carries input types for every remaining scalar-plus-option field', () => {

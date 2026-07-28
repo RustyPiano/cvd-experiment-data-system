@@ -164,10 +164,10 @@ describe('structured sample provenance', () => {
     render(<SampleDetailPage />)
 
     expect(
-      screen.getByText(/物质名称（中文）：High-purity sapphire wafer/),
+      screen.getByText(/物料名称（按标签）：High-purity sapphire wafer/),
     ).toHaveTextContent('生产批号：LOT-SAP-01')
     expect(
-      screen.getByText(/物质名称（中文）：High-purity sapphire wafer/),
+      screen.getByText(/物料名称（按标签）：High-purity sapphire wafer/),
     ).toHaveTextContent('冻结版本：v3')
     expect(screen.getByText(/粗糙度指标：RMS/)).toHaveTextContent(
       '粗糙度数值（nm）：0.42',
@@ -181,7 +181,9 @@ describe('structured sample provenance', () => {
     expect(screen.getByText(/处理方式：等离子体/)).toHaveTextContent(
       '功率（W）：50',
     )
-    expect(screen.getByText(/温区编号：2/)).toHaveTextContent('距离（mm）：15')
+    expect(screen.getByText(/温区编号：2/)).toHaveTextContent(
+      '相对热电偶位置（mm）：15',
+    )
 
     const pageText = document.body.textContent ?? ''
     expect(pageText).not.toMatch(
@@ -278,7 +280,7 @@ describe('structured sample provenance', () => {
       screen.getByText(/Treatment type: Plasma treatment/),
     ).toHaveTextContent('Power (W): 50')
     expect(screen.getByText(/Zone number: 2/)).toHaveTextContent(
-      'Distance (mm): 15',
+      'Position relative to thermocouple (mm): 15',
     )
 
     const pageText = document.body.textContent ?? ''

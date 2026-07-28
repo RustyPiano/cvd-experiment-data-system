@@ -12,10 +12,12 @@ function ControlledObject({
   fieldKey,
   tubeShape,
   zoneCount,
+  loadingMethod,
 }: {
   fieldKey: string
   tubeShape?: string
   zoneCount?: number
+  loadingMethod?: string
 }) {
   const [value, setValue] = useState('')
   return (
@@ -26,6 +28,7 @@ function ControlledObject({
         onChange={setValue}
         tubeShape={tubeShape}
         zoneCount={zoneCount}
+        loadingMethod={loadingMethod}
       />
       <output data-testid="value">{value}</output>
     </I18nextProvider>
@@ -170,7 +173,9 @@ describe('StructuredObjectControl v3.7 objects', () => {
     ).toEqual({ reset_count: '0', use_number_since_reset: '1' })
 
     unmount()
-    render(<ControlledObject fieldKey="boat_crucible" />)
+    render(
+      <ControlledObject fieldKey="source_container" loadingMethod="boat" />,
+    )
     expect(
       screen.getByLabelText(/^Cleaning or replacement count/),
     ).toBeInTheDocument()
@@ -181,13 +186,14 @@ describe('StructuredObjectControl v3.7 objects', () => {
 
   it('selects a valid setup zone and records an optional temperature basis', async () => {
     const user = userEvent.setup()
-    render(
-      <ControlledObject fieldKey="source_zone_temperature" zoneCount={2} />,
-    )
+    render(<ControlledObject fieldKey="source_position" zoneCount={2} />)
 
     await user.click(screen.getByRole('combobox', { name: 'Zone number' }))
     await user.click(screen.getByRole('option', { name: 'Zone 2' }))
-    await user.type(screen.getByLabelText(/^Temperature \(°C\)/), '620')
+    await user.type(
+      screen.getByLabelText(/^Actual temperature at this position/),
+      '620',
+    )
     await user.click(
       screen.getByRole('combobox', { name: 'Temperature basis' }),
     )
@@ -201,7 +207,9 @@ describe('StructuredObjectControl v3.7 objects', () => {
       temperature_basis: 'measured',
     })
 
-    await user.clear(screen.getByLabelText(/^Temperature \(°C\)/))
+    await user.clear(
+      screen.getByLabelText(/^Actual temperature at this position/),
+    )
     expect(
       parseStructuredValue(screen.getByTestId('value').textContent ?? ''),
     ).toEqual({ zone_index: '2' })
@@ -219,7 +227,10 @@ describe('StructuredObjectControl v3.7 objects', () => {
     await user.click(screen.getByRole('combobox', { name: 'Zone number' }))
     expect(screen.getByRole('option', { name: 'Zone 1' })).toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: 'Zone 2' }))
-    await user.type(screen.getByLabelText(/^Distance/), '-5')
+    await user.type(
+      screen.getByLabelText(/^Position relative to thermocouple/),
+      '-5',
+    )
 
     expect(
       parseStructuredValue(screen.getByTestId('value').textContent ?? ''),

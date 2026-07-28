@@ -23,6 +23,7 @@ import { ModuleCard } from './module-card'
 import {
   canonicalOption,
   localizedFieldLabel,
+  localizedOption,
   localizedUnit,
 } from '@/shared/field-i18n'
 import { buildTreatmentStepsEditorLabels } from '@/shared/structured-editor-labels'
@@ -71,7 +72,6 @@ function snapshotFormValue(
 }
 
 const MATERIAL_LOT_PROJECTED_FIELDS: Record<string, readonly string[]> = {
-  precursors: ['name_formula', 'cas_inchi'],
   substrates: [
     'material',
     'chemical_formula',
@@ -90,14 +90,7 @@ export function materialLotProjection(
   snapshot: Record<string, unknown>,
 ): ModuleValues {
   if (moduleKey === 'precursors') {
-    return Object.fromEntries(
-      Object.entries({
-        name_formula:
-          snapshotText(snapshot, 'chemical_formula') ||
-          snapshotText(snapshot, 'substance_name'),
-        cas_inchi: snapshotText(snapshot, 'cas_number'),
-      }).filter(([, value]) => value !== ''),
-    )
+    return {}
   }
   if (moduleKey === 'substrates') {
     const orientation = snapshotValue(snapshot, 'substrate_orientation_polish')
@@ -152,19 +145,7 @@ export function materialLotAutofill(
   snapshot: Record<string, unknown>,
 ): ModuleValues {
   if (moduleKey === 'precursors') {
-    const category = canonicalOption(snapshotText(snapshot, 'lot_category'))
-    const form = canonicalOption(snapshotText(snapshot, 'form_appearance'))
-    const phase =
-      canonicalOption(snapshotText(snapshot, 'phase_state')) ||
-      (category === 'gas_cylinder'
-        ? 'gas'
-        : ['powder', 'granules', 'bulk_solid', 'foil', 'target'].includes(form)
-          ? 'solid'
-          : '')
-    return {
-      ...materialLotProjection(moduleKey, snapshot),
-      ...(phase ? { phase_state: phase } : {}),
-    }
+    return {}
   }
   return materialLotProjection(moduleKey, snapshot)
 }
@@ -187,6 +168,24 @@ function materialLotSummary(
     .join(' · ')
 }
 
+function precursorLotSummary(snapshot: Record<string, unknown>): string {
+  const formula = snapshotText(snapshot, 'chemical_formula')
+  const casNumber = snapshotText(snapshot, 'cas_number')
+  const supplier = snapshotText(snapshot, 'supplier')
+  const catalogNumber = snapshotText(snapshot, 'catalog_number')
+  const purity = snapshotText(snapshot, 'purity')
+  const particleSize = snapshotText(snapshot, 'particle_size_d50_um')
+  return [
+    formula,
+    casNumber ? `CAS ${casNumber}` : '',
+    [supplier, catalogNumber].filter(Boolean).join(' '),
+    purity ? `${purity}%` : '',
+    particleSize ? `D50 ${particleSize} μm` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 export function materialLotMatchesItem(
   moduleKey: string,
   item: ModuleValues,
@@ -197,16 +196,20 @@ export function materialLotMatchesItem(
     return category === 'substrate'
   }
   const phase = canonicalOption(moduleValueAsString(item['phase_state']))
-  if (!phase) return category === 'chemical' || category === 'gas_cylinder'
-  return category === (phase === 'gas' ? 'gas_cylinder' : 'chemical')
+  if (!phase) return false
+  if (phase === 'gas') return category === 'gas_cylinder'
+  if (category !== 'chemical') return false
+  const form = canonicalOption(snapshotText(snapshot, 'form_appearance'))
+  return phase === 'liquid' ? form === 'liquid' : form !== 'liquid'
 }
 
-export function materialLotReferenceFirst<T extends { key: string }>(
+export function materialLotWorkflowOrder<T extends { key: string }>(
   fields: readonly T[],
 ): T[] {
+  const priority = (key: string) =>
+    key === 'phase_state' ? 0 : key === 'lot_ref' ? 1 : 2
   return [...fields].sort(
-    (left, right) =>
-      Number(right.key === 'lot_ref') - Number(left.key === 'lot_ref'),
+    (left, right) => priority(left.key) - priority(right.key),
   )
 }
 
@@ -280,6 +283,32 @@ export function updateMaterialLotAwareItem(
 ): ModuleValues {
   const next = { ...item, [key]: value }
   if (
+    moduleKey === 'precursors' &&
+    key === 'role' &&
+    canonicalOption(moduleValueAsString(value)) !== 'other'
+  ) {
+    next['role_other'] = ''
+  }
+  if (moduleKey === 'precursors' && key === 'loading_method') {
+    next['source_container'] = ''
+    next['source_position'] = ''
+  }
+  if (moduleKey === 'precursors' && key === 'phase_state') {
+    const phase = canonicalOption(moduleValueAsString(value))
+    if (phase !== 'solid') next['appearance'] = ''
+    if (phase === 'gas') {
+      for (const dependent of [
+        'amount',
+        'treatment_steps',
+        'loading_method',
+        'source_container',
+        'source_position',
+      ]) {
+        next[dependent] = ''
+      }
+    }
+  }
+  if (
     (key !== 'phase_state' && key !== 'material') ||
     !referenceValue(item['lot_ref'])
   ) {
@@ -340,7 +369,7 @@ export function RepeatableItemsSection({
   zoneCount?: number | null
 }) {
   const { i18n, t } = useTranslation()
-  const fields = materialLotReferenceFirst(getModuleFields(moduleKey))
+  const fields = materialLotWorkflowOrder(getModuleFields(moduleKey))
 
   const setItemValue = (
     itemIndex: number,
@@ -385,6 +414,14 @@ export function RepeatableItemsSection({
         {items.map((item, itemIndex) => {
           const displayItem = materialLotProjectedItem(moduleKey, item)
           const itemReference = referenceValue(item['lot_ref'])
+          const precursorIdentity = itemReference
+            ? snapshotText(itemReference.snapshot, 'chemical_formula') ||
+              snapshotText(itemReference.snapshot, 'substance_name')
+            : ''
+          const precursorRole = localizedOption(
+            moduleValueAsString(item['role']),
+            i18n.language,
+          )
           const missingStableFields = itemReference
             ? materialLotMissingStableFields(moduleKey, itemReference.snapshot)
             : []
@@ -399,7 +436,11 @@ export function RepeatableItemsSection({
             >
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">
-                  {itemLabel(itemIndex + 1)}
+                  {moduleKey === 'precursors' && precursorIdentity
+                    ? [precursorIdentity, precursorRole]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : itemLabel(itemIndex + 1)}
                 </span>
                 <Button
                   type="button"
@@ -441,12 +482,14 @@ export function RepeatableItemsSection({
                     if (referenceKind) {
                       const reference = referenceValue(item[field.key])
                       const summary = reference
-                        ? materialLotSummary(
-                            reference.snapshot,
-                            t(
-                              'experimentsV2.sections.substrates.lotSizePrefix',
-                            ),
-                          )
+                        ? moduleKey === 'precursors'
+                          ? precursorLotSummary(reference.snapshot)
+                          : materialLotSummary(
+                              reference.snapshot,
+                              t(
+                                'experimentsV2.sections.substrates.lotSizePrefix',
+                              ),
+                            )
                         : ''
                       return (
                         <div key={field.key} className="flex flex-col gap-1.5">
@@ -467,13 +510,23 @@ export function RepeatableItemsSection({
                               moduleKey === 'substrates'
                                 ? ['substrate']
                                 : moduleKey === 'precursors'
-                                  ? ['chemical', 'gas_cylinder']
+                                  ? canonicalOption(
+                                      moduleValueAsString(
+                                        displayItem['phase_state'],
+                                      ),
+                                    ) === 'gas'
+                                    ? ['gas_cylinder']
+                                    : ['chemical']
                                   : undefined
                             }
                             selectedVersion={reference?.version}
                             selectedSnapshot={reference?.snapshot}
                             filter={(entity) =>
                               field.key !== 'lot_ref' ||
+                              (moduleKey === 'precursors' &&
+                                !moduleValueAsString(
+                                  displayItem['phase_state'],
+                                )) ||
                               (entity.latest_version != null &&
                                 materialLotMatchesItem(
                                   moduleKey,
@@ -509,14 +562,22 @@ export function RepeatableItemsSection({
                                 ),
                               )
                             }}
-                            disabled={disabled}
+                            disabled={
+                              disabled ||
+                              (moduleKey === 'precursors' &&
+                                !moduleValueAsString(
+                                  displayItem['phase_state'],
+                                ))
+                            }
                           />
                           {summary ? (
                             <p className="text-xs text-muted-foreground">
                               {summary}
                             </p>
                           ) : null}
-                          {field.key === 'lot_ref' && !reference ? (
+                          {field.key === 'lot_ref' &&
+                          !reference &&
+                          moduleKey !== 'precursors' ? (
                             <p className="text-xs text-muted-foreground">
                               {t(
                                 moduleKey === 'precursors'

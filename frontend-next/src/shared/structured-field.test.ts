@@ -12,30 +12,32 @@ describe('structured scientific fields', () => {
   it('serializes named geometry and zone values as typed objects', () => {
     expect(
       structuredPayload(
-        'boat_crucible',
+        'source_container',
         encodeStructuredValue({
-          material: 'quartz_boat',
+          material: 'quartz',
           length_mm: '90',
           width_mm: '15',
+          height_mm: '5',
           reset_count: '2',
           use_number_since_reset: '3',
         }),
+        { loadingMethod: 'boat' },
       ),
     ).toEqual({
-      material: 'quartz_boat',
+      material: 'quartz',
       material_other: null,
       length_mm: 90,
       width_mm: 15,
-      height_mm: null,
-      diameter_mm: null,
+      height_mm: 5,
       reset_count: 2,
       use_number_since_reset: 3,
     })
     expect(
       structuredPayload(
-        'source_zone_temperature',
+        'source_position',
         encodeStructuredValue({
           zone_index: '2',
+          distance_mm: '-20',
           temperature_C: '620',
           temperature_basis: 'measured',
         }),
@@ -43,6 +45,7 @@ describe('structured scientific fields', () => {
       ),
     ).toEqual({
       zone_index: 2,
+      distance_mm: -20,
       temperature_C: 620,
       temperature_basis: 'measured',
     })
@@ -161,11 +164,14 @@ describe('structured scientific fields', () => {
     ).toThrow(/non-negative/)
     expect(() =>
       structuredPayload(
-        'boat_crucible',
+        'source_container',
         encodeStructuredValue({
-          material: 'quartz_boat',
+          material: 'quartz',
           length_mm: '90',
+          width_mm: '15',
+          height_mm: '5',
         }),
+        { loadingMethod: 'boat' },
       ),
     ).toThrow(/reset_count/)
   })
@@ -173,26 +179,31 @@ describe('structured scientific fields', () => {
   it('allows an optional independent precursor temperature only with its basis', () => {
     expect(
       structuredPayload(
-        'source_zone_temperature',
-        encodeStructuredValue({ zone_index: '1' }),
+        'source_position',
+        encodeStructuredValue({ zone_index: '1', distance_mm: '-20' }),
         { zoneCount: 2 },
       ),
     ).toEqual({
       zone_index: 1,
+      distance_mm: -20,
       temperature_C: null,
       temperature_basis: null,
     })
     expect(() =>
       structuredPayload(
-        'source_zone_temperature',
-        encodeStructuredValue({ zone_index: '3' }),
+        'source_position',
+        encodeStructuredValue({ zone_index: '3', distance_mm: '-20' }),
         { zoneCount: 2 },
       ),
     ).toThrow(/zone count/)
     expect(() =>
       structuredPayload(
-        'source_zone_temperature',
-        encodeStructuredValue({ zone_index: '1', temperature_C: '650' }),
+        'source_position',
+        encodeStructuredValue({
+          zone_index: '1',
+          distance_mm: '-20',
+          temperature_C: '650',
+        }),
         { zoneCount: 2 },
       ),
     ).toThrow(/provided together/)
@@ -284,16 +295,6 @@ describe('structured scientific fields', () => {
   })
 
   it.each([
-    [
-      'boat_crucible',
-      { option: '石英舟', value: 90 },
-      { material: 'quartz_boat', length_mm: 90 },
-    ],
-    [
-      'source_zone_temperature',
-      { option: 'zone_1', value: 620 },
-      { zone_index: 1, temperature_C: 620 },
-    ],
     [
       'size_placement',
       { option: '正放', value: 10 },

@@ -941,7 +941,7 @@ def test_zip_export_includes_reversible_remaining_modules_and_schema_metadata(
     assert gas_feeds["example"]
     assert gas_feeds["schema_path"].endswith(".gas_feeds")
     assert schema["schema_version"] == "cvd_v2"
-    assert dictionary_json["field_count"] == 141
+    assert dictionary_json["field_count"] == 146
     assert manifest["schema_version"] == "cvd_v2"
     assert manifest["standard_version"] == "2.0.0"
     assert manifest["module_details"]["path_notation"] == "JSONPath-like"

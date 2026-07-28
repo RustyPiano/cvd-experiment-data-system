@@ -379,6 +379,23 @@ describe('material lot substrate formula', () => {
 })
 
 describe('buildSubmitPayload', () => {
+  it('drops identity fields from setup source branches that are not selected', () => {
+    expect(
+      buildSubmitPayload('setup', {
+        setup_origin: 'lab_built',
+        manufacturer_brand: 'stale manufacturer',
+        model: 'stale model',
+        design_build_organization: '二维材料课题组',
+        internal_model: 'CVD-LAB-A',
+        modification_details: 'stale modification',
+      }),
+    ).toEqual({
+      setup_origin: 'lab_built',
+      design_build_organization: '二维材料课题组',
+      internal_model: 'CVD-LAB-A',
+    })
+  })
+
   it('keeps only visible non-empty fields (drops stale hidden values)', () => {
     const values: EntityFormValues = {
       lot_category: '衬底',

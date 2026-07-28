@@ -7,12 +7,12 @@ import {
   materialLotMatchesItem,
   materialLotMissingStableFields,
   materialLotProjectedItem,
-  materialLotReferenceFirst,
+  materialLotWorkflowOrder,
   updateMaterialLotAwareItem,
 } from './repeatable-items-section'
 
 describe('materialLotAutofill', () => {
-  it('fills precursor identity from flat and nested frozen lot fields', () => {
+  it('keeps precursor identity in the frozen lot instead of duplicate run fields', () => {
     expect(
       materialLotAutofill('precursors', {
         chemical_formula: 'MoO3',
@@ -22,11 +22,7 @@ describe('materialLotAutofill', () => {
           form_appearance: 'powder',
         },
       }),
-    ).toEqual({
-      name_formula: 'MoO3',
-      cas_inchi: '1313-27-5',
-      phase_state: 'solid',
-    })
+    ).toEqual({})
   })
 
   it('fills only substrate identity values that the frozen lot determines', () => {
@@ -205,36 +201,45 @@ describe('materialLotMatchesItem', () => {
     ).toBe(false)
   })
 
-  it('selects chemical lots for every known non-gas precursor phase', () => {
-    for (const phase_state of ['solid', 'liquid']) {
-      expect(
-        materialLotMatchesItem('precursors', { phase_state }, lot('chemical')),
-      ).toBe(true)
-      expect(
-        materialLotMatchesItem(
-          'precursors',
-          { phase_state },
-          lot('gas_cylinder'),
-        ),
-      ).toBe(false)
-    }
+  it('separates solid and liquid chemical lots by their recorded form', () => {
+    expect(
+      materialLotMatchesItem(
+        'precursors',
+        { phase_state: 'solid' },
+        { lot_category: 'chemical', form_appearance: 'powder' },
+      ),
+    ).toBe(true)
+    expect(
+      materialLotMatchesItem(
+        'precursors',
+        { phase_state: 'solid' },
+        { lot_category: 'chemical', form_appearance: 'liquid' },
+      ),
+    ).toBe(false)
+    expect(
+      materialLotMatchesItem(
+        'precursors',
+        { phase_state: 'liquid' },
+        { lot_category: 'chemical', form_appearance: 'liquid' },
+      ),
+    ).toBe(true)
   })
 
-  it('shows both precursor lot categories before phase is chosen', () => {
+  it('waits for precursor phase before offering material lots', () => {
     expect(
       materialLotMatchesItem(
         'precursors',
         { phase_state: '' },
         lot('chemical'),
       ),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       materialLotMatchesItem(
         'precursors',
         { phase_state: '' },
         lot('gas_cylinder'),
       ),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('selects substrate lots for substrate records', () => {
@@ -262,8 +267,6 @@ describe('materialLotMatchesItem', () => {
         {
           lot_ref: lotRef,
           phase_state: 'gas',
-          name_formula: 'Ar',
-          cas_inchi: '7440-37-1',
         },
         'phase_state',
         'solid',
@@ -271,16 +274,15 @@ describe('materialLotMatchesItem', () => {
     ).toEqual({
       lot_ref: '',
       phase_state: 'solid',
-      name_formula: '',
-      cas_inchi: '',
     })
   })
 
-  it('places the lot reference before run-level fields without mutating metadata', () => {
+  it('places phase then lot before run-level fields without mutating metadata', () => {
     const fields = [{ key: 'phase_state' }, { key: 'lot_ref' }]
-    expect(materialLotReferenceFirst(fields).map((field) => field.key)).toEqual(
-      ['lot_ref', 'phase_state'],
-    )
+    expect(materialLotWorkflowOrder(fields).map((field) => field.key)).toEqual([
+      'phase_state',
+      'lot_ref',
+    ])
     expect(fields.map((field) => field.key)).toEqual(['phase_state', 'lot_ref'])
   })
 })

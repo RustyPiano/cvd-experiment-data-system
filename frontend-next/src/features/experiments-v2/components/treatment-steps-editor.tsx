@@ -68,6 +68,8 @@ type TreatmentFieldKey =
   | 'power_W'
   | 'gas_species'
   | 'pressure_Pa'
+  | 'pressure_MPa'
+  | 'die_diameter_mm'
   | 'method'
 
 export interface TreatmentStepsEditorLabels {
@@ -155,6 +157,27 @@ const precursorDefinitions: Partial<
     { key: 'atmosphere', kind: 'text' },
   ],
   grind: [{ key: 'duration_min', kind: 'number', positive: true, unit: 'min' }],
+  pelletize: [
+    {
+      key: 'pressure_MPa',
+      kind: 'number',
+      required: true,
+      positive: true,
+      unit: 'MPa',
+    },
+    {
+      key: 'duration_s',
+      kind: 'number',
+      positive: true,
+      unit: 's',
+    },
+    {
+      key: 'die_diameter_mm',
+      kind: 'number',
+      positive: true,
+      unit: 'mm',
+    },
+  ],
 }
 
 const substrateDefinitions: Partial<
@@ -217,8 +240,11 @@ function typesFor(kind: TreatmentKind): readonly Exclude<TreatmentType, ''>[] {
     : substrateTreatmentTypes
 }
 
-function emptyParameters(type: TreatmentType): TreatmentParameters {
-  return type === 'pelletize' || type === 'other' ? { items: [] } : {}
+function emptyParameters(
+  kind: TreatmentKind,
+  type: TreatmentType,
+): TreatmentParameters {
+  return kind === 'substrate' && type === 'other' ? { items: [] } : {}
 }
 
 function numberFromInput(value: string): number | null {
@@ -250,6 +276,13 @@ export function treatmentStepsAreValid(
   steps: TreatmentStep[],
 ): boolean {
   const allowed = new Set(typesFor(kind))
+  if (
+    kind === 'precursor' &&
+    steps.length > 1 &&
+    steps.some((step) => step.type === 'direct_load')
+  ) {
+    return false
+  }
   return steps.every((step) => {
     if (!step.type || !allowed.has(step.type)) return false
     if (step.type === 'other' && !step.other_name?.trim()) return false
@@ -258,7 +291,7 @@ export function treatmentStepsAreValid(
         !parameterInvalid(definition, step.parameters[definition.key], true),
     )
     if (!definitionsValid) return false
-    if (step.type !== 'pelletize' && step.type !== 'other') return true
+    if (kind !== 'substrate' || step.type !== 'other') return true
     const items = step.parameters.items
     return (
       Array.isArray(items) &&
@@ -525,7 +558,7 @@ function TreatmentStepRow({
           onValueChange={(type) =>
             onChange({
               type: type as TreatmentType,
-              parameters: emptyParameters(type as TreatmentType),
+              parameters: emptyParameters(kind, type as TreatmentType),
             })
           }
         >
@@ -619,7 +652,7 @@ function TreatmentStepRow({
         </div>
       ) : null}
 
-      {step.type === 'pelletize' || step.type === 'other' ? (
+      {kind === 'substrate' && step.type === 'other' ? (
         <NamedParametersEditor
           items={namedItems}
           onChange={(items) =>
@@ -665,7 +698,16 @@ export function TreatmentStepsEditor({
           count={value.length}
           onChange={(next) =>
             onChange(
-              value.map((item, position) => (position === index ? next : item)),
+              kind === 'precursor' && next.type === 'direct_load'
+                ? [next]
+                : value
+                    .map((item, position) => (position === index ? next : item))
+                    .filter(
+                      (item) =>
+                        kind !== 'precursor' ||
+                        next.type === '' ||
+                        item.type !== 'direct_load',
+                    ),
             )
           }
           onMove={(delta) => move(index, delta)}
@@ -673,7 +715,11 @@ export function TreatmentStepsEditor({
             stable.remove(index)
             onChange(value.filter((_, position) => position !== index))
           }}
-          disabled={disabled}
+          disabled={
+            disabled ||
+            (kind === 'precursor' &&
+              value.some((item) => item.type === 'direct_load'))
+          }
           showErrors={showErrors}
           labels={labels}
         />
@@ -683,7 +729,11 @@ export function TreatmentStepsEditor({
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled}
+          disabled={
+            disabled ||
+            (kind === 'precursor' &&
+              value.some((item) => item.type === 'direct_load'))
+          }
           onClick={() => {
             stable.add()
             onChange([...value, { type: '', parameters: {} }])

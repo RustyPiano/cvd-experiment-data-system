@@ -234,7 +234,6 @@ function completeState() {
     precursors: [
       {
         ...emptyModuleValues('precursors'),
-        name_formula: 'MoO3',
         role: 'main_precursor',
         phase_state: '气',
         lot_ref: JSON.stringify(precursorLotRef),
@@ -327,7 +326,7 @@ describe('ExperimentV2Form module saves', () => {
     ['target_product', { chemical_formula: 'MoS2', components: null }],
     [
       'precursors',
-      { items: [expect.objectContaining({ name_formula: 'MoO3' })] },
+      { items: [expect.objectContaining({ phase_state: 'gas' })] },
     ],
     [
       'substrates',
@@ -402,8 +401,7 @@ describe('ExperimentV2Form module saves', () => {
     const state = completeState()
     state.precursors.push({
       ...emptyModuleValues('precursors'),
-      name_formula: 'WO3',
-      role: '',
+      role: 'main_precursor',
       phase_state: '',
       lot_ref: '',
     })

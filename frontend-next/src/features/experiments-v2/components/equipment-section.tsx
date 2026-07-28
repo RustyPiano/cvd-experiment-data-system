@@ -15,6 +15,7 @@ import {
   localizedFieldLabel,
   localizedNamedValue,
   localizedOption,
+  localizedSetupFieldLabel,
   localizedValue,
   localizedUnit,
 } from '@/shared/field-i18n'
@@ -23,6 +24,10 @@ import { buildStructuredValueLabels } from '@/shared/structured-editor-labels'
 import { isEntityFileInput } from '@/shared/entity-file-reference'
 import { EntityFileDisplay } from '@/features/entity-library/entity-file-control'
 import { StructuredObjectControl } from '@/shared/ui/structured-object-control'
+import {
+  buildDefaultValues,
+  isFieldVisible,
+} from '@/features/entity-library/field-logic'
 
 const PROJECTION_FIELDS = (entities['setup'] ?? []).filter(
   (field) =>
@@ -88,6 +93,7 @@ export function EquipmentSection({
   const showTubeUsageHistoryError =
     Boolean(showErrors) && tubeUsageHistoryInvalid
   const snapshot = equipment.snapshot ?? {}
+  const visibilityValues = buildDefaultValues('setup', snapshot)
   const structuredLabels = buildStructuredValueLabels(t)
 
   return (
@@ -156,8 +162,10 @@ export function EquipmentSection({
       {equipment.setupId ? (
         <div className="flex flex-col gap-2">
           <dl className="grid gap-x-6 gap-y-2 rounded-md border border-border p-4 sm:grid-cols-2">
-            {PROJECTION_FIELDS.filter((field) =>
-              hasProjectionValue(snapshot[field.key]),
+            {PROJECTION_FIELDS.filter(
+              (field) =>
+                isFieldVisible('setup', field, visibilityValues) &&
+                hasProjectionValue(snapshot[field.key]),
             ).map((field) => {
               const raw = snapshot[field.key]
               const value = projectionValue(
@@ -169,7 +177,17 @@ export function EquipmentSection({
               return (
                 <div key={field.key} className="flex flex-col">
                   <dt className="text-xs text-muted-foreground">
-                    {localizedFieldLabel(field, i18n.language)}
+                    {localizedSetupFieldLabel(
+                      field,
+                      i18n.language,
+                      snapshot['setup_origin'],
+                      {
+                        manufacturerBrand: t(
+                          'entityLibrary.form.originalManufacturerBrand',
+                        ),
+                        model: t('entityLibrary.form.originalEquipmentModel'),
+                      },
+                    )}
                   </dt>
                   <dd className="whitespace-pre-wrap text-sm text-foreground">
                     {field.key === 'temperature_sensors' &&

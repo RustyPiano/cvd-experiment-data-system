@@ -37,6 +37,10 @@ const versions = [
     data: {
       setup_code: 'SETUP-01',
       setup_name: 'Main setup',
+      setup_origin: 'modified',
+      manufacturer_brand: 'Original Co.',
+      model: 'OTF-1000',
+      modification_details: 'Added independent zone control',
       tube_material_shape: { material: 'quartz', shape: 'round' },
       tube_outer_diameter_wall_mm: {
         outer_diameter_mm: 50,
@@ -52,6 +56,10 @@ const versions = [
     data: {
       setup_code: 'SETUP-01',
       setup_name: 'Main setup',
+      setup_origin: 'modified',
+      manufacturer_brand: 'Original Co.',
+      model: 'OTF-1000',
+      modification_details: 'Added independent zone control',
       tube_material_shape: { material: 'quartz', shape: 'round' },
       tube_outer_diameter_wall_mm: {
         outer_diameter_mm: 40,
@@ -98,6 +106,14 @@ describe('EntityDetailPage display values', () => {
     expect(
       screen.queryByText('{"outer_diameter_mm":50,"wall_thickness_mm":2}'),
     ).not.toBeInTheDocument()
+  })
+
+  it('uses original-equipment labels for a modified setup', async () => {
+    renderPage()
+
+    expect(await screen.findByText('原设备制造商或品牌')).toBeInTheDocument()
+    expect(screen.getByText('原设备型号')).toBeInTheDocument()
+    expect(screen.getByText('改造内容')).toBeInTheDocument()
   })
 
   it('labels a selected historical snapshot as the viewed version', async () => {

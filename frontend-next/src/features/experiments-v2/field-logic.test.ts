@@ -33,7 +33,7 @@ describe('resolveModuleConditionKey', () => {
     expect(
       resolveModuleConditionKey('target_product', '目标产物.结构类型'),
     ).toBe('structure_type')
-    expect(resolveModuleConditionKey('precursors', '前驱体.相态')).toBe(
+    expect(resolveModuleConditionKey('precursors', '前驱体.本次使用形态')).toBe(
       'phase_state',
     )
     expect(
@@ -95,18 +95,27 @@ describe('相态 = 固 → 外观描述 (appearance shown for solids, recommende
   })
 })
 
-describe('热电偶距离 → 前驱体所在温区', () => {
-  const sourceZone = field('precursors', 'source_zone_temperature')
+describe('装载方式 → 源容器与位置', () => {
+  const sourceContainer = field('precursors', 'source_container')
+  const sourcePosition = field('precursors', 'source_position')
 
-  it('requires a reference zone only when a distance is entered', () => {
+  it('requires both fields for a source container but not substrate coating', () => {
     expect(
-      isEffectivelyRequired('precursors', sourceZone, {
-        thermocouple_distance_mm: '-20',
+      isEffectivelyRequired('precursors', sourceContainer, {
+        phase_state: '固',
+        loading_method: '舟',
       }),
     ).toBe(true)
     expect(
-      isEffectivelyRequired('precursors', sourceZone, {
-        thermocouple_distance_mm: '',
+      isEffectivelyRequired('precursors', sourcePosition, {
+        phase_state: '固',
+        loading_method: '舟',
+      }),
+    ).toBe(true)
+    expect(
+      isEffectivelyRequired('precursors', sourceContainer, {
+        phase_state: '固',
+        loading_method: '衬底表面',
       }),
     ).toBe(false)
   })
@@ -450,15 +459,13 @@ describe('payload builders align with backend module contract', () => {
 
   it('item payload carries every field key; empty rows are filtered out', () => {
     const item = buildItemPayload('precursors', {
-      name_formula: 'MoO₃',
       phase_state: '固',
     })
-    expect(item.name_formula).toBe('MoO₃')
     expect(item.phase_state).toBe('solid')
     expect('amount' in item).toBe(true)
 
     const module = buildItemsModulePayload('precursors', [
-      { name_formula: 'MoO₃', phase_state: '固', amount: '5' },
+      { phase_state: '固', amount: '5' },
       {},
     ])
     expect(module.items).toHaveLength(1)
@@ -485,32 +492,36 @@ describe('payload builders align with backend module contract', () => {
     const item = buildItemPayload('precursors', {
       lot_ref: JSON.stringify(reference),
       phase_state: 'solid',
-      boat_crucible: JSON.stringify({
-        material: 'quartz_boat',
+      loading_method: 'boat',
+      source_container: JSON.stringify({
+        material: 'quartz',
         length_mm: '90',
+        width_mm: '15',
+        height_mm: '5',
         reset_count: '1',
         use_number_since_reset: '7',
       }),
-      source_zone_temperature: JSON.stringify({
+      source_position: JSON.stringify({
         zone_index: '1',
+        distance_mm: '-20',
         temperature_C: '620',
         temperature_basis: 'estimate',
       }),
     })
 
     expect(item.lot_ref).toEqual(reference)
-    expect(item.boat_crucible).toEqual({
-      material: 'quartz_boat',
+    expect(item.source_container).toEqual({
+      material: 'quartz',
       material_other: null,
       length_mm: 90,
-      width_mm: null,
-      height_mm: null,
-      diameter_mm: null,
+      width_mm: 15,
+      height_mm: 5,
       reset_count: 1,
       use_number_since_reset: 7,
     })
-    expect(item.source_zone_temperature).toEqual({
+    expect(item.source_position).toEqual({
       zone_index: 1,
+      distance_mm: -20,
       temperature_C: 620,
       temperature_basis: 'estimate',
     })
@@ -592,30 +603,33 @@ describe('missingRequiredKeys', () => {
   it('flags amount as missing only for non-gas precursors', () => {
     expect(
       missingRequiredKeys('precursors', {
-        name_formula: 'MoO₃',
         phase_state: '固',
       }),
     ).toContain('amount')
     expect(
       missingRequiredKeys('precursors', {
-        name_formula: 'Ar',
         phase_state: '气',
       }),
     ).not.toContain('amount')
   })
 
-  it('flags a missing precursor zone when thermocouple distance is present', () => {
+  it('flags source container and position for container loading', () => {
     expect(
       missingRequiredKeys('precursors', {
-        thermocouple_distance_mm: '-20',
+        phase_state: '固',
+        loading_method: '舟',
       }),
-    ).toContain('source_zone_temperature')
+    ).toEqual(expect.arrayContaining(['source_container', 'source_position']))
     expect(
       missingRequiredKeys('precursors', {
-        thermocouple_distance_mm: '-20',
-        source_zone_temperature: JSON.stringify({ zone_index: 1 }),
+        phase_state: '固',
+        loading_method: '舟',
+        source_container: JSON.stringify({ material: 'quartz' }),
+        source_position: JSON.stringify({ zone_index: 1, distance_mm: -20 }),
       }),
-    ).not.toContain('source_zone_temperature')
+    ).not.toEqual(
+      expect.arrayContaining(['source_container', 'source_position']),
+    )
   })
 
   it('flags miscut direction when the substrate angle is positive', () => {

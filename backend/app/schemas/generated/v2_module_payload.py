@@ -18,9 +18,9 @@ from app.services.v2_field_source import (
 )
 
 V2_MODULE_PAYLOAD_SCHEMA_VERSION = "cvd_v2"
-_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主源': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '倾角': 'tilted', '竖放': 'upright', '清洗': 'clean', '丙酮清洗': 'acetone_clean', '异丙醇清洗': 'isopropanol_clean', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '亲水处理': 'hydrophilic_treatment', '亲水化': 'hydrophilic_treatment', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气路置换': 'gas_exchange', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4', '热电偶': 'thermocouple', '热电阻（RTD）': 'rtd', '红外测温仪': 'infrared_thermometer', '光纤温度传感器': 'fiber_optic_temperature_sensor', '热敏电阻': 'thermistor', '商业设备': 'commercial', '实验室自制': 'lab_built', '改造设备': 'modified'}
+_OPTION_ALIASES = {'盐辅助CVD': 'salt_assisted_cvd', 'PVD-磁控溅射': 'pvd_magnetron_sputtering', 'PVD-热蒸发': 'pvd_thermal_evaporation', '是': True, '否': False, '其他': 'other', '其他（可加）': 'other_addable', '受控+其他': 'controlled_or_other', '本征': 'intrinsic', '掺杂': 'doped', '合金': 'alloy', '垂直异质结': 'vertical_heterostructure', '横向异质结': 'lateral_heterostructure', '连续膜': 'continuous_film', '纳米片(flake)': 'nanoflake', '纳米带': 'nanoribbon', '纳米管': 'nanotube', '纳米棒': 'nanorod', '纳米颗粒': 'nanoparticle', '热壁': 'hot_wall', '冷壁': 'cold_wall', '水平': 'horizontal', '垂直': 'vertical', '石英': 'quartz', '刚玉': 'alumina', '方': 'square', '矩': 'rectangular', '自定义': 'custom', '无': 'none', '等离子': 'plasma', '设定值': 'setpoint', '实测值': 'measured', '光': 'light', '电': 'electric_field', '固': 'solid', '气': 'gas', '液': 'liquid', '正常': 'normal', '白色粉末': 'white_powder', '白色晶粒': 'white_crystals', '淡黄色粉末': 'pale_yellow_powder', '结块或潮解': 'caked_or_deliquescent', '变色': 'discolored', '主要前驱体': 'main_precursor', '辅助剂': 'additive', '掺杂源': 'dopant_source', '直接加载': 'direct_load', '熔融凝固': 'melt_solidify', '压片': 'pelletize', '旋涂': 'spin_coat', '退火': 'anneal', '研磨': 'grind', '舟': 'boat', '坩埚': 'crucible', '衬底表面': 'substrate_surface', '其他容器': 'other_container', '石英舟': 'quartz_boat', '陶瓷(刚玉)舟': 'alumina_boat', '蓝宝石(Al₂O₃)': 'sapphire_al2o3', '蓝宝石': 'sapphire_al2o3', '云母': 'mica', 'Cu箔': 'cu_foil', 'Au箔': 'au_foil', '正放': 'face_up', '倒扣': 'face_down', '倾角': 'tilted', '竖放': 'upright', '清洗': 'clean', '丙酮清洗': 'acetone_clean', '异丙醇清洗': 'isopropanol_clean', '氮气吹干': 'nitrogen_dry', '等离子体': 'plasma_treatment', '亲水处理': 'hydrophilic_treatment', '亲水化': 'hydrophilic_treatment', '温区1…': 'zone_1', '温区2…': 'zone_2', '抽气': 'pump_down', '预处理': 'preparation', '反应条件': 'reaction_conditions', '其他记录': 'other', '气路置换': 'gas_exchange', '随炉冷却': 'furnace_cooling', '开盖冷却': 'open_lid_cooling', '移炉快速冷却': 'rapid_furnace_move_cooling', '常压(APCVD)': 'atmospheric_pressure', '常压': 'atmospheric_pressure', '低压(LPCVD)': 'low_pressure', '低压': 'low_pressure', '超高真空': 'ultra_high_vacuum', 'MFC': 'mfc', '1″': 'tube_1_inch', '2″': 'tube_2_inch', '4″': 'tube_4_inch', 'SiO₂/Si': 'sio2_si', 'Ar+N₂…': 'ar_n2_other', '转子': 'rotameter', '管路堵塞': 'line_blockage', '压力突变': 'pressure_excursion', '信号异常': 'signal_anomaly', '人工干预': 'manual_intervention', '设备报警': 'equipment_alarm', '人工停止': 'manual_stop', '供电中断': 'power_interruption', '供水中断': 'water_interruption', '供气中断': 'gas_interruption', '计划变更': 'plan_changed', '仪器': 'instrument', '校准': 'calibration', '重复性': 'repeatability', '估计': 'estimate', '空气': 'air', '氮气': 'nitrogen', '真空': 'vacuum', '圆形': 'round', '方形': 'square', '矩形': 'rectangular', '光镜': 'optical_microscopy', '低波数Raman': 'low_frequency_raman', '无生长': 'no_growth', '不连续覆盖': 'discontinuous_coverage', '厚层区域': 'thick_layer_regions', '可见颗粒沾污': 'visible_particle_contamination', '衬底破损': 'substrate_damage', '化学品': 'chemical', '衬底': 'substrate', '气瓶': 'gas_cylinder', '粉末': 'powder', '颗粒': 'granules', '块': 'bulk_solid', '液体': 'liquid', '箔': 'foil', '靶': 'target', '干燥器': 'desiccator', '手套箱': 'glovebox', '常温避光': 'room_temperature_dark', '冷藏': 'refrigerated', '单面抛': 'single_side_polished', '双面抛': 'double_side_polished', '有规格数值': 'reported', '供应商未提供': 'not_provided', '不适用': 'not_applicable', '工业级': 'industrial_grade', '主体材料': 'matrix', '基体': 'matrix', '掺杂剂': 'dopant', '合金组分': 'alloy_component', '材料层': 'material_layer', '上层': 'top_layer', '下层': 'bottom_layer', '横向域': 'lateral_domain', 'N₂': 'N2', 'H₂': 'H2', 'O₂': 'O2', 'CH₄': 'CH4', '热电偶': 'thermocouple', '热电阻（RTD）': 'rtd', '红外测温仪': 'infrared_thermometer', '光纤温度传感器': 'fiber_optic_temperature_sensor', '热敏电阻': 'thermistor', '商业设备': 'commercial', '实验室自制': 'lab_built', '改造设备': 'modified'}
 _FIELD_OPTION_ALIASES = {'field_devices': {'等离子': 'plasma', '等离子体': 'plasma'}, 'field_type': {'等离子': 'plasma', '等离子体': 'plasma'}, 'type': {'等离子': 'plasma_treatment', '等离子体': 'plasma_treatment'}}
-_CONTROLLED_KEYS = frozenset(('appearance', 'event_type', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'lot_category', 'material', 'miscut_availability', 'name_formula', 'name_type', 'orientation', 'orientation_polish_availability', 'phase_state', 'plasma_gas_pressure', 'pressure_system', 'role', 'setup_origin', 'stage_type', 'storage_method', 'structure_type', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'target_morphology', 'termination_reason', 'wall_type'))
+_CONTROLLED_KEYS = frozenset(('appearance', 'event_type', 'exposure_environment', 'field_devices', 'form_appearance', 'gas_purity_grade', 'loading_method', 'lot_category', 'material', 'miscut_availability', 'name_type', 'orientation', 'orientation_polish_availability', 'phase_state', 'plasma_gas_pressure', 'pressure_system', 'role', 'setup_origin', 'stage_type', 'storage_method', 'structure_type', 'substrate_material', 'substrate_miscut_availability', 'substrate_orientation_polish', 'substrate_orientation_polish_availability', 'supplier', 'target_morphology', 'termination_reason', 'wall_type'))
 _STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type'))
 _COMPOSITE_KEYS = frozenset(('plasma_gas_pressure', 'pressure_system', 'substrate_orientation_polish'))
 _MULTI_KEYS = frozenset(('field_devices',))
@@ -128,6 +128,12 @@ class AnnealParametersPayload(V2PayloadBase):
     atmosphere: str | None = None
 
 
+class PelletizeParametersPayload(V2PayloadBase):
+    pressure_MPa: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
+    duration_s: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    die_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+
+
 class NamedParameterListPayload(V2PayloadBase):
     items: Annotated[list[NamedParameterPayload], Field(min_length=1)]
 
@@ -159,13 +165,13 @@ class GrindTreatmentPayload(V2PayloadBase):
 
 class PelletizeTreatmentPayload(V2PayloadBase):
     type: Literal['pelletize']
-    parameters: NamedParameterListPayload
+    parameters: PelletizeParametersPayload
 
 
 class OtherTreatmentPayload(V2PayloadBase):
     type: Literal['other']
     other_name: NonBlankStr
-    parameters: NamedParameterListPayload
+    parameters: EmptyParametersPayload
 
 
 PrecursorTreatmentPayload = Annotated[
@@ -305,22 +311,21 @@ class TubeUsageHistoryPayload(V2PayloadBase):
     use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]
 
 
-class BoatCruciblePayload(V2PayloadBase):
-    material: Literal['quartz_boat', 'alumina_boat', 'other']
+class SourceContainerPayload(V2PayloadBase):
+    material: Literal['quartz', 'alumina', 'other']
     material_other: str | None = None
     length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
     diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    description: NonBlankStr | None = None
     reset_count: Annotated[int, Field(strict=True, ge=0)]
     use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]
 
     @model_validator(mode="after")
-    def _has_dimensions(self) -> Self:
+    def _material_name(self) -> Self:
         if (self.material == 'other') != bool((self.material_other or '').strip()):
             raise ValueError("material_other is required only for other material")
-        if all(value is None for value in (self.length_mm, self.width_mm, self.height_mm, self.diameter_mm)):
-            raise ValueError("boat/crucible requires at least one named dimension")
         return self
 
 
@@ -341,8 +346,9 @@ class SubstrateSizePlacementPayload(V2PayloadBase):
         return self
 
 
-class SourceZoneTemperaturePayload(V2PayloadBase):
+class SourcePositionPayload(V2PayloadBase):
     zone_index: Annotated[int, Field(strict=True, ge=1)]
+    distance_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)]
     temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None
     temperature_basis: Literal['measured', 'estimate'] | None = None
 
@@ -752,9 +758,12 @@ class TargetProductPayload(V2PayloadBase):
 
 class EquipmentPayload(V2PayloadBase):
     setup_ref: NonBlankStr
-    setup_origin: Literal['commercial', 'lab_built', 'modified'] | None = None
+    setup_origin: Literal['commercial', 'lab_built', 'modified']
     manufacturer_brand: str | None = None
     model: str | None = None
+    design_build_organization: str | None = None
+    internal_model: str | None = None
+    modification_details: str | None = None
     wall_type: Literal['cold_wall', 'hot_wall'] | None = None
     zone_count: Annotated[int, Field(strict=True, ge=1)]
     orientation: Literal['horizontal', 'vertical']
@@ -806,34 +815,87 @@ class EquipmentPayload(V2PayloadBase):
             raise ValueError("temperature_sensors must cover each zone exactly once")
         return self
 
+    @model_validator(mode="after")
+    def _check_conditional_required(self) -> Self:
+        if (
+            not _matches({'op': 'in', 'value': ['commercial', 'modified']}, self.setup_origin)
+            and not _missing(self.manufacturer_brand)
+        ):
+            raise ValueError("manufacturer_brand is not applicable")
+        if (
+            not _matches({'op': 'in', 'value': ['commercial', 'modified']}, self.setup_origin)
+            and not _missing(self.model)
+        ):
+            raise ValueError("model is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'lab_built'}, self.setup_origin)
+            and not _missing(self.design_build_organization)
+        ):
+            raise ValueError("design_build_organization is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'lab_built'}, self.setup_origin)
+            and not _missing(self.internal_model)
+        ):
+            raise ValueError("internal_model is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'modified'}, self.setup_origin)
+            and not _missing(self.modification_details)
+        ):
+            raise ValueError("modification_details is not applicable")
+        return self
+
 
 
 class PrecursorItemPayload(V2PayloadBase):
-    name_formula: NonBlankStr
-    cas_inchi: str | None = None
     phase_state: Literal['gas', 'liquid', 'solid']
-    appearance: str | None = None
     lot_ref: MaterialLotReferencePayload
     role: Literal['additive', 'dopant_source', 'main_precursor', 'other']
+    role_other: str | None = None
     amount: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    appearance: str | None = None
     treatment_steps: list[PrecursorTreatmentPayload] | None = None
-    boat_crucible: BoatCruciblePayload | None = None
-    source_zone_temperature: SourceZoneTemperaturePayload | None = None
-    thermocouple_distance_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None
+    loading_method: Literal['boat', 'crucible', 'other_container', 'substrate_surface'] | None = None
+    source_container: SourceContainerPayload | None = None
+    source_position: SourcePositionPayload | None = None
 
     @model_validator(mode="after")
-    def _thermocouple_distance_zone(self) -> Self:
-        if self.thermocouple_distance_mm is not None and self.source_zone_temperature is None:
-            raise ValueError("source_zone_temperature is required when thermocouple_distance_mm is provided")
+    def _source_container_dimensions(self) -> Self:
+        container = self.source_container
+        if container is None:
+            return self
+        expected_fields = {
+            'boat': {'length_mm', 'width_mm', 'height_mm'},
+            'crucible': {'diameter_mm', 'height_mm'},
+            'other_container': {'description'},
+        }.get(self.loading_method, set())
+        provided_fields = {
+            key
+            for key in ('length_mm', 'width_mm', 'height_mm', 'diameter_mm', 'description')
+            if getattr(container, key) is not None
+        }
+        if provided_fields != expected_fields:
+            raise ValueError("source container dimensions do not match loading method")
+        return self
+
+    @model_validator(mode="after")
+    def _direct_load_is_exclusive(self) -> Self:
+        steps = self.treatment_steps or []
+        if len(steps) > 1 and any(step.type == 'direct_load' for step in steps):
+            raise ValueError("direct_load cannot be combined with other treatment steps")
         return self
 
     @model_validator(mode="after")
     def _check_conditional_required(self) -> Self:
         if (
-            not _matches({'op': 'eq', 'value': 'solid'}, self.phase_state)
-            and not _missing(self.appearance)
+            _matches({'op': 'eq', 'value': 'other'}, self.role)
+            and _missing(self.role_other)
         ):
-            raise ValueError("appearance is not applicable")
+            raise ValueError("role_other is conditionally required")
+        if (
+            not _matches({'op': 'eq', 'value': 'other'}, self.role)
+            and not _missing(self.role_other)
+        ):
+            raise ValueError("role_other is not applicable")
         if (
             _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
             and _missing(self.amount)
@@ -845,15 +907,45 @@ class PrecursorItemPayload(V2PayloadBase):
         ):
             raise ValueError("amount is not applicable")
         if (
-            _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
-            and _missing(self.boat_crucible)
+            not _matches({'op': 'eq', 'value': 'solid'}, self.phase_state)
+            and not _missing(self.appearance)
         ):
-            raise ValueError("boat_crucible is conditionally required")
+            raise ValueError("appearance is not applicable")
         if (
             not _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
-            and not _missing(self.boat_crucible)
+            and not _missing(self.treatment_steps)
         ):
-            raise ValueError("boat_crucible is not applicable")
+            raise ValueError("treatment_steps is not applicable")
+        if (
+            _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
+            and _missing(self.loading_method)
+        ):
+            raise ValueError("loading_method is conditionally required")
+        if (
+            not _matches({'op': 'ne', 'value': 'gas'}, self.phase_state)
+            and not _missing(self.loading_method)
+        ):
+            raise ValueError("loading_method is not applicable")
+        if (
+            _matches({'op': 'in', 'value': ['boat', 'crucible', 'other_container']}, self.loading_method)
+            and _missing(self.source_container)
+        ):
+            raise ValueError("source_container is conditionally required")
+        if (
+            not _matches({'op': 'in', 'value': ['boat', 'crucible', 'other_container']}, self.loading_method)
+            and not _missing(self.source_container)
+        ):
+            raise ValueError("source_container is not applicable")
+        if (
+            _matches({'op': 'in', 'value': ['boat', 'crucible', 'other_container']}, self.loading_method)
+            and _missing(self.source_position)
+        ):
+            raise ValueError("source_position is conditionally required")
+        if (
+            not _matches({'op': 'in', 'value': ['boat', 'crucible', 'other_container']}, self.loading_method)
+            and not _missing(self.source_position)
+        ):
+            raise ValueError("source_position is not applicable")
         return self
 
 
@@ -1282,9 +1374,12 @@ class MaterialLotVersionPayload(V2PayloadBase):
 
 class SetupVersionPayload(V2PayloadBase):
     setup_name: NonBlankStr
-    setup_origin: Literal['commercial', 'lab_built', 'modified'] | None = None
+    setup_origin: Literal['commercial', 'lab_built', 'modified']
     manufacturer_brand: str | None = None
     model: str | None = None
+    design_build_organization: str | None = None
+    internal_model: str | None = None
+    modification_details: str | None = None
     setup_code: NonBlankStr
     zone_count: Annotated[int, Field(strict=True, ge=1)]
     temperature_sensors: Annotated[list[TemperatureSensorPayload], Field(min_length=1)]
@@ -1333,6 +1428,35 @@ class SetupVersionPayload(V2PayloadBase):
             for expected, zone_index in enumerate(zone_indices, start=1)
         ):
             raise ValueError("temperature_sensors must cover each zone exactly once")
+        return self
+
+    @model_validator(mode="after")
+    def _check_conditional_required(self) -> Self:
+        if (
+            not _matches({'op': 'in', 'value': ['commercial', 'modified']}, self.setup_origin)
+            and not _missing(self.manufacturer_brand)
+        ):
+            raise ValueError("manufacturer_brand is not applicable")
+        if (
+            not _matches({'op': 'in', 'value': ['commercial', 'modified']}, self.setup_origin)
+            and not _missing(self.model)
+        ):
+            raise ValueError("model is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'lab_built'}, self.setup_origin)
+            and not _missing(self.design_build_organization)
+        ):
+            raise ValueError("design_build_organization is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'lab_built'}, self.setup_origin)
+            and not _missing(self.internal_model)
+        ):
+            raise ValueError("internal_model is not applicable")
+        if (
+            not _matches({'op': 'eq', 'value': 'modified'}, self.setup_origin)
+            and not _missing(self.modification_details)
+        ):
+            raise ValueError("modification_details is not applicable")
         return self
 
 

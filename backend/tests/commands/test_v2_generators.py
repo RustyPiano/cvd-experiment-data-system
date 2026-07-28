@@ -102,17 +102,20 @@ def _substrate_item(**changes) -> dict:
 
 def _precursor_item(**changes) -> dict:
     item = {
-        "name_formula": "MoO3",
         "role": "main_precursor",
         "phase_state": "solid",
         "lot_ref": LOT_REF,
         "amount": 20.0,
-        "boat_crucible": {
-            "material": "quartz_boat",
+        "loading_method": "boat",
+        "source_container": {
+            "material": "quartz",
             "length_mm": 90.0,
+            "width_mm": 15.0,
+            "height_mm": 5.0,
             "reset_count": 0,
             "use_number_since_reset": 1,
         },
+        "source_position": {"zone_index": 1, "distance_mm": -20.0},
     }
     item.update(changes)
     return item
@@ -347,7 +350,7 @@ def test_field_dictionary_and_xlsx_expose_machine_validation_contract() -> None:
     assert headers[-1] == "机器约束"
     machine_column = len(headers)
     amount_row = next(
-        row for row in range(1, sheet.max_row + 1) if sheet.cell(row, 2).value == "用量"
+        row for row in range(1, sheet.max_row + 1) if sheet.cell(row, 2).value == "使用量"
     )
     assert '"gt":0' in sheet.cell(amount_row, machine_column).value
 
@@ -901,7 +904,6 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
         {
             "items": [
                 {
-                    "name_formula": "MoO3",
                     "role": "main_precursor",
                     "phase_state": "solid",
                     "lot_ref": {
@@ -909,16 +911,18 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
                         "version": 2,
                     },
                     "amount": 20,
-                    "boat_crucible": {
-                        "material": "quartz_boat",
+                    "loading_method": "boat",
+                    "source_container": {
+                        "material": "quartz",
                         "length_mm": 90,
                         "width_mm": 15,
                         "height_mm": 5,
                         "reset_count": 1,
                         "use_number_since_reset": 7,
                     },
-                    "source_zone_temperature": {
+                    "source_position": {
                         "zone_index": 1,
+                        "distance_mm": -20,
                         "temperature_C": 620,
                         "temperature_basis": "estimate",
                     },
@@ -926,16 +930,18 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
             ]
         },
     )
-    assert precursor["items"][0]["source_zone_temperature"]["zone_index"] == 1
+    assert precursor["items"][0]["source_position"]["zone_index"] == 1
     with pytest.raises(ValueError, match="material_other"):
         validate_v2_module_payload(
             "precursors",
             {
                 "items": [
                     _precursor_item(
-                        boat_crucible={
+                        source_container={
                             "material": "other",
                             "length_mm": 90.0,
+                            "width_mm": 15.0,
+                            "height_mm": 5.0,
                             "reset_count": 0,
                             "use_number_since_reset": 1,
                         }
@@ -948,10 +954,12 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
         {
             "items": [
                 _precursor_item(
-                    boat_crucible={
+                    source_container={
                         "material": "other",
                         "material_other": "graphite",
                         "length_mm": 90.0,
+                        "width_mm": 15.0,
+                        "height_mm": 5.0,
                         "reset_count": 0,
                         "use_number_since_reset": 1,
                     }
@@ -959,7 +967,7 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
             ]
         },
     )
-    assert other_boat["items"][0]["boat_crucible"]["material_other"] == "graphite"
+    assert other_boat["items"][0]["source_container"]["material_other"] == "graphite"
 
     substrate = validate_v2_module_payload(
         "substrates",
@@ -1198,6 +1206,7 @@ def test_named_other_stage_round_trips_and_requires_name_and_notes() -> None:
 def test_equipment_snapshot_uses_structured_tube_sensors_and_file_reference() -> None:
     payload = {
         "setup_ref": "setup-1@v2",
+        "setup_origin": "commercial",
         "zone_count": 2,
         "orientation": "水平",
         "tube_material_shape": {"material": "石英", "shape": "圆形"},
@@ -1263,6 +1272,7 @@ def test_rendered_equipment_and_setup_models_enforce_shape_and_zone_contracts(
     ]
     equipment = {
         "setup_ref": "setup-1@v2",
+        "setup_origin": "commercial",
         "zone_count": 2,
         "orientation": "horizontal",
         "tube_material_shape": {"material": "quartz", "shape": "round"},
@@ -1315,21 +1325,17 @@ def test_rendered_equipment_and_setup_models_enforce_shape_and_zone_contracts(
 def test_rendered_precursor_and_local_condition_contracts(
     rendered_models: ModuleType,
 ) -> None:
-    with pytest.raises(ValueError, match="source_zone_temperature is required"):
-        rendered_models.PrecursorItemPayload.model_validate(
-            _precursor_item(thermocouple_distance_mm=0.0)
-        )
+    with pytest.raises(ValueError, match="source_position is conditionally required"):
+        rendered_models.PrecursorItemPayload.model_validate(_precursor_item(source_position=None))
     rendered_models.PrecursorItemPayload.model_validate(
         _precursor_item(
-            source_zone_temperature={"zone_index": 1},
-            thermocouple_distance_mm=-20.0,
+            source_position={"zone_index": 1, "distance_mm": -20.0},
         )
     )
 
     with pytest.raises(ValueError, match="appearance is not applicable"):
         rendered_models.PrecursorItemPayload.model_validate(
             {
-                "name_formula": "Ar",
                 "role": "main_precursor",
                 "phase_state": "gas",
                 "appearance": "gas",
@@ -1369,7 +1375,6 @@ def test_treatment_and_pretreatment_steps_use_discriminated_parameter_objects() 
             "items": [
                 _precursor_item(
                     treatment_steps=[
-                        {"type": "直接加载", "parameters": {}},
                         {
                             "type": "旋涂",
                             "parameters": {"speed_rpm": 3000.0, "duration_s": 60.0},
@@ -1377,9 +1382,7 @@ def test_treatment_and_pretreatment_steps_use_discriminated_parameter_objects() 
                         {
                             "type": "其他",
                             "other_name": "Sieving",
-                            "parameters": {
-                                "items": [{"name": "mesh", "value": 200.0, "unit": "mesh"}]
-                            },
+                            "parameters": {},
                         },
                     ]
                 )
@@ -1387,10 +1390,30 @@ def test_treatment_and_pretreatment_steps_use_discriminated_parameter_objects() 
         },
     )
     assert [step["type"] for step in precursors["items"][0]["treatment_steps"]] == [
-        "direct_load",
         "spin_coat",
         "other",
     ]
+
+    with pytest.raises(ValueError, match="direct_load cannot be combined"):
+        validate_v2_module_payload(
+            "precursors",
+            {
+                "items": [
+                    _precursor_item(
+                        treatment_steps=[
+                            {"type": "直接加载", "parameters": {}},
+                            {
+                                "type": "旋涂",
+                                "parameters": {
+                                    "speed_rpm": 3000.0,
+                                    "duration_s": 60.0,
+                                },
+                            },
+                        ]
+                    )
+                ]
+            },
+        )
 
     substrates = validate_v2_module_payload(
         "substrates",

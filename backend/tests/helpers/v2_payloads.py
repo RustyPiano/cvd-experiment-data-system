@@ -68,6 +68,7 @@ def setup_payload(
     payload = {
         "setup_code": setup_code,
         "setup_name": "Test furnace",
+        "setup_origin": "commercial",
         "zone_count": zone_count,
         "temperature_sensors": [
             temperature_sensor(zone_index=index) for index in range(1, sensor_count + 1)

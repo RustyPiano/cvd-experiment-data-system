@@ -36,6 +36,7 @@ import { EntityForm } from './entity-form'
 import {
   localizedFieldLabel,
   localizedNamedValue,
+  localizedSetupFieldLabel,
   localizedUnitLabel,
   localizedValue,
 } from '@/shared/field-i18n'
@@ -244,7 +245,22 @@ export function EntityDetailPage({
                   const value = isStructuredInput(field.input)
                     ? localizedNamedValue(raw, i18n.language, structuredLabels)
                     : localizedValue(raw, i18n.language)
-                  const label = localizedFieldLabel(field, i18n.language)
+                  const label =
+                    kind === 'setup'
+                      ? localizedSetupFieldLabel(
+                          field,
+                          i18n.language,
+                          activeData['setup_origin'],
+                          {
+                            manufacturerBrand: t(
+                              'entityLibrary.form.originalManufacturerBrand',
+                            ),
+                            model: t(
+                              'entityLibrary.form.originalEquipmentModel',
+                            ),
+                          },
+                        )
+                      : localizedFieldLabel(field, i18n.language)
                   const unit = localizedUnitLabel(field.unit, i18n.language)
                   return (
                     <div

@@ -200,21 +200,21 @@ describe('FieldControl dropdown with other value', () => {
   it('does not submit the vocabulary note and accepts a free-text value', async () => {
     await i18n.changeLanguage('zh')
     const field = experimentModules.precursors.find(
-      (item) => item.key === 'name_formula',
+      (item) => item.key === 'appearance',
     )!
     const view = renderControl('precursors', field)
 
-    await view.user.click(screen.getByRole('combobox', { name: /前驱体标识/ }))
+    await view.user.click(screen.getByRole('combobox', { name: /使用前状态/ }))
     expect(
       screen.queryByRole('option', { name: '受控+其他' }),
     ).not.toBeInTheDocument()
     await view.user.click(screen.getByRole('option', { name: '其他' }))
     await view.user.type(
-      screen.getByRole('textbox', { name: /前驱体标识.*其他内容/ }),
-      'MoO3',
+      screen.getByRole('textbox', { name: /使用前状态.*其他内容/ }),
+      '潮湿发黏',
     )
 
-    expect(view.onChange).toHaveBeenLastCalledWith('MoO3')
+    expect(view.onChange).toHaveBeenLastCalledWith('潮湿发黏')
   })
 })
 
@@ -256,10 +256,16 @@ describe('FieldControl multi-value dropdown', () => {
 describe('FieldControl descriptions and numeric constraints', () => {
   it('shows bilingual upstream-negative and downstream-positive help on both distance controls', async () => {
     await i18n.changeLanguage('zh')
-    const precursorDistance = experimentModules.precursors.find(
-      (item) => item.key === 'thermocouple_distance_mm',
+    const precursorPosition = experimentModules.precursors.find(
+      (item) => item.key === 'source_position',
     )!
-    const precursor = renderControl('precursors', precursorDistance, '-20')
+    const precursor = renderControl(
+      'precursors',
+      precursorPosition,
+      JSON.stringify({ zone_index: 1, distance_mm: -20 }),
+      vi.fn(),
+      { phase_state: 'solid', loading_method: 'boat' },
+    )
     expect(
       screen.getByText(/沿气流方向，上游填负值，下游填正值/),
     ).toBeInTheDocument()

@@ -25,6 +25,26 @@ export function localizedFieldLabel(
   return stripSubcategoryPrefix(label)
 }
 
+export function localizedSetupFieldLabel(
+  field: FieldMetadata,
+  language: string,
+  setupOrigin: unknown,
+  modifiedLabels: {
+    manufacturerBrand: string
+    model: string
+  },
+): string {
+  const label = localizedFieldLabel(field, language)
+  if (canonicalOption(String(setupOrigin ?? '')) !== 'modified') return label
+  if (field.key === 'manufacturer_brand') {
+    return modifiedLabels.manufacturerBrand
+  }
+  if (field.key === 'model') {
+    return modifiedLabels.model
+  }
+  return label
+}
+
 export function localizedOption(value: string, language: string): string {
   const code = canonicalOption(value)
   return isEnglish(language)

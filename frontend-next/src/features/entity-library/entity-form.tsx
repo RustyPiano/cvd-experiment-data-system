@@ -13,6 +13,7 @@ import {
   localizedFieldLabel,
   localizedFieldPlaceholder,
   localizedOption,
+  localizedSetupFieldLabel,
   localizedUnitLabel,
 } from '@/shared/field-i18n'
 import { RequiredMark } from '@/shared/ui/required-mark'
@@ -93,6 +94,7 @@ const TEXTAREA_KEYS = new Set([
   'mfc_config',
   'fixed_config',
   'coordinate_system',
+  'modification_details',
 ])
 const NUMERIC_INPUT = '\u6570\u503c'
 
@@ -506,7 +508,13 @@ function EntityFieldControl({
     typeof tubeShapeValue === 'string'
       ? String(parseStructuredValue(tubeShapeValue).shape ?? '')
       : ''
-  const label = localizedFieldLabel(field, i18n.language)
+  const label =
+    kind === 'setup'
+      ? localizedSetupFieldLabel(field, i18n.language, values['setup_origin'], {
+          manufacturerBrand: t('entityLibrary.form.originalManufacturerBrand'),
+          model: t('entityLibrary.form.originalEquipmentModel'),
+        })
+      : localizedFieldLabel(field, i18n.language)
   const required = isEffectivelyRequired(kind, field, values)
   const allowsOther = isSelectWithOtherInput(field.input)
   const multiSelect = isMultiSelectInput(field.input)

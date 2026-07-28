@@ -203,7 +203,7 @@ def test_module_api_rejects_nonempty_fields_when_their_condition_is_false(
             {
                 "items": [
                     {
-                        "name_formula": "NH3",
+                        "role": "main_precursor",
                         "phase_state": "gas",
                         "lot_ref": {
                             "entity_id": str(uuid4()),
@@ -905,6 +905,26 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
         batch_number="LOT-SAPPHIRE",
     )
     valid_substrate = substrate_item(substrate_lot)
+    valid_precursor = {
+        "role": "main_precursor",
+        "phase_state": "solid",
+        "amount": 20,
+        "loading_method": "boat",
+        "source_container": {
+            "material": "quartz",
+            "length_mm": 90,
+            "width_mm": 15,
+            "height_mm": 5,
+            "reset_count": 0,
+            "use_number_since_reset": 1,
+        },
+        "source_position": {
+            "zone_index": 1,
+            "distance_mm": -20,
+            "temperature_C": 620,
+            "temperature_basis": "estimate",
+        },
+    }
 
     precursor = client.put(
         f"/api/v1/experiments/{run_id}/modules/precursors",
@@ -912,26 +932,11 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
             "payload_json": {
                 "items": [
                     {
-                        "name_formula": "MoO3",
-                        "cas_inchi": "FORGED",
-                        "role": "main_precursor",
-                        "phase_state": "solid",
-                        "amount": 20,
-                        "boat_crucible": {
-                            "material": "quartz_boat",
-                            "length_mm": 90,
-                            "reset_count": 0,
-                            "use_number_since_reset": 1,
-                        },
+                        **valid_precursor,
                         "lot_ref": {
                             "entity_id": precursor_lot["id"],
                             "version": 1,
                             "snapshot": {"chemical_formula": "FORGED"},
-                        },
-                        "source_zone_temperature": {
-                            "zone_index": 1,
-                            "temperature_C": 620,
-                            "temperature_basis": "estimate",
                         },
                     }
                 ]
@@ -940,8 +945,10 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
         headers=headers,
     )
     assert precursor.status_code == 200, precursor.text
-    precursor_ref = precursor.json()["payload_json"]["items"][0]["lot_ref"]
-    assert precursor.json()["payload_json"]["items"][0]["cas_inchi"] == "TEST-CAS"
+    precursor_item = precursor.json()["payload_json"]["items"][0]
+    precursor_ref = precursor_item["lot_ref"]
+    assert "name_formula" not in precursor_item
+    assert "cas_inchi" not in precursor_item
     assert precursor_ref["entity_id"] == precursor_lot["id"]
     assert precursor_ref["version"] == 1
     assert precursor_ref["snapshot"]["chemical_formula"] == "MoO3"
@@ -1003,9 +1010,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
             "payload_json": {
                 "items": [
                     {
-                        "name_formula": "MoO3",
-                        "phase_state": "solid",
-                        "amount": 20,
+                        **valid_precursor,
                         "lot_ref": {
                             "entity_id": "00000000-0000-0000-0000-000000000001",
                             "version": 1,
@@ -1018,15 +1023,14 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
     )
     assert nonexistent.status_code == 422
 
-    precursor_formula_mismatch = client.put(
+    duplicate_run_identity = client.put(
         f"/api/v1/experiments/{run_id}/modules/precursors",
         json={
             "payload_json": {
                 "items": [
                     {
+                        **valid_precursor,
                         "name_formula": "WO3",
-                        "phase_state": "solid",
-                        "amount": 20,
                         "lot_ref": {
                             "entity_id": precursor_lot["id"],
                             "version": 1,
@@ -1037,35 +1041,7 @@ def test_material_lot_references_are_verified_and_frozen_for_precursor_and_subst
         },
         headers=headers,
     )
-    assert precursor_formula_mismatch.status_code == 422
-
-    controlled_name_alias = client.put(
-        f"/api/v1/experiments/{run_id}/modules/precursors",
-        json={
-            "payload_json": {
-                "items": [
-                    {
-                        "name_formula": "三氧化钼",
-                        "role": "main_precursor",
-                        "phase_state": "solid",
-                        "amount": 20,
-                        "boat_crucible": {
-                            "material": "quartz_boat",
-                            "length_mm": 90,
-                            "reset_count": 0,
-                            "use_number_since_reset": 1,
-                        },
-                        "lot_ref": {
-                            "entity_id": precursor_lot["id"],
-                            "version": 1,
-                        },
-                    }
-                ]
-            }
-        },
-        headers=headers,
-    )
-    assert controlled_name_alias.status_code == 200, controlled_name_alias.text
+    assert duplicate_run_identity.status_code == 422
 
     substrate_material_mismatch = client.put(
         f"/api/v1/experiments/{run_id}/modules/substrates",

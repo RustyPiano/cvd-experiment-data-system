@@ -194,6 +194,7 @@ export function FieldControl({
     try {
       structuredPayload(field.key, textValue, {
         zoneCount: structuredZoneCount,
+        loadingMethod: moduleValueAsString(values['loading_method']),
       })
     } catch {
       structuredInvalid = true
@@ -277,6 +278,7 @@ export function FieldControl({
           value={textValue}
           onChange={onChange}
           zoneCount={structuredZoneCount}
+          loadingMethod={moduleValueAsString(values['loading_method'])}
           disabled={disabled || readOnly}
           invalid={invalid}
           ariaDescribedBy={describedBy}

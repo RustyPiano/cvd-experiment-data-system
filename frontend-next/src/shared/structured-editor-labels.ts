@@ -117,6 +117,10 @@ export function buildTreatmentStepsEditorLabels(
       power_W: t('structuredEditors.treatmentSteps.fields.power_W'),
       gas_species: t('structuredEditors.treatmentSteps.fields.gas_species'),
       pressure_Pa: t('structuredEditors.treatmentSteps.fields.pressure_Pa'),
+      pressure_MPa: t('structuredEditors.treatmentSteps.fields.pressure_MPa'),
+      die_diameter_mm: t(
+        'structuredEditors.treatmentSteps.fields.die_diameter_mm',
+      ),
       method: t('structuredEditors.treatmentSteps.fields.method'),
     },
   }

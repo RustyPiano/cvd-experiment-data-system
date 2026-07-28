@@ -151,27 +151,27 @@ def test_full_v2_run_walkthrough(active_user, admin_user, db_session) -> None:
         {
             "items": [
                 {
-                    "name_formula": "MoO3",
-                    "cas_inchi": "1313-27-5",
                     "phase_state": "solid",
-                    "appearance": "white_powder",
+                    "appearance": "normal",
                     "lot_ref": lot_reference(lot.json()),
                     "role": "main_precursor",
                     "amount": 20,
                     "treatment_steps": [{"type": "direct_load", "parameters": {}}],
-                    "boat_crucible": {
-                        "material": "quartz_boat",
+                    "loading_method": "boat",
+                    "source_container": {
+                        "material": "quartz",
                         "length_mm": 90,
                         "width_mm": 15,
+                        "height_mm": 5,
                         "reset_count": 1,
                         "use_number_since_reset": 7,
                     },
-                    "source_zone_temperature": {
+                    "source_position": {
                         "zone_index": 1,
+                        "distance_mm": -20,
                         "temperature_C": 620,
                         "temperature_basis": "estimate",
                     },
-                    "thermocouple_distance_mm": -20,
                 }
             ]
         },

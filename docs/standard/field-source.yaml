@@ -5,7 +5,7 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.16
+  version: v3.18
   status: DRAFT
   updated: '2026-07-28'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
@@ -75,12 +75,13 @@ option_labels_en:
   固: Solid
   气: Gas
   液: Liquid
+  正常: Normal
   白色粉末: White powder
   白色晶粒: White crystals
   淡黄色粉末: Pale-yellow powder
   结块或潮解: Caked or deliquescent
   变色: Discolored
-  主源: Main precursor
+  主要前驱体: Main precursor
   辅助剂: Additive
   掺杂源: Dopant source
   直接加载: Load directly
@@ -89,6 +90,10 @@ option_labels_en:
   旋涂: Spin coat
   退火: Anneal
   研磨: Grind
+  舟: Boat
+  坩埚: Crucible
+  衬底表面: Substrate surface
+  其他容器: Other container
   石英舟: Quartz boat
   陶瓷(刚玉)舟: Alumina boat
   蓝宝石(Al₂O₃): Sapphire (Al₂O₃)
@@ -157,6 +162,7 @@ option_labels_en:
   粉末: Powder
   颗粒: Granules
   块: Bulk solid
+  液体: Liquid
   箔: Foil
   靶: Target
   干燥器: Desiccator
@@ -223,12 +229,13 @@ option_codes:
   固: solid
   气: gas
   液: liquid
+  正常: normal
   白色粉末: white_powder
   白色晶粒: white_crystals
   淡黄色粉末: pale_yellow_powder
   结块或潮解: caked_or_deliquescent
   变色: discolored
-  主源: main_precursor
+  主要前驱体: main_precursor
   辅助剂: additive
   掺杂源: dopant_source
   直接加载: direct_load
@@ -237,6 +244,10 @@ option_codes:
   旋涂: spin_coat
   退火: anneal
   研磨: grind
+  舟: boat
+  坩埚: crucible
+  衬底表面: substrate_surface
+  其他容器: other_container
   石英舟: quartz_boat
   陶瓷(刚玉)舟: alumina_boat
   蓝宝石(Al₂O₃): sapphire_al2o3
@@ -310,6 +321,7 @@ option_codes:
   粉末: powder
   颗粒: granules
   块: bulk_solid
+  液体: liquid
   箔: foil
   靶: target
   干燥器: desiccator
@@ -709,8 +721,8 @@ experiment_record:
       options: 商业设备/实验室自制/改造设备
       unit: —
       requirement:
-        raw: 选填
-        level: optional
+        raw: 必填
+        level: required
       example: 商业设备
       source: 2026-07-28用户逐项复核
       note: 由所引用Setup版本只读带出
@@ -723,8 +735,14 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 选填
+        raw: 条件选填(商业设备或改造设备)
         level: optional
+        condition:
+          field: 设备.装置来源
+          op: in
+          value:
+          - 商业设备
+          - 改造设备
       example: 合肥科晶
       source: 2026-07-28用户逐项复核
       note: 由所引用Setup版本只读带出
@@ -737,9 +755,69 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 选填
+        raw: 条件选填(商业设备或改造设备)
         level: optional
+        condition:
+          field: 设备.装置来源
+          op: in
+          value:
+          - 商业设备
+          - 改造设备
       example: OTF-1200X
+      source: 2026-07-28用户逐项复核
+      note: 由所引用Setup版本只读带出
+    - module: 设备
+      label: 设计或建造单位
+      label_en: Design or build organization
+      key: design_build_organization
+      meaning: 实验室自制装置的设计或建造单位
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填(实验室自制)
+        level: optional
+        condition:
+          field: 设备.装置来源
+          op: eq
+          value: 实验室自制
+      example: 二维材料课题组
+      source: 2026-07-28用户逐项复核
+      note: 由所引用Setup版本只读带出
+    - module: 设备
+      label: 内部型号
+      label_en: Internal model
+      key: internal_model
+      meaning: 实验室自制装置使用的内部型号或版本名称
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填(实验室自制)
+        level: optional
+        condition:
+          field: 设备.装置来源
+          op: eq
+          value: 实验室自制
+      example: CVD-LAB-A
+      source: 2026-07-28用户逐项复核
+      note: 由所引用Setup版本只读带出
+    - module: 设备
+      label: 改造内容
+      label_en: Modification details
+      key: modification_details
+      meaning: 相对原设备发生变化且会影响实验条件或复现的改造
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填(改造设备)
+        level: optional
+        condition:
+          field: 设备.装置来源
+          op: eq
+          value: 改造设备
+      example: 更换三温区加热模块并增加独立控温
       source: 2026-07-28用户逐项复核
       note: 由所引用Setup版本只读带出
     - module: 设备
@@ -888,44 +966,13 @@ experiment_record:
       example: '{reset_count: 1, use_number_since_reset: 7}'
       source: 6/24决定·用户复核2026-07-24
       note: 每炉手填；清洗或更换炉管后累计次数加1，本次使用序号从1重新累计
-  - title: §3 前驱体（用了哪些原料：主源、辅助剂等，可多个；每个一组）
+  - title: §3 前驱体（用了哪些原料：主要前驱体、辅助剂等，可多个；每个一组）
     fields:
     - module: 前驱体
-      label: 前驱体标识（来自批次）
-      label_en: Precursor identity (from lot)
-      key: name_formula
-      meaning: 从所选物料批次快照带出的原料名称或化学式
-      input: 下拉+其他
-      options: 受控+其他
-      unit: —
-      requirement:
-        raw: 必填
-        level: required
-      example: MoO₃
-      source: 会议
-      note: 选择物料批次后只读带出，不在炉次中建立第二套身份
-      r0: true
-    - module: 前驱体
-      label: CAS号（来自批次）
-      label_en: CAS number (from lot)
-      key: cas_inchi
-      meaning: 从所选物料批次快照带出的 CAS 号
-      input: 文本
-      options: CAS
-      unit: —
-      requirement:
-        raw: 选填
-        level: optional
-      example: 1313-27-5
-      source: 2026-07-24整改
-      note: 由后端根据冻结物料批次快照重建，前端只读，不接受用户覆盖
-      help: 选择物料批次后自动带出；如需修改，请在“基础资料维护”中追加物料版本。
-      help_en: Filled from the selected frozen lot snapshot; create a new lot version in Reference data maintenance to change it.
-    - module: 前驱体
-      label: 相态
-      label_en: Phase state
+      label: 本次使用形态
+      label_en: Form used in this run
       key: phase_state
-      meaning: 前驱体物态（决定用量单位、是否有投料mg）
+      meaning: 本次实验实际使用时的形态；先据此筛选可引用的化学品或气瓶批次
       input: 下拉
       options: 固/气/液
       unit: —
@@ -934,34 +981,12 @@ experiment_record:
         level: required
       example: 固
       source: 复审
-      note: ★v3.2b补：为『用量条件必填(固态源)』提供机器判别位（复审N1）
+      note: 位于批次选择之前；固态和液态只允许引用化学品批次，气态只允许引用气瓶批次
     - module: 前驱体
-      label: 外观描述
-      label_en: Appearance at time of use
-      key: appearance
-      ui:
-        visibility_gated: true
-      meaning: 使用时外观/性状——溯源时判断是否潮解、变质（湿度隐变量的可观察代理）
-      input: 下拉+其他
-      options: 白色粉末/白色晶粒/淡黄色粉末/结块或潮解/变色/其他
-      unit: —
-      requirement:
-        raw: 推荐(固态源)
-        level: conditional_recommended
-        condition:
-          field: 前驱体.相态
-          op: eq
-          value: 固
-      example: 白色粉末
-      source: 导师
-      note: ★v3.4导师评审新增(K35)；记『使用时』状态（随时间变化），故放每炉次而非MaterialLot；词表待与俊杰确认
-      status: pending-alignment
-      pending: 待明确清单#8：外观描述词表待确认
-    - module: 前驱体
-      label: 物料批次（引用）
-      label_en: Material lot (reference)
+      label: 物料批次
+      label_en: Material lot
       key: lot_ref
-      meaning: 引用批号（纯度/粒径自动带出），锁定当时版本
+      meaning: 引用与本次使用形态匹配的物料批次并冻结当时版本
       input: 实体版本引用
       options: '{entity_id, version, snapshot}'
       unit: —
@@ -970,25 +995,43 @@ experiment_record:
         level: required
       example: MoO₃-B202（锁 v1）
       source: 2026-07-24导师走查
-      note: 必须引用正确类别的物料批次并冻结版本，纯度、CAS和标签证据从快照带出
+      note: 批次摘要直接展示名称、化学式、CAS、供应商、生产批号、纯度和适用的D50，不再渲染重复只读输入框
       r0: true
     - module: 前驱体
-      label: 角色
-      label_en: Role
+      label: 本次用途
+      label_en: Use in this run
       key: role
-      meaning: 在反应里的角色
+      meaning: 本前驱体在本次反应中的用途
       input: 下拉
-      options: 主源/辅助剂/掺杂源/其他
+      options: 主要前驱体/辅助剂/掺杂源/其他
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: 主源
-      source: 建议
-      note: 界面中文(英文)
+      example: 主要前驱体
+      source: 会议·导师复核2026-07-28
+      note: 使用完整名称，避免“主源”“角色”等需要解释的内部术语
     - module: 前驱体
-      label: 用量
-      label_en: Amount loaded
+      label: 其他用途
+      label_en: Other use
+      key: role_other
+      meaning: 本次用途选择其他时填写
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(本次用途=其他)
+        level: conditional_required
+        condition:
+          field: 前驱体.本次用途
+          op: eq
+          value: 其他
+      example: 成核促进剂
+      source: 2026-07-28前驱体复核
+      note: 仅在选择其他用途时显示
+    - module: 前驱体
+      label: 使用量
+      label_en: Amount used
       key: amount
       meaning: 投料量（只记投料，不记残余）
       input: 数值
@@ -1002,80 +1045,124 @@ experiment_record:
         raw: 条件必填(非气态)
         level: conditional_required
         condition:
-          field: 前驱体.相态
+          field: 前驱体.本次使用形态
           op: ne
           value: 气
       example: '20'
       source: 会议/复审
-      note: ★相态≠气时必填；固态mg、液态µL/质量（Fable三轮B3）
+      note: 相态≠气时必填；固态按mg、液态按µL；气体流量归实验过程
       r0: true
+    - module: 前驱体
+      label: 使用前状态
+      label_en: Condition before use
+      key: appearance
+      ui:
+        visibility_gated: true
+      meaning: 固态前驱体在本次使用前是否存在潮解、结块或变色等可观察变化
+      input: 下拉+其他
+      options: 正常/结块或潮解/变色/其他
+      unit: —
+      requirement:
+        raw: 推荐(固态源)
+        level: conditional_recommended
+        condition:
+          field: 前驱体.本次使用形态
+          op: eq
+          value: 固
+      example: 正常
+      source: 导师·2026-07-28前驱体复核
+      note: 粉末、晶粒等稳定物理形态归物料批次；本字段只记每次使用时的状态变化
+      status: pending-alignment
+      pending: 待与俊杰确认组内常见异常状态词表
     - module: 前驱体
       label: 处理方式
       label_en: Pre-loading treatment
       key: treatment_steps
       meaning: 投料前处理（可多步，选了再展开参数）
       input: 前驱体处理步骤数组
-      options: '{type: 直接加载|熔融凝固|压片|旋涂|退火|研磨|其他, other_name?, parameters: 具名参数对象}'
+      options: '{type: 直接加载|熔融凝固|压片|旋涂|退火|研磨|其他, other_name?, parameters: 固定参数对象}'
       unit: —
-      requirement:
-        raw: 推荐
-        level: recommended
-      example: '[{type: 旋涂, parameters: {speed_rpm: 3000, duration_s: 60}}]'
-      source: 2026-07-24导师走查
-      note: 有序可重复；已知方式使用具名参数和固定单位；压片及其他使用至少一项{name,value,unit}，不接受无单位自由文本
-    - module: 前驱体
-      label: 舟或坩埚
-      label_en: Boat or crucible
-      key: boat_crucible
       ui:
         visibility_gated: true
-      meaning: 本前驱体所用盛装容器的材质、尺寸和使用履历
-      input: 具名尺寸对象
-      options: '{material: 石英舟|陶瓷(刚玉)舟|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?, reset_count, use_number_since_reset}'
-      unit: mm
+      requirement:
+        raw: 推荐(非气态)
+        level: conditional_recommended
+        condition:
+          field: 前驱体.本次使用形态
+          op: ne
+          value: 气
+      example: '[{type: 旋涂, parameters: {speed_rpm: 3000, duration_s: 60}}]'
+      source: 2026-07-24导师走查·2026-07-28前驱体复核
+      note: 有序可重复；直接加载与其他处理互斥；压片暂用压力、保压时间、模具直径三个固定参数，待俊杰和博研试填确认
+    - module: 前驱体
+      label: 装载方式
+      label_en: Loading arrangement
+      key: loading_method
+      ui:
+        visibility_gated: true
+      meaning: 非气态前驱体实际进入反应器的方式，决定是否展开源容器与炉内位置
+      input: 下拉
+      options: 舟/坩埚/衬底表面/其他容器
+      unit: —
       requirement:
         raw: 条件必填(非气态)
         level: conditional_required
         condition:
-          field: 前驱体.相态
+          field: 前驱体.本次使用形态
           op: ne
           value: 气
-      example: 石英舟 90×15；重置1次；本次为重置后第7次使用
-      source: 复审·用户复核2026-07-24
-      note: 每个前驱体分别记录，避免多只舟共用一条履历；至少填写一个具名尺寸；其他材质须具名
+      example: 舟
+      source: 2026-07-28前驱体复核
+      note: 选择衬底表面表示该前驱体涂覆在衬底上，不再填写源容器和独立源区位置
+    - module: 前驱体
+      label: 源容器
+      label_en: Source container
+      key: source_container
+      ui:
+        visibility_gated: true
+      meaning: 舟、坩埚或其他源容器的材质、条件化尺寸与每炉使用履历
+      input: 前驱体源容器对象
+      options: '{material: 石英|刚玉|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?, description?, reset_count, use_number_since_reset}'
+      unit: mm
+      requirement:
+        raw: 条件必填(装载方式=舟/坩埚/其他容器)
+        level: conditional_required
+        condition:
+          field: 前驱体.装载方式
+          op: in
+          value:
+          - 舟
+          - 坩埚
+          - 其他容器
+      example: 舟；石英；90×15×10 mm；重置1次；本次为重置后第7次使用
+      source: 复审·用户复核2026-07-24·2026-07-28前驱体复核
+      note: 舟显示长宽高；坩埚显示直径和高度；其他容器填写简短尺寸说明；每个前驱体分别记录
       help: 重置指清洗或更换容器；本次使用序号从1开始累计。
       help_en: A reset means cleaning or replacing the container; count the current use from 1 after each reset.
     - module: 前驱体
-      label: 前驱体位置
-      label_en: Precursor position
-      key: source_zone_temperature
-      meaning: 前驱体所在温区；仅在位置温度不同于温区设定程序或另有测量/估计时补充温度及依据
-      input: 温区温度对象
-      options: '{zone_index, temperature_C?, temperature_basis?: 实测值|估计}'
-      unit: ℃
+      label: 前驱体放置位置
+      label_en: Precursor source position
+      key: source_position
+      ui:
+        visibility_gated: true
+      meaning: 源容器所在温区、相对该区热电偶的有符号距离，以及可选的独立位置温度
+      input: 前驱体位置对象
+      options: '{zone_index, distance_mm, temperature_C?, temperature_basis?: 实测值|估计}'
+      unit: —
       requirement:
-        raw: 推荐；填写距热电偶距离时必填
-        level: recommended
-      example: 温区1；位置温度620；依据=估计
-      source: 会议·用户复核2026-07-24
-      note: 温区按进气端编号；温度程序仍是各温区设定值的权威记录；填写距热电偶距离时必须先选择所在温区
-      help: 先选所在温区。若没有独立测量或估计，位置温度可留空，不要重复抄温度程序。
-      help_en: Select the zone first. Leave the local temperature blank unless it was measured or estimated separately; do not copy the zone program.
-    - module: 前驱体
-      label: 距热电偶距离
-      label_en: Distance to thermocouple
-      key: thermocouple_distance_mm
-      meaning: 距所在温区热电偶的水平距离
-      input: 数值
-      options: —
-      unit: mm
-      requirement:
-        raw: 推荐
-        level: recommended
-      example: '-20'
-      source: 会议
-      note: 上游为负、下游为正
-      help: 以所在温区热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。
+        raw: 条件必填(装载方式=舟/坩埚/其他容器)
+        level: conditional_required
+        condition:
+          field: 前驱体.装载方式
+          op: in
+          value:
+          - 舟
+          - 坩埚
+          - 其他容器
+      example: 温区1；相对热电偶-20 mm；该位置温度620 ℃；依据=估计
+      source: 会议·用户复核2026-07-24·2026-07-28前驱体复核
+      note: 温区按装置定义；相对热电偶沿气流上游为负、下游为正；位置温度仅在实测或估计时填写
+      help: 以所选温区热电偶为0 mm；沿气流方向，上游填负值，下游填正值。
       help_en: Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
   - title: §4 衬底（长在什么基底上，可多片）
     fields:
@@ -2018,10 +2105,10 @@ entities:
       source: ★锁版使能(Fable三轮B2)
       note: 改则新版本，旧引用不受影响
     - module: MaterialLot
-      label: 物质名称（中文）
+      label: 物料名称（按标签）
       label_en: Substance name
       key: substance_name
-      meaning: 物料标签或CoA上的中文名称；与化学式、CAS号分别记录
+      meaning: 物料标签或CoA上的名称，允许中文或英文；与化学式、CAS号分别记录
       input: 文本
       options: —
       unit: —
@@ -2030,9 +2117,9 @@ entities:
         level: required
       example: 三氧化钼
       source: review§4.1A
-      note: 不用化学式代替名称；英文标签可按课题组常用中文名填写
-      help: 填物料标签或CoA对应的中文名称，例如“三氧化钼”；化学式和CAS号填在后两项。
-      help_en: Enter the Chinese substance name used by the group; record the formula and CAS number in the next fields.
+      note: 按标签记录，不要求用户自行翻译；不用化学式代替名称
+      help: 按物料标签或CoA填写，例如“三氧化钼”或“Molybdenum trioxide”。
+      help_en: Enter the name shown on the material label or CoA, in Chinese or English.
     - module: MaterialLot
       label: 化学式
       label_en: Chemical formula
@@ -2142,7 +2229,7 @@ entities:
       key: form_appearance
       meaning: 试剂外观
       input: 下拉+其他
-      options: 粉末/颗粒/块/箔/靶/其他
+      options: 粉末/颗粒/块/液体/箔/靶/其他
       unit: —
       requirement:
         raw: 选填
@@ -2494,13 +2581,14 @@ entities:
       label: 装置来源
       label_en: Setup source
       key: setup_origin
+      storage: attrs
       meaning: 装置是商业购买、实验室自制还是在既有设备上改造
       input: 下拉
       options: 商业设备/实验室自制/改造设备
       unit: —
       requirement:
-        raw: 选填
-        level: optional
+        raw: 必填
+        level: required
       example: 商业设备
       source: 2026-07-28用户逐项复核
       note: ''
@@ -2513,8 +2601,14 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 选填
+        raw: 条件选填(商业设备或改造设备)
         level: optional
+        condition:
+          field: 装置Setup.装置来源
+          op: in
+          value:
+          - 商业设备
+          - 改造设备
       example: 合肥科晶
       source: 2026-07-28用户逐项复核
       note: ''
@@ -2529,13 +2623,79 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 选填
+        raw: 条件选填(商业设备或改造设备)
         level: optional
+        condition:
+          field: 装置Setup.装置来源
+          op: in
+          value:
+          - 商业设备
+          - 改造设备
       example: OTF-1200X
       source: 2026-07-28用户逐项复核
       note: ''
       placeholder: 例如：OTF-1200X
       placeholder_en: 'Example: OTF-1200X'
+    - module: 装置Setup
+      label: 设计或建造单位
+      label_en: Design or build organization
+      key: design_build_organization
+      meaning: 实验室自制装置的设计或建造单位
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填(实验室自制)
+        level: optional
+        condition:
+          field: 装置Setup.装置来源
+          op: eq
+          value: 实验室自制
+      example: 二维材料课题组
+      source: 2026-07-28用户逐项复核
+      note: ''
+      placeholder: 例如：二维材料课题组
+      placeholder_en: 'Example: 2D Materials Group'
+    - module: 装置Setup
+      label: 内部型号
+      label_en: Internal model
+      key: internal_model
+      meaning: 实验室自制装置使用的内部型号或版本名称
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填(实验室自制)
+        level: optional
+        condition:
+          field: 装置Setup.装置来源
+          op: eq
+          value: 实验室自制
+      example: CVD-LAB-A
+      source: 2026-07-28用户逐项复核
+      note: ''
+      placeholder: 例如：CVD-LAB-A
+      placeholder_en: 'Example: CVD-LAB-A'
+    - module: 装置Setup
+      label: 改造内容
+      label_en: Modification details
+      key: modification_details
+      meaning: 相对原设备发生变化且会影响实验条件或复现的改造
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填(改造设备)
+        level: optional
+        condition:
+          field: 装置Setup.装置来源
+          op: eq
+          value: 改造设备
+      example: 更换三温区加热模块并增加独立控温
+      source: 2026-07-28用户逐项复核
+      note: ''
+      placeholder: 说明影响实验条件或复现的改造
+      placeholder_en: Describe modifications that affect experimental conditions or reproducibility
     - module: 装置Setup
       label: 实验室装置编号（资产编号）
       label_en: Laboratory setup or asset ID
@@ -3060,9 +3220,17 @@ changelog:
     - 实体/设备
     - Setup拆分制造商或品牌与型号，增加装置来源；实验室装置编号保持唯一但允许管理员通过新版本纠错；温区标称测温精度改为选填
     - 2026-07-28用户逐项复核
+  - - v3.17
+    - 实体/设备
+    - 装置来源改为必填；商业设备显示制造商与型号，实验室自制显示设计或建造单位与内部型号，改造设备显示原设备制造商、原设备型号与改造内容；公共技术字段不变
+    - 2026-07-28用户逐项复核
+  - - v3.18
+    - §3/实体
+    - 前驱体先选本次使用形态再筛选批次；删除炉次中重复的名称化学式和CAS；用途、使用量、使用前状态、处理步骤按实际语义收敛；非气态按舟、坩埚、衬底表面或其他容器展开容器尺寸、履历与炉内位置
+    - 2026-07-28前驱体首版复核
   - - R0
-    - 硬必填核心(30项，含条件必填)
-    - v3.7新增环境温湿度、预检、目标形态、Setup测温传感器、前驱体与衬底批次、衬底化学式/晶向/粗糙度/尺寸放置、预处理操作；过程R0改为结构化温度程序、逐气体供气、绝对压力及反应时长
+    - 硬必填核心(29项，含条件必填)
+    - v3.18删除炉次内重复的前驱体化学式R0；物料身份仍由必填的批次版本快照冻结；其余R0定义不变
     - 必填集
 open_items:
   headers:

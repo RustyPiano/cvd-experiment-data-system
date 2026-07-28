@@ -80,6 +80,7 @@ const oneZoneTemperatureSensors = [
 const oneZoneSetupData = {
   setup_code: 'SETUP-001',
   setup_name: 'Main setup',
+  setup_origin: 'commercial',
   zone_count: '1',
   temperature_sensors: oneZoneTemperatureSensors,
   orientation: 'horizontal',
@@ -162,16 +163,45 @@ describe('EntityForm — required markers (导师 B93 明显标识)', () => {
 })
 
 describe('EntityForm — setup identity inputs', () => {
-  it('keeps source, manufacturer, model, and asset ID as separate inputs', async () => {
+  it('shows only the identity fields for the selected setup source', async () => {
+    const user = userEvent.setup()
     renderForm({ kind: 'setup' })
 
-    expect(
-      await screen.findByRole('combobox', { name: '装置来源' }),
-    ).toBeInTheDocument()
+    const source = await screen.findByRole('combobox', {
+      name: /装置来源.*必填/,
+    })
+    expect(screen.queryByRole('textbox', { name: '制造商或品牌' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: '设计或建造单位' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: '改造内容' })).toBeNull()
+
+    await user.click(source)
+    await user.click(screen.getByRole('option', { name: '商业设备' }))
     expect(
       screen.getByRole('textbox', { name: '制造商或品牌' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '型号' })).toBeInTheDocument()
+
+    await user.click(source)
+    await user.click(screen.getByRole('option', { name: '实验室自制' }))
+    expect(
+      screen.getByRole('textbox', { name: '设计或建造单位' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', { name: '内部型号' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '制造商或品牌' })).toBeNull()
+
+    await user.click(source)
+    await user.click(screen.getByRole('option', { name: '改造设备' }))
+    expect(
+      screen.getByRole('textbox', { name: '原设备制造商或品牌' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', { name: '原设备型号' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '改造内容' })).toBeInstanceOf(
+      HTMLTextAreaElement,
+    )
     expect(
       screen.getByRole('textbox', {
         name: /实验室装置编号（资产编号）.*必填/,

@@ -185,13 +185,6 @@ export function isEffectivelyRequired(
   field: FieldMetadata,
   values: ModuleValues,
 ): boolean {
-  if (
-    moduleKey === 'precursors' &&
-    field.key === 'source_zone_temperature' &&
-    moduleValueAsString(values['thermocouple_distance_mm']).trim() !== ''
-  ) {
-    return true
-  }
   if (moduleKey === 'substrates' && field.key === 'miscut_direction') {
     return Number(moduleValueAsString(values['miscut_angle_deg'])) > 0
   }
@@ -238,6 +231,10 @@ function emptyToNull(value: ModuleFieldValue | undefined): string | null {
 function fieldValueToPayload(
   field: FieldMetadata,
   value: ModuleFieldValue | undefined,
+  structuredContext: {
+    loadingMethod?: string | null
+    zoneCount?: number | null
+  } = {},
 ): unknown {
   if (isMultiValueInput(field.input)) {
     const items = Array.isArray(value)
@@ -266,7 +263,7 @@ function fieldValueToPayload(
     }
   }
   if (isStructuredInput(field.input)) {
-    return structuredPayload(field.key, text)
+    return structuredPayload(field.key, text, structuredContext)
   }
   if (field.key === 'occurred_at') return toIsoDateTime(text)
   if (field.key === 'chemical_formula') return normalizeChemicalFormula(text)
@@ -465,7 +462,9 @@ export function buildItemPayload(
   const item: Record<string, unknown> = {}
   for (const field of getModuleFields(moduleKey)) {
     item[field.key] = isFieldVisible(moduleKey, field, values)
-      ? fieldValueToPayload(field, values[field.key])
+      ? fieldValueToPayload(field, values[field.key], {
+          loadingMethod: moduleValueAsString(values['loading_method']),
+        })
       : null
   }
   if (moduleKey === 'substrates' && values['source_id']) {

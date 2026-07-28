@@ -247,6 +247,12 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    atmosphere: str | None = None",
         "",
         "",
+        "class PelletizeParametersPayload(V2PayloadBase):",
+        "    pressure_MPa: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "    duration_s: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    die_diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "",
+        "",
         "class NamedParameterListPayload(V2PayloadBase):",
         "    items: Annotated[list[NamedParameterPayload], Field(min_length=1)]",
         "",
@@ -278,13 +284,13 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "class PelletizeTreatmentPayload(V2PayloadBase):",
         "    type: Literal['pelletize']",
-        "    parameters: NamedParameterListPayload",
+        "    parameters: PelletizeParametersPayload",
         "",
         "",
         "class OtherTreatmentPayload(V2PayloadBase):",
         "    type: Literal['other']",
         "    other_name: NonBlankStr",
-        "    parameters: NamedParameterListPayload",
+        "    parameters: EmptyParametersPayload",
         "",
         "",
         "PrecursorTreatmentPayload = Annotated[",
@@ -424,22 +430,21 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]",
         "",
         "",
-        "class BoatCruciblePayload(V2PayloadBase):",
-        "    material: Literal['quartz_boat', 'alumina_boat', 'other']",
+        "class SourceContainerPayload(V2PayloadBase):",
+        "    material: Literal['quartz', 'alumina', 'other']",
         "    material_other: str | None = None",
         "    length_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "    width_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "    height_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
         "    diameter_mm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None",
+        "    description: NonBlankStr | None = None",
         "    reset_count: Annotated[int, Field(strict=True, ge=0)]",
         "    use_number_since_reset: Annotated[int, Field(strict=True, ge=1)]",
         "",
         '    @model_validator(mode="after")',
-        "    def _has_dimensions(self) -> Self:",
+        "    def _material_name(self) -> Self:",
         "        if (self.material == 'other') != bool((self.material_other or '').strip()):",
         '            raise ValueError("material_other is required only for other material")',
-        "        if all(value is None for value in (self.length_mm, self.width_mm, self.height_mm, self.diameter_mm)):",
-        '            raise ValueError("boat/crucible requires at least one named dimension")',
         "        return self",
         "",
         "",
@@ -460,8 +465,9 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "        return self",
         "",
         "",
-        "class SourceZoneTemperaturePayload(V2PayloadBase):",
+        "class SourcePositionPayload(V2PayloadBase):",
         "    zone_index: Annotated[int, Field(strict=True, ge=1)]",
+        "    distance_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
         "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None",
         "    temperature_basis: Literal['measured', 'estimate'] | None = None",
         "",
@@ -954,14 +960,14 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "list[PrecursorTreatmentPayload]"
     if key == "pretreatment_steps":
         return "list[SubstratePretreatmentPayload]"
-    if key == "boat_crucible":
-        return "BoatCruciblePayload"
+    if key == "source_container":
+        return "SourceContainerPayload"
     if key == "size_placement":
         return "SubstrateSizePlacementPayload"
     if key in {"surface_roughness", "substrate_surface_roughness"}:
         return "SurfaceRoughnessPayload"
-    if key == "source_zone_temperature":
-        return "SourceZoneTemperaturePayload"
+    if key == "source_position":
+        return "SourcePositionPayload"
     if key == "zone_thermocouple_distance_mm":
         return "ZoneThermocoupleDistancePayload"
     if key == "preparation_operations":
@@ -1160,14 +1166,39 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}    return self",
             ]
         )
-    if {"source_zone_temperature", "thermocouple_distance_mm"} <= keys:
+    if {"loading_method", "source_container"} <= keys:
         lines.extend(
             [
                 "",
                 f'{indent}@model_validator(mode="after")',
-                f"{indent}def _thermocouple_distance_zone(self) -> Self:",
-                f"{indent}    if self.thermocouple_distance_mm is not None and self.source_zone_temperature is None:",
-                f'{indent}        raise ValueError("source_zone_temperature is required when thermocouple_distance_mm is provided")',
+                f"{indent}def _source_container_dimensions(self) -> Self:",
+                f"{indent}    container = self.source_container",
+                f"{indent}    if container is None:",
+                f"{indent}        return self",
+                f"{indent}    expected_fields = {{",
+                f"{indent}        'boat': {{'length_mm', 'width_mm', 'height_mm'}},",
+                f"{indent}        'crucible': {{'diameter_mm', 'height_mm'}},",
+                f"{indent}        'other_container': {{'description'}},",
+                f"{indent}    }}.get(self.loading_method, set())",
+                f"{indent}    provided_fields = {{",
+                f"{indent}        key",
+                f"{indent}        for key in ('length_mm', 'width_mm', 'height_mm', 'diameter_mm', 'description')",
+                f"{indent}        if getattr(container, key) is not None",
+                f"{indent}    }}",
+                f"{indent}    if provided_fields != expected_fields:",
+                f'{indent}        raise ValueError("source container dimensions do not match loading method")',
+                f"{indent}    return self",
+            ]
+        )
+    if "treatment_steps" in keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _direct_load_is_exclusive(self) -> Self:",
+                f"{indent}    steps = self.treatment_steps or []",
+                f"{indent}    if len(steps) > 1 and any(step.type == 'direct_load' for step in steps):",
+                f'{indent}        raise ValueError("direct_load cannot be combined with other treatment steps")',
                 f"{indent}    return self",
             ]
         )

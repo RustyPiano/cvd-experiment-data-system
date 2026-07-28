@@ -518,6 +518,7 @@ def test_setup_without_external_field_allows_process_without_field_program(
             orientation="水平",
             coordinate_system="上游负/下游正",
             attrs={
+                "setup_origin": "commercial",
                 "field_devices": ["none"],
                 "temperature_sensors": [
                     temperature_sensor(zone_index=1),

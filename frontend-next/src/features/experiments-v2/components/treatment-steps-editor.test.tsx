@@ -51,6 +51,8 @@ const labels: TreatmentStepsEditorLabels = {
     power_W: 'Power',
     gas_species: 'Gas species',
     pressure_Pa: 'Pressure',
+    pressure_MPa: 'Pressure',
+    die_diameter_mm: 'Die diameter',
     method: 'Method',
   },
 }

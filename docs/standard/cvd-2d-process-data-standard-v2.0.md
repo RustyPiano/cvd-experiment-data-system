@@ -103,7 +103,7 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
 
 对标 NOMAD/GEMD 的 Spec-vs-Run 与 ESCALATE 的 Material-vs-InventoryMaterial：
 
-- **装置库 Setup**：一台炉登记一次，实验只引用；引用时**快照冻结**当时的装置定义（含坐标系、各温区温度传感器、外场能力），事后改装置不影响旧记录。实体带 `版本号`（每次修改 +1，引用锁定该版本）。系统以不可变 UUID 识别装置；实验室装置编号保持唯一，管理员可通过新版本纠正录入错误，历史版本保留原编号。制造商或品牌、型号、装置来源分别保存。**实验 §2 的装置属性（壁型/温区数/炉体方向/截面尺寸/坐标系等）由所引用 Setup 快照【只读投影】带出，不独立重录**。圆形、方形、矩形截面分别记录外径、外边长、外宽与外高，并共同记录壁厚；`temperature_sensors[]` 必须以 `zone_index` 恰好覆盖 `1..zone_count`，每区记录传感器类别；设备资料明确提供时可选填 `nominal_accuracy_C`；`field_devices` 只表示装置具备的等离子体、光、电能力，不等于本炉实际启用。
+- **装置库 Setup**：一台炉登记一次，实验只引用；引用时**快照冻结**当时的装置定义（含坐标系、各温区温度传感器、外场能力），事后改装置不影响旧记录。实体带 `版本号`（每次修改 +1，引用锁定该版本）。系统以不可变 UUID 识别装置；实验室装置编号保持唯一，管理员可通过新版本纠正录入错误，历史版本保留原编号。装置来源必填，并只展开对应的身份字段：商业设备填写制造商或品牌、型号；实验室自制填写设计或建造单位、内部型号；改造设备填写原设备制造商或品牌、原设备型号、改造内容。三类装置共用同一套技术字段，改造不另设版本字段，直接使用实体版本历史。**实验 §2 的装置属性（壁型/温区数/炉体方向/截面尺寸/坐标系等）由所引用 Setup 快照【只读投影】带出，不独立重录**。圆形、方形、矩形截面分别记录外径、外边长、外宽与外高，并共同记录壁厚；`temperature_sensors[]` 必须以 `zone_index` 恰好覆盖 `1..zone_count`，每区记录传感器类别；设备资料明确提供时可选填 `nominal_accuracy_C`；`field_devices` 只表示装置具备的等离子体、光、电能力，不等于本炉实际启用。
 - **MaterialLot / Setup / Instrument 均带 `版本号`**（改则新版本，旧引用不受影响）。炉次本身不建立 `experiment_versions`；工艺锁定、实体快照与审计日志分别承担不可变工艺、引用溯源和操作留痕。
 - **物料批次库 MaterialLot**：化学身份层（物质名/CAS/分子式）+ 商业批次层（供应商/货号/**批号/纯度**/开封/存储/证书）。粒径仅属于化学品，粉末/箔/靶等形态不适用于气瓶。衬底批次保存材料、氧化层、晶向与抛光、偏切和标称粗糙度；晶向/抛光与偏切分别显式记录“有规格数值 / 供应商未提供 / 不适用”，只有有规格时展开明细，禁止用虚构晶向或偏切角 `0` 代替未知。当前 R0 要求前驱体与衬底使用版本引用，预处理气路置换和反应条件中的每种气体也必须引用气瓶批次；批次事实与证据由冻结快照带出，不得把未引用的批次属性伪装为已知。
 - **批次引用载荷**：调用方只提交 `entity_id + version`；服务端验证实体类别和材料身份，忽略调用方提供的 snapshot，并从不可变版本重建快照。该规则同时适用于前驱体、衬底和 PVD 靶材。
@@ -270,7 +270,7 @@ Result（统一写入/读取契约，kind = direct_observation | characterizatio
   - 基本信息 7 项：`started_at · synthesis_method · operator · run_code · ambient_temperature_C · ambient_humidity_percent · precheck_confirmed`；
   - 目标产物 4 项：`chemical_formula · structure_type · components(非本征时) · target_morphology`；
   - Setup 引用/快照 4 项：`setup_ref · zone_count · orientation · temperature_sensors`；
-  - 前驱体 3 项：`name_formula · lot_ref · amount(非气态时)`；
+  - 前驱体 2 项：`lot_ref · amount(非气态时)`；物料名称、化学式与 CAS 由批次版本快照冻结；
   - 衬底 6 项：`material · lot_ref · chemical_formula · orientation_polish_availability · surface_roughness · size_placement`；
   - 过程 6 项：`stage_type · preparation_operations(预处理) · temperature_program(反应条件) · gas_feeds(反应条件) · pressure_system(反应条件) · duration_cycles(反应条件)`。
 - **R0 按相态 / 结构类型 / 记录类型条件化**（避免逼出垃圾值、让条件可被 schema 评估）：前驱体 `amount` 仅 `phase_state≠gas` 时必填；`components` 在 `structure_type≠intrinsic` 时必填；预处理和反应条件各自只要求其判别分支字段。

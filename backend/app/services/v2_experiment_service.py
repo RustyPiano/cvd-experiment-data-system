@@ -58,7 +58,6 @@ from app.services.v2_field_source import (
     module_key_for_field,
     normalize_offset_datetime,
     validate_chemical_formula,
-    validate_material_formula,
 )
 from app.services.v2_process_semantics import (
     gas_feeds_are_unique,
@@ -72,16 +71,6 @@ from app.services.v2_result_status_service import (
     is_result_missing_todo,
     refresh_result_missing_todo,
 )
-
-PRECURSOR_FORMULA_ALIASES = {
-    "三氧化钼": "MoO3",
-    "氧化钼": "MoO3",
-    "三氧化钨": "WO3",
-    "氧化钨": "WO3",
-    "硫": "S",
-    "硒": "Se",
-    "碲": "Te",
-}
 
 
 class V2ExperimentService:
@@ -1020,11 +1009,9 @@ class V2ExperimentService:
             if version.lot_category not in expected_categories:
                 self._raise_invalid_reference("lot_ref", "category")
             snapshot = material_lot_version_snapshot(version)
-            if module_key == "precursors":
-                self._validate_precursor_lot_identity(item, version)
-            else:
+            if module_key == "substrates":
                 self._validate_substrate_lot_identity(item, version)
-            for key in MATERIAL_LOT_PROJECTED_FIELDS[module_key]:
+            for key in MATERIAL_LOT_PROJECTED_FIELDS.get(module_key, ()):
                 item.pop(key, None)
             item.update(self._complete_material_lot_projection(module_key, snapshot))
             item["lot_ref"] = {
@@ -1099,22 +1086,6 @@ class V2ExperimentService:
             detail={"invalid": [{"key": key, "reason": reason}]},
         )
 
-    def _validate_precursor_lot_identity(self, item: dict[str, Any], version: Any) -> None:
-        supplied = str(item.get("name_formula") or "").strip()
-        if supplied.casefold() == str(version.substance_name).strip().casefold():
-            return
-        formula = PRECURSOR_FORMULA_ALIASES.get(supplied)
-        if formula is None:
-            candidates = [part.strip() for part in supplied.split("/") if part.strip()]
-            for candidate in reversed(candidates):
-                try:
-                    formula = validate_material_formula(candidate)
-                    break
-                except ValueError:
-                    continue
-        if formula != version.chemical_formula:
-            self._raise_invalid_reference("lot_ref", "identity")
-
     def _validate_substrate_lot_identity(self, item: dict[str, Any], version: Any) -> None:
         material = canonical_option_value(item.get("material"))
         lot_material = canonical_option_value(version.attrs.get("substrate_material"))
@@ -1170,9 +1141,7 @@ class V2ExperimentService:
     ) -> None:
         zone_count = (run.setup_ref_snapshot_json or {}).get("zone_count_snapshot")
         zone_key = (
-            "source_zone_temperature"
-            if module_key == "precursors"
-            else "zone_thermocouple_distance_mm"
+            "source_position" if module_key == "precursors" else "zone_thermocouple_distance_mm"
         )
         has_zone = any(
             (item.get(zone_key) or {}).get("zone_index") for item in payload_json.get("items") or []
@@ -1192,9 +1161,7 @@ class V2ExperimentService:
         zone_count: int,
     ) -> None:
         zone_key = (
-            "source_zone_temperature"
-            if module_key == "precursors"
-            else "zone_thermocouple_distance_mm"
+            "source_position" if module_key == "precursors" else "zone_thermocouple_distance_mm"
         )
         for item in payload_json.get("items") or []:
             zone = item.get(zone_key)

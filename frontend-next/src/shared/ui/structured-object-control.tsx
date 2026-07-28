@@ -47,11 +47,11 @@ type StructuredLabelKey =
   | 'width'
   | 'height'
   | 'diameter'
+  | 'dimensionDescription'
   | 'outerDiameter'
   | 'outerSide'
   | 'outerWidth'
   | 'outerHeight'
-  | 'dimensionDescription'
   | 'wallThickness'
   | 'thickness'
   | 'roughnessMetric'
@@ -86,6 +86,7 @@ export function StructuredObjectControl({
   onChange,
   tubeShape,
   zoneCount,
+  loadingMethod,
   disabled,
   invalid,
   ariaDescribedBy,
@@ -95,6 +96,7 @@ export function StructuredObjectControl({
   onChange: (value: string) => void
   tubeShape?: string | null
   zoneCount?: number | null
+  loadingMethod?: string | null
   disabled?: boolean
   invalid?: boolean
   ariaDescribedBy?: string
@@ -113,6 +115,7 @@ export function StructuredObjectControl({
       : parsedObject
   const label = (key: StructuredLabelKey) => t(`structuredFields.${key}`)
   const requestedTubeShape = canonicalOption(String(tubeShape ?? ''))
+  const effectiveLoadingMethod = canonicalOption(String(loadingMethod ?? ''))
   const effectiveTubeShape = TUBE_SHAPES.has(requestedTubeShape)
     ? requestedTubeShape
     : object.outer_diameter_mm != null
@@ -214,7 +217,7 @@ export function StructuredObjectControl({
       ? tubeDimensionParts
       : fieldKey === 'tube_usage_history'
         ? historyParts
-        : fieldKey === 'boat_crucible'
+        : fieldKey === 'source_container'
           ? [
               {
                 key: 'material',
@@ -222,8 +225,8 @@ export function StructuredObjectControl({
                 kind: 'select',
                 required: true,
                 options: [
-                  { value: 'quartz_boat', label: label('quartzBoat') },
-                  { value: 'alumina_boat', label: label('aluminaBoat') },
+                  { value: 'quartz', label: label('quartz') },
+                  { value: 'alumina', label: label('alumina') },
                   { value: 'other', label: label('otherMaterial') },
                 ],
               },
@@ -237,10 +240,50 @@ export function StructuredObjectControl({
                     },
                   ]
                 : []),
-              { key: 'length_mm', label: label('length'), kind: 'number' },
-              { key: 'width_mm', label: label('width'), kind: 'number' },
-              { key: 'height_mm', label: label('height'), kind: 'number' },
-              { key: 'diameter_mm', label: label('diameter'), kind: 'number' },
+              ...(effectiveLoadingMethod === 'boat'
+                ? [
+                    {
+                      key: 'length_mm',
+                      label: label('length'),
+                      kind: 'number' as const,
+                      required: true,
+                    },
+                    {
+                      key: 'width_mm',
+                      label: label('width'),
+                      kind: 'number' as const,
+                      required: true,
+                    },
+                    {
+                      key: 'height_mm',
+                      label: label('height'),
+                      kind: 'number' as const,
+                      required: true,
+                    },
+                  ]
+                : effectiveLoadingMethod === 'crucible'
+                  ? [
+                      {
+                        key: 'diameter_mm',
+                        label: label('diameter'),
+                        kind: 'number' as const,
+                        required: true,
+                      },
+                      {
+                        key: 'height_mm',
+                        label: label('height'),
+                        kind: 'number' as const,
+                        required: true,
+                      },
+                    ]
+                  : [
+                      {
+                        key: 'description',
+                        label: label('dimensionDescription'),
+                        kind: 'text' as const,
+                        required: true,
+                      },
+                    ]),
               ...historyParts,
             ]
           : fieldKey === 'tube_material_shape'
@@ -384,7 +427,7 @@ export function StructuredObjectControl({
                         ]
                       : []),
                   ]
-                : fieldKey === 'source_zone_temperature'
+                : fieldKey === 'source_position'
                   ? [
                       {
                         key: 'zone_index',
@@ -393,6 +436,12 @@ export function StructuredObjectControl({
                         required: true,
                         disabled: validZoneCount == null,
                         options: zoneOptions,
+                      },
+                      {
+                        key: 'distance_mm',
+                        label: label('distance'),
+                        kind: 'number',
+                        required: true,
                       },
                       {
                         key: 'temperature_C',
@@ -452,7 +501,7 @@ export function StructuredObjectControl({
   const helper =
     fieldKey === 'tube_outer_diameter_wall_mm' && !effectiveTubeShape
       ? t('structuredFields.selectTubeShapeFirst')
-      : (fieldKey === 'source_zone_temperature' ||
+      : (fieldKey === 'source_position' ||
             fieldKey === 'zone_thermocouple_distance_mm') &&
           validZoneCount == null
         ? t('structuredFields.selectSetupFirst')

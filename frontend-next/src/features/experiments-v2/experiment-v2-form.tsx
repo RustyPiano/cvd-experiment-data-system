@@ -172,11 +172,11 @@ function itemMissing(
     buildItemPayload(moduleKey, item)
     if (
       moduleKey === 'precursors' &&
-      moduleValueAsString(item['source_zone_temperature']).trim()
+      moduleValueAsString(item['source_position']).trim()
     ) {
       structuredPayload(
-        'source_zone_temperature',
-        moduleValueAsString(item['source_zone_temperature']),
+        'source_position',
+        moduleValueAsString(item['source_position']),
         { zoneCount },
       )
     }

@@ -503,21 +503,13 @@
           "type": "string"
         },
         "setup_origin": {
-          "anyOf": [
-            {
-              "enum": [
-                "commercial",
-                "lab_built",
-                "modified"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "enum": [
+            "commercial",
+            "lab_built",
+            "modified"
           ],
-          "default": null,
-          "title": "Setup Origin"
+          "title": "Setup Origin",
+          "type": "string"
         },
         "manufacturer_brand": {
           "anyOf": [
@@ -542,6 +534,42 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "design_build_organization": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Design Build Organization"
+        },
+        "internal_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Model"
+        },
+        "modification_details": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modification Details"
         },
         "wall_type": {
           "anyOf": [
@@ -652,6 +680,7 @@
       },
       "required": [
         "setup_ref",
+        "setup_origin",
         "zone_count",
         "orientation",
         "temperature_sensors",
@@ -712,101 +741,6 @@
             "parameters"
           ],
           "title": "AnnealTreatmentPayload",
-          "type": "object"
-        },
-        "BoatCruciblePayload": {
-          "additionalProperties": false,
-          "properties": {
-            "material": {
-              "enum": [
-                "quartz_boat",
-                "alumina_boat",
-                "other"
-              ],
-              "title": "Material",
-              "type": "string"
-            },
-            "material_other": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Material Other"
-            },
-            "length_mm": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Length Mm"
-            },
-            "width_mm": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Width Mm"
-            },
-            "height_mm": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Height Mm"
-            },
-            "diameter_mm": {
-              "anyOf": [
-                {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Diameter Mm"
-            },
-            "reset_count": {
-              "minimum": 0,
-              "title": "Reset Count",
-              "type": "integer"
-            },
-            "use_number_since_reset": {
-              "minimum": 1,
-              "title": "Use Number Since Reset",
-              "type": "integer"
-            }
-          },
-          "required": [
-            "material",
-            "reset_count",
-            "use_number_since_reset"
-          ],
-          "title": "BoatCruciblePayload",
           "type": "object"
         },
         "DirectLoadTreatmentPayload": {
@@ -933,61 +867,6 @@
           "title": "MeltSolidifyTreatmentPayload",
           "type": "object"
         },
-        "NamedParameterListPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "items": {
-              "items": {
-                "$ref": "#/$defs/NamedParameterPayload"
-              },
-              "minItems": 1,
-              "title": "Items",
-              "type": "array"
-            }
-          },
-          "required": [
-            "items"
-          ],
-          "title": "NamedParameterListPayload",
-          "type": "object"
-        },
-        "NamedParameterPayload": {
-          "additionalProperties": false,
-          "properties": {
-            "name": {
-              "minLength": 1,
-              "pattern": "\\S",
-              "title": "Name",
-              "type": "string"
-            },
-            "value": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "minLength": 1,
-                  "pattern": "\\S",
-                  "type": "string"
-                }
-              ],
-              "title": "Value"
-            },
-            "unit": {
-              "minLength": 1,
-              "pattern": "\\S",
-              "title": "Unit",
-              "type": "string"
-            }
-          },
-          "required": [
-            "name",
-            "value",
-            "unit"
-          ],
-          "title": "NamedParameterPayload",
-          "type": "object"
-        },
         "OptionalDurationParametersPayload": {
           "additionalProperties": false,
           "properties": {
@@ -1023,7 +902,7 @@
               "type": "string"
             },
             "parameters": {
-              "$ref": "#/$defs/NamedParameterListPayload"
+              "$ref": "#/$defs/EmptyParametersPayload"
             }
           },
           "required": [
@@ -1032,6 +911,47 @@
             "parameters"
           ],
           "title": "OtherTreatmentPayload",
+          "type": "object"
+        },
+        "PelletizeParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "pressure_MPa": {
+              "exclusiveMinimum": 0,
+              "title": "Pressure Mpa",
+              "type": "number"
+            },
+            "duration_s": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Duration S"
+            },
+            "die_diameter_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Die Diameter Mm"
+            }
+          },
+          "required": [
+            "pressure_MPa"
+          ],
+          "title": "PelletizeParametersPayload",
           "type": "object"
         },
         "PelletizeTreatmentPayload": {
@@ -1043,7 +963,7 @@
               "type": "string"
             },
             "parameters": {
-              "$ref": "#/$defs/NamedParameterListPayload"
+              "$ref": "#/$defs/PelletizeParametersPayload"
             }
           },
           "required": [
@@ -1056,24 +976,6 @@
         "PrecursorItemPayload": {
           "additionalProperties": false,
           "properties": {
-            "name_formula": {
-              "minLength": 1,
-              "pattern": "\\S",
-              "title": "Name Formula",
-              "type": "string"
-            },
-            "cas_inchi": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Cas Inchi"
-            },
             "phase_state": {
               "enum": [
                 "gas",
@@ -1082,18 +984,6 @@
               ],
               "title": "Phase State",
               "type": "string"
-            },
-            "appearance": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Appearance"
             },
             "lot_ref": {
               "$ref": "#/$defs/MaterialLotReferencePayload"
@@ -1108,6 +998,18 @@
               "title": "Role",
               "type": "string"
             },
+            "role_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Role Other"
+            },
             "amount": {
               "anyOf": [
                 {
@@ -1120,6 +1022,18 @@
               ],
               "default": null,
               "title": "Amount"
+            },
+            "appearance": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Appearance"
             },
             "treatment_steps": {
               "anyOf": [
@@ -1170,43 +1084,48 @@
               "default": null,
               "title": "Treatment Steps"
             },
-            "boat_crucible": {
+            "loading_method": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/BoatCruciblePayload"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "source_zone_temperature": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/SourceZoneTemperaturePayload"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "thermocouple_distance_mm": {
-              "anyOf": [
-                {
-                  "type": "number"
+                  "enum": [
+                    "boat",
+                    "crucible",
+                    "other_container",
+                    "substrate_surface"
+                  ],
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
               "default": null,
-              "title": "Thermocouple Distance Mm"
+              "title": "Loading Method"
+            },
+            "source_container": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceContainerPayload"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_position": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourcePositionPayload"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             }
           },
           "required": [
-            "name_formula",
             "phase_state",
             "lot_ref",
             "role"
@@ -1214,13 +1133,126 @@
           "title": "PrecursorItemPayload",
           "type": "object"
         },
-        "SourceZoneTemperaturePayload": {
+        "SourceContainerPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "material": {
+              "enum": [
+                "quartz",
+                "alumina",
+                "other"
+              ],
+              "title": "Material",
+              "type": "string"
+            },
+            "material_other": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Material Other"
+            },
+            "length_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Length Mm"
+            },
+            "width_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Width Mm"
+            },
+            "height_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Height Mm"
+            },
+            "diameter_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Diameter Mm"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            },
+            "reset_count": {
+              "minimum": 0,
+              "title": "Reset Count",
+              "type": "integer"
+            },
+            "use_number_since_reset": {
+              "minimum": 1,
+              "title": "Use Number Since Reset",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "material",
+            "reset_count",
+            "use_number_since_reset"
+          ],
+          "title": "SourceContainerPayload",
+          "type": "object"
+        },
+        "SourcePositionPayload": {
           "additionalProperties": false,
           "properties": {
             "zone_index": {
               "minimum": 1,
               "title": "Zone Index",
               "type": "integer"
+            },
+            "distance_mm": {
+              "title": "Distance Mm",
+              "type": "number"
             },
             "temperature_C": {
               "anyOf": [
@@ -1252,9 +1284,10 @@
             }
           },
           "required": [
-            "zone_index"
+            "zone_index",
+            "distance_mm"
           ],
-          "title": "SourceZoneTemperaturePayload",
+          "title": "SourcePositionPayload",
           "type": "object"
         },
         "SpinCoatParametersPayload": {
@@ -3674,21 +3707,13 @@
           "type": "string"
         },
         "setup_origin": {
-          "anyOf": [
-            {
-              "enum": [
-                "commercial",
-                "lab_built",
-                "modified"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "enum": [
+            "commercial",
+            "lab_built",
+            "modified"
           ],
-          "default": null,
-          "title": "Setup Origin"
+          "title": "Setup Origin",
+          "type": "string"
         },
         "manufacturer_brand": {
           "anyOf": [
@@ -3713,6 +3738,42 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "design_build_organization": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Design Build Organization"
+        },
+        "internal_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Model"
+        },
+        "modification_details": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modification Details"
         },
         "setup_code": {
           "minLength": 1,
@@ -3790,6 +3851,7 @@
       },
       "required": [
         "setup_name",
+        "setup_origin",
         "setup_code",
         "zone_count",
         "temperature_sensors",

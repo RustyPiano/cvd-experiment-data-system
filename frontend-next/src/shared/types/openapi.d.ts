@@ -1245,12 +1245,21 @@ export interface components {
     SetupVersionPayload: {
       /** Setup Name */
       setup_name: string
-      /** Setup Origin */
-      setup_origin?: ('commercial' | 'lab_built' | 'modified') | null
+      /**
+       * Setup Origin
+       * @enum {string}
+       */
+      setup_origin: 'commercial' | 'lab_built' | 'modified'
       /** Manufacturer Brand */
       manufacturer_brand?: string | null
       /** Model */
       model?: string | null
+      /** Design Build Organization */
+      design_build_organization?: string | null
+      /** Internal Model */
+      internal_model?: string | null
+      /** Modification Details */
+      modification_details?: string | null
       /** Setup Code */
       setup_code: string
       /** Zone Count */

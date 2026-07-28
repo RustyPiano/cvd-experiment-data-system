@@ -7,7 +7,6 @@ from app.models.v2_entities import InstrumentVersion, MaterialLotVersion, SetupV
 
 FIXED_COORDINATE_SYSTEM = "上游为负，下游为正"
 MATERIAL_LOT_PROJECTED_FIELDS = {
-    "precursors": ("name_formula", "cas_inchi"),
     "substrates": (
         "material",
         "chemical_formula",
@@ -36,20 +35,6 @@ def _present_snapshot_value(value: object | None) -> bool:
 
 def material_lot_item_projection(module_key: str, snapshot: dict) -> dict:
     """Project lot-owned facts into a run item, omitting facts absent from old lots."""
-    if module_key == "precursors":
-        formula = _material_lot_snapshot_value(snapshot, "chemical_formula")
-        substance_name = _material_lot_snapshot_value(snapshot, "substance_name")
-        identity = formula if _present_snapshot_value(formula) else substance_name
-        cas_number = _material_lot_snapshot_value(snapshot, "cas_number")
-        return {
-            **({"name_formula": identity} if _present_snapshot_value(identity) else {}),
-            **(
-                {"cas_inchi": str(cas_number).strip()}
-                if _present_snapshot_value(cas_number)
-                else {}
-            ),
-        }
-
     if module_key != "substrates":
         return {}
 
