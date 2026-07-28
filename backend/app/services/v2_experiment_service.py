@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
 from app.schemas.generated.v2_module_payload import validate_v2_module_payload
+from app.schemas.scientific import RunRevisionListResponse, RunRevisionRead
 from app.schemas.v2 import (
     V2ExperimentCreate,
     V2ExperimentListResponse,
@@ -36,6 +37,10 @@ from app.services.experiment_guards import (
 from app.services.file_asset_service import FileAssetService
 from app.services.file_storage_service import FileStorageService
 from app.services.sample_service import SampleService
+from app.services.scientific_revision_service import (
+    ScientificRevisionService,
+    validate_scientific_module_payload,
+)
 from app.services.temperature_timeseries import (
     TemperatureTimeseriesError,
     ensure_temperature_timeseries_metadata,
@@ -80,6 +85,7 @@ class V2ExperimentService:
         self.module_payloads = ModulePayloadRepository(db)
         self.entities = V2EntityService(db)
         self.samples = SampleService(db)
+        self.revisions = ScientificRevisionService(db)
         self.audit = AuditService(db)
         self.file_storage = FileStorageService()
 
@@ -127,18 +133,29 @@ class V2ExperimentService:
                     ) from exc
         basic_info = {
             "started_at": started_at.isoformat(),
-            "synthesis_method": canonical_option_value(payload.synthesis_method),
-            "operator": current_user.name,
+            "synthesis_method": "CVD",
             "run_code": run.run_code,
+            "created_by_user_id": str(current_user.id),
+            "performed_by_user_ids": [str(current_user.id)],
+            "recorded_by_user_id": str(current_user.id),
+            "precheck": {
+                "checklist_version": "cvd-precheck-v1",
+                "confirmed": bool(payload.precheck_confirmed),
+                "confirmed_at": started_at.isoformat(),
+            },
         }
-        for key in (
-            "ambient_temperature_C",
-            "ambient_humidity_percent",
-            "precheck_confirmed",
-        ):
-            value = getattr(payload, key)
-            if value is not None:
-                basic_info[key] = value
+        if payload.ambient_temperature_C is not None:
+            basic_info["ambient_temperature"] = {
+                "value": payload.ambient_temperature_C,
+                "measured_at": started_at.isoformat(),
+                "source_type": "manual_estimate",
+            }
+        if payload.ambient_humidity_percent is not None:
+            basic_info["ambient_humidity"] = {
+                "value": payload.ambient_humidity_percent,
+                "measured_at": started_at.isoformat(),
+                "source_type": "manual_estimate",
+            }
         self._save_v2_payload(
             run.id,
             "basic_info",
@@ -148,14 +165,16 @@ class V2ExperimentService:
             self._save_v2_payload(
                 run.id,
                 "target_product",
-                # structure_type defaults to the stable controlled-vocabulary code.
                 {
-                    "chemical_formula": chemical_formula,
-                    "structure_type": (
-                        None
-                        if any(separator in chemical_formula for separator in (":", "/", "-"))
-                        else "intrinsic"
-                    ),
+                    "architecture_type": "single_region",
+                    "material_regions": [
+                        {
+                            "region_key": "region_1",
+                            "formula": chemical_formula,
+                            "spatial_role": "single_region",
+                        }
+                    ],
+                    "composition_relations": [],
                 },
             )
         self.audit.record_event(
@@ -242,9 +261,18 @@ class V2ExperimentService:
         run = self._locked_run(run.id)
         self._require_status(run, ExperimentStatus.DRAFT)
         validated_modules = self._validate_saved_modules_for_lock(run)
-        self._require_r0(run, validated_modules)
         try:
-            self.samples.sync_growth_samples(run, self._substrate_items(run.id), current_user)
+            revision = self.revisions.create_locked_revision(
+                run,
+                validated_modules,
+                current_user,
+            )
+            self.samples.sync_growth_samples(
+                run,
+                self._substrate_items(run.id),
+                current_user,
+                revision.id,
+            )
             run.locked_at = datetime.now(UTC)
             self._transition(run, ExperimentStatus.LOCKED, "lock", current_user, commit=False)
             refresh_result_missing_todo(self.db, run)
@@ -259,19 +287,60 @@ class V2ExperimentService:
         return self._run_read(run)
 
     def unlock(self, run_id: UUID, current_user: User) -> V2ExperimentRead:
-        run = get_visible_experiment(
-            self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
+        del run_id, current_user
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Unlock was replaced by immutable correction drafts",
         )
-        if current_user.role != UserRole.ADMIN:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
+
+    def list_revisions(
+        self,
+        run_id: UUID,
+        current_user: User,
+    ) -> RunRevisionListResponse:
+        run = get_visible_experiment(
+            self.experiments,
+            run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
+        return self.revisions.list_revisions(run)
+
+    def create_correction_draft(
+        self,
+        run_id: UUID,
+        reason: str,
+        current_user: User,
+    ) -> V2ExperimentRead:
+        run = get_visible_experiment(
+            self.experiments,
+            run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
         run = self._locked_run(run.id)
-        self._require_status(run, ExperimentStatus.LOCKED)
-        run.locked_at = None
-        self._transition(run, ExperimentStatus.DRAFT, "unlock", current_user, commit=False)
-        refresh_result_missing_todo(self.db, run)
+        self.revisions.create_correction_draft(run, reason, current_user)
         self.db.commit()
         self.db.refresh(run)
         return self._run_read(run)
+
+    def review(
+        self,
+        run_id: UUID,
+        note: str | None,
+        current_user: User,
+    ) -> RunRevisionRead:
+        run = get_visible_experiment(
+            self.experiments,
+            run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
+        run = self._locked_run(run.id)
+        revision = self.revisions.review(run, current_user, note)
+        self.db.commit()
+        self.db.refresh(revision)
+        return RunRevisionRead.model_validate(revision)
 
     def invalidate(self, run_id: UUID, reason: str, current_user: User) -> V2ExperimentRead:
         run = get_owned_experiment(
@@ -356,14 +425,32 @@ class V2ExperimentService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Equipment is a read-only projection of the referenced Setup version",
             )
+        if module_key == "pvd":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="PVD profiles are not released",
+            )
+        existing = self.module_payloads.get_by_run_and_key(run.id, module_key)
+        before_payload = deepcopy(existing.payload_json) if existing else None
         try:
             payload_json = deepcopy(payload.payload_json)
             substrate_source_ids: list[object | None] = []
-            if module_key in {"precursors", "substrates"}:
-                payload_json = self._prefill_material_lot_fields(module_key, payload_json)
+            if module_key == "basic_info":
+                payload_json["run_code"] = run.run_code
+                payload_json["created_by_user_id"] = str(run.owner_id)
             if module_key == "substrates":
+                payload_json = self._prefill_material_lot_fields(module_key, payload_json)
                 payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)
-            validated = validate_v2_module_payload(module_key, payload_json)
+            if module_key in {
+                "basic_info",
+                "target_product",
+                "precursors",
+                "process_steps",
+                "process_events",
+            }:
+                validated = validate_scientific_module_payload(module_key, payload_json)
+            else:
+                validated = validate_v2_module_payload(module_key, payload_json)
         except ValidationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -375,8 +462,6 @@ class V2ExperimentService:
                 detail={"invalid": [{"key": module_key, "reason": "value"}]},
             ) from exc
         if module_key == "basic_info":
-            validated["run_code"] = run.run_code
-            validated["operator"] = run.owner_name or current_user.name
             started_at = validated["started_at"]
             if not isinstance(started_at, str):
                 raise HTTPException(
@@ -390,56 +475,15 @@ class V2ExperimentService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail={"invalid": [{"key": "started_at", "reason": "value"}]},
                 ) from exc
-            self._validate_process_event_timeline(
-                run.id,
-                started_at=normalized_started_at,
-                invalid_key="started_at",
-            )
             run.experiment_date = normalized_started_at.date()
-            process_payload = self.module_payloads.get_by_run_and_key(run.id, "process_steps")
-            self._validate_pressure_regime(
-                validated.get("synthesis_method"),
-                process_payload.payload_json if process_payload else {},
-            )
-        if module_key == "process_steps":
-            self._validate_process_step_cardinality(validated)
-            self._validate_process_semantics(validated)
-            self._validate_process_zone_indices(run, validated)
-            self._validate_process_duration_bounds(validated)
-            self._validate_measured_temperature_reference(run, validated)
-            validated = self._freeze_process_gas_references(validated)
-            self._validate_external_field_requirement(run, validated)
-            basic_payload = self.module_payloads.get_by_run_and_key(run.id, "basic_info")
-            self._validate_pressure_regime(
-                (basic_payload.payload_json if basic_payload else {}).get("synthesis_method"),
-                validated,
-            )
-        if module_key == "process_events":
-            self._validate_process_event_timeline(
-                run.id,
-                process_events=validated,
-                invalid_key="occurred_at",
-            )
-            self._validate_process_event_attachments(run, validated)
-        if module_key in {"precursors", "substrates", "pvd"}:
-            validated = self._freeze_material_lot_references(module_key, validated)
-        if module_key in {"precursors", "substrates"}:
-            self._validate_zone_indices(run, module_key, validated)
         if module_key == "substrates":
+            validated = self._freeze_material_lot_references(module_key, validated)
+            self._validate_zone_indices(run, module_key, validated)
             self._validate_substrate_piece_labels(validated)
         if module_key == "target_product":
-            chemical_formula = validated.get("chemical_formula")
-            if chemical_formula is not None and not isinstance(chemical_formula, str):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"invalid": [{"key": "chemical_formula", "reason": "type"}]},
-                )
-            if len(chemical_formula or "") > 64:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"invalid": [{"key": "chemical_formula", "reason": "length"}]},
-                )
-            run.material_system = validated.get("chemical_formula") or None
+            run.material_system = " / ".join(
+                region["formula"] for region in validated["material_regions"]
+            )[:64]
         if module_key == "substrates":
             validated = self._attach_substrate_source_ids(
                 run.id,
@@ -447,21 +491,13 @@ class V2ExperimentService:
                 substrate_source_ids,
             )
         saved = self._save_v2_payload(run.id, module_key, validated)
-        if module_key in {"process_steps", "process_events"}:
-            self._prune_unreferenced_process_files(
-                run.id,
-                module_key,
-                validated,
-                current_user,
-            )
-        # Audit only the module key: payload snapshots are too noisy for routine upserts.
         self.audit.record_event(
             actor=current_user,
             entity_type="experiment_run",
             entity_id=run.id,
             action="upsert_module",
-            before_json=None,
-            after_json={"module_key": module_key},
+            before_json={"module_key": module_key, "payload": before_payload},
+            after_json={"module_key": module_key, "payload": validated},
         )
         self.db.commit()
         return self._module_read(saved)
@@ -488,7 +524,11 @@ class V2ExperimentService:
             self.experiments, run_id, current_user, schema_version=SCHEMA_VERSION
         )
         run = self._locked_run(run.id)
-        self._require_status(run, ExperimentStatus.LOCKED)
+        if run.status not in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only locked or reviewed runs can update result status",
+            )
         if (
             confirmed
             and run.not_characterized_at is None
@@ -571,40 +611,31 @@ class V2ExperimentService:
             elif payload.module_key == "substrates":
                 payload_json, _ = self._strip_substrate_source_ids(payload_json)
             try:
-                if payload.module_key in {"precursors", "substrates"}:
-                    payload_json = self._prefill_material_lot_fields(
+                if payload.module_key in {
+                    "basic_info",
+                    "target_product",
+                    "precursors",
+                    "process_steps",
+                    "process_events",
+                }:
+                    validated = validate_scientific_module_payload(
                         payload.module_key,
                         payload_json,
                     )
-                validated = validate_v2_module_payload(payload.module_key, payload_json)
-                if payload.module_key == "process_steps":
-                    self._validate_process_step_cardinality(validated)
-                    self._validate_process_semantics(validated)
-                    self._validate_process_zone_indices(run, validated)
-                    self._validate_process_duration_bounds(validated)
-                    self._validate_measured_temperature_reference(run, validated)
-                    validated = self._freeze_process_gas_references(validated)
-                    self._validate_external_field_requirement(run, validated)
-                elif payload.module_key == "process_events":
-                    self._validate_process_event_attachments(run, validated)
-                elif payload.module_key in {"precursors", "substrates", "pvd"}:
-                    validated = self._freeze_material_lot_references(
-                        payload.module_key,
-                        validated,
-                    )
-                    validate_v2_module_payload(payload.module_key, validated)
-                    if payload.module_key in {"precursors", "substrates"}:
-                        self._validate_zone_indices(run, payload.module_key, validated)
+                else:
                     if payload.module_key == "substrates":
+                        payload_json = self._prefill_material_lot_fields(
+                            payload.module_key,
+                            payload_json,
+                        )
+                    validated = validate_v2_module_payload(payload.module_key, payload_json)
+                    if payload.module_key == "substrates":
+                        validated = self._freeze_material_lot_references(
+                            payload.module_key,
+                            validated,
+                        )
+                        self._validate_zone_indices(run, payload.module_key, validated)
                         self._validate_substrate_piece_labels(validated)
-                elif (
-                    payload.module_key == "target_product"
-                    and len(validated.get("chemical_formula") or "") > 64
-                ):
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail={"invalid": [{"key": "chemical_formula", "reason": "length"}]},
-                    )
                 validated_modules[payload.module_key] = validated
             except ValidationError as exc:
                 raise HTTPException(
@@ -616,16 +647,29 @@ class V2ExperimentService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail={"invalid": [{"key": payload.module_key, "reason": "value"}]},
                 ) from exc
-        basic = validated_modules.get("basic_info") or {}
-        process = validated_modules.get("process_steps") or {}
-        events = validated_modules.get("process_events") or {}
-        self._validate_pressure_regime(basic.get("synthesis_method"), process)
-        if basic.get("started_at") is not None:
-            self._validate_process_event_timeline(
-                run.id,
-                started_at=normalize_offset_datetime(basic["started_at"]),
-                process_events=events,
-                invalid_key="occurred_at",
+        required = {
+            "basic_info",
+            "target_product",
+            "equipment",
+            "precursors",
+            "substrates",
+            "process_steps",
+        }
+        missing_modules = sorted(required - validated_modules.keys())
+        if missing_modules:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "missing": [
+                        {"key": module_key, "requirement": "required"}
+                        for module_key in missing_modules
+                    ]
+                },
+            )
+        if run.setup_ref is None or run.setup_ref_version is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"missing": [{"key": "setup_ref", "requirement": "required"}]},
             )
         return validated_modules
 
@@ -1291,13 +1335,16 @@ class V2ExperimentService:
             owner_id=run.owner_id,
             operator=basic_info.get("operator") or run.owner_name,
             schema_version=run.schema_version,
-            material_system=run.material_system,
+            target_material_system=run.target_material_system,
             experiment_date=run.experiment_date,
             objective=run.objective,
             status=run.status.value,
             invalid_reason=run.invalid_reason,
             result_missing_todo=run.result_missing_todo,
             locked_at=run.locked_at,
+            current_revision_id=run.current_revision_id,
+            draft_supersedes_revision_id=run.draft_supersedes_revision_id,
+            correction_reason=run.correction_reason,
             not_characterized_by_id=run.not_characterized_by_id,
             not_characterized_at=run.not_characterized_at,
             setup_ref=run.setup_ref,

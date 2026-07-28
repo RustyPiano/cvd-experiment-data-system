@@ -1008,6 +1008,12 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "date"
     if input_type == "时间":
         return "time"
+    if input_type == "文本数组":
+        return "list[NonBlankStr]"
+    if input_type == "JSON数组":
+        return "list[dict[str, Any]]"
+    if input_type == "JSON对象":
+        return "dict[str, Any]"
     options = _controlled_options(doc, field)
     if any(token in input_type for token in ("多选", "多条")):
         if options:

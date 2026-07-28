@@ -32,7 +32,7 @@ describe('listRuns', () => {
     downloadRunsExport(filters, 'token')
 
     const suffix =
-      'query=3201&material_system=MoS2&operator=Alice&date_from=2026-07-01&date_to=2026-07-31&status=locked'
+      'query=3201&target_material_system=MoS2&operator=Alice&date_from=2026-07-01&date_to=2026-07-31&status=locked'
     expect(apiRequest).toHaveBeenLastCalledWith(
       `/api/v1/experiments?page=1&page_size=20&${suffix}`,
       { token: 'token' },

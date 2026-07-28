@@ -16,6 +16,8 @@ const api = vi.hoisted(() => ({
   downloadRunExport: vi.fn(),
   getModuleOrNull: vi.fn(),
   getRun: vi.fn(),
+  listRunRevisions: vi.fn(),
+  reviewRun: vi.fn(),
   setNotCharacterized: vi.fn(),
   transitionRun: vi.fn(),
 }))
@@ -33,8 +35,8 @@ vi.mock('@/features/auth/use-auth', () => ({
 vi.mock('./components/run-audit-section', () => ({
   RunAuditSection: () => null,
 }))
-vi.mock('./experiment-v2-form', () => ({
-  ExperimentV2Form: ({
+vi.mock('./scientific-experiment-form', () => ({
+  ScientificExperimentForm: ({
     onProcessDirtyChange,
     onDirtyChange,
   }: {
@@ -57,6 +59,7 @@ beforeEach(async () => {
   vi.clearAllMocks()
   await i18n.changeLanguage('en')
   api.getModuleOrNull.mockResolvedValue(null)
+  api.listRunRevisions.mockResolvedValue({ items: [], total: 0 })
 })
 
 it('shows a retryable error without a simultaneous loading state', async () => {

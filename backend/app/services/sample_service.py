@@ -75,7 +75,7 @@ class SampleService:
             )
 
         sample = Sample(
-            sample_code=self._next_sample_code(experiment),
+            sample_code=self.next_sample_code(experiment),
             experiment_run_id=experiment.id,
             parent_sample_id=parent.id if parent else None,
             role=payload.role.value,
@@ -143,6 +143,7 @@ class SampleService:
         experiment: ExperimentRun,
         substrate_items: list[dict[str, Any]],
         current_user: User,
+        run_revision_id: UUID | None = None,
     ) -> None:
         """Synchronize lock-generated samples without committing the lock transaction."""
         existing = self.samples.list_by_experiment(experiment.id, include_deleted=True)
@@ -153,23 +154,6 @@ class SampleService:
         }
         active_source_ids = {UUID(str(item["source_id"])) for item in substrate_items}
 
-        for item in substrate_items:
-            source_id = UUID(str(item["source_id"]))
-            sample = by_source.get(source_id)
-            if sample is None:
-                continue
-            snapshot = self._source_substrate_snapshot(item)
-            if sample.source_substrate_snapshot_json != snapshot and self._has_result_evidence(
-                sample.id
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=(
-                        f"Substrate for sample {sample.sample_code} changed but has results "
-                        "or files. Restore the previous substrate data before locking the run."
-                    ),
-                )
-
         stale = [
             sample
             for sample in existing
@@ -177,25 +161,17 @@ class SampleService:
             and sample.deleted_at is None
             and sample.source_substrate_id not in active_source_ids
         ]
-        for sample in stale:
-            if self._has_result_evidence(sample.id):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=(
-                        f"Substrate for sample {sample.sample_code} has results or files. "
-                        "Restore the substrate before locking the run."
-                    ),
-                )
-
         for item in substrate_items:
             source_id = UUID(str(item["source_id"]))
             snapshot = self._source_substrate_snapshot(item)
             sample = by_source.get(source_id)
             if sample is None:
                 sample = Sample(
-                    sample_code=self._next_sample_code(experiment),
+                    sample_code=self.next_sample_code(experiment),
                     experiment_run_id=experiment.id,
+                    run_revision_id=run_revision_id,
                     role=SampleRole.GROWTH.value,
+                    actual_state="unknown",
                     source_substrate_id=source_id,
                     source_substrate_snapshot_json=snapshot,
                     metadata_json={},
@@ -215,6 +191,7 @@ class SampleService:
             before = self._serialize_sample(sample)
             action = "restore" if sample.deleted_at is not None else "update"
             sample.role = SampleRole.GROWTH.value
+            sample.run_revision_id = run_revision_id
             sample.source_substrate_snapshot_json = snapshot
             sample.deleted_at = None
             sample.deleted_by_id = None
@@ -231,6 +208,8 @@ class SampleService:
                 )
 
         for sample in stale:
+            if self._has_result_evidence(sample.id):
+                continue
             before = self._serialize_sample(sample)
             sample.deleted_at = datetime.now(UTC)
             sample.deleted_by_id = current_user.id
@@ -267,7 +246,7 @@ class SampleService:
             )
         return parent
 
-    def _next_sample_code(self, experiment: ExperimentRun) -> str:
+    def next_sample_code(self, experiment: ExperimentRun) -> str:
         prefix = f"{experiment.run_code}-S"
         used = {
             sample.sample_code

@@ -24,7 +24,7 @@ def _run(headers: dict[str, str], run_code: str) -> dict:
         json={
             "run_code": run_code,
             "started_at": "2026-07-12T09:30:00",
-            "synthesis_method": "APCVD",
+            "synthesis_method": "CVD",
             "operator": "tester",
         },
         headers=headers,

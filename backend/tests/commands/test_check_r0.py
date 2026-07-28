@@ -19,7 +19,7 @@ def _add_payload(db_session, run_id, module_key: str, payload: dict) -> None:
     )
 
 
-def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
+def test_check_r0_reports_conditional_required_fields_and_rejects_pvd_as_noncompliant(
     db_session,
     active_user,
 ) -> None:
@@ -43,7 +43,7 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
         "basic_info",
         {
             "started_at": "2026-07-08T09:30:00",
-            "synthesis_method": "APCVD",
+            "synthesis_method": "CVD",
             "operator": "李俊杰",
             "run_code": "RUN-R0-CVD",
         },
@@ -96,7 +96,7 @@ def test_check_r0_reports_conditional_required_fields_and_excludes_pvd(
     assert "components" not in missing_keys
 
     pvd_report = next(report for report in reports if report["run_code"] == "RUN-R0-PVD")
-    assert pvd_report["status"] == "excluded_pvd"
+    assert pvd_report["status"] == "non_compliant"
 
 
 def test_structure_discriminator_and_conditional_components_are_part_of_r0() -> None:

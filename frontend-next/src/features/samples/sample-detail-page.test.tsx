@@ -81,12 +81,16 @@ vi.mock('@/features/auth/use-auth', () => ({
   }),
 }))
 vi.mock('./api', () => ({
+  createTransformation: vi.fn(),
   downloadExperimentFile: vi.fn(),
   getExperiment: vi.fn(),
   getSample: vi.fn(),
+  getSampleLineage: vi.fn(),
   listExperimentFiles: vi.fn(),
 }))
 vi.mock('@tanstack/react-query', () => ({
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useQuery: ({ queryKey }: { queryKey: string[] }) => {
     if (queryKey[0] === 'experiments') {
       return {
@@ -110,6 +114,13 @@ vi.mock('@tanstack/react-query', () => ({
     if (queryKey[1] === 'parent') {
       return {
         data: parentSampleData,
+        isLoading: false,
+        isError: false,
+      }
+    }
+    if (queryKey[1] === 'lineage') {
+      return {
+        data: { samples: [], transformations: [] },
         isLoading: false,
         isError: false,
       }

@@ -16,6 +16,27 @@ from app.schemas.generated.v2_module_payload import (
     MaterialLotVersionPayload,
     SetupVersionPayload,
 )
+from app.schemas.scientific import (
+    ContainerInstanceCreate,
+    ContainerInstanceRead,
+    CreateCorrectionDraftRequest,
+    DatasetQuery,
+    DatasetQueryResponse,
+    EquipmentComponentCreate,
+    EquipmentComponentRead,
+    LifecycleEventCreate,
+    LifecycleEventRead,
+    MeasurementBundleCreate,
+    MeasurementListResponse,
+    MeasurementSummaryRead,
+    ReviewRunRequest,
+    RunRevisionListResponse,
+    RunRevisionRead,
+    SampleLineageRead,
+    SetupComponentBindingCreate,
+    TransformationRunCreate,
+    TransformationRunRead,
+)
 from app.schemas.v2 import (
     CharacterizationRecordCreate,
     CharacterizationRecordListResponse,
@@ -42,6 +63,10 @@ from app.schemas.v2 import (
     V2RunAuditEventListResponse,
     V2SetupReferenceRequest,
 )
+from app.services.dataset_query_service import DatasetQueryService
+from app.services.reference_data_service import ReferenceDataService
+from app.services.scientific_measurement_service import ScientificMeasurementService
+from app.services.scientific_sample_service import ScientificSampleService
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_experiment_service import V2ExperimentService
 from app.services.v2_reporting_service import V2ReportingService
@@ -51,6 +76,166 @@ router = APIRouter(prefix="/api/v1", tags=["v2"])
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin_user)]
+
+
+@router.get("/container-instances", response_model=list[ContainerInstanceRead])
+def list_container_instances(
+    db: DbSession,
+    _current_user: CurrentUser,
+    material_lot_id: UUID | None = None,
+) -> list[ContainerInstanceRead]:
+    return ReferenceDataService(db).list_containers(material_lot_id)
+
+
+@router.post(
+    "/container-instances",
+    response_model=ContainerInstanceRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_container_instance(
+    payload: ContainerInstanceCreate,
+    db: DbSession,
+    current_user: CurrentAdmin,
+) -> ContainerInstanceRead:
+    return ReferenceDataService(db).create_container(payload, current_user)
+
+
+@router.get("/equipment-components", response_model=list[EquipmentComponentRead])
+def list_equipment_components(
+    db: DbSession,
+    _current_user: CurrentUser,
+) -> list[EquipmentComponentRead]:
+    return ReferenceDataService(db).list_components()
+
+
+@router.post(
+    "/equipment-components",
+    response_model=EquipmentComponentRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_equipment_component(
+    payload: EquipmentComponentCreate,
+    db: DbSession,
+    current_user: CurrentAdmin,
+) -> EquipmentComponentRead:
+    return ReferenceDataService(db).create_component(payload, current_user)
+
+
+@router.post(
+    "/setup-versions/{setup_version_id}/components",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def bind_setup_component(
+    setup_version_id: UUID,
+    payload: SetupComponentBindingCreate,
+    db: DbSession,
+    current_user: CurrentAdmin,
+) -> None:
+    ReferenceDataService(db).bind_setup_component(
+        setup_version_id,
+        payload,
+        current_user,
+    )
+
+
+@router.post(
+    "/equipment-components/{component_id}/events",
+    response_model=LifecycleEventRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_equipment_lifecycle_event(
+    component_id: UUID,
+    payload: LifecycleEventCreate,
+    db: DbSession,
+    current_user: CurrentAdmin,
+) -> LifecycleEventRead:
+    return ReferenceDataService(db).create_equipment_event(
+        component_id,
+        payload,
+        current_user,
+    )
+
+
+@router.post(
+    "/instruments/{instrument_id}/events",
+    response_model=LifecycleEventRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_instrument_lifecycle_event(
+    instrument_id: UUID,
+    payload: LifecycleEventCreate,
+    db: DbSession,
+    current_user: CurrentAdmin,
+) -> LifecycleEventRead:
+    return ReferenceDataService(db).create_instrument_event(
+        instrument_id,
+        payload,
+        current_user,
+    )
+
+
+@router.post("/datasets/query", response_model=DatasetQueryResponse)
+def query_dataset(
+    payload: DatasetQuery,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> DatasetQueryResponse:
+    return DatasetQueryService(db).query(payload, current_user)
+
+
+@router.get("/measurements", response_model=MeasurementListResponse)
+def list_measurements(
+    db: DbSession,
+    current_user: CurrentUser,
+    limit: int = Query(default=50, ge=1, le=200),
+    cursor: str | None = None,
+    run_id: UUID | None = None,
+    sample_id: UUID | None = None,
+    method_profile: str | None = Query(default=None, max_length=128),
+) -> MeasurementListResponse:
+    return ScientificMeasurementService(db).list_measurements(
+        current_user,
+        limit=limit,
+        cursor=cursor,
+        run_id=run_id,
+        sample_id=sample_id,
+        method_profile=method_profile,
+    )
+
+
+@router.post(
+    "/measurements",
+    response_model=MeasurementSummaryRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_measurement(
+    payload: MeasurementBundleCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> MeasurementSummaryRead:
+    return ScientificMeasurementService(db).create_bundle(payload, current_user)
+
+
+@router.post(
+    "/transformations",
+    response_model=TransformationRunRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_transformation(
+    payload: TransformationRunCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> TransformationRunRead:
+    return ScientificSampleService(db).create_transformation(payload, current_user)
+
+
+@router.get("/samples/{sample_id}/lineage", response_model=SampleLineageRead)
+def get_sample_lineage(
+    sample_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> SampleLineageRead:
+    return ScientificSampleService(db).lineage(sample_id, current_user)
 
 
 @router.get("/material-lots", response_model=V2EntityListResponse)
@@ -193,7 +378,7 @@ def list_v2_experiments(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     query: str | None = Query(default=None, max_length=200),
-    material_system: str | None = Query(default=None, max_length=100),
+    target_material_system: str | None = Query(default=None, max_length=100),
     operator: str | None = Query(default=None, max_length=120),
     date_from: date | None = None,
     date_to: date | None = None,
@@ -204,7 +389,7 @@ def list_v2_experiments(
         page=page,
         page_size=page_size,
         query_text=query,
-        material_system=material_system,
+        material_system=target_material_system,
         operator=operator,
         date_from=date_from,
         date_to=date_to,
@@ -248,7 +433,7 @@ def export_runs_zip(
     db: DbSession,
     current_user: CurrentUser,
     query: str | None = Query(default=None, max_length=200),
-    material_system: str | None = Query(default=None, max_length=100),
+    target_material_system: str | None = Query(default=None, max_length=100),
     operator: str | None = Query(default=None, max_length=120),
     date_from: date | None = None,
     date_to: date | None = None,
@@ -257,7 +442,7 @@ def export_runs_zip(
     content, filename = V2ReportingService(db).export_runs_zip(
         current_user,
         query_text=query,
-        material_system=material_system,
+        material_system=target_material_system,
         operator=operator,
         date_from=date_from,
         date_to=date_to,
@@ -280,6 +465,48 @@ def unlock_v2_experiment(
     run_id: UUID, db: DbSession, current_user: CurrentUser
 ) -> V2ExperimentRead:
     return V2ExperimentService(db).unlock(run_id, current_user)
+
+
+@router.get(
+    "/experiments/{run_id}/revisions",
+    response_model=RunRevisionListResponse,
+)
+def list_run_revisions(
+    run_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> RunRevisionListResponse:
+    return V2ExperimentService(db).list_revisions(run_id, current_user)
+
+
+@router.post(
+    "/experiments/{run_id}/correction-drafts",
+    response_model=V2ExperimentRead,
+)
+def create_run_correction_draft(
+    run_id: UUID,
+    payload: CreateCorrectionDraftRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> V2ExperimentRead:
+    return V2ExperimentService(db).create_correction_draft(
+        run_id,
+        payload.reason,
+        current_user,
+    )
+
+
+@router.post(
+    "/experiments/{run_id}/review",
+    response_model=RunRevisionRead,
+)
+def review_run(
+    run_id: UUID,
+    payload: ReviewRunRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> RunRevisionRead:
+    return V2ExperimentService(db).review(run_id, payload.note, current_user)
 
 
 @router.post("/experiments/{run_id}/invalidate", response_model=V2ExperimentRead)

@@ -24,6 +24,31 @@ export function getSample(token: string, sampleId: string) {
   })
 }
 
+export type SampleLineage = {
+  samples: Array<{
+    id: string
+    sample_code: string
+    role: string
+    actual_state: string
+    actual_material_summary: string | null
+    lifecycle_state: string
+  }>
+  transformations: Array<{
+    id: string
+    transformation_type: string
+    occurred_at: string
+    operator_id: string
+    input_sample_ids: string[]
+    output_sample_ids: string[]
+  }>
+}
+
+export function getSampleLineage(token: string, sampleId: string) {
+  return apiRequest<SampleLineage>(`/api/v1/samples/${sampleId}/lineage`, {
+    token,
+  })
+}
+
 export function updateSample(
   token: string,
   sampleId: string,

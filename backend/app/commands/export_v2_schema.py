@@ -10,7 +10,16 @@ from app.schemas.generated.v2_module_payload import (
     V2_MODULE_PAYLOAD_MODELS,
     V2_MODULE_PAYLOAD_SCHEMA_VERSION,
 )
-from app.schemas.v2 import MeasuredProductMetrics, V2ResultWrite
+from app.schemas.scientific import (
+    DatasetQuery,
+    MeasurementBundleCreate,
+    ProcessTimelinePayload,
+    ScientificBasicInfo,
+    ScientificProcessEventsPayload,
+    SourceLoadsPayload,
+    TargetSpecPayload,
+    TransformationRunCreate,
+)
 from app.services.v2_field_source import (
     DEFAULT_FIELD_SOURCE,
     SCHEMA_VERSION,
@@ -24,9 +33,7 @@ from app.services.v2_field_source import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "docs" / "standard" / "generated"
 STANDARD_ID = "cvd-2d-process"
-STANDARD_VERSION = "2.0.0"
 JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
-SCHEMA_BASE_URI = f"https://standard.cvd-2d.org/{STANDARD_VERSION}"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,7 +49,7 @@ def export_v2_schema(
     output_dir: str | Path | None = DEFAULT_OUTPUT_DIR,
 ) -> dict[str, Any]:
     doc = load_field_source(str(field_source))
-    schema = build_v2_json_schema()
+    schema = build_v2_json_schema(doc)
     field_dictionary = build_v2_field_dictionary(doc)
 
     result: dict[str, Any] = {
@@ -68,15 +75,27 @@ def export_v2_schema(
     return result
 
 
-def build_v2_json_schema() -> dict[str, Any]:
+def build_v2_json_schema(doc: dict[str, Any] | None = None) -> dict[str, Any]:
+    source = doc or load_field_source()
+    release_version = str(source["meta"]["version"])
+    schema_base_uri = f"https://standard.cvd-2d.org/{release_version}"
+    released_module_models = {
+        **V2_MODULE_PAYLOAD_MODELS,
+        "basic_info": ScientificBasicInfo,
+        "target_product": TargetSpecPayload,
+        "precursors": SourceLoadsPayload,
+        "process_steps": ProcessTimelinePayload,
+        "process_events": ScientificProcessEventsPayload,
+    }
     modules: dict[str, Any] = {}
-    for module_key, model in V2_MODULE_PAYLOAD_MODELS.items():
+    for module_key, model in released_module_models.items():
         module_schema = model.model_json_schema()
-        module_schema["$id"] = f"{SCHEMA_BASE_URI}/{module_key}.schema.json"
+        module_schema["$id"] = f"{schema_base_uri}/{module_key}.schema.json"
         modules[module_key] = module_schema
     result_models = {
-        "unified_result_write": V2ResultWrite.model_json_schema(),
-        "measured_product_metrics": MeasuredProductMetrics.model_json_schema(),
+        "measurement_bundle": MeasurementBundleCreate.model_json_schema(),
+        "transformation": TransformationRunCreate.model_json_schema(),
+        "dataset_query": DatasetQuery.model_json_schema(),
     }
     entity_models = {
         kind: model.model_json_schema() for kind, model in V2_ENTITY_PAYLOAD_MODELS.items()
@@ -84,10 +103,12 @@ def build_v2_json_schema() -> dict[str, Any]:
     return {
         "$schema": JSON_SCHEMA_DIALECT,
         "standard_id": STANDARD_ID,
-        "title": "CVD-2D 工艺数据标准 v2 / CVD-2D Process Data Standard v2",
-        "version": STANDARD_VERSION,
+        "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
+        "version": release_version,
+        "status": source["meta"]["status"],
         "schema_version": SCHEMA_VERSION,
         "module_payload_schema_version": V2_MODULE_PAYLOAD_SCHEMA_VERSION,
+        "scientific_contract": source["scientific_contract"],
         "modules": modules,
         "entities": entity_models,
         "result_models": result_models,
@@ -96,12 +117,15 @@ def build_v2_json_schema() -> dict[str, Any]:
 
 def build_v2_field_dictionary(doc: dict[str, Any]) -> dict[str, Any]:
     rows = [
-        _field_dictionary_row(doc, "experiment_record", field) for field in experiment_fields(doc)
+        _field_dictionary_row(doc, "experiment_record", field)
+        for field in experiment_fields(doc)
+        if field["requirement"]["level"] != "none"
     ]
     rows.extend(_field_dictionary_row(doc, "entity", field) for field in entity_fields(doc))
     return {
         "standard_id": STANDARD_ID,
-        "version": STANDARD_VERSION,
+        "version": doc["meta"]["version"],
+        "status": doc["meta"]["status"],
         "schema_version": SCHEMA_VERSION,
         "fields": rows,
         "field_count": len(rows),
@@ -162,10 +186,7 @@ def _field_machine_type(source_part: str, module_key: str, key: str) -> str:
         else V2_MODULE_PAYLOAD_MODELS.get(module_key)
     )
     if model is None:
-        if module_key in {"characterization", "measured_products"}:
-            model = V2ResultWrite
-        else:
-            return "file" if key == "raw_data" else "unknown"
+        return "file" if key == "raw_data" else "unknown"
     schema = model.model_json_schema()
     containers: list[dict[str, Any]] = [schema]
     items = schema.get("properties", {}).get("items")

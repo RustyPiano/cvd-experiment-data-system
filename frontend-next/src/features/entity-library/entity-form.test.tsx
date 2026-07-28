@@ -420,6 +420,8 @@ describe('EntityForm — first-class entity attachments', () => {
         batch_number: 'LOT-1',
         cas_number: '1313-27-5',
         purity: '99.9',
+        purity_basis: 'mass_fraction',
+        purity_source: 'supplier_declared',
       },
     })
     expect(

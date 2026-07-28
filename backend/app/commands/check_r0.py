@@ -50,9 +50,6 @@ def render_text_report(reports: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for report in reports:
         lines.append(f"{report['run_code']} [{report['status']}]")
-        if report["status"] == "excluded_pvd":
-            lines.append("  PVD run excluded from v2.0 R0 compliance.")
-            continue
         for item in report["items"]:
             mark = "-" if not item["applicable"] else ("✓" if item["passed"] else "✗")
             lines.append(f"  {mark} {item['module_key']}.{item['key']}: {item['label']}")

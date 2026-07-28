@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample
+from app.models.scientific import MaterialAssertion, PropertyValue
 from app.models.v2_results import MeasuredProduct
 from app.services.v2_result_evidence import (
     MEASURED_PRODUCT_EVIDENCE_FIELDS,
@@ -24,7 +25,7 @@ def refresh_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
 
 
 def is_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
-    if run.status != ExperimentStatus.LOCKED:
+    if run.status not in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}:
         return False
     if run.not_characterized_at is not None:
         return False
@@ -39,6 +40,20 @@ def is_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
         .limit(1)
     )
     if active_result_file is not None:
+        return False
+
+    structured_evidence = db.scalar(
+        select(PropertyValue.id)
+        .join(Sample, Sample.id == PropertyValue.sample_id)
+        .where(Sample.experiment_run_id == run.id)
+        .limit(1)
+    ) or db.scalar(
+        select(MaterialAssertion.id)
+        .join(Sample, Sample.id == MaterialAssertion.sample_id)
+        .where(Sample.experiment_run_id == run.id)
+        .limit(1)
+    )
+    if structured_evidence is not None:
         return False
 
     products = db.scalars(

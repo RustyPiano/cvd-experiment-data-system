@@ -46,12 +46,39 @@ class Sample(Base):
         ForeignKey("experiment_runs.id"),
         index=True,
     )
+    run_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("run_revisions.id"),
+        nullable=True,
+        index=True,
+    )
     parent_sample_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("samples.id"),
         nullable=True,
     )
     role: Mapped[str] = mapped_column(String(32), index=True)
+    actual_state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unknown",
+        index=True,
+    )
+    actual_material_summary: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+    )
+    current_carrier: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sample_region: Mapped[dict | None] = mapped_column(json_payload_type, nullable=True)
+    dimensions_json: Mapped[dict | None] = mapped_column(json_payload_type, nullable=True)
+    lifecycle_state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="active",
+        index=True,
+    )
+    control_subtype: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_substrate_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         nullable=True,
@@ -90,4 +117,8 @@ class Sample(Base):
 
     @property
     def material_system(self) -> str | None:
+        return self.actual_material_summary
+
+    @property
+    def target_material_system(self) -> str | None:
         return self.experiment_run.material_system if self.experiment_run else None

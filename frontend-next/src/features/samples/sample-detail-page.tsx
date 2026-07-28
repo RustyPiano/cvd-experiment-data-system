@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { ArrowLeft, Download } from 'lucide-react'
@@ -12,8 +12,10 @@ import {
   downloadExperimentFile,
   getExperiment,
   getSample,
+  getSampleLineage,
   listExperimentFiles,
 } from './api'
+import { createTransformation } from '@/features/experiments-v2/api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { triggerBlobDownload } from '@/shared/lib/download'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -23,6 +25,15 @@ import { StatusTag } from '@/shared/ui/status-tag'
 import type { FileAssetRead } from '@/shared/types/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -200,6 +211,11 @@ export function SampleDetailPage() {
   const { session } = useAuth()
   const viewerKey = session.currentUser?.id ?? 'anonymous'
   const [downloadFileId, setDownloadFileId] = useState<string | null>(null)
+  const [transformationType, setTransformationType] = useState('cut')
+  const [outputCount, setOutputCount] = useState('2')
+  const [carrier, setCarrier] = useState('')
+  const [consumeInput, setConsumeInput] = useState(true)
+  const queryClient = useQueryClient()
 
   const sampleQuery = useQuery({
     queryKey: ['samples', 'detail', viewerKey, sampleId],
@@ -224,6 +240,42 @@ export function SampleDetailPage() {
       listExperimentFiles(session.accessToken!, { experimentId, sampleId }),
     enabled:
       session.isAuthenticated && Boolean(experimentId) && Boolean(sampleId),
+  })
+  const lineageQuery = useQuery({
+    queryKey: ['samples', 'lineage', viewerKey, sampleId],
+    queryFn: () => getSampleLineage(session.accessToken!, sampleId),
+    enabled: session.isAuthenticated && Boolean(sampleId),
+  })
+  const transformationMutation = useMutation({
+    mutationFn: () =>
+      createTransformation(
+        {
+          transformation_type: transformationType,
+          input_sample_ids: [sampleId],
+          outputs: Array.from(
+            { length: Math.max(1, Number(outputCount)) },
+            (_, index) => ({
+              output_role: `part_${index + 1}`,
+              current_carrier: carrier.trim() || null,
+            }),
+          ),
+          occurred_at: new Date().toISOString(),
+          parameters: {},
+          consume_inputs: consumeInput,
+        },
+        session.accessToken!,
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['samples', 'lineage', viewerKey, sampleId],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['samples', 'detail', viewerKey, sampleId],
+      })
+      toast.success('样品转化已记录，输出样品已生成')
+    },
+    onError: (error) =>
+      toast.error(resolveErrorMessage(error, '样品转化保存失败')),
   })
 
   const fileRows = useMemo(
@@ -347,10 +399,128 @@ export function SampleDetailPage() {
               }
             />
             <DetailRow
-              label={t('samples.detail.materialSystem')}
-              value={sample.material_system || '—'}
+              label="目标材料（研究意图）"
+              value={sample.target_material_system || '—'}
             />
+            <DetailRow
+              label="实际材料状态"
+              value={
+                sample.actual_material_summary
+                  ? `${sample.actual_state} · ${sample.actual_material_summary}`
+                  : sample.actual_state
+              }
+            />
+            <DetailRow
+              label="绑定炉次修订"
+              value={sample.run_revision_id || '—'}
+            />
+            <DetailRow label="样品生命周期" value={sample.lifecycle_state} />
           </dl>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>样品转化图</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {(lineageQuery.data?.samples ?? []).map((item) => (
+              <Link
+                key={item.id}
+                to="/samples/$sampleId"
+                params={{ sampleId: item.id }}
+                className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
+              >
+                <span className="font-medium">{item.sample_code}</span>
+                <span className="ml-2 text-muted-foreground">
+                  {item.lifecycle_state} · {item.actual_state}
+                </span>
+              </Link>
+            ))}
+          </div>
+          {(lineageQuery.data?.transformations ?? []).map((item) => (
+            <div
+              key={item.id}
+              className="rounded-lg border border-dashed p-3 text-sm"
+            >
+              <span className="font-medium">{item.transformation_type}</span>
+              <span className="mx-2 text-muted-foreground">·</span>
+              {item.input_sample_ids.length} 输入 →{' '}
+              {item.output_sample_ids.length} 输出
+              <span className="ml-2 text-muted-foreground">
+                {dayjs(item.occurred_at).format('YYYY-MM-DD HH:mm')}
+              </span>
+            </div>
+          ))}
+          {sample.lifecycle_state === 'active' &&
+          experimentQuery.data?.status !== 'invalid' ? (
+            <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-4">
+              <div className="grid gap-2">
+                <Label>转化类型</Label>
+                <Select
+                  value={transformationType}
+                  onValueChange={setTransformationType}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      'cut',
+                      'split',
+                      'transfer',
+                      'anneal',
+                      'etch',
+                      'clean',
+                      'encapsulate',
+                      'contact_fabrication',
+                    ].map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>输出样品数</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={outputCount}
+                  onChange={(event) => setOutputCount(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>输出载体/存放位置</Label>
+                <Input
+                  value={carrier}
+                  onChange={(event) => setCarrier(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col justify-end gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={consumeInput}
+                    onChange={(event) => setConsumeInput(event.target.checked)}
+                  />
+                  输入样品在转化后被消耗
+                </label>
+                <Button
+                  type="button"
+                  disabled={
+                    transformationMutation.isPending || Number(outputCount) < 1
+                  }
+                  onClick={() => transformationMutation.mutate()}
+                >
+                  创建 TransformationRun
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

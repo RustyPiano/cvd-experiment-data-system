@@ -2,6 +2,9 @@
 // 字段标签（labelZh/labelEn）不放这里——它们由生成器⑤从 field-source.yaml 产出，
 // 见 src/shared/generated/field-metadata.ts。
 export const common = {
+  datasets: {
+    nav: '科学数据集',
+  },
   actions: {
     save: '保存',
     cancel: '取消',
@@ -672,6 +675,7 @@ export const common = {
     status: {
       draft: '记录中',
       locked: '工艺已锁定',
+      reviewed: '修订已审阅',
       invalid: '已作废',
       resultMissing: '结果待补',
       notCharacterized: '暂未表征',

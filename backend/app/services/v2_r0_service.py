@@ -7,7 +7,6 @@ from app.schemas.generated.v2_module_payload import validate_v2_module_payload
 from app.services.temperature_timeseries import temperature_timeseries_mapping_error
 from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
-    PVD_METHODS,
     RESULT_MODULE_KEYS,
     SCHEMA_VERSION,
     canonical_option_value,
@@ -35,8 +34,6 @@ def build_run_report(
     doc = load_field_source()
     if payloads is None:
         payloads = effective_run_module_payloads(run)
-    if (payloads.get("basic_info") or {}).get("synthesis_method") in PVD_METHODS:
-        return _report(run, "excluded_pvd", [])
     items = [
         _check_field(run, payloads, field, doc)
         for field in experiment_fields(doc)
@@ -68,9 +65,6 @@ def missing_required_fields(
     doc = load_field_source()
     if payloads is None:
         payloads = effective_run_module_payloads(run)
-    if (payloads.get("basic_info") or {}).get("synthesis_method") in PVD_METHODS:
-        return []
-
     stage_types = {
         canonical_option_value(item["name"], doc): item for item in doc["stage_types"]["types"]
     }
@@ -148,7 +142,7 @@ def _condition_value(
 
 def _report(
     run: ExperimentRun,
-    status: Literal["excluded_pvd", "compliant", "non_compliant"],
+    status: Literal["compliant", "non_compliant"],
     items: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {

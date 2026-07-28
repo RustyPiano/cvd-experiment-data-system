@@ -36,12 +36,14 @@ import {
   downloadRunExport,
   getModuleOrNull,
   getRun,
+  listRunRevisions,
+  reviewRun,
   setNotCharacterized,
   transitionRun,
 } from './api'
 import type { V2ModulePayloadRead } from './api'
 import { RunAuditSection } from './components/run-audit-section'
-import { ExperimentV2Form } from './experiment-v2-form'
+import { ScientificExperimentForm } from './scientific-experiment-form'
 import { buildStateFromLoaded } from './form-state'
 import { getModuleFields } from './field-logic'
 import {
@@ -126,6 +128,11 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       return { run, modules }
     },
   })
+  const revisions = useQuery({
+    queryKey: ['v2-run-revisions', runId, token],
+    enabled: session.isAuthenticated && Boolean(token),
+    queryFn: () => listRunRevisions(runId, token),
+  })
   const mutation = useMutation({
     mutationFn: ({
       action,
@@ -147,6 +154,9 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       for (const queryKey of statusTransitionInvalidationKeys(runId, token)) {
         void queryClient.invalidateQueries({ queryKey })
       }
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-run-revisions', runId, token],
+      })
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) => {
@@ -175,12 +185,32 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       void queryClient.invalidateQueries({
         queryKey: ['v2-run-audit', runId],
       })
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-run-revisions', runId, token],
+      })
       toast.success(t('experimentsV2.actions.success'))
     },
     onError: (mutationError) =>
       toast.error(
         resolveErrorMessage(mutationError, t('experimentsV2.actions.error')),
       ),
+  })
+  const reviewMutation = useMutation({
+    mutationFn: () => reviewRun(runId, '', token),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-experiment', runId, token],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-run-audit', runId],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['v2-run-revisions', runId, token],
+      })
+      toast.success('当前不可变修订已完成审阅')
+    },
+    onError: (reviewError) =>
+      toast.error(resolveErrorMessage(reviewError, '审阅失败')),
   })
   const exportMutation = useMutation({
     mutationFn: () => downloadRunExport(runId, token),
@@ -278,6 +308,16 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                 )}
               </Button>
             ) : null}
+            {data?.run.status === 'locked' ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={reviewMutation.isPending || formDirty}
+                onClick={() => reviewMutation.mutate()}
+              >
+                标记当前修订已审阅
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -368,12 +408,45 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               </AlertDescription>
             </Alert>
           ) : null}
-          <ExperimentV2Form
+          {revisions.data?.items.length ? (
+            <section className="grid gap-2" aria-labelledby="revision-history">
+              <h2 id="revision-history" className="text-base font-semibold">
+                不可变修订历史
+              </h2>
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {revisions.data.items.map((revision) => (
+                  <div
+                    key={revision.id}
+                    className="grid gap-1 rounded-lg border bg-card p-3 text-sm"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">
+                        Revision {revision.revision_number}
+                      </span>
+                      <Badge variant="outline">{revision.status}</Badge>
+                    </div>
+                    <span className="text-muted-foreground">
+                      {revision.schema_version} ·{' '}
+                      {new Date(revision.locked_at).toLocaleString()}
+                    </span>
+                    <code className="truncate text-xs">
+                      sha256:{revision.content_sha256}
+                    </code>
+                    {revision.correction_reason ? (
+                      <span>修订原因：{revision.correction_reason}</span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          <ScientificExperimentForm
             key={runId}
             mode="edit"
             runId={runId}
             runCode={data.run.run_code}
             initialState={buildStateFromLoaded(data.run, data.modules)}
+            modules={data.modules}
             processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
             resultsReadOnly={isResultsReadOnly(data.run.status, canEditResults)}
             onProcessDirtyChange={setProcessDirty}
@@ -448,6 +521,12 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               {t('experimentsV2.actions.unlockDescription')}
             </DialogDescription>
           </DialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            aria-label="修订原因"
+            placeholder="说明需要修正的科学事实；原修订会永久保留"
+          />
           <DialogFooter>
             <Button
               variant="outline"
@@ -457,8 +536,13 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               {t('actions.cancel')}
             </Button>
             <Button
-              disabled={mutation.isPending}
-              onClick={() => mutation.mutate({ action: 'unlock' })}
+              disabled={mutation.isPending || !reason.trim()}
+              onClick={() =>
+                mutation.mutate({
+                  action: 'unlock',
+                  reason: reason.trim(),
+                })
+              }
             >
               {t('experimentsV2.actions.unlock')}
             </Button>

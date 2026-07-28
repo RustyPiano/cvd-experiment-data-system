@@ -14,12 +14,19 @@ from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
 from app.models.v2_entities import (
+    CommercialProduct,
+    EquipmentComponentInstance,
     Instrument,
+    InstrumentCapability,
     InstrumentVersion,
     MaterialLot,
     MaterialLotVersion,
     Setup,
     SetupVersion,
+    SetupVersionComponent,
+    Substance,
+    SubstrateLayer,
+    SubstrateStack,
 )
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.v2_repository import V2EntityRepository
@@ -117,6 +124,7 @@ class V2EntityService:
             entity = repo.create_entity(**({"setup_code": setup_code} if setup_code else {}))
             version = self._build_version(kind, entity.id, 1, payload, current_user)
             repo.save_version(version)
+            self._sync_version_children(kind, version)
             self.audit.record_event(
                 actor=current_user,
                 entity_type=kind,
@@ -187,6 +195,7 @@ class V2EntityService:
             entity.setup_code = new_setup_code
         try:
             repo.save_version(version)
+            self._sync_version_children(kind, version)
             AuditService(self.db).record_event(
                 actor=current_user,
                 entity_type=kind,
@@ -359,6 +368,9 @@ class V2EntityService:
             expected = SUBSTRATE_FORMULAS.get(data.get("substrate_material"))
             if expected is not None and data.get("chemical_formula") not in expected:
                 self._raise_invalid("chemical_formula", "identity")
+        self._validate_normalized_children(kind, data)
+        if kind == "material_lot":
+            self._bind_material_identity(entity_id, data)
         column_values = {key: data[key] for key in config.columns}
         attrs = {key: value for key, value in data.items() if key not in config.columns}
         return config.version_model(
@@ -367,6 +379,194 @@ class V2EntityService:
             attrs=attrs,
             **column_values,
         )
+
+    def _validate_normalized_children(self, kind: str, data: dict[str, Any]) -> None:
+        if kind == "material_lot":
+            synonyms = data.get("substance_synonyms") or []
+            if len(synonyms) != len(set(synonyms)):
+                self._raise_invalid("substance_synonyms", "duplicate")
+            identifiers = data.get("identifiers") or []
+            if any(
+                set(item) != {"type", "value"}
+                or not all(isinstance(value, str) and value.strip() for value in item.values())
+                for item in identifiers
+            ):
+                self._raise_invalid("identifiers", "value")
+            d50_fields = (
+                data.get("particle_size_d50_um"),
+                data.get("particle_size_d50_method"),
+                data.get("particle_size_d50_basis"),
+                data.get("particle_size_d50_source"),
+            )
+            if any(value is not None for value in d50_fields) and not all(
+                value is not None for value in d50_fields
+            ):
+                self._raise_invalid("particle_size_d50_um", "provenance")
+            layers = data.get("substrate_stack_layers") or []
+            if layers and not data.get("substrate_top_surface"):
+                self._raise_invalid("substrate_top_surface", "required")
+            for layer in layers:
+                if (
+                    not isinstance(layer.get("material_name"), str)
+                    or not layer["material_name"].strip()
+                ):
+                    self._raise_invalid("substrate_stack_layers", "material_name")
+                thickness = layer.get("thickness_nm")
+                if thickness is not None and (
+                    isinstance(thickness, bool)
+                    or not isinstance(thickness, int | float)
+                    or not isfinite(thickness)
+                    or thickness <= 0
+                ):
+                    self._raise_invalid("substrate_stack_layers", "thickness")
+                supplier_lot_id = layer.get("supplier_lot_id")
+                if supplier_lot_id and self.db.get(MaterialLot, UUID(str(supplier_lot_id))) is None:
+                    self._raise_invalid("substrate_stack_layers", "supplier_lot")
+            return
+        if kind == "setup":
+            bindings = data.get("component_bindings") or []
+            identities: set[tuple[UUID, str]] = set()
+            for binding in bindings:
+                try:
+                    identity = (
+                        UUID(str(binding["component_id"])),
+                        str(binding["role"]).strip(),
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": "component_bindings", "reason": "value"}]},
+                    ) from exc
+                if (
+                    not identity[1]
+                    or identity in identities
+                    or self.db.get(EquipmentComponentInstance, identity[0]) is None
+                ):
+                    self._raise_invalid("component_bindings", "reference_or_duplicate")
+                identities.add(identity)
+            return
+        capabilities = data.get("capabilities") or []
+        allowed = field_option_values("method_instrument", self.doc)
+        seen: set[str] = set()
+        for capability in capabilities:
+            if isinstance(capability, str):
+                code = canonical_option_value(capability, self.doc)
+            else:
+                if not isinstance(capability, dict) or set(capability) - {
+                    "code",
+                    "configuration",
+                }:
+                    self._raise_invalid("capabilities", "value")
+                code = canonical_option_value(capability.get("code"), self.doc)
+            if code not in allowed or code in seen:
+                self._raise_invalid("capabilities", "value_or_duplicate")
+            seen.add(code)
+
+    def _bind_material_identity(self, entity_id: UUID, data: dict[str, Any]) -> None:
+        entity = self.db.get(MaterialLot, entity_id)
+        if entity is None:
+            raise RuntimeError("material lot root missing")
+        name = str(data["substance_name"]).strip()
+        formula = str(data["chemical_formula"]).strip()
+        substance = self.db.scalar(
+            select(Substance).where(
+                Substance.canonical_name == name,
+                Substance.chemical_formula == formula,
+            )
+        )
+        if substance is None:
+            substance = Substance(
+                canonical_name=name,
+                chemical_formula=formula,
+                synonyms=data.get("substance_synonyms") or [],
+                identifiers=data.get("identifiers") or [],
+            )
+            self.db.add(substance)
+            self.db.flush()
+        entity.substance_id = substance.id
+
+        supplier_value = data.get("supplier")
+        supplier = str(
+            (
+                supplier_value.get("value") or supplier_value.get("option")
+                if isinstance(supplier_value, dict)
+                else supplier_value
+            )
+            or ""
+        ).strip()
+        catalog_number = str(data.get("catalog_number") or "").strip()
+        if not supplier or not catalog_number:
+            entity.commercial_product_id = None
+            return
+        product = self.db.scalar(
+            select(CommercialProduct).where(
+                CommercialProduct.supplier == supplier,
+                CommercialProduct.catalog_number == catalog_number,
+            )
+        )
+        if product is None:
+            product = CommercialProduct(
+                substance_id=substance.id,
+                supplier=supplier,
+                catalog_number=catalog_number,
+                declared_grade=data.get("declared_grade"),
+                specification_json=data.get("product_specification") or {},
+            )
+            self.db.add(product)
+            self.db.flush()
+        elif product.substance_id != substance.id:
+            self._raise_invalid("catalog_number", "identity")
+        entity.commercial_product_id = product.id
+
+    def _sync_version_children(self, kind: str, version: Any) -> None:
+        attrs = version.attrs
+        if kind == "material_lot" and attrs.get("substrate_stack_layers"):
+            stack = SubstrateStack(
+                material_lot_version_id=version.id,
+                top_surface=attrs.get("substrate_top_surface"),
+            )
+            self.db.add(stack)
+            self.db.flush()
+            for index, layer in enumerate(attrs["substrate_stack_layers"], start=1):
+                self.db.add(
+                    SubstrateLayer(
+                        substrate_stack_id=stack.id,
+                        layer_index=index,
+                        material_name=layer["material_name"],
+                        chemical_formula=layer.get("chemical_formula"),
+                        thickness_nm=layer.get("thickness_nm"),
+                        orientation=layer.get("orientation"),
+                        supplier_lot_id=(
+                            UUID(str(layer["supplier_lot_id"]))
+                            if layer.get("supplier_lot_id")
+                            else None
+                        ),
+                    )
+                )
+        elif kind == "setup":
+            for binding in attrs.get("component_bindings") or []:
+                self.db.add(
+                    SetupVersionComponent(
+                        setup_version_id=version.id,
+                        component_id=UUID(str(binding["component_id"])),
+                        role=binding["role"],
+                        position_json=binding.get("position"),
+                    )
+                )
+        elif kind == "instrument":
+            for capability in attrs.get("capabilities") or []:
+                if isinstance(capability, str):
+                    code, configuration = capability, {}
+                else:
+                    code = capability["code"]
+                    configuration = capability.get("configuration") or {}
+                self.db.add(
+                    InstrumentCapability(
+                        instrument_version_id=version.id,
+                        capability_code=code,
+                        configuration_json=configuration,
+                    )
+                )
 
     def _normalize_composite_value(
         self,

@@ -42,7 +42,7 @@ class V2EntityVersionListResponse(BaseModel):
 
 class V2ExperimentCreate(BaseModel):
     started_at: datetime
-    synthesis_method: str = Field(min_length=1)
+    synthesis_method: Literal["CVD"]
     ambient_temperature_C: float | None = Field(default=None, allow_inf_nan=False)
     ambient_humidity_percent: float | None = Field(
         default=None,
@@ -82,13 +82,16 @@ class V2ExperimentRead(BaseModel):
     owner_id: UUID
     operator: str | None
     schema_version: str
-    material_system: str | None
+    target_material_system: str | None
     experiment_date: date
     objective: str | None
-    status: Literal["draft", "locked", "invalid"]
+    status: Literal["draft", "locked", "reviewed", "invalid"]
     invalid_reason: str | None
     result_missing_todo: bool | None
     locked_at: datetime | None
+    current_revision_id: UUID | None
+    draft_supersedes_revision_id: UUID | None
+    correction_reason: str | None
     not_characterized_by_id: UUID | None
     not_characterized_at: datetime | None
     setup_ref: UUID | None

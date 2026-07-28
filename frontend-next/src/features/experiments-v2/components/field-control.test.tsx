@@ -141,7 +141,6 @@ describe('FieldControl composite inputs', () => {
     expect(compositeFields.map((item) => item.caseName).sort()).toEqual([
       'material_lot.substrate_orientation_polish',
       'process_steps.pressure_system',
-      'pvd.plasma_gas_pressure',
     ])
   })
 

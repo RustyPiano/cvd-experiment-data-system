@@ -22,17 +22,9 @@ PAYLOAD_MODULE_KEYS = (
     "substrates",
     "process_steps",
     "process_events",
-    "pvd",
 )
 ARRAY_MODULE_KEYS = {"precursors", "substrates", "process_steps", "process_events"}
 RESULT_MODULE_KEYS = {"characterization", "measured_products"}
-PVD_METHODS = {
-    "pvd_magnetron_sputtering",
-    "pvd_thermal_evaporation",
-    "PVD-磁控溅射",
-    "PVD-热蒸发",
-    "PLD",
-}
 STRUCTURED_CONTROLLED_KEYS = {
     "field_type",
     "material",

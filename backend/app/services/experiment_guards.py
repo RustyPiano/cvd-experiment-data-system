@@ -62,7 +62,7 @@ def get_locked_visible_experiment(
         or (
             current_user.role != UserRole.ADMIN
             and experiment.owner_id != current_user.id
-            and experiment.status != ExperimentStatus.LOCKED
+            and experiment.status not in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
         )
     ):
         raise HTTPException(
@@ -74,7 +74,11 @@ def get_locked_visible_experiment(
 
 def ensure_process_editable(experiment: ExperimentRun) -> None:
     """工艺域在 locked/invalid 均只读。"""
-    if experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.INVALID}:
+    if experiment.status in {
+        ExperimentStatus.LOCKED,
+        ExperimentStatus.REVIEWED,
+        ExperimentStatus.INVALID,
+    }:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Locked or invalid experiments cannot be edited",
@@ -94,7 +98,8 @@ def ensure_files_editable(experiment: ExperimentRun, asset_role: str) -> None:
     """Locked runs allow result evidence only; process evidence remains frozen."""
     locked_writable_roles = {"characterization_file", "direct_observation_file"}
     if experiment.status == ExperimentStatus.INVALID or (
-        experiment.status == ExperimentStatus.LOCKED and asset_role not in locked_writable_roles
+        experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
+        and asset_role not in locked_writable_roles
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

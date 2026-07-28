@@ -22,6 +22,7 @@ STRUCTURED_ATTR_INPUTS = {
     "温度传感器数组",
 }
 PUBLISHED_INTERNAL_COLUMNS = {"coordinate_system"}
+NORMALIZED_RELATION_FIELDS = {"capabilities"}
 
 
 def _entity_fields(module_name: str) -> list[dict]:
@@ -58,12 +59,15 @@ def test_entity_version_tables_use_field_source_required_keys_as_columns(
     module_name: str,
 ) -> None:
     columns = {column["name"] for column in inspect(db_session.bind).get_columns(table_name)}
-    required_keys = _required_entity_keys(module_name) - {"version"}
+    required_keys = _required_entity_keys(module_name) - {
+        "version",
+        *NORMALIZED_RELATION_FIELDS,
+    }
     optional_keys = {
         field["key"]
         for field in _entity_fields(module_name)
         if field["key"] not in required_keys
-        and field["key"] != "version"
+        and field["key"] not in {"version", *NORMALIZED_RELATION_FIELDS}
         and field.get("storage") != "attrs"
         and field["input"] not in STRUCTURED_ATTR_INPUTS
     }
@@ -77,6 +81,17 @@ def test_entity_version_tables_use_field_source_required_keys_as_columns(
     assert required_keys.issubset(columns)
     assert (optional_keys - PUBLISHED_INTERNAL_COLUMNS).isdisjoint(columns)
     assert attrs_keys.isdisjoint(columns)
+    assert NORMALIZED_RELATION_FIELDS.isdisjoint(columns)
+    if module_name == "表征仪器":
+        capability_columns = {
+            column["name"]
+            for column in inspect(db_session.bind).get_columns("instrument_capabilities")
+        }
+        assert {
+            "instrument_version_id",
+            "capability_code",
+            "configuration_json",
+        }.issubset(capability_columns)
 
 
 def test_file_assets_support_unbound_and_entity_version_scopes(db_session) -> None:

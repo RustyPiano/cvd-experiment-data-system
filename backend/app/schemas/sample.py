@@ -23,10 +23,19 @@ class SampleRead(BaseModel):
     id: UUID
     sample_code: str
     experiment_run_id: UUID
+    run_revision_id: UUID | None
     run_code: str | None = None
+    target_material_system: str | None = None
     material_system: str | None = None
+    actual_state: str
+    actual_material_summary: str | None
     parent_sample_id: UUID | None
     role: str
+    current_carrier: str | None
+    sample_region: dict[str, Any] | None
+    dimensions_json: dict[str, Any] | None
+    lifecycle_state: str
+    control_subtype: str | None
     source_substrate_id: UUID | None
     source_substrate_snapshot_json: dict[str, Any] | None
     metadata_json: dict[str, Any]

@@ -1,17 +1,76 @@
 # ============================================================================
-# CVD-2D 元数据标准 v2.0 —— 字段【单一权威源】(实现方案 D1)
+# CVD-2D 元数据标准 —— 字段与科学对象【单一权威源】(实现方案 D1)
 # 改字段只改这里；生成: uv run --project backend python docs/standard/build_field_tables.py
 # 校验: uv run --project backend python docs/standard/check_field_source.py（CI 强制）
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v3.18
-  status: DRAFT
+  version: v4.0-rc.1
+  status: RELEASE_CANDIDATE
   updated: '2026-07-28'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
   i18n: 国际化（D12）：字段 label/placeholder/help 与可选词表均提供中英文展示；受控词表提交和存储稳定 ASCII 机器码，中文与英文仅用于显示；自由文本允许任意语言；xlsx 人读视图保持中文。
+scientific_contract:
+  lifecycle: draft → release_candidate → released → deprecated
+  released_method: CVD
+  excluded_profiles:
+  - PVD
+  run_revision:
+    immutable: true
+    correction: new revision with supersedes_revision_id and correction_reason
+    contributors:
+    - performed_by
+    - recorded_by
+    - reviewed_by
+  target_spec:
+    architecture_types:
+    - single_region
+    - vertical_stack
+    - lateral_junction
+    - mixed_architecture
+    composition_relations:
+    - doped_by
+    - substitutional_alloy
+    - intercalated_by
+    - decorated_by
+  source_load:
+    identity: physical loading instance
+    ingredients: one or more MaterialLot version references
+    owns:
+    - container_instance
+    - preparation_steps
+    - position_program
+    - heating_channel
+  process_timeline:
+    time_origin: basic_info.started_at
+    channels:
+    - temperature
+    - flow
+    - pressure
+    - valve_state
+    - source_position
+    - furnace_position
+    - plasma_power
+    - shutter_state
+  result_chain: Sample → MeasurementRun → AnalysisRun → PropertyValue / MaterialAssertion
+  sample_actual_states:
+  - unknown
+  - growth_present
+  - no_growth
+  - uncertain
+  property_units:
+    raman_e2g_peak_position: cm⁻¹
+    raman_a1g_peak_position: cm⁻¹
+    raman_peak_separation: cm⁻¹
+    pl_a_exciton_peak_energy: eV
+    pl_b_exciton_peak_energy: eV
+    afm_step_height: nm
+    afm_rms_roughness: nm
+    coverage_percent: '%'
+    domain_size_um: μm
+    nucleation_density_cm2: cm⁻²
 field_ui_defaults:
   input_placeholder: 请输入
   input_placeholder_en: Enter a value
@@ -191,6 +250,16 @@ option_labels_en:
   商业设备: Commercial equipment
   实验室自制: Lab-built
   改造设备: Modified equipment
+  质量分数: Mass fraction
+  原子分数: Atomic fraction
+  体积分数: Volume fraction
+  供应商声明: Supplier declaration
+  CoA实测: CoA measurement
+  激光衍射: Laser diffraction
+  筛分: Sieving
+  图像分析: Image analysis
+  数目基准: Number basis
+  质量基准: Mass basis
 option_codes:
   盐辅助CVD: salt_assisted_cvd
   PVD-磁控溅射: pvd_magnetron_sputtering
@@ -354,6 +423,16 @@ option_codes:
   商业设备: commercial
   实验室自制: lab_built
   改造设备: modified
+  质量分数: mass_fraction
+  原子分数: atomic_fraction
+  体积分数: volume_fraction
+  供应商声明: supplier_declared
+  CoA实测: coa_measured
+  激光衍射: laser_diffraction
+  筛分: sieving
+  图像分析: image_analysis
+  数目基准: number_basis
+  质量基准: mass_basis
 field_option_codes:
   field_devices:
     等离子: plasma
@@ -461,14 +540,14 @@ experiment_record:
       key: synthesis_method
       meaning: 本系统当前记录的顶层制备方法；压力、等离子体、金属有机源和盐辅助均由对应实验事实单独表达
       input: 固定定义
-      options: CVD/APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD/PVD-磁控溅射/PVD-热蒸发/PLD
+      options: CVD
       unit: —
       requirement:
         raw: 必填
         level: required
       example: CVD
       source: 2026-07-27终版整改
-      note: 新记录固定为CVD；历史APCVD/LPCVD/PECVD/MOCVD/盐辅助CVD值继续兼容读取
+      note: 新记录固定为CVD；压力、等离子体、金属有机源和盐辅助均在正交事实字段中表达；PVD未发布
       r0: true
     - module: 基本信息
       label: 实验人
@@ -1787,7 +1866,7 @@ experiment_record:
       example: '[550e8400-e29b-41d4-a716-446655440001]'
       source: 2026-07-24导师走查
       note: 文件必须属于同一炉次且asset_role=process_event_attachment
-  - title: §7 产物表征 + 实测产物（★独立表，用编号与实验记录关联；只记事实，不判好坏）
+  - title: §7 旧扁平结果字段（未发布；由 MeasurementRun → AnalysisRun → PropertyValue / MaterialAssertion 替代）
     fields:
     - module: 表征
       label: 表征方法
@@ -1798,8 +1877,8 @@ experiment_record:
       options: 光镜/SEM/Raman/低波数Raman/PL/AFM/XRD/TEM/其他
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 未发布
+        level: none
       example: Raman
       source: 会议
       note: ★v3：长一批表征一批，拆成独立表编号关联；不要在此字段重复写仪器
@@ -1812,8 +1891,8 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 未发布
+        level: none
       example: 激光532 nm；功率1 mW；物镜100×
       source: 会议
       note: 随仪器导出
@@ -1826,8 +1905,8 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 未发布
+        level: none
       example: raman.txt
       source: 会议/复审
       note: ''
@@ -1840,8 +1919,8 @@ experiment_record:
       options: 无生长/不连续覆盖/厚层区域/可见颗粒沾污/衬底破损/变色/其他
       unit: —
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
       example: 不连续覆盖
       source: 复审
       note: ★失败炉次最小痕迹；终态无任何结果→『结果缺失』待办(标准§7/§10)
@@ -1856,8 +1935,8 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
       example: 2H-MoS₂；AB堆垛
       source: 复审/导师
       note: ★v3.4导师评审(B76红字)：增记堆垛类型（可判粒度待与俊杰确认，或改下拉）；最小结构化结果
@@ -1875,8 +1954,8 @@ experiment_record:
         type: integer
         ge: 0
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
       example: '1'
       source: 复审/科学契约审查
       note: 与覆盖率拆分，0 表示在该测点未检出层状产物
@@ -1892,8 +1971,8 @@ experiment_record:
         ge: 0
         le: 100
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
       example: '70'
       source: 复审/科学契约审查
       note: 量化口径仍须随表征条件记录
@@ -1910,8 +1989,8 @@ experiment_record:
       validation:
         gt: 0
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
       example: '50'
       source: 复审/科学契约审查
       note: ''
@@ -1926,8 +2005,8 @@ experiment_record:
       validation:
         ge: 0
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
       example: '10000'
       source: 复审/科学契约审查
       note: ''
@@ -1946,8 +2025,8 @@ experiment_record:
         - unit
         finite_value: true
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
       example: '[{"metric_code":"raman_e2g_peak","value":384.2,"unit":"cm-1"}]'
       source: 复审/导师
       note: ★v3.4导师评审(C79红字/K79)：PL补峰宽；『SEM占比』改名『SEM覆盖率』并给定义；随技术选填
@@ -1962,15 +2041,8 @@ experiment_record:
       options: 批次库
       unit: —
       requirement:
-        raw: 条件必填(PVD)
-        level: conditional_required
-        condition: &id001
-          field: 基本信息.合成方法
-          op: in
-          value:
-          - PVD-磁控溅射
-          - PVD-热蒸发
-          - PLD
+        raw: 未发布
+        level: none
       example: MoS₂ 靶-T01
       source: 复审
       note: ''
@@ -1985,9 +2057,8 @@ experiment_record:
       validation:
         gt: 0
       requirement:
-        raw: 条件必填(PVD)
-        level: conditional_required
-        condition: *id001
+        raw: 未发布
+        level: none
       example: '80'
       source: 复审
       note: ''
@@ -2000,9 +2071,8 @@ experiment_record:
       options: DC/RF
       unit: W·V
       requirement:
-        raw: 条件必填(PVD)
-        level: conditional_required
-        condition: *id001
+        raw: 未发布
+        level: none
       example: RF 150W；偏压 -50V
       source: 复审
       note: ''
@@ -2018,9 +2088,8 @@ experiment_record:
         gt: 0
         require_value: true
       requirement:
-        raw: 条件必填(PVD)
-        level: conditional_required
-        condition: *id001
+        raw: 未发布
+        level: none
       example: Ar，0.5 Pa
       source: 复审
       note: ''
@@ -2035,9 +2104,8 @@ experiment_record:
       validation:
         gt: 0
       requirement:
-        raw: 条件必填(PVD)
-        level: conditional_required
-        condition: *id001
+        raw: 未发布
+        level: none
       example: 预溅 5 min
       source: 复审
       note: ''
@@ -2052,9 +2120,8 @@ experiment_record:
       validation:
         gt: 0
       requirement:
-        raw: 条件必填(PVD)
-        level: conditional_required
-        condition: *id001
+        raw: 未发布
+        level: none
       example: '0.1'
       source: 复审
       note: ''
@@ -2155,6 +2222,34 @@ entities:
       source: review
       note: ''
     - module: MaterialLot
+      label: 物质同义名
+      label_en: Substance synonyms
+      key: substance_synonyms
+      meaning: 用于检索的稳定同义名，不替代标签名称
+      input: 文本数组
+      options: JSON字符串数组
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: '["Molybdenum trioxide"]'
+      source: 2026-07-28深度审查
+      note: 归一化到Substance实体
+    - module: MaterialLot
+      label: 物质标识符
+      label_en: Substance identifiers
+      key: identifiers
+      meaning: CAS、InChIKey等标识符及其类型
+      input: JSON数组
+      options: '[{type,value}]'
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: '[{"type":"CAS","value":"1313-27-5"}]'
+      source: 2026-07-28深度审查
+      note: 归一化到Substance实体
+    - module: MaterialLot
       label: 供应商
       label_en: Supplier
       key: supplier
@@ -2184,6 +2279,34 @@ entities:
       note: 供应商产品规格编号，标签上常写作 Cat. No.；同一货号可有多个生产批号
       help: 供应商用于标识产品和规格的编号，标签上常写作 Cat. No.；它不是生产批号。
       help_en: The supplier product/specification code, often labeled Cat. No.; it is not the production batch number.
+    - module: MaterialLot
+      label: 供应商等级
+      label_en: Supplier-declared grade
+      key: declared_grade
+      meaning: 供应商给出的产品等级或规格名称
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: ACS reagent
+      source: 2026-07-28深度审查
+      note: 与实测纯度分开
+    - module: MaterialLot
+      label: 商业产品规格
+      label_en: Commercial product specification
+      key: product_specification
+      meaning: 随货号稳定的商业产品规格
+      input: JSON对象
+      options: 具名规格键值
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: '{"mesh":"100"}'
+      source: 2026-07-28深度审查
+      note: 归一化到CommercialProduct实体
     - module: MaterialLot
       label: 生产批号
       label_en: Production batch number
@@ -2223,6 +2346,46 @@ entities:
       example: 99.995（派生显示4N5）
       source: review
       note: 原始证书中的N值或其他纯度表述保留在CoA/附件说明中
+    - module: MaterialLot
+      label: 纯度基准
+      label_en: Purity basis
+      key: purity_basis
+      meaning: 纯度数值所采用的组成基准
+      input: 下拉
+      options: 质量分数/原子分数/体积分数
+      unit: —
+      requirement:
+        raw: 条件必填(填写纯度时)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: in
+          value:
+          - 化学品
+          - 气瓶
+      example: 质量分数
+      source: 2026-07-28深度审查
+      note: 禁止只存没有基准的百分数
+    - module: MaterialLot
+      label: 纯度来源
+      label_en: Purity source
+      key: purity_source
+      meaning: 纯度数值来自供应商声明还是CoA实测
+      input: 下拉
+      options: 供应商声明/CoA实测
+      unit: —
+      requirement:
+        raw: 条件必填(填写纯度时)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: in
+          value:
+          - 化学品
+          - 气瓶
+      example: CoA实测
+      source: 2026-07-28深度审查
+      note: 来源文件仍由CoA附件保存
     - module: MaterialLot
       label: 形态与性状
       label_en: Form and appearance
@@ -2267,6 +2430,48 @@ entities:
       note: 仅在来料形态为粉末或颗粒且供应商/CoA有报告时填写；无报告留空，不用目数或猜测值代替
       help: 只抄供应商标签或CoA上的D50；没有D50报告就留空。
       help_en: Copy D50 only from the supplier label or CoA; leave blank when no D50 is reported.
+    - module: MaterialLot
+      label: D50测量方法
+      label_en: D50 measurement method
+      key: particle_size_d50_method
+      meaning: 得到D50数值所用的方法
+      input: 下拉+其他
+      options: 激光衍射/筛分/图像分析/其他
+      unit: —
+      requirement:
+        raw: 条件选填(填写D50时)
+        level: optional
+      example: 激光衍射
+      source: 2026-07-28深度审查
+      note: 未报告时留空，不猜测
+    - module: MaterialLot
+      label: D50统计基准
+      label_en: D50 distribution basis
+      key: particle_size_d50_basis
+      meaning: 粒径分布按体积、数目或质量统计
+      input: 下拉
+      options: 体积分数/数目基准/质量基准
+      unit: —
+      requirement:
+        raw: 条件选填(填写D50时)
+        level: optional
+      example: 体积分数
+      source: 2026-07-28深度审查
+      note: 与测量方法共同决定可比性
+    - module: MaterialLot
+      label: D50来源
+      label_en: D50 source
+      key: particle_size_d50_source
+      meaning: D50数值的来源
+      input: 下拉
+      options: 供应商声明/CoA实测
+      unit: —
+      requirement:
+        raw: 条件选填(填写D50时)
+        level: optional
+      example: CoA实测
+      source: 2026-07-28深度审查
+      note: 来源文件仍由CoA附件保存
     - module: MaterialLot
       label: 开封日期
       label_en: Date opened
@@ -2507,6 +2712,34 @@ entities:
       note: 不替代每次实验的本片实际尺寸
       help: 填供应商标签或该批次来料的标称尺寸；切割后放进炉内的实际尺寸在每次实验中填写。
       help_en: Enter the supplier-labelled or incoming lot size; record the actual cut piece loaded into each run in the experiment.
+    - module: MaterialLot
+      label: ▸衬底·层堆栈
+      label_en: Substrate layer stack
+      key: substrate_stack_layers
+      meaning: 从体材料到顶表面逐层记录供应商交付的衬底结构
+      input: JSON数组
+      options: '[{material_name,chemical_formula?,thickness_nm?,orientation?,supplier_lot_id?}]'
+      unit: nm
+      requirement:
+        raw: 条件选填(多层衬底)
+        level: optional
+      example: '[{"material_name":"Si"},{"material_name":"SiO2","thickness_nm":285}]'
+      source: 2026-07-28深度审查
+      note: 按数组顺序生成SubstrateStack；不得用单个字符串拼层
+    - module: MaterialLot
+      label: ▸衬底·顶表面
+      label_en: Substrate top surface
+      key: substrate_top_surface
+      meaning: 实验放样时实际暴露的最上层表面
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件选填(多层衬底)
+        level: optional
+      example: SiO2
+      source: 2026-07-28深度审查
+      note: 与层堆栈配套
     - module: MaterialLot
       label: ▸气瓶·纯度等级
       label_en: Gas cylinder · purity grade
@@ -2843,6 +3076,20 @@ entities:
       example: setup.png
       source: 会议
       note: ''
+    - module: 装置Setup
+      label: 可更换部件绑定
+      label_en: Replaceable component bindings
+      key: component_bindings
+      meaning: 当前Setup版本实际安装的炉管、传感器、MFC、压力计等部件
+      input: JSON数组
+      options: '[{component_id,role,position?}]'
+      unit: —
+      requirement:
+        raw: 推荐
+        level: recommended
+      example: '[{"component_id":"UUID","role":"furnace_tube"}]'
+      source: 2026-07-28深度审查
+      note: 部件身份、校准和维护走独立生命周期事件
   - title: 实体③ 表征仪器 Instrument（实验 §7 表征引用；对标 NeXus NXfabrication 仪器溯源）
     fields:
     - module: 表征仪器
@@ -2963,6 +3210,20 @@ entities:
       note: 不在此重复本次实际使用的波长、物镜、功率或积分时间
       help: 只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。
       help_en: Enter stable hardware or capabilities only; record settings used for a measurement in that result.
+    - module: 表征仪器
+      label: 测量能力配置
+      label_en: Measurement capabilities
+      key: capabilities
+      meaning: 仪器版本支持的测量方法及其可选固定配置
+      input: JSON数组
+      options: '[{code,configuration}]'
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: '[{"code":"Raman","configuration":{"lasers_nm":[532]}}]'
+      source: 2026-07-28深度审查
+      note: 本次MeasurementRun只能选择这里声明的能力
     - module: 表征仪器
       label: 最近校准或维护日期
       label_en: Last calibration or maintenance date
@@ -3228,6 +3489,10 @@ changelog:
     - §3/实体
     - 前驱体先选本次使用形态再筛选批次；删除炉次中重复的名称化学式和CAS；用途、使用量、使用前状态、处理步骤按实际语义收敛；非气态按舟、坩埚、衬底表面或其他容器展开容器尺寸、履历与炉内位置
     - 2026-07-28前驱体首版复核
+  - - v4.0-rc.1
+    - 科学对象/实体/结果
+    - 引入正交TargetSpec、物理SourceLoad、统一ProcessTimeline、不可变RunRevision、样品转换图及MeasurementRun→AnalysisRun→PropertyValue/MaterialAssertion溯源链；物料、装置部件和仪器能力补齐归一化字段；PVD不进入发布契约
+    - 2026-07-28深度审查整改
   - - R0
     - 硬必填核心(29项，含条件必填)
     - v3.18删除炉次内重复的前驱体化学式R0；物料身份仍由必填的批次版本快照冻结；其余R0定义不变

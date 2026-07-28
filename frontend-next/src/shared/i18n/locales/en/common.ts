@@ -1,6 +1,9 @@
 // en locale. Mirrors the key shape of zh/common.ts (the authoritative default).
 // English UI polish is a post-v2.0 task (D12); keep keys in sync as文案 lands.
 export const common = {
+  datasets: {
+    nav: 'Scientific datasets',
+  },
   actions: {
     save: 'Save',
     cancel: 'Cancel',
@@ -709,6 +712,7 @@ export const common = {
     status: {
       draft: 'Recording',
       locked: 'Process locked',
+      reviewed: 'Revision reviewed',
       invalid: 'Voided',
       resultMissing: 'Results pending',
       notCharacterized: 'Not characterized yet',

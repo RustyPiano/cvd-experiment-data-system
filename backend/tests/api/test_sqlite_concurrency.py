@@ -24,7 +24,7 @@ def test_file_sqlite_handles_concurrent_authenticated_reads(active_user) -> None
             "/api/v1/experiments",
             json={
                 "started_at": "2026-07-12T00:05:00",
-                "synthesis_method": "APCVD",
+                "synthesis_method": "CVD",
                 "operator": "并发测试",
                 "chemical_formula": "MoS2",
             },

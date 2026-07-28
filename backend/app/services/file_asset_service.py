@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -197,6 +198,7 @@ class FileAssetService:
                 "setup_diagram",
                 "process_event_attachment",
                 "temperature_timeseries",
+                "process_timeseries",
             }
             and sample_id is not None
         ):
@@ -322,7 +324,11 @@ class FileAssetService:
         current_user: User,
         retained_binding_ids: set[str] | None = None,
     ) -> None:
-        if asset_role not in {"process_event_attachment", "temperature_timeseries"}:
+        if asset_role not in {
+            "process_event_attachment",
+            "temperature_timeseries",
+            "process_timeseries",
+        }:
             raise ValueError("Only process-bound files can be pruned")
         experiment = get_locked_visible_experiment(
             self.experiments,
@@ -460,6 +466,7 @@ class FileAssetService:
             "setup_diagram",
             "process_event_attachment",
             "temperature_timeseries",
+            "process_timeseries",
             "direct_observation_file",
         }:
             raise HTTPException(
@@ -476,7 +483,8 @@ class FileAssetService:
     ) -> dict[str, str]:
         expected_type = {
             "process_event_attachment": "process_event",
-            "temperature_timeseries": "process_step",
+            "temperature_timeseries": "process_channel",
+            "process_timeseries": "process_channel",
         }.get(asset_role)
         if expected_type is None:
             if binding_type is not None or binding_id is not None:
@@ -492,9 +500,12 @@ class FileAssetService:
             )
         try:
             valid_id = (
-                str(UUID(normalized_id)) == normalized_id
+                (
+                    bool(re.fullmatch(r"[a-z][a-z0-9_]*", normalized_id))
+                    or str(UUID(normalized_id)) == normalized_id
+                )
                 if asset_role == "process_event_attachment"
-                else normalized_id == "reaction_conditions"
+                else bool(re.fullmatch(r"[a-z][a-z0-9_.]*", normalized_id))
             )
         except ValueError:
             valid_id = False

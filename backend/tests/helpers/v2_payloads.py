@@ -7,7 +7,7 @@ def basic_info_payload(
     *,
     run_code: str = "CVD-2026-0001",
     started_at: str = "2026-07-24T09:30:00+08:00",
-    synthesis_method: str = "APCVD",
+    synthesis_method: str = "CVD",
     operator: str = "Tester",
     **overrides: Any,
 ) -> dict[str, Any]:
@@ -127,6 +127,8 @@ def chemical_lot_payload(
         "cas_number": "TEST-CAS",
         "batch_number": batch_number,
         "purity": 99.9,
+        "purity_basis": "mass_fraction",
+        "purity_source": "supplier_declared",
     }
     payload.update(overrides)
     return payload
@@ -146,6 +148,8 @@ def gas_lot_payload(
         "cas_number": "TEST-CAS",
         "batch_number": batch_number,
         "purity": 99.999,
+        "purity_basis": "volume_fraction",
+        "purity_source": "supplier_declared",
         "gas_purity_grade": "industrial_grade",
     }
     payload.update(overrides)

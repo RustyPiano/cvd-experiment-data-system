@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import {
   ChevronRight,
+  Database,
   FlaskConical,
   FlaskRound,
   LogOut,
@@ -63,6 +64,12 @@ export const primaryNavItems = [
     labelKey: 'characterizations.nav' as const,
     icon: Microscope,
     match: '/characterizations',
+  },
+  {
+    to: '/datasets' as const,
+    labelKey: 'datasets.nav' as const,
+    icon: Database,
+    match: '/datasets',
   },
 ]
 

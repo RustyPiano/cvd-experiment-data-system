@@ -177,6 +177,7 @@ function groupByModule(
   const out: Record<string, FieldMetadata[]> = {}
   for (const section of sections) {
     for (const field of section.fields) {
+      if (field.requirement.level === 'none') continue
       const key = moduleMap[field.module]
       if (!key) {
         throw new Error(
@@ -347,7 +348,7 @@ const content =
     BANNER,
     TYPES,
     `export const fieldMetadataMeta: FieldMetadataMeta = ${JSON.stringify(meta, null, 2)}`,
-    `/** §1–§8 实验记录字段，按模块键分组（basic_info / target_product / … / pvd） */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
+    `/** 已发布实验记录字段，按模块键分组。 */\nexport const experimentModules: Record<string, FieldMetadata[]> = ${JSON.stringify(experimentModules, null, 2)}`,
     `/** 三个一等实体的登记字段（material_lot / setup / instrument） */\nexport const entities: Record<string, FieldMetadata[]> = ${JSON.stringify(entities, null, 2)}`,
     `/** 稳定机器码 → 首选中文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsZh: Record<string, string> = ${JSON.stringify(preferredOptionLabels('zh'), null, 2)}`,
     `/** 稳定机器码 → 首选英文显示名（兼容别名不覆盖）。 */\nexport const optionLabelsEn: Record<string, string> = ${JSON.stringify(preferredOptionLabels('en'), null, 2)}`,

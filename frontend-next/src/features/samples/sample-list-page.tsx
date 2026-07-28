@@ -58,7 +58,13 @@ export function SampleListPage() {
     const needle = query.trim().toLowerCase()
     if (!needle) return items
     return items.filter((sample) =>
-      [sample.sample_code, sample.run_code, sample.material_system]
+      [
+        sample.sample_code,
+        sample.run_code,
+        sample.target_material_system,
+        sample.actual_material_summary,
+        sample.actual_state,
+      ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle)),
     )
@@ -154,7 +160,8 @@ export function SampleListPage() {
                   <TableRow>
                     <TableHead>{t('samples.list.columns.code')}</TableHead>
                     <TableHead>{t('samples.list.columns.run')}</TableHead>
-                    <TableHead>{t('samples.list.columns.material')}</TableHead>
+                    <TableHead>目标材料</TableHead>
+                    <TableHead>实际状态 / 材料</TableHead>
                     <TableHead>{t('samples.list.columns.role')}</TableHead>
                     <TableHead>{t('samples.list.columns.updatedAt')}</TableHead>
                   </TableRow>
@@ -185,11 +192,27 @@ export function SampleListPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {sample.material_system || (
+                        {sample.target_material_system || (
                           <span className="text-muted-foreground text-sm">
                             {t('samples.common.notProvided')}
                           </span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={
+                              sample.actual_state === 'no_growth'
+                                ? 'destructive'
+                                : 'outline'
+                            }
+                          >
+                            {sample.actual_state}
+                          </Badge>
+                          {sample.actual_material_summary ? (
+                            <span>{sample.actual_material_summary}</span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">

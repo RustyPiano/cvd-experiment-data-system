@@ -31,6 +31,7 @@ json_payload_type = JSON().with_variant(JSONB(), "postgresql")
 class ExperimentStatus(StrEnum):
     DRAFT = "draft"
     LOCKED = "locked"
+    REVIEWED = "reviewed"
     INVALID = "invalid"
 
 
@@ -69,6 +70,27 @@ class ExperimentRun(Base):
         onupdate=func.now(),
     )
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    current_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "run_revisions.id",
+            name="fk_experiment_runs_current_revision_id",
+            use_alter=True,
+        ),
+        nullable=True,
+        index=True,
+    )
+    draft_supersedes_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "run_revisions.id",
+            name="fk_experiment_runs_draft_supersedes_revision_id",
+            use_alter=True,
+        ),
+        nullable=True,
+        index=True,
+    )
+    correction_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     setup_ref: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     setup_ref_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     setup_ref_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
@@ -104,9 +126,18 @@ class ExperimentRun(Base):
         back_populates="experiment_run",
         cascade="all, delete-orphan",
     )
+    current_revision = relationship(
+        "RunRevision",
+        foreign_keys=[current_revision_id],
+        post_update=True,
+    )
 
     @property
     def owner_name(self) -> str | None:
         if self.owner is None:
             return None
         return self.owner.name
+
+    @property
+    def target_material_system(self) -> str | None:
+        return self.material_system

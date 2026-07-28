@@ -30,6 +30,12 @@ class CharacterizationRecord(Base):
         ForeignKey("experiment_runs.id"),
         index=True,
     )
+    run_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("run_revisions.id"),
+        nullable=True,
+        index=True,
+    )
     sample_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("samples.id"),
@@ -46,6 +52,28 @@ class CharacterizationRecord(Base):
         nullable=True,
     )
     method_instrument: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    performed_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
+    measured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sample_region: Mapped[dict[str, Any] | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
+    typed_conditions: Mapped[dict[str, Any]] = mapped_column(
+        json_payload_type,
+        nullable=False,
+        default=dict,
+    )
+    quality_flag: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="valid",
+        index=True,
+    )
     test_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_data: Mapped[dict[str, Any] | None] = mapped_column(json_payload_type, nullable=True)
     attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)

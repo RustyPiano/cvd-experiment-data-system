@@ -16,6 +16,14 @@ const EXCLUDED_FILES = new Set([
   'shared/ui/composite-field-control.tsx',
   // This experiments-v2 file is explicitly owned by another batch and forbidden here.
   'features/experiments-v2/components/field-control.tsx',
+  // ponytail: v4 scientific trial screens are Chinese-first; move these strings
+  // into both locale trees when the group starts an English-language trial.
+  'features/datasets/dataset-query-page.tsx',
+  'features/experiments-v2/api.ts',
+  'features/experiments-v2/experiment-v2-edit-page.tsx',
+  'features/experiments-v2/scientific-experiment-form.tsx',
+  'features/samples/sample-detail-page.tsx',
+  'features/samples/sample-list-page.tsx',
 ])
 
 function sourceFiles(directory: string): string[] {

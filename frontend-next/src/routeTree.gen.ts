@@ -18,6 +18,7 @@ import { Route as AuthedSamplesIndexRouteImport } from './routes/_authed/samples
 import { Route as AuthedMaterialLotsIndexRouteImport } from './routes/_authed/material-lots/index'
 import { Route as AuthedInstrumentsIndexRouteImport } from './routes/_authed/instruments/index'
 import { Route as AuthedExperimentsIndexRouteImport } from './routes/_authed/experiments/index'
+import { Route as AuthedDatasetsIndexRouteImport } from './routes/_authed/datasets/index'
 import { Route as AuthedCharacterizationsIndexRouteImport } from './routes/_authed/characterizations/index'
 import { Route as AuthedSetupsEntityIdRouteImport } from './routes/_authed/setups/$entityId'
 import { Route as AuthedSamplesSampleIdRouteImport } from './routes/_authed/samples/$sampleId'
@@ -70,6 +71,11 @@ const AuthedExperimentsIndexRoute = AuthedExperimentsIndexRouteImport.update({
   path: '/experiments/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedDatasetsIndexRoute = AuthedDatasetsIndexRouteImport.update({
+  id: '/datasets/',
+  path: '/datasets/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedCharacterizationsIndexRoute =
   AuthedCharacterizationsIndexRouteImport.update({
     id: '/characterizations/',
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/setups/$entityId': typeof AuthedSetupsEntityIdRoute
   '/characterizations/': typeof AuthedCharacterizationsIndexRoute
+  '/datasets/': typeof AuthedDatasetsIndexRoute
   '/experiments/': typeof AuthedExperimentsIndexRoute
   '/instruments/': typeof AuthedInstrumentsIndexRoute
   '/material-lots/': typeof AuthedMaterialLotsIndexRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/setups/$entityId': typeof AuthedSetupsEntityIdRoute
   '/characterizations': typeof AuthedCharacterizationsIndexRoute
+  '/datasets': typeof AuthedDatasetsIndexRoute
   '/experiments': typeof AuthedExperimentsIndexRoute
   '/instruments': typeof AuthedInstrumentsIndexRoute
   '/material-lots': typeof AuthedMaterialLotsIndexRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/_authed/samples/$sampleId': typeof AuthedSamplesSampleIdRoute
   '/_authed/setups/$entityId': typeof AuthedSetupsEntityIdRoute
   '/_authed/characterizations/': typeof AuthedCharacterizationsIndexRoute
+  '/_authed/datasets/': typeof AuthedDatasetsIndexRoute
   '/_authed/experiments/': typeof AuthedExperimentsIndexRoute
   '/_authed/instruments/': typeof AuthedInstrumentsIndexRoute
   '/_authed/material-lots/': typeof AuthedMaterialLotsIndexRoute
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
     | '/samples/$sampleId'
     | '/setups/$entityId'
     | '/characterizations/'
+    | '/datasets/'
     | '/experiments/'
     | '/instruments/'
     | '/material-lots/'
@@ -192,6 +202,7 @@ export interface FileRouteTypes {
     | '/samples/$sampleId'
     | '/setups/$entityId'
     | '/characterizations'
+    | '/datasets'
     | '/experiments'
     | '/instruments'
     | '/material-lots'
@@ -210,6 +221,7 @@ export interface FileRouteTypes {
     | '/_authed/samples/$sampleId'
     | '/_authed/setups/$entityId'
     | '/_authed/characterizations/'
+    | '/_authed/datasets/'
     | '/_authed/experiments/'
     | '/_authed/instruments/'
     | '/_authed/material-lots/'
@@ -289,6 +301,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedExperimentsIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/datasets/': {
+      id: '/_authed/datasets/'
+      path: '/datasets'
+      fullPath: '/datasets/'
+      preLoaderRoute: typeof AuthedDatasetsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/characterizations/': {
       id: '/_authed/characterizations/'
       path: '/characterizations'
@@ -349,6 +368,7 @@ interface AuthedRouteChildren {
   AuthedSamplesSampleIdRoute: typeof AuthedSamplesSampleIdRoute
   AuthedSetupsEntityIdRoute: typeof AuthedSetupsEntityIdRoute
   AuthedCharacterizationsIndexRoute: typeof AuthedCharacterizationsIndexRoute
+  AuthedDatasetsIndexRoute: typeof AuthedDatasetsIndexRoute
   AuthedExperimentsIndexRoute: typeof AuthedExperimentsIndexRoute
   AuthedInstrumentsIndexRoute: typeof AuthedInstrumentsIndexRoute
   AuthedMaterialLotsIndexRoute: typeof AuthedMaterialLotsIndexRoute
@@ -365,6 +385,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedSamplesSampleIdRoute: AuthedSamplesSampleIdRoute,
   AuthedSetupsEntityIdRoute: AuthedSetupsEntityIdRoute,
   AuthedCharacterizationsIndexRoute: AuthedCharacterizationsIndexRoute,
+  AuthedDatasetsIndexRoute: AuthedDatasetsIndexRoute,
   AuthedExperimentsIndexRoute: AuthedExperimentsIndexRoute,
   AuthedInstrumentsIndexRoute: AuthedInstrumentsIndexRoute,
   AuthedMaterialLotsIndexRoute: AuthedMaterialLotsIndexRoute,

@@ -9,6 +9,7 @@ describe('primary navigation', () => {
     ).toEqual([
       { to: '/experiments', labelKey: 'experimentsV2.nav' },
       { to: '/characterizations', labelKey: 'characterizations.nav' },
+      { to: '/datasets', labelKey: 'datasets.nav' },
     ])
   })
 })

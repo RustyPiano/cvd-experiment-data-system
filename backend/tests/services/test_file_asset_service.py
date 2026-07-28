@@ -182,8 +182,8 @@ def test_temperature_timeseries_upload_parses_columns(
         upload=build_upload(filename, content),
         current_user=active_user,
         asset_role="temperature_timeseries",
-        binding_type="process_step",
-        binding_id="reaction_conditions",
+        binding_type="process_channel",
+        binding_id="temperature.zone_1",
     )
 
     assert created.metadata_json["columns"] == columns

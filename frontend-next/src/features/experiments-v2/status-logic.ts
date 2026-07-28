@@ -10,12 +10,15 @@ export function availableStatusActions(
 ): StatusAction[] {
   if (!canWrite) return []
   if (status === 'draft') return ['lock', 'invalidate']
-  if (status === 'locked' && isAdmin) return ['unlock']
+  if (['locked', 'reviewed'].includes(status) && isAdmin) return ['unlock']
   return []
 }
 
 export const isProcessReadOnly = (status: RunStatus, canWrite: boolean) =>
-  !canWrite || status === 'locked' || status === 'invalid'
+  !canWrite ||
+  status === 'locked' ||
+  status === 'reviewed' ||
+  status === 'invalid'
 
 export const isResultsReadOnly = (status: RunStatus, canWrite: boolean) =>
   !canWrite || status === 'invalid'
@@ -25,6 +28,7 @@ export function statusBadgeVariant(status: RunStatus) {
     {
       draft: 'secondary',
       locked: 'default',
+      reviewed: 'outline',
       invalid: 'destructive',
     } as const
   )[status]
@@ -35,6 +39,7 @@ export const statusLabelKey = (status: RunStatus) =>
     ({
       draft: 'experimentsV2.status.draft',
       locked: 'experimentsV2.status.locked',
+      reviewed: 'experimentsV2.status.reviewed',
       invalid: 'experimentsV2.status.invalid',
     }) as const
   )[status]

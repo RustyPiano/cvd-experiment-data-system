@@ -8,12 +8,12 @@ import {
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('groups the 93 experiment fields into the expected module keys', () => {
+  it('exports only the 77 released experiment fields', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(93)
+    expect(total).toBe(77)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',
@@ -22,9 +22,6 @@ describe('generated field-metadata', () => {
       'substrates',
       'process_steps',
       'process_events',
-      'characterization',
-      'measured_products',
-      'pvd',
     ])
   })
 
@@ -86,7 +83,7 @@ describe('generated field-metadata', () => {
     const method = experimentModules.basic_info.find(
       (f) => f.key === 'synthesis_method',
     )
-    expect(method?.options).toContain('APCVD')
+    expect(method?.options).toBe('CVD')
   })
 
   it('preserves scalar and structured validation rules from the field source', () => {
@@ -100,13 +97,9 @@ describe('generated field-metadata', () => {
     )
     expect(targetLayers?.validation).toEqual({ type: 'integer', ge: 1 })
 
-    const spectralMetrics = experimentModules.measured_products.find(
-      (field) => field.key === 'key_spectral_metrics',
-    )
-    expect(spectralMetrics?.validation).toEqual({
-      item_required: ['metric_code', 'value', 'unit'],
-      finite_value: true,
-    })
+    expect(experimentModules).not.toHaveProperty('measured_products')
+    expect(experimentModules).not.toHaveProperty('characterization')
+    expect(experimentModules).not.toHaveProperty('pvd')
 
     const startedAt = experimentModules.basic_info.find(
       (field) => field.key === 'started_at',
@@ -168,7 +161,7 @@ describe('generated field-metadata', () => {
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(53)
+    expect(total).toBe(66)
   })
 
   it('carries input types for every remaining scalar-plus-option field', () => {
@@ -187,7 +180,6 @@ describe('generated field-metadata', () => {
       .filter((field) => compositeInputs.has(field.input))
 
     expect(compositeFields.map((field) => field.key).sort()).toEqual([
-      'plasma_gas_pressure',
       'pressure_system',
       'substrate_orientation_polish',
     ])

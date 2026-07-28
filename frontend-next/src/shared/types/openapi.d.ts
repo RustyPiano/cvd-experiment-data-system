@@ -279,6 +279,145 @@ export interface paths {
     patch: operations['update_sample_api_v1_samples__sample_id__patch']
     trace?: never
   }
+  '/api/v1/container-instances': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Container Instances */
+    get: operations['list_container_instances_api_v1_container_instances_get']
+    put?: never
+    /** Create Container Instance */
+    post: operations['create_container_instance_api_v1_container_instances_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/equipment-components': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Equipment Components */
+    get: operations['list_equipment_components_api_v1_equipment_components_get']
+    put?: never
+    /** Create Equipment Component */
+    post: operations['create_equipment_component_api_v1_equipment_components_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/setup-versions/{setup_version_id}/components': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Bind Setup Component */
+    post: operations['bind_setup_component_api_v1_setup_versions__setup_version_id__components_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/equipment-components/{component_id}/events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Equipment Lifecycle Event */
+    post: operations['create_equipment_lifecycle_event_api_v1_equipment_components__component_id__events_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/instruments/{instrument_id}/events': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Instrument Lifecycle Event */
+    post: operations['create_instrument_lifecycle_event_api_v1_instruments__instrument_id__events_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/datasets/query': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Query Dataset */
+    post: operations['query_dataset_api_v1_datasets_query_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/measurements': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Measurements */
+    get: operations['list_measurements_api_v1_measurements_get']
+    put?: never
+    /** Create Measurement */
+    post: operations['create_measurement_api_v1_measurements_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/transformations': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Transformation */
+    post: operations['create_transformation_api_v1_transformations_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/material-lots': {
     parameters: {
       query?: never
@@ -558,6 +697,57 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/experiments/{run_id}/revisions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Run Revisions */
+    get: operations['list_run_revisions_api_v1_experiments__run_id__revisions_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/correction-drafts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Create Run Correction Draft */
+    post: operations['create_run_correction_draft_api_v1_experiments__run_id__correction_drafts_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/review': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Review Run */
+    post: operations['review_run_api_v1_experiments__run_id__review_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/experiments/{run_id}/invalidate': {
     parameters: {
       query?: never
@@ -739,6 +929,30 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** AnalysisRunCreate */
+    AnalysisRunCreate: {
+      /** Software Name */
+      software_name: string
+      /** Software Version */
+      software_version: string
+      /** Code Commit */
+      code_commit?: string | null
+      /** Parameters */
+      parameters?: {
+        [key: string]: unknown
+      }
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string
+      /** Completed At */
+      completed_at?: string | null
+      /** Input File Ids */
+      input_file_ids: string[]
+      /** Output File Ids */
+      output_file_ids?: string[]
+    }
     /** Body_upload_entity_file_api_v1_entity_files_post */
     Body_upload_entity_file_api_v1_entity_files_post: {
       /** File */
@@ -863,11 +1077,229 @@ export interface components {
         [key: string]: unknown
       }
     }
+    /** ContainerInstanceCreate */
+    ContainerInstanceCreate: {
+      /**
+       * Material Lot Id
+       * Format: uuid
+       */
+      material_lot_id: string
+      /** Container Code */
+      container_code: string
+      /**
+       * Container Type
+       * @enum {string}
+       */
+      container_type:
+        | 'bottle'
+        | 'gas_cylinder'
+        | 'boat'
+        | 'crucible'
+        | 'bubbler'
+        | 'other'
+      /** Opened Date */
+      opened_date?: string | null
+      /** Storage History */
+      storage_history?: {
+        [key: string]: unknown
+      }[]
+      /** Remaining Amount */
+      remaining_amount?: number | null
+      /** Remaining Unit */
+      remaining_unit?: string | null
+      /** Attrs */
+      attrs?: {
+        [key: string]: unknown
+      }
+    }
+    /** ContainerInstanceRead */
+    ContainerInstanceRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Material Lot Id
+       * Format: uuid
+       */
+      material_lot_id: string
+      /** Container Code */
+      container_code: string
+      /** Container Type */
+      container_type: string
+      /** Opened Date */
+      opened_date: string | null
+      /** Storage History */
+      storage_history: {
+        [key: string]: unknown
+      }[]
+      /** Remaining Amount */
+      remaining_amount: number | null
+      /** Remaining Unit */
+      remaining_unit: string | null
+      /** Status */
+      status: string
+      /** Attrs */
+      attrs: {
+        [key: string]: unknown
+      }
+    }
+    /** CreateCorrectionDraftRequest */
+    CreateCorrectionDraftRequest: {
+      /** Reason */
+      reason: string
+    }
+    /** DatasetFilter */
+    DatasetFilter: {
+      /**
+       * Field
+       * @enum {string}
+       */
+      field:
+        | 'target_formula'
+        | 'architecture_type'
+        | 'setup_id'
+        | 'material_lot_id'
+        | 'substrate_material'
+        | 'max_temperature_C'
+        | 'ramp_rate_C_min'
+        | 'growth_duration_s'
+        | 'pressure_min_Pa'
+        | 'pressure_max_Pa'
+        | 'gas_species'
+        | 'has_process_event'
+        | 'growth_presence'
+        | 'property'
+        | 'provenance_complete'
+      /**
+       * Operator
+       * @enum {string}
+       */
+      operator:
+        | 'eq'
+        | 'ne'
+        | 'lt'
+        | 'lte'
+        | 'gt'
+        | 'gte'
+        | 'contains'
+        | 'between'
+      /** Value */
+      value: unknown
+      /** Property Code */
+      property_code?: string | null
+    }
+    /** DatasetQuery */
+    DatasetQuery: {
+      /** Filters */
+      filters?: components['schemas']['DatasetFilter'][]
+      /**
+       * Limit
+       * @default 50
+       */
+      limit: number
+      /** Cursor */
+      cursor?: string | null
+    }
+    /** DatasetQueryResponse */
+    DatasetQueryResponse: {
+      /** Items */
+      items: components['schemas']['DatasetRunRead'][]
+      /** Next Cursor */
+      next_cursor: string | null
+      /** Query Manifest */
+      query_manifest: {
+        [key: string]: unknown
+      }
+    }
+    /** DatasetRunRead */
+    DatasetRunRead: {
+      /**
+       * Run Id
+       * Format: uuid
+       */
+      run_id: string
+      /**
+       * Run Revision Id
+       * Format: uuid
+       */
+      run_revision_id: string
+      /** Run Code */
+      run_code: string
+      /** Revision Number */
+      revision_number: number
+      /**
+       * Locked At
+       * Format: date-time
+       */
+      locked_at: string
+      /** Target Formulas */
+      target_formulas: string[]
+      /** Features */
+      features: {
+        [key: string]: unknown
+      }
+      /** Provenance Complete */
+      provenance_complete: boolean
+    }
+    /** EquipmentComponentCreate */
+    EquipmentComponentCreate: {
+      /** Component Code */
+      component_code: string
+      /**
+       * Component Type
+       * @enum {string}
+       */
+      component_type:
+        | 'furnace_tube'
+        | 'temperature_sensor'
+        | 'mfc'
+        | 'pressure_gauge'
+        | 'vacuum_pump'
+        | 'boat'
+        | 'crucible'
+        | 'valve'
+        | 'plasma_source'
+        | 'other'
+      /** Manufacturer */
+      manufacturer?: string | null
+      /** Model */
+      model?: string | null
+      /** Serial Number */
+      serial_number?: string | null
+      /** Attrs */
+      attrs?: {
+        [key: string]: unknown
+      }
+    }
+    /** EquipmentComponentRead */
+    EquipmentComponentRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Component Code */
+      component_code: string
+      /** Component Type */
+      component_type: string
+      /** Manufacturer */
+      manufacturer: string | null
+      /** Model */
+      model: string | null
+      /** Serial Number */
+      serial_number: string | null
+      /** Attrs */
+      attrs: {
+        [key: string]: unknown
+      }
+    }
     /**
      * ExperimentStatus
      * @enum {string}
      */
-    ExperimentStatus: 'draft' | 'locked' | 'invalid'
+    ExperimentStatus: 'draft' | 'locked' | 'reviewed' | 'invalid'
     /** FileAssetListResponse */
     FileAssetListResponse: {
       /** Items */
@@ -975,8 +1407,70 @@ export interface components {
       location?: string | null
       /** Fixed Config */
       fixed_config?: string | null
+      /** Capabilities */
+      capabilities: {
+        [key: string]: unknown
+      }[]
       /** Last Calibration */
       last_calibration?: string | null
+    }
+    /** LifecycleEventCreate */
+    LifecycleEventCreate: {
+      /**
+       * Event Type
+       * @enum {string}
+       */
+      event_type: 'install' | 'remove' | 'calibration' | 'maintenance'
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string
+      /** Valid Until */
+      valid_until?: string | null
+      /** Affected Component */
+      affected_component?: string | null
+      /** Quantity */
+      quantity?: string | null
+      /** Correction */
+      correction?: number | null
+      /** Expanded Uncertainty */
+      expanded_uncertainty?: number | null
+      /** Details */
+      details?: {
+        [key: string]: unknown
+      }
+      /** Certificate File Id */
+      certificate_file_id?: string | null
+    }
+    /** LifecycleEventRead */
+    LifecycleEventRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Event Type */
+      event_type: string
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string
+      /** Valid Until */
+      valid_until: string | null
+      /** Quantity */
+      quantity: string | null
+      /** Correction */
+      correction: number | null
+      /** Expanded Uncertainty */
+      expanded_uncertainty: number | null
+      /** Details */
+      details: {
+        [key: string]: unknown
+      }
+      /** Certificate File Id */
+      certificate_file_id: string | null
     }
     /** LoginRequest */
     LoginRequest: {
@@ -984,6 +1478,29 @@ export interface components {
       email: string
       /** Password */
       password: string
+    }
+    /** MaterialAssertionWrite */
+    MaterialAssertionWrite: {
+      /**
+       * Assertion Type
+       * @enum {string}
+       */
+      assertion_type:
+        | 'growth_presence'
+        | 'phase_identity'
+        | 'composition'
+        | 'polytype'
+        | 'stacking_order'
+        | 'orientation_relationship'
+        | 'layer_count'
+      /** Value */
+      value: {
+        [key: string]: unknown
+      }
+      /** Confidence */
+      confidence?: number | null
+      /** Analysis Index */
+      analysis_index?: number | null
     }
     /** MaterialLotVersionPayload */
     MaterialLotVersionPayload: {
@@ -998,18 +1515,46 @@ export interface components {
       chemical_formula: string
       /** Cas Number */
       cas_number?: string | null
+      /** Substance Synonyms */
+      substance_synonyms?: string[] | null
+      /** Identifiers */
+      identifiers?:
+        | {
+            [key: string]: unknown
+          }[]
+        | null
       /** Supplier */
       supplier?: string | null
       /** Catalog Number */
       catalog_number?: string | null
+      /** Declared Grade */
+      declared_grade?: string | null
+      /** Product Specification */
+      product_specification?: {
+        [key: string]: unknown
+      } | null
       /** Batch Number */
       batch_number: string
       /** Purity */
       purity?: number | null
+      /** Purity Basis */
+      purity_basis?:
+        | ('atomic_fraction' | 'mass_fraction' | 'volume_fraction')
+        | null
+      /** Purity Source */
+      purity_source?: ('coa_measured' | 'supplier_declared') | null
       /** Form Appearance */
       form_appearance?: string | null
       /** Particle Size D50 Um */
       particle_size_d50_um?: number | null
+      /** Particle Size D50 Method */
+      particle_size_d50_method?: string | null
+      /** Particle Size D50 Basis */
+      particle_size_d50_basis?:
+        | ('mass_basis' | 'number_basis' | 'volume_fraction')
+        | null
+      /** Particle Size D50 Source */
+      particle_size_d50_source?: ('coa_measured' | 'supplier_declared') | null
       /** Opened Date */
       opened_date?: string | null
       /** Storage Method */
@@ -1042,6 +1587,14 @@ export interface components {
         | null
       /** Substrate Size Spec */
       substrate_size_spec?: string | null
+      /** Substrate Stack Layers */
+      substrate_stack_layers?:
+        | {
+            [key: string]: unknown
+          }[]
+        | null
+      /** Substrate Top Surface */
+      substrate_top_surface?: string | null
       /** Gas Purity Grade */
       gas_purity_grade?: ('4N' | '5N' | '6N' | 'industrial_grade') | null
       /** Gas Cylinder Number */
@@ -1150,6 +1703,201 @@ export interface components {
         [key: string]: unknown
       }
     }
+    /** MeasurementBundleCreate */
+    MeasurementBundleCreate: {
+      measurement: components['schemas']['MeasurementRunCreate']
+      /** Analyses */
+      analyses?: components['schemas']['AnalysisRunCreate'][]
+      /** Properties */
+      properties?: components['schemas']['PropertyValueWrite'][]
+      /** Assertions */
+      assertions?: components['schemas']['MaterialAssertionWrite'][]
+    }
+    /** MeasurementConditions */
+    MeasurementConditions: {
+      /** Laser Wavelength Nm */
+      laser_wavelength_nm?: number | null
+      /** Excitation Wavelength Nm */
+      excitation_wavelength_nm?: number | null
+      /** Power Setting */
+      power_setting?: string | number | null
+      /** Objective */
+      objective?: string | null
+      /** Integration Time S */
+      integration_time_s?: number | null
+      /** Accumulations */
+      accumulations?: number | null
+      /** Spectral Range Nm */
+      spectral_range_nm?: number | null
+      /** Temperature K */
+      temperature_K?: number | null
+      /** Mode */
+      mode?: string | null
+      /** Probe */
+      probe?: string | null
+      /** Scan Size Um */
+      scan_size_um?: number | null
+      /** Resolution Px */
+      resolution_px?: number | null
+      /** Scan Rate Hz */
+      scan_rate_hz?: number | null
+      /** Accelerating Voltage Kv */
+      accelerating_voltage_kV?: number | null
+      /** Working Distance Mm */
+      working_distance_mm?: number | null
+      /** Detector */
+      detector?: string | null
+      /** Field Of View Um */
+      field_of_view_um?: number | null
+      /** Radiation Source */
+      radiation_source?: string | null
+      /** Scan Range 2Theta Deg */
+      scan_range_2theta_deg?: number | null
+      /** Step Size Deg */
+      step_size_deg?: number | null
+      /** Scan Rate Deg Min */
+      scan_rate_deg_min?: number | null
+      /** Geometry */
+      geometry?: string | null
+      /** Sample Preparation */
+      sample_preparation?: string | null
+      /** Illumination Mode */
+      illumination_mode?: string | null
+    }
+    /** MeasurementListResponse */
+    MeasurementListResponse: {
+      /** Items */
+      items: components['schemas']['MeasurementSummaryRead'][]
+      /** Total */
+      total: number
+      /** Next Cursor */
+      next_cursor?: string | null
+    }
+    /** MeasurementRunCreate */
+    MeasurementRunCreate: {
+      /**
+       * Sample Id
+       * Format: uuid
+       */
+      sample_id: string
+      /** Method Profile */
+      method_profile: string
+      /** Instrument Id */
+      instrument_id?: string | null
+      /** Instrument Version */
+      instrument_version?: number | null
+      /**
+       * Measured At
+       * Format: date-time
+       */
+      measured_at: string
+      sample_region: components['schemas']['SampleRegion']
+      typed_conditions: components['schemas']['MeasurementConditions']
+      /** Raw File Ids */
+      raw_file_ids?: string[]
+      /**
+       * Quality Flag
+       * @default valid
+       * @enum {string}
+       */
+      quality_flag: 'valid' | 'suspect' | 'invalid'
+    }
+    /** MeasurementSummaryRead */
+    MeasurementSummaryRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Run Revision Id
+       * Format: uuid
+       */
+      run_revision_id: string
+      /** Run Code */
+      run_code: string
+      /**
+       * Sample Id
+       * Format: uuid
+       */
+      sample_id: string
+      /** Sample Code */
+      sample_code: string
+      /** Method Profile */
+      method_profile: string
+      /** Instrument Snapshot Json */
+      instrument_snapshot_json: {
+        [key: string]: unknown
+      } | null
+      /**
+       * Performed By Id
+       * Format: uuid
+       */
+      performed_by_id: string
+      /**
+       * Measured At
+       * Format: date-time
+       */
+      measured_at: string
+      /** Sample Region */
+      sample_region: {
+        [key: string]: unknown
+      }
+      /** Typed Conditions */
+      typed_conditions: {
+        [key: string]: unknown
+      }
+      /** Quality Flag */
+      quality_flag: string
+      /** Raw File Count */
+      raw_file_count: number
+      /** Analysis Count */
+      analysis_count: number
+      /** Property Count */
+      property_count: number
+      /** Assertion Count */
+      assertion_count: number
+    }
+    /** PropertyValueWrite */
+    PropertyValueWrite: {
+      /** Property Code */
+      property_code: string
+      /** Numeric Value */
+      numeric_value?: number | null
+      /** Text Value */
+      text_value?: string | null
+      /** Structured Value */
+      structured_value?: {
+        [key: string]: unknown
+      } | null
+      /** Unit */
+      unit?: string | null
+      /** Statistic */
+      statistic?:
+        | (
+            | 'single_observation'
+            | 'mean'
+            | 'median'
+            | 'min'
+            | 'max'
+            | 'distribution'
+          )
+        | null
+      /** Uncertainty Value */
+      uncertainty_value?: number | null
+      /** Uncertainty Type */
+      uncertainty_type?: string | null
+      /** Sample Count */
+      sample_count?: number | null
+      /**
+       * Quality Flag
+       * @default valid
+       * @enum {string}
+       */
+      quality_flag: 'valid' | 'suspect' | 'invalid' | 'below_detection_limit'
+      /** Analysis Index */
+      analysis_index?: number | null
+    }
     /** RegisterRequest */
     RegisterRequest: {
       /** Email */
@@ -1162,6 +1910,64 @@ export interface components {
       password_confirmation: string
       /** Invite Code */
       invite_code: string
+    }
+    /** ReviewRunRequest */
+    ReviewRunRequest: {
+      /** Note */
+      note?: string | null
+    }
+    /** RunRevisionListResponse */
+    RunRevisionListResponse: {
+      /** Items */
+      items: components['schemas']['RunRevisionRead'][]
+      /** Total */
+      total: number
+    }
+    /** RunRevisionRead */
+    RunRevisionRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Experiment Run Id
+       * Format: uuid
+       */
+      experiment_run_id: string
+      /** Revision Number */
+      revision_number: number
+      /** Supersedes Revision Id */
+      supersedes_revision_id: string | null
+      /** Schema Version */
+      schema_version: string
+      /** Schema Status */
+      schema_status: string
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'locked' | 'reviewed' | 'superseded'
+      /** Content Sha256 */
+      content_sha256: string
+      /** Correction Reason */
+      correction_reason: string | null
+      /**
+       * Locked By Id
+       * Format: uuid
+       */
+      locked_by_id: string
+      /** Reviewed By Id */
+      reviewed_by_id: string | null
+      /**
+       * Locked At
+       * Format: date-time
+       */
+      locked_at: string
+      /** Reviewed At */
+      reviewed_at: string | null
+      /** Superseded At */
+      superseded_at: string | null
     }
     /** SampleCreate */
     SampleCreate: {
@@ -1194,14 +2000,36 @@ export interface components {
        * Format: uuid
        */
       experiment_run_id: string
+      /** Run Revision Id */
+      run_revision_id: string | null
       /** Run Code */
       run_code?: string | null
+      /** Target Material System */
+      target_material_system?: string | null
       /** Material System */
       material_system?: string | null
+      /** Actual State */
+      actual_state: string
+      /** Actual Material Summary */
+      actual_material_summary: string | null
       /** Parent Sample Id */
       parent_sample_id: string | null
       /** Role */
       role: string
+      /** Current Carrier */
+      current_carrier: string | null
+      /** Sample Region */
+      sample_region: {
+        [key: string]: unknown
+      } | null
+      /** Dimensions Json */
+      dimensions_json: {
+        [key: string]: unknown
+      } | null
+      /** Lifecycle State */
+      lifecycle_state: string
+      /** Control Subtype */
+      control_subtype: string | null
       /** Source Substrate Id */
       source_substrate_id: string | null
       /** Source Substrate Snapshot Json */
@@ -1229,6 +2057,34 @@ export interface components {
       /** Is Deleted */
       is_deleted: boolean
     }
+    /** SampleRegion */
+    SampleRegion: {
+      /**
+       * Geometry Type
+       * @enum {string}
+       */
+      geometry_type: 'point' | 'line' | 'area'
+      /** Label */
+      label: string
+      /** Coordinate System */
+      coordinate_system: string
+      /** X */
+      x?: number | null
+      /** Y */
+      y?: number | null
+      /** Width */
+      width?: number | null
+      /** Height */
+      height?: number | null
+      /** Unit */
+      unit?: string | null
+      /** Image File Id */
+      image_file_id?: string | null
+      /** Pixel Roi */
+      pixel_roi?: {
+        [key: string]: number
+      } | null
+    }
     /**
      * SampleRole
      * @enum {string}
@@ -1240,6 +2096,20 @@ export interface components {
       metadata_json?: {
         [key: string]: unknown
       }
+    }
+    /** SetupComponentBindingCreate */
+    SetupComponentBindingCreate: {
+      /**
+       * Component Id
+       * Format: uuid
+       */
+      component_id: string
+      /** Role */
+      role: string
+      /** Position */
+      position?: {
+        [key: string]: unknown
+      } | null
     }
     /** SetupVersionPayload */
     SetupVersionPayload: {
@@ -1278,6 +2148,12 @@ export interface components {
       /** Field Devices */
       field_devices: ('electric_field' | 'light' | 'none' | 'plasma')[]
       setup_diagram?: components['schemas']['FileAssetReferencePayload'] | null
+      /** Component Bindings */
+      component_bindings?:
+        | {
+            [key: string]: unknown
+          }[]
+        | null
     }
     /** SpectralMetric */
     SpectralMetric: {
@@ -1337,6 +2213,94 @@ export interface components {
       /** Expires In */
       expires_in: number
       user: components['schemas']['UserRead']
+    }
+    /** TransformationOutputSpec */
+    TransformationOutputSpec: {
+      /** Output Role */
+      output_role?: string | null
+      /** Sample Region */
+      sample_region?: {
+        [key: string]: unknown
+      } | null
+      /** Dimensions */
+      dimensions?: {
+        [key: string]: unknown
+      } | null
+      /** Current Carrier */
+      current_carrier?: string | null
+      /** Control Subtype */
+      control_subtype?: string | null
+    }
+    /** TransformationRunCreate */
+    TransformationRunCreate: {
+      /**
+       * Transformation Type
+       * @enum {string}
+       */
+      transformation_type:
+        | 'cut'
+        | 'split'
+        | 'transfer'
+        | 'stack'
+        | 'anneal'
+        | 'etch'
+        | 'clean'
+        | 'encapsulate'
+        | 'contact_fabrication'
+        | 'other'
+      /** Input Sample Ids */
+      input_sample_ids: string[]
+      /** Outputs */
+      outputs: components['schemas']['TransformationOutputSpec'][]
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string
+      /** Parameters */
+      parameters?: {
+        [key: string]: unknown
+      }
+      /** Destination Substrate Snapshot */
+      destination_substrate_snapshot?: {
+        [key: string]: unknown
+      } | null
+      /**
+       * Consume Inputs
+       * @default false
+       */
+      consume_inputs: boolean
+      /** Note */
+      note?: string | null
+    }
+    /** TransformationRunRead */
+    TransformationRunRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Run Revision Id
+       * Format: uuid
+       */
+      run_revision_id: string
+      /** Transformation Type */
+      transformation_type: string
+      /**
+       * Operator Id
+       * Format: uuid
+       */
+      operator_id: string
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string
+      /** Input Sample Ids */
+      input_sample_ids: string[]
+      /** Output Sample Ids */
+      output_sample_ids: string[]
     }
     /** TubeDimensionsPayload */
     TubeDimensionsPayload: {
@@ -1459,8 +2423,11 @@ export interface components {
        * Format: date-time
        */
       started_at: string
-      /** Synthesis Method */
-      synthesis_method: string
+      /**
+       * Synthesis Method
+       * @constant
+       */
+      synthesis_method: 'CVD'
       /** Ambient Temperature C */
       ambient_temperature_C?: number | null
       /** Ambient Humidity Percent */
@@ -1499,8 +2466,8 @@ export interface components {
       operator: string | null
       /** Schema Version */
       schema_version: string
-      /** Material System */
-      material_system: string | null
+      /** Target Material System */
+      target_material_system: string | null
       /**
        * Experiment Date
        * Format: date
@@ -1512,13 +2479,19 @@ export interface components {
        * Status
        * @enum {string}
        */
-      status: 'draft' | 'locked' | 'invalid'
+      status: 'draft' | 'locked' | 'reviewed' | 'invalid'
       /** Invalid Reason */
       invalid_reason: string | null
       /** Result Missing Todo */
       result_missing_todo: boolean | null
       /** Locked At */
       locked_at: string | null
+      /** Current Revision Id */
+      current_revision_id: string | null
+      /** Draft Supersedes Revision Id */
+      draft_supersedes_revision_id: string | null
+      /** Correction Reason */
+      correction_reason: string | null
       /** Not Characterized By Id */
       not_characterized_by_id: string | null
       /** Not Characterized At */
@@ -2326,6 +3299,360 @@ export interface operations {
       }
     }
   }
+  list_container_instances_api_v1_container_instances_get: {
+    parameters: {
+      query?: {
+        material_lot_id?: string | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ContainerInstanceRead'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_container_instance_api_v1_container_instances_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ContainerInstanceCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ContainerInstanceRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_equipment_components_api_v1_equipment_components_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['EquipmentComponentRead'][]
+        }
+      }
+    }
+  }
+  create_equipment_component_api_v1_equipment_components_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EquipmentComponentCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['EquipmentComponentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  bind_setup_component_api_v1_setup_versions__setup_version_id__components_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        setup_version_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SetupComponentBindingCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_equipment_lifecycle_event_api_v1_equipment_components__component_id__events_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        component_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LifecycleEventCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LifecycleEventRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_instrument_lifecycle_event_api_v1_instruments__instrument_id__events_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        instrument_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LifecycleEventCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['LifecycleEventRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  query_dataset_api_v1_datasets_query_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DatasetQuery']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DatasetQueryResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_measurements_api_v1_measurements_get: {
+    parameters: {
+      query?: {
+        limit?: number
+        cursor?: string | null
+        run_id?: string | null
+        sample_id?: string | null
+        method_profile?: string | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeasurementListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_measurement_api_v1_measurements_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MeasurementBundleCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeasurementSummaryRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_transformation_api_v1_transformations_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TransformationRunCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TransformationRunRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   list_material_lots_api_v1_material_lots_get: {
     parameters: {
       query?: never
@@ -2782,7 +4109,7 @@ export interface operations {
         page?: number
         page_size?: number
         query?: string | null
-        material_system?: string | null
+        target_material_system?: string | null
         operator?: string | null
         date_from?: string | null
         date_to?: string | null
@@ -2944,7 +4271,7 @@ export interface operations {
     parameters: {
       query?: {
         query?: string | null
-        material_system?: string | null
+        target_material_system?: string | null
         operator?: string | null
         date_from?: string | null
         date_to?: string | null
@@ -3025,6 +4352,107 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_run_revisions_api_v1_experiments__run_id__revisions_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunRevisionListResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_run_correction_draft_api_v1_experiments__run_id__correction_drafts_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateCorrectionDraftRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['V2ExperimentRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  review_run_api_v1_experiments__run_id__review_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReviewRunRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunRevisionRead']
         }
       }
       /** @description Validation Error */

@@ -202,11 +202,13 @@ export function ExperimentV2ListPage() {
                 <SelectItem value="all">
                   {t('experimentsV2.list.filters.allStatuses')}
                 </SelectItem>
-                {(['draft', 'locked', 'invalid'] as const).map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {t(statusLabelKey(status))}
-                  </SelectItem>
-                ))}
+                {(['draft', 'locked', 'reviewed', 'invalid'] as const).map(
+                  (status) => (
+                    <SelectItem key={status} value={status}>
+                      {t(statusLabelKey(status))}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -335,7 +337,7 @@ export function ExperimentV2ListPage() {
                       <TableCell className="font-medium">
                         {run.run_code}
                       </TableCell>
-                      <TableCell>{run.material_system || '—'}</TableCell>
+                      <TableCell>{run.target_material_system || '—'}</TableCell>
                       <TableCell>{run.operator || '—'}</TableCell>
                       <TableCell>
                         {dayjs(run.experiment_date).format('YYYY-MM-DD')}

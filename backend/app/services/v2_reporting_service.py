@@ -16,13 +16,24 @@ from sqlalchemy.orm import Session
 
 from app.commands.export_v2_schema import (
     STANDARD_ID,
-    STANDARD_VERSION,
     build_v2_field_dictionary,
     build_v2_json_schema,
 )
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample
+from app.models.scientific import (
+    AnalysisRun,
+    DataDerivationEdge,
+    MaterialAssertion,
+    PropertyValue,
+    RunContributor,
+    RunFeature,
+    RunRevision,
+    TransformationInput,
+    TransformationOutput,
+    TransformationRun,
+)
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
@@ -333,7 +344,7 @@ class V2ReportingService:
         ]
         manifest = {
             "standard_id": STANDARD_ID,
-            "standard_version": STANDARD_VERSION,
+            "standard_version": load_field_source()["meta"]["version"],
             "schema_version": SCHEMA_VERSION,
             "exported_at": datetime.now(UTC).isoformat(),
             "run_count": len(runs),
@@ -493,7 +504,18 @@ class V2ReportingService:
                 {
                     "id": str(sample.id),
                     "sample_code": sample.sample_code,
+                    "run_revision_id": (
+                        str(sample.run_revision_id) if sample.run_revision_id else None
+                    ),
                     "role": sample.role,
+                    "target_material_system": sample.target_material_system,
+                    "actual_state": sample.actual_state,
+                    "actual_material_summary": sample.actual_material_summary,
+                    "current_carrier": sample.current_carrier,
+                    "sample_region": sample.sample_region,
+                    "dimensions": sample.dimensions_json,
+                    "lifecycle_state": sample.lifecycle_state,
+                    "control_subtype": sample.control_subtype,
                     "parent_sample_code": parent.sample_code if parent else None,
                     "source_substrate_id": (
                         str(sample.source_substrate_id) if sample.source_substrate_id else None
@@ -515,7 +537,7 @@ class V2ReportingService:
                 "id": str(run.id),
                 "run_code": run.run_code,
                 "operator": operator,
-                "material_system": run.material_system,
+                "target_material_system": run.target_material_system,
                 "experiment_date": run.experiment_date.isoformat(),
                 "objective": run.objective,
                 "status": run.status.value,
@@ -533,14 +555,312 @@ class V2ReportingService:
                     "version": run.setup_ref_version,
                     "snapshot": run.setup_ref_snapshot_json,
                 },
+                "current_revision_id": (
+                    str(run.current_revision_id) if run.current_revision_id else None
+                ),
             },
             "modules": modules,
+            "scientific_record": self._scientific_json(run, samples, records, files),
             "samples": sample_json,
             "other_files": [
                 self._file_json(file) for file in files if file.id not in attached_file_ids
             ],
         }
         return canonicalize_controlled_values(bundle)
+
+    def _scientific_json(
+        self,
+        run: ExperimentRun,
+        samples: list[Sample],
+        records: list[CharacterizationRecord],
+        files: list[FileAsset],
+    ) -> dict[str, Any]:
+        revisions = list(
+            self.db.scalars(
+                select(RunRevision)
+                .where(RunRevision.experiment_run_id == run.id)
+                .order_by(RunRevision.revision_number)
+            )
+        )
+        revision_ids = [item.id for item in revisions]
+        record_ids = [item.id for item in records if item.run_revision_id is not None]
+        sample_codes = {item.id: item.sample_code for item in samples}
+        files_by_record: dict[UUID, list[FileAsset]] = {}
+        for file in files:
+            if file.characterization_record_id and file.deleted_at is None:
+                files_by_record.setdefault(file.characterization_record_id, []).append(file)
+
+        analyses = (
+            list(
+                self.db.scalars(
+                    select(AnalysisRun)
+                    .where(AnalysisRun.measurement_run_id.in_(record_ids))
+                    .order_by(AnalysisRun.started_at, AnalysisRun.id)
+                )
+            )
+            if record_ids
+            else []
+        )
+        analysis_ids = [item.id for item in analyses]
+        edges = (
+            list(
+                self.db.scalars(
+                    select(DataDerivationEdge).where(
+                        DataDerivationEdge.analysis_run_id.in_(analysis_ids)
+                    )
+                )
+            )
+            if analysis_ids
+            else []
+        )
+        edges_by_analysis: dict[UUID, list[DataDerivationEdge]] = {}
+        for edge in edges:
+            edges_by_analysis.setdefault(edge.analysis_run_id, []).append(edge)
+        analyses_by_measurement: dict[UUID, list[AnalysisRun]] = {}
+        for analysis in analyses:
+            analyses_by_measurement.setdefault(analysis.measurement_run_id, []).append(analysis)
+
+        properties = (
+            list(
+                self.db.scalars(
+                    select(PropertyValue).where(PropertyValue.measurement_run_id.in_(record_ids))
+                )
+            )
+            if record_ids
+            else []
+        )
+        assertions = (
+            list(
+                self.db.scalars(
+                    select(MaterialAssertion).where(
+                        MaterialAssertion.measurement_run_id.in_(record_ids)
+                    )
+                )
+            )
+            if record_ids
+            else []
+        )
+        properties_by_measurement: dict[UUID, list[PropertyValue]] = {}
+        assertions_by_measurement: dict[UUID, list[MaterialAssertion]] = {}
+        for item in properties:
+            properties_by_measurement.setdefault(item.measurement_run_id, []).append(item)
+        for item in assertions:
+            assertions_by_measurement.setdefault(item.measurement_run_id, []).append(item)
+
+        transformations = (
+            list(
+                self.db.scalars(
+                    select(TransformationRun)
+                    .where(TransformationRun.run_revision_id.in_(revision_ids))
+                    .order_by(TransformationRun.occurred_at, TransformationRun.id)
+                )
+            )
+            if revision_ids
+            else []
+        )
+        transformation_ids = [item.id for item in transformations]
+        inputs = (
+            list(
+                self.db.scalars(
+                    select(TransformationInput).where(
+                        TransformationInput.transformation_run_id.in_(transformation_ids)
+                    )
+                )
+            )
+            if transformation_ids
+            else []
+        )
+        outputs = (
+            list(
+                self.db.scalars(
+                    select(TransformationOutput).where(
+                        TransformationOutput.transformation_run_id.in_(transformation_ids)
+                    )
+                )
+            )
+            if transformation_ids
+            else []
+        )
+
+        return {
+            "schema_release": {
+                "version": SCHEMA_VERSION,
+                "status": load_field_source()["meta"]["status"],
+            },
+            "missing_value_states": [
+                "unknown",
+                "not_measured",
+                "not_applicable",
+                "below_detection_limit",
+            ],
+            "revisions": [
+                {
+                    "id": str(item.id),
+                    "revision_number": item.revision_number,
+                    "supersedes_revision_id": (
+                        str(item.supersedes_revision_id) if item.supersedes_revision_id else None
+                    ),
+                    "schema_version": item.schema_version,
+                    "schema_status": item.schema_status,
+                    "status": item.status,
+                    "content_sha256": item.content_sha256,
+                    "correction_reason": item.correction_reason,
+                    "locked_by_id": str(item.locked_by_id),
+                    "reviewed_by_id": (str(item.reviewed_by_id) if item.reviewed_by_id else None),
+                    "locked_at": _iso(item.locked_at),
+                    "reviewed_at": _iso(item.reviewed_at) or None,
+                    "superseded_at": _iso(item.superseded_at) or None,
+                    "content": item.content_json,
+                }
+                for item in revisions
+            ],
+            "contributors": [
+                {
+                    "run_revision_id": str(item.run_revision_id),
+                    "user_id": str(item.user_id),
+                    "role": item.role,
+                    "contribution_role": item.contribution_role,
+                    "user_snapshot": item.user_snapshot_json,
+                }
+                for item in (
+                    self.db.scalars(
+                        select(RunContributor).where(
+                            RunContributor.run_revision_id.in_(revision_ids)
+                        )
+                    )
+                    if revision_ids
+                    else []
+                )
+            ],
+            "features": [
+                {
+                    "run_revision_id": str(item.run_revision_id),
+                    "feature_code": item.feature_code,
+                    "ordinal": item.ordinal,
+                    "numeric_value": item.numeric_value,
+                    "text_value": item.text_value,
+                    "boolean_value": item.boolean_value,
+                    "unit": item.unit,
+                    "source_path": item.source_path,
+                }
+                for item in (
+                    self.db.scalars(
+                        select(RunFeature)
+                        .where(RunFeature.run_revision_id.in_(revision_ids))
+                        .order_by(RunFeature.feature_code, RunFeature.ordinal)
+                    )
+                    if revision_ids
+                    else []
+                )
+            ],
+            "measurements": [
+                {
+                    "id": str(record.id),
+                    "run_revision_id": str(record.run_revision_id),
+                    "sample_id": str(record.sample_id),
+                    "sample_code": sample_codes.get(record.sample_id),
+                    "method_profile": record.method_instrument,
+                    "instrument_id": (str(record.instrument_id) if record.instrument_id else None),
+                    "instrument_version": record.instrument_version,
+                    "instrument_snapshot": record.instrument_snapshot_json,
+                    "performed_by_id": (
+                        str(record.performed_by_id) if record.performed_by_id else None
+                    ),
+                    "measured_at": _iso(record.measured_at),
+                    "sample_region": record.sample_region,
+                    "typed_conditions": record.typed_conditions,
+                    "quality_flag": record.quality_flag,
+                    "raw_file_ids": [str(file.id) for file in files_by_record.get(record.id, [])],
+                    "analyses": [
+                        {
+                            "id": str(analysis.id),
+                            "performed_by_id": str(analysis.performed_by_id),
+                            "software_name": analysis.software_name,
+                            "software_version": analysis.software_version,
+                            "code_commit": analysis.code_commit,
+                            "parameters": analysis.parameters_json,
+                            "started_at": _iso(analysis.started_at),
+                            "completed_at": _iso(analysis.completed_at) or None,
+                            "file_derivations": [
+                                {
+                                    "file_asset_id": str(edge.file_asset_id),
+                                    "direction": edge.direction,
+                                    "role": edge.role,
+                                }
+                                for edge in edges_by_analysis.get(analysis.id, [])
+                            ],
+                        }
+                        for analysis in analyses_by_measurement.get(record.id, [])
+                    ],
+                    "properties": [
+                        {
+                            "id": str(item.id),
+                            "analysis_run_id": (
+                                str(item.analysis_run_id) if item.analysis_run_id else None
+                            ),
+                            "property_code": item.property_code,
+                            "numeric_value": item.numeric_value,
+                            "text_value": item.text_value,
+                            "structured_value": item.structured_value,
+                            "unit": item.unit,
+                            "statistic": item.statistic,
+                            "uncertainty_value": item.uncertainty_value,
+                            "uncertainty_type": item.uncertainty_type,
+                            "sample_count": item.sample_count,
+                            "quality_flag": item.quality_flag,
+                        }
+                        for item in properties_by_measurement.get(record.id, [])
+                    ],
+                    "assertions": [
+                        {
+                            "id": str(item.id),
+                            "analysis_run_id": (
+                                str(item.analysis_run_id) if item.analysis_run_id else None
+                            ),
+                            "assertion_type": item.assertion_type,
+                            "value": item.value_json,
+                            "confidence": item.confidence,
+                            "validity": item.validity,
+                            "created_at": _iso(item.created_at),
+                        }
+                        for item in assertions_by_measurement.get(record.id, [])
+                    ],
+                }
+                for record in records
+                if record.run_revision_id is not None
+            ],
+            "transformations": [
+                {
+                    "id": str(item.id),
+                    "run_revision_id": str(item.run_revision_id),
+                    "transformation_type": item.transformation_type,
+                    "operator_id": str(item.operator_id),
+                    "occurred_at": _iso(item.occurred_at),
+                    "parameters": item.parameters_json,
+                    "destination_substrate_snapshot": item.destination_substrate_snapshot,
+                    "note": item.note,
+                    "inputs": [
+                        {
+                            "sample_id": str(link.sample_id),
+                            "sample_code": sample_codes.get(link.sample_id),
+                            "role": link.input_role,
+                        }
+                        for link in inputs
+                        if link.transformation_run_id == item.id
+                    ],
+                    "outputs": [
+                        {
+                            "sample_id": str(link.sample_id),
+                            "sample_code": sample_codes.get(link.sample_id),
+                            "role": link.output_role,
+                        }
+                        for link in outputs
+                        if link.transformation_run_id == item.id
+                    ],
+                }
+                for item in transformations
+            ],
+        }
 
     def _csv_tables(
         self, runs: list[ExperimentRun]
@@ -560,6 +880,8 @@ class V2ReportingService:
         result_rows: list[dict[str, Any]] = []
         file_rows: list[dict[str, Any]] = []
         gas_flow_share_rows: list[dict[str, Any]] = []
+        revision_rows: list[dict[str, Any]] = []
+        scientific_fact_rows: list[dict[str, Any]] = []
 
         for run in runs:
             modules = {
@@ -571,6 +893,7 @@ class V2ReportingService:
             records = self._records(run.id)
             products = self._products(samples)
             files = self._files(run.id)
+            scientific = self._scientific_json(run, samples, records, files)
             sample_by_id = {sample.id: sample for sample in samples}
             sample_by_source = {
                 str(sample.source_substrate_id): sample
@@ -587,7 +910,7 @@ class V2ReportingService:
             run_row = {
                 "run_code": run.run_code,
                 "operator": operator,
-                "material_system": run.material_system,
+                "target_material_system": run.target_material_system,
                 "experiment_date": run.experiment_date,
                 "status": run.status.value,
                 "objective": run.objective,
@@ -603,6 +926,7 @@ class V2ReportingService:
                 "setup_coordinate_system": setup_snapshot.get("coordinate_system_snapshot"),
                 "created_at": run.created_at,
                 "locked_at": run.locked_at,
+                "current_revision_id": run.current_revision_id,
                 "setup_detail_path": "",
                 "setup_detail_value": "",
             }
@@ -653,7 +977,6 @@ class V2ReportingService:
                 "target_product",
                 "equipment",
                 "process_events",
-                "pvd",
             ):
                 self._extend_module_detail_rows(
                     module_detail_rows,
@@ -686,6 +1009,11 @@ class V2ReportingService:
                             "run_code": run.run_code,
                             "sample_code": sample.sample_code,
                             "role": sample.role,
+                            "run_revision_id": sample.run_revision_id,
+                            "target_material_system": sample.target_material_system,
+                            "actual_state": sample.actual_state,
+                            "actual_material_summary": sample.actual_material_summary,
+                            "lifecycle_state": sample.lifecycle_state,
                             "parent_sample_code": parent.sample_code if parent else "",
                             "deleted_at": sample.deleted_at,
                         },
@@ -700,6 +1028,34 @@ class V2ReportingService:
                         },
                     )
                 )
+
+            revision_rows.extend(
+                {
+                    "run_code": run.run_code,
+                    "revision_id": item["id"],
+                    "revision_number": item["revision_number"],
+                    "supersedes_revision_id": item["supersedes_revision_id"],
+                    "schema_version": item["schema_version"],
+                    "schema_status": item["schema_status"],
+                    "status": item["status"],
+                    "content_sha256": item["content_sha256"],
+                    "correction_reason": item["correction_reason"],
+                    "locked_by_id": item["locked_by_id"],
+                    "reviewed_by_id": item["reviewed_by_id"],
+                    "locked_at": item["locked_at"],
+                    "reviewed_at": item["reviewed_at"],
+                    "superseded_at": item["superseded_at"],
+                }
+                for item in scientific["revisions"]
+            )
+            scientific_fact_rows.extend(
+                {
+                    "run_code": run.run_code,
+                    "path": path,
+                    "value": value,
+                }
+                for path, value in _walk_nested_leaves(scientific)
+            )
 
             result_codes_by_record: dict[UUID, list[str]] = {}
             per_sample_index: dict[UUID, int] = {}
@@ -839,7 +1195,7 @@ class V2ReportingService:
                 [
                     "run_code",
                     "operator",
-                    "material_system",
+                    "target_material_system",
                     "experiment_date",
                     "status",
                     "objective",
@@ -857,6 +1213,7 @@ class V2ReportingService:
                     "setup_detail_value",
                     "created_at",
                     "locked_at",
+                    "current_revision_id",
                 ],
                 run_rows,
             ),
@@ -918,6 +1275,11 @@ class V2ReportingService:
                     "run_code",
                     "sample_code",
                     "role",
+                    "run_revision_id",
+                    "target_material_system",
+                    "actual_state",
+                    "actual_material_summary",
+                    "lifecycle_state",
                     "parent_sample_code",
                     *source_snapshot_keys,
                     "deleted_at",
@@ -976,6 +1338,29 @@ class V2ReportingService:
                     "metadata_value",
                 ],
                 file_rows,
+            ),
+            "run_revisions.csv": (
+                [
+                    "run_code",
+                    "revision_id",
+                    "revision_number",
+                    "supersedes_revision_id",
+                    "schema_version",
+                    "schema_status",
+                    "status",
+                    "content_sha256",
+                    "correction_reason",
+                    "locked_by_id",
+                    "reviewed_by_id",
+                    "locked_at",
+                    "reviewed_at",
+                    "superseded_at",
+                ],
+                revision_rows,
+            ),
+            "scientific_facts.csv": (
+                ["run_code", "path", "value"],
+                scientific_fact_rows,
             ),
             "module_details.csv": (
                 [

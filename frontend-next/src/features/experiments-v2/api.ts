@@ -45,6 +45,73 @@ export type RunFilters = {
 export type V2RunAuditEventRead = Schemas['V2RunAuditEventRead']
 export type V2RunAuditEventListResponse = Schemas['V2RunAuditEventListResponse']
 
+export type MeasurementSummary = {
+  id: string
+  run_revision_id: string
+  run_code: string
+  sample_id: string
+  sample_code: string
+  method_profile: string
+  measured_at: string
+  sample_region: Record<string, unknown>
+  typed_conditions: Record<string, unknown>
+  quality_flag: string
+  raw_file_count: number
+  analysis_count: number
+  property_count: number
+  assertion_count: number
+}
+
+export type MeasurementListResponse = {
+  items: MeasurementSummary[]
+  total: number
+  next_cursor: string | null
+}
+
+export type RunRevision = {
+  id: string
+  experiment_run_id: string
+  revision_number: number
+  supersedes_revision_id: string | null
+  schema_version: string
+  schema_status: string
+  status: 'locked' | 'reviewed' | 'superseded'
+  content_sha256: string
+  correction_reason: string | null
+  locked_at: string
+  reviewed_at: string | null
+}
+
+export type DatasetFilter = {
+  field: string
+  operator: string
+  value: unknown
+  property_code?: string
+}
+
+export type DatasetQueryResponse = {
+  items: Array<{
+    run_id: string
+    run_revision_id: string
+    run_code: string
+    revision_number: number
+    locked_at: string
+    target_formulas: string[]
+    features: Record<string, unknown>
+    provenance_complete: boolean
+  }>
+  next_cursor: string | null
+  query_manifest: Record<string, unknown>
+}
+
+export type ContainerInstance = {
+  id: string
+  material_lot_id: string
+  material_lot_version: number
+  container_code: string
+  status: string
+}
+
 const BASE = '/api/v1/experiments'
 const V2 = '/api/v1'
 
@@ -77,7 +144,7 @@ export function listRuns(
 function appendRunFilters(query: URLSearchParams, filters: RunFilters) {
   if (filters.query?.trim()) query.set('query', filters.query.trim())
   if (filters.materialSystem?.trim())
-    query.set('material_system', filters.materialSystem.trim())
+    query.set('target_material_system', filters.materialSystem.trim())
   if (filters.operator?.trim()) query.set('operator', filters.operator.trim())
   if (filters.dateFrom) query.set('date_from', filters.dateFrom)
   if (filters.dateTo) query.set('date_to', filters.dateTo)
@@ -112,11 +179,108 @@ export function transitionRun(
   token: string,
   reason?: string,
 ) {
+  if (action === 'unlock') {
+    return createCorrectionDraft(
+      runId,
+      reason?.trim() || '修正已锁定科学记录',
+      token,
+    )
+  }
   return apiRequest<V2ExperimentRead>(`${BASE}/${runId}/${action}`, {
     method: 'POST',
     body: reason === undefined ? undefined : { reason },
     token,
   })
+}
+
+export function listRunRevisions(runId: string, token: string) {
+  return apiRequest<{ items: RunRevision[]; total: number }>(
+    `${BASE}/${runId}/revisions`,
+    { token },
+  )
+}
+
+export function reviewRun(runId: string, note: string, token: string) {
+  return apiRequest<RunRevision>(`${BASE}/${runId}/review`, {
+    method: 'POST',
+    body: { note: note.trim() || null },
+    token,
+  })
+}
+
+export function createCorrectionDraft(
+  runId: string,
+  reason: string,
+  token: string,
+) {
+  return apiRequest<V2ExperimentRead>(`${BASE}/${runId}/correction-drafts`, {
+    method: 'POST',
+    body: { reason },
+    token,
+  })
+}
+
+export function listMeasurements(
+  token: string,
+  filters: { runId?: string; sampleId?: string; cursor?: string } = {},
+) {
+  const query = new URLSearchParams({ limit: '100' })
+  if (filters.runId) query.set('run_id', filters.runId)
+  if (filters.sampleId) query.set('sample_id', filters.sampleId)
+  if (filters.cursor) query.set('cursor', filters.cursor)
+  return apiRequest<MeasurementListResponse>(`/api/v1/measurements?${query}`, {
+    token,
+  })
+}
+
+export function createMeasurement(
+  payload: Record<string, unknown>,
+  token: string,
+) {
+  return apiRequest<MeasurementSummary>('/api/v1/measurements', {
+    method: 'POST',
+    body: payload,
+    token,
+  })
+}
+
+export function createTransformation(
+  payload: Record<string, unknown>,
+  token: string,
+) {
+  return apiRequest<{
+    id: string
+    run_revision_id: string
+    transformation_type: string
+    input_sample_ids: string[]
+    output_sample_ids: string[]
+  }>('/api/v1/transformations', {
+    method: 'POST',
+    body: payload,
+    token,
+  })
+}
+
+export function queryDataset(
+  filters: DatasetFilter[],
+  token: string,
+  cursor?: string,
+) {
+  return apiRequest<DatasetQueryResponse>('/api/v1/datasets/query', {
+    method: 'POST',
+    body: { filters, limit: 100, ...(cursor ? { cursor } : {}) },
+    token,
+  })
+}
+
+export function listContainerInstances(token: string, materialLotId?: string) {
+  const query = materialLotId
+    ? `?material_lot_id=${encodeURIComponent(materialLotId)}`
+    : ''
+  return apiRequest<ContainerInstance[]>(
+    `/api/v1/container-instances${query}`,
+    { token },
+  )
 }
 
 export function setNotCharacterized(

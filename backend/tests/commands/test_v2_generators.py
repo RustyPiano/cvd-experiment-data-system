@@ -29,7 +29,7 @@ LOT_REF = {
 def _basic_info(**changes) -> dict:
     payload = {
         "started_at": "2026-07-22T09:00:00+08:00",
-        "synthesis_method": "APCVD",
+        "synthesis_method": "CVD",
         "operator": "Tester",
         "run_code": "CVD-2026-0001",
         "ambient_temperature_C": 25.0,
@@ -320,29 +320,25 @@ def test_field_dictionary_conditions_use_machine_codes() -> None:
 def test_standard_schema_exports_structured_result_models_and_validation() -> None:
     schema = export_v2_schema(output_dir=None)["json_schema_doc"]
 
-    assert {"unified_result_write", "measured_product_metrics"} <= set(schema["result_models"])
-    unified = schema["result_models"]["unified_result_write"]
-    Draft202012Validator.check_schema(unified)
-    properties = unified["properties"]
-    assert properties["coverage_percent"]["anyOf"][0]["minimum"] == 0
-    assert properties["coverage_percent"]["anyOf"][0]["maximum"] == 100
-    metric = unified["$defs"]["SpectralMetric"]
-    assert metric["required"] == ["metric_code", "value", "unit"]
-    assert metric["properties"]["metric_code"]["pattern"] == "^[a-z][a-z0-9_]*$"
+    assert set(schema["result_models"]) == {
+        "measurement_bundle",
+        "transformation",
+        "dataset_query",
+    }
+    assert schema["version"] == "v4.0-rc.1"
+    assert schema["status"] == "RELEASE_CANDIDATE"
+    assert "pvd" not in schema["modules"]
+    assert schema["scientific_contract"]["result_chain"].startswith("Sample")
+    for model in schema["result_models"].values():
+        Draft202012Validator.check_schema(model)
 
 
 def test_field_dictionary_and_xlsx_expose_machine_validation_contract() -> None:
     dictionary = export_v2_schema(output_dir=None)["field_dictionary_doc"]
-    spectral = next(
-        field
+    assert all(
+        field["module_key"] not in {"measured_products", "characterization", "pvd"}
         for field in dictionary["fields"]
-        if field["module_key"] == "measured_products" and field["key"] == "key_spectral_metrics"
     )
-    assert spectral["unit"] == "按指标"
-    assert spectral["validation"] == {
-        "item_required": ["metric_code", "value", "unit"],
-        "finite_value": True,
-    }
 
     workbook = openpyxl.load_workbook(REPO_ROOT / "docs" / "standard" / "字段草案-v3.xlsx")
     sheet = workbook["字段草案"]
@@ -377,36 +373,36 @@ def test_process_step_schema_discriminates_stage_type_and_forbids_hidden_groups(
 
     assert validator.is_valid(
         {
-            "items": [
+            "segments": [
                 {
-                    "stage_type": "preparation",
-                    "preparation_operations": [
-                        {
-                            "operation_type": "pump_down",
-                            "target_absolute_pressure_Pa": 10.0,
-                            "duration_min": 5.0,
-                        }
-                    ],
+                    "segment_key": "growth",
+                    "segment_type": "growth",
+                    "sequence": 1,
+                    "start_s": 0,
+                    "end_s": 60,
                 }
-            ]
+            ],
+            "channels": [
+                {
+                    "channel_key": "temperature.zone_1",
+                    "channel_type": "temperature",
+                    "source_type": "setpoint",
+                    "unit": "℃",
+                    "data_kind": "scalar",
+                    "scalar_value": 750,
+                }
+            ],
         }
-    )
-    assert validator.is_valid(
-        {"items": [{"stage_type": "other", "other_stage_name": "Move source", "notes": "t=5"}]}
     )
     assert not validator.is_valid(
         {
-            "items": [
+            "segments": [
                 {
-                    "stage_type": "preparation",
-                    "preparation_operations": [
-                        {
-                            "operation_type": "pump_down",
-                            "target_absolute_pressure_Pa": 10.0,
-                            "duration_min": 5.0,
-                        }
-                    ],
-                    "temperature_program": _reaction_step()["temperature_program"],
+                    "segment_key": "growth",
+                    "segment_type": "growth",
+                    "sequence": 1,
+                    "start_s": 0,
+                    "end_s": 60,
                 }
             ]
         }
@@ -1353,6 +1349,8 @@ def test_rendered_precursor_and_local_condition_contracts(
                 "cas_number": "1313-27-5",
                 "batch_number": "M-1",
                 "purity": 99.9,
+                "purity_basis": "mass_fraction",
+                "purity_source": "supplier_declared",
                 "gas_purity_grade": "5N",
             }
         )
@@ -1364,6 +1362,8 @@ def test_rendered_precursor_and_local_condition_contracts(
             "cas_number": "7440-37-1",
             "batch_number": "AR-1",
             "purity": 99.999,
+            "purity_basis": "volume_fraction",
+            "purity_source": "supplier_declared",
         }
     )
 
