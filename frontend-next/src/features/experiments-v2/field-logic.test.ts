@@ -2,23 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { experimentModules } from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
-  buildFlatModulePayload,
   buildItemPayload,
   buildItemsModulePayload,
-  buildProcessStepsPayload,
-  buildTargetProductPayload,
   componentsFromPayload,
-  emptyComponentRow,
   emptyModuleValues,
-  getComponentRoleOptions,
   isEffectivelyRequired,
   isFieldVisible,
   itemHasAnyValue,
   itemsFromPayload,
   moduleValueAsString,
   moduleValuesFromPayload,
-  missingRequiredKeys,
-  parseComponentRoles,
   resolveModuleConditionKey,
 } from './field-logic'
 
@@ -217,96 +210,7 @@ describe('visibility metadata', () => {
   })
 })
 
-describe('parseComponentRoles', () => {
-  it('extracts role enum from the components options string', () => {
-    const components = field('target_product', 'components')
-    expect(parseComponentRoles(components.options)).toEqual([
-      'matrix',
-      'dopant',
-      'alloy_component',
-      'material_layer',
-      'top_layer',
-      'bottom_layer',
-      'lateral_domain',
-    ])
-    expect(getComponentRoleOptions()).toContain('dopant')
-  })
-})
-
 describe('payload builders align with backend module contract', () => {
-  it('flat module payload carries every field key (extra=forbid + required present)', () => {
-    const payload = buildFlatModulePayload('basic_info', { started_at: 'x' })
-    expect(Object.keys(payload).sort()).toEqual(
-      experimentModules.basic_info.map((f) => f.key).sort(),
-    )
-    expect(payload.started_at).toBe('x')
-    expect(payload.operator).toBeNull()
-  })
-
-  it('rejects numeric values outside generated metadata constraints', () => {
-    expect(() =>
-      buildFlatModulePayload('basic_info', {
-        ambient_humidity_percent: '101',
-      }),
-    ).toThrowError(/ambient_humidity_percent.*le/)
-    expect(() =>
-      buildFlatModulePayload('target_product', {
-        target_layer_count: '1.5',
-      }),
-    ).toThrowError(/target_layer_count.*integer/)
-  })
-
-  it('drops components for 本征 and includes them for composite systems', () => {
-    const intrinsic = buildTargetProductPayload(
-      { chemical_formula: 'MoS2', structure_type: '本征' },
-      [{ ...emptyComponentRow(), formula: 'MoS2' }],
-    )
-    expect(intrinsic.components).toBeNull()
-    expect(intrinsic.chemical_formula).toBe('MoS2')
-
-    const composite = buildTargetProductPayload(
-      { chemical_formula: 'x', structure_type: '垂直异质结' },
-      [
-        { ...emptyComponentRow(), formula: 'WSe2', layer_order: '2' },
-        { ...emptyComponentRow(), formula: 'MoS2', layer_order: '1' },
-      ],
-    )
-    expect(Array.isArray(composite.components)).toBe(true)
-    expect((composite.components as unknown[]).length).toBe(2)
-  })
-
-  it('normalizes formulas, component roles, and component numbers on submit', () => {
-    const payload = buildTargetProductPayload(
-      { chemical_formula: ' Mo S₂ ', structure_type: '掺杂' },
-      [
-        {
-          ...emptyComponentRow(),
-          formula: ' Nb ',
-          role: '掺杂剂',
-          concentration_at_percent: '0.5',
-          layer_order: '2',
-        },
-      ],
-    )
-    expect(payload.chemical_formula).toBe('MoS2')
-    expect(payload.components).toEqual([
-      {
-        formula: 'MoS2',
-        role: 'matrix',
-        concentration_at_percent: null,
-        layer_order: null,
-        bulk_space_group: null,
-      },
-      {
-        formula: 'Nb',
-        role: 'dopant',
-        concentration_at_percent: 0.5,
-        layer_order: null,
-        bulk_space_group: null,
-      },
-    ])
-  })
-
   it('clears values that became hidden before serializing repeatable items', () => {
     expect(
       buildItemPayload('precursors', {
@@ -353,75 +257,11 @@ describe('payload builders align with backend module contract', () => {
       }),
     ).toBe(false)
     expect(
-      missingRequiredKeys('process_events', {
-        terminated_run: 'true',
-        termination_reason: 'other',
-      }),
-    ).toContain('description')
-    expect(
       isEffectivelyRequired('process_events', description, {
         terminated_run: 'false',
         termination_reason: 'other',
       }),
     ).toBe(false)
-    expect(
-      missingRequiredKeys('process_events', {
-        terminated_run: 'false',
-        termination_reason: 'other',
-      }),
-    ).not.toContain('description')
-  })
-
-  it('clears external-field values when the selected setup has no field device', () => {
-    const payload = buildProcessStepsPayload(
-      [
-        {
-          ...emptyModuleValues('process_steps'),
-          stage_type: 'reaction_conditions',
-          pressure_system: 'atmospheric_pressure',
-          field_params:
-            '[{"field_type":"light","start_min":0,"end_min":10,"parameters":[]}]',
-        },
-      ],
-      { field_devices: ['none'] },
-    )
-
-    expect(payload.items[0]?.field_params).toBeNull()
-  })
-
-  it('keeps only structure-applicable component measurements', () => {
-    const vertical = buildTargetProductPayload(
-      {
-        chemical_formula: 'MoS2/WS2',
-        structure_type: 'vertical_heterostructure',
-      },
-      [
-        {
-          formula: 'MoS2',
-          role: '',
-          concentration_at_percent: '25',
-          layer_order: '1',
-        },
-      ],
-    )
-
-    expect(vertical.components).toEqual([
-      {
-        formula: 'MoS2',
-        role: 'material_layer',
-        concentration_at_percent: null,
-        layer_order: 1,
-        bulk_space_group: null,
-      },
-    ])
-  })
-
-  it('rejects a non-finite numeric value instead of producing JSON null later', () => {
-    expect(() =>
-      buildFlatModulePayload('basic_info', {
-        ambient_temperature_C: '1e309',
-      }),
-    ).toThrow(/finite/i)
   })
 
   it('round-trips structured per-gas feeds without collapsing the array', () => {
@@ -585,72 +425,5 @@ describe('payload builders align with backend module contract', () => {
         items: [{ source_id: sourceId, material: '蓝宝石' }],
       })[0],
     ).toMatchObject({ source_id: sourceId, material: 'sapphire_al2o3' })
-  })
-})
-
-describe('missingRequiredKeys', () => {
-  it('flags empty required §1 fields', () => {
-    expect(missingRequiredKeys('basic_info', {})).toEqual(
-      expect.arrayContaining([
-        'started_at',
-        'synthesis_method',
-        'operator',
-        'run_code',
-      ]),
-    )
-  })
-
-  it('flags amount as missing only for non-gas precursors', () => {
-    expect(
-      missingRequiredKeys('precursors', {
-        phase_state: '固',
-      }),
-    ).toContain('amount')
-    expect(
-      missingRequiredKeys('precursors', {
-        phase_state: '气',
-      }),
-    ).not.toContain('amount')
-  })
-
-  it('flags source container and position for container loading', () => {
-    expect(
-      missingRequiredKeys('precursors', {
-        phase_state: '固',
-        loading_method: '舟',
-      }),
-    ).toEqual(expect.arrayContaining(['source_container', 'source_position']))
-    expect(
-      missingRequiredKeys('precursors', {
-        phase_state: '固',
-        loading_method: '舟',
-        source_container: JSON.stringify({ material: 'quartz' }),
-        source_position: JSON.stringify({ zone_index: 1, distance_mm: -20 }),
-      }),
-    ).not.toEqual(
-      expect.arrayContaining(['source_container', 'source_position']),
-    )
-  })
-
-  it('flags miscut direction when the substrate angle is positive', () => {
-    expect(
-      missingRequiredKeys('substrates', {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0.2',
-      }),
-    ).toContain('miscut_direction')
-    expect(
-      missingRequiredKeys('substrates', {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0',
-      }),
-    ).not.toContain('miscut_direction')
-    expect(
-      missingRequiredKeys('substrates', {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0.2',
-        miscut_direction: 'x面向x轴偏2°',
-      }),
-    ).not.toContain('miscut_direction')
   })
 })

@@ -5,7 +5,6 @@ import type {
   FileAssetListResponse,
   SampleListResponse,
   SampleRead,
-  SampleUpdateRequest,
 } from '@/shared/types/api'
 import type { components } from '@/shared/types/openapi'
 
@@ -45,18 +44,6 @@ export type SampleLineage = {
 
 export function getSampleLineage(token: string, sampleId: string) {
   return apiRequest<SampleLineage>(`/api/v1/samples/${sampleId}/lineage`, {
-    token,
-  })
-}
-
-export function updateSample(
-  token: string,
-  sampleId: string,
-  payload: SampleUpdateRequest,
-) {
-  return apiRequest<SampleRead>(`/api/v1/samples/${sampleId}`, {
-    method: 'PATCH',
-    body: payload,
     token,
   })
 }

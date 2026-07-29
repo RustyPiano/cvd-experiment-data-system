@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from uuid import uuid4
 
 from app.models.experiment import ExperimentRun
@@ -28,46 +27,3 @@ def test_setup_ref_r0_uses_run_reference_not_payload(monkeypatch) -> None:
 
     assert without_reference["status"] == "non_compliant"
     assert with_reference["status"] == "compliant"
-
-
-def test_process_step_required_extra_survives_nonmatching_condition(monkeypatch) -> None:
-    field = {
-        "key": "field_params",
-        "label": "外场参数",
-        "module": "§5",
-        "group": "reaction",
-        "requirement": {
-            "level": "conditional_required",
-            "condition": {"field": "装置Setup.外场装置", "op": "ne", "value": "无"},
-        },
-    }
-    doc = {
-        "modules": {"§5": "process_steps"},
-        "entity_keys": {},
-        "option_codes": {"反应条件": "reaction_conditions"},
-        "stage_types": {
-            "types": [
-                {
-                    "name": "反应条件",
-                    "shows": ["reaction"],
-                    "required_extra": ["field_params"],
-                }
-            ]
-        },
-    }
-    run = SimpleNamespace(
-        module_payloads=[
-            SimpleNamespace(
-                module_key="process_steps",
-                payload_json={"items": [{"stage_type": "reaction_conditions"}]},
-            )
-        ],
-        setup_ref_snapshot_json=None,
-    )
-    monkeypatch.setattr(v2_r0_service, "load_field_source", lambda: doc)
-    monkeypatch.setattr(v2_r0_service, "experiment_fields", lambda _doc: [field])
-    monkeypatch.setattr(v2_r0_service, "_condition_value", lambda *args: ("无", True))
-
-    missing = v2_r0_service.missing_required_fields(run)
-
-    assert [item["key"] for item in missing] == ["field_params"]

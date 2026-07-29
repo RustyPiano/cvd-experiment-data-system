@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 唯一真相指针。现状：**仓库与香港生产均为 v2 单轨；实验装置 v3.17 与前驱体 v3.18 已随提交 `07eccde` 发布香港生产；下一步由用户在线逐条审阅，再交俊杰、博研按真实炉次试填**。字段单一源 = `docs/standard/field-source.yaml`；本轮计划 = `docs/product/2026-07-27-preparation-module-finalization-plan.md`；历史报告 = `docs/reviews/2026-07-24-teacher-meeting-remediation.md`；文档总索引 = `docs/README.md`；`docs/archive/` 仅供追溯。
+> ⚠️ **先读 [`docs/standard/STATUS.md`](docs/standard/STATUS.md)** —— 它是当前状态、进度、已冻结决策和下一步的唯一真相；冲突时以它为准。字段单一源为 `docs/standard/field-source.yaml`，文档索引为 `docs/README.md`，`docs/archive/` 仅供追溯。
 
 ## 项目概览
 
@@ -57,7 +57,7 @@ CVD 实验数据采集系统（v2 单轨）用于二维材料课题组记录炉�
 - **字段改动只改 `docs/standard/field-source.yaml`**，然后重跑生成器（后端 `generate_v2_models`/`export_v2_schema`、前端 `gen:fields`、xlsx `build_field_tables.py`）+ `check_field_source.py` 校验；生成物漂移 = CI 红。
 - **生产基线已发布**：不得修改或 squash `20260711_0001`；任何数据库结构变化都新增 Alembic revision，并同时验证空库升级与现有生产 revision 前滚。
 - **当前代码**状态流：draft → locked（admin 可 unlock 回 draft）；draft 可作废为 invalid；lock 过必填门并在同一事务中按衬底生成 growth 样品；locked 锁工艺但允许全组成员补结果，invalid 全部只读；每次转移写审计。
-- **产品重构进度**：阶段 0–4、2026-07-24 全库加固复核与批8香港生产切换均已完成；旧 v1 数据库离线归档为 `cvd_v1_archive_20260724`。其后导师线上走查触发的新一轮整改已完成全门禁、独立终审与创建—锁定—样品—结果/附件—导出/R0 真实主线验收，并已发布香港生产（`57a25b7`），未闭环 P0/P1 = 0；下一步按报告汇报并确认 11 项专业标准。
+- **当前进度与下一步**：只维护在 `docs/standard/STATUS.md`，勿在本文件复制发布提交、测试数字或阶段快照。
 - 实验不做物理删除；文件删除走软删除标记。
 
 ## 安全与 PR

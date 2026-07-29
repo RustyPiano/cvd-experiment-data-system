@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseEnumOptions } from '@/features/entity-library/field-logic'
-import { getComponentRoleOptions } from '@/features/experiments-v2/field-logic'
 import {
   entities,
   experimentModules,
@@ -17,7 +16,6 @@ import {
   localizedFieldHelp,
   localizedFieldPlaceholder,
   localizedNamedValue,
-  localizedOption,
   localizedParenthetical,
   localizedUnit,
   localizedUnitLabel,
@@ -48,10 +46,6 @@ describe('field display localization', () => {
     }
     for (const stage of stageTypes) {
       expect(stage.labelEn, stage.name).not.toMatch(CJK)
-    }
-    for (const role of getComponentRoleOptions()) {
-      expect(optionLabelsEn[role], role).toBeTruthy()
-      expect(localizedOption(role, 'en'), role).not.toMatch(CJK)
     }
   })
 

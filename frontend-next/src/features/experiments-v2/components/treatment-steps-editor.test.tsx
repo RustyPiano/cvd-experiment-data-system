@@ -3,10 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import {
-  TreatmentStepsEditor,
-  treatmentStepsAreValid,
-} from './treatment-steps-editor'
+import { TreatmentStepsEditor } from './treatment-steps-editor'
 import type {
   TreatmentKind,
   TreatmentStep,
@@ -155,23 +152,5 @@ describe('TreatmentStepsEditor', () => {
         },
       },
     ])
-    expect(treatmentStepsAreValid('substrate', value)).toBe(true)
-  })
-
-  it('validates the required plasma parameters without free-text guessing', () => {
-    const step: TreatmentStep = {
-      type: 'plasma_treatment',
-      parameters: {
-        power_W: 50,
-        gas_species: 'O2',
-        duration_min: 5,
-      },
-    }
-    expect(treatmentStepsAreValid('substrate', [step])).toBe(true)
-    expect(
-      treatmentStepsAreValid('substrate', [
-        { ...step, parameters: { ...step.parameters, power_W: 0 } },
-      ]),
-    ).toBe(false)
   })
 })

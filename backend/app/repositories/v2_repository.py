@@ -89,14 +89,6 @@ class V2ResultRepository:
     def get_characterization_record(self, record_id: UUID) -> CharacterizationRecord | None:
         return self.db.get(CharacterizationRecord, record_id)
 
-    def save_characterization_record(
-        self, record: CharacterizationRecord
-    ) -> CharacterizationRecord:
-        self.db.add(record)
-        self.db.flush()
-        self.db.refresh(record)
-        return record
-
     def list_measured_products(self, sample_id: UUID) -> list[MeasuredProduct]:
         return list(
             self.db.scalars(
@@ -105,16 +97,3 @@ class V2ResultRepository:
                 .order_by(MeasuredProduct.created_at.asc(), MeasuredProduct.id.asc())
             )
         )
-
-    def get_measured_product(self, product_id: UUID) -> MeasuredProduct | None:
-        return self.db.get(MeasuredProduct, product_id)
-
-    def save_measured_product(self, product: MeasuredProduct) -> MeasuredProduct:
-        self.db.add(product)
-        self.db.flush()
-        self.db.refresh(product)
-        return product
-
-    def delete(self, row: object) -> None:
-        self.db.delete(row)
-        self.db.flush()

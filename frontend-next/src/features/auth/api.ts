@@ -3,7 +3,6 @@ import type {
   LoginRequest,
   RegisterRequest,
   TokenResponse,
-  UserRead,
 } from '@/shared/types/api'
 
 export function login(payload: LoginRequest) {
@@ -17,12 +16,6 @@ export function register(payload: RegisterRequest) {
   return apiRequest<TokenResponse>('/api/v1/auth/register', {
     method: 'POST',
     body: payload,
-  })
-}
-
-export function getCurrentUser(token: string) {
-  return apiRequest<UserRead>('/api/v1/auth/me', {
-    token,
   })
 }
 

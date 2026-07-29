@@ -1580,15 +1580,6 @@ class V2ReportingService:
         writer.writerows({key: _cell(value) for key, value in row.items()} for row in rows)
         return stream.getvalue().encode("utf-8-sig")
 
-    def _samples(self, run_id: UUID) -> list[Sample]:
-        return list(
-            self.db.scalars(
-                select(Sample)
-                .where(Sample.experiment_run_id == run_id)
-                .order_by(Sample.sample_code.asc())
-            )
-        )
-
     def _records(
         self,
         run_id: UUID,
@@ -1656,15 +1647,6 @@ class V2ReportingService:
             )
         )
 
-    def _files(self, run_id: UUID) -> list[FileAsset]:
-        return list(
-            self.db.scalars(
-                select(FileAsset)
-                .where(FileAsset.experiment_run_id == run_id)
-                .order_by(FileAsset.created_at.asc(), FileAsset.id.asc())
-            )
-        )
-
     def _files_for_records(
         self,
         records: list[CharacterizationRecord],
@@ -1682,99 +1664,3 @@ class V2ReportingService:
                 .order_by(FileAsset.created_at.asc(), FileAsset.id.asc())
             )
         )
-
-    @staticmethod
-    def _result_json(
-        product: MeasuredProduct,
-        record: CharacterizationRecord | None,
-        files: list[FileAsset],
-    ) -> dict[str, Any]:
-        return {
-            "id": str(product.id),
-            "kind": "characterization" if record else "direct_observation",
-            "record": (V2ReportingService._record_json(record, files) if record else None),
-            "measurement": V2ReportingService._measurement_json(product),
-            "created_at": _iso(product.created_at),
-            "updated_at": _iso(product.updated_at),
-        }
-
-    @staticmethod
-    def _standalone_record_json(
-        record: CharacterizationRecord,
-        files: list[FileAsset],
-    ) -> dict[str, Any]:
-        return {
-            "id": str(record.id),
-            "kind": "characterization",
-            "record": V2ReportingService._record_json(record, files),
-            "measurement": None,
-            "created_at": _iso(record.created_at),
-            "updated_at": _iso(record.updated_at),
-        }
-
-    @staticmethod
-    def _record_json(
-        record: CharacterizationRecord,
-        files: list[FileAsset],
-    ) -> dict[str, Any]:
-        return {
-            "id": str(record.id),
-            "instrument_id": str(record.instrument_id) if record.instrument_id else None,
-            "instrument_version": record.instrument_version,
-            "instrument_snapshot": record.instrument_snapshot_json,
-            "method": canonical_option_value(record.method_instrument),
-            "test_conditions": record.test_conditions,
-            "raw_data": record.raw_data,
-            "attrs": record.attrs,
-            "created_at": _iso(record.created_at),
-            "updated_at": _iso(record.updated_at),
-            "files": [V2ReportingService._file_json(file) for file in files],
-        }
-
-    @staticmethod
-    def _measurement_json(product: MeasuredProduct) -> dict[str, Any]:
-        return {
-            "id": str(product.id),
-            "observed_phenomena": (
-                [canonical_option_value(value) for value in product.observed_phenomena]
-                if product.observed_phenomena
-                else product.observed_phenomena
-            ),
-            "detected_phase_stacking": product.detected_phase_stacking,
-            "layer_count": product.layer_count,
-            "coverage_percent": product.coverage_percent,
-            "domain_size_um": product.domain_size_um,
-            "nucleation_density_cm2": product.nucleation_density_cm2,
-            "measured_layers_coverage": product.measured_layers_coverage,
-            "domain_nucleation_continuity": product.domain_nucleation_continuity,
-            "key_spectral_metrics": product.key_spectral_metrics,
-            "attrs": product.attrs,
-            "created_at": _iso(product.created_at),
-            "updated_at": _iso(product.updated_at),
-        }
-
-    @staticmethod
-    def _file_json(file: FileAsset) -> dict[str, Any]:
-        return {
-            "id": str(file.id),
-            "sample_id": str(file.sample_id) if file.sample_id else None,
-            "characterization_record_id": (
-                str(file.characterization_record_id) if file.characterization_record_id else None
-            ),
-            "filename": file.original_name,
-            "method": canonical_option_value(file.method),
-            "file_category": file.file_category,
-            "asset_role": file.asset_role,
-            "file_kind": canonical_option_value(file.file_kind),
-            "note": file.note,
-            "content_type": file.content_type,
-            "size_bytes": file.size_bytes,
-            "sha256": file.sha256,
-            "metadata": file.metadata_json,
-            "download_url": (
-                f"/api/v1/files/{file.id}/download" if file.deleted_at is None else None
-            ),
-            "deleted_at": _iso(file.deleted_at) or None,
-            "created_at": _iso(file.created_at),
-            "updated_at": _iso(file.updated_at),
-        }

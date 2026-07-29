@@ -151,10 +151,6 @@ def validate_material_formula(value: str) -> str:
     return normalized
 
 
-def formula_element_symbols(value: str) -> set[str]:
-    return set(re.findall(r"[A-Z][a-z]?", normalize_chemical_formula(value)))
-
-
 def normalize_offset_datetime(value: object) -> datetime:
     if isinstance(value, str):
         raw = value.strip()
@@ -269,20 +265,6 @@ def entity_fields_by_key(doc: dict[str, Any] | None = None) -> dict[str, list[di
     for field in entity_fields(source):
         grouped[module_key_for_field(field, source)].append(field)
     return grouped
-
-
-def stage_type_names(doc: dict[str, Any] | None = None) -> list[str]:
-    source = doc or load_field_source()
-    return [canonical_option_value(item["name"], source) for item in source["stage_types"]["types"]]
-
-
-def stage_types_with_group(group: str, doc: dict[str, Any] | None = None) -> set[str]:
-    source = doc or load_field_source()
-    return {
-        canonical_option_value(item["name"], source)
-        for item in source["stage_types"]["types"]
-        if group in item.get("shows", [])
-    }
 
 
 def missing(value: Any) -> bool:

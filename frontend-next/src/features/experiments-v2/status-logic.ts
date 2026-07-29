@@ -20,9 +20,6 @@ export const isProcessReadOnly = (status: RunStatus, canWrite: boolean) =>
   status === 'reviewed' ||
   status === 'invalid'
 
-export const isResultsReadOnly = (status: RunStatus, canWrite: boolean) =>
-  !canWrite || status === 'invalid'
-
 export function statusBadgeVariant(status: RunStatus) {
   return (
     {

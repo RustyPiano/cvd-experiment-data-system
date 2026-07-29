@@ -17,6 +17,5 @@ export type FileAssetListResponse = Schemas['FileAssetListResponse']
 export type FileAssetRead = Schemas['FileAssetRead']
 export type SampleListResponse = Schemas['SampleListResponse']
 export type SampleRead = Schemas['SampleRead']
-export type SampleUpdateRequest = Schemas['SampleUpdate']
 
 export type { components, paths } from './openapi'

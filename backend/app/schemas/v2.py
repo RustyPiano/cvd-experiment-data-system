@@ -9,7 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.schemas.generated.v2_module_payload import TubeUsageHistoryPayload
 from app.schemas.scientific import AmbientMeasurement
 from app.services.v2_field_source import normalize_offset_datetime, validate_chemical_formula
-from app.services.v2_result_evidence import has_measured_product_evidence
 
 
 class V2EntityVersionPayload(BaseModel):
@@ -152,23 +151,6 @@ class V2SetupReferenceRequest(BaseModel):
     tube_usage_history: TubeUsageHistoryPayload
 
 
-class CharacterizationRecordCreate(BaseModel):
-    sample_id: UUID
-    instrument_id: UUID | None = None
-    instrument_version: int | None = None
-    method_instrument: str = Field(min_length=1, max_length=128)
-    test_conditions: str | None = None
-    raw_data: dict[str, Any] | None = None
-    attrs: dict[str, Any] = Field(default_factory=dict)
-
-
-class CharacterizationRecordUpdate(BaseModel):
-    method_instrument: str | None = Field(default=None, min_length=1, max_length=128)
-    test_conditions: str | None = None
-    raw_data: dict[str, Any] | None = None
-    attrs: dict[str, Any] = Field(default_factory=dict)
-
-
 class CharacterizationRecordRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -191,35 +173,6 @@ class CharacterizationRecordListResponse(BaseModel):
     total: int
 
 
-CONTROLLED_RESULT_METRICS: dict[str, tuple[frozenset[str], str]] = {
-    "raman_e2g_peak_position": (frozenset({"Raman"}), "cm⁻¹"),
-    "raman_a1g_peak_position": (frozenset({"Raman"}), "cm⁻¹"),
-    "raman_peak_separation": (frozenset({"Raman"}), "cm⁻¹"),
-    "raman_peak_fwhm": (frozenset({"Raman"}), "cm⁻¹"),
-    "raman_intensity_ratio": (frozenset({"Raman"}), "ratio"),
-    "shear_mode_peak_position": (frozenset({"low_frequency_raman"}), "cm⁻¹"),
-    "layer_breathing_mode_peak_position": (
-        frozenset({"low_frequency_raman"}),
-        "cm⁻¹",
-    ),
-    "low_frequency_peak_fwhm": (frozenset({"low_frequency_raman"}), "cm⁻¹"),
-    "pl_a_exciton_peak_energy": (frozenset({"PL"}), "eV"),
-    "pl_b_exciton_peak_energy": (frozenset({"PL"}), "eV"),
-    "pl_peak_fwhm": (frozenset({"PL"}), "meV"),
-    "pl_integrated_intensity": (frozenset({"PL"}), "a.u."),
-    "afm_step_height": (frozenset({"AFM"}), "nm"),
-    "afm_rms_roughness": (frozenset({"AFM"}), "nm"),
-    "afm_ra_roughness": (frozenset({"AFM"}), "nm"),
-    "xrd_peak_2theta": (frozenset({"XRD"}), "° 2θ"),
-    "xrd_peak_fwhm": (frozenset({"XRD"}), "° 2θ"),
-    "xrd_d_spacing": (frozenset({"XRD"}), "nm"),
-    "tem_lattice_spacing": (frozenset({"TEM"}), "nm"),
-}
-RESULT_METHOD_ALIASES = {
-    "低波数Raman": "low_frequency_raman",
-}
-
-
 class SpectralMetric(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -233,58 +186,6 @@ class SpectralMetric(BaseModel):
         if not (normalized := value.strip()):
             raise ValueError("unit cannot be blank")
         return normalized
-
-
-class MeasuredProductMetrics(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    observed_phenomena: list[str] | None = None
-    detected_phase_stacking: str | None = None
-    layer_count: int | None = Field(default=None, strict=True, ge=0)
-    coverage_percent: float | None = Field(
-        default=None,
-        strict=True,
-        ge=0,
-        le=100,
-        allow_inf_nan=False,
-    )
-    domain_size_um: float | None = Field(
-        default=None,
-        strict=True,
-        gt=0,
-        allow_inf_nan=False,
-    )
-    nucleation_density_cm2: float | None = Field(
-        default=None,
-        strict=True,
-        ge=0,
-        allow_inf_nan=False,
-    )
-    key_spectral_metrics: list[SpectralMetric] | None = None
-
-    @field_validator("detected_phase_stacking")
-    @classmethod
-    def validate_detected_phase_stacking(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        if not (normalized := value.strip()):
-            raise ValueError("detected_phase_stacking cannot be blank")
-        return normalized
-
-
-class MeasuredProductCreate(MeasuredProductMetrics):
-    characterization_record_id: UUID | None = None
-    attrs: dict[str, Any] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def require_evidence(self) -> MeasuredProductCreate:
-        if not has_measured_product_evidence(self.model_dump()):
-            raise ValueError("Measured product requires at least one evidence field")
-        return self
-
-
-class MeasuredProductUpdate(MeasuredProductMetrics):
-    attrs: dict[str, Any] = Field(default_factory=dict)
 
 
 class MeasuredProductRead(BaseModel):
@@ -310,75 +211,6 @@ class MeasuredProductRead(BaseModel):
 class MeasuredProductListResponse(BaseModel):
     items: list[MeasuredProductRead]
     total: int
-
-
-class V2ResultWrite(MeasuredProductMetrics):
-    kind: Literal["direct_observation", "characterization"]
-    file_asset_ids: list[UUID] = Field(default_factory=list, max_length=20)
-    instrument_id: UUID | None = None
-    instrument_version: int | None = Field(default=None, ge=1)
-    method_instrument: str | None = Field(default=None, max_length=128)
-    method_other: str | None = Field(default=None, max_length=128)
-    observed_phenomena_other: str | None = Field(default=None, max_length=255)
-    test_conditions: str | None = None
-
-    @model_validator(mode="after")
-    def validate_kind_fields(self) -> V2ResultWrite:
-        self.method_other = (self.method_other or "").strip() or None
-        self.observed_phenomena_other = (self.observed_phenomena_other or "").strip() or None
-        method_is_other = self.method_instrument in {"other", "其他"}
-        if method_is_other != (self.method_other is not None):
-            raise ValueError("method_other is required only for other method")
-        phenomena_include_other = any(
-            value in {"other", "其他"} for value in self.observed_phenomena or []
-        )
-        if phenomena_include_other != (self.observed_phenomena_other is not None):
-            raise ValueError(
-                "observed_phenomena_other is required only when phenomena include other"
-            )
-        if (self.instrument_id is None) != (self.instrument_version is None):
-            raise ValueError("instrument_id and instrument_version must be provided together")
-        if self.kind == "direct_observation":
-            if not self.observed_phenomena and not self.file_asset_ids:
-                raise ValueError(
-                    "Direct observation requires observed_phenomena or an evidence file"
-                )
-            if any(
-                value is not None
-                for value in (
-                    self.instrument_id,
-                    self.method_instrument,
-                    self.test_conditions,
-                    self.detected_phase_stacking,
-                    self.layer_count,
-                    self.coverage_percent,
-                    self.domain_size_um,
-                    self.nucleation_density_cm2,
-                    self.key_spectral_metrics,
-                )
-            ):
-                raise ValueError("Direct observation cannot include characterization fields")
-        else:
-            if self.file_asset_ids:
-                raise ValueError(
-                    "Characterization attachments must use the characterization file endpoint"
-                )
-            if not (self.method_instrument or "").strip():
-                raise ValueError("Characterization result requires method_instrument")
-            method = RESULT_METHOD_ALIASES.get(
-                self.method_instrument or "",
-                self.method_instrument or "",
-            )
-            for metric in self.key_spectral_metrics or []:
-                controlled = CONTROLLED_RESULT_METRICS.get(metric.metric_code)
-                if controlled is None:
-                    continue
-                allowed_methods, fixed_unit = controlled
-                if method not in allowed_methods:
-                    raise ValueError(f"{metric.metric_code} is not applicable to {method}")
-                if metric.unit != fixed_unit:
-                    raise ValueError(f"{metric.metric_code} requires unit {fixed_unit}")
-        return self
 
 
 class V2ResultRead(BaseModel):

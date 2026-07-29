@@ -134,11 +134,6 @@ export function spaceGroupNumber(value: unknown): number | undefined {
   return SPACE_GROUP_BY_SYMBOL.get(normalizedSymbol(text))
 }
 
-export function hermannMauguinSymbol(value: unknown): string | undefined {
-  const number = spaceGroupNumber(value)
-  return number == null ? undefined : spaceGroupOptions[number - 1]?.symbol
-}
-
 export function suggestedBulkSpaceGroups(
   formula: unknown,
 ): readonly BulkSpaceGroupSuggestion[] {

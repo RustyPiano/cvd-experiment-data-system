@@ -271,41 +271,6 @@ function parameterInvalid(
   return definition.min != null && numeric <= definition.min
 }
 
-export function treatmentStepsAreValid(
-  kind: TreatmentKind,
-  steps: TreatmentStep[],
-): boolean {
-  const allowed = new Set(typesFor(kind))
-  if (
-    kind === 'precursor' &&
-    steps.length > 1 &&
-    steps.some((step) => step.type === 'direct_load')
-  ) {
-    return false
-  }
-  return steps.every((step) => {
-    if (!step.type || !allowed.has(step.type)) return false
-    if (step.type === 'other' && !step.other_name?.trim()) return false
-    const definitionsValid = definitionsFor(kind, step.type).every(
-      (definition) =>
-        !parameterInvalid(definition, step.parameters[definition.key], true),
-    )
-    if (!definitionsValid) return false
-    if (kind !== 'substrate' || step.type !== 'other') return true
-    const items = step.parameters.items
-    return (
-      Array.isArray(items) &&
-      items.length > 0 &&
-      items.every(
-        (item) =>
-          item.name.trim() !== '' &&
-          String(item.value).trim() !== '' &&
-          item.unit.trim() !== '',
-      )
-    )
-  })
-}
-
 function useStableRowIds(length: number) {
   const prefix = useId().replaceAll(':', '')
   const sequence = useRef(0)

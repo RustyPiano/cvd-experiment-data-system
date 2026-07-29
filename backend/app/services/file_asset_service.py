@@ -484,9 +484,6 @@ class FileAssetService:
             )
         return file_asset
 
-    def to_read_model(self, file_asset: FileAsset) -> FileAssetRead:
-        return to_file_asset_read_model(file_asset)
-
     def _soft_delete_files(self, files: list[FileAsset], current_user: User) -> None:
         deleted_at = datetime.now(UTC)
         for file_asset in files:

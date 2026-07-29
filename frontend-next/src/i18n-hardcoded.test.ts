@@ -10,8 +10,6 @@ const EXCLUDED_FILES = new Set([
   'features/experiments-v2/field-logic.ts',
   'features/entity-library/field-logic.ts',
   'shared/composite-field.ts',
-  // Gas-cylinder matching accepts frozen Chinese lot names as domain aliases.
-  'features/experiments-v2/components/gas-feeds-editor.tsx',
   // Input-shape discriminators are domain values consumed by composite-field.ts.
   'shared/ui/composite-field-control.tsx',
   // This experiments-v2 file is explicitly owned by another batch and forbidden here.

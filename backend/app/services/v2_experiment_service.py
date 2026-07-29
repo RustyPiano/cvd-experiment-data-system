@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 from copy import deepcopy
 from datetime import UTC, date, datetime
 from typing import Any
@@ -13,7 +12,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
-from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
 from app.models.scientific import ProcessChannel, RunRevision, ScientificProcessEvent
 from app.models.user import User
@@ -37,16 +35,10 @@ from app.services.experiment_guards import (
     get_visible_experiment,
 )
 from app.services.file_asset_service import FileAssetService
-from app.services.file_storage_service import FileStorageService
 from app.services.sample_service import SampleService
 from app.services.scientific_revision_service import (
     ScientificRevisionService,
     validate_scientific_module_payload,
-)
-from app.services.temperature_timeseries import (
-    TemperatureTimeseriesError,
-    ensure_temperature_timeseries_metadata,
-    temperature_timeseries_mapping_error,
 )
 from app.services.v2_entity_service import SUBSTRATE_FORMULAS, V2EntityService
 from app.services.v2_entity_snapshot_service import (
@@ -60,20 +52,9 @@ from app.services.v2_entity_snapshot_service import (
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
     canonical_option_value,
-    experiment_fields,
-    load_field_source,
-    module_key_for_field,
     normalize_offset_datetime,
     validate_chemical_formula,
 )
-from app.services.v2_process_semantics import (
-    gas_feeds_are_unique,
-    process_duration_violations,
-    process_step_order_is_valid,
-    temperature_programs_start_at_zero,
-    valid_frozen_gas_reference,
-)
-from app.services.v2_r0_service import missing_r0_fields, missing_required_fields
 from app.services.v2_result_status_service import (
     is_result_missing_todo,
     refresh_result_missing_todo,
@@ -89,7 +70,6 @@ class V2ExperimentService:
         self.samples = SampleService(db)
         self.revisions = ScientificRevisionService(db)
         self.audit = AuditService(db)
-        self.file_storage = FileStorageService()
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
         started_at = normalize_offset_datetime(payload.started_at)
@@ -733,59 +713,6 @@ class V2ExperimentService:
         self.module_payloads.save(payload)
         return normalized.get("items") or []
 
-    def _validate_external_field_requirement(
-        self, run: ExperimentRun, payload_json: dict[str, Any]
-    ) -> None:
-        snapshot = run.setup_ref_snapshot_json or {}
-        attrs = snapshot.get("attrs_snapshot") or {}
-        self._validate_field_devices(
-            payload_json,
-            attrs.get("field_devices"),
-            setup_available=bool(run.setup_ref_snapshot_json),
-        )
-
-    @staticmethod
-    def _validate_field_devices(
-        payload_json: dict[str, Any],
-        field_devices: Any,
-        *,
-        setup_available: bool,
-    ) -> None:
-        configured = (
-            {
-                canonical_option_value(value, field_key="field_devices")
-                for value in field_devices
-                if isinstance(value, str)
-            }
-            if isinstance(field_devices, list)
-            else set()
-        )
-        configured.discard("none")
-        for step in payload_json.get("items") or []:
-            for field in step.get("field_params") or []:
-                field_type = canonical_option_value(field.get("field_type"), field_key="field_type")
-                reason = "setup_required" if not setup_available else "setup_capability"
-                if field_type not in configured:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail={"invalid": [{"key": "field_params", "reason": reason}]},
-                    )
-
-    @staticmethod
-    def _validate_process_step_cardinality(payload_json: dict[str, Any]) -> None:
-        counts = Counter(
-            item.get("stage_type")
-            for item in payload_json.get("items") or []
-            if isinstance(item, dict)
-        )
-        for stage_type in ("preparation", "reaction_conditions"):
-            count = counts[stage_type]
-            if count > 1:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"invalid": [{"key": "stage_type", "reason": "duplicate"}]},
-                )
-
     @staticmethod
     def _validate_substrate_piece_labels(payload_json: dict[str, Any]) -> None:
         labels = [
@@ -798,158 +725,6 @@ class V2ExperimentService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"invalid": [{"key": "piece_label", "reason": "duplicate"}]},
             )
-
-    @staticmethod
-    def _validate_process_semantics(payload_json: dict[str, Any]) -> None:
-        invalid: list[dict[str, str]] = []
-        if not process_step_order_is_valid(payload_json):
-            invalid.append({"key": "stage_type", "reason": "order"})
-        if not temperature_programs_start_at_zero(payload_json):
-            invalid.append({"key": "temperature_program", "reason": "start_at_zero"})
-        if not gas_feeds_are_unique(payload_json):
-            invalid.append({"key": "gas_feeds", "reason": "duplicate"})
-        if invalid:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={"invalid": invalid},
-            )
-
-    def _validate_process_zone_indices(
-        self,
-        run: ExperimentRun,
-        payload_json: dict[str, Any],
-    ) -> None:
-        zone_count = (run.setup_ref_snapshot_json or {}).get("zone_count_snapshot")
-        self._validate_process_zones_for_count(
-            payload_json,
-            zone_count if isinstance(zone_count, int) else None,
-        )
-
-    @staticmethod
-    def _validate_process_zones_for_count(
-        payload_json: dict[str, Any],
-        zone_count: int | None,
-    ) -> None:
-        indexed_groups: list[tuple[str, list[Any]]] = []
-        for step in payload_json.get("items") or []:
-            if not isinstance(step, dict) or step.get("stage_type") != "reaction_conditions":
-                continue
-            temperature_program = step.get("temperature_program") or {}
-            indexed_groups.append(("temperature_program", temperature_program.get("zones") or []))
-            measured = step.get("measured_temperature") or {}
-            indexed_groups.append(("measured_temperature", measured.get("channels") or []))
-        for key, items in indexed_groups:
-            if items and zone_count is None:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"invalid": [{"key": key, "reason": "setup_required"}]},
-                )
-            zone_indices = [item.get("zone_index") for item in items if isinstance(item, dict)]
-            if (
-                key == "temperature_program"
-                and zone_count is not None
-                and set(zone_indices) != set(range(1, zone_count + 1))
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"invalid": [{"key": key, "reason": "zone_count"}]},
-                )
-            for item in items:
-                zone_index = item.get("zone_index") if isinstance(item, dict) else None
-                if not isinstance(zone_index, int):
-                    continue
-                if zone_count is not None and zone_index > zone_count:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail={"invalid": [{"key": key, "reason": "zone_count"}]},
-                    )
-
-    @staticmethod
-    def _validate_process_duration_bounds(payload_json: dict[str, Any]) -> None:
-        violations = process_duration_violations(payload_json)
-        if violations:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={"invalid": [{"key": key, "reason": "duration_min"} for key in violations]},
-            )
-
-    def _validate_measured_temperature_reference(
-        self,
-        run: ExperimentRun,
-        payload_json: dict[str, Any],
-    ) -> None:
-        for step in payload_json.get("items") or []:
-            measured = step.get("measured_temperature") if isinstance(step, dict) else None
-            if not isinstance(measured, dict):
-                continue
-            file_id = measured.get("file_asset_id")
-            try:
-                file_asset = self.db.get(FileAsset, UUID(str(file_id)))
-            except (TypeError, ValueError, AttributeError):
-                file_asset = None
-            reason = None
-            if file_asset is None:
-                reason = "reference"
-            elif file_asset.experiment_run_id != run.id:
-                reason = "same_run"
-            elif file_asset.deleted_at is not None:
-                reason = "inactive"
-            elif file_asset.asset_role != "temperature_timeseries":
-                reason = "role"
-            elif (
-                file_asset.metadata_json.get("binding_type") != "process_step"
-                or str(file_asset.metadata_json.get("binding_id") or "") != "reaction_conditions"
-            ):
-                reason = "process_binding"
-            if reason is None:
-                try:
-                    ensure_temperature_timeseries_metadata(file_asset, self.file_storage)
-                except TemperatureTimeseriesError as exc:
-                    reason = f"file_{exc.reason}"
-                else:
-                    reason = temperature_timeseries_mapping_error(
-                        file_asset.metadata_json,
-                        measured,
-                    )
-            if reason is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"invalid": [{"key": "measured_temperature", "reason": reason}]},
-                )
-
-    def _freeze_process_gas_references(
-        self,
-        payload_json: dict[str, Any],
-    ) -> dict[str, Any]:
-        references: list[dict[str, Any]] = []
-        for step in payload_json.get("items") or []:
-            if not isinstance(step, dict):
-                continue
-            if step.get("stage_type") == "reaction_conditions":
-                references.extend(
-                    feed for feed in step.get("gas_feeds") or [] if isinstance(feed, dict)
-                )
-            elif step.get("stage_type") == "preparation":
-                for operation in step.get("preparation_operations") or []:
-                    if (
-                        isinstance(operation, dict)
-                        and operation.get("operation_type") == "gas_exchange"
-                    ):
-                        references.extend(
-                            gas for gas in operation.get("gases") or [] if isinstance(gas, dict)
-                        )
-        for item in references:
-            version = self._resolve_material_lot_reference(item.get("lot_ref"), "lot_ref")
-            if version.lot_category != "gas_cylinder":
-                self._raise_invalid_reference("lot_ref", "category")
-            item["lot_ref"] = {
-                "entity_id": str(version.entity_id),
-                "version": version.version,
-                "snapshot": material_lot_version_snapshot(version),
-            }
-            if not valid_frozen_gas_reference(item):
-                self._raise_invalid_reference("lot_ref", "identity")
-        return payload_json
 
     def _prune_unreferenced_process_files(
         self,
@@ -1000,41 +775,6 @@ class V2ExperimentService:
             referenced_file_ids=referenced_file_ids,
             current_user=current_user,
         )
-
-    def _validate_process_event_attachments(
-        self,
-        run: ExperimentRun,
-        payload_json: dict[str, Any],
-    ) -> None:
-        for event in payload_json.get("items") or []:
-            if not isinstance(event, dict):
-                continue
-            event_id = str(event.get("event_id") or "")
-            for raw_file_id in event.get("attachment_file_ids") or []:
-                try:
-                    file_asset = self.db.get(FileAsset, UUID(str(raw_file_id)))
-                except (TypeError, ValueError, AttributeError):
-                    file_asset = None
-                metadata = file_asset.metadata_json if file_asset is not None else {}
-                reason = None
-                if file_asset is None:
-                    reason = "reference"
-                elif file_asset.experiment_run_id != run.id:
-                    reason = "same_run"
-                elif file_asset.deleted_at is not None:
-                    reason = "inactive"
-                elif file_asset.asset_role != "process_event_attachment":
-                    reason = "role"
-                elif (
-                    metadata.get("binding_type") != "process_event"
-                    or str(metadata.get("binding_id") or "") != event_id
-                ):
-                    reason = "event_binding"
-                if reason is not None:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail={"invalid": [{"key": "attachment_file_ids", "reason": reason}]},
-                    )
 
     def _freeze_material_lot_references(
         self,
@@ -1160,40 +900,6 @@ class V2ExperimentService:
         if item.get("chemical_formula") != version.chemical_formula:
             self._raise_invalid_reference("lot_ref", "identity")
 
-    def _validate_process_event_timeline(
-        self,
-        run_id: UUID,
-        *,
-        started_at: datetime | None = None,
-        process_events: dict[str, Any] | None = None,
-        invalid_key: str,
-    ) -> None:
-        if started_at is None:
-            basic = self.module_payloads.get_by_run_and_key(run_id, "basic_info")
-            raw_started_at = (basic.payload_json if basic else {}).get("started_at")
-            if raw_started_at is None:
-                return
-            started_at = normalize_offset_datetime(raw_started_at)
-        if process_events is None:
-            saved_events = self.module_payloads.get_by_run_and_key(run_id, "process_events")
-            process_events = saved_events.payload_json if saved_events else {}
-        for event in process_events.get("items") or []:
-            raw_occurred_at = event.get("occurred_at")
-            if raw_occurred_at is None:
-                continue
-            if normalize_offset_datetime(raw_occurred_at) < started_at:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={
-                        "invalid": [
-                            {
-                                "key": invalid_key,
-                                "reason": "before_started_at",
-                            }
-                        ]
-                    },
-                )
-
     def _validate_zone_indices(
         self,
         run: ExperimentRun,
@@ -1232,87 +938,10 @@ class V2ExperimentService:
                     detail={"invalid": [{"key": zone_key, "reason": "zone_count"}]},
                 )
 
-    @staticmethod
-    def _validate_pressure_regime(
-        synthesis_method: Any,
-        process_payload: dict[str, Any],
-    ) -> None:
-        expected = {
-            "APCVD": "atmospheric_pressure",
-            "LPCVD": "low_pressure",
-        }.get(synthesis_method)
-        doc = load_field_source()
-        pressure_field = next(
-            field
-            for field in experiment_fields(doc)
-            if module_key_for_field(field, doc) == "process_steps"
-            and field["key"] == "pressure_system"
-        )
-        option_ranges = (pressure_field.get("validation") or {}).get("option_ranges") or {}
-        for step in process_payload.get("items") or []:
-            if step.get("stage_type") != "reaction_conditions":
-                continue
-            pressure = step.get("pressure_system") or {}
-            if expected is not None and pressure.get("option") != expected:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={
-                        "invalid": [
-                            {
-                                "key": "pressure_system",
-                                "reason": "synthesis_method",
-                            }
-                        ]
-                    },
-                )
-            value = pressure.get("value")
-            bounds = option_ranges.get(expected) or {}
-            if (
-                isinstance(value, bool)
-                or not isinstance(value, (int, float))
-                or ("ge" in bounds and value < bounds["ge"])
-                or ("gt" in bounds and value <= bounds["gt"])
-                or ("le" in bounds and value > bounds["le"])
-                or ("lt" in bounds and value >= bounds["lt"])
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={
-                        "invalid": [
-                            {
-                                "key": "pressure_system",
-                                "reason": "range",
-                            }
-                        ]
-                    },
-                )
-
     def _require_status(self, run: ExperimentRun, expected: ExperimentStatus) -> None:
         if run.status != expected:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=f"Experiment must be {expected.value}"
-            )
-
-    def _require_r0(
-        self,
-        run: ExperimentRun,
-        payloads: dict[str, dict[str, Any]],
-    ) -> None:
-        process_payload = self.module_payloads.get_by_run_and_key(run.id, "process_steps")
-        if process_payload is not None:
-            self._validate_measured_temperature_reference(run, process_payload.payload_json)
-        r0_fields = [{**item, "requirement": "r0"} for item in missing_r0_fields(run, payloads)]
-        r0_keys = {item["key"] for item in r0_fields}
-        required_fields = [
-            {**item, "requirement": "required"}
-            for item in missing_required_fields(run, payloads)
-            if item["key"] not in r0_keys
-        ]
-        missing_fields = [*r0_fields, *required_fields]
-        if missing_fields:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={"missing": missing_fields},
             )
 
     def _transition(

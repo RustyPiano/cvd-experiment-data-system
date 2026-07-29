@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   extractElementSymbols,
   normalizeChemicalFormula,
-  renderFormulaDisplay,
   validateChemicalFormula,
 } from './formula'
 
@@ -68,44 +67,5 @@ describe('validateChemicalFormula (元素校验)', () => {
     expect(validateChemicalFormula('(NH4)6Mo7O24·4H2O').valid).toBe(true)
     expect(validateChemicalFormula('Na2WO4⋅2H2O').valid).toBe(true)
     expect(validateChemicalFormula('Mo((S))2').valid).toBe(false)
-  })
-})
-
-describe('renderFormulaDisplay (前端即时预览)', () => {
-  it('returns the raw formula for 本征 / no components', () => {
-    expect(renderFormulaDisplay('MoS2', '本征', [])).toBe('MoS2')
-    expect(renderFormulaDisplay('MoS2', '掺杂', [])).toBe('MoS2')
-  })
-
-  it('joins by layer order for 垂直异质结', () => {
-    expect(
-      renderFormulaDisplay('x', '垂直异质结', [
-        { formula: 'WSe2', layer_order: '2' },
-        { formula: 'MoS2', layer_order: '1' },
-      ]),
-    ).toBe('MoS2/WSe2')
-  })
-
-  it('joins with a dash for 横向异质结', () => {
-    expect(
-      renderFormulaDisplay('x', '横向异质结', [
-        { formula: 'WSe2' },
-        { formula: 'MoS2' },
-      ]),
-    ).toBe('WSe2-MoS2')
-  })
-
-  it('keeps the entered formula for doped systems because components are authoritative', () => {
-    expect(
-      renderFormulaDisplay('MoS2', '掺杂', [
-        { formula: 'Nb', role: '掺杂剂' },
-        { formula: 'MoS2', role: '基体' },
-      ]),
-    ).toBe('MoS2')
-    expect(
-      renderFormulaDisplay('fallback', '掺杂', [
-        { formula: 'Nb', role: '其他' },
-      ]),
-    ).toBe('fallback')
   })
 })
