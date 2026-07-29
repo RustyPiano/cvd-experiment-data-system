@@ -673,6 +673,11 @@ export const common = {
   },
   characterizations: {
     nav: 'Characterization records',
+    run: {
+      title: 'Add characterization record',
+      subtitle:
+        'View and add samples and characterization records for this preparation run only.',
+    },
     list: {
       title: 'Characterization records',
       subtitle:
@@ -726,6 +731,8 @@ export const common = {
       lock: 'Lock process',
       unlock: 'Unlock run',
       invalidate: 'Invalidate run',
+      more: 'More actions',
+      reviewRevision: 'Mark current revision reviewed',
       markNotCharacterized: 'Mark not characterized yet',
       clearNotCharacterized: 'Clear not-characterized marker',
       success: 'Status updated',
@@ -744,6 +751,10 @@ export const common = {
       unlockTitle: 'Unlock run',
       unlockDescription:
         'Unlocking makes process parameters editable again. Unlock this run?',
+    },
+    records: {
+      title: 'Records and versions',
+      revisions: 'Revision history',
     },
     nav: 'Preparation records',
     new: {

@@ -45,7 +45,12 @@ import {
 import type { V2ModulePayloadRead } from './api'
 import type { ExperimentV2FormState } from './form-types'
 import { buildItemsModulePayload } from './field-logic'
-import { tubeUsageParts } from './scientific-form-workflow'
+import {
+  machineToken,
+  processChannelTitle,
+  timelineValidationIssue,
+  tubeUsageParts,
+} from './scientific-form-workflow'
 import { ModuleCard } from './components/module-card'
 import { EntityReferenceSelect } from './components/entity-reference-select'
 import {
@@ -150,6 +155,7 @@ type Channel = {
   scalar_value?: number
   series?: Array<{ start_s: number; end_s?: number; value: number | string }>
   file_asset_id?: string
+  sensor_or_controller_snapshot?: Record<string, unknown>
 }
 
 type ProcessEvent = {
@@ -202,34 +208,9 @@ const DEFAULT_TARGET: TargetSpec = {
   dimensional_form: 'sheet',
 }
 
-const DEFAULT_TIMELINE = {
-  segments: [
-    {
-      segment_key: 'growth',
-      segment_type: 'growth',
-      sequence: 1,
-      start_s: 0,
-      end_s: 1800,
-    },
-  ] satisfies Segment[],
-  channels: [
-    {
-      channel_key: 'temperature.zone_1',
-      channel_type: 'temperature',
-      source_type: 'setpoint',
-      unit: '°C',
-      data_kind: 'interval_series',
-      series: [{ start_s: 0, end_s: 1800, value: 750 }],
-    },
-    {
-      channel_key: 'pressure',
-      channel_type: 'pressure',
-      source_type: 'measured',
-      unit: 'Pa',
-      data_kind: 'scalar',
-      scalar_value: 101325,
-    },
-  ] satisfies Channel[],
+const EMPTY_TIMELINE = {
+  segments: [] satisfies Segment[],
+  channels: [] satisfies Channel[],
 }
 
 const METHOD_CONDITIONS: Record<
@@ -460,6 +441,14 @@ const METHOD_LABELS: Record<string, string> = {
   XRD: 'X 射线衍射（XRD）',
   TEM: '透射电子显微镜（TEM）',
 }
+const REGION_LABELS: Record<string, string> = {
+  label: '测量区域名称',
+  x: '横坐标',
+  y: '纵坐标',
+  width: '区域宽度',
+  height: '区域高度',
+  unit: '坐标单位',
+}
 
 const WORKFLOW_STEPS = [
   '实验概况',
@@ -487,28 +476,186 @@ function stepForModule(module: string): number {
   return index < 0 ? 0 : index
 }
 
-function targetExample(target: TargetSpec): string {
+function targetExample(target: TargetSpec): {
+  title: string
+  rows: Array<[string, string]>
+  value: TargetSpec
+} {
+  if (target.architecture_type === 'mixed_architecture') {
+    return {
+      title: '垂直与横向并存的混合结构',
+      rows: [
+        ['材料 1', 'MoS₂'],
+        ['材料 2', 'WS₂'],
+        ['结构说明', '在研究目的或备注中写明垂直与横向区域关系'],
+      ],
+      value: {
+        ...target,
+        architecture_type: 'mixed_architecture',
+        material_regions: [
+          {
+            region_key: 'region_1',
+            formula: 'MoS2',
+            spatial_role: 'mixed_region',
+          },
+          {
+            region_key: 'region_2',
+            formula: 'WS2',
+            spatial_role: 'mixed_region',
+          },
+        ],
+        composition_relations: [],
+      },
+    }
+  }
   if (target.architecture_type === 'vertical_stack') {
-    return '示例：靠近衬底第 1 层 MoS₂，上层 WS₂。'
+    return {
+      title: 'MoS₂ / WS₂ 垂直异质结构',
+      rows: [
+        ['材料 1', 'MoS₂ · 第 1 层（靠近衬底）'],
+        ['材料 2', 'WS₂ · 第 2 层'],
+        ['系统摘要', 'MoS₂ / WS₂'],
+      ],
+      value: {
+        ...target,
+        architecture_type: 'vertical_stack',
+        material_regions: [
+          {
+            region_key: 'layer_1',
+            formula: 'MoS2',
+            spatial_role: 'layer',
+            layer_index: 1,
+          },
+          {
+            region_key: 'layer_2',
+            formula: 'WS2',
+            spatial_role: 'layer',
+            layer_index: 2,
+          },
+        ],
+        composition_relations: [],
+      },
+    }
   }
   if (target.architecture_type === 'lateral_junction') {
-    return '示例：横向区域 A 为 MoS₂，区域 B 为 WS₂。'
+    return {
+      title: 'MoS₂–WS₂ 横向异质结构',
+      rows: [
+        ['区域 A', 'MoS₂'],
+        ['区域 B', 'WS₂'],
+        ['系统摘要', 'MoS₂–WS₂'],
+      ],
+      value: {
+        ...target,
+        architecture_type: 'lateral_junction',
+        material_regions: [
+          {
+            region_key: 'region_a',
+            formula: 'MoS2',
+            spatial_role: 'lateral_region',
+            lateral_region: 'A',
+          },
+          {
+            region_key: 'region_b',
+            formula: 'WS2',
+            spatial_role: 'lateral_region',
+            lateral_region: 'B',
+          },
+        ],
+        composition_relations: [],
+      },
+    }
   }
   if (
     target.composition_relations.some(
       (relation) => relation.relation_type === 'doped_by',
     )
   ) {
-    return '示例：主体材料 MoS₂，掺杂物种 Pt；标称含量按已知依据填写。'
+    return {
+      title: 'Pt 掺杂 MoS₂',
+      rows: [
+        ['主体材料', 'MoS₂'],
+        ['掺杂设置', 'Pt · 1 at% · Mo 位点'],
+        ['含量表示方式', '原子百分比'],
+      ],
+      value: {
+        ...target,
+        architecture_type: 'single_region',
+        material_regions: [
+          {
+            region_key: 'film',
+            formula: 'MoS2',
+            spatial_role: 'single_region',
+          },
+        ],
+        composition_relations: [
+          {
+            relation_type: 'doped_by',
+            host_region_key: 'film',
+            species: 'Pt',
+            nominal_value: 1,
+            value_basis: 'at_percent',
+            site_or_location: 'Mo 位点',
+          },
+        ],
+      },
+    }
   }
   if (
     target.composition_relations.some(
       (relation) => relation.relation_type === 'substitutional_alloy',
     )
   ) {
-    return '示例：主体材料 MoS₂，取代物种 W；以摩尔分数或位点分数记录。'
+    return {
+      title: 'Mo–W–S 合金',
+      rows: [
+        ['主体材料', 'MoS₂'],
+        ['取代设置', 'W · 0.5 · Mo 位点'],
+        ['含量表示方式', '位点分数'],
+      ],
+      value: {
+        ...target,
+        architecture_type: 'single_region',
+        material_regions: [
+          {
+            region_key: 'film',
+            formula: 'MoS2',
+            spatial_role: 'single_region',
+          },
+        ],
+        composition_relations: [
+          {
+            relation_type: 'substitutional_alloy',
+            host_region_key: 'film',
+            species: 'W',
+            nominal_value: 0.5,
+            value_basis: 'site_fraction',
+            site_or_location: 'Mo 位点',
+          },
+        ],
+      },
+    }
   }
-  return '示例：单一材料 MoS₂；实际样品结论在表征记录中填写。'
+  return {
+    title: '单一材料 MoS₂',
+    rows: [
+      ['材料 1', 'MoS₂'],
+      ['材料结构', '单一材料'],
+      ['说明', '实际样品结论在表征记录中填写'],
+    ],
+    value: {
+      ...target,
+      architecture_type: 'single_region',
+      material_regions: [
+        {
+          region_key: 'film',
+          formula: 'MoS2',
+          spatial_role: 'single_region',
+        },
+      ],
+      composition_relations: [],
+    },
+  }
 }
 
 function targetForArchitecture(
@@ -753,10 +900,10 @@ export function ScientificExperimentForm({
       }).items,
   )
   const [segments, setSegments] = useState<Segment[]>(
-    () => modulePayload(modules, 'process_steps', DEFAULT_TIMELINE).segments,
+    () => modulePayload(modules, 'process_steps', EMPTY_TIMELINE).segments,
   )
   const [channels, setChannels] = useState<Channel[]>(
-    () => modulePayload(modules, 'process_steps', DEFAULT_TIMELINE).channels,
+    () => modulePayload(modules, 'process_steps', EMPTY_TIMELINE).channels,
   )
   const [events, setEvents] = useState<ProcessEvent[]>(
     () =>
@@ -984,12 +1131,13 @@ export function ScientificExperimentForm({
     ])
   const peakTemperature =
     temperatureValues.length > 0 ? Math.max(...temperatureValues) : null
+  const processTimelineIssue = timelineValidationIssue(segments, channels)
   const completedSteps = [
     Boolean(basicInfo.started_at && basicInfo.recorded_by_user_id),
     targetFormulas.length > 0,
     Boolean(equipment.setupId && loads.length > 0),
     substrates.length > 0,
-    Boolean(segments.length && channels.length),
+    processTimelineIssue === null,
   ].filter(Boolean).length
 
   const payloadFor = (key: string): Record<string, unknown> => {
@@ -1008,6 +1156,13 @@ export function ScientificExperimentForm({
   }
 
   const saveCurrentStep = async () => {
+    if (activeStep === 4 && processTimelineIssue) {
+      setErrors((current) => ({
+        ...current,
+        process_steps: processTimelineIssue,
+      }))
+      return false
+    }
     const keys = STEP_MODULES[activeStep].filter((key) => dirty.has(key))
     for (const key of keys) {
       if (!(await save(key, payloadFor(key)))) return false
@@ -1039,10 +1194,10 @@ export function ScientificExperimentForm({
         <CardHeader className="border-b">
           <div className="flex items-center justify-between gap-4">
             <CardTitle>
-              第 {activeStep + 1} 步，共 {WORKFLOW_STEPS.length} 步
+              当前：第 {activeStep + 1}/{WORKFLOW_STEPS.length} 步
             </CardTitle>
             <span className="text-xs text-muted-foreground">
-              已完成 {completedSteps}/5
+              必填内容：已完成 {completedSteps}/5
             </span>
           </div>
           <div
@@ -1309,6 +1464,7 @@ export function ScientificExperimentForm({
                 token={token}
                 segments={segments}
                 channels={channels}
+                zoneCount={setupZoneCount}
                 disabled={processReadOnly}
                 onChange={(nextSegments, nextChannels) => {
                   setSegments(nextSegments)
@@ -1346,7 +1502,9 @@ export function ScientificExperimentForm({
                   ['衬底与摆放', `${substrates.length} 片衬底`],
                   [
                     '生长程序',
-                    `${segments.length} 个阶段，${channels.length} 个条件通道`,
+                    processTimelineIssue
+                      ? '待填写'
+                      : `${segments.length} 个阶段，${channels.length} 项条件`,
                   ],
                 ].map(([label, value]) => (
                   <div key={label} className="grid gap-1 rounded-lg border p-3">
@@ -1521,11 +1679,35 @@ function TargetEditor({
         current === index ? { ...item, ...patch } : item,
       ),
     })
+  const example = targetExample(target)
   return (
     <ModuleCard id="module-target_product" title="目标材料">
       <Alert>
-        <AlertTitle>这里填写本次实验想要制备的材料</AlertTitle>
-        <AlertDescription>{targetExample(target)}</AlertDescription>
+        <AlertTitle>填写示例 · {example.title}</AlertTitle>
+        <AlertDescription className="flex flex-col gap-3">
+          <dl className="grid gap-2 sm:grid-cols-2">
+            {example.rows.map(([label, value]) => (
+              <div key={label} className="grid gap-0.5">
+                <dt className="text-xs text-muted-foreground">{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onChange(example.value)}
+            >
+              应用此示例
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              示例会填入可编辑字段，保存前请按本炉目标核对。
+            </span>
+          </div>
+        </AlertDescription>
       </Alert>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
@@ -1550,7 +1732,9 @@ function TargetEditor({
                 <SelectItem value="single_region">单一材料</SelectItem>
                 <SelectItem value="vertical_stack">垂直异质结构</SelectItem>
                 <SelectItem value="lateral_junction">横向异质结构</SelectItem>
-                <SelectItem value="mixed_architecture">复杂结构</SelectItem>
+                <SelectItem value="mixed_architecture">
+                  混合结构（同时含垂直与横向）
+                </SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
@@ -1817,7 +2001,7 @@ function TargetEditor({
               })
             }
           >
-            <Plus /> 添加组成关系
+            <Plus /> 添加掺杂、合金或表面修饰设置
           </Button>
         </div>
         {target.composition_relations.map((relation, index) => (
@@ -1825,7 +2009,9 @@ function TargetEditor({
             key={index}
             className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
           >
-            <p className="font-medium sm:col-span-2">组成关系 {index + 1}</p>
+            <p className="font-medium sm:col-span-2">
+              掺杂、合金或表面修饰设置 {index + 1}
+            </p>
             <div className="grid gap-2">
               <Label>关系类型</Label>
               <Select
@@ -1941,7 +2127,7 @@ function TargetEditor({
               />
             </div>
             <div className="grid gap-2">
-              <Label>标称值依据</Label>
+              <Label>含量表示方式</Label>
               <Select
                 value={relation.value_basis}
                 disabled={disabled}
@@ -2097,7 +2283,7 @@ function SourceLoadsEditor({
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>容器实例（选填）</Label>
+              <Label>本次使用的具体容器（选填）</Label>
               <Select
                 value={load.container_instance_id ?? 'none'}
                 disabled={disabled || containers.isLoading}
@@ -2112,7 +2298,7 @@ function SourceLoadsEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="none">未引用容器实例</SelectItem>
+                    <SelectItem value="none">未登记具体容器</SelectItem>
                     {(containers.data ?? [])
                       .filter((container) =>
                         load.ingredients.some(
@@ -2172,8 +2358,8 @@ function SourceLoadsEditor({
                         key={channel.channel_key}
                         value={channel.channel_key}
                       >
-                        条件 {channelIndex + 1} ·{' '}
-                        {CHANNEL_LABELS[channel.channel_type]}
+                        {processChannelTitle(channel) ||
+                          `条件 ${channelIndex + 1}`}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -2188,7 +2374,7 @@ function SourceLoadsEditor({
             </summary>
             <div className="mt-4 grid gap-2">
               <div className="flex items-center justify-between">
-                <Label>源位置程序</Label>
+                <Label>实验过程中移动前驱体源</Label>
                 <Button
                   type="button"
                   size="sm"
@@ -2550,6 +2736,7 @@ function TimelineEditor({
   token,
   segments,
   channels,
+  zoneCount,
   onChange,
   disabled,
 }: {
@@ -2557,6 +2744,7 @@ function TimelineEditor({
   token: string
   segments: Segment[]
   channels: Channel[]
+  zoneCount: number | null
   onChange: (segments: Segment[], channels: Channel[]) => void
   disabled: boolean
 }) {
@@ -2574,6 +2762,48 @@ function TimelineEditor({
         current === index ? { ...item, ...patch } : item,
       ),
     )
+  const patchChannelMetadata = (index: number, key: string, value: string) => {
+    const channel = channels[index]
+    patchChannel(index, {
+      sensor_or_controller_snapshot: {
+        ...channel.sensor_or_controller_snapshot,
+        [key]: value,
+      },
+    })
+  }
+  const addChannel = (channelType: string) => {
+    const stateChannel = channelType.endsWith('_state')
+    const channel: Channel = {
+      channel_key: machineKey(channelType),
+      channel_type: channelType,
+      source_type: '',
+      unit: PROCESS_UNITS[channelType][0],
+      data_kind: stateChannel ? 'interval_series' : 'scalar',
+      ...(stateChannel
+        ? { series: [{ start_s: 0, end_s: 60, value: '' }] }
+        : {}),
+    }
+    onChange(segments, [...channels, channel])
+  }
+  const setChannelSubject = (
+    index: number,
+    metadataKey: string,
+    value: string,
+  ) => {
+    const channel = channels[index]
+    const tokenValue = machineToken(value)
+    patchChannel(index, {
+      channel_key:
+        tokenValue &&
+        ['temperature', 'flow', 'pressure'].includes(channel.channel_type)
+          ? `${channel.channel_type}.${tokenValue}`
+          : machineKey(channel.channel_type),
+      sensor_or_controller_snapshot: {
+        ...channel.sensor_or_controller_snapshot,
+        [metadataKey]: value,
+      },
+    })
+  }
   const uploadSeries = async (index: number, file: File) => {
     const channel = channels[index]
     try {
@@ -2618,7 +2848,7 @@ function TimelineEditor({
                   ...segments,
                   {
                     segment_key: machineKey('segment'),
-                    segment_type: 'other',
+                    segment_type: segments.length === 0 ? 'growth' : 'other',
                     sequence: segments.length + 1,
                     start_s: segments.at(-1)?.end_s ?? 0,
                     end_s: (segments.at(-1)?.end_s ?? 0) + 60,
@@ -2631,6 +2861,11 @@ function TimelineEditor({
             <Plus /> 添加阶段
           </Button>
         </div>
+        {segments.length === 0 ? (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            尚未填写实验阶段。
+          </p>
+        ) : null}
         {segments.map((segment, index) => (
           <div key={index} className="grid gap-4 rounded-lg border p-4">
             <div className="flex items-center justify-between gap-3">
@@ -2639,7 +2874,7 @@ function TimelineEditor({
                 type="button"
                 size="sm"
                 variant="ghost"
-                disabled={disabled || segments.length === 1}
+                disabled={disabled}
                 onClick={() =>
                   onChange(
                     segments
@@ -2700,26 +2935,28 @@ function TimelineEditor({
                 />
               </div>
               <div className="grid gap-2">
-                <Label>开始时间（s）</Label>
+                <Label>开始时间（min）</Label>
                 <Input
                   type="number"
-                  value={segment.start_s}
+                  value={segment.start_s / 60}
                   disabled={disabled}
                   onChange={(event) =>
                     patchSegment(index, {
-                      start_s: Number(event.target.value),
+                      start_s: Number(event.target.value) * 60,
                     })
                   }
                 />
               </div>
               <div className="grid gap-2">
-                <Label>结束时间（s）</Label>
+                <Label>结束时间（min）</Label>
                 <Input
                   type="number"
-                  value={segment.end_s}
+                  value={segment.end_s / 60}
                   disabled={disabled}
                   onChange={(event) =>
-                    patchSegment(index, { end_s: Number(event.target.value) })
+                    patchSegment(index, {
+                      end_s: Number(event.target.value) * 60,
+                    })
                   }
                 />
               </div>
@@ -2729,39 +2966,44 @@ function TimelineEditor({
       </div>
 
       <div className="grid gap-3">
-        <div className="flex items-center justify-between">
+        <div className="grid gap-3">
           <div>
             <p className="font-medium">温度、气体与压力条件</p>
             <p className="text-xs text-muted-foreground">
-              每个条件单独记录，可填写单值、分时段条件或上传实测文件。
+              按实际记录添加对应条件；新记录不会自动带入任何实验数值。
             </p>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled}
-            onClick={() =>
-              onChange(segments, [
-                ...channels,
-                {
-                  channel_key: machineKey('channel'),
-                  channel_type: 'flow',
-                  source_type: 'setpoint',
-                  unit: 'sccm',
-                  data_kind: 'scalar',
-                  scalar_value: 0,
-                },
-              ])
-            }
-          >
-            <Plus /> 添加条件
-          </Button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              ['temperature', '添加温度条件'],
+              ['flow', '添加气体流量'],
+              ['pressure', '添加压力条件'],
+              ['plasma_power', '添加外场或设备状态'],
+            ].map(([type, label]) => (
+              <Button
+                key={type}
+                type="button"
+                size="sm"
+                variant="outline"
+                className="justify-start"
+                disabled={disabled}
+                onClick={() => addChannel(type)}
+              >
+                <Plus data-icon="inline-start" />
+                {label}
+              </Button>
+            ))}
+          </div>
         </div>
+        {channels.length === 0 ? (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            尚未填写温度、气体、压力或设备条件。
+          </p>
+        ) : null}
         {channels.map((channel, index) => (
           <div key={index} className="grid gap-4 rounded-lg border p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="font-medium">条件 {index + 1}</p>
+              <p className="font-medium">{processChannelTitle(channel)}</p>
               <Button
                 type="button"
                 size="sm"
@@ -2778,53 +3020,199 @@ function TimelineEditor({
               </Button>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
+              {channel.channel_type === 'temperature' ? (
+                <div className="grid gap-2">
+                  <Label>对应温区</Label>
+                  {zoneCount ? (
+                    <Select
+                      value={String(
+                        channel.sensor_or_controller_snapshot?.['zone'] ??
+                          channel.channel_key.split('.').slice(1).join('.'),
+                      )}
+                      disabled={disabled}
+                      onValueChange={(value) =>
+                        setChannelSubject(index, 'zone', value)
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="选择温区" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {Array.from({ length: zoneCount }, (_, zoneIndex) => (
+                            <SelectItem
+                              key={zoneIndex}
+                              value={`zone_${zoneIndex + 1}`}
+                            >
+                              温区 {zoneIndex + 1}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={String(
+                        channel.sensor_or_controller_snapshot?.['zone'] ?? '',
+                      )}
+                      disabled={disabled}
+                      placeholder="例如 温区 1"
+                      onChange={(event) =>
+                        setChannelSubject(index, 'zone', event.target.value)
+                      }
+                    />
+                  )}
+                </div>
+              ) : channel.channel_type === 'flow' ? (
+                <>
+                  <div className="grid gap-2">
+                    <Label>气体种类</Label>
+                    <Input
+                      value={String(
+                        channel.sensor_or_controller_snapshot?.[
+                          'gas_species'
+                        ] ?? channel.channel_key.split('.').slice(1).join('.'),
+                      )}
+                      disabled={disabled}
+                      placeholder="例如 Ar"
+                      onChange={(event) =>
+                        setChannelSubject(
+                          index,
+                          'gas_species',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>气瓶批次（选填）</Label>
+                    <Input
+                      value={String(
+                        channel.sensor_or_controller_snapshot?.['gas_batch'] ??
+                          '',
+                      )}
+                      disabled={disabled}
+                      placeholder="例如 Ar-2026-03"
+                      onChange={(event) =>
+                        patchChannelMetadata(
+                          index,
+                          'gas_batch',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>流量控制器或来源</Label>
+                    <Input
+                      value={String(
+                        channel.sensor_or_controller_snapshot?.[
+                          'controller_ref'
+                        ] ?? '',
+                      )}
+                      disabled={disabled}
+                      placeholder="例如 MFC-1"
+                      onChange={(event) =>
+                        patchChannelMetadata(
+                          index,
+                          'controller_ref',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                </>
+              ) : channel.channel_type === 'pressure' ? (
+                <>
+                  <div className="grid gap-2">
+                    <Label>压力位置</Label>
+                    <Input
+                      value={String(
+                        channel.sensor_or_controller_snapshot?.[
+                          'pressure_location'
+                        ] ?? channel.channel_key.split('.').slice(1).join('.'),
+                      )}
+                      disabled={disabled}
+                      placeholder="例如 反应腔"
+                      onChange={(event) =>
+                        setChannelSubject(
+                          index,
+                          'pressure_location',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>压力类型</Label>
+                    <Select
+                      value={String(
+                        channel.sensor_or_controller_snapshot?.[
+                          'pressure_type'
+                        ] ?? '',
+                      )}
+                      disabled={disabled}
+                      onValueChange={(value) =>
+                        patchChannelMetadata(index, 'pressure_type', value)
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="选择压力类型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="absolute">绝对压力</SelectItem>
+                          <SelectItem value="gauge">表压</SelectItem>
+                          <SelectItem value="differential">压差</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ) : (
+                <div className="grid gap-2">
+                  <Label>记录对象</Label>
+                  <Select
+                    value={channel.channel_type}
+                    disabled={disabled}
+                    onValueChange={(value) => {
+                      const stateChannel = value.endsWith('_state')
+                      patchChannel(index, {
+                        channel_key: machineKey(value),
+                        channel_type: value,
+                        unit: PROCESS_UNITS[value][0],
+                        data_kind: stateChannel ? 'interval_series' : 'scalar',
+                        scalar_value: undefined,
+                        series: stateChannel
+                          ? [{ start_s: 0, end_s: 60, value: '' }]
+                          : undefined,
+                        file_asset_id: undefined,
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {[
+                          'plasma_power',
+                          'valve_state',
+                          'source_position',
+                          'furnace_position',
+                          'shutter_state',
+                        ].map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {CHANNEL_LABELS[value]}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid gap-2">
-                <Label>条件类型</Label>
-                <Select
-                  value={channel.channel_type}
-                  disabled={disabled}
-                  onValueChange={(value) => {
-                    const stateChannel = value.endsWith('_state')
-                    patchChannel(index, {
-                      channel_type: value,
-                      unit: PROCESS_UNITS[value][0],
-                      ...(stateChannel
-                        ? {
-                            data_kind: 'interval_series',
-                            scalar_value: undefined,
-                            series: [
-                              { start_s: 0, end_s: 60, value: 'closed' },
-                            ],
-                          }
-                        : {}),
-                    })
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {[
-                        'temperature',
-                        'flow',
-                        'pressure',
-                        'valve_state',
-                        'source_position',
-                        'furnace_position',
-                        'plasma_power',
-                        'shutter_state',
-                      ].map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {CHANNEL_LABELS[value]}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>数据来源</Label>
+                <Label>记录的是</Label>
                 <Select
                   value={channel.source_type}
                   disabled={disabled}
@@ -2833,7 +3221,7 @@ function TimelineEditor({
                   }
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue placeholder="选择数据来源" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
@@ -2875,10 +3263,10 @@ function TimelineEditor({
                   onValueChange={(value) =>
                     patchChannel(index, {
                       data_kind: value as Channel['data_kind'],
-                      scalar_value: value === 'scalar' ? 0 : undefined,
+                      scalar_value: undefined,
                       series:
                         value === 'interval_series'
-                          ? [{ start_s: 0, end_s: 60, value: 0 }]
+                          ? [{ start_s: 0, end_s: 60, value: '' }]
                           : undefined,
                       file_asset_id: undefined,
                     })
@@ -2890,26 +3278,38 @@ function TimelineEditor({
                   <SelectContent>
                     <SelectGroup>
                       {!channel.channel_type.endsWith('_state') ? (
-                        <SelectItem value="scalar">单值</SelectItem>
+                        <SelectItem value="scalar">单次值</SelectItem>
                       ) : null}
-                      <SelectItem value="interval_series">区间序列</SelectItem>
+                      <SelectItem value="interval_series">分时段</SelectItem>
                       <SelectItem value="timeseries_file">
-                        时间序列文件
+                        上传时间序列
                       </SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-2 sm:col-span-2">
-                <Label>条件值</Label>
+                <Label>
+                  {channel.channel_type === 'temperature'
+                    ? '温度'
+                    : channel.channel_type === 'flow'
+                      ? '流量'
+                      : channel.channel_type === 'pressure'
+                        ? '压力'
+                        : '记录值'}
+                </Label>
                 {channel.data_kind === 'scalar' ? (
                   <Input
-                    type="number"
+                    type={
+                      channel.channel_type.endsWith('_state')
+                        ? 'text'
+                        : 'number'
+                    }
                     value={channel.scalar_value ?? ''}
                     disabled={disabled}
                     onChange={(event) =>
                       patchChannel(index, {
-                        scalar_value: Number(event.target.value),
+                        scalar_value: numberOrUndefined(event.target.value),
                       })
                     }
                   />
@@ -2922,20 +3322,36 @@ function TimelineEditor({
                       >
                         {(
                           [
-                            ['start_s', '开始秒'],
-                            ['end_s', '结束秒'],
-                            ['value', '通道值'],
+                            ['start_s', '开始时间（min）'],
+                            ['end_s', '结束时间（min）'],
+                            [
+                              'value',
+                              channel.channel_type === 'temperature'
+                                ? '温度'
+                                : channel.channel_type === 'flow'
+                                  ? '流量'
+                                  : channel.channel_type === 'pressure'
+                                    ? '压力'
+                                    : '状态或数值',
+                            ],
                           ] as const
                         ).map(([key, label]) => (
                           <div key={key} className="grid gap-2">
                             <Label>{label}</Label>
                             <Input
                               type={
-                                typeof point.value === 'number'
-                                  ? 'number'
-                                  : 'text'
+                                key === 'value' &&
+                                channel.channel_type.endsWith('_state')
+                                  ? 'text'
+                                  : 'number'
                               }
-                              value={point[key] ?? ''}
+                              value={
+                                key === 'value'
+                                  ? point.value
+                                  : point[key] === undefined
+                                    ? ''
+                                    : Number(point[key]) / 60
+                              }
                               disabled={disabled}
                               onChange={(event) =>
                                 patchChannel(index, {
@@ -2945,12 +3361,18 @@ function TimelineEditor({
                                         ? {
                                             ...item,
                                             [key]:
-                                              key === 'value' &&
-                                              typeof item.value === 'string'
-                                                ? event.target.value
-                                                : numberOrUndefined(
-                                                    event.target.value,
-                                                  ),
+                                              key === 'value'
+                                                ? channel.channel_type.endsWith(
+                                                    '_state',
+                                                  )
+                                                  ? event.target.value
+                                                  : event.target.value === ''
+                                                    ? ''
+                                                    : Number(event.target.value)
+                                                : event.target.value === ''
+                                                  ? undefined
+                                                  : Number(event.target.value) *
+                                                    60,
                                           }
                                         : item,
                                   ),
@@ -2964,7 +3386,7 @@ function TimelineEditor({
                           size="sm"
                           variant="ghost"
                           className="sm:col-span-2 sm:justify-self-end"
-                          disabled={disabled || channel.series?.length === 1}
+                          disabled={disabled}
                           onClick={() =>
                             patchChannel(index, {
                               series: channel.series?.filter(
@@ -2989,7 +3411,7 @@ function TimelineEditor({
                             {
                               start_s: channel.series?.at(-1)?.end_s ?? 0,
                               end_s: (channel.series?.at(-1)?.end_s ?? 0) + 60,
-                              value: channel.series?.at(-1)?.value ?? 0,
+                              value: '',
                             },
                           ],
                         })
@@ -3344,11 +3766,11 @@ export function ScientificMeasurementWorkspace({
   )
   const [conditions, setConditions] = useState<Record<string, string>>({})
   const [region, setRegion] = useState({
-    label: 'center',
-    x: '0',
-    y: '0',
-    width: '100',
-    height: '100',
+    label: '',
+    x: '',
+    y: '',
+    width: '',
+    height: '',
     unit: 'μm',
   })
   const [propertyCode, setPropertyCode] = useState('')
@@ -3357,7 +3779,7 @@ export function ScientificMeasurementWorkspace({
   const [uncertaintyType, setUncertaintyType] = useState('')
   const [sampleCount, setSampleCount] = useState('')
   const [propertyQuality, setPropertyQuality] = useState('valid')
-  const [growth, setGrowth] = useState('uncertain')
+  const [growth, setGrowth] = useState('')
   const [assertionType, setAssertionType] = useState('none')
   const [assertionValue, setAssertionValue] = useState('')
   const [software, setSoftware] = useState('')
@@ -3365,6 +3787,9 @@ export function ScientificMeasurementWorkspace({
   const [rawFiles, setRawFiles] = useState<File[]>([])
 
   const selectedSampleId = sampleId || samples.data?.items[0]?.id || ''
+  const selectedSample = samples.data?.items.find(
+    (sample) => sample.id === selectedSampleId,
+  )
   const conditionFields = METHOD_CONDITIONS[method] ?? []
   const mutation = useMutation({
     mutationFn: async () => {
@@ -3422,8 +3847,8 @@ export function ScientificMeasurementWorkspace({
               geometry_type: 'area',
               label: region.label,
               coordinate_system: 'sample_local',
-              x: Number(region.x),
-              y: Number(region.y),
+              x: numberOrUndefined(region.x),
+              y: numberOrUndefined(region.y),
               width: Number(region.width),
               height: Number(region.height),
               unit: region.unit,
@@ -3474,10 +3899,16 @@ export function ScientificMeasurementWorkspace({
       )
     },
     onSuccess: async () => {
+      setGrowth('')
+      setPropertyCode('')
       setPropertyValue('')
       setPropertyUncertainty('')
+      setUncertaintyType('')
       setSampleCount('')
+      setAssertionType('none')
       setAssertionValue('')
+      setSoftware('')
+      setSoftwareVersion('')
       setRawFiles([])
       await queryClient.invalidateQueries({
         queryKey: ['measurements', runId],
@@ -3490,58 +3921,145 @@ export function ScientificMeasurementWorkspace({
   })
 
   return (
-    <ModuleCard id="module-results" title="表征与结果">
-      <div className="grid gap-4 rounded-lg border p-4">
-        <div className="grid gap-3 sm:grid-cols-4">
-          <div className="grid gap-2">
-            <Label>样品</Label>
-            <Select value={selectedSampleId} onValueChange={setSampleId}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择样品" />
-              </SelectTrigger>
-              <SelectContent>
-                {(samples.data?.items ?? []).map((sample) => (
-                  <SelectItem key={sample.id} value={sample.id}>
-                    {sample.sample_code} ·{' '}
-                    {SAMPLE_ACTUAL_STATE_LABELS[sample.actual_state] ??
-                      sample.actual_state}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <ModuleCard id="module-results" title="添加表征记录">
+      <Alert>
+        <AlertTitle>
+          {selectedSample
+            ? `正在为 ${selectedSample.run_code ?? '当前炉次'} · ${
+                selectedSample.target_material_system ??
+                selectedSample.material_system ??
+                selectedSample.sample_code
+              } 添加表征记录`
+            : '正在加载当前炉次的样品'}
+        </AlertTitle>
+        <AlertDescription>
+          依次选择方法、填写测量条件、上传原始数据，再记录结果与材料结论。
+        </AlertDescription>
+      </Alert>
+      <div className="grid gap-4">
+        <section className="grid gap-4 rounded-lg border p-4">
+          <h3 className="font-medium">1. 选择样品与表征方法</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>样品</Label>
+              <Select value={selectedSampleId} onValueChange={setSampleId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择样品" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {(samples.data?.items ?? []).map((sample) => (
+                      <SelectItem key={sample.id} value={sample.id}>
+                        {sample.sample_code} ·{' '}
+                        {SAMPLE_ACTUAL_STATE_LABELS[sample.actual_state] ??
+                          sample.actual_state}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>表征方法</Label>
+              <Select
+                value={method}
+                onValueChange={(value) => {
+                  setMethod(value)
+                  setConditions({})
+                  setInstrumentId('')
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {Object.keys(METHOD_CONDITIONS).map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {METHOD_LABELS[value] ?? value}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label>方法配置</Label>
-            <Select
-              value={method}
-              onValueChange={(value) => {
-                setMethod(value)
-                setConditions({})
-                setInstrumentId('')
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.keys(METHOD_CONDITIONS).map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {METHOD_LABELS[value] ?? value}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        </section>
+
+        <section className="grid gap-4 rounded-lg border p-4">
+          <h3 className="font-medium">2. 仪器与测量条件</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>测量时间</Label>
+              <Input
+                type="datetime-local"
+                value={measuredAt}
+                onChange={(event) => setMeasuredAt(event.target.value)}
+              />
+            </div>
+            {method !== 'optical_microscopy' ? (
+              <div className="grid gap-2">
+                <Label>使用的仪器版本</Label>
+                <EntityReferenceSelect
+                  kind="instrument"
+                  value={instrumentId}
+                  selectedVersion={instrumentVersion}
+                  selectedSnapshot={instrumentSnapshot}
+                  onChange={(id, entity) => {
+                    setInstrumentId(id)
+                    setInstrumentVersion(
+                      entity?.latest_version?.version ?? null,
+                    )
+                    setInstrumentSnapshot(entity?.latest_version?.data ?? null)
+                  }}
+                />
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+              {conditionFields.map((field) => (
+                <div key={field.key} className="grid gap-2">
+                  <Label>{field.label}</Label>
+                  <Input
+                    type={field.type ?? 'text'}
+                    value={conditions[field.key] ?? ''}
+                    onChange={(event) =>
+                      setConditions({
+                        ...conditions,
+                        [field.key]: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+              <h4 className="font-medium sm:col-span-2">测量区域</h4>
+              {Object.entries(region).map(([key, value]) => (
+                <div key={key} className="grid gap-2">
+                  <Label>{REGION_LABELS[key]}</Label>
+                  <Input
+                    type={
+                      ['x', 'y', 'width', 'height'].includes(key)
+                        ? 'number'
+                        : 'text'
+                    }
+                    value={value}
+                    onChange={(event) =>
+                      setRegion({ ...region, [key]: event.target.value })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
           </div>
+        </section>
+
+        <section className="grid gap-4 rounded-lg border p-4">
+          <h3 className="font-medium">3. 上传原始数据</h3>
           <div className="grid gap-2">
-            <Label>测量时间</Label>
-            <Input
-              type="datetime-local"
-              value={measuredAt}
-              onChange={(event) => setMeasuredAt(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>原始文件</Label>
+            <Label>原始文件（可多选）</Label>
             <Input
               type="file"
               multiple
@@ -3549,210 +4067,206 @@ export function ScientificMeasurementWorkspace({
                 setRawFiles(Array.from(event.target.files ?? []))
               }
             />
+            <p className="text-xs text-muted-foreground">
+              已选择 {rawFiles.length}{' '}
+              个文件；如仅记录直接观察结论，可暂不上传。
+            </p>
           </div>
-        </div>
+        </section>
 
-        {method !== 'optical_microscopy' ? (
-          <div className="grid gap-2">
-            <Label>仪器版本（能力必须支持所选方法）</Label>
-            <EntityReferenceSelect
-              kind="instrument"
-              value={instrumentId}
-              selectedVersion={instrumentVersion}
-              selectedSnapshot={instrumentSnapshot}
-              onChange={(id, entity) => {
-                setInstrumentId(id)
-                setInstrumentVersion(entity?.latest_version?.version ?? null)
-                setInstrumentSnapshot(entity?.latest_version?.data ?? null)
-              }}
-            />
-          </div>
-        ) : null}
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          {conditionFields.map((field) => (
-            <div key={field.key} className="grid gap-2">
-              <Label>{field.label}</Label>
-              <Input
-                type={field.type ?? 'text'}
-                value={conditions[field.key] ?? ''}
-                onChange={(event) =>
-                  setConditions({
-                    ...conditions,
-                    [field.key]: event.target.value,
-                  })
+        <section className="grid gap-4 rounded-lg border p-4">
+          <h3 className="font-medium">4. 填写结果与材料结论</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>是否观察到材料生长</Label>
+              <Select value={growth} onValueChange={setGrowth}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择观察结论" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="present">观察到生长</SelectItem>
+                    <SelectItem value="absent">未观察到生长</SelectItem>
+                    <SelectItem value="uncertain">结论不确定</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>测量结果（选填）</Label>
+              <Select
+                value={propertyCode || 'none'}
+                onValueChange={(value) =>
+                  setPropertyCode(value === 'none' ? '' : value)
                 }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="none">不记录数值结果</SelectItem>
+                    {Object.entries(PROPERTY_UNITS).map(([code, unit]) => (
+                      <SelectItem key={code} value={code}>
+                        {PROPERTY_LABELS[code] ?? code}（{unit}）
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>
+                结果值
+                {propertyCode ? `（${PROPERTY_UNITS[propertyCode]}）` : ''}
+              </Label>
+              <Input
+                type="number"
+                value={propertyValue}
+                disabled={!propertyCode}
+                onChange={(event) => setPropertyValue(event.target.value)}
               />
             </div>
-          ))}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-6">
-          {Object.entries(region).map(([key, value]) => (
-            <div key={key} className="grid gap-2">
-              <Label>{key}</Label>
+            <div className="grid gap-2">
+              <Label>材料结论（选填）</Label>
+              <Select value={assertionType} onValueChange={setAssertionType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="none">不添加</SelectItem>
+                    <SelectItem value="phase_identity">物相身份</SelectItem>
+                    <SelectItem value="composition">组成</SelectItem>
+                    <SelectItem value="polytype">多型</SelectItem>
+                    <SelectItem value="stacking_order">堆叠顺序</SelectItem>
+                    <SelectItem value="orientation_relationship">
+                      取向关系
+                    </SelectItem>
+                    <SelectItem value="layer_count">层数结论</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
               <Input
-                type={
-                  ['x', 'y', 'width', 'height'].includes(key)
-                    ? 'number'
-                    : 'text'
-                }
-                value={value}
-                onChange={(event) =>
-                  setRegion({ ...region, [key]: event.target.value })
-                }
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-4">
-          <div className="grid gap-2">
-            <Label>生长事实声明</Label>
-            <Select value={growth} onValueChange={setGrowth}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="present">观察到生长</SelectItem>
-                <SelectItem value="absent">无生长</SelectItem>
-                <SelectItem value="uncertain">不确定</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label>结构化属性（可选）</Label>
-            <Select
-              value={propertyCode || 'none'}
-              onValueChange={(value) =>
-                setPropertyCode(value === 'none' ? '' : value)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">不记录数值属性</SelectItem>
-                {Object.entries(PROPERTY_UNITS).map(([code, unit]) => (
-                  <SelectItem key={code} value={code}>
-                    {PROPERTY_LABELS[code] ?? code}（{unit}）
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label>属性值</Label>
-            <Input
-              type="number"
-              value={propertyValue}
-              disabled={!propertyCode}
-              onChange={(event) => setPropertyValue(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>分析软件（可选）</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                value={software}
-                placeholder="软件/脚本"
-                onChange={(event) => setSoftware(event.target.value)}
-              />
-              <Input
-                value={softwareVersion}
-                placeholder="版本"
-                onChange={(event) => setSoftwareVersion(event.target.value)}
+                type={assertionType === 'layer_count' ? 'number' : 'text'}
+                value={assertionValue}
+                disabled={assertionType === 'none'}
+                placeholder="填写结论"
+                onChange={(event) => setAssertionValue(event.target.value)}
               />
             </div>
           </div>
-        </div>
 
-        <div className="grid gap-3 sm:grid-cols-5">
-          <div className="grid gap-2">
-            <Label>属性不确定度</Label>
-            <Input
-              type="number"
-              min="0"
-              value={propertyUncertainty}
-              disabled={!propertyCode}
-              onChange={(event) => setPropertyUncertainty(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>不确定度类型</Label>
-            <Input
-              value={uncertaintyType}
-              disabled={!propertyCode || !propertyUncertainty}
-              placeholder="如 standard_deviation"
-              onChange={(event) => setUncertaintyType(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>样本数 n</Label>
-            <Input
-              type="number"
-              min="1"
-              value={sampleCount}
-              disabled={!propertyCode}
-              onChange={(event) => setSampleCount(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>属性质量</Label>
-            <Select
-              value={propertyQuality}
-              disabled={!propertyCode}
-              onValueChange={setPropertyQuality}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="valid">有效</SelectItem>
-                <SelectItem value="suspect">可疑</SelectItem>
-                <SelectItem value="invalid">无效</SelectItem>
-                <SelectItem value="below_detection_limit">
-                  低于检出限
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label>其他材料事实</Label>
-            <Select value={assertionType} onValueChange={setAssertionType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">不添加</SelectItem>
-                <SelectItem value="phase_identity">物相身份</SelectItem>
-                <SelectItem value="composition">组成</SelectItem>
-                <SelectItem value="polytype">多型</SelectItem>
-                <SelectItem value="stacking_order">堆叠顺序</SelectItem>
-                <SelectItem value="orientation_relationship">
-                  取向关系
-                </SelectItem>
-                <SelectItem value="layer_count">层数结论</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type={assertionType === 'layer_count' ? 'number' : 'text'}
-              value={assertionValue}
-              disabled={assertionType === 'none'}
-              placeholder="填写声明值"
-              onChange={(event) => setAssertionValue(event.target.value)}
-            />
-          </div>
-        </div>
+          <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer font-medium">
+              更多统计与分析信息
+            </summary>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>测量不确定度</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={propertyUncertainty}
+                  disabled={!propertyCode}
+                  onChange={(event) =>
+                    setPropertyUncertainty(event.target.value)
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>不确定度类型</Label>
+                <Select
+                  value={uncertaintyType}
+                  disabled={!propertyCode || !propertyUncertainty}
+                  onValueChange={setUncertaintyType}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择统计口径" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="standard_deviation">标准差</SelectItem>
+                      <SelectItem value="standard_error">标准误差</SelectItem>
+                      <SelectItem value="confidence_interval">
+                        置信区间
+                      </SelectItem>
+                      <SelectItem value="expanded_uncertainty">
+                        扩展不确定度
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>样本数 n</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={sampleCount}
+                  disabled={!propertyCode}
+                  onChange={(event) => setSampleCount(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>数据质量</Label>
+                <Select
+                  value={propertyQuality}
+                  disabled={!propertyCode}
+                  onValueChange={setPropertyQuality}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="valid">有效</SelectItem>
+                      <SelectItem value="suspect">可疑</SelectItem>
+                      <SelectItem value="invalid">无效</SelectItem>
+                      <SelectItem value="below_detection_limit">
+                        低于检出限
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>分析软件（选填）</Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    value={software}
+                    placeholder="软件或脚本"
+                    onChange={(event) => setSoftware(event.target.value)}
+                  />
+                  <Input
+                    value={softwareVersion}
+                    placeholder="版本"
+                    onChange={(event) => setSoftwareVersion(event.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          </details>
+        </section>
 
         <Button
           type="button"
+          className="justify-self-end"
           disabled={
             readOnly ||
             !selectedSampleId ||
+            !growth ||
+            !region.label.trim() ||
+            !region.width ||
+            !region.height ||
+            !region.unit.trim() ||
+            Boolean(region.x) !== Boolean(region.y) ||
             conditionFields.some((field) => !conditions[field.key]) ||
+            Boolean(propertyCode) !== Boolean(propertyValue) ||
             (propertyUncertainty !== '' && !uncertaintyType.trim()) ||
-            (software !== '' && (!softwareVersion || rawFiles.length === 0)) ||
+            (assertionType !== 'none' && !assertionValue.trim()) ||
+            Boolean(software) !== Boolean(softwareVersion) ||
+            (software !== '' && rawFiles.length === 0) ||
             mutation.isPending
           }
           onClick={() => mutation.mutate()}
@@ -3761,21 +4275,46 @@ export function ScientificMeasurementWorkspace({
         </Button>
       </div>
 
-      <div className="grid gap-2">
-        {(measurements.data?.items ?? []).map((item) => (
-          <div
-            key={item.id}
-            className="grid gap-2 rounded-lg border px-4 py-3 text-sm sm:grid-cols-6"
-          >
-            <span className="font-medium">{item.sample_code}</span>
-            <span>{item.method_profile}</span>
-            <span>{new Date(item.measured_at).toLocaleString()}</span>
-            <span>原始文件 {item.raw_file_count}</span>
-            <span>属性 {item.property_count}</span>
-            <span>声明 {item.assertion_count}</span>
+      <section className="grid gap-3">
+        <h3 className="font-medium">当前炉次的表征记录</h3>
+        {measurements.isError ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {resolveErrorMessage(measurements.error, '表征记录加载失败')}
+            </AlertDescription>
+          </Alert>
+        ) : measurements.isLoading ? (
+          <p className="text-sm text-muted-foreground">正在加载表征记录…</p>
+        ) : measurements.data?.items.length ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {measurements.data.items.map((item) => (
+              <div
+                key={item.id}
+                className="grid gap-2 rounded-lg border px-4 py-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{item.sample_code}</span>
+                  <Badge variant="secondary">
+                    {METHOD_LABELS[item.method_profile] ?? item.method_profile}
+                  </Badge>
+                </div>
+                <span className="text-muted-foreground">
+                  {new Date(item.measured_at).toLocaleString()}
+                </span>
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>原始文件 {item.raw_file_count}</span>
+                  <span>测量结果 {item.property_count}</span>
+                  <span>材料结论 {item.assertion_count}</span>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        ) : (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            当前炉次还没有表征记录。
+          </p>
+        )}
+      </section>
     </ModuleCard>
   )
 }

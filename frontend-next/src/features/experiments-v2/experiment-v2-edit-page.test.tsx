@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { I18nextProvider } from 'react-i18next'
 
@@ -90,6 +91,7 @@ it('shows a retryable error without a simultaneous loading state', async () => {
 })
 
 it('uses the run code and status as the primary page identity', async () => {
+  const user = userEvent.setup()
   api.getRun.mockResolvedValue({
     id: 'run-1',
     run_code: 'CVD-2026-0042',
@@ -130,9 +132,11 @@ it('uses the run code and status as the primary page identity', async () => {
   expect(
     screen.getByRole('button', { name: 'Lock process' }),
   ).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'More actions' }))
   expect(
-    screen.getByRole('button', { name: 'Export this run' }),
+    await screen.findByRole('menuitem', { name: 'Export this run' }),
   ).toBeInTheDocument()
+  await user.keyboard('{Escape}')
 
   fireEvent.click(screen.getByRole('button', { name: 'Lock process' }))
   expect(
@@ -156,6 +160,7 @@ it('uses the run code and status as the primary page identity', async () => {
 })
 
 it('disables export and locking while process sections are unsaved', async () => {
+  const user = userEvent.setup()
   api.getRun.mockResolvedValue({
     id: 'run-1',
     run_code: 'CVD-2026-0042',
@@ -183,7 +188,10 @@ it('disables export and locking while process sections are unsaved', async () =>
   )
 
   expect(screen.getByRole('button', { name: 'Lock process' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Export this run' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'More actions' }))
+  expect(
+    await screen.findByRole('menuitem', { name: 'Export this run' }),
+  ).toHaveAttribute('data-disabled')
   expect(
     screen.getByText(/Save the affected sections before exporting or locking/),
   ).toBeInTheDocument()

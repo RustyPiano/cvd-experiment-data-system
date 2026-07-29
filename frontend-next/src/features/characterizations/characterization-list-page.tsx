@@ -87,7 +87,7 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
   const itemsQuery = useQuery({
     queryKey: ['characterizations', 'list', viewerKey],
     queryFn: () => listCharacterizationItems(session.accessToken!),
-    enabled: session.isAuthenticated,
+    enabled: session.isAuthenticated && !runId,
     staleTime: 0,
   })
   const items = itemsQuery.data ?? []
@@ -100,20 +100,28 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
     0,
   )
 
+  if (runId) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          title={t('characterizations.run.title')}
+          subtitle={t('characterizations.run.subtitle')}
+        />
+        <ScientificMeasurementWorkspace
+          runId={runId}
+          token={session.accessToken!}
+          readOnly={false}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title={t('characterizations.list.title')}
         subtitle={t('characterizations.list.subtitle')}
       />
-
-      {runId ? (
-        <ScientificMeasurementWorkspace
-          runId={runId}
-          token={session.accessToken!}
-          readOnly={false}
-        />
-      ) : null}
 
       {itemsQuery.isError ? (
         <Alert variant="destructive">

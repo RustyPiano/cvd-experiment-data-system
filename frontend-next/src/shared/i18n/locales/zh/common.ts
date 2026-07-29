@@ -638,6 +638,10 @@ export const common = {
   },
   characterizations: {
     nav: '表征实验记录',
+    run: {
+      title: '添加表征记录',
+      subtitle: '只显示并补充当前制备实验对应的样品与表征记录。',
+    },
     list: {
       title: '表征实验记录',
       subtitle:
@@ -689,6 +693,8 @@ export const common = {
       lock: '锁定工艺',
       unlock: '解锁记录',
       invalidate: '作废记录',
+      more: '更多操作',
+      reviewRevision: '标记当前修订已审阅',
       markNotCharacterized: '标记暂未表征',
       clearNotCharacterized: '取消暂未表征',
       success: '状态已更新',
@@ -705,6 +711,10 @@ export const common = {
       reason: '作废原因',
       unlockTitle: '解锁制备实验记录',
       unlockDescription: '解锁后工艺参数恢复可编辑，确定解锁？',
+    },
+    records: {
+      title: '记录与版本',
+      revisions: '修订历史',
     },
     nav: '制备实验记录',
     new: {

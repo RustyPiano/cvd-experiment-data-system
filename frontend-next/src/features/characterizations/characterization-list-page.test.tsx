@@ -10,6 +10,11 @@ import { CharacterizationListPage } from './characterization-list-page'
 
 const api = vi.hoisted(() => ({ listCharacterizationItems: vi.fn() }))
 vi.mock('./api', () => api)
+vi.mock('@/features/experiments-v2/scientific-experiment-form', () => ({
+  ScientificMeasurementWorkspace: ({ runId }: { runId: string }) => (
+    <div>Workspace {runId}</div>
+  ),
+}))
 vi.mock('@/features/auth/use-auth', () => ({
   useAuth: () => ({
     session: {
@@ -46,14 +51,14 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
-function renderPage() {
+function renderPage(runId?: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <CharacterizationListPage />
+        <CharacterizationListPage runId={runId} />
       </QueryClientProvider>
     </I18nextProvider>,
   )
@@ -151,5 +156,16 @@ describe('CharacterizationListPage', () => {
     expect(
       screen.getByRole('link', { name: '前往制备实验记录' }),
     ).toHaveAttribute('href', '/experiments')
+  })
+
+  it('keeps a run-scoped entry page out of the global result list', async () => {
+    renderPage('run-3')
+
+    expect(
+      screen.getByRole('heading', { name: '添加表征记录' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Workspace run-3')).toBeInTheDocument()
+    expect(screen.queryByText('样品与表征')).not.toBeInTheDocument()
+    expect(api.listCharacterizationItems).not.toHaveBeenCalled()
   })
 })

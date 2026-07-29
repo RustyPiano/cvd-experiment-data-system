@@ -2,7 +2,7 @@
 // §7 表征/实测走各自端点，由 ResultsSection 自管拉取，不在此预取。
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Ellipsis } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { HttpError, resolveErrorMessage } from '@/shared/api/http-error'
@@ -13,6 +13,15 @@ import { useAuth } from '@/features/auth/use-auth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -251,74 +260,81 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                 {t(statusLabelKey(data.run.status))}
               </Badge>
             ) : null}
-            {data?.run.result_missing_todo ? (
-              <Badge variant="destructive">
-                {t('experimentsV2.status.resultMissing')}
-              </Badge>
-            ) : null}
-            {data?.run.not_characterized_at ? (
-              <Badge variant="outline">
-                {t('experimentsV2.status.notCharacterized')}
-              </Badge>
-            ) : null}
-            {data
-              ? availableStatusActions(data.run.status, canEditProcess, isAdmin)
-                  .filter((action) => action !== 'lock')
-                  .map((action) => (
-                    <Button
-                      key={action}
-                      variant={
-                        action === 'invalidate' ? 'destructive' : 'outline'
+            {data ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline">
+                    <Ellipsis data-icon="inline-start" />
+                    {t('experimentsV2.actions.more')}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-56">
+                  <DropdownMenuLabel>
+                    {t('experimentsV2.actions.more')}
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    {availableStatusActions(
+                      data.run.status,
+                      canEditProcess,
+                      isAdmin,
+                    )
+                      .filter((action) => action !== 'lock')
+                      .map((action) => (
+                        <DropdownMenuItem
+                          key={action}
+                          variant={
+                            action === 'invalidate' ? 'destructive' : 'default'
+                          }
+                          disabled={mutation.isPending}
+                          onSelect={() => act(action)}
+                        >
+                          {t(`experimentsV2.actions.${action}`)}
+                        </DropdownMenuItem>
+                      ))}
+                    {data.run.status === 'locked' &&
+                    (data.run.result_missing_todo ||
+                      Boolean(data.run.not_characterized_at)) ? (
+                      <DropdownMenuItem
+                        disabled={notCharacterizedMutation.isPending}
+                        onSelect={() =>
+                          notCharacterizedMutation.mutate(
+                            data.run.not_characterized_at === null,
+                          )
+                        }
+                      >
+                        {t(
+                          data.run.not_characterized_at
+                            ? 'experimentsV2.actions.clearNotCharacterized'
+                            : 'experimentsV2.actions.markNotCharacterized',
+                        )}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {data.run.status === 'locked' && isAdmin ? (
+                      <DropdownMenuItem
+                        disabled={reviewMutation.isPending || formDirty}
+                        onSelect={() => reviewMutation.mutate()}
+                      >
+                        {t('experimentsV2.actions.reviewRevision')}
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      disabled={
+                        !data.run.current_revision_id ||
+                        exportMutation.isPending ||
+                        formDirty
                       }
-                      disabled={mutation.isPending}
-                      onClick={() => act(action)}
+                      onSelect={() => exportMutation.mutate()}
                     >
-                      {t(`experimentsV2.actions.${action}`)}
-                    </Button>
-                  ))
-              : null}
-            {data?.run.status === 'locked' &&
-            (data.run.result_missing_todo ||
-              Boolean(data.run.not_characterized_at)) ? (
-              <Button
-                variant="outline"
-                disabled={notCharacterizedMutation.isPending}
-                onClick={() =>
-                  notCharacterizedMutation.mutate(
-                    data.run.not_characterized_at === null,
-                  )
-                }
-              >
-                {t(
-                  data.run.not_characterized_at
-                    ? 'experimentsV2.actions.clearNotCharacterized'
-                    : 'experimentsV2.actions.markNotCharacterized',
-                )}
-              </Button>
+                      <Download data-icon="inline-start" />
+                      {t('experimentsV2.export.run')}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
-            {data?.run.status === 'locked' && isAdmin ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={reviewMutation.isPending || formDirty}
-                onClick={() => reviewMutation.mutate()}
-              >
-                标记当前修订已审阅
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={
-                !data?.run.current_revision_id ||
-                exportMutation.isPending ||
-                formDirty
-              }
-              onClick={() => exportMutation.mutate()}
-            >
-              <Download data-icon="inline-start" />
-              {t('experimentsV2.export.run')}
-            </Button>
           </>
         }
       />
@@ -423,47 +439,55 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             onProcessDirtyChange={setProcessDirty}
             onDirtyChange={setFormDirty}
           />
-          {revisions.data?.items.length ? (
-            <details className="rounded-lg border bg-card p-4">
-              <summary className="cursor-pointer font-medium">
-                修订历史（{revisions.data.items.length}）
-              </summary>
-              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {revisions.data.items.map((revision) => (
-                  <div
-                    key={revision.id}
-                    className="grid gap-1 rounded-lg border p-3 text-sm"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">
-                        修订 {revision.revision_number}
-                      </span>
-                      <Badge variant="outline">
-                        {
-                          {
-                            locked: '已锁定',
-                            reviewed: '已审阅',
-                            superseded: '已被替代',
-                          }[revision.status]
-                        }
-                      </Badge>
-                    </div>
-                    <span className="text-muted-foreground">
-                      {revision.schema_version} ·{' '}
-                      {new Date(revision.locked_at).toLocaleString()}
-                    </span>
-                    <code className="truncate text-xs">
-                      sha256:{revision.content_sha256}
-                    </code>
-                    {revision.correction_reason ? (
-                      <span>修订原因：{revision.correction_reason}</span>
-                    ) : null}
+          <details className="rounded-lg border bg-card p-4">
+            <summary className="cursor-pointer font-medium">
+              {t('experimentsV2.records.title')}
+            </summary>
+            <div className="mt-4 grid gap-6">
+              {revisions.data?.items.length ? (
+                <section className="grid gap-3">
+                  <h3 className="font-medium">
+                    {t('experimentsV2.records.revisions')}（
+                    {revisions.data.items.length}）
+                  </h3>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {revisions.data.items.map((revision) => (
+                      <div
+                        key={revision.id}
+                        className="grid gap-1 rounded-lg border p-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium">
+                            修订 {revision.revision_number}
+                          </span>
+                          <Badge variant="outline">
+                            {
+                              {
+                                locked: '已锁定',
+                                reviewed: '已审阅',
+                                superseded: '已被替代',
+                              }[revision.status]
+                            }
+                          </Badge>
+                        </div>
+                        <span className="text-muted-foreground">
+                          {revision.schema_version} ·{' '}
+                          {new Date(revision.locked_at).toLocaleString()}
+                        </span>
+                        <code className="truncate text-xs">
+                          sha256:{revision.content_sha256}
+                        </code>
+                        {revision.correction_reason ? (
+                          <span>修订原因：{revision.correction_reason}</span>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </details>
-          ) : null}
-          <RunAuditSection runId={runId} token={token} />
+                </section>
+              ) : null}
+              <RunAuditSection runId={runId} token={token} embedded />
+            </div>
+          </details>
         </>
       )}
       <AlertDialog open={locking} onOpenChange={setLocking}>
