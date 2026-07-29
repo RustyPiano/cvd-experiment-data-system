@@ -993,6 +993,7 @@ export interface components {
       source_type:
         | 'room_sensor'
         | 'setup_sensor'
+        | 'manual_entry'
         | 'manual_estimate'
         | 'not_measured'
       /** Sensor Ref */
@@ -2500,6 +2501,8 @@ export interface components {
        * @constant
        */
       synthesis_method: 'CVD'
+      /** Performed By User Ids */
+      performed_by_user_ids?: string[] | null
       ambient_temperature?: components['schemas']['AmbientMeasurement']
       ambient_humidity?: components['schemas']['AmbientMeasurement']
       /** Precheck Confirmed */

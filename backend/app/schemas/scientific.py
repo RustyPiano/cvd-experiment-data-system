@@ -24,6 +24,7 @@ class AmbientMeasurement(BaseModel):
     source_type: Literal[
         "room_sensor",
         "setup_sensor",
+        "manual_entry",
         "manual_estimate",
         "not_measured",
     ]
@@ -48,8 +49,8 @@ class AmbientMeasurement(BaseModel):
             self.sensor_ref and self.sensor_ref.strip()
         ):
             raise ValueError("measured ambient values require sensor_ref")
-        if self.source_type == "manual_estimate" and self.sensor_ref:
-            raise ValueError("manual estimates cannot reference a sensor")
+        if self.source_type in {"manual_entry", "manual_estimate"} and self.sensor_ref:
+            raise ValueError("manual ambient values cannot reference a sensor")
         return self
 
 

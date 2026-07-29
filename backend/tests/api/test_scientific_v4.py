@@ -41,6 +41,47 @@ def _put_module(
     assert response.status_code == 200, response.text
 
 
+def test_simple_product_create_keeps_manual_environment_and_performers(
+    active_user,
+) -> None:
+    headers = _headers(active_user.email)
+    started_at = "2026-07-30T10:30:00+08:00"
+    response = client.post(
+        "/api/v1/experiments",
+        json={
+            "run_code": "CVD-2026-0910",
+            "started_at": started_at,
+            "synthesis_method": "CVD",
+            "performed_by_user_ids": [str(active_user.id)],
+            "ambient_temperature": {
+                "value": 25,
+                "measured_at": started_at,
+                "source_type": "manual_entry",
+            },
+            "ambient_humidity": {
+                "value": 45,
+                "measured_at": started_at,
+                "source_type": "manual_entry",
+            },
+            "precheck_confirmed": False,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+
+    basic_info = client.get(
+        f"/api/v1/experiments/{response.json()['id']}/modules/basic_info",
+        headers=headers,
+    ).json()["payload_json"]
+    assert basic_info["performed_by_user_ids"] == [str(active_user.id)]
+    assert basic_info["ambient_temperature"] == {
+        "value": 25.0,
+        "measured_at": started_at,
+        "source_type": "manual_entry",
+    }
+    assert basic_info["ambient_humidity"]["source_type"] == "manual_entry"
+
+
 def test_scientific_revision_measurement_and_query_chain(
     active_user,
     admin_user,

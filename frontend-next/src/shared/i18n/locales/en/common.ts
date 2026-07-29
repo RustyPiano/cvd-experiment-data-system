@@ -763,7 +763,28 @@ export const common = {
     new: {
       title: 'New preparation record',
       subtitle:
-        'Start with the basic information, then save the remaining process details section by section.',
+        'Enter the experiment start information, then continue with the target material and growth conditions.',
+      formTitle: 'Experiment start information',
+      cvdOnly: 'CVD is currently supported.',
+      startedAt: 'Start time',
+      performers: 'Experimenters',
+      addPerformer: 'Add',
+      noPerformer: 'No experimenter selected',
+      temperature: 'Laboratory temperature (°C)',
+      humidity: 'Laboratory relative humidity (%RH)',
+      submit: 'Create experiment and continue',
+      creating: 'Creating…',
+      error: 'Failed to create preparation experiment',
+      performerDialog: {
+        title: 'Add experimenters',
+        description: 'The signed-in user remains in the experimenter list.',
+      },
+      validation: {
+        startedAt: 'Choose a valid start time.',
+        performers: 'Choose at least one experimenter.',
+        temperature: 'Enter a valid laboratory temperature.',
+        humidity: 'Relative humidity must be between 0 and 100.',
+      },
     },
     edit: {
       title: 'Preparation record',

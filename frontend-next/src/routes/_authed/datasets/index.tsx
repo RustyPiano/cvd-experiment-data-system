@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-import { DatasetQueryPage } from '@/features/datasets/dataset-query-page'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authed/datasets/')({
-  component: DatasetQueryPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/experiments' })
+  },
 })

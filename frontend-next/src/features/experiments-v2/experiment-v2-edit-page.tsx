@@ -428,13 +428,6 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             initialState={buildStateFromLoaded(data.run, data.modules)}
             modules={data.modules}
             processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
-            canLock={
-              availableStatusActions(
-                data.run.status,
-                canEditProcess,
-                isAdmin,
-              ).includes('lock') && !processDirty
-            }
             focusModule={focusModule}
             onRequestLock={() => setLocking(true)}
             onProcessDirtyChange={setProcessDirty}

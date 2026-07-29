@@ -44,6 +44,7 @@ class V2EntityVersionListResponse(BaseModel):
 class V2ExperimentCreate(BaseModel):
     started_at: datetime
     synthesis_method: Literal["CVD"]
+    performed_by_user_ids: list[UUID] | None = Field(default=None, min_length=1)
     ambient_temperature: AmbientMeasurement = Field(
         default_factory=lambda: AmbientMeasurement(source_type="not_measured")
     )
@@ -72,6 +73,13 @@ class V2ExperimentCreate(BaseModel):
         if not isinstance(value, str):
             raise ValueError("invalid chemical formula")
         return validate_chemical_formula(value)
+
+    @field_validator("performed_by_user_ids")
+    @classmethod
+    def unique_performers(cls, value: list[UUID] | None) -> list[UUID] | None:
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError("performed_by_user_ids must be unique")
+        return value
 
     @model_validator(mode="after")
     def validate_ambient_humidity(self) -> V2ExperimentCreate:

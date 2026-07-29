@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import {
   ChevronRight,
-  Database,
   FlaskConical,
   FlaskRound,
   LogOut,
@@ -66,21 +65,12 @@ export const primaryNavItems = [
     match: '/characterizations',
   },
   {
-    to: '/datasets' as const,
-    labelKey: 'datasets.nav' as const,
-    icon: Database,
-    match: '/datasets',
-  },
-]
-
-const supportingNavItems = [
-  {
     to: '/samples' as const,
     labelKey: 'samples.list.title' as const,
     icon: TestTube2,
     match: '/samples',
   },
-]
+] as const
 
 // 一等实体库（v2）导航项 —— 由 field-metadata 实体配置派生（单一源），文案走 i18n（D12）。
 const entityLibraryNavItems = ENTITY_KINDS.map((kind) => ({
@@ -100,15 +90,19 @@ function getEntityNavLabel(pathname: string, t: TFunction): string | null {
 }
 
 function getPageTitle(pathname: string, t: TFunction) {
-  const item = [...primaryNavItems, ...supportingNavItems].find((entry) =>
-    pathname.startsWith(entry.match),
-  )
+  const item = primaryNavItems.find((entry) => pathname.startsWith(entry.match))
   return item ? t(item.labelKey) : ''
 }
 
 // Nav body lives inside SidebarProvider so it can close the mobile drawer when a
 // link is tapped (default shadcn sidebar leaves the overlay open on selection).
-function SidebarBody({ pathname }: { pathname: string }) {
+function SidebarBody({
+  pathname,
+  isAdmin,
+}: {
+  pathname: string
+  isAdmin: boolean
+}) {
   const { isMobile, setOpenMobile } = useSidebar()
   const { t } = useTranslation()
   const closeOnMobile = () => {
@@ -141,55 +135,32 @@ function SidebarBody({ pathname }: { pathname: string }) {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      <SidebarGroup>
-        <SidebarGroupLabel>{t('appShell.relatedData')}</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {supportingNavItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith(item.match)}
-                    tooltip={t(item.labelKey)}
-                  >
-                    <Link to={item.to} onClick={closeOnMobile}>
-                      <Icon />
-                      <span>{t(item.labelKey)}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      <SidebarGroup>
-        <SidebarGroupLabel>{t('entityLibrary.nav.group')}</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {entityLibraryNavItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith(item.match)}
-                    tooltip={t(item.labelKey)}
-                  >
-                    <Link to={item.to} onClick={closeOnMobile}>
-                      <Icon />
-                      <span>{t(item.labelKey)}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
+      {isAdmin ? (
+        <SidebarGroup>
+          <SidebarGroupLabel>基础资料维护</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {entityLibraryNavItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname.startsWith(item.match)}
+                      tooltip={t(item.labelKey)}
+                    >
+                      <Link to={item.to} onClick={closeOnMobile}>
+                        <Icon />
+                        <span>{t(item.labelKey)}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : null}
     </SidebarContent>
   )
 }
@@ -283,7 +254,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </SidebarHeader>
 
-        <SidebarBody pathname={pathname} />
+        <SidebarBody pathname={pathname} isAdmin={currentRole === 'admin'} />
 
         <SidebarFooter className="px-2 py-3">
           <SidebarMenu>

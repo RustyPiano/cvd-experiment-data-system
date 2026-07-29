@@ -93,6 +93,25 @@ class V2ExperimentService:
 
     def create_run(self, payload: V2ExperimentCreate, current_user: User) -> V2ExperimentRead:
         started_at = normalize_offset_datetime(payload.started_at)
+        performer_ids = payload.performed_by_user_ids or [current_user.id]
+        if current_user.id not in performer_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "performed_by_user_ids", "reason": "creator"}]},
+            )
+        active_performer_ids = set(
+            self.db.scalars(
+                select(User.id).where(
+                    User.id.in_(performer_ids),
+                    User.is_active.is_(True),
+                )
+            )
+        )
+        if active_performer_ids != set(performer_ids):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "performed_by_user_ids", "reason": "active"}]},
+            )
         try:
             chemical_formula = (
                 validate_chemical_formula(payload.chemical_formula)
@@ -138,7 +157,7 @@ class V2ExperimentService:
             "synthesis_method": "CVD",
             "run_code": run.run_code,
             "created_by_user_id": str(current_user.id),
-            "performed_by_user_ids": [str(current_user.id)],
+            "performed_by_user_ids": [str(user_id) for user_id in performer_ids],
             "recorded_by_user_id": str(current_user.id),
             "precheck": {
                 "checklist_version": "cvd-precheck-v1",

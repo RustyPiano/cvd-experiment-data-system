@@ -34,6 +34,7 @@ scientific_contract:
     source_types:
     - room_sensor
     - setup_sensor
+    - manual_entry
     - manual_estimate
     - not_measured
     not_measured: store an explicit source_type without value, time, or sensor

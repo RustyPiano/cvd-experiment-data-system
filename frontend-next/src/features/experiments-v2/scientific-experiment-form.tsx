@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  LockKeyhole,
   Plus,
   Trash2,
   Upload,
@@ -406,12 +405,12 @@ const REGION_LABELS: Record<string, string> = {
 }
 
 const WORKFLOW_STEPS = [
-  '实验概况',
+  '基本信息',
   '目标材料',
   '装置与前驱体',
   '衬底与摆放',
-  '生长程序',
-  '检查并锁定',
+  '生长条件',
+  '检查并提交',
 ] as const
 
 const STEP_MODULES = [
@@ -790,7 +789,6 @@ export function ScientificExperimentForm({
   initialState,
   modules,
   processReadOnly = false,
-  canLock = false,
   focusModule,
   onRequestLock,
   onProcessDirtyChange,
@@ -803,7 +801,6 @@ export function ScientificExperimentForm({
   initialState: ExperimentV2FormState
   modules?: Record<string, V2ModulePayloadRead | null>
   processReadOnly?: boolean
-  canLock?: boolean
   focusModule?: string | null
   onRequestLock?: () => void
   onProcessDirtyChange?: (dirty: boolean) => void
@@ -1132,6 +1129,7 @@ export function ScientificExperimentForm({
   )
   const currentStepSaved =
     !currentStepDirty && STEP_MODULES[activeStep].some((key) => saved.has(key))
+  const precheckConfirmed = basicInfo.precheck?.['confirmed'] === true
 
   const showNextStep = async () => {
     if (
@@ -1159,6 +1157,13 @@ export function ScientificExperimentForm({
       setActiveStep(index)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
+  }
+  const submitExperiment = async () => {
+    if (!precheckConfirmed) return
+    if (dirty.has('basic_info') && !(await save('basic_info', basicInfo))) {
+      return
+    }
+    onRequestLock?.()
   }
 
   return (
@@ -1457,11 +1462,11 @@ export function ScientificExperimentForm({
           ) : null}
 
           {activeStep === 5 ? (
-            <ModuleCard title="检查并锁定">
+            <ModuleCard title="检查并提交">
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   [
-                    '实验概况',
+                    '基本信息',
                     basicInfo.recorded_by_user_id ? '已填写' : '待填写',
                   ],
                   [
@@ -1513,30 +1518,32 @@ export function ScientificExperimentForm({
                   ) : null}
                 </div>
               ) : null}
-              {canLock ? (
-                <Alert>
-                  <LockKeyhole />
-                  <AlertTitle>锁定前请确认</AlertTitle>
-                  <AlertDescription>
-                    锁定后制备过程不可直接修改；如需纠错，将创建新的不可变修订。
-                  </AlertDescription>
-                </Alert>
-              ) : processReadOnly ? (
+              {processReadOnly ? (
                 <Alert>
                   <Check />
-                  <AlertTitle>当前制备过程为只读</AlertTitle>
+                  <AlertTitle>当前制备实验已提交</AlertTitle>
                   <AlertDescription>
                     表征与结果仍可从统一入口继续记录。
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Alert>
-                  <LockKeyhole />
-                  <AlertTitle>先保存当前修改</AlertTitle>
-                  <AlertDescription>
-                    保存所有已修改内容后，即可锁定制备过程。
-                  </AlertDescription>
-                </Alert>
+                <Label className="flex items-start gap-3 rounded-lg border p-4">
+                  <Checkbox
+                    checked={precheckConfirmed}
+                    onCheckedChange={(checked) => {
+                      setBasicInfo({
+                        ...basicInfo,
+                        precheck: {
+                          checklist_version: 'cvd-precheck-v1',
+                          confirmed: checked === true,
+                          confirmed_at: new Date().toISOString(),
+                        },
+                      })
+                      markDirty('basic_info')
+                    }}
+                  />
+                  <span>已完成实验前检查，确认以上内容与本炉实际情况一致</span>
+                </Label>
               )}
             </ModuleCard>
           ) : null}
@@ -1622,14 +1629,14 @@ export function ScientificExperimentForm({
                   <ArrowRight data-icon="inline-end" />
                 </Button>
               </>
-            ) : canLock ? (
+            ) : !processReadOnly ? (
               <Button
                 type="button"
-                disabled={dirty.size > 0 || savingKey !== null}
-                onClick={onRequestLock}
+                disabled={!precheckConfirmed || savingKey !== null}
+                onClick={() => void submitExperiment()}
               >
-                <LockKeyhole data-icon="inline-start" />
-                锁定制备过程
+                <Check data-icon="inline-start" />
+                提交实验记录并生成样品
               </Button>
             ) : null}
           </div>
