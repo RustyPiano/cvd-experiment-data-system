@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.file_asset import FileAsset
 from app.models.sample import Sample
 from app.models.scientific import RunRevision, TransformationInput
 from app.models.user import User, UserRole
@@ -207,7 +208,7 @@ def test_transformation_acl_provenance_and_cross_run_lineage(
 
 
 def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
-    _, sample = _locked_sample(db_session, active_user, "03")
+    run, sample = _locked_sample(db_session, active_user, "03")
     instrument = Instrument()
     db_session.add(instrument)
     db_session.flush()
@@ -238,41 +239,72 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
         details_json={"reference": "silicon"},
     )
     db_session.add(calibration)
+    raw_file = FileAsset(
+        experiment_run_id=run.id,
+        sample_id=sample.id,
+        uploaded_by_id=active_user.id,
+        original_name="raman-spectrum.txt",
+        storage_path=f"test/{sample.id}_raman-spectrum.txt",
+        content_type="text/plain",
+        size_bytes=12,
+        sha256="b" * 64,
+        method="PL",
+        file_category="raw",
+        asset_role="characterization_file",
+        file_kind="spectrum",
+        metadata_json={},
+    )
+    db_session.add(raw_file)
+    db_session.commit()
+
+    payload = {
+        "measurement": {
+            "sample_id": str(sample.id),
+            "method_profile": "Raman",
+            "instrument_id": str(instrument.id),
+            "instrument_version": 1,
+            "measured_at": "2026-07-29T10:00:00+00:00",
+            "sample_region": {
+                "geometry_type": "point",
+                "label": "center",
+                "coordinate_system": "sample_local",
+            },
+            "typed_conditions": {
+                "laser_wavelength_nm": 532,
+                "power_setting": "1 mW",
+                "objective": "50x",
+                "integration_time_s": 5,
+                "accumulations": 3,
+            },
+            "raw_file_ids": [str(raw_file.id)],
+        },
+        "assertions": [
+            {
+                "assertion_type": "phase_identity",
+                "value": {"phase": "2H-MoS2"},
+            }
+        ],
+    }
+    headers = _headers(active_user.email)
+    wrong_method = client.post(
+        "/api/v1/measurements",
+        json=payload,
+        headers=headers,
+    )
+    assert wrong_method.status_code == 422
+    raw_file.method = "Raman"
     db_session.commit()
 
     response = client.post(
         "/api/v1/measurements",
-        json={
-            "measurement": {
-                "sample_id": str(sample.id),
-                "method_profile": "Raman",
-                "instrument_id": str(instrument.id),
-                "instrument_version": 1,
-                "measured_at": "2026-07-29T10:00:00+00:00",
-                "sample_region": {
-                    "geometry_type": "point",
-                    "label": "center",
-                    "coordinate_system": "sample_local",
-                },
-                "typed_conditions": {
-                    "laser_wavelength_nm": 532,
-                    "power_setting": "1 mW",
-                    "objective": "50x",
-                    "integration_time_s": 5,
-                    "accumulations": 3,
-                },
-            },
-            "assertions": [
-                {
-                    "assertion_type": "phase_identity",
-                    "value": {"phase": "2H-MoS2"},
-                }
-            ],
-        },
-        headers=_headers(active_user.email),
+        json=payload,
+        headers=headers,
     )
     assert response.status_code == 201, response.text
     snapshot = response.json()["instrument_snapshot_json"]["calibration_at_measurement"]
     assert snapshot["event_id"] == str(calibration.id)
     assert snapshot["validity_status"] == "valid"
     assert snapshot["expanded_uncertainty"] == 0.5
+    db_session.refresh(sample)
+    assert sample.actual_state == "asserted"
+    assert sample.actual_material_summary == "2H-MoS2"

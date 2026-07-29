@@ -677,6 +677,9 @@ export const common = {
       title: 'Add characterization record',
       subtitle:
         'View and add samples and characterization records for this preparation run only.',
+      loadError: 'Failed to load preparation run status',
+      lockRequired:
+        'Lock the preparation process first. The system will then generate samples and enable characterization entry.',
     },
     list: {
       title: 'Characterization records',

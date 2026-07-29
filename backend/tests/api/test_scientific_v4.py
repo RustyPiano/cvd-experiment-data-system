@@ -193,24 +193,45 @@ def test_scientific_revision_measurement_and_query_chain(
             ],
             "channels": [
                 {
-                    "channel_key": "temperature.zone_1",
+                    "channel_key": "channel_11111111_1111_4111_8111_111111111111",
                     "channel_type": "temperature",
+                    "subject_type": "temperature_zone",
+                    "subject_ref": "zone_1",
+                    "zone_index": 1,
                     "source_type": "setpoint",
                     "unit": "K",
                     "data_kind": "interval_series",
                     "series": [{"start_s": 0, "end_s": 1800, "value": 1023}],
                 },
                 {
-                    "channel_key": "pressure",
+                    "channel_key": "channel_22222222_2222_4222_8222_222222222222",
+                    "channel_type": "temperature",
+                    "subject_type": "temperature_zone",
+                    "subject_ref": "zone_1",
+                    "zone_index": 1,
+                    "source_type": "measured",
+                    "unit": "°C",
+                    "data_kind": "scalar",
+                    "scalar_value": 749,
+                },
+                {
+                    "channel_key": "channel_33333333_3333_4333_8333_333333333333",
                     "channel_type": "pressure",
+                    "subject_type": "pressure_location",
+                    "subject_ref": "tube_outlet",
+                    "pressure_location": "tube_outlet",
+                    "pressure_type": "absolute",
                     "source_type": "measured",
                     "unit": "Torr",
                     "data_kind": "scalar",
                     "scalar_value": 760,
                 },
                 {
-                    "channel_key": "flow.ar",
+                    "channel_key": "channel_44444444_4444_4444_8444_444444444444",
                     "channel_type": "flow",
+                    "subject_type": "gas_species",
+                    "subject_ref": "氩气",
+                    "gas_species": "氩气",
                     "source_type": "setpoint",
                     "unit": "sccm",
                     "data_kind": "scalar",
@@ -220,6 +241,21 @@ def test_scientific_revision_measurement_and_query_chain(
         },
     )
     _put_module(headers, run_id, "process_events", {"items": []})
+
+    precursor_payload = client.get(
+        f"/api/v1/experiments/{run_id}/modules/precursors",
+        headers=headers,
+    ).json()["payload_json"]
+    precursor_payload["items"][0]["heating_channel"] = (
+        "channel_44444444_4444_4444_8444_444444444444"
+    )
+    _put_module(headers, run_id, "precursors", precursor_payload)
+    invalid_heating = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
+    assert invalid_heating.status_code == 422
+    precursor_payload["items"][0]["heating_channel"] = (
+        "channel_11111111_1111_4111_8111_111111111111"
+    )
+    _put_module(headers, run_id, "precursors", precursor_payload)
 
     locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
     assert locked.status_code == 200, locked.text
@@ -314,6 +350,7 @@ def test_scientific_revision_measurement_and_query_chain(
     assert dataset.json()["items"][0]["features"]["pressure_measured_max_Pa"] == (
         pytest.approx(101_325)
     )
+    assert dataset.json()["items"][0]["features"]["gas_species"] == "氩气"
     assert dataset.json()["query_manifest"]["schema_status"] == "INTERNAL_VALIDATION"
     assert dataset.json()["query_manifest"]["run_revision_ids"] == [revision_1]
     not_equal_existing = client.post(

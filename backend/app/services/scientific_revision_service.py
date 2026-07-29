@@ -296,7 +296,7 @@ class ScientificRevisionService:
         modules: dict[str, dict[str, Any]],
     ) -> None:
         timeline = modules["process_steps"]
-        channel_keys = {item["channel_key"] for item in timeline["channels"]}
+        channel_types = {item["channel_key"]: item["channel_type"] for item in timeline["channels"]}
         process_end = max(item["end_s"] for item in timeline["segments"])
         referenced: dict[UUID, tuple[str, str]] = {}
         for channel in timeline["channels"]:
@@ -320,11 +320,19 @@ class ScientificRevisionService:
         for source_load in modules["precursors"]["items"]:
             if (
                 source_load.get("heating_channel")
-                and source_load["heating_channel"] not in channel_keys
+                and source_load["heating_channel"] not in channel_types
             ):
                 self._invalid_process_reference(
                     "precursors.heating_channel",
                     "unknown_process_channel",
+                )
+            if (
+                source_load.get("heating_channel")
+                and channel_types[source_load["heating_channel"]] != "temperature"
+            ):
+                self._invalid_process_reference(
+                    "precursors.heating_channel",
+                    "not_temperature_channel",
                 )
             if any(
                 point["t_s"] > process_end for point in source_load.get("position_program") or []
@@ -523,6 +531,12 @@ class ScientificRevisionService:
                     channel_key=item["channel_key"],
                     channel_type=item["channel_type"],
                     source_type=item["source_type"],
+                    subject_type=item["subject_type"],
+                    subject_ref=item["subject_ref"],
+                    gas_species=item.get("gas_species"),
+                    zone_index=item.get("zone_index"),
+                    pressure_location=item.get("pressure_location"),
+                    pressure_type=item.get("pressure_type"),
                     unit=item["unit"],
                     data_kind=item["data_kind"],
                     scalar_value=item.get("scalar_value"),
@@ -637,13 +651,12 @@ class ScientificRevisionService:
                             abs(float(right["value"]) - float(left["value"])) / (elapsed_s / 60)
                         )
             if channel["channel_type"] == "flow":
-                species = channel["channel_key"].removeprefix("flow.")
                 self._feature(
                     revision,
                     "gas_species",
-                    text=species,
+                    text=channel["gas_species"],
                     ordinal=gas_ordinal,
-                    source=f"process_steps.channels.{channel['channel_key']}",
+                    source="process_steps.channels.gas_species",
                 )
                 gas_ordinal += 1
         for source_type, rates in ramp_rates.items():

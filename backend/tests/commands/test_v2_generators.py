@@ -384,9 +384,12 @@ def test_process_step_schema_discriminates_stage_type_and_forbids_hidden_groups(
             ],
             "channels": [
                 {
-                    "channel_key": "temperature.zone_1",
+                    "channel_key": "channel_11111111_1111_4111_8111_111111111111",
                     "channel_type": "temperature",
                     "source_type": "setpoint",
+                    "subject_type": "temperature_zone",
+                    "subject_ref": "zone_1",
+                    "zone_index": 1,
                     "unit": "℃",
                     "data_kind": "scalar",
                     "scalar_value": 750,

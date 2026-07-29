@@ -352,6 +352,13 @@ class ProcessChannel(Base):
     __tablename__ = "process_channels"
     __table_args__ = (
         UniqueConstraint("run_revision_id", "channel_key", name="uq_process_channels_revision_key"),
+        UniqueConstraint(
+            "run_revision_id",
+            "channel_type",
+            "subject_ref",
+            "source_type",
+            name="uq_process_channels_revision_subject_source",
+        ),
         CheckConstraint(
             "source_type IN ('setpoint', 'measured', 'inferred')",
             name="ck_process_channels_source_type",
@@ -373,6 +380,12 @@ class ProcessChannel(Base):
     channel_key: Mapped[str] = mapped_column(String(128), nullable=False)
     channel_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    subject_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    subject_ref: Mapped[str] = mapped_column(String(128), nullable=False)
+    gas_species: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    zone_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pressure_location: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    pressure_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     unit: Mapped[str] = mapped_column(String(32), nullable=False)
     data_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     scalar_value: Mapped[float | None] = mapped_column(Float, nullable=True)

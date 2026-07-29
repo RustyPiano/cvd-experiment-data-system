@@ -641,6 +641,9 @@ export const common = {
     run: {
       title: '添加表征记录',
       subtitle: '只显示并补充当前制备实验对应的样品与表征记录。',
+      loadError: '制备实验状态加载失败',
+      lockRequired:
+        '请先锁定制备过程，锁定后系统将生成待表征样品并开放表征录入。',
     },
     list: {
       title: '表征实验记录',

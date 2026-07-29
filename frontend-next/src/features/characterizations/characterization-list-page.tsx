@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import { listCharacterizationItems } from './api'
 import type { CharacterizationListItem } from './api'
+import { getRun } from '@/features/experiments-v2/api'
 import type { V2ResultRead } from '@/features/experiments-v2/api'
 import { ScientificMeasurementWorkspace } from '@/features/experiments-v2/scientific-experiment-form'
 import { useAuth } from '@/features/auth/use-auth'
@@ -90,6 +91,11 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
     enabled: session.isAuthenticated && !runId,
     staleTime: 0,
   })
+  const runQuery = useQuery({
+    queryKey: ['v2-experiment', runId, session.accessToken],
+    queryFn: () => getRun(runId!, session.accessToken!),
+    enabled: session.isAuthenticated && Boolean(runId),
+  })
   const items = itemsQuery.data ?? []
   const filtered = useMemo(
     () => items.filter((item) => matchesQuery(item, query, i18n.language, t)),
@@ -101,17 +107,39 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
   )
 
   if (runId) {
+    const canAddMeasurement = ['locked', 'reviewed'].includes(
+      runQuery.data?.status ?? '',
+    )
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
           title={t('characterizations.run.title')}
           subtitle={t('characterizations.run.subtitle')}
         />
-        <ScientificMeasurementWorkspace
-          runId={runId}
-          token={session.accessToken!}
-          readOnly={false}
-        />
+        {runQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {resolveErrorMessage(
+                runQuery.error,
+                t('characterizations.run.loadError'),
+              )}
+            </AlertDescription>
+          </Alert>
+        ) : runQuery.isLoading ? (
+          <Skeleton className="h-32 w-full rounded-lg" />
+        ) : canAddMeasurement ? (
+          <ScientificMeasurementWorkspace
+            runId={runId}
+            token={session.accessToken!}
+            readOnly={false}
+          />
+        ) : (
+          <Alert>
+            <AlertDescription>
+              {t('characterizations.run.lockRequired')}
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
     )
   }

@@ -2101,7 +2101,14 @@ export interface components {
        * Geometry Type
        * @enum {string}
        */
-      geometry_type: 'point' | 'line' | 'area'
+      geometry_type:
+        | 'point'
+        | 'line'
+        | 'area'
+        | 'whole_sample'
+        | 'lamella'
+        | 'particle'
+        | 'selected_area'
       /** Label */
       label: string
       /** Coordinate System */

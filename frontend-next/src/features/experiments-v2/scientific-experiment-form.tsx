@@ -46,10 +46,13 @@ import type { V2ModulePayloadRead } from './api'
 import type { ExperimentV2FormState } from './form-types'
 import { buildItemsModulePayload } from './field-logic'
 import {
-  machineToken,
+  materialAssertionValue,
+  peakTemperatureC,
   processChannelTitle,
+  targetSummary,
   timelineValidationIssue,
   tubeUsageParts,
+  withProcessChannelSubject,
 } from './scientific-form-workflow'
 import { ModuleCard } from './components/module-card'
 import { EntityReferenceSelect } from './components/entity-reference-select'
@@ -150,6 +153,12 @@ type Channel = {
   channel_key: string
   channel_type: string
   source_type: string
+  subject_type: string
+  subject_ref: string
+  gas_species?: string
+  zone_index?: number
+  pressure_location?: string
+  pressure_type?: string
   unit: string
   data_kind: 'scalar' | 'interval_series' | 'timeseries_file'
   scalar_value?: number
@@ -290,30 +299,120 @@ const METHOD_CONDITIONS: Record<
 }
 
 const PROPERTY_UNITS: Record<string, string> = {
+  afm_ra_roughness: 'nm',
+  afm_rms_roughness: 'nm',
+  afm_step_height: 'nm',
   coverage_percent: '%',
   domain_size_um: 'μm',
   layer_count: 'count',
+  low_frequency_peak_fwhm: 'cm⁻¹',
   nucleation_density_cm2: 'cm⁻²',
+  pl_integrated_intensity: 'a.u.',
+  pl_peak_fwhm: 'meV',
   raman_a1g_peak_position: 'cm⁻¹',
   raman_e2g_peak_position: 'cm⁻¹',
+  raman_intensity_ratio: 'ratio',
+  raman_peak_fwhm: 'cm⁻¹',
   raman_peak_separation: 'cm⁻¹',
   pl_a_exciton_peak_energy: 'eV',
   pl_b_exciton_peak_energy: 'eV',
-  afm_rms_roughness: 'nm',
-  afm_step_height: 'nm',
+  shear_mode_peak_position: 'cm⁻¹',
+  tem_lattice_spacing: 'nm',
+  xrd_d_spacing: 'nm',
+  xrd_peak_2theta: '° 2θ',
+  xrd_peak_fwhm: '° 2θ',
 }
 const PROPERTY_LABELS: Record<string, string> = {
+  afm_ra_roughness: 'AFM 算术平均粗糙度',
+  afm_rms_roughness: 'AFM 均方根粗糙度',
+  afm_step_height: 'AFM 台阶高度',
   coverage_percent: '覆盖率',
   domain_size_um: '晶畴尺寸',
   layer_count: '层数',
+  low_frequency_peak_fwhm: '低频 Raman 峰宽',
   nucleation_density_cm2: '成核密度',
+  pl_integrated_intensity: 'PL 积分强度',
+  pl_peak_fwhm: 'PL 峰宽',
   raman_a1g_peak_position: 'Raman A₁g 峰位',
   raman_e2g_peak_position: 'Raman E₂g 峰位',
+  raman_intensity_ratio: 'Raman 强度比',
+  raman_peak_fwhm: 'Raman 峰宽',
   raman_peak_separation: 'Raman 峰间距',
   pl_a_exciton_peak_energy: 'PL A 激子峰能量',
   pl_b_exciton_peak_energy: 'PL B 激子峰能量',
-  afm_rms_roughness: 'AFM 均方根粗糙度',
-  afm_step_height: 'AFM 台阶高度',
+  shear_mode_peak_position: '剪切模峰位',
+  tem_lattice_spacing: 'TEM 晶格间距',
+  xrd_d_spacing: 'XRD 晶面间距',
+  xrd_peak_2theta: 'XRD 衍射峰位',
+  xrd_peak_fwhm: 'XRD 衍射峰宽',
+}
+const METHOD_PROPERTY_CODES: Record<string, string[]> = {
+  optical_microscopy: [
+    'coverage_percent',
+    'domain_size_um',
+    'nucleation_density_cm2',
+  ],
+  Raman: [
+    'raman_e2g_peak_position',
+    'raman_a1g_peak_position',
+    'raman_peak_separation',
+    'raman_peak_fwhm',
+    'raman_intensity_ratio',
+  ],
+  low_frequency_raman: ['shear_mode_peak_position', 'low_frequency_peak_fwhm'],
+  PL: [
+    'pl_a_exciton_peak_energy',
+    'pl_b_exciton_peak_energy',
+    'pl_integrated_intensity',
+    'pl_peak_fwhm',
+  ],
+  AFM: ['afm_ra_roughness', 'afm_rms_roughness', 'afm_step_height'],
+  SEM: ['coverage_percent', 'domain_size_um', 'nucleation_density_cm2'],
+  XRD: ['xrd_peak_2theta', 'xrd_peak_fwhm', 'xrd_d_spacing'],
+  TEM: ['tem_lattice_spacing', 'layer_count'],
+}
+const METHOD_DEFAULT_PROPERTIES: Record<string, string[]> = {
+  Raman: [
+    'raman_e2g_peak_position',
+    'raman_a1g_peak_position',
+    'raman_peak_separation',
+  ],
+  low_frequency_raman: ['shear_mode_peak_position'],
+  PL: ['pl_a_exciton_peak_energy', 'pl_b_exciton_peak_energy'],
+  AFM: ['afm_rms_roughness', 'afm_step_height'],
+  XRD: ['xrd_peak_2theta', 'xrd_d_spacing'],
+  TEM: ['tem_lattice_spacing'],
+  optical_microscopy: ['coverage_percent'],
+  SEM: ['coverage_percent', 'domain_size_um'],
+}
+const METHOD_GEOMETRIES: Record<string, string[]> = {
+  optical_microscopy: ['point', 'area', 'whole_sample'],
+  Raman: ['point', 'line'],
+  low_frequency_raman: ['point', 'line'],
+  PL: ['point', 'line'],
+  AFM: ['point', 'area', 'whole_sample'],
+  SEM: ['point', 'area', 'whole_sample'],
+  XRD: ['whole_sample', 'area'],
+  TEM: ['lamella', 'particle', 'selected_area'],
+}
+const GEOMETRY_LABELS: Record<string, string> = {
+  point: '点测量',
+  line: '线扫',
+  area: '矩形区域',
+  whole_sample: '整片样品',
+  lamella: '薄片',
+  particle: '颗粒',
+  selected_area: '选区',
+}
+const RAW_FILE_GUIDANCE: Record<string, string> = {
+  optical_microscopy: '建议上传原始图像；仅记录直接观察结论时可不上传。',
+  Raman: '请上传原始光谱或仪器导出文件。',
+  low_frequency_raman: '请上传原始光谱或仪器导出文件。',
+  PL: '请上传原始光谱。',
+  AFM: '请上传原始高度数据及导出图。',
+  SEM: '请上传原始图像与仪器元数据。',
+  XRD: '请上传原始衍射数据。',
+  TEM: '请上传原始图像、衍射或 EDS 数据。',
 }
 const PROCESS_UNITS: Record<string, string[]> = {
   temperature: ['°C', 'K'],
@@ -445,7 +544,7 @@ const REGION_LABELS: Record<string, string> = {
   label: '测量区域名称',
   x: '横坐标',
   y: '纵坐标',
-  width: '区域宽度',
+  width: '长度或区域宽度',
   height: '区域高度',
   unit: '坐标单位',
 }
@@ -487,7 +586,7 @@ function targetExample(target: TargetSpec): {
       rows: [
         ['材料 1', 'MoS₂'],
         ['材料 2', 'WS₂'],
-        ['结构说明', '在研究目的或备注中写明垂直与横向区域关系'],
+        ['结构说明', 'MoS₂ 位于 WS₂ 上层，横向连接区域为 A–B'],
       ],
       value: {
         ...target,
@@ -505,6 +604,7 @@ function targetExample(target: TargetSpec): {
           },
         ],
         composition_relations: [],
+        note: 'MoS₂ 位于 WS₂ 上层，横向连接区域为 A–B。',
       },
     }
   }
@@ -830,6 +930,7 @@ export function ScientificExperimentForm({
   mode,
   runId,
   runCode,
+  runStatus,
   initialState,
   modules,
   processReadOnly = false,
@@ -842,6 +943,7 @@ export function ScientificExperimentForm({
   mode: 'new' | 'edit'
   runId?: string
   runCode?: string
+  runStatus?: string
   initialState: ExperimentV2FormState
   modules?: Record<string, V2ModulePayloadRead | null>
   processReadOnly?: boolean
@@ -860,6 +962,7 @@ export function ScientificExperimentForm({
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [activeStep, setActiveStep] = useState(0)
+  const canAddMeasurements = ['locked', 'reviewed'].includes(runStatus ?? '')
 
   const [startedAt, setStartedAt] = useState(
     new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
@@ -1112,6 +1215,7 @@ export function ScientificExperimentForm({
   const targetFormulas = target.material_regions
     .map((region) => region.formula.trim())
     .filter(Boolean)
+  const targetDisplay = targetSummary(target)
   const setupName = String(
     equipment.snapshot?.['setup_name'] ??
       equipment.snapshot?.['name'] ??
@@ -1119,18 +1223,12 @@ export function ScientificExperimentForm({
       '',
   )
   const totalDuration = Math.max(0, ...segments.map((segment) => segment.end_s))
-  const temperatureValues = channels
-    .filter((channel) => channel.channel_type === 'temperature')
-    .flatMap((channel) => [
-      ...(typeof channel.scalar_value === 'number'
-        ? [channel.scalar_value]
-        : []),
-      ...(channel.series ?? [])
-        .map((point) => Number(point.value))
-        .filter(Number.isFinite),
-    ])
-  const peakTemperature =
-    temperatureValues.length > 0 ? Math.max(...temperatureValues) : null
+  const peakTemperature = peakTemperatureC(channels)
+  const hasTemperatureFile = channels.some(
+    (channel) =>
+      channel.channel_type === 'temperature' &&
+      channel.data_kind === 'timeseries_file',
+  )
   const processTimelineIssue = timelineValidationIssue(segments, channels)
   const completedSteps = [
     Boolean(basicInfo.started_at && basicInfo.recorded_by_user_id),
@@ -1197,7 +1295,7 @@ export function ScientificExperimentForm({
               当前：第 {activeStep + 1}/{WORKFLOW_STEPS.length} 步
             </CardTitle>
             <span className="text-xs text-muted-foreground">
-              必填内容：已完成 {completedSteps}/5
+              已开始填写 {completedSteps}/5 项核心内容
             </span>
           </div>
           <div
@@ -1429,7 +1527,6 @@ export function ScientificExperimentForm({
               </ModuleCard>
               <SourceLoadsEditor
                 loads={loads}
-                channels={channels}
                 disabled={processReadOnly}
                 token={token}
                 onChange={(value) => {
@@ -1493,9 +1590,7 @@ export function ScientificExperimentForm({
                   ],
                   [
                     '目标材料',
-                    targetFormulas.length
-                      ? targetFormulas.join(' / ')
-                      : '待填写',
+                    targetFormulas.length ? targetDisplay : '待填写',
                   ],
                   ['实验装置', setupName || '待选择'],
                   ['前驱体与装料', `${loads.length} 组装料`],
@@ -1520,22 +1615,26 @@ export function ScientificExperimentForm({
                   <div>
                     <p className="font-medium">表征与结果</p>
                     <p className="text-sm text-muted-foreground">
-                      表征记录与制备过程分开管理，可在实验锁定后继续补充。
+                      {canAddMeasurements
+                        ? '表征记录与制备过程分开管理，可继续补充当前炉次的测量事实。'
+                        : '请先锁定制备过程，锁定后系统将生成待表征样品。'}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      navigate({
-                        to: '/characterizations',
-                        search: { runId },
-                      })
-                    }
-                  >
-                    前往表征实验记录
-                    <ArrowRight data-icon="inline-end" />
-                  </Button>
+                  {canAddMeasurements ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        navigate({
+                          to: '/characterizations',
+                          search: { runId },
+                        })
+                      }
+                    >
+                      前往表征实验记录
+                      <ArrowRight data-icon="inline-end" />
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
               {canLock ? (
@@ -1580,7 +1679,7 @@ export function ScientificExperimentForm({
           <CardContent className="grid gap-3">
             {[
               ['实验编号', runCode || '未生成'],
-              ['目标材料', targetFormulas.join(' / ') || '未填写'],
+              ['目标材料', targetDisplay || '未填写'],
               ['实验装置', setupName || '未选择'],
               ['衬底', `${substrates.length} 片`],
               [
@@ -1588,7 +1687,8 @@ export function ScientificExperimentForm({
                 [
                   peakTemperature === null
                     ? ''
-                    : `最高 ${peakTemperature} ${channels.find((channel) => channel.channel_type === 'temperature')?.unit ?? '°C'}`,
+                    : `最高 ${Number(peakTemperature.toFixed(2))} °C`,
+                  hasTemperatureFile ? '含温度时间序列' : '',
                   totalDuration ? `${Math.round(totalDuration / 60)} min` : '',
                 ]
                   .filter(Boolean)
@@ -1818,6 +1918,17 @@ function TargetEditor({
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className="grid gap-2">
+        <Label>结构关系说明（选填）</Label>
+        <Textarea
+          value={target.note ?? ''}
+          disabled={disabled}
+          placeholder="例如 MoS₂ 位于 WS₂ 上层，横向连接区域为 A–B"
+          onChange={(event) =>
+            onChange({ ...target, note: event.target.value })
+          }
+        />
       </div>
 
       <div className="grid gap-3">
@@ -2208,13 +2319,11 @@ function TargetEditor({
 
 function SourceLoadsEditor({
   loads,
-  channels,
   onChange,
   disabled,
   token,
 }: {
   loads: SourceLoad[]
-  channels: Channel[]
   onChange: (value: SourceLoad[]) => void
   disabled: boolean
   token: string
@@ -2336,36 +2445,9 @@ function SourceLoadsEditor({
                 }
               />
             </div>
-            <div className="grid gap-2">
-              <Label>对应的加热条件（选填）</Label>
-              <Select
-                value={load.heating_channel ?? 'none'}
-                disabled={disabled}
-                onValueChange={(value) =>
-                  patchLoad(loadIndex, {
-                    heating_channel: value === 'none' ? undefined : value,
-                  })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="none">不绑定加热条件</SelectItem>
-                    {channels.map((channel, channelIndex) => (
-                      <SelectItem
-                        key={channel.channel_key}
-                        value={channel.channel_key}
-                      >
-                        {processChannelTitle(channel) ||
-                          `条件 ${channelIndex + 1}`}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
+            <p className="text-sm text-muted-foreground sm:col-span-2">
+              前驱体加热位置在这里用初始轴向位置表达；对应温区的设定与实测温度在“生长程序”中记录。
+            </p>
           </div>
 
           <details className="rounded-lg border p-3">
@@ -2773,10 +2855,21 @@ function TimelineEditor({
   }
   const addChannel = (channelType: string) => {
     const stateChannel = channelType.endsWith('_state')
+    const deviceChannel = !['temperature', 'flow', 'pressure'].includes(
+      channelType,
+    )
     const channel: Channel = {
-      channel_key: machineKey(channelType),
+      channel_key: machineKey('channel'),
       channel_type: channelType,
       source_type: '',
+      subject_type: deviceChannel
+        ? 'device'
+        : channelType === 'temperature'
+          ? 'temperature_zone'
+          : channelType === 'flow'
+            ? 'gas_species'
+            : 'pressure_location',
+      subject_ref: deviceChannel ? channelType : '',
       unit: PROCESS_UNITS[channelType][0],
       data_kind: stateChannel ? 'interval_series' : 'scalar',
       ...(stateChannel
@@ -2787,22 +2880,29 @@ function TimelineEditor({
   }
   const setChannelSubject = (
     index: number,
-    metadataKey: string,
+    subject: 'zone' | 'gas_species' | 'pressure_location',
     value: string,
   ) => {
     const channel = channels[index]
-    const tokenValue = machineToken(value)
-    patchChannel(index, {
-      channel_key:
-        tokenValue &&
-        ['temperature', 'flow', 'pressure'].includes(channel.channel_type)
-          ? `${channel.channel_type}.${tokenValue}`
-          : machineKey(channel.channel_type),
-      sensor_or_controller_snapshot: {
-        ...channel.sensor_or_controller_snapshot,
-        [metadataKey]: value,
-      },
-    })
+    const patch =
+      subject === 'zone'
+        ? {
+            subject_type: 'temperature_zone',
+            subject_ref: value,
+            zone_index: Number(value.replace('zone_', '')) || undefined,
+          }
+        : subject === 'gas_species'
+          ? {
+              subject_type: 'gas_species',
+              subject_ref: value.trim(),
+              gas_species: value,
+            }
+          : {
+              subject_type: 'pressure_location',
+              subject_ref: value.trim(),
+              pressure_location: value,
+            }
+    patchChannel(index, withProcessChannelSubject(channel, patch))
   }
   const uploadSeries = async (index: number, file: File) => {
     const channel = channels[index]
@@ -3001,7 +3101,10 @@ function TimelineEditor({
           </p>
         ) : null}
         {channels.map((channel, index) => (
-          <div key={index} className="grid gap-4 rounded-lg border p-4">
+          <div
+            key={channel.channel_key}
+            className="grid gap-4 rounded-lg border p-4"
+          >
             <div className="flex items-center justify-between gap-3">
               <p className="font-medium">{processChannelTitle(channel)}</p>
               <Button
@@ -3026,8 +3129,7 @@ function TimelineEditor({
                   {zoneCount ? (
                     <Select
                       value={String(
-                        channel.sensor_or_controller_snapshot?.['zone'] ??
-                          channel.channel_key.split('.').slice(1).join('.'),
+                        channel.zone_index ? `zone_${channel.zone_index}` : '',
                       )}
                       disabled={disabled}
                       onValueChange={(value) =>
@@ -3052,13 +3154,19 @@ function TimelineEditor({
                     </Select>
                   ) : (
                     <Input
-                      value={String(
-                        channel.sensor_or_controller_snapshot?.['zone'] ?? '',
-                      )}
+                      value={String(channel.zone_index ?? '')}
                       disabled={disabled}
-                      placeholder="例如 温区 1"
+                      type="number"
+                      min="1"
+                      placeholder="例如 1"
                       onChange={(event) =>
-                        setChannelSubject(index, 'zone', event.target.value)
+                        setChannelSubject(
+                          index,
+                          'zone',
+                          event.target.value
+                            ? `zone_${event.target.value}`
+                            : '',
+                        )
                       }
                     />
                   )}
@@ -3068,11 +3176,7 @@ function TimelineEditor({
                   <div className="grid gap-2">
                     <Label>气体种类</Label>
                     <Input
-                      value={String(
-                        channel.sensor_or_controller_snapshot?.[
-                          'gas_species'
-                        ] ?? channel.channel_key.split('.').slice(1).join('.'),
-                      )}
+                      value={String(channel.gas_species ?? '')}
                       disabled={disabled}
                       placeholder="例如 Ar"
                       onChange={(event) =>
@@ -3127,11 +3231,7 @@ function TimelineEditor({
                   <div className="grid gap-2">
                     <Label>压力位置</Label>
                     <Input
-                      value={String(
-                        channel.sensor_or_controller_snapshot?.[
-                          'pressure_location'
-                        ] ?? channel.channel_key.split('.').slice(1).join('.'),
-                      )}
+                      value={String(channel.pressure_location ?? '')}
                       disabled={disabled}
                       placeholder="例如 反应腔"
                       onChange={(event) =>
@@ -3146,14 +3246,10 @@ function TimelineEditor({
                   <div className="grid gap-2">
                     <Label>压力类型</Label>
                     <Select
-                      value={String(
-                        channel.sensor_or_controller_snapshot?.[
-                          'pressure_type'
-                        ] ?? '',
-                      )}
+                      value={String(channel.pressure_type ?? '')}
                       disabled={disabled}
                       onValueChange={(value) =>
-                        patchChannelMetadata(index, 'pressure_type', value)
+                        patchChannel(index, { pressure_type: value })
                       }
                     >
                       <SelectTrigger className="w-full">
@@ -3178,8 +3274,9 @@ function TimelineEditor({
                     onValueChange={(value) => {
                       const stateChannel = value.endsWith('_state')
                       patchChannel(index, {
-                        channel_key: machineKey(value),
                         channel_type: value,
+                        subject_type: 'device',
+                        subject_ref: value,
                         unit: PROCESS_UNITS[value][0],
                         data_kind: stateChannel ? 'interval_series' : 'scalar',
                         scalar_value: undefined,
@@ -3731,6 +3828,430 @@ function EventsEditor({
   )
 }
 
+type MeasurementPropertyDraft = {
+  id: string
+  propertyCode: string
+  value: string
+  uncertainty: string
+  uncertaintyType: string
+  sampleCount: string
+  quality: string
+}
+
+type MaterialAssertionDraft = {
+  id: string
+  type: string
+  value: string
+  basis: string
+  components: Array<{ id: string; species: string; fraction: string }>
+}
+
+function newPropertyDraft(propertyCode = ''): MeasurementPropertyDraft {
+  return {
+    id: crypto.randomUUID(),
+    propertyCode,
+    value: '',
+    uncertainty: '',
+    uncertaintyType: '',
+    sampleCount: '',
+    quality: 'valid',
+  }
+}
+
+function newAssertionDraft(): MaterialAssertionDraft {
+  return {
+    id: crypto.randomUUID(),
+    type: 'phase_identity',
+    value: '',
+    basis: 'site_fraction',
+    components: [{ id: crypto.randomUUID(), species: '', fraction: '' }],
+  }
+}
+
+function propertyDraftValid(property: MeasurementPropertyDraft): boolean {
+  if (!property.value.trim()) return true
+  return (
+    Boolean(property.propertyCode) &&
+    Number.isFinite(Number(property.value)) &&
+    (property.uncertainty === '' ||
+      (Number(property.uncertainty) >= 0 &&
+        Boolean(property.uncertaintyType))) &&
+    (property.sampleCount === '' ||
+      (Number.isInteger(Number(property.sampleCount)) &&
+        Number(property.sampleCount) >= 1))
+  )
+}
+
+function assertionDraftValid(assertion: MaterialAssertionDraft): boolean {
+  if (assertion.type === 'composition') {
+    return assertion.components.every(
+      (component) =>
+        Boolean(component.species.trim()) &&
+        component.fraction !== '' &&
+        Number(component.fraction) >= 0 &&
+        Number(component.fraction) <= 1,
+    )
+  }
+  if (assertion.type === 'layer_count') {
+    return (
+      Number.isInteger(Number(assertion.value)) && Number(assertion.value) >= 1
+    )
+  }
+  return Boolean(assertion.value.trim())
+}
+
+function regionDraftValid(region: {
+  geometryType: string
+  label: string
+  x: string
+  y: string
+  width: string
+  height: string
+  unit: string
+}): boolean {
+  if (!region.geometryType || !region.label.trim()) return false
+  if (Boolean(region.x) !== Boolean(region.y)) return false
+  if (
+    region.geometryType === 'line' &&
+    (!region.width || Number(region.width) <= 0)
+  )
+    return false
+  if (
+    region.geometryType === 'area' &&
+    (!region.width ||
+      !region.height ||
+      Number(region.width) <= 0 ||
+      Number(region.height) <= 0)
+  )
+    return false
+  return (
+    ![region.x, region.y, region.width, region.height].some(
+      (value) => value && !Number.isFinite(Number(value)),
+    ) &&
+    (![region.x, region.y, region.width, region.height].some(Boolean) ||
+      Boolean(region.unit.trim()))
+  )
+}
+
+function MeasurementPropertyEditor({
+  property,
+  propertyCodes,
+  onChange,
+  onRemove,
+}: {
+  property: MeasurementPropertyDraft
+  propertyCodes: string[]
+  onChange: (patch: Partial<MeasurementPropertyDraft>) => void
+  onRemove: () => void
+}) {
+  return (
+    <Card size="sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
+        <CardTitle>测量结果</CardTitle>
+        <Button type="button" size="sm" variant="ghost" onClick={onRemove}>
+          <Trash2 data-icon="inline-start" /> 删除
+        </Button>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <Label>结果类型</Label>
+          <Select
+            value={property.propertyCode}
+            onValueChange={(propertyCode) => onChange({ propertyCode })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="选择结果类型" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {propertyCodes.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {PROPERTY_LABELS[code]}（{PROPERTY_UNITS[code]}）
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label>
+            结果值
+            {property.propertyCode
+              ? `（${PROPERTY_UNITS[property.propertyCode]}）`
+              : ''}
+          </Label>
+          <Input
+            type="number"
+            value={property.value}
+            disabled={!property.propertyCode}
+            placeholder="不填写则不提交此项"
+            onChange={(event) => onChange({ value: event.target.value })}
+          />
+        </div>
+        <details className="rounded-lg border p-3 sm:col-span-2">
+          <summary className="cursor-pointer font-medium">
+            统计与质量信息
+          </summary>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>测量不确定度</Label>
+              <Input
+                type="number"
+                min="0"
+                value={property.uncertainty}
+                disabled={!property.value}
+                onChange={(event) =>
+                  onChange({ uncertainty: event.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>不确定度类型</Label>
+              <Select
+                value={property.uncertaintyType}
+                disabled={!property.uncertainty}
+                onValueChange={(uncertaintyType) =>
+                  onChange({ uncertaintyType })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择统计口径" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="standard_deviation">标准差</SelectItem>
+                    <SelectItem value="standard_error">标准误差</SelectItem>
+                    <SelectItem value="confidence_interval">
+                      置信区间
+                    </SelectItem>
+                    <SelectItem value="expanded_uncertainty">
+                      扩展不确定度
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>样本数 n</Label>
+              <Input
+                type="number"
+                min="1"
+                value={property.sampleCount}
+                disabled={!property.value}
+                onChange={(event) =>
+                  onChange({ sampleCount: event.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>数据质量</Label>
+              <Select
+                value={property.quality}
+                disabled={!property.value}
+                onValueChange={(quality) => onChange({ quality })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="valid">有效</SelectItem>
+                    <SelectItem value="suspect">可疑</SelectItem>
+                    <SelectItem value="invalid">无效</SelectItem>
+                    <SelectItem value="below_detection_limit">
+                      低于检出限
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </details>
+      </CardContent>
+    </Card>
+  )
+}
+
+function MaterialAssertionEditor({
+  assertion,
+  onChange,
+  onRemove,
+}: {
+  assertion: MaterialAssertionDraft
+  onChange: (patch: Partial<MaterialAssertionDraft>) => void
+  onRemove: () => void
+}) {
+  return (
+    <Card size="sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b">
+        <CardTitle>材料结论</CardTitle>
+        <Button type="button" size="sm" variant="ghost" onClick={onRemove}>
+          <Trash2 data-icon="inline-start" /> 删除
+        </Button>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <Label>结论类型</Label>
+          <Select
+            value={assertion.type}
+            onValueChange={(type) =>
+              onChange({
+                type,
+                value: '',
+                components:
+                  type === 'composition'
+                    ? [
+                        {
+                          id: crypto.randomUUID(),
+                          species: '',
+                          fraction: '',
+                        },
+                      ]
+                    : assertion.components,
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="phase_identity">物相身份</SelectItem>
+                <SelectItem value="composition">组成</SelectItem>
+                <SelectItem value="polytype">多型</SelectItem>
+                <SelectItem value="stacking_order">堆叠顺序</SelectItem>
+                <SelectItem value="orientation_relationship">
+                  取向关系
+                </SelectItem>
+                <SelectItem value="layer_count">层数结论</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        {assertion.type === 'composition' ? (
+          <>
+            <div className="grid gap-2">
+              <Label>组成基准</Label>
+              <Select
+                value={assertion.basis}
+                onValueChange={(basis) => onChange({ basis })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="site_fraction">位点分数</SelectItem>
+                    <SelectItem value="atomic_fraction">原子分数</SelectItem>
+                    <SelectItem value="mass_fraction">质量分数</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2 sm:col-span-2">
+              {assertion.components.map((component) => (
+                <div
+                  key={component.id}
+                  className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_auto]"
+                >
+                  <Input
+                    aria-label="组分"
+                    value={component.species}
+                    placeholder="组分，例如 Mo"
+                    onChange={(event) =>
+                      onChange({
+                        components: assertion.components.map((item) =>
+                          item.id === component.id
+                            ? { ...item, species: event.target.value }
+                            : item,
+                        ),
+                      })
+                    }
+                  />
+                  <Input
+                    aria-label="分数"
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="any"
+                    value={component.fraction}
+                    placeholder="分数，例如 0.5"
+                    onChange={(event) =>
+                      onChange({
+                        components: assertion.components.map((item) =>
+                          item.id === component.id
+                            ? { ...item, fraction: event.target.value }
+                            : item,
+                        ),
+                      })
+                    }
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={assertion.components.length === 1}
+                    onClick={() =>
+                      onChange({
+                        components: assertion.components.filter(
+                          (item) => item.id !== component.id,
+                        ),
+                      })
+                    }
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="justify-self-start"
+                onClick={() =>
+                  onChange({
+                    components: [
+                      ...assertion.components,
+                      {
+                        id: crypto.randomUUID(),
+                        species: '',
+                        fraction: '',
+                      },
+                    ],
+                  })
+                }
+              >
+                <Plus data-icon="inline-start" /> 添加组分
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="grid gap-2">
+            <Label>
+              {assertion.type === 'phase_identity'
+                ? '物相'
+                : assertion.type === 'layer_count'
+                  ? '层数'
+                  : '结论'}
+            </Label>
+            <Input
+              type={assertion.type === 'layer_count' ? 'number' : 'text'}
+              min={assertion.type === 'layer_count' ? '1' : undefined}
+              value={assertion.value}
+              placeholder={
+                assertion.type === 'phase_identity'
+                  ? '例如 2H-MoS₂'
+                  : '填写结论'
+              }
+              onChange={(event) => onChange({ value: event.target.value })}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function ScientificMeasurementWorkspace({
   runId,
   token,
@@ -3750,7 +4271,7 @@ export function ScientificMeasurementWorkspace({
     queryFn: () => listMeasurements(token, { runId }),
   })
   const [sampleId, setSampleId] = useState('')
-  const [method, setMethod] = useState('optical_microscopy')
+  const [method, setMethod] = useState('')
   const [instrumentId, setInstrumentId] = useState('')
   const [instrumentVersion, setInstrumentVersion] = useState<number | null>(
     null,
@@ -3766,6 +4287,7 @@ export function ScientificMeasurementWorkspace({
   )
   const [conditions, setConditions] = useState<Record<string, string>>({})
   const [region, setRegion] = useState({
+    geometryType: '',
     label: '',
     x: '',
     y: '',
@@ -3773,20 +4295,14 @@ export function ScientificMeasurementWorkspace({
     height: '',
     unit: 'μm',
   })
-  const [propertyCode, setPropertyCode] = useState('')
-  const [propertyValue, setPropertyValue] = useState('')
-  const [propertyUncertainty, setPropertyUncertainty] = useState('')
-  const [uncertaintyType, setUncertaintyType] = useState('')
-  const [sampleCount, setSampleCount] = useState('')
-  const [propertyQuality, setPropertyQuality] = useState('valid')
+  const [properties, setProperties] = useState<MeasurementPropertyDraft[]>([])
   const [growth, setGrowth] = useState('')
-  const [assertionType, setAssertionType] = useState('none')
-  const [assertionValue, setAssertionValue] = useState('')
+  const [assertions, setAssertions] = useState<MaterialAssertionDraft[]>([])
   const [software, setSoftware] = useState('')
   const [softwareVersion, setSoftwareVersion] = useState('')
   const [rawFiles, setRawFiles] = useState<File[]>([])
 
-  const selectedSampleId = sampleId || samples.data?.items[0]?.id || ''
+  const selectedSampleId = sampleId
   const selectedSample = samples.data?.items.find(
     (sample) => sample.id === selectedSampleId,
   )
@@ -3811,26 +4327,25 @@ export function ScientificMeasurementWorkspace({
             : conditions[field.key],
         ]),
       )
-      const properties =
-        propertyCode && propertyValue !== ''
-          ? [
-              {
-                property_code: propertyCode,
-                numeric_value: Number(propertyValue),
-                unit: PROPERTY_UNITS[propertyCode],
-                statistic: 'single_observation',
-                ...(propertyUncertainty
-                  ? {
-                      uncertainty_value: Number(propertyUncertainty),
-                      uncertainty_type: uncertaintyType,
-                    }
-                  : {}),
-                ...(sampleCount ? { sample_count: Number(sampleCount) } : {}),
-                quality_flag: propertyQuality,
-                analysis_index: software ? 0 : undefined,
-              },
-            ]
-          : []
+      const propertyPayload = properties
+        .filter((property) => property.propertyCode && property.value !== '')
+        .map((property) => ({
+          property_code: property.propertyCode,
+          numeric_value: Number(property.value),
+          unit: PROPERTY_UNITS[property.propertyCode],
+          statistic: 'single_observation',
+          ...(property.uncertainty
+            ? {
+                uncertainty_value: Number(property.uncertainty),
+                uncertainty_type: property.uncertaintyType,
+              }
+            : {}),
+          ...(property.sampleCount
+            ? { sample_count: Number(property.sampleCount) }
+            : {}),
+          quality_flag: property.quality,
+          analysis_index: software ? 0 : undefined,
+        }))
       return createMeasurement(
         {
           measurement: {
@@ -3844,13 +4359,13 @@ export function ScientificMeasurementWorkspace({
               : {}),
             measured_at: new Date(measuredAt).toISOString(),
             sample_region: {
-              geometry_type: 'area',
+              geometry_type: region.geometryType,
               label: region.label,
               coordinate_system: 'sample_local',
               x: numberOrUndefined(region.x),
               y: numberOrUndefined(region.y),
-              width: Number(region.width),
-              height: Number(region.height),
+              width: numberOrUndefined(region.width),
+              height: numberOrUndefined(region.height),
               unit: region.unit,
             },
             typed_conditions: typedConditions,
@@ -3870,7 +4385,7 @@ export function ScientificMeasurementWorkspace({
                 },
               ]
             : [],
-          properties,
+          properties: propertyPayload,
           assertions: [
             {
               assertion_type: 'growth_presence',
@@ -3878,21 +4393,17 @@ export function ScientificMeasurementWorkspace({
               confidence: null,
               analysis_index: software ? 0 : undefined,
             },
-            ...(assertionType !== 'none' && assertionValue
-              ? [
-                  {
-                    assertion_type: assertionType,
-                    value: {
-                      value:
-                        assertionType === 'layer_count'
-                          ? Number(assertionValue)
-                          : assertionValue,
-                    },
-                    confidence: null,
-                    analysis_index: software ? 0 : undefined,
-                  },
-                ]
-              : []),
+            ...assertions.map((assertion) => ({
+              assertion_type: assertion.type,
+              value: materialAssertionValue(
+                assertion.type,
+                assertion.value,
+                assertion.components,
+                assertion.basis,
+              ),
+              confidence: null,
+              analysis_index: software ? 0 : undefined,
+            })),
           ],
         },
         token,
@@ -3900,13 +4411,10 @@ export function ScientificMeasurementWorkspace({
     },
     onSuccess: async () => {
       setGrowth('')
-      setPropertyCode('')
-      setPropertyValue('')
-      setPropertyUncertainty('')
-      setUncertaintyType('')
-      setSampleCount('')
-      setAssertionType('none')
-      setAssertionValue('')
+      setProperties(
+        (METHOD_DEFAULT_PROPERTIES[method] ?? []).map(newPropertyDraft),
+      )
+      setAssertions([])
       setSoftware('')
       setSoftwareVersion('')
       setRawFiles([])
@@ -3967,10 +4475,27 @@ export function ScientificMeasurementWorkspace({
                   setMethod(value)
                   setConditions({})
                   setInstrumentId('')
+                  setInstrumentVersion(null)
+                  setInstrumentSnapshot(null)
+                  setRegion({
+                    geometryType: METHOD_GEOMETRIES[value][0],
+                    label: '',
+                    x: '',
+                    y: '',
+                    width: '',
+                    height: '',
+                    unit: 'μm',
+                  })
+                  setProperties(
+                    (METHOD_DEFAULT_PROPERTIES[value] ?? []).map(
+                      newPropertyDraft,
+                    ),
+                  )
+                  setAssertions([])
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="选择表征方法" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -3997,7 +4522,7 @@ export function ScientificMeasurementWorkspace({
                 onChange={(event) => setMeasuredAt(event.target.value)}
               />
             </div>
-            {method !== 'optical_microscopy' ? (
+            {method && method !== 'optical_microscopy' ? (
               <div className="grid gap-2">
                 <Label>使用的仪器版本</Label>
                 <EntityReferenceSelect
@@ -4036,22 +4561,105 @@ export function ScientificMeasurementWorkspace({
 
             <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
               <h4 className="font-medium sm:col-span-2">测量区域</h4>
-              {Object.entries(region).map(([key, value]) => (
-                <div key={key} className="grid gap-2">
-                  <Label>{REGION_LABELS[key]}</Label>
+              <div className="grid gap-2">
+                <Label>区域类型</Label>
+                <Select
+                  value={region.geometryType}
+                  disabled={!method}
+                  onValueChange={(geometryType) =>
+                    setRegion({
+                      ...region,
+                      geometryType,
+                      width: '',
+                      height: '',
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="先选择表征方法" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {(METHOD_GEOMETRIES[method] ?? []).map((geometry) => (
+                        <SelectItem key={geometry} value={geometry}>
+                          {GEOMETRY_LABELS[geometry]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>{REGION_LABELS.label}</Label>
+                <Input
+                  value={region.label}
+                  placeholder="例如样品中心"
+                  onChange={(event) =>
+                    setRegion({ ...region, label: event.target.value })
+                  }
+                />
+              </div>
+              {['point', 'line', 'area'].includes(region.geometryType) ? (
+                <>
+                  <div className="grid gap-2">
+                    <Label>{REGION_LABELS.x}</Label>
+                    <Input
+                      type="number"
+                      value={region.x}
+                      onChange={(event) =>
+                        setRegion({ ...region, x: event.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>{REGION_LABELS.y}</Label>
+                    <Input
+                      type="number"
+                      value={region.y}
+                      onChange={(event) =>
+                        setRegion({ ...region, y: event.target.value })
+                      }
+                    />
+                  </div>
+                </>
+              ) : null}
+              {['line', 'area'].includes(region.geometryType) ? (
+                <div className="grid gap-2">
+                  <Label>{REGION_LABELS.width}</Label>
                   <Input
-                    type={
-                      ['x', 'y', 'width', 'height'].includes(key)
-                        ? 'number'
-                        : 'text'
-                    }
-                    value={value}
+                    type="number"
+                    min="0"
+                    value={region.width}
                     onChange={(event) =>
-                      setRegion({ ...region, [key]: event.target.value })
+                      setRegion({ ...region, width: event.target.value })
                     }
                   />
                 </div>
-              ))}
+              ) : null}
+              {region.geometryType === 'area' ? (
+                <div className="grid gap-2">
+                  <Label>{REGION_LABELS.height}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={region.height}
+                    onChange={(event) =>
+                      setRegion({ ...region, height: event.target.value })
+                    }
+                  />
+                </div>
+              ) : null}
+              {['point', 'line', 'area'].includes(region.geometryType) ? (
+                <div className="grid gap-2">
+                  <Label>{REGION_LABELS.unit}</Label>
+                  <Input
+                    value={region.unit}
+                    onChange={(event) =>
+                      setRegion({ ...region, unit: event.target.value })
+                    }
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
@@ -4068,8 +4676,8 @@ export function ScientificMeasurementWorkspace({
               }
             />
             <p className="text-xs text-muted-foreground">
-              已选择 {rawFiles.length}{' '}
-              个文件；如仅记录直接观察结论，可暂不上传。
+              已选择 {rawFiles.length} 个文件。
+              {method ? ` ${RAW_FILE_GUIDANCE[method]}` : ' 请先选择表征方法。'}
             </p>
           </div>
         </section>
@@ -4092,144 +4700,93 @@ export function ScientificMeasurementWorkspace({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label>测量结果（选填）</Label>
-              <Select
-                value={propertyCode || 'none'}
-                onValueChange={(value) =>
-                  setPropertyCode(value === 'none' ? '' : value)
+          </div>
+
+          <div className="grid gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">测量结果（可添加多条）</p>
+                <p className="text-xs text-muted-foreground">
+                  已按表征方法提供常用结果模板；留空的条目不会提交。
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!method}
+                onClick={() =>
+                  setProperties([...properties, newPropertyDraft()])
                 }
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="none">不记录数值结果</SelectItem>
-                    {Object.entries(PROPERTY_UNITS).map(([code, unit]) => (
-                      <SelectItem key={code} value={code}>
-                        {PROPERTY_LABELS[code] ?? code}（{unit}）
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                <Plus data-icon="inline-start" /> 添加结果
+              </Button>
             </div>
-            <div className="grid gap-2">
-              <Label>
-                结果值
-                {propertyCode ? `（${PROPERTY_UNITS[propertyCode]}）` : ''}
-              </Label>
-              <Input
-                type="number"
-                value={propertyValue}
-                disabled={!propertyCode}
-                onChange={(event) => setPropertyValue(event.target.value)}
+            {properties.map((property) => (
+              <MeasurementPropertyEditor
+                key={property.id}
+                property={property}
+                propertyCodes={METHOD_PROPERTY_CODES[method] ?? []}
+                onChange={(patch) =>
+                  setProperties(
+                    properties.map((item) =>
+                      item.id === property.id ? { ...item, ...patch } : item,
+                    ),
+                  )
+                }
+                onRemove={() =>
+                  setProperties(
+                    properties.filter((item) => item.id !== property.id),
+                  )
+                }
               />
+            ))}
+          </div>
+
+          <div className="grid gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">材料结论（可添加多条）</p>
+                <p className="text-xs text-muted-foreground">
+                  物相、组成、层数与取向分别记录，均与本次测量证据关联。
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setAssertions([...assertions, newAssertionDraft()])
+                }
+              >
+                <Plus data-icon="inline-start" /> 添加材料结论
+              </Button>
             </div>
-            <div className="grid gap-2">
-              <Label>材料结论（选填）</Label>
-              <Select value={assertionType} onValueChange={setAssertionType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="none">不添加</SelectItem>
-                    <SelectItem value="phase_identity">物相身份</SelectItem>
-                    <SelectItem value="composition">组成</SelectItem>
-                    <SelectItem value="polytype">多型</SelectItem>
-                    <SelectItem value="stacking_order">堆叠顺序</SelectItem>
-                    <SelectItem value="orientation_relationship">
-                      取向关系
-                    </SelectItem>
-                    <SelectItem value="layer_count">层数结论</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Input
-                type={assertionType === 'layer_count' ? 'number' : 'text'}
-                value={assertionValue}
-                disabled={assertionType === 'none'}
-                placeholder="填写结论"
-                onChange={(event) => setAssertionValue(event.target.value)}
+            {assertions.map((assertion) => (
+              <MaterialAssertionEditor
+                key={assertion.id}
+                assertion={assertion}
+                onChange={(patch) =>
+                  setAssertions(
+                    assertions.map((item) =>
+                      item.id === assertion.id ? { ...item, ...patch } : item,
+                    ),
+                  )
+                }
+                onRemove={() =>
+                  setAssertions(
+                    assertions.filter((item) => item.id !== assertion.id),
+                  )
+                }
               />
-            </div>
+            ))}
           </div>
 
           <details className="rounded-lg border p-3">
             <summary className="cursor-pointer font-medium">
-              更多统计与分析信息
+              分析软件信息
             </summary>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>测量不确定度</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={propertyUncertainty}
-                  disabled={!propertyCode}
-                  onChange={(event) =>
-                    setPropertyUncertainty(event.target.value)
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>不确定度类型</Label>
-                <Select
-                  value={uncertaintyType}
-                  disabled={!propertyCode || !propertyUncertainty}
-                  onValueChange={setUncertaintyType}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择统计口径" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="standard_deviation">标准差</SelectItem>
-                      <SelectItem value="standard_error">标准误差</SelectItem>
-                      <SelectItem value="confidence_interval">
-                        置信区间
-                      </SelectItem>
-                      <SelectItem value="expanded_uncertainty">
-                        扩展不确定度
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>样本数 n</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={sampleCount}
-                  disabled={!propertyCode}
-                  onChange={(event) => setSampleCount(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>数据质量</Label>
-                <Select
-                  value={propertyQuality}
-                  disabled={!propertyCode}
-                  onValueChange={setPropertyQuality}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="valid">有效</SelectItem>
-                      <SelectItem value="suspect">可疑</SelectItem>
-                      <SelectItem value="invalid">无效</SelectItem>
-                      <SelectItem value="below_detection_limit">
-                        低于检出限
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="grid gap-2 sm:col-span-2">
                 <Label>分析软件（选填）</Label>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -4255,16 +4812,15 @@ export function ScientificMeasurementWorkspace({
           disabled={
             readOnly ||
             !selectedSampleId ||
+            !method ||
+            (method !== 'optical_microscopy' &&
+              (!instrumentId || instrumentVersion === null)) ||
             !growth ||
-            !region.label.trim() ||
-            !region.width ||
-            !region.height ||
-            !region.unit.trim() ||
-            Boolean(region.x) !== Boolean(region.y) ||
+            !regionDraftValid(region) ||
             conditionFields.some((field) => !conditions[field.key]) ||
-            Boolean(propertyCode) !== Boolean(propertyValue) ||
-            (propertyUncertainty !== '' && !uncertaintyType.trim()) ||
-            (assertionType !== 'none' && !assertionValue.trim()) ||
+            properties.some((property) => !propertyDraftValid(property)) ||
+            assertions.some((assertion) => !assertionDraftValid(assertion)) ||
+            (method !== 'optical_microscopy' && rawFiles.length === 0) ||
             Boolean(software) !== Boolean(softwareVersion) ||
             (software !== '' && rawFiles.length === 0) ||
             mutation.isPending

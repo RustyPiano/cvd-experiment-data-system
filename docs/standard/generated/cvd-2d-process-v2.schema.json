@@ -2058,9 +2058,7 @@
           "additionalProperties": false,
           "properties": {
             "channel_key": {
-              "maxLength": 128,
-              "minLength": 1,
-              "pattern": "^[a-z][a-z0-9_.]*$",
+              "pattern": "^channel_[0-9a-f]{8}(?:_[0-9a-f]{4}){3}_[0-9a-f]{12}$",
               "title": "Channel Key",
               "type": "string"
             },
@@ -2086,6 +2084,78 @@
               ],
               "title": "Source Type",
               "type": "string"
+            },
+            "subject_type": {
+              "enum": [
+                "temperature_zone",
+                "gas_species",
+                "pressure_location",
+                "device"
+              ],
+              "title": "Subject Type",
+              "type": "string"
+            },
+            "subject_ref": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Subject Ref",
+              "type": "string"
+            },
+            "gas_species": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Gas Species"
+            },
+            "zone_index": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Zone Index"
+            },
+            "pressure_location": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pressure Location"
+            },
+            "pressure_type": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "absolute",
+                    "gauge",
+                    "differential"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pressure Type"
             },
             "unit": {
               "maxLength": 32,
@@ -2160,6 +2230,8 @@
             "channel_key",
             "channel_type",
             "source_type",
+            "subject_type",
+            "subject_ref",
             "unit",
             "data_kind"
           ],
@@ -4339,7 +4411,11 @@
               "enum": [
                 "point",
                 "line",
-                "area"
+                "area",
+                "whole_sample",
+                "lamella",
+                "particle",
+                "selected_area"
               ],
               "title": "Geometry Type",
               "type": "string"

@@ -424,6 +424,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             mode="edit"
             runId={runId}
             runCode={data.run.run_code}
+            runStatus={data.run.status}
             initialState={buildStateFromLoaded(data.run, data.modules)}
             modules={data.modules}
             processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}

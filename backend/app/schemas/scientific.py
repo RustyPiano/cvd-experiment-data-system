@@ -345,7 +345,7 @@ class ProcessChannelPoint(BaseModel):
 class ProcessChannelPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    channel_key: str = Field(min_length=1, max_length=128, pattern=r"^[a-z][a-z0-9_.]*$")
+    channel_key: str = Field(pattern=r"^channel_[0-9a-f]{8}(?:_[0-9a-f]{4}){3}_[0-9a-f]{12}$")
     channel_type: Literal[
         "temperature",
         "flow",
@@ -357,6 +357,17 @@ class ProcessChannelPayload(BaseModel):
         "shutter_state",
     ]
     source_type: Literal["setpoint", "measured", "inferred"]
+    subject_type: Literal[
+        "temperature_zone",
+        "gas_species",
+        "pressure_location",
+        "device",
+    ]
+    subject_ref: str = Field(min_length=1, max_length=128)
+    gas_species: str | None = Field(default=None, max_length=128)
+    zone_index: int | None = Field(default=None, ge=1)
+    pressure_location: str | None = Field(default=None, max_length=128)
+    pressure_type: Literal["absolute", "gauge", "differential"] | None = None
     unit: str = Field(min_length=1, max_length=32)
     data_kind: Literal["scalar", "interval_series", "timeseries_file"]
     scalar_value: float | None = Field(default=None, allow_inf_nan=False)
@@ -366,6 +377,35 @@ class ProcessChannelPayload(BaseModel):
 
     @model_validator(mode="after")
     def validate_data_shape(self) -> Self:
+        self.subject_ref = self.subject_ref.strip()
+        if not self.subject_ref:
+            raise ValueError("subject_ref cannot be blank")
+        if self.channel_type == "temperature":
+            if (
+                self.subject_type != "temperature_zone"
+                or self.zone_index is None
+                or self.subject_ref != f"zone_{self.zone_index}"
+            ):
+                raise ValueError("temperature channels require a matching zone subject")
+        elif self.channel_type == "flow":
+            self.gas_species = (self.gas_species or "").strip() or None
+            if (
+                self.subject_type != "gas_species"
+                or self.gas_species is None
+                or self.subject_ref != self.gas_species
+            ):
+                raise ValueError("flow channels require an explicit gas species subject")
+        elif self.channel_type == "pressure":
+            self.pressure_location = (self.pressure_location or "").strip() or None
+            if (
+                self.subject_type != "pressure_location"
+                or self.pressure_location is None
+                or self.pressure_type is None
+                or self.subject_ref != self.pressure_location
+            ):
+                raise ValueError("pressure channels require location and pressure type")
+        elif self.subject_type != "device" or self.subject_ref != self.channel_type:
+            raise ValueError("device channels require their channel type as subject")
         present = {
             "scalar": self.scalar_value is not None,
             "interval_series": bool(self.series),
@@ -401,6 +441,12 @@ class ProcessTimelinePayload(BaseModel):
             raise ValueError("segment keys must be unique")
         if len(channel_keys) != len(set(channel_keys)):
             raise ValueError("channel keys must be unique")
+        semantic_keys = [
+            (item.channel_type, item.subject_ref.casefold(), item.source_type)
+            for item in self.channels
+        ]
+        if len(semantic_keys) != len(set(semantic_keys)):
+            raise ValueError("channel type, subject, and source type must be unique")
         sequences = [item.sequence for item in self.segments]
         if sorted(sequences) != list(range(1, len(sequences) + 1)):
             raise ValueError("segment sequence must be consecutive from one")
@@ -550,7 +596,15 @@ class ReviewRunRequest(BaseModel):
 class SampleRegion(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    geometry_type: Literal["point", "line", "area"]
+    geometry_type: Literal[
+        "point",
+        "line",
+        "area",
+        "whole_sample",
+        "lamella",
+        "particle",
+        "selected_area",
+    ]
     label: str = Field(min_length=1, max_length=128)
     coordinate_system: str = Field(min_length=1, max_length=128)
     x: float | None = Field(default=None, allow_inf_nan=False)
@@ -576,6 +630,10 @@ class SampleRegion(BaseModel):
             raise ValueError("line regions require a length in width")
         if self.geometry_type == "area" and (self.width is None or self.height is None):
             raise ValueError("area regions require width and height")
+        if self.geometry_type in {"whole_sample", "lamella", "particle", "selected_area"} and any(
+            value is not None for value in (self.width, self.height)
+        ):
+            raise ValueError(f"{self.geometry_type} regions cannot include width or height")
         if (self.image_file_id is None) != (self.pixel_roi is None):
             raise ValueError("image_file_id and pixel_roi must be provided together")
         return self
@@ -645,6 +703,17 @@ METHOD_REQUIRED_CONDITIONS: dict[str, frozenset[str]] = {
     ),
 }
 
+METHOD_REGION_TYPES: dict[str, frozenset[str]] = {
+    "optical_microscopy": frozenset({"point", "area", "whole_sample"}),
+    "Raman": frozenset({"point", "line"}),
+    "low_frequency_raman": frozenset({"point", "line"}),
+    "PL": frozenset({"point", "line"}),
+    "AFM": frozenset({"point", "area", "whole_sample"}),
+    "SEM": frozenset({"point", "area", "whole_sample"}),
+    "XRD": frozenset({"area", "whole_sample"}),
+    "TEM": frozenset({"lamella", "particle", "selected_area"}),
+}
+
 
 class MeasurementConditions(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -706,6 +775,8 @@ class MeasurementRunCreate(BaseModel):
     def validate_measurement(self) -> Self:
         if (self.instrument_id is None) != (self.instrument_version is None):
             raise ValueError("instrument_id and instrument_version must be provided together")
+        if self.method_profile != "optical_microscopy" and self.instrument_id is None:
+            raise ValueError("non-optical measurements require an instrument")
         required = METHOD_REQUIRED_CONDITIONS.get(self.method_profile)
         if required is None:
             raise ValueError("unsupported method profile")
@@ -717,6 +788,10 @@ class MeasurementRunCreate(BaseModel):
         if unexpected:
             raise ValueError(
                 f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
+            )
+        if self.sample_region.geometry_type not in METHOD_REGION_TYPES[self.method_profile]:
+            raise ValueError(
+                f"{self.sample_region.geometry_type} does not apply to {self.method_profile}"
             )
         return self
 
@@ -840,8 +915,38 @@ class MaterialAssertionWrite(BaseModel):
         if self.assertion_type == "growth_presence":
             if self.value.get("state") not in {"present", "absent", "uncertain"}:
                 raise ValueError("growth_presence requires state present, absent, or uncertain")
-        elif not self.value:
-            raise ValueError("assertion value cannot be empty")
+        elif self.assertion_type == "phase_identity":
+            if not isinstance(self.value.get("phase"), str) or not self.value["phase"].strip():
+                raise ValueError("phase_identity requires phase")
+        elif self.assertion_type == "layer_count":
+            if not isinstance(self.value.get("count"), int) or self.value["count"] < 1:
+                raise ValueError("layer_count requires a positive integer count")
+        elif self.assertion_type == "composition":
+            components = self.value.get("components")
+            if (
+                not isinstance(components, list)
+                or not components
+                or any(
+                    not isinstance(component, dict)
+                    or not isinstance(component.get("species"), str)
+                    or not component["species"].strip()
+                    or not isinstance(component.get("fraction"), int | float)
+                    or isinstance(component.get("fraction"), bool)
+                    or not 0 <= component["fraction"] <= 1
+                    for component in components
+                )
+                or self.value.get("basis")
+                not in {"site_fraction", "atomic_fraction", "mass_fraction"}
+            ):
+                raise ValueError("composition requires components and a supported fraction basis")
+        else:
+            key = {
+                "polytype": "polytype",
+                "stacking_order": "stacking_order",
+                "orientation_relationship": "orientation_relationship",
+            }[self.assertion_type]
+            if not isinstance(self.value.get(key), str) or not self.value[key].strip():
+                raise ValueError(f"{self.assertion_type} requires {key}")
         return self
 
 
@@ -857,6 +962,11 @@ class MeasurementBundleCreate(BaseModel):
     def require_evidence(self) -> Self:
         if not self.measurement.raw_file_ids and not self.properties and not self.assertions:
             raise ValueError("measurement requires raw data, a property, or an assertion")
+        if (
+            self.measurement.method_profile != "optical_microscopy"
+            and not self.measurement.raw_file_ids
+        ):
+            raise ValueError("non-optical measurements require at least one raw data file")
         for item in [*self.properties, *self.assertions]:
             if item.analysis_index is not None and item.analysis_index >= len(self.analyses):
                 raise ValueError("analysis_index is out of range")

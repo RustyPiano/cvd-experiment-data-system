@@ -9,7 +9,9 @@ import i18n from '@/shared/i18n'
 import { CharacterizationListPage } from './characterization-list-page'
 
 const api = vi.hoisted(() => ({ listCharacterizationItems: vi.fn() }))
+const experimentApi = vi.hoisted(() => ({ getRun: vi.fn() }))
 vi.mock('./api', () => api)
+vi.mock('@/features/experiments-v2/api', () => experimentApi)
 vi.mock('@/features/experiments-v2/scientific-experiment-form', () => ({
   ScientificMeasurementWorkspace: ({ runId }: { runId: string }) => (
     <div>Workspace {runId}</div>
@@ -116,6 +118,7 @@ describe('CharacterizationListPage', () => {
         results: [],
       },
     ])
+    experimentApi.getRun.mockResolvedValue({ id: 'run-3', status: 'locked' })
   })
 
   it('lists results and samples still awaiting characterization', async () => {
@@ -162,10 +165,22 @@ describe('CharacterizationListPage', () => {
     renderPage('run-3')
 
     expect(
-      screen.getByRole('heading', { name: '添加表征记录' }),
+      await screen.findByRole('heading', { name: '添加表征记录' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Workspace run-3')).toBeInTheDocument()
+    expect(await screen.findByText('Workspace run-3')).toBeInTheDocument()
     expect(screen.queryByText('样品与表征')).not.toBeInTheDocument()
     expect(api.listCharacterizationItems).not.toHaveBeenCalled()
+  })
+
+  it('does not expose an editable measurement form for a draft run', async () => {
+    experimentApi.getRun.mockResolvedValue({ id: 'run-3', status: 'draft' })
+    renderPage('run-3')
+
+    expect(
+      await screen.findByText(
+        '请先锁定制备过程，锁定后系统将生成待表征样品并开放表征录入。',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Workspace run-3')).not.toBeInTheDocument()
   })
 })

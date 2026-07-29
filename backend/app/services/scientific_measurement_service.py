@@ -84,6 +84,14 @@ class ScientificMeasurementService:
             run.id,
             sample.id,
         )
+        if any(
+            file.asset_role != "characterization_file" or file.method != measurement.method_profile
+            for file in raw_files
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Raw data files must match the measurement method",
+            )
         record = CharacterizationRecord(
             experiment_run_id=run.id,
             run_revision_id=run_revision_id,
