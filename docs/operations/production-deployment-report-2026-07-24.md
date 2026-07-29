@@ -2,11 +2,11 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前内部验证部署提交为 `89e427ec6d7e2153d1bf935ab860b3134e4ce9d0`。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与 v3.18 发布运行 `30352259683` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；v4 目标分支没有对应 Actions 运行，按用户明确部署指令，在本地全门禁和生产机双镜像预构建通过后部署。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前生产提交已回滚为 `07eccde2607d7fd8bc61cc55f13e0daa89a627ee`。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与当前 v3.18 发布运行 `30352259683` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
-- 2026-07-30 按用户要求清空活动库 `cvd` 与活动附件卷后重新初始化；旧离线归档库 `cvd_v1_archive_20260724` 和既有备份不属于活动部署边界，未触碰。
-- 用户指定管理员已恢复，公网 API 登录通过；凭据未写入仓库或本报告，初始化临时管理员已删除。
+- 2026-07-30 的 v4 fresh-empty 部署已按用户要求撤回；活动库从 `backups/20260728_185046` 恢复，当前为 2 个用户、5 条实验记录、10 条审计记录、0 条附件记录，附件卷为空。
+- 用户指定管理员已恢复并重置密码，公网 API 登录及历史实验列表通过；凭据未写入仓库或本报告。
 
 ## 切换前证据
 
@@ -106,6 +106,15 @@
 - 空库验证命令第一次因 shell 引号错误在启动容器前中止；修正为简化只读查询并再次确认 schema 和附件卷为空后，使用已预构建镜像强制重建两项应用容器，没有出现半迁移或旧新容器混跑。
 - 后端从 initial 前滚到 `20260729_0007 (head)`；最终业务计数为 `users=1 / experiment_runs=0 / file_assets=0`，附件文件数为 0。唯一用户是用户指定管理员，公网登录返回 200；初始化临时管理员在验证替代账号后删除。
 - backend/frontend 均为 `running + healthy`；服务器内与公网首页、`/health`、`runtime-config.js` 均为 200，匿名 `/api/v1/auth/me` 为 401。部署前本地门禁为后端 `338 passed / 4 skipped`、前端 `300 passed / 46 files`，生产镜像构建再次通过。
+
+## 2026-07-30 回滚上一版生产
+
+- 用户判定 v4 当前交互不适合生产，明确要求恢复上一版。恢复目标固定为 `07eccde2607d7fd8bc61cc55f13e0daa89a627ee` 与 `backups/20260728_185046`；没有跟随已前进到其他提交的远端 `main`。
+- `database.sql` 与 `storage.tar.gz` 双 SHA-256 再次通过，SQL 含完整 dump 尾标且 revision 为 `20260728_0002`。备份内计数为 2 个用户、5 条实验记录、10 条审计记录、0 条附件记录，附件归档只含空目录。
+- 破坏性恢复前先用精确旧提交通过 Compose 配置检查并预构建 backend/frontend 镜像。随后停止 v4，重建活动库 `cvd` 的 `public` schema，以 `ON_ERROR_STOP + single transaction` 恢复 SQL，并清空、恢复专用附件卷；共享 PostgreSQL 的其他数据库、离线 v1 归档及其他备份未触碰。
+- 上一版容器强制重建后均为 `running + healthy`，Alembic 保持 `20260728_0002`，恢复计数与备份一致且容器日志无 traceback/critical/migration failure。
+- 用户指定管理员密码已重置；公网登录、`/api/v1/auth/me`、历史实验列表均为 200。公网首页、`/health`、`runtime-config.js` 为 200，匿名 `/api/v1/auth/me` 为 401。
+- 生产仓库当前使用 detached HEAD 固定精确 `07eccde`。后续部署必须先明确选择目标分支或提交，不得直接执行会跟随远端 `main` 的普通拉取。
 
 ## 尚待真实数据验收
 
