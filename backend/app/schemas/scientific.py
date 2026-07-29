@@ -768,6 +768,7 @@ class MeasurementConditions(BaseModel):
     geometry: str | None = Field(default=None, max_length=128)
     sample_preparation: str | None = Field(default=None, max_length=1000)
     illumination_mode: str | None = Field(default=None, max_length=128)
+    method_description: str | None = Field(default=None, min_length=1, max_length=1000)
 
     @field_validator("power_setting")
     @classmethod
@@ -787,7 +788,7 @@ class MeasurementRunCreate(BaseModel):
     instrument_id: UUID | None = None
     instrument_version: int | None = Field(default=None, ge=1)
     measured_at: datetime
-    sample_region: SampleRegion
+    sample_region: SampleRegion | None = None
     typed_conditions: MeasurementConditions
     raw_file_ids: list[UUID] = Field(default_factory=list)
     quality_flag: Literal["valid", "suspect", "invalid"] = "valid"
@@ -806,17 +807,21 @@ class MeasurementRunCreate(BaseModel):
             raise ValueError("unsupported method profile")
         if profile["instrument_required"] and self.instrument_id is None:
             raise ValueError("selected measurement profile requires an instrument")
-        required = {item["key"] for item in profile["condition_fields"]}
+        required = set(profile["required_condition_keys"])
+        allowed = {item["key"] for item in profile["condition_fields"]}
         conditions = self.typed_conditions.model_dump(exclude_none=True)
         missing = sorted(required - conditions.keys())
         if missing:
             raise ValueError(f"missing typed measurement conditions: {', '.join(missing)}")
-        unexpected = sorted(conditions.keys() - required)
+        unexpected = sorted(conditions.keys() - allowed)
         if unexpected:
             raise ValueError(
                 f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
             )
-        if self.sample_region.geometry_type not in profile["allowed_region_types"]:
+        if (
+            self.sample_region is not None
+            and self.sample_region.geometry_type not in profile["allowed_region_types"]
+        ):
             raise ValueError(
                 f"{self.sample_region.geometry_type} does not apply to {self.method_profile}"
             )

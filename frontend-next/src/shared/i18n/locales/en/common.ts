@@ -679,7 +679,7 @@ export const common = {
         'View and add samples and characterization records for this preparation run only.',
       loadError: 'Failed to load preparation run status',
       lockRequired:
-        'Lock the preparation process first. The system will then generate samples and enable characterization entry.',
+        'Submit the preparation record first. Add characterization after the system generates samples.',
     },
     list: {
       title: 'Characterization records',
@@ -718,9 +718,9 @@ export const common = {
   // v2 experiment entry form (P4 §1–§4). Field labels come from field-metadata.
   experimentsV2: {
     status: {
-      draft: 'Recording',
-      locked: 'Process locked',
-      reviewed: 'Revision reviewed',
+      draft: 'Draft',
+      locked: 'Submitted',
+      reviewed: 'Reviewed',
       invalid: 'Voided',
       resultMissing: 'Results pending',
       notCharacterized: 'Not characterized yet',
@@ -736,7 +736,7 @@ export const common = {
       unlock: 'Unlock run',
       invalidate: 'Invalidate run',
       more: 'More actions',
-      reviewRevision: 'Mark current revision reviewed',
+      reviewRevision: 'Mark current record reviewed',
       markNotCharacterized: 'Mark not characterized yet',
       clearNotCharacterized: 'Clear not-characterized marker',
       success: 'Status updated',
@@ -795,7 +795,7 @@ export const common = {
       retry: 'Retry',
     },
     export: {
-      run: 'Export this run',
+      run: 'Export current experiment record',
       success: 'Export started',
       error: 'Export failed',
     },

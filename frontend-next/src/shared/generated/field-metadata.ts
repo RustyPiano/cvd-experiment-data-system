@@ -106,6 +106,8 @@ export interface CharacterizationProfile {
   show_growth_presence: boolean
   raw_file_guidance_zh: string
   allowed_region_types: string[]
+  required_condition_keys: string[]
+  optional_condition_keys: string[]
   condition_fields: CharacterizationConditionField[]
   allowed_property_codes: string[]
   default_property_codes: string[]
@@ -4215,6 +4217,11 @@ export const characterizationProperties: Record<
     label_en: 'TEM lattice spacing',
     unit: 'nm',
   },
+  observation_note: {
+    label_zh: '观察说明',
+    label_en: 'Observation note',
+    unit: '—',
+  },
 }
 
 /** 表征方法、条件、区域、属性与材料结论的单一合同。 */
@@ -4227,7 +4234,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       raw_files_required: false,
       show_growth_presence: true,
       raw_file_guidance_zh: '建议上传原始图像；仅记录直接观察结论时可不上传。',
-      allowed_region_types: ['point', 'area', 'whole_sample'],
+      allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
+      required_condition_keys: [],
+      optional_condition_keys: ['objective', 'illumination_mode'],
       condition_fields: [
         {
           key: 'objective',
@@ -4246,6 +4255,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'coverage_percent',
         'domain_size_um',
         'nucleation_density_cm2',
+        'observation_note',
       ],
       default_property_codes: ['coverage_percent'],
       allowed_assertion_types: [
@@ -4259,13 +4269,20 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
     },
     Raman: {
-      label_zh: '拉曼光谱',
+      label_zh: 'Raman',
       label_en: 'Raman spectroscopy',
       instrument_required: true,
       raw_files_required: true,
       show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始光谱或仪器导出文件。',
-      allowed_region_types: ['point', 'line'],
+      allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
+      required_condition_keys: ['laser_wavelength_nm'],
+      optional_condition_keys: [
+        'power_setting',
+        'objective',
+        'integration_time_s',
+        'accumulations',
+      ],
       condition_fields: [
         {
           key: 'laser_wavelength_nm',
@@ -4320,13 +4337,20 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
     },
     low_frequency_raman: {
-      label_zh: '低频拉曼',
+      label_zh: '低频 Raman',
       label_en: 'Low-frequency Raman spectroscopy',
       instrument_required: true,
       raw_files_required: true,
       show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始光谱或仪器导出文件。',
-      allowed_region_types: ['point', 'line'],
+      allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
+      required_condition_keys: ['laser_wavelength_nm'],
+      optional_condition_keys: [
+        'power_setting',
+        'objective',
+        'integration_time_s',
+        'accumulations',
+      ],
       condition_fields: [
         {
           key: 'laser_wavelength_nm',
@@ -4369,13 +4393,20 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_assertion_types: ['polytype', 'stacking_order', 'layer_count'],
     },
     PL: {
-      label_zh: '光致发光（PL）',
+      label_zh: 'PL',
       label_en: 'Photoluminescence',
       instrument_required: true,
       raw_files_required: true,
       show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始光谱。',
-      allowed_region_types: ['point', 'line'],
+      allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
+      required_condition_keys: ['excitation_wavelength_nm'],
+      optional_condition_keys: [
+        'power_setting',
+        'integration_time_s',
+        'spectral_range_nm',
+        'temperature_K',
+      ],
       condition_fields: [
         {
           key: 'excitation_wavelength_nm',
@@ -4437,13 +4468,20 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_assertion_types: ['phase_identity', 'layer_count'],
     },
     AFM: {
-      label_zh: '原子力显微镜（AFM）',
+      label_zh: 'AFM',
       label_en: 'Atomic force microscopy',
       instrument_required: true,
       raw_files_required: true,
       show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始高度数据及导出图。',
-      allowed_region_types: ['point', 'area', 'whole_sample'],
+      allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
+      required_condition_keys: ['scan_size_um'],
+      optional_condition_keys: [
+        'mode',
+        'probe',
+        'resolution_px',
+        'scan_rate_hz',
+      ],
       condition_fields: [
         {
           key: 'mode',
@@ -4512,13 +4550,19 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_assertion_types: ['layer_count'],
     },
     SEM: {
-      label_zh: '扫描电子显微镜（SEM）',
+      label_zh: 'SEM',
       label_en: 'Scanning electron microscopy',
       instrument_required: true,
       raw_files_required: true,
       show_growth_presence: true,
       raw_file_guidance_zh: '请上传原始图像与仪器元数据。',
-      allowed_region_types: ['point', 'area', 'whole_sample'],
+      allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
+      required_condition_keys: ['accelerating_voltage_kV'],
+      optional_condition_keys: [
+        'working_distance_mm',
+        'detector',
+        'field_of_view_um',
+      ],
       condition_fields: [
         {
           key: 'accelerating_voltage_kV',
@@ -4569,13 +4613,19 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_assertion_types: ['growth_presence', 'composition'],
     },
     XRD: {
-      label_zh: 'X 射线衍射（XRD）',
+      label_zh: 'XRD',
       label_en: 'X-ray diffraction',
       instrument_required: true,
       raw_files_required: true,
       show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始衍射数据。',
-      allowed_region_types: ['whole_sample', 'area'],
+      allowed_region_types: ['whole_sample', 'area', 'selected_area'],
+      required_condition_keys: ['radiation_source', 'scan_range_2theta_deg'],
+      optional_condition_keys: [
+        'step_size_deg',
+        'scan_rate_deg_min',
+        'geometry',
+      ],
       condition_fields: [
         {
           key: 'radiation_source',
@@ -4637,13 +4687,20 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       ],
     },
     TEM: {
-      label_zh: '透射电子显微镜（TEM）',
+      label_zh: 'TEM',
       label_en: 'Transmission electron microscopy',
       instrument_required: true,
       raw_files_required: true,
       show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始图像、衍射或 EDS 数据。',
-      allowed_region_types: ['lamella', 'particle', 'selected_area'],
+      allowed_region_types: [
+        'lamella',
+        'particle',
+        'whole_sample',
+        'selected_area',
+      ],
+      required_condition_keys: ['accelerating_voltage_kV'],
+      optional_condition_keys: ['mode', 'sample_preparation'],
       condition_fields: [
         {
           key: 'accelerating_voltage_kV',
@@ -4675,6 +4732,28 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'orientation_relationship',
         'layer_count',
       ],
+    },
+    other: {
+      label_zh: '其他',
+      label_en: 'Other',
+      instrument_required: false,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '请上传原始数据文件。',
+      allowed_region_types: ['whole_sample', 'point', 'area', 'selected_area'],
+      required_condition_keys: ['method_description'],
+      optional_condition_keys: [],
+      condition_fields: [
+        {
+          key: 'method_description',
+          label_zh: '方法说明',
+          label_en: 'Method description',
+          value_type: 'text',
+        },
+      ],
+      allowed_property_codes: [],
+      default_property_codes: [],
+      allowed_assertion_types: [],
     },
   }
 

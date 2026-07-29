@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -51,13 +51,40 @@ class SampleService:
             role=role,
             sample_code=sample_code,
         )
+        counts = self._characterization_counts([item.id for item in items])
         return SampleListResponse(
-            items=[SampleRead.model_validate(item) for item in items],
+            items=[
+                SampleRead.model_validate(item).model_copy(
+                    update={"characterization_count": counts.get(item.id, 0)}
+                )
+                for item in items
+            ],
             total=len(items),
         )
 
     def get_sample(self, sample_id: UUID, current_user: User) -> SampleRead:
-        return SampleRead.model_validate(self._get_visible_sample(sample_id, current_user))
+        sample = self._get_visible_sample(sample_id, current_user)
+        count = self._characterization_counts([sample.id]).get(sample.id, 0)
+        return SampleRead.model_validate(sample).model_copy(
+            update={"characterization_count": count}
+        )
+
+    def _characterization_counts(self, sample_ids: list[UUID]) -> dict[UUID, int]:
+        if not sample_ids:
+            return {}
+        return dict(
+            self.db.execute(
+                select(
+                    CharacterizationRecord.sample_id,
+                    func.count(CharacterizationRecord.id),
+                )
+                .where(
+                    CharacterizationRecord.sample_id.in_(sample_ids),
+                    CharacterizationRecord.run_revision_id.is_not(None),
+                )
+                .group_by(CharacterizationRecord.sample_id)
+            ).all()
+        )
 
     def create_sample(
         self,

@@ -19,15 +19,18 @@ const workspaceModule = vi.hoisted(() => {
 })
 vi.mock('./api', () => api)
 vi.mock('@/features/experiments-v2/api', () => experimentApi)
-vi.mock('@/features/experiments-v2/scientific-experiment-form', async () => {
-  workspaceModule.loaded()
-  await workspaceModule.gate
-  return {
-    ScientificMeasurementWorkspace: ({ runId }: { runId: string }) => (
-      <div>Workspace {runId}</div>
-    ),
-  }
-})
+vi.mock(
+  '@/features/experiments-v2/simple-characterization-workspace',
+  async () => {
+    workspaceModule.loaded()
+    await workspaceModule.gate
+    return {
+      SimpleCharacterizationWorkspace: ({ runId }: { runId: string }) => (
+        <div>Workspace {runId}</div>
+      ),
+    }
+  },
+)
 vi.mock('@/features/auth/use-auth', () => ({
   useAuth: () => ({
     session: {
@@ -195,7 +198,7 @@ describe('CharacterizationListPage', () => {
 
     expect(
       await screen.findByText(
-        '请先锁定制备过程，锁定后系统将生成待表征样品并开放表征录入。',
+        '请先提交制备实验记录，系统生成样品后再添加表征。',
       ),
     ).toBeInTheDocument()
     expect(screen.queryByText('Workspace run-3')).not.toBeInTheDocument()

@@ -1724,6 +1724,8 @@ export interface components {
             sample_preparation?: string | null;
             /** Illumination Mode */
             illumination_mode?: string | null;
+            /** Method Description */
+            method_description?: string | null;
         };
         /** MeasurementListResponse */
         MeasurementListResponse: {
@@ -1752,7 +1754,7 @@ export interface components {
              * Format: date-time
              */
             measured_at: string;
-            sample_region: components["schemas"]["SampleRegion"];
+            sample_region?: components["schemas"]["SampleRegion"] | null;
             typed_conditions: components["schemas"]["MeasurementConditions"];
             /** Raw File Ids */
             raw_file_ids?: string[];
@@ -1971,6 +1973,11 @@ export interface components {
             target_material_system?: string | null;
             /** Material System */
             material_system?: string | null;
+            /**
+             * Characterization Count
+             * @default 0
+             */
+            characterization_count: number;
             /** Actual State */
             actual_state: string;
             /** Identity State */

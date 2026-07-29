@@ -109,7 +109,11 @@ class ScientificMeasurementService:
             method_instrument=measurement.method_profile,
             performed_by_id=actor.id,
             measured_at=measurement.measured_at,
-            sample_region=measurement.sample_region.model_dump(mode="json", exclude_none=True),
+            sample_region=(
+                measurement.sample_region.model_dump(mode="json", exclude_none=True)
+                if measurement.sample_region is not None
+                else {"geometry_type": "unspecified", "label": "未说明"}
+            ),
             typed_conditions=measurement.typed_conditions.model_dump(exclude_none=True),
             quality_flag=measurement.quality_flag,
             test_conditions=None,

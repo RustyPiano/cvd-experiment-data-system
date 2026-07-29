@@ -642,8 +642,7 @@ export const common = {
       title: '添加表征记录',
       subtitle: '只显示并补充当前制备实验对应的样品与表征记录。',
       loadError: '制备实验状态加载失败',
-      lockRequired:
-        '请先锁定制备过程，锁定后系统将生成待表征样品并开放表征录入。',
+      lockRequired: '请先提交制备实验记录，系统生成样品后再添加表征。',
     },
     list: {
       title: '表征实验记录',
@@ -680,9 +679,9 @@ export const common = {
   // v2 实验录入表单（P4 §1–§4）。字段标签走 field-metadata，此处只放 UI chrome。
   experimentsV2: {
     status: {
-      draft: '记录中',
-      locked: '工艺已锁定',
-      reviewed: '修订已审阅',
+      draft: '草稿',
+      locked: '已提交',
+      reviewed: '已审核',
       invalid: '已作废',
       resultMissing: '结果待补',
       notCharacterized: '暂未表征',
@@ -697,7 +696,7 @@ export const common = {
       unlock: '解锁记录',
       invalidate: '作废记录',
       more: '更多操作',
-      reviewRevision: '标记当前修订已审阅',
+      reviewRevision: '标记当前记录已审核',
       markNotCharacterized: '标记暂未表征',
       clearNotCharacterized: '取消暂未表征',
       success: '状态已更新',
@@ -747,12 +746,12 @@ export const common = {
     },
     edit: {
       title: '制备实验记录',
-      subtitle: '工艺信息可分段保存；锁定后仍可继续补录样品结果。',
+      subtitle: '工艺信息可分段保存；提交后仍可继续补录样品结果。',
       loadError: '加载制备实验记录失败',
       retry: '重试',
     },
     export: {
-      run: '导出本记录',
+      run: '导出当前实验记录',
       success: '导出已开始',
       error: '导出失败',
     },
@@ -766,7 +765,7 @@ export const common = {
         create: '创建制备实验记录',
         upsert_module: '更新工艺信息',
         set_setup_reference: '更换实验装置',
-        lock: '锁定工艺',
+        lock: '提交实验记录',
         unlock: '解锁制备实验记录',
         invalidate: '作废制备实验记录',
         confirm_not_characterized: '标记暂未表征',

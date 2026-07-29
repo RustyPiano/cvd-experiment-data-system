@@ -89,6 +89,7 @@ def _substrate_item(**changes) -> dict:
         "crystal_orientation": "c-plane",
         "miscut_availability": "reported",
         "miscut_angle_deg": 0.0,
+        "axial_position_mm": 0.0,
         "surface_roughness": {"metric": "RMS", "value_nm": 0.5},
         "size_placement": {
             "length_mm": 10.0,
@@ -982,6 +983,7 @@ def test_structured_geometry_zone_reference_event_and_other_gas_contracts() -> N
                     "crystal_orientation": "c-plane",
                     "miscut_availability": "reported",
                     "miscut_angle_deg": 0,
+                    "axial_position_mm": 0,
                     "surface_roughness": {"metric": "RMS", "value_nm": 0.5},
                     "size_placement": {
                         "length_mm": 10,

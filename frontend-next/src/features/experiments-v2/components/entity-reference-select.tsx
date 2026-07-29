@@ -52,9 +52,15 @@ function entityLabel(
   const codeText = code == null || code === '' ? '' : ` · ${String(code)}`
   if (productLabel) {
     const maker = snapshotValue(data, 'manufacturer_brand')
+    const vendor = snapshotValue(data, 'vendor')
     const model = snapshotValue(data, 'model')
     const supplier = snapshotValue(data, 'supplier')
-    return [nameText, [maker, model].filter(Boolean).join(' '), supplier, code]
+    return [
+      nameText,
+      [maker || vendor, model].filter(Boolean).join(' '),
+      supplier,
+      code,
+    ]
       .filter(Boolean)
       .map(String)
       .join(' · ')

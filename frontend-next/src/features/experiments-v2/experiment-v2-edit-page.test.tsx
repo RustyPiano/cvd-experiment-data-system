@@ -126,13 +126,15 @@ it('uses the run code and status as the primary page identity', async () => {
   expect(
     await screen.findByRole('heading', { name: 'CVD-2026-0042' }),
   ).toBeInTheDocument()
-  expect(screen.getByText('Recording')).toBeInTheDocument()
+  expect(screen.getByText('Draft')).toBeInTheDocument()
   expect(
     screen.getByRole('button', { name: 'Submit record' }),
   ).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'More actions' }))
   expect(
-    await screen.findByRole('menuitem', { name: 'Export this run' }),
+    await screen.findByRole('menuitem', {
+      name: 'Export current experiment record',
+    }),
   ).toBeInTheDocument()
   await user.keyboard('{Escape}')
 
@@ -187,7 +189,9 @@ it('disables export while process sections are unsaved', async () => {
 
   await user.click(screen.getByRole('button', { name: 'More actions' }))
   expect(
-    await screen.findByRole('menuitem', { name: 'Export this run' }),
+    await screen.findByRole('menuitem', {
+      name: 'Export current experiment record',
+    }),
   ).toHaveAttribute('data-disabled')
   expect(
     screen.getByText(

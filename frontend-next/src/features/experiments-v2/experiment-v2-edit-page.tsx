@@ -95,10 +95,12 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const { i18n, t } = useTranslation()
   const { session } = useAuth()
   const token = session.accessToken || ''
+  const isAdmin = session.currentUser?.role === 'admin'
   const queryClient = useQueryClient()
   const [locking, setLocking] = useState(false)
   const [invalidating, setInvalidating] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [processDirty, setProcessDirty] = useState(false)
   const [formDirty, setFormDirty] = useState(false)
@@ -130,7 +132,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   })
   const revisions = useQuery({
     queryKey: ['v2-run-revisions', runId, token],
-    enabled: session.isAuthenticated && Boolean(token),
+    enabled: session.isAuthenticated && Boolean(token) && isAdmin,
     queryFn: () => listRunRevisions(runId, token),
   })
   const mutation = useMutation({
@@ -211,7 +213,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       void queryClient.invalidateQueries({
         queryKey: ['v2-run-revisions', runId, token],
       })
-      toast.success('当前不可变修订已完成审阅')
+      toast.success('当前实验记录已审核')
     },
     onError: (reviewError) =>
       toast.error(resolveErrorMessage(reviewError, '审阅失败')),
@@ -219,7 +221,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const exportMutation = useMutation({
     mutationFn: () => {
       if (!data?.run.current_revision_id) {
-        throw new Error('当前炉次还没有可导出的不可变修订')
+        throw new Error('当前实验记录尚未提交，无法导出。')
       }
       return downloadRunExport(runId, data.run.current_revision_id, token)
     },
@@ -240,7 +242,6 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
     else if (action === 'unlock') setUnlocking(true)
     else setLocking(true)
   }
-  const isAdmin = session.currentUser?.role === 'admin'
   const canEditProcess = Boolean(
     data && (isAdmin || session.currentUser?.id === data.run.owner_id),
   )
@@ -319,6 +320,11 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                         onSelect={() => reviewMutation.mutate()}
                       >
                         {t('experimentsV2.actions.reviewRevision')}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {isAdmin ? (
+                      <DropdownMenuItem onSelect={() => setHistoryOpen(true)}>
+                        修改历史
                       </DropdownMenuItem>
                     ) : null}
                   </DropdownMenuGroup>
@@ -437,57 +443,57 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             onProcessDirtyChange={setProcessDirty}
             onDirtyChange={setFormDirty}
           />
-          <details className="rounded-lg border bg-card p-4">
-            <summary className="cursor-pointer font-medium">
-              {t('experimentsV2.records.title')}
-            </summary>
-            <div className="mt-4 grid gap-6">
-              {revisions.data?.items.length ? (
-                <section className="grid gap-3">
-                  <h3 className="font-medium">
-                    {t('experimentsV2.records.revisions')}（
-                    {revisions.data.items.length}）
-                  </h3>
-                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    {revisions.data.items.map((revision) => (
-                      <div
-                        key={revision.id}
-                        className="grid gap-1 rounded-lg border p-3 text-sm"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium">
-                            修订 {revision.revision_number}
-                          </span>
-                          <Badge variant="outline">
-                            {
-                              {
-                                locked: '已锁定',
-                                reviewed: '已审阅',
-                                superseded: '已被替代',
-                              }[revision.status]
-                            }
-                          </Badge>
-                        </div>
-                        <span className="text-muted-foreground">
-                          {revision.schema_version} ·{' '}
-                          {new Date(revision.locked_at).toLocaleString()}
-                        </span>
-                        <code className="truncate text-xs">
-                          sha256:{revision.content_sha256}
-                        </code>
-                        {revision.correction_reason ? (
-                          <span>修订原因：{revision.correction_reason}</span>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-              <RunAuditSection runId={runId} token={token} embedded />
-            </div>
-          </details>
         </>
       )}
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>修改历史</DialogTitle>
+            <DialogDescription>
+              查看本实验记录的历次提交与重要操作。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6">
+            {revisions.data?.items.length ? (
+              <section className="grid gap-3">
+                <h3 className="font-medium">
+                  已提交记录（{revisions.data.items.length}）
+                </h3>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {revisions.data.items.map((revision) => (
+                    <div
+                      key={revision.id}
+                      className="grid gap-1 rounded-lg border p-3 text-sm"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          第 {revision.revision_number} 次提交
+                        </span>
+                        <Badge variant="outline">
+                          {
+                            {
+                              locked: '已提交',
+                              reviewed: '已审核',
+                              superseded: '已更新',
+                            }[revision.status]
+                          }
+                        </Badge>
+                      </div>
+                      <span className="text-muted-foreground">
+                        {new Date(revision.locked_at).toLocaleString()}
+                      </span>
+                      {revision.correction_reason ? (
+                        <span>修改原因：{revision.correction_reason}</span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            <RunAuditSection runId={runId} token={token} embedded />
+          </div>
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={locking} onOpenChange={setLocking}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -558,7 +564,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             aria-label="修订原因"
-            placeholder="说明需要修正的科学事实；原修订会永久保留"
+            placeholder="说明需要修正的内容；原记录会保留在修改历史中"
           />
           <DialogFooter>
             <Button

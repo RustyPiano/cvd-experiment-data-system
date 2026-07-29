@@ -150,6 +150,7 @@ scientific_contract:
     xrd_peak_fwhm: ° 2θ
     xrd_d_spacing: nm
     tem_lattice_spacing: nm
+    observation_note: —
 gas_species:
   Ar:
     label_zh: 氩气
@@ -247,6 +248,9 @@ characterization_properties:
   tem_lattice_spacing:
     label_zh: TEM 晶格间距
     label_en: TEM lattice spacing
+  observation_note:
+    label_zh: 观察说明
+    label_en: Observation note
 characterization_profiles:
   optical_microscopy:
     label_zh: 光学显微镜
@@ -255,21 +259,25 @@ characterization_profiles:
     raw_files_required: false
     show_growth_presence: true
     raw_file_guidance_zh: 建议上传原始图像；仅记录直接观察结论时可不上传。
-    allowed_region_types: [point, area, whole_sample]
+    allowed_region_types: [point, area, whole_sample, selected_area]
+    required_condition_keys: []
+    optional_condition_keys: [objective, illumination_mode]
     condition_fields:
     - {key: objective, label_zh: 物镜, label_en: Objective, value_type: text}
     - {key: illumination_mode, label_zh: 照明模式, label_en: Illumination mode, value_type: text}
-    allowed_property_codes: [coverage_percent, domain_size_um, nucleation_density_cm2]
+    allowed_property_codes: [coverage_percent, domain_size_um, nucleation_density_cm2, observation_note]
     default_property_codes: [coverage_percent]
     allowed_assertion_types: [growth_presence, phase_identity, composition, polytype, stacking_order, orientation_relationship, layer_count]
   Raman:
-    label_zh: 拉曼光谱
+    label_zh: Raman
     label_en: Raman spectroscopy
     instrument_required: true
     raw_files_required: true
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始光谱或仪器导出文件。
-    allowed_region_types: [point, line]
+    allowed_region_types: [point, line, whole_sample, selected_area]
+    required_condition_keys: [laser_wavelength_nm]
+    optional_condition_keys: [power_setting, objective, integration_time_s, accumulations]
     condition_fields:
     - {key: laser_wavelength_nm, label_zh: 激光波长, label_en: Laser wavelength, value_type: number, unit: nm}
     - {key: power_setting, label_zh: 功率设置, label_en: Power setting, value_type: text}
@@ -280,13 +288,15 @@ characterization_profiles:
     default_property_codes: [raman_e2g_peak_position, raman_a1g_peak_position, raman_peak_separation]
     allowed_assertion_types: [phase_identity, polytype, stacking_order, layer_count]
   low_frequency_raman:
-    label_zh: 低频拉曼
+    label_zh: 低频 Raman
     label_en: Low-frequency Raman spectroscopy
     instrument_required: true
     raw_files_required: true
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始光谱或仪器导出文件。
-    allowed_region_types: [point, line]
+    allowed_region_types: [point, line, whole_sample, selected_area]
+    required_condition_keys: [laser_wavelength_nm]
+    optional_condition_keys: [power_setting, objective, integration_time_s, accumulations]
     condition_fields:
     - {key: laser_wavelength_nm, label_zh: 激光波长, label_en: Laser wavelength, value_type: number, unit: nm}
     - {key: power_setting, label_zh: 功率设置, label_en: Power setting, value_type: text}
@@ -297,13 +307,15 @@ characterization_profiles:
     default_property_codes: [shear_mode_peak_position]
     allowed_assertion_types: [polytype, stacking_order, layer_count]
   PL:
-    label_zh: 光致发光（PL）
+    label_zh: PL
     label_en: Photoluminescence
     instrument_required: true
     raw_files_required: true
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始光谱。
-    allowed_region_types: [point, line]
+    allowed_region_types: [point, line, whole_sample, selected_area]
+    required_condition_keys: [excitation_wavelength_nm]
+    optional_condition_keys: [power_setting, integration_time_s, spectral_range_nm, temperature_K]
     condition_fields:
     - {key: excitation_wavelength_nm, label_zh: 激发波长, label_en: Excitation wavelength, value_type: number, unit: nm}
     - {key: power_setting, label_zh: 功率设置, label_en: Power setting, value_type: text}
@@ -319,13 +331,15 @@ characterization_profiles:
     default_property_codes: [pl_a_exciton_peak_energy, pl_b_exciton_peak_energy]
     allowed_assertion_types: [phase_identity, layer_count]
   AFM:
-    label_zh: 原子力显微镜（AFM）
+    label_zh: AFM
     label_en: Atomic force microscopy
     instrument_required: true
     raw_files_required: true
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始高度数据及导出图。
-    allowed_region_types: [point, area, whole_sample]
+    allowed_region_types: [point, area, whole_sample, selected_area]
+    required_condition_keys: [scan_size_um]
+    optional_condition_keys: [mode, probe, resolution_px, scan_rate_hz]
     condition_fields:
     - {key: mode, label_zh: 模式, label_en: Mode, value_type: text}
     - {key: probe, label_zh: 探针, label_en: Probe, value_type: text}
@@ -346,13 +360,15 @@ characterization_profiles:
     default_property_codes: [afm_rms_roughness, afm_step_height]
     allowed_assertion_types: [layer_count]
   SEM:
-    label_zh: 扫描电子显微镜（SEM）
+    label_zh: SEM
     label_en: Scanning electron microscopy
     instrument_required: true
     raw_files_required: true
     show_growth_presence: true
     raw_file_guidance_zh: 请上传原始图像与仪器元数据。
-    allowed_region_types: [point, area, whole_sample]
+    allowed_region_types: [point, area, whole_sample, selected_area]
+    required_condition_keys: [accelerating_voltage_kV]
+    optional_condition_keys: [working_distance_mm, detector, field_of_view_um]
     condition_fields:
     - {key: accelerating_voltage_kV, label_zh: 加速电压, label_en: Accelerating voltage, value_type: number, unit: kV}
     - {key: working_distance_mm, label_zh: 工作距离, label_en: Working distance, value_type: number, unit: mm}
@@ -367,13 +383,15 @@ characterization_profiles:
     default_property_codes: [coverage_percent, domain_size_um]
     allowed_assertion_types: [growth_presence, composition]
   XRD:
-    label_zh: X 射线衍射（XRD）
+    label_zh: XRD
     label_en: X-ray diffraction
     instrument_required: true
     raw_files_required: true
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始衍射数据。
-    allowed_region_types: [whole_sample, area]
+    allowed_region_types: [whole_sample, area, selected_area]
+    required_condition_keys: [radiation_source, scan_range_2theta_deg]
+    optional_condition_keys: [step_size_deg, scan_rate_deg_min, geometry]
     condition_fields:
     - {key: radiation_source, label_zh: 辐射源, label_en: Radiation source, value_type: text}
     - key: scan_range_2theta_deg
@@ -389,13 +407,15 @@ characterization_profiles:
     default_property_codes: [xrd_peak_2theta, xrd_d_spacing]
     allowed_assertion_types: [phase_identity, polytype, stacking_order, orientation_relationship]
   TEM:
-    label_zh: 透射电子显微镜（TEM）
+    label_zh: TEM
     label_en: Transmission electron microscopy
     instrument_required: true
     raw_files_required: true
     show_growth_presence: false
     raw_file_guidance_zh: 请上传原始图像、衍射或 EDS 数据。
-    allowed_region_types: [lamella, particle, selected_area]
+    allowed_region_types: [lamella, particle, whole_sample, selected_area]
+    required_condition_keys: [accelerating_voltage_kV]
+    optional_condition_keys: [mode, sample_preparation]
     condition_fields:
     - {key: accelerating_voltage_kV, label_zh: 加速电压, label_en: Accelerating voltage, value_type: number, unit: kV}
     - {key: mode, label_zh: 模式, label_en: Mode, value_type: text}
@@ -403,6 +423,21 @@ characterization_profiles:
     allowed_property_codes: [tem_lattice_spacing]
     default_property_codes: [tem_lattice_spacing]
     allowed_assertion_types: [phase_identity, composition, polytype, stacking_order, orientation_relationship, layer_count]
+  other:
+    label_zh: 其他
+    label_en: Other
+    instrument_required: false
+    raw_files_required: true
+    show_growth_presence: false
+    raw_file_guidance_zh: 请上传原始数据文件。
+    allowed_region_types: [whole_sample, point, area, selected_area]
+    required_condition_keys: [method_description]
+    optional_condition_keys: []
+    condition_fields:
+    - {key: method_description, label_zh: 方法说明, label_en: Method description, value_type: text}
+    allowed_property_codes: []
+    default_property_codes: []
+    allowed_assertion_types: []
 field_ui_defaults:
   input_placeholder: 请输入
   input_placeholder_en: Enter a value
@@ -3860,6 +3895,10 @@ changelog:
   - - v4.0-alpha.3
     - §4 衬底
     - 产品简化界面增加本片轴向位置与备注；轴向位置为普通用户提交前必填，不暴露三维坐标
+    - 2026-07-30产品简化
+  - - v4.0-alpha.4
+    - §7 表征
+    - 表征方法拆分最小必填与更多测量参数，固定各方法常用结果项，并增加“其他”方法说明；科学对象仍由后端统一落库
     - 2026-07-30产品简化
   - - R0
     - 硬必填核心(29项，含条件必填)

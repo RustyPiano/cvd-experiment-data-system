@@ -180,7 +180,8 @@
       "xrd_peak_2theta": "° 2θ",
       "xrd_peak_fwhm": "° 2θ",
       "xrd_d_spacing": "nm",
-      "tem_lattice_spacing": "nm"
+      "tem_lattice_spacing": "nm",
+      "observation_note": "—"
     }
   },
   "modules": {
@@ -4320,6 +4321,20 @@
               ],
               "default": null,
               "title": "Illumination Mode"
+            },
+            "method_description": {
+              "anyOf": [
+                {
+                  "maxLength": 1000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Method Description"
             }
           },
           "title": "MeasurementConditions",
@@ -4371,7 +4386,15 @@
               "type": "string"
             },
             "sample_region": {
-              "$ref": "#/$defs/SampleRegion"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SampleRegion"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "typed_conditions": {
               "$ref": "#/$defs/MeasurementConditions"
@@ -4399,7 +4422,6 @@
             "sample_id",
             "method_profile",
             "measured_at",
-            "sample_region",
             "typed_conditions"
           ],
           "title": "MeasurementRunCreate",

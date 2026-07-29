@@ -21,6 +21,7 @@ from app.schemas.scientific import (
     AmbientMeasurement,
     MaterialAssertionWrite,
     MeasurementBundleCreate,
+    MeasurementRunCreate,
     ProcessTimelinePayload,
     ScientificProcessEventPayload,
 )
@@ -249,6 +250,49 @@ def test_measurement_contract_rejects_cross_method_properties_and_bad_compositio
     }
     with pytest.raises(ValueError, match="do not apply to AFM"):
         MeasurementBundleCreate.model_validate(payload)
+
+
+def test_measurement_profiles_only_require_their_minimum_conditions() -> None:
+    base = {
+        "sample_id": str(uuid4()),
+        "instrument_id": str(uuid4()),
+        "instrument_version": 1,
+        "measured_at": "2026-07-30T10:00:00+08:00",
+        "sample_region": {
+            "geometry_type": "selected_area",
+            "label": "中心",
+            "coordinate_system": "sample_local",
+        },
+    }
+    raman = MeasurementRunCreate.model_validate(
+        {
+            **base,
+            "method_profile": "Raman",
+            "typed_conditions": {"laser_wavelength_nm": 532},
+        }
+    )
+    assert raman.typed_conditions.laser_wavelength_nm == 532
+
+    with pytest.raises(ValueError, match="laser_wavelength_nm"):
+        MeasurementRunCreate.model_validate(
+            {
+                **base,
+                "method_profile": "Raman",
+                "typed_conditions": {"objective": "100x"},
+            }
+        )
+
+    other = MeasurementRunCreate.model_validate(
+        {
+            **{key: value for key, value in base.items() if key != "sample_region"},
+            "instrument_id": None,
+            "instrument_version": None,
+            "method_profile": "other",
+            "typed_conditions": {"method_description": "椭偏测量"},
+        }
+    )
+    assert other.typed_conditions.method_description == "椭偏测量"
+    assert other.sample_region is None
 
 
 def test_optical_measurement_does_not_require_growth_assertion() -> None:
@@ -530,6 +574,12 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
     db_session.refresh(raw_file)
     assert raw_file.characterization_record_id == UUID(response.json()["id"])
     assert db_session.query(CharacterizationRecord).count() == 1
+    sample_response = client.get(
+        f"/api/v1/samples/{sample.id}",
+        headers=headers,
+    )
+    assert sample_response.status_code == 200
+    assert sample_response.json()["characterization_count"] == 1
     snapshot = response.json()["instrument_snapshot_json"]["calibration_at_measurement"]
     assert snapshot["event_id"] == str(calibration.id)
     assert snapshot["validity_status"] == "valid"

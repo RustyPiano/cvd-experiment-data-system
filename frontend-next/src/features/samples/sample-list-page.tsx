@@ -1,28 +1,20 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 
 import { listSamples } from './api'
 import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { localizedOption } from '@/shared/field-i18n'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { PageHeader } from '@/shared/ui/page-header'
+import type { SampleRead } from '@/shared/types/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -33,34 +25,43 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const roleFilters = ['', 'growth', 'derived', 'control'] as const
 const actualStateLabels: Record<string, string> = {
-  unknown: '尚无实际结论',
+  unknown: '尚无结论',
   growth_present: '观察到生长',
   no_growth: '未观察到生长',
   uncertain: '结论不确定',
-  asserted: '已确认材料结论',
+  asserted: '已有材料结论',
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function substrateSummary(sample: SampleRead, language: string) {
+  const substrate = sample.source_substrate_snapshot_json
+  if (!substrate) return '—'
+  const lot = asRecord(substrate.lot_ref)
+  const snapshot = asRecord(lot?.snapshot)
+  const attrs = asRecord(snapshot?.attrs)
+  const material = substrate.material
+    ? localizedOption(String(substrate.material), language)
+    : '衬底'
+  const batch = snapshot?.batch_number ?? attrs?.batch_number
+  return [material, batch].filter(Boolean).join(' · ')
 }
 
 export function SampleListPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { session } = useAuth()
-  const [roleFilter, setRoleFilter] = useState('')
   const [query, setQuery] = useState('')
-
   const samplesQuery = useQuery({
-    queryKey: [
-      'samples',
-      'list',
-      session.currentUser?.id ?? 'anonymous',
-      roleFilter,
-    ],
-    queryFn: () => listSamples(session.accessToken!, roleFilter || null),
+    queryKey: ['samples', 'list', session.currentUser?.id ?? 'anonymous'],
+    queryFn: () => listSamples(session.accessToken!),
     enabled: session.isAuthenticated,
   })
-
   const items = samplesQuery.data?.items ?? []
-
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return items
@@ -70,10 +71,11 @@ export function SampleListPage() {
         sample.run_code,
         sample.target_material_system,
         sample.actual_material_summary,
-        sample.actual_state,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(needle)),
+      ].some((value) =>
+        String(value ?? '')
+          .toLowerCase()
+          .includes(needle),
+      ),
     )
   }, [items, query])
 
@@ -81,10 +83,10 @@ export function SampleListPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title={t('samples.list.title')}
-        subtitle={t('samples.list.subtitle')}
+        subtitle="查看已提交实验生成的样品及其表征结论。"
       />
 
-      {samplesQuery.isError && (
+      {samplesQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between gap-3">
             <span>
@@ -102,62 +104,31 @@ export function SampleListPage() {
             </Button>
           </AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Input
-              autoComplete="off"
-              placeholder={t('samples.list.searchPlaceholder')}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="w-72"
-              aria-label={t('samples.list.searchLabel')}
-            />
-            <div className="flex items-center gap-2">
-              <Label htmlFor="sample-role-filter">
-                {t('samples.list.roleFilter')}
-              </Label>
-              <Select
-                value={roleFilter || 'all'}
-                onValueChange={(value) =>
-                  setRoleFilter(value === 'all' ? '' : value)
-                }
-              >
-                <SelectTrigger id="sample-role-filter" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="all">
-                      {t('samples.list.allRoles')}
-                    </SelectItem>
-                    {roleFilters
-                      .filter((role) => role !== '')
-                      .map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {t(`experimentsV2.sections.results.roles.${role}`)}
-                        </SelectItem>
-                      ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <Input
+            autoComplete="off"
+            placeholder="搜索样品编号、实验编号或材料"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="w-full max-w-sm"
+            aria-label="搜索样品"
+          />
 
           {samplesQuery.isLoading ? (
             <div className="flex flex-col gap-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full rounded-md" />
+              {Array.from({ length: 5 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full rounded-md" />
               ))}
             </div>
           ) : samplesQuery.isError ? null : filtered.length === 0 ? (
             <EmptyState
               description={
                 items.length === 0
-                  ? t('samples.list.empty')
-                  : t('samples.list.noMatches')
+                  ? '提交一条制备实验记录后，系统会自动生成样品。'
+                  : '没有匹配的样品。'
               }
             />
           ) : (
@@ -165,25 +136,20 @@ export function SampleListPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t('samples.list.columns.code')}</TableHead>
-                    <TableHead>{t('samples.list.columns.run')}</TableHead>
+                    <TableHead>样品编号</TableHead>
+                    <TableHead>来源实验</TableHead>
+                    <TableHead>衬底</TableHead>
                     <TableHead>目标材料</TableHead>
-                    <TableHead>实际状态 / 材料</TableHead>
-                    <TableHead>{t('samples.list.columns.role')}</TableHead>
-                    <TableHead>{t('samples.list.columns.updatedAt')}</TableHead>
+                    <TableHead>实际结果</TableHead>
+                    <TableHead>表征记录</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((sample) => (
                     <TableRow key={sample.id}>
-                      <TableCell>
-                        <Link
-                          to="/samples/$sampleId"
-                          params={{ sampleId: sample.id }}
-                          className="font-medium tabular-nums text-primary hover:underline"
-                        >
-                          {sample.sample_code}
-                        </Link>
+                      <TableCell className="font-medium tabular-nums">
+                        {sample.sample_code}
                       </TableCell>
                       <TableCell>
                         {sample.run_code ? (
@@ -195,15 +161,14 @@ export function SampleListPage() {
                             {sample.run_code}
                           </Link>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          '—'
                         )}
                       </TableCell>
                       <TableCell>
-                        {sample.target_material_system || (
-                          <span className="text-muted-foreground text-sm">
-                            {t('samples.common.notProvided')}
-                          </span>
-                        )}
+                        {substrateSummary(sample, i18n.language)}
+                      </TableCell>
+                      <TableCell>
+                        {sample.target_material_system || '—'}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-2">
@@ -223,15 +188,23 @@ export function SampleListPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">
-                          {t(
-                            `experimentsV2.sections.results.roles.${sample.role}`,
-                            { defaultValue: sample.role },
-                          )}
-                        </Badge>
+                        {
+                          (
+                            sample as SampleRead & {
+                              characterization_count: number
+                            }
+                          ).characterization_count
+                        }
                       </TableCell>
-                      <TableCell className="tabular-nums text-sm text-muted-foreground">
-                        {dayjs(sample.updated_at).format('YYYY-MM-DD HH:mm')}
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link
+                            to="/samples/$sampleId"
+                            params={{ sampleId: sample.id }}
+                          >
+                            查看
+                          </Link>
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -26,6 +26,7 @@ class SampleRead(BaseModel):
     run_code: str | None = None
     target_material_system: str | None = None
     material_system: str | None = None
+    characterization_count: int = 0
     actual_state: str
     identity_state: str
     actual_material_summary: str | None

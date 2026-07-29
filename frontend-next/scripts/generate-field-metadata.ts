@@ -401,6 +401,8 @@ export interface CharacterizationProfile {
   show_growth_presence: boolean
   raw_file_guidance_zh: string
   allowed_region_types: string[]
+  required_condition_keys: string[]
+  optional_condition_keys: string[]
   condition_fields: CharacterizationConditionField[]
   allowed_property_codes: string[]
   default_property_codes: string[]

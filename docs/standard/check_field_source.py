@@ -68,6 +68,13 @@ if n_entity != EXPECTED_ENTITY_FIELDS:
 if n_r0 != EXPECTED_R0:
     err(f"R0 标记数 {n_r0} ≠ 预期 {EXPECTED_R0}（R0 集合改动须导师/组会确认，见实现方案 §5）")
 
+for profile_key, profile in (doc.get("characterization_profiles") or {}).items():
+    fields = {item["key"] for item in profile.get("condition_fields") or []}
+    required = set(profile.get("required_condition_keys") or [])
+    optional = set(profile.get("optional_condition_keys") or [])
+    if required & optional or required | optional != fields:
+        err(f"characterization_profiles.{profile_key} 的必填/选填测量条件未完整且互斥地覆盖 condition_fields")
+
 KEY_RE = re.compile(r"^[a-z][a-zA-Z0-9_]*$")  # 单位后缀允许大写（_C 等，沿 v1 风格）
 modules_map = doc.get("modules", {})
 entity_keys = doc.get("entity_keys", {})

@@ -36,8 +36,8 @@ import {
 } from '@/components/ui/table'
 
 const ScientificMeasurementWorkspace = lazy(() =>
-  import('@/features/experiments-v2/scientific-experiment-form').then(
-    (module) => ({ default: module.ScientificMeasurementWorkspace }),
+  import('@/features/experiments-v2/simple-characterization-workspace').then(
+    (module) => ({ default: module.SimpleCharacterizationWorkspace }),
   ),
 )
 
