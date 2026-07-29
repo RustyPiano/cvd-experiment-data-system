@@ -1,4 +1,4 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -80,6 +80,17 @@ def test_simple_product_create_keeps_manual_environment_and_performers(
         "source_type": "manual_entry",
     }
     assert basic_info["ambient_humidity"]["source_type"] == "manual_entry"
+
+    basic_info["recorded_by_user_id"] = str(uuid4())
+    basic_info["note"] = "补充说明"
+    updated = client.put(
+        f"/api/v1/experiments/{response.json()['id']}/modules/basic_info",
+        json={"payload_json": basic_info},
+        headers=headers,
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["payload_json"]["recorded_by_user_id"] == str(active_user.id)
+    assert updated.json()["payload_json"]["note"] == "补充说明"
 
 
 def test_scientific_revision_measurement_and_query_chain(

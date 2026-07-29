@@ -52,7 +52,7 @@ import {
 } from './api'
 import type { V2ModulePayloadRead } from './api'
 import type { ExperimentV2FormState } from './form-types'
-import { buildItemsModulePayload } from './field-logic'
+import { buildItemsModulePayload, moduleValueAsString } from './field-logic'
 import {
   materialAssertionValue,
   peakTemperatureC,
@@ -65,10 +65,18 @@ import {
 } from './scientific-form-workflow'
 import { ModuleCard } from './components/module-card'
 import { EntityReferenceSelect } from './components/entity-reference-select'
+import { materialLotProjectedItem } from './components/repeatable-items-section'
 import {
-  materialLotProjectedItem,
-  RepeatableItemsSection,
-} from './components/repeatable-items-section'
+  SimpleGrowthEditor,
+  SimpleSourceLoadsEditor,
+  SimpleSubstratesEditor,
+  SimpleTargetEditor,
+} from './simple-preparation-editors'
+import type {
+  SimpleProcessSettings,
+  SimpleTarget,
+} from './simple-preparation-editors'
+import { simpleGrowthIssue } from './simple-form-adapters'
 
 type Region = {
   region_key: string
@@ -106,7 +114,14 @@ type TargetSpec = {
     | 'mixed_architecture'
   material_regions: Region[]
   composition_relations: CompositionRelation[]
-  dimensional_form?: 'sheet' | 'ribbon' | 'tube' | 'rod' | 'particle'
+  dimensional_form?:
+    | 'sheet'
+    | 'ribbon'
+    | 'wire'
+    | 'tube'
+    | 'rod'
+    | 'particle'
+    | 'other'
   coverage_state?: 'isolated' | 'discontinuous' | 'percolated' | 'continuous'
   orientation?: 'in_plane' | 'vertical' | 'mixed'
   optimization_objective?: string
@@ -196,6 +211,7 @@ type ProcessEvent = {
 type AmbientSource =
   | 'room_sensor'
   | 'setup_sensor'
+  | 'manual_entry'
   | 'manual_estimate'
   | 'not_measured'
 type AmbientFormValue = {
@@ -213,6 +229,7 @@ type BasicInfo = {
   recorded_by_user_id: string
   ambient_temperature?: AmbientFormValue
   ambient_humidity?: AmbientFormValue
+  note?: string
   precheck: Record<string, unknown>
 }
 
@@ -226,7 +243,6 @@ const DEFAULT_TARGET: TargetSpec = {
     },
   ],
   composition_relations: [],
-  dimensional_form: 'sheet',
 }
 
 const EMPTY_TIMELINE = {
@@ -421,6 +437,12 @@ const STEP_MODULES = [
   ['process_steps', 'process_events'],
   [],
 ] as const
+
+const PRESSURE_REGIME_LABELS: Record<string, string> = {
+  atmospheric: '常压',
+  low_pressure: '低压',
+  other: '其他',
+}
 
 function stepForModule(module: string): number {
   if (['characterization', 'measured_products'].includes(module)) return 5
@@ -653,7 +675,7 @@ function ambientComplete(value: AmbientFormValue | undefined): boolean {
     value.source_type === 'not_measured' ||
     (value.value !== undefined &&
       Boolean(value.measured_at) &&
-      (value.source_type === 'manual_estimate' ||
+      (['manual_entry', 'manual_estimate'].includes(value.source_type) ||
         Boolean(value.sensor_ref?.trim())))
   )
 }
@@ -849,6 +871,9 @@ export function ScientificExperimentForm({
       composition_relations: loaded.composition_relations ?? [],
     }
   })
+  const [targetSelected, setTargetSelected] = useState(
+    Boolean(modules?.['target_product']),
+  )
   const [loads, setLoads] = useState<SourceLoad[]>(
     () =>
       modulePayload<{ items: SourceLoad[] }>(modules, 'precursors', {
@@ -860,6 +885,25 @@ export function ScientificExperimentForm({
   )
   const [channels, setChannels] = useState<Channel[]>(
     () => modulePayload(modules, 'process_steps', EMPTY_TIMELINE).channels,
+  )
+  const [processSettings, setProcessSettings] = useState<SimpleProcessSettings>(
+    () => {
+      const payload = modulePayload<Record<string, unknown>>(
+        modules,
+        'process_steps',
+        {},
+      )
+      return {
+        pressure_regime: payload[
+          'pressure_regime'
+        ] as SimpleProcessSettings['pressure_regime'],
+        cooling_method: payload[
+          'cooling_method'
+        ] as SimpleProcessSettings['cooling_method'],
+        cooling_other: payload['cooling_other'] as string | undefined,
+        external_fields: payload['external_fields'] as string[] | undefined,
+      }
+    },
   )
   const [events, setEvents] = useState<ProcessEvent[]>(
     () =>
@@ -1065,9 +1109,6 @@ export function ScientificExperimentForm({
   const [tubeResetCount, tubeUseNumber] = tubeUsageParts(
     equipment.tubeUsageHistory,
   )
-  const targetFormulas = target.material_regions
-    .map((region) => region.formula.trim())
-    .filter(Boolean)
   const targetDisplay = targetSummary(target)
   const setupName = String(
     equipment.snapshot?.['setup_name'] ??
@@ -1082,12 +1123,70 @@ export function ScientificExperimentForm({
       channel.channel_type === 'temperature' &&
       channel.data_kind === 'timeseries_file',
   )
-  const processTimelineIssue = timelineValidationIssue(segments, channels)
+  const processTimelineIssue =
+    simpleGrowthIssue(segments, channels, processSettings, setupZoneCount) ??
+    timelineValidationIssue(segments, channels)
+  const basicComplete = Boolean(
+    basicInfo.started_at &&
+    !Number.isNaN(new Date(basicInfo.started_at).getTime()) &&
+    basicInfo.performed_by_user_ids.length &&
+    Number.isFinite(basicInfo.ambient_temperature?.value) &&
+    Number.isFinite(basicInfo.ambient_humidity?.value) &&
+    (basicInfo.ambient_humidity?.value ?? -1) >= 0 &&
+    (basicInfo.ambient_humidity?.value ?? 101) <= 100,
+  )
+  const targetComplete = Boolean(
+    targetSelected &&
+    target.material_regions.length &&
+    target.material_regions.every((region) => region.formula.trim()) &&
+    target.composition_relations.every((relation) => relation.species.trim()),
+  )
+  const preparationComplete = Boolean(
+    equipment.setupId &&
+    loads.length &&
+    loads.every(
+      (load) =>
+        load.loading_method &&
+        load.ingredients.length &&
+        load.ingredients.every(
+          (ingredient) =>
+            ingredient.material_lot_id &&
+            ingredient.function_role &&
+            ((ingredient.amount === undefined && !ingredient.unit?.trim()) ||
+              (ingredient.amount !== undefined &&
+                Boolean(ingredient.unit?.trim()))),
+        ),
+    ),
+  )
+  const substratesComplete = Boolean(
+    substrates.length &&
+    substrates.every((item) => {
+      let placement: Record<string, unknown> = {}
+      try {
+        placement = JSON.parse(
+          moduleValueAsString(item['size_placement']) || '{}',
+        ) as Record<string, unknown>
+      } catch {
+        return false
+      }
+      const axialPosition = moduleValueAsString(
+        item['axial_position_mm'],
+      ).trim()
+      return Boolean(
+        moduleValueAsString(item['lot_ref']) &&
+        Number(placement.length_mm) > 0 &&
+        Number(placement.width_mm) > 0 &&
+        placement.placement &&
+        axialPosition &&
+        Number.isFinite(Number(axialPosition)),
+      )
+    }),
+  )
   const completedSteps = [
-    Boolean(basicInfo.started_at && basicInfo.recorded_by_user_id),
-    targetFormulas.length > 0,
-    Boolean(equipment.setupId && loads.length > 0),
-    substrates.length > 0,
+    basicComplete,
+    targetComplete,
+    preparationComplete,
+    substratesComplete,
     processTimelineIssue === null,
   ].filter(Boolean).length
 
@@ -1101,12 +1200,42 @@ export function ScientificExperimentForm({
         substrates.map((item) => materialLotProjectedItem('substrates', item)),
       )
     }
-    if (key === 'process_steps') return { segments, channels }
+    if (key === 'process_steps') {
+      return { segments, channels, ...processSettings }
+    }
     if (key === 'process_events') return { items: events }
     return {}
   }
 
   const saveCurrentStep = async () => {
+    if (activeStep === 0 && !basicComplete) {
+      setErrors((current) => ({
+        ...current,
+        basic_info: '请填写开始时间、至少一名实验人员以及有效的温湿度。',
+      }))
+      return false
+    }
+    if (activeStep === 1 && !targetComplete) {
+      setErrors((current) => ({
+        ...current,
+        target_product: '请补齐目标材料类型和材料化学式。',
+      }))
+      return false
+    }
+    if (activeStep === 2 && !preparationComplete) {
+      setErrors((current) => ({
+        ...current,
+        equipment: '请选择实验装置，并补齐每个前驱体容器中的必填信息。',
+      }))
+      return false
+    }
+    if (activeStep === 3 && !substratesComplete) {
+      setErrors((current) => ({
+        ...current,
+        substrates: '请补齐每片衬底的批次、尺寸、轴向位置和生长面朝向。',
+      }))
+      return false
+    }
     if (activeStep === 4 && processTimelineIssue) {
       setErrors((current) => ({
         ...current,
@@ -1135,7 +1264,7 @@ export function ScientificExperimentForm({
     if (
       await saveBeforeStepChange(
         processReadOnly,
-        currentStepDirty,
+        activeStep < WORKFLOW_STEPS.length - 1,
         saveCurrentStep,
       )
     ) {
@@ -1147,21 +1276,40 @@ export function ScientificExperimentForm({
   }
   const showStep = async (index: number) => {
     if (index === activeStep) return
-    if (
-      await saveBeforeStepChange(
-        processReadOnly,
-        currentStepDirty,
-        saveCurrentStep,
-      )
-    ) {
+    if (index < activeStep) {
+      setActiveStep(index)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    if (await saveBeforeStepChange(processReadOnly, true, saveCurrentStep)) {
       setActiveStep(index)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
   const submitExperiment = async () => {
     if (!precheckConfirmed) return
-    if (dirty.has('basic_info') && !(await save('basic_info', basicInfo))) {
+    const incompleteStep = [
+      basicComplete,
+      targetComplete,
+      preparationComplete,
+      substratesComplete,
+      processTimelineIssue === null,
+    ].findIndex((complete) => !complete)
+    if (incompleteStep >= 0) {
+      setActiveStep(incompleteStep)
+      toast.error('请先补齐对应步骤中的必填内容。')
       return
+    }
+    for (const key of [
+      'basic_info',
+      'target_product',
+      'equipment',
+      'precursors',
+      'substrates',
+      'process_steps',
+      'process_events',
+    ]) {
+      if (dirty.has(key) && !(await save(key, payloadFor(key)))) return
     }
     onRequestLock?.()
   }
@@ -1214,63 +1362,50 @@ export function ScientificExperimentForm({
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div id={`experiment-step-${activeStep + 1}`} className="grid gap-6">
           {activeStep === 0 ? (
-            <ModuleCard id="module-basic_info" title="实验概况">
+            <ModuleCard id="module-basic_info" title="基本信息">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label>实验编号</Label>
                   <Input value={runCode ?? ''} readOnly />
                 </div>
                 <div className="grid gap-2">
-                  <Label>合成方法</Label>
-                  <Input value="CVD" readOnly />
-                </div>
-                <div className="grid gap-2">
-                  <Label>创建人</Label>
+                  <Label htmlFor="experiment-started-at">开始时间</Label>
                   <Input
-                    value={
-                      contributors.data?.find(
-                        (item) => item.id === basicInfo.created_by_user_id,
-                      )?.name ??
-                      session.currentUser?.name ??
-                      ''
-                    }
-                    readOnly
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>记录人</Label>
-                  <Select
-                    value={basicInfo.recorded_by_user_id}
+                    id="experiment-started-at"
+                    type="datetime-local"
+                    required
+                    value={toLocalDateTime(basicInfo.started_at)}
                     disabled={processReadOnly}
-                    onValueChange={(recordedBy) => {
+                    onChange={(event) => {
+                      const started = event.target.value
+                        ? new Date(event.target.value).toISOString()
+                        : ''
                       setBasicInfo({
                         ...basicInfo,
-                        recorded_by_user_id: recordedBy,
+                        started_at: started,
+                        ambient_temperature:
+                          basicInfo.ambient_temperature?.source_type ===
+                          'manual_entry'
+                            ? {
+                                ...basicInfo.ambient_temperature,
+                                measured_at: started,
+                              }
+                            : basicInfo.ambient_temperature,
+                        ambient_humidity:
+                          basicInfo.ambient_humidity?.source_type ===
+                          'manual_entry'
+                            ? {
+                                ...basicInfo.ambient_humidity,
+                                measured_at: started,
+                              }
+                            : basicInfo.ambient_humidity,
                       })
                       markDirty('basic_info')
                     }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {(contributors.data ?? []).map((contributor) => (
-                          <SelectItem
-                            key={contributor.id}
-                            value={contributor.id}
-                          >
-                            {contributor.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <fieldset className="grid gap-2 rounded-lg border p-3 sm:col-span-2">
-                  <legend className="px-1 text-sm font-medium">
-                    实际执行人（可多选）
-                  </legend>
+                  <legend className="px-1 text-sm font-medium">实验人员</legend>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {(contributors.data ?? []).map((contributor) => {
                       const checked = basicInfo.performed_by_user_ids.includes(
@@ -1306,39 +1441,111 @@ export function ScientificExperimentForm({
                     })}
                   </div>
                 </fieldset>
-                <AmbientEditor
-                  label="环境温度"
-                  unit="℃"
-                  value={basicInfo.ambient_temperature}
-                  disabled={processReadOnly}
-                  onChange={(value) => {
-                    setBasicInfo({
-                      ...basicInfo,
-                      ambient_temperature: value,
-                    })
-                    markDirty('basic_info')
-                  }}
-                />
-                <AmbientEditor
-                  label="环境相对湿度"
-                  unit="%RH"
-                  value={basicInfo.ambient_humidity}
-                  disabled={processReadOnly}
-                  onChange={(value) => {
-                    setBasicInfo({ ...basicInfo, ambient_humidity: value })
-                    markDirty('basic_info')
-                  }}
-                />
+                <div className="grid gap-2">
+                  <Label htmlFor="experiment-room-temperature">
+                    实验室温度（℃）
+                  </Label>
+                  <Input
+                    id="experiment-room-temperature"
+                    type="number"
+                    step="any"
+                    required
+                    value={basicInfo.ambient_temperature?.value ?? ''}
+                    disabled={processReadOnly}
+                    onChange={(event) => {
+                      const value = numberOrUndefined(event.target.value)
+                      const started = basicInfo.started_at
+                      setBasicInfo({
+                        ...basicInfo,
+                        ambient_temperature:
+                          value === undefined
+                            ? { source_type: 'not_measured' }
+                            : {
+                                value,
+                                measured_at: started,
+                                source_type: 'manual_entry',
+                              },
+                      })
+                      markDirty('basic_info')
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="experiment-room-humidity">
+                    实验室相对湿度（%RH）
+                  </Label>
+                  <Input
+                    id="experiment-room-humidity"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    required
+                    value={basicInfo.ambient_humidity?.value ?? ''}
+                    disabled={processReadOnly}
+                    onChange={(event) => {
+                      const value = numberOrUndefined(event.target.value)
+                      const started = basicInfo.started_at
+                      setBasicInfo({
+                        ...basicInfo,
+                        ambient_humidity:
+                          value === undefined
+                            ? { source_type: 'not_measured' }
+                            : {
+                                value,
+                                measured_at: started,
+                                source_type: 'manual_entry',
+                              },
+                      })
+                      markDirty('basic_info')
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2 sm:col-span-2">
+                  <Label htmlFor="experiment-note">补充说明</Label>
+                  <Textarea
+                    id="experiment-note"
+                    value={basicInfo.note ?? ''}
+                    disabled={processReadOnly}
+                    onChange={(event) => {
+                      setBasicInfo({
+                        ...basicInfo,
+                        note: event.target.value,
+                      })
+                      markDirty('basic_info')
+                    }}
+                  />
+                </div>
+                {[
+                  basicInfo.ambient_temperature,
+                  basicInfo.ambient_humidity,
+                ].some(
+                  (value) =>
+                    value &&
+                    value.source_type !== 'manual_entry' &&
+                    value.source_type !== 'not_measured',
+                ) ? (
+                  <details className="sm:col-span-2">
+                    <summary className="cursor-pointer text-sm font-medium">
+                      历史环境记录
+                    </summary>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      此记录曾使用传感器或估计来源；上方数值保存后将改为手工录入。
+                    </p>
+                  </details>
+                ) : null}
               </div>
             </ModuleCard>
           ) : null}
 
           {activeStep === 1 ? (
-            <TargetEditor
-              target={target}
+            <SimpleTargetEditor
+              target={target as SimpleTarget}
+              selected={targetSelected}
               disabled={processReadOnly}
               onChange={(value) => {
-                setTarget(value)
+                setTargetSelected(true)
+                setTarget({ ...target, ...value })
                 markDirty('target_product')
               }}
             />
@@ -1349,9 +1556,10 @@ export function ScientificExperimentForm({
               <ModuleCard id="module-equipment" title="实验装置">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="grid gap-2 sm:col-span-2">
-                    <Label>本次使用的装置版本</Label>
+                    <Label>实验装置</Label>
                     <EntityReferenceSelect
                       kind="setup"
+                      productLabel
                       value={equipment.setupId}
                       selectedVersion={equipment.version}
                       selectedSnapshot={equipment.snapshot}
@@ -1368,48 +1576,56 @@ export function ScientificExperimentForm({
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="tube-reset-count">炉管清洗或更换次数</Label>
-                    <Input
-                      id="tube-reset-count"
-                      type="number"
-                      min="0"
-                      value={tubeResetCount}
-                      disabled={processReadOnly}
-                      onChange={(event) => {
-                        setEquipment({
-                          ...equipment,
-                          tubeUsageHistory: `${event.target.value},${tubeUseNumber}`,
-                        })
-                        markDirty('equipment')
-                      }}
-                    />
+                    <Label htmlFor="tube-reset-count">
+                      最近一次清洗或更换后已使用
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="tube-reset-count"
+                        type="number"
+                        min="0"
+                        value={tubeResetCount}
+                        disabled={processReadOnly}
+                        onChange={(event) => {
+                          setEquipment({
+                            ...equipment,
+                            tubeUsageHistory: `${event.target.value},${tubeUseNumber}`,
+                          })
+                          markDirty('equipment')
+                        }}
+                      />
+                      <span className="text-sm">炉</span>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="tube-use-number">
-                      本次为清洗或更换后的第几次使用
+                      本次为清洗或更换后的
                     </Label>
-                    <Input
-                      id="tube-use-number"
-                      type="number"
-                      min="1"
-                      value={tubeUseNumber}
-                      disabled={processReadOnly}
-                      onChange={(event) => {
-                        setEquipment({
-                          ...equipment,
-                          tubeUsageHistory: `${tubeResetCount},${event.target.value}`,
-                        })
-                        markDirty('equipment')
-                      }}
-                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">第</span>
+                      <Input
+                        id="tube-use-number"
+                        type="number"
+                        min="1"
+                        value={tubeUseNumber}
+                        disabled={processReadOnly}
+                        onChange={(event) => {
+                          setEquipment({
+                            ...equipment,
+                            tubeUsageHistory: `${tubeResetCount},${event.target.value}`,
+                          })
+                          markDirty('equipment')
+                        }}
+                      />
+                      <span className="text-sm">炉</span>
+                    </div>
                   </div>
                 </div>
               </ModuleCard>
-              <SourceLoadsEditor
+              <SimpleSourceLoadsEditor
                 loads={loads}
                 zoneCount={setupZoneCount}
                 disabled={processReadOnly}
-                token={token}
                 onChange={(value) => {
                   setLoads(value)
                   markDirty('precursors')
@@ -1419,46 +1635,42 @@ export function ScientificExperimentForm({
           ) : null}
 
           {activeStep === 3 ? (
-            <RepeatableItemsSection
-              moduleKey="substrates"
-              title="衬底与摆放"
-              addLabel="添加衬底"
-              emptyHint="至少添加一片衬底；锁定后每片衬底会生成一个待表征样品。"
-              itemLabel={(position) => `衬底 ${position}`}
-              items={substrates}
-              onItemsChange={(items) => {
-                setSubstrates(items)
+            <SimpleSubstratesEditor
+              substrates={substrates}
+              disabled={processReadOnly}
+              onChange={(value) => {
+                setSubstrates(value)
                 markDirty('substrates')
               }}
-              disabled={processReadOnly}
-              zoneCount={setupZoneCount}
             />
           ) : null}
 
           {activeStep === 4 ? (
-            <>
-              <TimelineEditor
-                runId={runId ?? ''}
-                token={token}
-                segments={segments}
-                channels={channels}
-                zoneCount={setupZoneCount}
-                disabled={processReadOnly}
-                onChange={(nextSegments, nextChannels) => {
-                  setSegments(nextSegments)
-                  setChannels(nextChannels)
-                  markDirty('process_steps')
-                }}
-              />
-              <EventsEditor
-                events={events}
-                disabled={processReadOnly}
-                onChange={(value) => {
-                  setEvents(value)
-                  markDirty('process_events')
-                }}
-              />
-            </>
+            <SimpleGrowthEditor
+              segments={segments}
+              channels={channels}
+              settings={processSettings}
+              events={events}
+              runId={runId ?? ''}
+              token={token}
+              setupId={equipment.setupId}
+              setupSnapshot={equipment.snapshot}
+              zoneCount={setupZoneCount}
+              disabled={processReadOnly}
+              onTimelineChange={(nextSegments, nextChannels) => {
+                setSegments(nextSegments)
+                setChannels(nextChannels)
+                markDirty('process_steps')
+              }}
+              onSettingsChange={(value) => {
+                setProcessSettings(value)
+                markDirty('process_steps')
+              }}
+              onEventsChange={(value) => {
+                setEvents(value)
+                markDirty('process_events')
+              }}
+            />
           ) : null}
 
           {activeStep === 5 ? (
@@ -1467,21 +1679,51 @@ export function ScientificExperimentForm({
                 {[
                   [
                     '基本信息',
-                    basicInfo.recorded_by_user_id ? '已填写' : '待填写',
+                    basicComplete
+                      ? `${basicInfo.performed_by_user_ids.length} 名实验人员 · ${basicInfo.ambient_temperature?.value} ℃ · ${basicInfo.ambient_humidity?.value} %RH`
+                      : '待填写',
                   ],
-                  [
-                    '目标材料',
-                    targetFormulas.length ? targetDisplay : '待填写',
-                  ],
+                  ['目标材料', targetComplete ? targetDisplay : '待填写'],
                   ['实验装置', setupName || '待选择'],
-                  ['前驱体与装料', `${loads.length} 组装料`],
-                  ['衬底与摆放', `${substrates.length} 片衬底`],
                   [
-                    '生长程序',
-                    processTimelineIssue
-                      ? '待填写'
-                      : `${segments.length} 个阶段，${channels.length} 项条件`,
+                    '前驱体',
+                    loads.length ? `${loads.length} 个容器` : '待填写',
                   ],
+                  [
+                    '衬底',
+                    substrates.length ? `${substrates.length} 片` : '待填写',
+                  ],
+                  [
+                    '温度程序',
+                    channels.filter(
+                      (channel) => channel.channel_type === 'temperature',
+                    ).length
+                      ? `${
+                          channels.filter(
+                            (channel) => channel.channel_type === 'temperature',
+                          ).length
+                        } 个温区`
+                      : '待填写',
+                  ],
+                  [
+                    '气体程序',
+                    channels.filter(
+                      (channel) => channel.channel_type === 'flow',
+                    ).length
+                      ? `${
+                          channels.filter(
+                            (channel) => channel.channel_type === 'flow',
+                          ).length
+                        } 种气体`
+                      : '未使用气体',
+                  ],
+                  [
+                    '压力',
+                    PRESSURE_REGIME_LABELS[
+                      processSettings.pressure_regime ?? ''
+                    ] ?? '待填写',
+                  ],
+                  ['异常情况', events.length ? '有异常记录' : '无异常'],
                 ].map(([label, value]) => (
                   <div key={label} className="grid gap-1 rounded-lg border p-3">
                     <span className="text-xs text-muted-foreground">
@@ -1491,14 +1733,43 @@ export function ScientificExperimentForm({
                   </div>
                 ))}
               </div>
-              {runId ? (
+              {[
+                basicComplete,
+                targetComplete,
+                preparationComplete,
+                substratesComplete,
+                processTimelineIssue === null,
+              ].some((complete) => !complete) ? (
+                <Alert variant="destructive">
+                  <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                    <span>还有必填内容未完成，请返回对应步骤修改。</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setActiveStep(
+                          [
+                            basicComplete,
+                            targetComplete,
+                            preparationComplete,
+                            substratesComplete,
+                            processTimelineIssue === null,
+                          ].findIndex((complete) => !complete),
+                        )
+                      }
+                    >
+                      返回修改
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {runId && processReadOnly ? (
                 <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-medium">表征与结果</p>
                     <p className="text-sm text-muted-foreground">
-                      {canAddMeasurements
-                        ? '表征记录与制备过程分开管理，可继续补充当前炉次的测量事实。'
-                        : '请先锁定制备过程，锁定后系统将生成待表征样品。'}
+                      实验记录已提交，可继续添加表征记录。
                     </p>
                   </div>
                   {canAddMeasurements ? (
@@ -1646,7 +1917,7 @@ export function ScientificExperimentForm({
   )
 }
 
-function TargetEditor({
+export function TargetEditor({
   target,
   onChange,
   disabled,
@@ -2200,7 +2471,7 @@ function TargetEditor({
   )
 }
 
-function SourceLoadsEditor({
+export function SourceLoadsEditor({
   loads,
   zoneCount,
   onChange,
@@ -2731,7 +3002,7 @@ function SourceLoadsEditor({
   )
 }
 
-function TimelineEditor({
+export function TimelineEditor({
   runId,
   token,
   segments,
@@ -3516,7 +3787,7 @@ function ControlledChecklist({
   )
 }
 
-function EventsEditor({
+export function EventsEditor({
   events,
   onChange,
   disabled,

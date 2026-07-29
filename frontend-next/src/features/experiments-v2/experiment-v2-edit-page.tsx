@@ -141,7 +141,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       action: StatusAction
       reason?: string
     }) => transitionRun(runId, action, token, invalidReason),
-    onSuccess: (run) => {
+    onSuccess: (run, variables) => {
       setLocking(false)
       setInvalidating(false)
       setUnlocking(false)
@@ -157,7 +157,11 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       void queryClient.invalidateQueries({
         queryKey: ['v2-run-revisions', runId, token],
       })
-      toast.success(t('experimentsV2.actions.success'))
+      toast.success(
+        variables.action === 'lock'
+          ? '实验记录已提交，已根据衬底生成样品。'
+          : t('experimentsV2.actions.success'),
+      )
     },
     onError: (mutationError) => {
       if (mutationError instanceof HttpError && mutationError.status === 422) {

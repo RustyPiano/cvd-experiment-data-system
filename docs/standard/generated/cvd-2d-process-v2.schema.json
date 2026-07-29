@@ -328,6 +328,19 @@
         "ambient_humidity": {
           "$ref": "#/$defs/AmbientMeasurement"
         },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
         "precheck": {
           "$ref": "#/$defs/PrecheckRecord"
         }
@@ -545,9 +558,11 @@
               "enum": [
                 "sheet",
                 "ribbon",
+                "wire",
                 "tube",
                 "rod",
-                "particle"
+                "particle",
+                "other"
               ],
               "type": "string"
             },
@@ -1920,6 +1935,22 @@
                 }
               ],
               "default": null
+            },
+            "axial_position_mm": {
+              "title": "Axial Position Mm",
+              "type": "number"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Note"
             }
           },
           "required": [
@@ -1930,7 +1961,8 @@
             "orientation_polish_availability",
             "miscut_availability",
             "surface_roughness",
-            "size_placement"
+            "size_placement",
+            "axial_position_mm"
           ],
           "title": "SubstrateItemPayload",
           "type": "object"
@@ -2226,7 +2258,8 @@
                   "enum": [
                     "absolute",
                     "gauge",
-                    "differential"
+                    "differential",
+                    "unspecified"
                   ],
                   "type": "string"
                 },
@@ -2442,6 +2475,67 @@
           },
           "minItems": 1,
           "title": "Channels",
+          "type": "array"
+        },
+        "pressure_regime": {
+          "anyOf": [
+            {
+              "enum": [
+                "atmospheric",
+                "low_pressure",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pressure Regime"
+        },
+        "cooling_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "natural",
+                "rapid_furnace_move",
+                "controlled",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cooling Method"
+        },
+        "cooling_other": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cooling Other"
+        },
+        "external_fields": {
+          "items": {
+            "enum": [
+              "plasma",
+              "electric_field",
+              "magnetic_field",
+              "light"
+            ],
+            "type": "string"
+          },
+          "title": "External Fields",
           "type": "array"
         }
       },

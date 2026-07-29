@@ -185,6 +185,7 @@ def substrate_item(
             "width_mm": 10.0,
             "placement": "face_up",
         },
+        "axial_position_mm": 0.0,
     }
     if material == "sio2_si":
         payload["oxide_thickness_nm"] = 285.0

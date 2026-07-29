@@ -26,6 +26,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -37,6 +38,7 @@ function entityLabel(
   kind: EntityKind,
   data: Record<string, unknown>,
   version: number | null | undefined,
+  productLabel = false,
 ): string {
   const config = entityConfigs[kind]
   const name =
@@ -48,6 +50,15 @@ function entityLabel(
   const nameText =
     name == null || name === '' ? entityId.slice(0, 8) : String(name)
   const codeText = code == null || code === '' ? '' : ` · ${String(code)}`
+  if (productLabel) {
+    const maker = snapshotValue(data, 'manufacturer_brand')
+    const model = snapshotValue(data, 'model')
+    const supplier = snapshotValue(data, 'supplier')
+    return [nameText, [maker, model].filter(Boolean).join(' '), supplier, code]
+      .filter(Boolean)
+      .map(String)
+      .join(' · ')
+  }
   return `${nameText}${codeText}${version != null ? ` · v${version}` : ''}`
 }
 
@@ -61,6 +72,7 @@ export function EntityReferenceSelect({
   selectedVersion,
   selectedSnapshot,
   allowedLotCategories,
+  productLabel = false,
 }: {
   kind: EntityKind
   value: string
@@ -71,6 +83,7 @@ export function EntityReferenceSelect({
   selectedVersion?: number | null
   selectedSnapshot?: Record<string, unknown> | null
   allowedLotCategories?: readonly string[]
+  productLabel?: boolean
 }) {
   const { t } = useTranslation()
   const { session } = useAuth()
@@ -89,15 +102,20 @@ export function EntityReferenceSelect({
     enabled: session.isAuthenticated && !!token,
   })
   const allEntities = data?.items ?? []
-  const filteredEntities = allEntities.filter((entity) =>
-    filter ? filter(entity) : true,
-  )
+  const filteredEntities = allEntities.filter((entity) => {
+    if (filter && !filter(entity)) return false
+    if (kind !== 'material_lot' || !allowedLotCategories?.length) return true
+    return allowedLotCategories.includes(
+      String(snapshotValue(entity.latest_version?.data ?? {}, 'lot_category')),
+    )
+  })
   const selectedEntity = allEntities.find((entity) => entity.id === value)
   const latestVersion = selectedEntity?.latest_version?.version
   const newerVersionAvailable =
     latestVersion != null &&
     selectedVersion != null &&
     latestVersion > selectedVersion &&
+    !productLabel &&
     (!filter || (selectedEntity != null && filter(selectedEntity)))
   const entities =
     selectedEntity &&
@@ -153,27 +171,36 @@ export function EntityReferenceSelect({
             />
           </SelectTrigger>
           <SelectContent>
-            {value &&
-            selectedSnapshot &&
-            !entities.some((entity) => entity.id === value) ? (
-              <SelectItem value={value}>
-                {entityLabel(value, kind, selectedSnapshot, selectedVersion)}
-              </SelectItem>
-            ) : null}
-            {entities.map((entity) => (
-              <SelectItem key={entity.id} value={entity.id}>
-                {entityLabel(
-                  entity.id,
-                  kind,
-                  entity.id === value && selectedSnapshot
-                    ? selectedSnapshot
-                    : (entity.latest_version?.data ?? {}),
-                  entity.id === value && selectedSnapshot
-                    ? selectedVersion
-                    : entity.latest_version?.version,
-                )}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {value &&
+              selectedSnapshot &&
+              !entities.some((entity) => entity.id === value) ? (
+                <SelectItem value={value}>
+                  {entityLabel(
+                    value,
+                    kind,
+                    selectedSnapshot,
+                    selectedVersion,
+                    productLabel,
+                  )}
+                </SelectItem>
+              ) : null}
+              {entities.map((entity) => (
+                <SelectItem key={entity.id} value={entity.id}>
+                  {entityLabel(
+                    entity.id,
+                    kind,
+                    entity.id === value && selectedSnapshot
+                      ? selectedSnapshot
+                      : (entity.latest_version?.data ?? {}),
+                    entity.id === value && selectedSnapshot
+                      ? selectedVersion
+                      : entity.latest_version?.version,
+                    productLabel,
+                  )}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         {canMaintain ? (

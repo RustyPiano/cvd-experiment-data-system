@@ -961,6 +961,8 @@ class SubstrateItemPayload(V2PayloadBase):
     exposure_interval_min: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] | None = None
     exposure_environment: str | None = None
     zone_thermocouple_distance_mm: ZoneThermocoupleDistancePayload | None = None
+    axial_position_mm: Annotated[float, Field(strict=True, allow_inf_nan=False)]
+    note: str | None = None
 
     @field_validator("chemical_formula")
     @classmethod

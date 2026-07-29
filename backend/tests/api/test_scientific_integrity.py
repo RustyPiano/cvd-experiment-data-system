@@ -140,6 +140,67 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
     assert [item.gas_species_code for item in timeline.channels[2:4]] == ["Ar", "Ar"]
 
 
+def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
+    payload = {
+        "segments": [
+            {
+                "segment_key": "growth",
+                "segment_type": "growth",
+                "sequence": 1,
+                "start_s": 0,
+                "end_s": 3600,
+            }
+        ],
+        "channels": [
+            {
+                "channel_key": f"channel_{uuid4()}".replace("-", "_"),
+                "channel_type": "temperature",
+                "source_type": "setpoint",
+                "subject_type": "temperature_zone",
+                "subject_ref": "zone_1",
+                "subject_instance_ref": "setup:demo:zone:1",
+                "zone_index": 1,
+                "unit": "°C",
+                "data_kind": "interval_series",
+                "series": [
+                    {"start_s": 0, "value": 25},
+                    {"start_s": 1800, "value": 750},
+                ],
+            }
+        ],
+        "pressure_regime": "atmospheric",
+        "cooling_method": "natural",
+    }
+    assert ProcessTimelinePayload.model_validate(payload).pressure_regime == "atmospheric"
+
+    pressure = {
+        "channel_key": f"channel_{uuid4()}".replace("-", "_"),
+        "channel_type": "pressure",
+        "source_type": "setpoint",
+        "subject_type": "pressure_location",
+        "subject_ref": "reactor",
+        "subject_instance_ref": "setup:demo:pressure:1",
+        "pressure_location": "reactor",
+        "pressure_type": "unspecified",
+        "unit": "Pa",
+        "data_kind": "scalar",
+        "scalar_value": 1000,
+    }
+    with pytest.raises(ValueError, match="must not include"):
+        ProcessTimelinePayload.model_validate(
+            {**payload, "channels": [*payload["channels"], pressure]}
+        )
+
+    low_pressure = ProcessTimelinePayload.model_validate(
+        {
+            **payload,
+            "channels": [*payload["channels"], pressure],
+            "pressure_regime": "low_pressure",
+        }
+    )
+    assert low_pressure.channels[-1].pressure_type == "unspecified"
+
+
 def test_measurement_contract_rejects_cross_method_properties_and_bad_composition() -> None:
     with pytest.raises(ValueError, match="sum to one"):
         MaterialAssertionWrite.model_validate(

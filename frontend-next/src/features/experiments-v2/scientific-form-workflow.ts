@@ -113,7 +113,7 @@ export function timelineValidationIssue(
       return `请为“${title}”选择数据来源。`
     }
     if (!channel.subject_instance_ref?.trim()) {
-      return `请填写“${title}”对应的物理通道实例。`
+      return `系统未能匹配“${title}”，请重新选择实验装置后再试。`
     }
     if (
       channel.channel_type === 'temperature' &&
@@ -212,10 +212,18 @@ export function targetSummary(target: TargetSummaryInput): string {
       target.material_regions.find(
         (region) => region.region_key === relation.host_region_key,
       )?.formula ?? relation.host_region_key
-    const amount =
-      relation.nominal_value === undefined
-        ? ''
-        : ` ${relation.value_basis} ${relation.nominal_value}`
+    const basis = {
+      at_percent: 'at%',
+      mol_fraction: 'mol%',
+      site_fraction: '位点分数',
+      ratio: '质量分数',
+    }[relation.value_basis]
+    const value =
+      relation.value_basis === 'mol_fraction' &&
+      relation.nominal_value !== undefined
+        ? relation.nominal_value * 100
+        : relation.nominal_value
+    const amount = value === undefined ? '' : ` ${value} ${basis ?? ''}`
     const action =
       relation.relation_type === 'doped_by'
         ? '掺杂'

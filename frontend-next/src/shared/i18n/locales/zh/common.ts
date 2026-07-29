@@ -688,12 +688,12 @@ export const common = {
       notCharacterized: '暂未表征',
     },
     banner: {
-      locked: '该制备实验记录的工艺参数已锁定，结果可继续补录。',
+      locked: '该制备实验记录已提交，表征结果可继续补录。',
       invalid: '该制备实验记录已作废，不可编辑。',
       notOwner: '只读：仅创建者或管理员可编辑。',
     },
     actions: {
-      lock: '锁定工艺',
+      lock: '确认提交',
       unlock: '解锁记录',
       invalidate: '作废记录',
       more: '更多操作',
@@ -703,11 +703,11 @@ export const common = {
       success: '状态已更新',
       error: '状态更新失败',
       missingTitle: '请先补齐以下字段：',
-      saveBeforeLock: '还有未保存的修改；请先保存对应部分，再导出或锁定工艺。',
-      requirement: { required: '必填', r0: '锁定前必填' },
-      lockTitle: '确认锁定工艺？',
+      saveBeforeLock: '还有未保存的修改；请先保存对应部分，再提交或导出。',
+      requirement: { required: '必填', r0: '提交前必填' },
+      lockTitle: '确认提交实验记录？',
       lockDescription:
-        '锁定后工艺参数不可编辑，并按衬底生成样品；结果仍可继续补录。请确认各节均已保存。',
+        '提交后制备过程不可编辑，系统会按衬底生成样品；表征结果仍可继续补录。',
       invalidateTitle: '作废制备实验记录',
       invalidateDescription:
         '作废后该制备实验记录不可编辑且不可恢复。请输入作废原因。',

@@ -83,6 +83,7 @@ class ScientificBasicInfo(BaseModel):
     ambient_humidity: AmbientMeasurement = Field(
         default_factory=lambda: AmbientMeasurement(source_type="not_measured")
     )
+    note: str | None = Field(default=None, max_length=2000)
     precheck: PrecheckRecord
 
     @field_validator("started_at", mode="before")
@@ -163,7 +164,9 @@ class TargetSpecPayload(BaseModel):
     ]
     material_regions: list[TargetMaterialRegionPayload] = Field(min_length=1)
     composition_relations: list[TargetCompositionRelationPayload] = Field(default_factory=list)
-    dimensional_form: Literal["sheet", "ribbon", "tube", "rod", "particle"] | None = None
+    dimensional_form: (
+        Literal["sheet", "ribbon", "wire", "tube", "rod", "particle", "other"] | None
+    ) = None
     coverage_state: (
         Literal[
             "isolated",
@@ -382,7 +385,7 @@ class ProcessChannelPayload(BaseModel):
     gas_lot_version: int | None = Field(default=None, ge=1)
     zone_index: int | None = Field(default=None, ge=1)
     pressure_location: str | None = Field(default=None, max_length=128)
-    pressure_type: Literal["absolute", "gauge", "differential"] | None = None
+    pressure_type: Literal["absolute", "gauge", "differential", "unspecified"] | None = None
     unit: str = Field(min_length=1, max_length=32)
     data_kind: Literal["scalar", "interval_series", "timeseries_file"]
     scalar_value: float | None = Field(default=None, allow_inf_nan=False)
@@ -451,6 +454,12 @@ class ProcessTimelinePayload(BaseModel):
 
     segments: list[ProcessSegmentPayload] = Field(min_length=1)
     channels: list[ProcessChannelPayload] = Field(min_length=1)
+    pressure_regime: Literal["atmospheric", "low_pressure", "other"] | None = None
+    cooling_method: Literal["natural", "rapid_furnace_move", "controlled", "other"] | None = None
+    cooling_other: str | None = Field(default=None, max_length=1000)
+    external_fields: list[Literal["plasma", "electric_field", "magnetic_field", "light"]] = Field(
+        default_factory=list
+    )
 
     @model_validator(mode="after")
     def validate_timeline(self) -> Self:
@@ -480,6 +489,29 @@ class ProcessTimelinePayload(BaseModel):
             left.end_s > right.start_s for left, right in zip(ordered, ordered[1:], strict=False)
         ):
             raise ValueError("process segments cannot overlap")
+        for channel in self.channels:
+            if (
+                channel.channel_type == "temperature"
+                and channel.source_type == "setpoint"
+                and channel.data_kind == "interval_series"
+            ):
+                starts = [point.start_s for point in channel.series or []]
+                if not starts or starts[0] != 0 or len(starts) != len(set(starts)):
+                    raise ValueError(
+                        "temperature setpoint programs must start at zero with unique times"
+                    )
+        if self.pressure_regime == "atmospheric" and any(
+            channel.channel_type == "pressure" for channel in self.channels
+        ):
+            raise ValueError("atmospheric pressure must not include a precise pressure channel")
+        if self.pressure_regime in {"low_pressure", "other"} and not any(
+            channel.channel_type == "pressure" for channel in self.channels
+        ):
+            raise ValueError("the selected pressure regime requires a pressure value")
+        if (self.cooling_method == "other") != bool((self.cooling_other or "").strip()):
+            raise ValueError("cooling_other is required only for other cooling method")
+        if len(self.external_fields) != len(set(self.external_fields)):
+            raise ValueError("external fields must be unique")
         return self
 
 

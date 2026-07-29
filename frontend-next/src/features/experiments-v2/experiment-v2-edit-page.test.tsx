@@ -38,19 +38,17 @@ vi.mock('./components/run-audit-section', () => ({
 }))
 vi.mock('./scientific-experiment-form', () => ({
   ScientificExperimentForm: ({
-    canLock,
     onRequestLock,
     onProcessDirtyChange,
     onDirtyChange,
   }: {
-    canLock?: boolean
     onRequestLock?: () => void
     onProcessDirtyChange?: (dirty: boolean) => void
     onDirtyChange?: (dirty: boolean) => void
   }) => (
     <>
-      <button type="button" disabled={!canLock} onClick={onRequestLock}>
-        Lock process
+      <button type="button" onClick={onRequestLock}>
+        Submit record
       </button>
       <button
         type="button"
@@ -130,7 +128,7 @@ it('uses the run code and status as the primary page identity', async () => {
   ).toBeInTheDocument()
   expect(screen.getByText('Recording')).toBeInTheDocument()
   expect(
-    screen.getByRole('button', { name: 'Lock process' }),
+    screen.getByRole('button', { name: 'Submit record' }),
   ).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'More actions' }))
   expect(
@@ -138,15 +136,15 @@ it('uses the run code and status as the primary page identity', async () => {
   ).toBeInTheDocument()
   await user.keyboard('{Escape}')
 
-  fireEvent.click(screen.getByRole('button', { name: 'Lock process' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Submit record' }))
   expect(
-    screen.getByRole('heading', { name: 'Lock the process?' }),
+    screen.getByRole('heading', { name: 'Submit this experiment record?' }),
   ).toBeInTheDocument()
   expect(api.transitionRun).not.toHaveBeenCalled()
 
   fireEvent.click(
     within(screen.getByRole('alertdialog')).getByRole('button', {
-      name: 'Lock process',
+      name: 'Confirm submission',
     }),
   )
   await waitFor(() =>
@@ -159,7 +157,7 @@ it('uses the run code and status as the primary page identity', async () => {
   )
 })
 
-it('disables export and locking while process sections are unsaved', async () => {
+it('disables export while process sections are unsaved', async () => {
   const user = userEvent.setup()
   api.getRun.mockResolvedValue({
     id: 'run-1',
@@ -187,12 +185,13 @@ it('disables export and locking while process sections are unsaved', async () =>
     await screen.findByRole('button', { name: 'Make process dirty' }),
   )
 
-  expect(screen.getByRole('button', { name: 'Lock process' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: 'More actions' }))
   expect(
     await screen.findByRole('menuitem', { name: 'Export this run' }),
   ).toHaveAttribute('data-disabled')
   expect(
-    screen.getByText(/Save the affected sections before exporting or locking/),
+    screen.getByText(
+      /Save the affected sections before submitting or exporting/,
+    ),
   ).toBeInTheDocument()
 })

@@ -1856,6 +1856,34 @@ experiment_record:
       note: 上游为负、下游为正
       help: 以所选温区热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。
       help_en: Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
+    - module: 衬底
+      label: 轴向位置
+      label_en: Axial position
+      key: axial_position_mm
+      meaning: 本片衬底相对装置轴向原点的位置
+      input: 数值
+      options: —
+      unit: mm
+      requirement:
+        raw: 必填
+        level: required
+      example: '120'
+      source: 2026-07-30产品简化
+      note: 普通用户只填写装置轴向位置；不暴露三维坐标
+    - module: 衬底
+      label: 备注
+      label_en: Notes
+      key: note
+      meaning: 本片衬底摆放或处理的补充说明
+      input: 自由
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 靠近气体入口
+      source: 2026-07-30产品简化
+      note: ''
   - title: §5 实验过程（有序记录预处理、反应条件；具名其他记录仅作不丢信息的兜底）
     fields:
     - module: 过程步
@@ -3829,6 +3857,10 @@ changelog:
     - 科学完整性复核
     - 关闭旧结果写入与手工派生入口；收紧审阅和转化权限；修正跨炉次转化溯源、过程单位归一化、不可变修订导出及数据集查询语义；冻结装料容器、测量时校准和样品—修订关联快照；状态降为内部验证
     - 2026-07-29二次复核整改
+  - - v4.0-alpha.3
+    - §4 衬底
+    - 产品简化界面增加本片轴向位置与备注；轴向位置为普通用户提交前必填，不暴露三维坐标
+    - 2026-07-30产品简化
   - - R0
     - 硬必填核心(29项，含条件必填)
     - v3.18删除炉次内重复的前驱体化学式R0；物料身份仍由必填的批次版本快照冻结；其余R0定义不变

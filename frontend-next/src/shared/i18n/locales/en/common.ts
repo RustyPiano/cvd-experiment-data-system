@@ -726,12 +726,13 @@ export const common = {
       notCharacterized: 'Not characterized yet',
     },
     banner: {
-      locked: 'Process parameters are locked. Results can still be added.',
+      locked:
+        'This preparation record has been submitted. Results can still be added.',
       invalid: 'This run has been invalidated and cannot be edited.',
       notOwner: 'Read-only: only the creator or an administrator can edit.',
     },
     actions: {
-      lock: 'Lock process',
+      lock: 'Confirm submission',
       unlock: 'Unlock run',
       invalidate: 'Invalidate run',
       more: 'More actions',
@@ -742,11 +743,11 @@ export const common = {
       error: 'Failed to update status',
       missingTitle: 'Complete these fields first:',
       saveBeforeLock:
-        'Changes are still unsaved. Save the affected sections before exporting or locking.',
-      requirement: { required: 'Required', r0: 'Required before locking' },
-      lockTitle: 'Lock the process?',
+        'Changes are still unsaved. Save the affected sections before submitting or exporting.',
+      requirement: { required: 'Required', r0: 'Required before submitting' },
+      lockTitle: 'Submit this experiment record?',
       lockDescription:
-        'Locking makes process parameters read-only and generates samples from the substrates. Results can still be added. Confirm that every section is saved.',
+        'Submitting makes the preparation record read-only and generates samples from the substrates. Characterization results can still be added.',
       invalidateTitle: 'Invalidate run',
       invalidateDescription:
         'After invalidation, this run cannot be edited or restored. Enter the reason for invalidation.',

@@ -455,6 +455,7 @@ class V2ExperimentService:
             if module_key == "basic_info":
                 payload_json["run_code"] = run.run_code
                 payload_json["created_by_user_id"] = str(run.owner_id)
+                payload_json["recorded_by_user_id"] = str(current_user.id)
             if module_key == "substrates":
                 payload_json = self._prefill_material_lot_fields(module_key, payload_json)
                 payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)

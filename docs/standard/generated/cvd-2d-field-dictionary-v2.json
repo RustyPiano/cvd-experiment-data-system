@@ -1382,6 +1382,50 @@
     },
     {
       "source_part": "experiment_record",
+      "module": "衬底",
+      "module_key": "substrates",
+      "key": "axial_position_mm",
+      "label": "轴向位置",
+      "label_en": "Axial position",
+      "meaning": "本片衬底相对装置轴向原点的位置",
+      "input": "数值",
+      "example": "120",
+      "help": null,
+      "help_en": null,
+      "machine_type": "number",
+      "schema_path": "$.modules.substrates.properties.items.items.properties.axial_position_mm",
+      "r0": false,
+      "condition": null,
+      "requirement": "required",
+      "otherwise": null,
+      "validation": null,
+      "unit": "mm",
+      "options": null
+    },
+    {
+      "source_part": "experiment_record",
+      "module": "衬底",
+      "module_key": "substrates",
+      "key": "note",
+      "label": "备注",
+      "label_en": "Notes",
+      "meaning": "本片衬底摆放或处理的补充说明",
+      "input": "自由",
+      "example": "靠近气体入口",
+      "help": null,
+      "help_en": null,
+      "machine_type": "string",
+      "schema_path": "$.modules.substrates.properties.items.items.properties.note",
+      "r0": false,
+      "condition": null,
+      "requirement": "optional",
+      "otherwise": null,
+      "validation": null,
+      "unit": null,
+      "options": null
+    },
+    {
+      "source_part": "experiment_record",
       "module": "过程步",
       "module_key": "process_steps",
       "key": "stage_type",
@@ -3430,5 +3474,5 @@
       "options": null
     }
   ],
-  "field_count": 143
+  "field_count": 145
 }

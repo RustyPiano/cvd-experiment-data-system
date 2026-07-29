@@ -160,7 +160,7 @@ describe('scientific experiment workflow helpers', () => {
           },
         ],
       }),
-    ).toBe('MoS2；MoS2：Pt 掺杂 at_percent 1')
+    ).toBe('MoS2；MoS2：Pt 掺杂 1 at%')
     expect(
       targetSummary({
         architecture_type: 'single_region',
