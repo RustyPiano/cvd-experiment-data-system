@@ -2,11 +2,11 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `07eccde2607d7fd8bc61cc55f13e0daa89a627ee`。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与最新发布运行 `30352259683` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；`main` 已设置同名 required checks，并禁止强推和删除。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前内部验证部署提交为 `89e427ec6d7e2153d1bf935ab860b3134e4ce9d0`。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与 v3.18 发布运行 `30352259683` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；v4 目标分支没有对应 Actions 运行，按用户明确部署指令，在本地全门禁和生产机双镜像预构建通过后部署。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
-- 旧版数据没有删除。旧数据库已离线归档为 `cvd_v1_archive_20260724`，新 v2 使用全新的 `cvd` 数据库。
-- 用户指定的管理员账号已创建，API 与真实浏览器登录均通过。
+- 2026-07-30 按用户要求清空活动库 `cvd` 与活动附件卷后重新初始化；旧离线归档库 `cvd_v1_archive_20260724` 和既有备份不属于活动部署边界，未触碰。
+- 新临时管理员已创建，公网 API 登录通过；凭据未写入仓库或本报告。
 
 ## 切换前证据
 
@@ -97,6 +97,15 @@
 - 实验装置 v3.17 与前驱体 v3.18 经 `main` Actions `30352259683` 五项全绿后，按普通 `./deploy.sh` 从 `f0dfe93` 前滚到 `07eccde`；没有新增迁移，也没有使用批8能力或 schema guard 旁路。
 - 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260728_185046`；`database.sql` SHA-256 为 `b43411151e7c825dc06d56b1d4c9fddf946bcf39d7dcee94e78c0bfb174850cc`，`storage.tar.gz` SHA-256 为 `3ee1e34946f254970cedf0b85546d8e6cd05352e508af2593c75cc8c2d6894c9`，目录权限为 `0700`、文件权限为 `0600`。
 - 部署后服务器仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 保持 `20260728_0002 (head)`；公网 `/health`、首页和匿名 401 边界通过。浏览器只读验收因用户侧域名禁用策略未执行，未写入生产验收数据。
+
+## 2026-07-30 v4 内部验证版全新部署
+
+- 用户明确要求部署且无需保留活动系统旧数据。目标固定为 `codex/scientific-v4-audit-remediation@89e427ec6d7e2153d1bf935ab860b3134e4ce9d0`；生产仓库切换后保持干净并跟踪同名远端分支。
+- 破坏性操作前核对共享 PostgreSQL 目标为容器 `1Panel-postgresql-4ljp`、用户 `user_GztwJM`、活动库 `cvd`，附件目标为专用卷 `cvd-experiment-data-system_storage_data`；先通过 Compose 配置校验及 backend/frontend 双镜像构建，再停止应用。
+- 仅删除并重建活动库 `cvd` 的 `public` schema，专用附件卷清空后验证为空。没有迁移活动库旧行，也没有为本次活动数据创建新备份；独立归档库 `cvd_v1_archive_20260724`、共享 PostgreSQL 的其他数据库、服务器既有备份和 preserved 目录均未触碰。
+- 空库验证命令第一次因 shell 引号错误在启动容器前中止；修正为简化只读查询并再次确认 schema 和附件卷为空后，使用已预构建镜像强制重建两项应用容器，没有出现半迁移或旧新容器混跑。
+- 后端从 initial 前滚到 `20260729_0007 (head)`；最终业务计数为 `users=1 / experiment_runs=0 / file_assets=0`，附件文件数为 0。唯一用户是本次新建的临时管理员，公网登录返回 200，凭据仅交付到用户本机剪贴板。
+- backend/frontend 均为 `running + healthy`；服务器内与公网首页、`/health`、`runtime-config.js` 均为 200，匿名 `/api/v1/auth/me` 为 401。部署前本地门禁为后端 `338 passed / 4 skipped`、前端 `300 passed / 46 files`，生产镜像构建再次通过。
 
 ## 尚待真实数据验收
 
