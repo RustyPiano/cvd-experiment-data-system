@@ -708,8 +708,8 @@ export const common = {
     },
     nav: '制备实验记录',
     new: {
-      title: '新建制备实验记录',
-      subtitle: '先填写基本信息创建记录，其余工艺信息可随后分段保存。',
+      title: '新建制备实验',
+      subtitle: '填写实验开始信息，创建后按六步继续记录。',
     },
     edit: {
       title: '制备实验记录',

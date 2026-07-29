@@ -37,21 +37,30 @@ vi.mock('./components/run-audit-section', () => ({
 }))
 vi.mock('./scientific-experiment-form', () => ({
   ScientificExperimentForm: ({
+    canLock,
+    onRequestLock,
     onProcessDirtyChange,
     onDirtyChange,
   }: {
+    canLock?: boolean
+    onRequestLock?: () => void
     onProcessDirtyChange?: (dirty: boolean) => void
     onDirtyChange?: (dirty: boolean) => void
   }) => (
-    <button
-      type="button"
-      onClick={() => {
-        onProcessDirtyChange?.(true)
-        onDirtyChange?.(true)
-      }}
-    >
-      Make process dirty
-    </button>
+    <>
+      <button type="button" disabled={!canLock} onClick={onRequestLock}>
+        Lock process
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onProcessDirtyChange?.(true)
+          onDirtyChange?.(true)
+        }}
+      >
+        Make process dirty
+      </button>
+    </>
   ),
 }))
 

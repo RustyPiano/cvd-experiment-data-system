@@ -1,20 +1,32 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Plus, Trash2, Upload } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  LockKeyhole,
+  Plus,
+  Trash2,
+  Upload,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { V2EntityRead } from '@/features/entity-library/api'
 import { useAuth } from '@/features/auth/use-auth'
 import { uploadExperimentFile } from '@/features/samples/api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -31,8 +43,9 @@ import {
   upsertModule,
 } from './api'
 import type { V2ModulePayloadRead } from './api'
-import type { ExperimentV2FormState, ModuleSaveProps } from './form-types'
+import type { ExperimentV2FormState } from './form-types'
 import { buildItemsModulePayload } from './field-logic'
+import { tubeUsageParts } from './scientific-form-workflow'
 import { ModuleCard } from './components/module-card'
 import { EntityReferenceSelect } from './components/entity-reference-select'
 import {
@@ -204,7 +217,7 @@ const DEFAULT_TIMELINE = {
       channel_key: 'temperature.zone_1',
       channel_type: 'temperature',
       source_type: 'setpoint',
-      unit: '℃',
+      unit: '°C',
       data_kind: 'interval_series',
       series: [{ start_s: 0, end_s: 1800, value: 750 }],
     },
@@ -448,6 +461,82 @@ const METHOD_LABELS: Record<string, string> = {
   TEM: '透射电子显微镜（TEM）',
 }
 
+const WORKFLOW_STEPS = [
+  '实验概况',
+  '目标材料',
+  '装置与前驱体',
+  '衬底与摆放',
+  '生长程序',
+  '检查并锁定',
+] as const
+
+const STEP_MODULES = [
+  ['basic_info'],
+  ['target_product'],
+  ['equipment', 'precursors'],
+  ['substrates'],
+  ['process_steps', 'process_events'],
+  [],
+] as const
+
+function stepForModule(module: string): number {
+  if (['characterization', 'measured_products'].includes(module)) return 5
+  const index = STEP_MODULES.findIndex((modules) =>
+    (modules as readonly string[]).includes(module),
+  )
+  return index < 0 ? 0 : index
+}
+
+function targetExample(target: TargetSpec): string {
+  if (target.architecture_type === 'vertical_stack') {
+    return '示例：靠近衬底第 1 层 MoS₂，上层 WS₂。'
+  }
+  if (target.architecture_type === 'lateral_junction') {
+    return '示例：横向区域 A 为 MoS₂，区域 B 为 WS₂。'
+  }
+  if (
+    target.composition_relations.some(
+      (relation) => relation.relation_type === 'doped_by',
+    )
+  ) {
+    return '示例：主体材料 MoS₂，掺杂物种 Pt；标称含量按已知依据填写。'
+  }
+  if (
+    target.composition_relations.some(
+      (relation) => relation.relation_type === 'substitutional_alloy',
+    )
+  ) {
+    return '示例：主体材料 MoS₂，取代物种 W；以摩尔分数或位点分数记录。'
+  }
+  return '示例：单一材料 MoS₂；实际样品结论在表征记录中填写。'
+}
+
+function targetForArchitecture(
+  target: TargetSpec,
+  architecture: TargetSpec['architecture_type'],
+): TargetSpec {
+  return {
+    ...target,
+    architecture_type: architecture,
+    material_regions: target.material_regions.map((region, index) => ({
+      ...region,
+      spatial_role:
+        architecture === 'single_region'
+          ? 'single_region'
+          : architecture === 'vertical_stack'
+            ? 'layer'
+            : architecture === 'lateral_junction'
+              ? 'lateral_region'
+              : 'mixed_region',
+      layer_index: architecture === 'vertical_stack' ? index + 1 : undefined,
+      lateral_region:
+        architecture === 'lateral_junction'
+          ? region.lateral_region || String.fromCharCode(65 + index)
+          : undefined,
+    })),
+  }
+}
+
 function numberOrUndefined(value: string): number | undefined {
   return value.trim() === '' ? undefined : Number(value)
 }
@@ -498,19 +587,6 @@ function modulePayload<T>(
   return (modules?.[key]?.payload_json as T | undefined) ?? fallback
 }
 
-function SaveState({ save }: { save: ModuleSaveProps }) {
-  return (
-    <Button
-      type="button"
-      size="sm"
-      disabled={save.saving}
-      onClick={save.onSave}
-    >
-      {save.saving ? '保存中…' : save.saved ? '已保存' : '保存本节'}
-    </Button>
-  )
-}
-
 function AmbientEditor({
   label,
   unit,
@@ -525,7 +601,7 @@ function AmbientEditor({
   onChange: (value: AmbientFormValue | undefined) => void
 }) {
   return (
-    <fieldset className="grid gap-3 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-4">
+    <fieldset className="grid gap-3 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-2">
       <legend className="px-1 text-sm font-medium">{label}</legend>
       <Select
         value={value?.source_type ?? 'not_measured'}
@@ -610,7 +686,9 @@ export function ScientificExperimentForm({
   initialState,
   modules,
   processReadOnly = false,
-  resultsReadOnly = false,
+  canLock = false,
+  focusModule,
+  onRequestLock,
   onProcessDirtyChange,
   onDirtyChange,
 }: {
@@ -620,7 +698,9 @@ export function ScientificExperimentForm({
   initialState: ExperimentV2FormState
   modules?: Record<string, V2ModulePayloadRead | null>
   processReadOnly?: boolean
-  resultsReadOnly?: boolean
+  canLock?: boolean
+  focusModule?: string | null
+  onRequestLock?: () => void
   onProcessDirtyChange?: (dirty: boolean) => void
   onDirtyChange?: (dirty: boolean) => void
 }) {
@@ -632,6 +712,7 @@ export function ScientificExperimentForm({
   const [saved, setSaved] = useState<Set<string>>(new Set())
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [activeStep, setActiveStep] = useState(0)
 
   const [startedAt, setStartedAt] = useState(
     new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
@@ -648,9 +729,23 @@ export function ScientificExperimentForm({
   >()
   const [precheck, setPrecheck] = useState(false)
 
-  const [target, setTarget] = useState<TargetSpec>(() =>
-    modulePayload(modules, 'target_product', DEFAULT_TARGET),
-  )
+  const [target, setTarget] = useState<TargetSpec>(() => {
+    const loaded = modulePayload<Partial<TargetSpec>>(
+      modules,
+      'target_product',
+      {},
+    )
+    const regions = loaded.material_regions
+    return {
+      ...DEFAULT_TARGET,
+      ...loaded,
+      material_regions:
+        regions && regions.length > 0
+          ? regions
+          : DEFAULT_TARGET.material_regions,
+      composition_relations: loaded.composition_relations ?? [],
+    }
+  })
   const [loads, setLoads] = useState<SourceLoad[]>(
     () =>
       modulePayload<{ items: SourceLoad[] }>(modules, 'precursors', {
@@ -690,36 +785,46 @@ export function ScientificExperimentForm({
     enabled: mode === 'edit' && Boolean(token),
   })
 
+  useEffect(() => {
+    if (focusModule) setActiveStep(stepForModule(focusModule))
+  }, [focusModule])
+
+  useEffect(() => {
+    const hasUnsavedChanges = dirty.size > 0
+    onProcessDirtyChange?.(hasUnsavedChanges)
+    onDirtyChange?.(hasUnsavedChanges)
+  }, [dirty, onDirtyChange, onProcessDirtyChange])
+
   const markDirty = (key: string) => {
-    const next = new Set(dirty).add(key)
-    setDirty(next)
+    setDirty((current) => {
+      const next = new Set(current).add(key)
+      return next
+    })
     setSaved((current) => {
       const updated = new Set(current)
       updated.delete(key)
       return updated
     })
-    onProcessDirtyChange?.(next.size > 0)
-    onDirtyChange?.(next.size > 0)
   }
 
   const clearDirty = (key: string) => {
-    const next = new Set(dirty)
-    next.delete(key)
-    setDirty(next)
+    setDirty((current) => {
+      const next = new Set(current)
+      next.delete(key)
+      return next
+    })
     setSaved((current) => new Set(current).add(key))
-    onProcessDirtyChange?.(next.size > 0)
-    onDirtyChange?.(next.size > 0)
   }
 
   const save = async (key: string, payload: Record<string, unknown>) => {
-    if (!runId) return
+    if (!runId) return false
     setSavingKey(key)
     setErrors((current) => ({ ...current, [key]: '' }))
     try {
       if (key === 'equipment') {
-        const [resetCount, useNumber] = equipment.tubeUsageHistory
-          .split(',')
-          .map(Number)
+        const [resetCount, useNumber] = tubeUsageParts(
+          equipment.tubeUsageHistory,
+        ).map(Number)
         await setSetupReference(
           runId,
           equipment.setupId,
@@ -737,25 +842,17 @@ export function ScientificExperimentForm({
       await queryClient.invalidateQueries({
         queryKey: ['v2-experiment', runId, token],
       })
-      toast.success('本节已保存')
+      toast.success('草稿已保存')
+      return true
     } catch (error) {
       const message = resolveErrorMessage(error, '保存失败，请检查本节字段')
       setErrors((current) => ({ ...current, [key]: message }))
       toast.error(message)
+      return false
     } finally {
       setSavingKey(null)
     }
   }
-
-  const saveProps = (
-    key: string,
-    payload: Record<string, unknown>,
-  ): ModuleSaveProps => ({
-    onSave: () => void save(key, payload),
-    saving: savingKey === key,
-    saved: saved.has(key),
-    error: errors[key] || null,
-  })
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -784,7 +881,7 @@ export function ScientificExperimentForm({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>创建 CVD 炉次</CardTitle>
+          <CardTitle>新建制备实验</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
@@ -800,11 +897,11 @@ export function ScientificExperimentForm({
             <Label>合成方法</Label>
             <Input value="CVD" readOnly />
             <p className="text-xs text-muted-foreground">
-              常压/低压、等离子体和源类型在过程事实中记录。
+              具体压力、温度和气体条件稍后在生长程序中填写。
             </p>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="scientific-formula">首个目标区域化学式</Label>
+            <Label htmlFor="scientific-formula">目标材料</Label>
             <Input
               id="scientific-formula"
               value={formula}
@@ -835,12 +932,11 @@ export function ScientificExperimentForm({
             onChange={setHumidityAmbient}
           />
           <label className="flex items-center gap-2 sm:col-span-2">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={precheck}
-              onChange={(event) => setPrecheck(event.target.checked)}
+              onCheckedChange={(checked) => setPrecheck(checked === true)}
             />
-            已按当前检查清单完成炉次前检查
+            已完成实验前检查
           </label>
           <div className="sm:col-span-2">
             <Button
@@ -854,7 +950,7 @@ export function ScientificExperimentForm({
               }
               onClick={() => createMutation.mutate()}
             >
-              创建并继续填写科学记录
+              创建实验并继续
             </Button>
           </div>
         </CardContent>
@@ -863,240 +959,548 @@ export function ScientificExperimentForm({
   }
 
   const setupZoneCount = Number(equipment.snapshot?.['zone_count']) || null
+  const [tubeResetCount, tubeUseNumber] = tubeUsageParts(
+    equipment.tubeUsageHistory,
+  )
+  const targetFormulas = target.material_regions
+    .map((region) => region.formula.trim())
+    .filter(Boolean)
+  const setupName = String(
+    equipment.snapshot?.['setup_name'] ??
+      equipment.snapshot?.['name'] ??
+      equipment.snapshot?.['setup_code'] ??
+      '',
+  )
+  const totalDuration = Math.max(0, ...segments.map((segment) => segment.end_s))
+  const temperatureValues = channels
+    .filter((channel) => channel.channel_type === 'temperature')
+    .flatMap((channel) => [
+      ...(typeof channel.scalar_value === 'number'
+        ? [channel.scalar_value]
+        : []),
+      ...(channel.series ?? [])
+        .map((point) => Number(point.value))
+        .filter(Number.isFinite),
+    ])
+  const peakTemperature =
+    temperatureValues.length > 0 ? Math.max(...temperatureValues) : null
+  const completedSteps = [
+    Boolean(basicInfo.started_at && basicInfo.recorded_by_user_id),
+    targetFormulas.length > 0,
+    Boolean(equipment.setupId && loads.length > 0),
+    substrates.length > 0,
+    Boolean(segments.length && channels.length),
+  ].filter(Boolean).length
+
+  const payloadFor = (key: string): Record<string, unknown> => {
+    if (key === 'basic_info') return basicInfo
+    if (key === 'target_product') return target
+    if (key === 'precursors') return { items: loads }
+    if (key === 'substrates') {
+      return buildItemsModulePayload(
+        'substrates',
+        substrates.map((item) => materialLotProjectedItem('substrates', item)),
+      )
+    }
+    if (key === 'process_steps') return { segments, channels }
+    if (key === 'process_events') return { items: events }
+    return {}
+  }
+
+  const saveCurrentStep = async () => {
+    const keys = STEP_MODULES[activeStep].filter((key) => dirty.has(key))
+    for (const key of keys) {
+      if (!(await save(key, payloadFor(key)))) return false
+    }
+    return true
+  }
+
+  const currentError = STEP_MODULES[activeStep]
+    .map((key) => errors[key])
+    .find(Boolean)
+  const currentStepDirty = STEP_MODULES[activeStep].some((key) =>
+    dirty.has(key),
+  )
+  const currentStepSaved =
+    !currentStepDirty && STEP_MODULES[activeStep].some((key) => saved.has(key))
+
+  const showNextStep = async () => {
+    if (processReadOnly || (await saveCurrentStep())) {
+      setActiveStep((current) =>
+        Math.min(current + 1, WORKFLOW_STEPS.length - 1),
+      )
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
 
   return (
     <div className="grid gap-6">
-      <ModuleCard
-        id="module-basic_info"
-        index="§1"
-        title="炉次身份与参与者"
-        onSave={() => void save('basic_info', basicInfo)}
-        saving={savingKey === 'basic_info'}
-        saved={saved.has('basic_info')}
-        error={errors['basic_info'] || null}
-      >
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <Label>炉次编号</Label>
-            <Input value={runCode ?? ''} readOnly />
+      <Card size="sm">
+        <CardHeader className="border-b">
+          <div className="flex items-center justify-between gap-4">
+            <CardTitle>
+              第 {activeStep + 1} 步，共 {WORKFLOW_STEPS.length} 步
+            </CardTitle>
+            <span className="text-xs text-muted-foreground">
+              已完成 {completedSteps}/5
+            </span>
           </div>
-          <div>
-            <Label>合成方法</Label>
-            <Input value="CVD" readOnly />
-          </div>
-          <div>
-            <Label>创建人</Label>
-            <Input
-              value={
-                contributors.data?.find(
-                  (item) => item.id === basicInfo.created_by_user_id,
-                )?.name ??
-                session.currentUser?.name ??
-                ''
-              }
-              readOnly
+          <div
+            role="progressbar"
+            aria-label="实验填写进度"
+            aria-valuemin={0}
+            aria-valuemax={WORKFLOW_STEPS.length}
+            aria-valuenow={activeStep + 1}
+            className="h-1.5 overflow-hidden rounded-full bg-muted"
+          >
+            <div
+              className="h-full rounded-full bg-primary transition-[width]"
+              style={{
+                width: `${((activeStep + 1) / WORKFLOW_STEPS.length) * 100}%`,
+              }}
             />
           </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <Label>实际执行人（可多选）</Label>
-            <div className="grid gap-2 rounded-md border p-3 sm:grid-cols-2">
-              {(contributors.data ?? []).map((contributor) => (
-                <label
-                  key={contributor.id}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
+        </CardHeader>
+        <CardContent className="grid gap-1 sm:grid-cols-3 xl:grid-cols-6">
+          {WORKFLOW_STEPS.map((step, index) => (
+            <Button
+              key={step}
+              type="button"
+              variant={index === activeStep ? 'secondary' : 'ghost'}
+              className="h-auto justify-start py-2 text-left whitespace-normal"
+              aria-current={index === activeStep ? 'step' : undefined}
+              onClick={() => setActiveStep(index)}
+            >
+              <span className="tabular-nums">{index + 1}.</span>
+              {step}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div id={`experiment-step-${activeStep + 1}`} className="grid gap-6">
+          {activeStep === 0 ? (
+            <ModuleCard id="module-basic_info" title="实验概况">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>实验编号</Label>
+                  <Input value={runCode ?? ''} readOnly />
+                </div>
+                <div className="grid gap-2">
+                  <Label>合成方法</Label>
+                  <Input value="CVD" readOnly />
+                </div>
+                <div className="grid gap-2">
+                  <Label>创建人</Label>
+                  <Input
+                    value={
+                      contributors.data?.find(
+                        (item) => item.id === basicInfo.created_by_user_id,
+                      )?.name ??
+                      session.currentUser?.name ??
+                      ''
+                    }
+                    readOnly
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>记录人</Label>
+                  <Select
+                    value={basicInfo.recorded_by_user_id}
                     disabled={processReadOnly}
-                    checked={basicInfo.performed_by_user_ids.includes(
-                      contributor.id,
-                    )}
-                    onChange={(event) => {
+                    onValueChange={(recordedBy) => {
                       setBasicInfo({
                         ...basicInfo,
-                        performed_by_user_ids: event.target.checked
-                          ? [...basicInfo.performed_by_user_ids, contributor.id]
-                          : basicInfo.performed_by_user_ids.filter(
-                              (id) => id !== contributor.id,
-                            ),
+                        recorded_by_user_id: recordedBy,
                       })
                       markDirty('basic_info')
                     }}
-                  />
-                  {contributor.name}（{contributor.email}）
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <Label>记录人</Label>
-            <Select
-              value={basicInfo.recorded_by_user_id}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {(contributors.data ?? []).map((contributor) => (
+                          <SelectItem
+                            key={contributor.id}
+                            value={contributor.id}
+                          >
+                            {contributor.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <fieldset className="grid gap-2 rounded-lg border p-3 sm:col-span-2">
+                  <legend className="px-1 text-sm font-medium">
+                    实际执行人（可多选）
+                  </legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(contributors.data ?? []).map((contributor) => {
+                      const checked = basicInfo.performed_by_user_ids.includes(
+                        contributor.id,
+                      )
+                      return (
+                        <label
+                          key={contributor.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <Checkbox
+                            disabled={processReadOnly}
+                            checked={checked}
+                            onCheckedChange={(value) => {
+                              setBasicInfo({
+                                ...basicInfo,
+                                performed_by_user_ids:
+                                  value === true
+                                    ? [
+                                        ...basicInfo.performed_by_user_ids,
+                                        contributor.id,
+                                      ]
+                                    : basicInfo.performed_by_user_ids.filter(
+                                        (id) => id !== contributor.id,
+                                      ),
+                              })
+                              markDirty('basic_info')
+                            }}
+                          />
+                          {contributor.name}（{contributor.email}）
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+                <AmbientEditor
+                  label="环境温度"
+                  unit="℃"
+                  value={basicInfo.ambient_temperature}
+                  disabled={processReadOnly}
+                  onChange={(value) => {
+                    setBasicInfo({
+                      ...basicInfo,
+                      ambient_temperature: value,
+                    })
+                    markDirty('basic_info')
+                  }}
+                />
+                <AmbientEditor
+                  label="环境相对湿度"
+                  unit="%RH"
+                  value={basicInfo.ambient_humidity}
+                  disabled={processReadOnly}
+                  onChange={(value) => {
+                    setBasicInfo({ ...basicInfo, ambient_humidity: value })
+                    markDirty('basic_info')
+                  }}
+                />
+              </div>
+            </ModuleCard>
+          ) : null}
+
+          {activeStep === 1 ? (
+            <TargetEditor
+              target={target}
               disabled={processReadOnly}
-              onValueChange={(recordedBy) => {
-                setBasicInfo({
-                  ...basicInfo,
-                  recorded_by_user_id: recordedBy,
-                })
-                markDirty('basic_info')
+              onChange={(value) => {
+                setTarget(value)
+                markDirty('target_product')
               }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(contributors.data ?? []).map((contributor) => (
-                  <SelectItem key={contributor.id} value={contributor.id}>
-                    {contributor.name}
-                  </SelectItem>
+            />
+          ) : null}
+
+          {activeStep === 2 ? (
+            <>
+              <ModuleCard id="module-equipment" title="实验装置">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:col-span-2">
+                    <Label>本次使用的装置版本</Label>
+                    <EntityReferenceSelect
+                      kind="setup"
+                      value={equipment.setupId}
+                      selectedVersion={equipment.version}
+                      selectedSnapshot={equipment.snapshot}
+                      disabled={processReadOnly}
+                      onChange={(id, entity) => {
+                        setEquipment({
+                          ...equipment,
+                          setupId: id,
+                          version: entity?.latest_version?.version ?? null,
+                          snapshot: entity?.latest_version?.data ?? null,
+                        })
+                        markDirty('equipment')
+                      }}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="tube-reset-count">炉管清洗或更换次数</Label>
+                    <Input
+                      id="tube-reset-count"
+                      type="number"
+                      min="0"
+                      value={tubeResetCount}
+                      disabled={processReadOnly}
+                      onChange={(event) => {
+                        setEquipment({
+                          ...equipment,
+                          tubeUsageHistory: `${event.target.value},${tubeUseNumber}`,
+                        })
+                        markDirty('equipment')
+                      }}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="tube-use-number">
+                      本次为清洗或更换后的第几次使用
+                    </Label>
+                    <Input
+                      id="tube-use-number"
+                      type="number"
+                      min="1"
+                      value={tubeUseNumber}
+                      disabled={processReadOnly}
+                      onChange={(event) => {
+                        setEquipment({
+                          ...equipment,
+                          tubeUsageHistory: `${tubeResetCount},${event.target.value}`,
+                        })
+                        markDirty('equipment')
+                      }}
+                    />
+                  </div>
+                </div>
+              </ModuleCard>
+              <SourceLoadsEditor
+                loads={loads}
+                channels={channels}
+                disabled={processReadOnly}
+                token={token}
+                onChange={(value) => {
+                  setLoads(value)
+                  markDirty('precursors')
+                }}
+              />
+            </>
+          ) : null}
+
+          {activeStep === 3 ? (
+            <RepeatableItemsSection
+              moduleKey="substrates"
+              title="衬底与摆放"
+              addLabel="添加衬底"
+              emptyHint="至少添加一片衬底；锁定后每片衬底会生成一个待表征样品。"
+              itemLabel={(position) => `衬底 ${position}`}
+              items={substrates}
+              onItemsChange={(items) => {
+                setSubstrates(items)
+                markDirty('substrates')
+              }}
+              disabled={processReadOnly}
+              zoneCount={setupZoneCount}
+            />
+          ) : null}
+
+          {activeStep === 4 ? (
+            <>
+              <TimelineEditor
+                runId={runId ?? ''}
+                token={token}
+                segments={segments}
+                channels={channels}
+                disabled={processReadOnly}
+                onChange={(nextSegments, nextChannels) => {
+                  setSegments(nextSegments)
+                  setChannels(nextChannels)
+                  markDirty('process_steps')
+                }}
+              />
+              <EventsEditor
+                events={events}
+                disabled={processReadOnly}
+                onChange={(value) => {
+                  setEvents(value)
+                  markDirty('process_events')
+                }}
+              />
+            </>
+          ) : null}
+
+          {activeStep === 5 ? (
+            <ModuleCard title="检查并锁定">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  [
+                    '实验概况',
+                    basicInfo.recorded_by_user_id ? '已填写' : '待填写',
+                  ],
+                  [
+                    '目标材料',
+                    targetFormulas.length
+                      ? targetFormulas.join(' / ')
+                      : '待填写',
+                  ],
+                  ['实验装置', setupName || '待选择'],
+                  ['前驱体与装料', `${loads.length} 组装料`],
+                  ['衬底与摆放', `${substrates.length} 片衬底`],
+                  [
+                    '生长程序',
+                    `${segments.length} 个阶段，${channels.length} 个条件通道`,
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label} className="grid gap-1 rounded-lg border p-3">
+                    <span className="text-xs text-muted-foreground">
+                      {label}
+                    </span>
+                    <span className="font-medium">{value}</span>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <AmbientEditor
-            label="环境温度"
-            unit="℃"
-            value={basicInfo.ambient_temperature}
-            disabled={processReadOnly}
-            onChange={(value) => {
-              setBasicInfo({ ...basicInfo, ambient_temperature: value })
-              markDirty('basic_info')
-            }}
-          />
-          <AmbientEditor
-            label="环境相对湿度"
-            unit="%RH"
-            value={basicInfo.ambient_humidity}
-            disabled={processReadOnly}
-            onChange={(value) => {
-              setBasicInfo({ ...basicInfo, ambient_humidity: value })
-              markDirty('basic_info')
-            }}
-          />
+              </div>
+              {runId ? (
+                <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium">表征与结果</p>
+                    <p className="text-sm text-muted-foreground">
+                      表征记录与制备过程分开管理，可在实验锁定后继续补充。
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      navigate({
+                        to: '/characterizations',
+                        search: { runId },
+                      })
+                    }
+                  >
+                    前往表征实验记录
+                    <ArrowRight data-icon="inline-end" />
+                  </Button>
+                </div>
+              ) : null}
+              {canLock ? (
+                <Alert>
+                  <LockKeyhole />
+                  <AlertTitle>锁定前请确认</AlertTitle>
+                  <AlertDescription>
+                    锁定后制备过程不可直接修改；如需纠错，将创建新的不可变修订。
+                  </AlertDescription>
+                </Alert>
+              ) : processReadOnly ? (
+                <Alert>
+                  <Check />
+                  <AlertTitle>当前制备过程为只读</AlertTitle>
+                  <AlertDescription>
+                    表征与结果仍可从统一入口继续记录。
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Alert>
+                  <LockKeyhole />
+                  <AlertTitle>先保存当前修改</AlertTitle>
+                  <AlertDescription>
+                    保存所有已修改内容后，即可锁定制备过程。
+                  </AlertDescription>
+                </Alert>
+              )}
+            </ModuleCard>
+          ) : null}
+
+          {currentError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{currentError}</AlertDescription>
+            </Alert>
+          ) : null}
         </div>
-      </ModuleCard>
 
-      <TargetEditor
-        target={target}
-        disabled={processReadOnly}
-        onChange={(value) => {
-          setTarget(value)
-          markDirty('target_product')
-        }}
-        save={saveProps('target_product', target)}
-      />
+        <Card size="sm" className="xl:sticky xl:top-20">
+          <CardHeader className="border-b">
+            <CardTitle>本炉摘要</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {[
+              ['实验编号', runCode || '未生成'],
+              ['目标材料', targetFormulas.join(' / ') || '未填写'],
+              ['实验装置', setupName || '未选择'],
+              ['衬底', `${substrates.length} 片`],
+              [
+                '生长条件',
+                [
+                  peakTemperature === null
+                    ? ''
+                    : `最高 ${peakTemperature} ${channels.find((channel) => channel.channel_type === 'temperature')?.unit ?? '°C'}`,
+                  totalDuration ? `${Math.round(totalDuration / 60)} min` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || '未填写',
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="grid gap-1">
+                <span className="text-xs text-muted-foreground">{label}</span>
+                <span className="font-medium">{value}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
 
-      <ModuleCard id="module-equipment" index="§2" title="装置版本">
-        <div className="grid gap-4 sm:grid-cols-[1fr_12rem_auto]">
-          <div className="grid gap-2">
-            <Label>装置</Label>
-            <EntityReferenceSelect
-              kind="setup"
-              value={equipment.setupId}
-              selectedVersion={equipment.version}
-              selectedSnapshot={equipment.snapshot}
-              disabled={processReadOnly}
-              onChange={(id, entity) => {
-                setEquipment({
-                  ...equipment,
-                  setupId: id,
-                  version: entity?.latest_version?.version ?? null,
-                  snapshot: entity?.latest_version?.data ?? null,
-                })
-                markDirty('equipment')
-              }}
-            />
+      <Card
+        size="sm"
+        className="sticky bottom-3 z-20 shadow-lg supports-[backdrop-filter]:bg-card/90 supports-[backdrop-filter]:backdrop-blur"
+      >
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={activeStep === 0 || savingKey !== null}
+            onClick={() => setActiveStep((current) => Math.max(0, current - 1))}
+          >
+            <ArrowLeft data-icon="inline-start" />
+            上一步
+          </Button>
+          <div className="flex items-center gap-3">
+            {currentStepSaved ? (
+              <Badge variant="outline">
+                <Check data-icon="inline-start" />
+                已保存
+              </Badge>
+            ) : null}
+            {activeStep < WORKFLOW_STEPS.length - 1 ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={
+                    processReadOnly || !currentStepDirty || savingKey !== null
+                  }
+                  onClick={() => void saveCurrentStep()}
+                >
+                  {savingKey ? '保存中…' : '保存草稿'}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={savingKey !== null}
+                  onClick={() => void showNextStep()}
+                >
+                  下一步
+                  <ArrowRight data-icon="inline-end" />
+                </Button>
+              </>
+            ) : canLock ? (
+              <Button
+                type="button"
+                disabled={dirty.size > 0 || savingKey !== null}
+                onClick={onRequestLock}
+              >
+                <LockKeyhole data-icon="inline-start" />
+                锁定制备过程
+              </Button>
+            ) : null}
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="tube-usage">炉管重置次数, 本次序号</Label>
-            <Input
-              id="tube-usage"
-              value={equipment.tubeUsageHistory}
-              placeholder="0,1"
-              disabled={processReadOnly}
-              onChange={(event) => {
-                setEquipment({
-                  ...equipment,
-                  tubeUsageHistory: event.target.value,
-                })
-                markDirty('equipment')
-              }}
-            />
-          </div>
-          <div className="self-end">
-            <SaveState save={saveProps('equipment', {})} />
-          </div>
-        </div>
-      </ModuleCard>
-
-      <SourceLoadsEditor
-        loads={loads}
-        channels={channels}
-        disabled={processReadOnly}
-        token={token}
-        onChange={(value) => {
-          setLoads(value)
-          markDirty('precursors')
-        }}
-        save={saveProps('precursors', { items: loads })}
-      />
-
-      <RepeatableItemsSection
-        moduleKey="substrates"
-        index="§4"
-        title="衬底片与堆叠"
-        addLabel="添加衬底片"
-        emptyHint="至少添加一片衬底；锁定后每片衬底生成一个实际状态未知的样品。"
-        itemLabel={(position) => `衬底片 ${position}`}
-        items={substrates}
-        onItemsChange={(items) => {
-          setSubstrates(items)
-          markDirty('substrates')
-        }}
-        disabled={processReadOnly}
-        save={saveProps(
-          'substrates',
-          buildItemsModulePayload(
-            'substrates',
-            substrates.map((item) =>
-              materialLotProjectedItem('substrates', item),
-            ),
-          ),
-        )}
-        zoneCount={setupZoneCount}
-      />
-
-      <TimelineEditor
-        runId={runId ?? ''}
-        token={token}
-        segments={segments}
-        channels={channels}
-        disabled={processReadOnly}
-        onChange={(nextSegments, nextChannels) => {
-          setSegments(nextSegments)
-          setChannels(nextChannels)
-          markDirty('process_steps')
-        }}
-        save={saveProps('process_steps', { segments, channels })}
-      />
-
-      <EventsEditor
-        events={events}
-        disabled={processReadOnly}
-        onChange={(value) => {
-          setEvents(value)
-          markDirty('process_events')
-        }}
-        save={saveProps('process_events', { items: events })}
-      />
-
-      {runId ? (
-        <ScientificMeasurements
-          runId={runId}
-          token={token}
-          readOnly={resultsReadOnly}
-        />
-      ) : null}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -1105,12 +1509,10 @@ function TargetEditor({
   target,
   onChange,
   disabled,
-  save,
 }: {
   target: TargetSpec
   onChange: (value: TargetSpec) => void
   disabled: boolean
-  save: ModuleSaveProps
 }) {
   const setRegion = (index: number, patch: Partial<Region>) =>
     onChange({
@@ -1120,41 +1522,41 @@ function TargetEditor({
       ),
     })
   return (
-    <ModuleCard
-      id="module-target_product"
-      index="§1b"
-      title="目标规格（研究意图，不等于实际样品）"
-      onSave={save.onSave}
-      saving={save.saving}
-      saved={save.saved}
-      error={save.error}
-    >
-      <div className="grid gap-4 sm:grid-cols-3">
+    <ModuleCard id="module-target_product" title="目标材料">
+      <Alert>
+        <AlertTitle>这里填写本次实验想要制备的材料</AlertTitle>
+        <AlertDescription>{targetExample(target)}</AlertDescription>
+      </Alert>
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label>空间架构</Label>
+          <Label>材料结构</Label>
           <Select
             value={target.architecture_type}
             disabled={disabled}
             onValueChange={(value) =>
-              onChange({
-                ...target,
-                architecture_type: value as TargetSpec['architecture_type'],
-              })
+              onChange(
+                targetForArchitecture(
+                  target,
+                  value as TargetSpec['architecture_type'],
+                ),
+              )
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="single_region">单一区域</SelectItem>
-              <SelectItem value="vertical_stack">垂直堆叠</SelectItem>
-              <SelectItem value="lateral_junction">横向结</SelectItem>
-              <SelectItem value="mixed_architecture">混合架构</SelectItem>
+              <SelectGroup>
+                <SelectItem value="single_region">单一材料</SelectItem>
+                <SelectItem value="vertical_stack">垂直异质结构</SelectItem>
+                <SelectItem value="lateral_junction">横向异质结构</SelectItem>
+                <SelectItem value="mixed_architecture">复杂结构</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
         <div className="grid gap-2">
-          <Label>维度形态</Label>
+          <Label>材料形态</Label>
           <Select
             value={target.dimensional_form}
             disabled={disabled}
@@ -1165,15 +1567,17 @@ function TargetEditor({
               })
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="sheet">片/膜</SelectItem>
-              <SelectItem value="ribbon">带</SelectItem>
-              <SelectItem value="tube">管</SelectItem>
-              <SelectItem value="rod">棒</SelectItem>
-              <SelectItem value="particle">颗粒</SelectItem>
+              <SelectGroup>
+                <SelectItem value="sheet">二维片层或薄膜</SelectItem>
+                <SelectItem value="ribbon">纳米带</SelectItem>
+                <SelectItem value="tube">纳米管</SelectItem>
+                <SelectItem value="rod">纳米棒</SelectItem>
+                <SelectItem value="particle">颗粒</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
@@ -1189,14 +1593,44 @@ function TargetEditor({
               })
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="未设定" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="isolated">孤立区域</SelectItem>
-              <SelectItem value="discontinuous">不连续</SelectItem>
-              <SelectItem value="percolated">贯通</SelectItem>
-              <SelectItem value="continuous">连续</SelectItem>
+              <SelectGroup>
+                <SelectItem value="isolated">孤立晶畴</SelectItem>
+                <SelectItem value="discontinuous">不连续覆盖</SelectItem>
+                <SelectItem value="percolated">相互连通</SelectItem>
+                <SelectItem value="continuous">连续覆盖</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label>目标取向</Label>
+          <Select
+            value={target.orientation ?? 'none'}
+            disabled={disabled}
+            onValueChange={(value) =>
+              onChange({
+                ...target,
+                orientation:
+                  value === 'none'
+                    ? undefined
+                    : (value as TargetSpec['orientation']),
+              })
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="none">未设定</SelectItem>
+                <SelectItem value="in_plane">平面内生长</SelectItem>
+                <SelectItem value="vertical">垂直生长</SelectItem>
+                <SelectItem value="mixed">混合取向</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
@@ -1205,9 +1639,15 @@ function TargetEditor({
       <div className="grid gap-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-medium">目标材料区域</p>
+            <p className="font-medium">
+              {target.architecture_type === 'vertical_stack'
+                ? '逐层填写'
+                : target.architecture_type === 'lateral_junction'
+                  ? '逐区域填写'
+                  : '材料组成'}
+            </p>
             <p className="text-xs text-muted-foreground">
-              每层或每个横向区域独立记录；化学组成关系在下方另行表达。
+              实际样品状态在表征记录中填写，这里只表达实验目标。
             </p>
           </div>
           <Button
@@ -1234,84 +1674,28 @@ function TargetEditor({
               })
             }
           >
-            <Plus /> 添加区域
+            <Plus />
+            {target.architecture_type === 'vertical_stack'
+              ? '添加一层'
+              : '添加区域'}
           </Button>
         </div>
         {target.material_regions.map((region, index) => (
           <div
             key={`${region.region_key}-${index}`}
-            className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6"
+            className="grid gap-4 rounded-lg border p-4"
           >
-            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
-              区域 {index + 1}
-            </div>
-            <Input
-              aria-label="化学式"
-              value={region.formula}
-              disabled={disabled}
-              onChange={(event) =>
-                setRegion(index, { formula: event.target.value })
-              }
-              placeholder="MoS2"
-            />
-            <Select
-              value={region.spatial_role}
-              disabled={disabled}
-              onValueChange={(value) =>
-                setRegion(index, {
-                  spatial_role: value as Region['spatial_role'],
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="single_region">单一区域</SelectItem>
-                <SelectItem value="layer">层</SelectItem>
-                <SelectItem value="lateral_region">横向区域</SelectItem>
-                <SelectItem value="mixed_region">混合区域</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              aria-label="层序"
-              type="number"
-              min="1"
-              value={region.layer_index ?? ''}
-              disabled={disabled}
-              onChange={(event) =>
-                setRegion(index, {
-                  layer_index: numberOrUndefined(event.target.value),
-                })
-              }
-              placeholder="层序"
-            />
-            <Input
-              aria-label="横向区域名"
-              value={region.lateral_region ?? ''}
-              disabled={disabled}
-              onChange={(event) =>
-                setRegion(index, { lateral_region: event.target.value })
-              }
-              placeholder="横向区域名"
-            />
-            <div className="flex gap-2">
-              <Input
-                aria-label="目标层数"
-                type="number"
-                min="1"
-                value={region.target_layer_count ?? ''}
-                disabled={disabled}
-                onChange={(event) =>
-                  setRegion(index, {
-                    target_layer_count: numberOrUndefined(event.target.value),
-                  })
-                }
-                placeholder="目标层数"
-              />
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-medium">
+                {target.architecture_type === 'vertical_stack'
+                  ? `第 ${index + 1} 层${index === 0 ? '（靠近衬底）' : ''}`
+                  : target.architecture_type === 'lateral_junction'
+                    ? `区域 ${region.lateral_region || String.fromCharCode(65 + index)}`
+                    : `材料 ${index + 1}`}
+              </p>
               <Button
                 type="button"
-                size="icon"
+                size="sm"
                 variant="ghost"
                 disabled={disabled || target.material_regions.length === 1}
                 onClick={() =>
@@ -1323,16 +1707,95 @@ function TargetEditor({
                   })
                 }
               >
-                <Trash2 />
+                <Trash2 /> 删除
               </Button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>化学式</Label>
+                <Input
+                  value={region.formula}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    setRegion(index, { formula: event.target.value })
+                  }
+                  placeholder="例如 MoS₂"
+                />
+              </div>
+              {target.architecture_type === 'vertical_stack' ? (
+                <div className="grid gap-2">
+                  <Label>从衬底起的层序</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={region.layer_index ?? index + 1}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      setRegion(index, {
+                        layer_index: numberOrUndefined(event.target.value),
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+              {target.architecture_type === 'lateral_junction' ? (
+                <div className="grid gap-2">
+                  <Label>区域名称</Label>
+                  <Input
+                    value={
+                      region.lateral_region ?? String.fromCharCode(65 + index)
+                    }
+                    disabled={disabled}
+                    onChange={(event) =>
+                      setRegion(index, {
+                        lateral_region: event.target.value,
+                      })
+                    }
+                    placeholder="例如 A"
+                  />
+                </div>
+              ) : null}
+              <div className="grid gap-2">
+                <Label>目标层数</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={region.target_layer_count ?? ''}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    setRegion(index, {
+                      target_layer_count: numberOrUndefined(event.target.value),
+                    })
+                  }
+                  placeholder="例如 1"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>目标体相或多型（选填）</Label>
+                <Input
+                  value={region.target_bulk_phase ?? ''}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    setRegion(index, {
+                      target_bulk_phase: event.target.value,
+                    })
+                  }
+                  placeholder="例如 2H"
+                />
+              </div>
             </div>
           </div>
         ))}
       </div>
 
       <div className="grid gap-3">
-        <div className="flex items-center justify-between">
-          <p className="font-medium">组成关系</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-medium">掺杂、合金与表面修饰</p>
+            <p className="text-xs text-muted-foreground">
+              仅在适用时添加，主体材料仍在上方填写。
+            </p>
+          </div>
           <Button
             type="button"
             size="sm"
@@ -1354,141 +1817,190 @@ function TargetEditor({
               })
             }
           >
-            <Plus /> 添加掺杂/合金关系
+            <Plus /> 添加组成关系
           </Button>
         </div>
         {target.composition_relations.map((relation, index) => (
           <div
             key={index}
-            className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6"
+            className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
           >
-            <Select
-              value={relation.relation_type}
-              disabled={disabled}
-              onValueChange={(value) =>
-                onChange({
-                  ...target,
-                  composition_relations: target.composition_relations.map(
-                    (item, current) =>
-                      current === index
-                        ? {
-                            ...item,
-                            relation_type:
-                              value as CompositionRelation['relation_type'],
-                          }
-                        : item,
-                  ),
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="doped_by">掺杂</SelectItem>
-                <SelectItem value="substitutional_alloy">取代合金</SelectItem>
-                <SelectItem value="intercalated_by">插层</SelectItem>
-                <SelectItem value="decorated_by">表面修饰</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={relation.host_region_key}
-              disabled={disabled}
-              onValueChange={(value) =>
-                onChange({
-                  ...target,
-                  composition_relations: target.composition_relations.map(
-                    (item, current) =>
-                      current === index
-                        ? { ...item, host_region_key: value }
-                        : item,
-                  ),
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {target.material_regions.map((region, regionIndex) => (
-                  <SelectItem key={region.region_key} value={region.region_key}>
-                    区域 {regionIndex + 1}
-                    {region.formula ? ` · ${region.formula}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              value={relation.species}
-              disabled={disabled}
-              placeholder="物种，如 Pt"
-              onChange={(event) =>
-                onChange({
-                  ...target,
-                  composition_relations: target.composition_relations.map(
-                    (item, current) =>
-                      current === index
-                        ? { ...item, species: event.target.value }
-                        : item,
-                  ),
-                })
-              }
-            />
-            <Input
-              type="number"
-              value={relation.nominal_value ?? ''}
-              disabled={disabled}
-              placeholder="标称值"
-              onChange={(event) =>
-                onChange({
-                  ...target,
-                  composition_relations: target.composition_relations.map(
-                    (item, current) =>
-                      current === index
-                        ? {
-                            ...item,
-                            nominal_value: numberOrUndefined(
-                              event.target.value,
-                            ),
-                          }
-                        : item,
-                  ),
-                })
-              }
-            />
-            <Select
-              value={relation.value_basis}
-              disabled={disabled}
-              onValueChange={(value) =>
-                onChange({
-                  ...target,
-                  composition_relations: target.composition_relations.map(
-                    (item, current) =>
-                      current === index
-                        ? {
-                            ...item,
-                            value_basis:
-                              value as CompositionRelation['value_basis'],
-                          }
-                        : item,
-                  ),
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unspecified">未给数值</SelectItem>
-                <SelectItem value="at_percent">at%</SelectItem>
-                <SelectItem value="mol_fraction">摩尔分数</SelectItem>
-                <SelectItem value="site_fraction">位点分数</SelectItem>
-                <SelectItem value="ratio">比值</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="font-medium sm:col-span-2">组成关系 {index + 1}</p>
+            <div className="grid gap-2">
+              <Label>关系类型</Label>
+              <Select
+                value={relation.relation_type}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  onChange({
+                    ...target,
+                    composition_relations: target.composition_relations.map(
+                      (item, current) =>
+                        current === index
+                          ? {
+                              ...item,
+                              relation_type:
+                                value as CompositionRelation['relation_type'],
+                            }
+                          : item,
+                    ),
+                  })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="doped_by">掺杂</SelectItem>
+                    <SelectItem value="substitutional_alloy">
+                      取代合金
+                    </SelectItem>
+                    <SelectItem value="intercalated_by">插层</SelectItem>
+                    <SelectItem value="decorated_by">表面修饰</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>作用于</Label>
+              <Select
+                value={relation.host_region_key}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  onChange({
+                    ...target,
+                    composition_relations: target.composition_relations.map(
+                      (item, current) =>
+                        current === index
+                          ? { ...item, host_region_key: value }
+                          : item,
+                    ),
+                  })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {target.material_regions.map((region, regionIndex) => (
+                      <SelectItem
+                        key={region.region_key}
+                        value={region.region_key}
+                      >
+                        材料 {regionIndex + 1}
+                        {region.formula ? ` · ${region.formula}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>添加或取代的物种</Label>
+              <Input
+                value={relation.species}
+                disabled={disabled}
+                placeholder="例如 Pt 或 W"
+                onChange={(event) =>
+                  onChange({
+                    ...target,
+                    composition_relations: target.composition_relations.map(
+                      (item, current) =>
+                        current === index
+                          ? { ...item, species: event.target.value }
+                          : item,
+                    ),
+                  })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>标称值（选填）</Label>
+              <Input
+                type="number"
+                value={relation.nominal_value ?? ''}
+                disabled={disabled}
+                onChange={(event) =>
+                  onChange({
+                    ...target,
+                    composition_relations: target.composition_relations.map(
+                      (item, current) =>
+                        current === index
+                          ? {
+                              ...item,
+                              nominal_value: numberOrUndefined(
+                                event.target.value,
+                              ),
+                            }
+                          : item,
+                    ),
+                  })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>标称值依据</Label>
+              <Select
+                value={relation.value_basis}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  onChange({
+                    ...target,
+                    composition_relations: target.composition_relations.map(
+                      (item, current) =>
+                        current === index
+                          ? {
+                              ...item,
+                              value_basis:
+                                value as CompositionRelation['value_basis'],
+                            }
+                          : item,
+                    ),
+                  })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="unspecified">未给出数值</SelectItem>
+                    <SelectItem value="at_percent">原子百分比</SelectItem>
+                    <SelectItem value="mol_fraction">摩尔分数</SelectItem>
+                    <SelectItem value="site_fraction">位点分数</SelectItem>
+                    <SelectItem value="ratio">比值</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>位点或位置（选填）</Label>
+              <Input
+                value={relation.site_or_location ?? ''}
+                disabled={disabled}
+                placeholder="例如 Mo 位点或表面"
+                onChange={(event) =>
+                  onChange({
+                    ...target,
+                    composition_relations: target.composition_relations.map(
+                      (item, current) =>
+                        current === index
+                          ? {
+                              ...item,
+                              site_or_location: event.target.value,
+                            }
+                          : item,
+                    ),
+                  })
+                }
+              />
+            </div>
             <Button
               type="button"
               variant="ghost"
+              className="sm:col-span-2 sm:justify-self-end"
               disabled={disabled}
               onClick={() =>
                 onChange({
@@ -1514,14 +2026,12 @@ function SourceLoadsEditor({
   onChange,
   disabled,
   token,
-  save,
 }: {
   loads: SourceLoad[]
   channels: Channel[]
   onChange: (value: SourceLoad[]) => void
   disabled: boolean
   token: string
-  save: ModuleSaveProps
 }) {
   const containers = useQuery({
     queryKey: ['container-instances'],
@@ -1535,123 +2045,17 @@ function SourceLoadsEditor({
       ),
     )
   return (
-    <ModuleCard
-      id="module-precursors"
-      index="§3"
-      title="物理装料与源位"
-      onSave={save.onSave}
-      saving={save.saving}
-      saved={save.saved}
-      error={save.error}
-    >
+    <ModuleCard id="module-precursors" title="前驱体与装料">
       <p className="text-sm text-muted-foreground">
         同一舟中共同研磨或混合的物料放在一个装料内；同一批次放在两个舟中则建两个装料。
       </p>
       {loads.map((load, loadIndex) => (
         <div key={loadIndex} className="grid gap-4 rounded-lg border p-4">
-          <div className="grid gap-3 sm:grid-cols-6">
-            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
-              装料 {loadIndex + 1}
-            </div>
-            <Select
-              value={load.loading_method}
-              disabled={disabled}
-              onValueChange={(value) =>
-                patchLoad(loadIndex, { loading_method: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[
-                  'boat',
-                  'crucible',
-                  'substrate_surface',
-                  'gas_line',
-                  'bubbler',
-                  'other',
-                ].map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {LOADING_METHOD_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={load.container_instance_id ?? 'none'}
-              disabled={disabled || containers.isLoading}
-              onValueChange={(value) =>
-                patchLoad(loadIndex, {
-                  container_instance_id: value === 'none' ? undefined : value,
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="容器实例（可选）" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">未引用容器实例</SelectItem>
-                {(containers.data ?? [])
-                  .filter((container) =>
-                    load.ingredients.some(
-                      (item) =>
-                        item.material_lot_id === container.material_lot_id,
-                    ),
-                  )
-                  .map((container) => (
-                    <SelectItem key={container.id} value={container.id}>
-                      {container.container_code} ·{' '}
-                      {CONTAINER_STATUS_LABELS[container.status] ??
-                        container.status}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              value={load.initial_position?.axial_mm ?? ''}
-              disabled={disabled}
-              placeholder="初始轴向位置 (mm)"
-              onChange={(event) =>
-                patchLoad(loadIndex, {
-                  initial_position:
-                    event.target.value === ''
-                      ? undefined
-                      : {
-                          axial_mm: Number(event.target.value),
-                          reference: 'setup_origin',
-                        },
-                })
-              }
-            />
-            <Select
-              value={load.heating_channel ?? 'none'}
-              disabled={disabled}
-              onValueChange={(value) =>
-                patchLoad(loadIndex, {
-                  heating_channel: value === 'none' ? undefined : value,
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="加热通道（可选）" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">不绑定加热通道</SelectItem>
-                {channels.map((channel, channelIndex) => (
-                  <SelectItem
-                    key={channel.channel_key}
-                    value={channel.channel_key}
-                  >
-                    通道 {channelIndex + 1} ·{' '}
-                    {CHANNEL_LABELS[channel.channel_type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-medium">装料 {loadIndex + 1}</p>
             <Button
               type="button"
+              size="sm"
               variant="ghost"
               disabled={disabled}
               onClick={() =>
@@ -1661,167 +2065,296 @@ function SourceLoadsEditor({
               <Trash2 /> 删除装料
             </Button>
           </div>
-
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <Label>源位置程序</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>装载方式</Label>
+              <Select
+                value={load.loading_method}
                 disabled={disabled}
-                onClick={() =>
+                onValueChange={(value) =>
+                  patchLoad(loadIndex, { loading_method: value })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {[
+                      'boat',
+                      'crucible',
+                      'substrate_surface',
+                      'gas_line',
+                      'bubbler',
+                      'other',
+                    ].map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {LOADING_METHOD_LABELS[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>容器实例（选填）</Label>
+              <Select
+                value={load.container_instance_id ?? 'none'}
+                disabled={disabled || containers.isLoading}
+                onValueChange={(value) =>
                   patchLoad(loadIndex, {
-                    position_program: [
-                      ...load.position_program,
-                      {
-                        t_s:
-                          load.position_program.at(-1)?.t_s === undefined
-                            ? 0
-                            : load.position_program.at(-1)!.t_s + 60,
-                        axial_mm:
-                          load.position_program.at(-1)?.axial_mm ??
-                          load.initial_position?.axial_mm ??
-                          0,
-                        reference: 'setup_origin',
-                      },
-                    ],
+                    container_instance_id: value === 'none' ? undefined : value,
                   })
                 }
               >
-                <Plus /> 添加位置点
-              </Button>
-            </div>
-            {load.position_program.map((point, pointIndex) => (
-              <div
-                key={pointIndex}
-                className="grid grid-cols-[1fr_1fr_auto] gap-2"
-              >
-                <Input
-                  type="number"
-                  value={point.t_s}
-                  disabled={disabled}
-                  placeholder="t (s)"
-                  onChange={(event) =>
-                    patchLoad(loadIndex, {
-                      position_program: load.position_program.map(
-                        (item, current) =>
-                          current === pointIndex
-                            ? { ...item, t_s: Number(event.target.value) }
-                            : item,
-                      ),
-                    })
-                  }
-                />
-                <Input
-                  type="number"
-                  value={point.axial_mm}
-                  disabled={disabled}
-                  placeholder="轴向位置 (mm)"
-                  onChange={(event) =>
-                    patchLoad(loadIndex, {
-                      position_program: load.position_program.map(
-                        (item, current) =>
-                          current === pointIndex
-                            ? { ...item, axial_mm: Number(event.target.value) }
-                            : item,
-                      ),
-                    })
-                  }
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  disabled={disabled}
-                  onClick={() =>
-                    patchLoad(loadIndex, {
-                      position_program: load.position_program.filter(
-                        (_, current) => current !== pointIndex,
-                      ),
-                    })
-                  }
-                >
-                  <Trash2 />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <Label>共同制备步骤</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={disabled}
-                onClick={() =>
-                  patchLoad(loadIndex, {
-                    preparation_steps: [
-                      ...load.preparation_steps,
-                      {
-                        step_type: 'grind',
-                        sequence: load.preparation_steps.length + 1,
-                        parameters: {},
-                      },
-                    ],
-                  })
-                }
-              >
-                <Plus /> 添加步骤
-              </Button>
-            </div>
-            {load.preparation_steps.map((step, stepIndex) => (
-              <div key={stepIndex} className="flex gap-2">
-                <Select
-                  value={step.step_type}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    patchLoad(loadIndex, {
-                      preparation_steps: load.preparation_steps.map(
-                        (item, current) =>
-                          current === stepIndex
-                            ? { ...item, step_type: value }
-                            : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PREPARATION_STEP_LABELS).map(
-                      ([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="none">未引用容器实例</SelectItem>
+                    {(containers.data ?? [])
+                      .filter((container) =>
+                        load.ingredients.some(
+                          (item) =>
+                            item.material_lot_id === container.material_lot_id,
+                        ),
+                      )
+                      .map((container) => (
+                        <SelectItem key={container.id} value={container.id}>
+                          {container.container_code} ·{' '}
+                          {CONTAINER_STATUS_LABELS[container.status] ??
+                            container.status}
                         </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                      ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>初始轴向位置（mm）</Label>
+              <Input
+                type="number"
+                value={load.initial_position?.axial_mm ?? ''}
+                disabled={disabled}
+                onChange={(event) =>
+                  patchLoad(loadIndex, {
+                    initial_position:
+                      event.target.value === ''
+                        ? undefined
+                        : {
+                            axial_mm: Number(event.target.value),
+                            reference: 'setup_origin',
+                          },
+                  })
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>对应的加热条件（选填）</Label>
+              <Select
+                value={load.heating_channel ?? 'none'}
+                disabled={disabled}
+                onValueChange={(value) =>
+                  patchLoad(loadIndex, {
+                    heating_channel: value === 'none' ? undefined : value,
+                  })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="none">不绑定加热条件</SelectItem>
+                    {channels.map((channel, channelIndex) => (
+                      <SelectItem
+                        key={channel.channel_key}
+                        value={channel.channel_key}
+                      >
+                        条件 {channelIndex + 1} ·{' '}
+                        {CHANNEL_LABELS[channel.channel_type]}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer font-medium">
+              更多装料参数
+            </summary>
+            <div className="mt-4 grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label>源位置程序</Label>
                 <Button
                   type="button"
-                  size="icon"
-                  variant="ghost"
+                  size="sm"
+                  variant="outline"
                   disabled={disabled}
                   onClick={() =>
                     patchLoad(loadIndex, {
-                      preparation_steps: load.preparation_steps
-                        .filter((_, current) => current !== stepIndex)
-                        .map((item, current) => ({
-                          ...item,
-                          sequence: current + 1,
-                        })),
+                      position_program: [
+                        ...load.position_program,
+                        {
+                          t_s:
+                            load.position_program.at(-1)?.t_s === undefined
+                              ? 0
+                              : load.position_program.at(-1)!.t_s + 60,
+                          axial_mm:
+                            load.position_program.at(-1)?.axial_mm ??
+                            load.initial_position?.axial_mm ??
+                            0,
+                          reference: 'setup_origin',
+                        },
+                      ],
                     })
                   }
                 >
-                  <Trash2 />
+                  <Plus /> 添加位置点
                 </Button>
               </div>
-            ))}
-          </div>
+              {load.position_program.map((point, pointIndex) => (
+                <div
+                  key={pointIndex}
+                  className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
+                >
+                  <div className="grid gap-2">
+                    <Label>时间（s）</Label>
+                    <Input
+                      type="number"
+                      value={point.t_s}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        patchLoad(loadIndex, {
+                          position_program: load.position_program.map(
+                            (item, current) =>
+                              current === pointIndex
+                                ? { ...item, t_s: Number(event.target.value) }
+                                : item,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>轴向位置（mm）</Label>
+                    <Input
+                      type="number"
+                      value={point.axial_mm}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        patchLoad(loadIndex, {
+                          position_program: load.position_program.map(
+                            (item, current) =>
+                              current === pointIndex
+                                ? {
+                                    ...item,
+                                    axial_mm: Number(event.target.value),
+                                  }
+                                : item,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="sm:col-span-2 sm:justify-self-end"
+                    disabled={disabled}
+                    onClick={() =>
+                      patchLoad(loadIndex, {
+                        position_program: load.position_program.filter(
+                          (_, current) => current !== pointIndex,
+                        ),
+                      })
+                    }
+                  >
+                    <Trash2 /> 删除位置点
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label>共同制备步骤</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() =>
+                    patchLoad(loadIndex, {
+                      preparation_steps: [
+                        ...load.preparation_steps,
+                        {
+                          step_type: 'grind',
+                          sequence: load.preparation_steps.length + 1,
+                          parameters: {},
+                        },
+                      ],
+                    })
+                  }
+                >
+                  <Plus /> 添加步骤
+                </Button>
+              </div>
+              {load.preparation_steps.map((step, stepIndex) => (
+                <div key={stepIndex} className="flex gap-2">
+                  <Select
+                    value={step.step_type}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      patchLoad(loadIndex, {
+                        preparation_steps: load.preparation_steps.map(
+                          (item, current) =>
+                            current === stepIndex
+                              ? { ...item, step_type: value }
+                              : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(PREPARATION_STEP_LABELS).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    disabled={disabled}
+                    onClick={() =>
+                      patchLoad(loadIndex, {
+                        preparation_steps: load.preparation_steps
+                          .filter((_, current) => current !== stepIndex)
+                          .map((item, current) => ({
+                            ...item,
+                            sequence: current + 1,
+                          })),
+                      })
+                    }
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </details>
 
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
@@ -1848,106 +2381,125 @@ function SourceLoadsEditor({
               </Button>
             </div>
             {load.ingredients.map((ingredient, ingredientIndex) => (
-              <div key={ingredientIndex} className="grid gap-3 sm:grid-cols-5">
-                <EntityReferenceSelect
-                  kind="material_lot"
-                  value={ingredient.material_lot_id}
-                  selectedVersion={ingredient.material_lot_version}
-                  selectedSnapshot={ingredient.snapshot}
-                  disabled={disabled}
-                  filter={(entity) =>
-                    ['chemical', 'gas_cylinder'].includes(
-                      String(entity.latest_version?.data['lot_category']),
-                    )
-                  }
-                  onChange={(id, entity: V2EntityRead | null) =>
-                    patchLoad(loadIndex, {
-                      ingredients: load.ingredients.map((item, current) =>
-                        current === ingredientIndex
-                          ? {
-                              ...item,
-                              material_lot_id: id,
-                              material_lot_version:
-                                entity?.latest_version?.version ?? 1,
-                              snapshot:
-                                entity?.latest_version?.data ?? undefined,
-                            }
-                          : item,
-                      ),
-                    })
-                  }
-                />
-                <Select
-                  value={ingredient.function_role}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    patchLoad(loadIndex, {
-                      ingredients: load.ingredients.map((item, current) =>
-                        current === ingredientIndex
-                          ? { ...item, function_role: value }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[
-                      'metal_source',
-                      'chalcogen_source',
-                      'carbon_source',
-                      'dopant_source',
-                      'promoter',
-                      'transport_agent',
-                      'etchant',
-                      'reducing_agent',
-                      'oxidizing_agent',
-                      'carrier_gas',
-                      'other',
-                    ].map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {INGREDIENT_ROLE_LABELS[value]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  value={ingredient.amount ?? ''}
-                  disabled={disabled}
-                  placeholder="用量"
-                  onChange={(event) =>
-                    patchLoad(loadIndex, {
-                      ingredients: load.ingredients.map((item, current) =>
-                        current === ingredientIndex
-                          ? {
-                              ...item,
-                              amount: numberOrUndefined(event.target.value),
-                            }
-                          : item,
-                      ),
-                    })
-                  }
-                />
-                <Input
-                  value={ingredient.unit ?? ''}
-                  disabled={disabled}
-                  placeholder="单位，如 mg"
-                  onChange={(event) =>
-                    patchLoad(loadIndex, {
-                      ingredients: load.ingredients.map((item, current) =>
-                        current === ingredientIndex
-                          ? { ...item, unit: event.target.value }
-                          : item,
-                      ),
-                    })
-                  }
-                />
+              <div
+                key={ingredientIndex}
+                className="grid gap-4 rounded-lg border p-3 sm:grid-cols-2"
+              >
+                <div className="grid gap-2 sm:col-span-2">
+                  <Label>物料批次</Label>
+                  <EntityReferenceSelect
+                    kind="material_lot"
+                    value={ingredient.material_lot_id}
+                    selectedVersion={ingredient.material_lot_version}
+                    selectedSnapshot={ingredient.snapshot}
+                    disabled={disabled}
+                    filter={(entity) =>
+                      ['chemical', 'gas_cylinder'].includes(
+                        String(entity.latest_version?.data['lot_category']),
+                      )
+                    }
+                    onChange={(id, entity: V2EntityRead | null) =>
+                      patchLoad(loadIndex, {
+                        ingredients: load.ingredients.map((item, current) =>
+                          current === ingredientIndex
+                            ? {
+                                ...item,
+                                material_lot_id: id,
+                                material_lot_version:
+                                  entity?.latest_version?.version ?? 1,
+                                snapshot:
+                                  entity?.latest_version?.data ?? undefined,
+                              }
+                            : item,
+                        ),
+                      })
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>在本次实验中的作用</Label>
+                  <Select
+                    value={ingredient.function_role}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      patchLoad(loadIndex, {
+                        ingredients: load.ingredients.map((item, current) =>
+                          current === ingredientIndex
+                            ? { ...item, function_role: value }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {[
+                          'metal_source',
+                          'chalcogen_source',
+                          'carbon_source',
+                          'dopant_source',
+                          'promoter',
+                          'transport_agent',
+                          'etchant',
+                          'reducing_agent',
+                          'oxidizing_agent',
+                          'carrier_gas',
+                          'other',
+                        ].map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {INGREDIENT_ROLE_LABELS[value]}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-[1fr_8rem] gap-3">
+                  <div className="grid gap-2">
+                    <Label>用量（选填）</Label>
+                    <Input
+                      type="number"
+                      value={ingredient.amount ?? ''}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        patchLoad(loadIndex, {
+                          ingredients: load.ingredients.map((item, current) =>
+                            current === ingredientIndex
+                              ? {
+                                  ...item,
+                                  amount: numberOrUndefined(event.target.value),
+                                }
+                              : item,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>单位</Label>
+                    <Input
+                      value={ingredient.unit ?? ''}
+                      disabled={disabled}
+                      placeholder="mg"
+                      onChange={(event) =>
+                        patchLoad(loadIndex, {
+                          ingredients: load.ingredients.map((item, current) =>
+                            current === ingredientIndex
+                              ? { ...item, unit: event.target.value }
+                              : item,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                </div>
                 <Button
                   type="button"
                   variant="ghost"
+                  className="sm:col-span-2 sm:justify-self-end"
                   disabled={disabled || load.ingredients.length === 1}
                   onClick={() =>
                     patchLoad(loadIndex, {
@@ -1987,7 +2539,7 @@ function SourceLoadsEditor({
           ])
         }
       >
-        <Plus /> 添加物理装料
+        <Plus /> 添加一组装料
       </Button>
     </ModuleCard>
   )
@@ -2000,7 +2552,6 @@ function TimelineEditor({
   channels,
   onChange,
   disabled,
-  save,
 }: {
   runId: string
   token: string
@@ -2008,7 +2559,6 @@ function TimelineEditor({
   channels: Channel[]
   onChange: (segments: Segment[], channels: Channel[]) => void
   disabled: boolean
-  save: ModuleSaveProps
 }) {
   const patchSegment = (index: number, patch: Partial<Segment>) =>
     onChange(
@@ -2048,21 +2598,13 @@ function TimelineEditor({
     }
   }
   return (
-    <ModuleCard
-      id="module-process_steps"
-      index="§5"
-      title="统一过程时间轴"
-      onSave={save.onSave}
-      saving={save.saving}
-      saved={save.saved}
-      error={save.error}
-    >
+    <ModuleCard id="module-process_steps" title="生长程序">
       <div className="grid gap-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-medium">过程分段</p>
+            <p className="font-medium">实验阶段</p>
             <p className="text-xs text-muted-foreground">
-              分段只描述时间范围；温度、流量、压力、阀门和源移动都作为独立通道。
+              按实际先后填写吹扫、升温、生长、冷却等阶段。
             </p>
           </div>
           <Button
@@ -2086,95 +2628,114 @@ function TimelineEditor({
               )
             }
           >
-            <Plus /> 添加分段
+            <Plus /> 添加阶段
           </Button>
         </div>
         {segments.map((segment, index) => (
-          <div
-            key={index}
-            className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6"
-          >
-            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
-              分段 {index + 1}
+          <div key={index} className="grid gap-4 rounded-lg border p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-medium">阶段 {index + 1}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={disabled || segments.length === 1}
+                onClick={() =>
+                  onChange(
+                    segments
+                      .filter((_, current) => current !== index)
+                      .map((item, current) => ({
+                        ...item,
+                        sequence: current + 1,
+                      })),
+                    channels,
+                  )
+                }
+              >
+                <Trash2 /> 删除
+              </Button>
             </div>
-            <Select
-              value={segment.segment_type}
-              disabled={disabled}
-              onValueChange={(value) =>
-                patchSegment(index, { segment_type: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[
-                  'purge',
-                  'ramp',
-                  'nucleation',
-                  'growth',
-                  'anneal',
-                  'cooling',
-                  'transfer',
-                  'other',
-                ].map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {SEGMENT_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              value={segment.start_s}
-              disabled={disabled}
-              onChange={(event) =>
-                patchSegment(index, { start_s: Number(event.target.value) })
-              }
-              placeholder="开始 s"
-            />
-            <Input
-              type="number"
-              value={segment.end_s}
-              disabled={disabled}
-              onChange={(event) =>
-                patchSegment(index, { end_s: Number(event.target.value) })
-              }
-              placeholder="结束 s"
-            />
-            <Input
-              value={segment.label ?? ''}
-              disabled={disabled}
-              onChange={(event) =>
-                patchSegment(index, { label: event.target.value })
-              }
-              placeholder="显示名称"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={disabled || segments.length === 1}
-              onClick={() =>
-                onChange(
-                  segments
-                    .filter((_, current) => current !== index)
-                    .map((item, current) => ({
-                      ...item,
-                      sequence: current + 1,
-                    })),
-                  channels,
-                )
-              }
-            >
-              <Trash2 /> 删除
-            </Button>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>阶段类型</Label>
+                <Select
+                  value={segment.segment_type}
+                  disabled={disabled}
+                  onValueChange={(value) =>
+                    patchSegment(index, { segment_type: value })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {[
+                        'purge',
+                        'ramp',
+                        'nucleation',
+                        'growth',
+                        'anneal',
+                        'cooling',
+                        'transfer',
+                        'other',
+                      ].map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {SEGMENT_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>阶段名称（选填）</Label>
+                <Input
+                  value={segment.label ?? ''}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    patchSegment(index, { label: event.target.value })
+                  }
+                  placeholder="例如快速升温"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>开始时间（s）</Label>
+                <Input
+                  type="number"
+                  value={segment.start_s}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    patchSegment(index, {
+                      start_s: Number(event.target.value),
+                    })
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>结束时间（s）</Label>
+                <Input
+                  type="number"
+                  value={segment.end_s}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    patchSegment(index, { end_s: Number(event.target.value) })
+                  }
+                />
+              </div>
+            </div>
           </div>
         ))}
       </div>
 
       <div className="grid gap-3">
         <div className="flex items-center justify-between">
-          <p className="font-medium">过程通道</p>
+          <div>
+            <p className="font-medium">温度、气体与压力条件</p>
+            <p className="text-xs text-muted-foreground">
+              每个条件单独记录，可填写单值、分时段条件或上传实测文件。
+            </p>
+          </div>
           <Button
             type="button"
             size="sm"
@@ -2194,234 +2755,266 @@ function TimelineEditor({
               ])
             }
           >
-            <Plus /> 添加通道
+            <Plus /> 添加条件
           </Button>
         </div>
         {channels.map((channel, index) => (
-          <div
-            key={index}
-            className="grid gap-3 rounded-lg border p-3 sm:grid-cols-7"
-          >
-            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
-              通道 {index + 1}
-            </div>
-            <Select
-              value={channel.channel_type}
-              disabled={disabled}
-              onValueChange={(value) => {
-                const stateChannel = value.endsWith('_state')
-                patchChannel(index, {
-                  channel_type: value,
-                  unit: PROCESS_UNITS[value][0],
-                  ...(stateChannel
-                    ? {
-                        data_kind: 'interval_series',
-                        scalar_value: undefined,
-                        series: [{ start_s: 0, end_s: 60, value: 'closed' }],
-                      }
-                    : {}),
-                })
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[
-                  'temperature',
-                  'flow',
-                  'pressure',
-                  'valve_state',
-                  'source_position',
-                  'furnace_position',
-                  'plasma_power',
-                  'shutter_state',
-                ].map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {CHANNEL_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={channel.source_type}
-              disabled={disabled}
-              onValueChange={(value) =>
-                patchChannel(index, { source_type: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="setpoint">设定值</SelectItem>
-                <SelectItem value="measured">实测值</SelectItem>
-                <SelectItem value="inferred">推断值</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={channel.unit}
-              disabled={disabled}
-              onValueChange={(unit) => patchChannel(index, { unit })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(PROCESS_UNITS[channel.channel_type] ?? []).map((unit) => (
-                  <SelectItem key={unit} value={unit}>
-                    {unit}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={channel.data_kind}
-              disabled={disabled}
-              onValueChange={(value) =>
-                patchChannel(index, {
-                  data_kind: value as Channel['data_kind'],
-                  scalar_value: value === 'scalar' ? 0 : undefined,
-                  series:
-                    value === 'interval_series'
-                      ? [{ start_s: 0, end_s: 60, value: 0 }]
-                      : undefined,
-                  file_asset_id: undefined,
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {!channel.channel_type.endsWith('_state') ? (
-                  <SelectItem value="scalar">单值</SelectItem>
-                ) : null}
-                <SelectItem value="interval_series">区间序列</SelectItem>
-                <SelectItem value="timeseries_file">时间序列文件</SelectItem>
-              </SelectContent>
-            </Select>
-            {channel.data_kind === 'scalar' ? (
-              <Input
-                type="number"
-                value={channel.scalar_value ?? ''}
+          <div key={index} className="grid gap-4 rounded-lg border p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-medium">条件 {index + 1}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
                 disabled={disabled}
-                onChange={(event) =>
-                  patchChannel(index, {
-                    scalar_value: Number(event.target.value),
-                  })
+                onClick={() =>
+                  onChange(
+                    segments,
+                    channels.filter((_, current) => current !== index),
+                  )
                 }
-              />
-            ) : channel.data_kind === 'interval_series' ? (
-              <div className="grid gap-1">
-                {(channel.series ?? []).map((point, pointIndex) => (
-                  <div
-                    key={pointIndex}
-                    className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1"
-                  >
-                    {(
-                      [
-                        ['start_s', '开始秒'],
-                        ['end_s', '结束秒'],
-                        ['value', '通道值'],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <Input
-                        key={key}
-                        aria-label={label}
-                        type={
-                          typeof point.value === 'number' ? 'number' : 'text'
-                        }
-                        value={point[key] ?? ''}
-                        disabled={disabled}
-                        onChange={(event) =>
-                          patchChannel(index, {
-                            series: (channel.series ?? []).map(
-                              (item, current) =>
-                                current === pointIndex
-                                  ? {
-                                      ...item,
-                                      [key]:
-                                        key === 'value' &&
-                                        typeof item.value === 'string'
-                                          ? event.target.value
-                                          : numberOrUndefined(
-                                              event.target.value,
-                                            ),
-                                    }
-                                  : item,
-                            ),
-                          })
-                        }
-                      />
-                    ))}
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      disabled={disabled || channel.series?.length === 1}
-                      onClick={() =>
-                        patchChannel(index, {
-                          series: channel.series?.filter(
-                            (_, current) => current !== pointIndex,
-                          ),
-                        })
-                      }
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
+              >
+                <Trash2 /> 删除
+              </Button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>条件类型</Label>
+                <Select
+                  value={channel.channel_type}
                   disabled={disabled}
-                  onClick={() =>
+                  onValueChange={(value) => {
+                    const stateChannel = value.endsWith('_state')
                     patchChannel(index, {
-                      series: [
-                        ...(channel.series ?? []),
-                        {
-                          start_s: channel.series?.at(-1)?.end_s ?? 0,
-                          end_s: (channel.series?.at(-1)?.end_s ?? 0) + 60,
-                          value: channel.series?.at(-1)?.value ?? 0,
-                        },
-                      ],
+                      channel_type: value,
+                      unit: PROCESS_UNITS[value][0],
+                      ...(stateChannel
+                        ? {
+                            data_kind: 'interval_series',
+                            scalar_value: undefined,
+                            series: [
+                              { start_s: 0, end_s: 60, value: 'closed' },
+                            ],
+                          }
+                        : {}),
+                    })
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {[
+                        'temperature',
+                        'flow',
+                        'pressure',
+                        'valve_state',
+                        'source_position',
+                        'furnace_position',
+                        'plasma_power',
+                        'shutter_state',
+                      ].map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {CHANNEL_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>数据来源</Label>
+                <Select
+                  value={channel.source_type}
+                  disabled={disabled}
+                  onValueChange={(value) =>
+                    patchChannel(index, { source_type: value })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="setpoint">设定值</SelectItem>
+                      <SelectItem value="measured">实测值</SelectItem>
+                      <SelectItem value="inferred">推断值</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>单位</Label>
+                <Select
+                  value={channel.unit}
+                  disabled={disabled}
+                  onValueChange={(unit) => patchChannel(index, { unit })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {(PROCESS_UNITS[channel.channel_type] ?? []).map(
+                        (unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>记录方式</Label>
+                <Select
+                  value={channel.data_kind}
+                  disabled={disabled}
+                  onValueChange={(value) =>
+                    patchChannel(index, {
+                      data_kind: value as Channel['data_kind'],
+                      scalar_value: value === 'scalar' ? 0 : undefined,
+                      series:
+                        value === 'interval_series'
+                          ? [{ start_s: 0, end_s: 60, value: 0 }]
+                          : undefined,
+                      file_asset_id: undefined,
                     })
                   }
                 >
-                  <Plus /> 添加区间
-                </Button>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {!channel.channel_type.endsWith('_state') ? (
+                        <SelectItem value="scalar">单值</SelectItem>
+                      ) : null}
+                      <SelectItem value="interval_series">区间序列</SelectItem>
+                      <SelectItem value="timeseries_file">
+                        时间序列文件
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
-            ) : (
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
-                <Upload className="size-4" />
-                {channel.file_asset_id ? '已上传' : '上传 CSV'}
-                <input
-                  type="file"
-                  className="sr-only"
-                  disabled={disabled}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    if (file) void uploadSeries(index, file)
-                  }}
-                />
-              </label>
-            )}
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              disabled={disabled}
-              onClick={() =>
-                onChange(
-                  segments,
-                  channels.filter((_, current) => current !== index),
-                )
-              }
-            >
-              <Trash2 />
-            </Button>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>条件值</Label>
+                {channel.data_kind === 'scalar' ? (
+                  <Input
+                    type="number"
+                    value={channel.scalar_value ?? ''}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      patchChannel(index, {
+                        scalar_value: Number(event.target.value),
+                      })
+                    }
+                  />
+                ) : channel.data_kind === 'interval_series' ? (
+                  <div className="grid gap-1">
+                    {(channel.series ?? []).map((point, pointIndex) => (
+                      <div
+                        key={pointIndex}
+                        className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
+                      >
+                        {(
+                          [
+                            ['start_s', '开始秒'],
+                            ['end_s', '结束秒'],
+                            ['value', '通道值'],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <div key={key} className="grid gap-2">
+                            <Label>{label}</Label>
+                            <Input
+                              type={
+                                typeof point.value === 'number'
+                                  ? 'number'
+                                  : 'text'
+                              }
+                              value={point[key] ?? ''}
+                              disabled={disabled}
+                              onChange={(event) =>
+                                patchChannel(index, {
+                                  series: (channel.series ?? []).map(
+                                    (item, current) =>
+                                      current === pointIndex
+                                        ? {
+                                            ...item,
+                                            [key]:
+                                              key === 'value' &&
+                                              typeof item.value === 'string'
+                                                ? event.target.value
+                                                : numberOrUndefined(
+                                                    event.target.value,
+                                                  ),
+                                          }
+                                        : item,
+                                  ),
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="sm:col-span-2 sm:justify-self-end"
+                          disabled={disabled || channel.series?.length === 1}
+                          onClick={() =>
+                            patchChannel(index, {
+                              series: channel.series?.filter(
+                                (_, current) => current !== pointIndex,
+                              ),
+                            })
+                          }
+                        >
+                          <Trash2 /> 删除区间
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() =>
+                        patchChannel(index, {
+                          series: [
+                            ...(channel.series ?? []),
+                            {
+                              start_s: channel.series?.at(-1)?.end_s ?? 0,
+                              end_s: (channel.series?.at(-1)?.end_s ?? 0) + 60,
+                              value: channel.series?.at(-1)?.value ?? 0,
+                            },
+                          ],
+                        })
+                      }
+                    >
+                      <Plus /> 添加区间
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
+                    <Upload className="size-4" />
+                    {channel.file_asset_id ? '已上传' : '上传 CSV'}
+                    <input
+                      type="file"
+                      className="sr-only"
+                      disabled={disabled}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (file) void uploadSeries(index, file)
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -2452,15 +3045,14 @@ function ControlledChecklist({
           const checked = values.includes(value)
           return (
             <label key={value} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={checked}
                 disabled={
                   disabled || (required && checked && values.length === 1)
                 }
-                onChange={(event) =>
+                onCheckedChange={(nextChecked) =>
                   onChange(
-                    event.target.checked
+                    nextChecked === true
                       ? [...values, value]
                       : values.filter((item) => item !== value),
                   )
@@ -2479,12 +3071,10 @@ function EventsEditor({
   events,
   onChange,
   disabled,
-  save,
 }: {
   events: ProcessEvent[]
   onChange: (events: ProcessEvent[]) => void
   disabled: boolean
-  save: ModuleSaveProps
 }) {
   const patch = (index: number, patchValue: Partial<ProcessEvent>) =>
     onChange(
@@ -2493,41 +3083,53 @@ function EventsEditor({
       ),
     )
   return (
-    <ModuleCard
-      id="module-process_events"
-      index="§6"
-      title="异常、干预与数据有效性"
-      onSave={save.onSave}
-      saving={save.saving}
-      saved={save.saved}
-      error={save.error}
-    >
+    <ModuleCard id="module-process_events" title="异常情况">
+      {events.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          如实验过程正常，可不添加；发生异常、人工干预或数据失效时再记录。
+        </p>
+      ) : null}
       {events.map((event, index) => (
         <div
           key={index}
-          className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6"
+          className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
         >
-          <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
-            事件 {index + 1}
+          <div className="flex items-center justify-between gap-3 sm:col-span-2">
+            <p className="font-medium">异常 {index + 1}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              onClick={() =>
+                onChange(events.filter((_, current) => current !== index))
+              }
+            >
+              <Trash2 /> 删除
+            </Button>
           </div>
-          <Input
-            type="number"
-            value={event.start_s}
-            disabled={disabled}
-            onChange={(input) =>
-              patch(index, { start_s: Number(input.target.value) })
-            }
-            placeholder="开始 s"
-          />
-          <Input
-            type="number"
-            value={event.end_s ?? ''}
-            disabled={disabled}
-            onChange={(input) =>
-              patch(index, { end_s: numberOrUndefined(input.target.value) })
-            }
-            placeholder="结束 s"
-          />
+          <div className="grid gap-2">
+            <Label>开始时间（s）</Label>
+            <Input
+              type="number"
+              value={event.start_s}
+              disabled={disabled}
+              onChange={(input) =>
+                patch(index, { start_s: Number(input.target.value) })
+              }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>结束时间（s，选填）</Label>
+            <Input
+              type="number"
+              value={event.end_s ?? ''}
+              disabled={disabled}
+              onChange={(input) =>
+                patch(index, { end_s: numberOrUndefined(input.target.value) })
+              }
+            />
+          </div>
           <ControlledChecklist
             label="观察到的偏差"
             values={event.observed_deviations}
@@ -2536,42 +3138,39 @@ function EventsEditor({
             required
             onChange={(values) => patch(index, { observed_deviations: values })}
           />
-          <Select
-            value={event.data_validity_impact ?? 'unknown'}
-            disabled={disabled}
-            onValueChange={(value) =>
-              patch(index, { data_validity_impact: value })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">不影响</SelectItem>
-              <SelectItem value="partial">部分影响</SelectItem>
-              <SelectItem value="invalid">数据无效</SelectItem>
-              <SelectItem value="unknown">未知</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={disabled}
-            onClick={() =>
-              onChange(events.filter((_, current) => current !== index))
-            }
-          >
-            <Trash2 /> 删除
-          </Button>
-          <Textarea
-            className="sm:col-span-2"
-            value={event.description ?? ''}
-            disabled={disabled}
-            onChange={(input) =>
-              patch(index, { description: input.target.value })
-            }
-            placeholder="事件客观描述"
-          />
+          <div className="grid gap-2">
+            <Label>对数据有效性的影响</Label>
+            <Select
+              value={event.data_validity_impact ?? 'unknown'}
+              disabled={disabled}
+              onValueChange={(value) =>
+                patch(index, { data_validity_impact: value })
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="none">不影响</SelectItem>
+                  <SelectItem value="partial">部分影响</SelectItem>
+                  <SelectItem value="invalid">数据无效</SelectItem>
+                  <SelectItem value="unknown">未知</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label>客观描述</Label>
+            <Textarea
+              value={event.description ?? ''}
+              disabled={disabled}
+              onChange={(input) =>
+                patch(index, { description: input.target.value })
+              }
+              placeholder="描述观察到的现象和发生经过"
+            />
+          </div>
           {(
             [
               ['intervention_actions', '干预动作'],
@@ -2588,22 +3187,27 @@ function EventsEditor({
               onChange={(values) => patch(index, { [key]: values })}
             />
           ))}
-          <Select
-            value={event.outcome ?? 'unknown'}
-            disabled={disabled}
-            onValueChange={(outcome) => patch(index, { outcome })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recovered">已恢复</SelectItem>
-              <SelectItem value="partially_recovered">部分恢复</SelectItem>
-              <SelectItem value="terminated">实验终止</SelectItem>
-              <SelectItem value="unknown">结果未知</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="grid gap-2 sm:col-span-6">
+          <div className="grid gap-2">
+            <Label>处理结果</Label>
+            <Select
+              value={event.outcome ?? 'unknown'}
+              disabled={disabled}
+              onValueChange={(outcome) => patch(index, { outcome })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="recovered">已恢复</SelectItem>
+                  <SelectItem value="partially_recovered">部分恢复</SelectItem>
+                  <SelectItem value="terminated">实验终止</SelectItem>
+                  <SelectItem value="unknown">结果未知</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
             <div className="flex items-center justify-between">
               <Label>排除的数据时间范围</Label>
               <Button
@@ -2629,31 +3233,40 @@ function EventsEditor({
             {event.excluded_time_ranges.map((range, rangeIndex) => (
               <div
                 key={rangeIndex}
-                className="grid grid-cols-[1fr_1fr_auto] gap-2"
+                className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
               >
                 {(['start_s', 'end_s'] as const).map((key) => (
-                  <Input
-                    key={key}
-                    type="number"
-                    value={range[key]}
-                    disabled={disabled}
-                    aria-label={key === 'start_s' ? '排除开始秒' : '排除结束秒'}
-                    onChange={(input) =>
-                      patch(index, {
-                        excluded_time_ranges: event.excluded_time_ranges.map(
-                          (item, current) =>
-                            current === rangeIndex
-                              ? { ...item, [key]: Number(input.target.value) }
-                              : item,
-                        ),
-                      })
-                    }
-                  />
+                  <div key={key} className="grid gap-2">
+                    <Label>
+                      {key === 'start_s'
+                        ? '排除开始时间（s）'
+                        : '排除结束时间（s）'}
+                    </Label>
+                    <Input
+                      type="number"
+                      value={range[key]}
+                      disabled={disabled}
+                      onChange={(input) =>
+                        patch(index, {
+                          excluded_time_ranges: event.excluded_time_ranges.map(
+                            (item, current) =>
+                              current === rangeIndex
+                                ? {
+                                    ...item,
+                                    [key]: Number(input.target.value),
+                                  }
+                                : item,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
                 ))}
                 <Button
                   type="button"
-                  size="icon"
+                  size="sm"
                   variant="ghost"
+                  className="sm:col-span-2 sm:justify-self-end"
                   disabled={disabled}
                   onClick={() =>
                     patch(index, {
@@ -2663,7 +3276,7 @@ function EventsEditor({
                     })
                   }
                 >
-                  <Trash2 />
+                  <Trash2 /> 删除范围
                 </Button>
               </div>
             ))}
@@ -2696,7 +3309,7 @@ function EventsEditor({
   )
 }
 
-function ScientificMeasurements({
+export function ScientificMeasurementWorkspace({
   runId,
   token,
   readOnly,
@@ -2877,7 +3490,7 @@ function ScientificMeasurements({
   })
 
   return (
-    <ModuleCard id="module-results" index="§7" title="测量、分析与事实声明">
+    <ModuleCard id="module-results" title="表征与结果">
       <div className="grid gap-4 rounded-lg border p-4">
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="grid gap-2">
@@ -3144,7 +3757,7 @@ function ScientificMeasurements({
           }
           onClick={() => mutation.mutate()}
         >
-          保存测量、分析与科学结论
+          保存表征记录
         </Button>
       </div>
 

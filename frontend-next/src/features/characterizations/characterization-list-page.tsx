@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { listCharacterizationItems } from './api'
 import type { CharacterizationListItem } from './api'
 import type { V2ResultRead } from '@/features/experiments-v2/api'
+import { ScientificMeasurementWorkspace } from '@/features/experiments-v2/scientific-experiment-form'
 import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { localizedOption } from '@/shared/field-i18n'
@@ -77,7 +78,7 @@ function matchesQuery(
   ].some((value) => value?.toLowerCase().includes(needle))
 }
 
-export function CharacterizationListPage() {
+export function CharacterizationListPage({ runId }: { runId?: string }) {
   const { t, i18n } = useTranslation()
   const { session } = useAuth()
   const [query, setQuery] = useState('')
@@ -105,6 +106,14 @@ export function CharacterizationListPage() {
         title={t('characterizations.list.title')}
         subtitle={t('characterizations.list.subtitle')}
       />
+
+      {runId ? (
+        <ScientificMeasurementWorkspace
+          runId={runId}
+          token={session.accessToken!}
+          readOnly={false}
+        />
+      ) : null}
 
       {itemsQuery.isError ? (
         <Alert variant="destructive">
@@ -267,9 +276,8 @@ export function CharacterizationListPage() {
                         <TableCell className="text-right">
                           <Button variant="outline" size="sm" asChild>
                             <Link
-                              to="/experiments/$runId/edit"
-                              params={{ runId: sample.experiment_run_id }}
-                              hash="module-results"
+                              to="/characterizations"
+                              search={{ runId: sample.experiment_run_id }}
                             >
                               {t('characterizations.list.openResults')}
                             </Link>

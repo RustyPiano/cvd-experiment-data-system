@@ -54,7 +54,6 @@ import {
 import {
   availableStatusActions,
   isProcessReadOnly,
-  isResultsReadOnly,
   statusBadgeVariant,
   statusBannerKey,
   statusLabelKey,
@@ -83,15 +82,6 @@ const MODULE_TITLE_KEYS = {
   measured_products: 'results',
 } as const
 
-function focusMissingModule(module: string) {
-  const resultModules = new Set(['characterization', 'measured_products'])
-  const target = document.getElementById(
-    resultModules.has(module) ? 'module-results' : `module-${module}`,
-  )
-  target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  target?.focus({ preventScroll: true })
-}
-
 export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const { i18n, t } = useTranslation()
   const { session } = useAuth()
@@ -103,6 +93,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const [reason, setReason] = useState('')
   const [processDirty, setProcessDirty] = useState(false)
   const [formDirty, setFormDirty] = useState(false)
+  const [focusModule, setFocusModule] = useState<string | null>(null)
   const [missing, setMissing] = useState<
     Array<{
       key: string
@@ -240,10 +231,6 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
   const canEditProcess = Boolean(
     data && (isAdmin || session.currentUser?.id === data.run.owner_id),
   )
-  const canEditResults = Boolean(
-    data && (data.run.status === 'locked' || canEditProcess),
-  )
-
   useEffect(() => {
     if (processDirty) setMissing([])
   }, [processDirty])
@@ -252,7 +239,11 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
     <div className="flex flex-col gap-6">
       <PageHeader
         title={data?.run.run_code ?? t('experimentsV2.edit.title')}
-        subtitle={t('experimentsV2.edit.subtitle')}
+        subtitle={
+          data?.run.target_material_system
+            ? `${data.run.target_material_system} 制备实验`
+            : '制备实验记录'
+        }
         actions={
           <>
             {data ? (
@@ -271,28 +262,20 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               </Badge>
             ) : null}
             {data
-              ? availableStatusActions(
-                  data.run.status,
-                  canEditProcess,
-                  isAdmin,
-                ).map((action) => (
-                  <Button
-                    key={action}
-                    variant={
-                      action === 'lock'
-                        ? 'default'
-                        : action === 'invalidate'
-                          ? 'destructive'
-                          : 'outline'
-                    }
-                    disabled={
-                      mutation.isPending || (action === 'lock' && processDirty)
-                    }
-                    onClick={() => act(action)}
-                  >
-                    {t(`experimentsV2.actions.${action}`)}
-                  </Button>
-                ))
+              ? availableStatusActions(data.run.status, canEditProcess, isAdmin)
+                  .filter((action) => action !== 'lock')
+                  .map((action) => (
+                    <Button
+                      key={action}
+                      variant={
+                        action === 'invalidate' ? 'destructive' : 'outline'
+                      }
+                      disabled={mutation.isPending}
+                      onClick={() => act(action)}
+                    >
+                      {t(`experimentsV2.actions.${action}`)}
+                    </Button>
+                  ))
               : null}
             {data?.run.status === 'locked' &&
             (data.run.result_missing_todo ||
@@ -393,7 +376,10 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                       <button
                         type="button"
                         className="rounded-sm text-left underline decoration-current/40 underline-offset-2 hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        onClick={() => focusMissingModule(item.module)}
+                        onClick={() => {
+                          setFocusModule(item.module)
+                          window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }}
                       >
                         {(() => {
                           const field = getModuleFields(item.module).find(
@@ -417,16 +403,36 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
               </AlertDescription>
             </Alert>
           ) : null}
+          <ScientificExperimentForm
+            key={runId}
+            mode="edit"
+            runId={runId}
+            runCode={data.run.run_code}
+            initialState={buildStateFromLoaded(data.run, data.modules)}
+            modules={data.modules}
+            processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
+            canLock={
+              availableStatusActions(
+                data.run.status,
+                canEditProcess,
+                isAdmin,
+              ).includes('lock') && !processDirty
+            }
+            focusModule={focusModule}
+            onRequestLock={() => setLocking(true)}
+            onProcessDirtyChange={setProcessDirty}
+            onDirtyChange={setFormDirty}
+          />
           {revisions.data?.items.length ? (
-            <section className="grid gap-2" aria-labelledby="revision-history">
-              <h2 id="revision-history" className="text-base font-semibold">
-                不可变修订历史
-              </h2>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <details className="rounded-lg border bg-card p-4">
+              <summary className="cursor-pointer font-medium">
+                修订历史（{revisions.data.items.length}）
+              </summary>
+              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {revisions.data.items.map((revision) => (
                   <div
                     key={revision.id}
-                    className="grid gap-1 rounded-lg border bg-card p-3 text-sm"
+                    className="grid gap-1 rounded-lg border p-3 text-sm"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">
@@ -455,20 +461,8 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                   </div>
                 ))}
               </div>
-            </section>
+            </details>
           ) : null}
-          <ScientificExperimentForm
-            key={runId}
-            mode="edit"
-            runId={runId}
-            runCode={data.run.run_code}
-            initialState={buildStateFromLoaded(data.run, data.modules)}
-            modules={data.modules}
-            processReadOnly={isProcessReadOnly(data.run.status, canEditProcess)}
-            resultsReadOnly={isResultsReadOnly(data.run.status, canEditResults)}
-            onProcessDirtyChange={setProcessDirty}
-            onDirtyChange={setFormDirty}
-          />
           <RunAuditSection runId={runId} token={token} />
         </>
       )}

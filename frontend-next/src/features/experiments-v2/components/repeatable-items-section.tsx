@@ -355,7 +355,7 @@ export function RepeatableItemsSection({
   zoneCount,
 }: {
   moduleKey: string
-  index: string
+  index?: string
   title: string
   addLabel: string
   emptyHint: string

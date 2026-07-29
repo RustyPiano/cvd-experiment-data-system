@@ -25,17 +25,24 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     params,
     hash,
+    search,
   }: {
     children: ReactNode
     to: string
     params?: Record<string, string>
     hash?: string
+    search?: Record<string, string>
   }) => {
     const href = Object.entries(params ?? {}).reduce(
       (path, [key, value]) => path.replace(`$${key}`, value),
       to,
     )
-    return <a href={`${href}${hash ? `#${hash}` : ''}`}>{children}</a>
+    const query = new URLSearchParams(search).toString()
+    return (
+      <a href={`${href}${query ? `?${query}` : ''}${hash ? `#${hash}` : ''}`}>
+        {children}
+      </a>
+    )
   },
 }))
 
@@ -120,7 +127,7 @@ describe('CharacterizationListPage', () => {
     ).toHaveLength(3)
     expect(
       screen.getAllByRole('link', { name: '补录或查看表征' })[2],
-    ).toHaveAttribute('href', '/experiments/run-3/edit#module-results')
+    ).toHaveAttribute('href', '/characterizations?runId=run-3')
   })
 
   it('filters by preparation record, sample, material, or method', async () => {
