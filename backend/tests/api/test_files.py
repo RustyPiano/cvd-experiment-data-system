@@ -44,10 +44,10 @@ def create_experiment(email: str, *, objective: str = "File asset flow") -> str:
     return response.json()["id"]
 
 
-def create_sample(experiment_id: str, email: str, *, role: str = "control") -> str:
+def create_sample(experiment_id: str, email: str) -> str:
     response = client.post(
         f"/api/v1/experiments/{experiment_id}/samples",
-        json={"role": role},
+        json={},
         headers=auth_headers(email),
     )
     assert response.status_code == 201

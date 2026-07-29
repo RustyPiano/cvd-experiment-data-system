@@ -325,8 +325,8 @@ def test_standard_schema_exports_structured_result_models_and_validation() -> No
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-rc.1"
-    assert schema["status"] == "RELEASE_CANDIDATE"
+    assert schema["version"] == "v4.0-alpha.2"
+    assert schema["status"] == "INTERNAL_VALIDATION"
     assert "pvd" not in schema["modules"]
     assert schema["scientific_contract"]["result_chain"].startswith("Sample")
     for model in schema["result_models"].values():

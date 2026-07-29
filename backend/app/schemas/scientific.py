@@ -6,21 +6,45 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.scientific_units import normalize_process_value, validate_process_unit
 from app.services.v2_field_source import normalize_offset_datetime, validate_chemical_formula
 
 
 class AmbientMeasurement(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    value: float = Field(allow_inf_nan=False)
-    measured_at: datetime
-    source_type: Literal["room_sensor", "setup_sensor", "manual_estimate"]
+    value: float | None = Field(default=None, allow_inf_nan=False)
+    measured_at: datetime | None = None
+    source_type: Literal[
+        "room_sensor",
+        "setup_sensor",
+        "manual_estimate",
+        "not_measured",
+    ]
     sensor_ref: str | None = Field(default=None, max_length=255)
 
     @field_validator("measured_at", mode="before")
     @classmethod
-    def normalize_measured_at(cls, value: object) -> datetime:
+    def normalize_measured_at(cls, value: object) -> datetime | None:
+        if value is None:
+            return None
         return normalize_offset_datetime(value)
+
+    @model_validator(mode="after")
+    def validate_source_evidence(self) -> Self:
+        if self.source_type == "not_measured":
+            if self.value is not None or self.measured_at is not None or self.sensor_ref:
+                raise ValueError("not_measured ambient values cannot include evidence")
+            return self
+        if self.value is None or self.measured_at is None:
+            raise ValueError("ambient values require value and measured_at")
+        if self.source_type in {"room_sensor", "setup_sensor"} and not (
+            self.sensor_ref and self.sensor_ref.strip()
+        ):
+            raise ValueError("measured ambient values require sensor_ref")
+        if self.source_type == "manual_estimate" and self.sensor_ref:
+            raise ValueError("manual estimates cannot reference a sensor")
+        return self
 
 
 class PrecheckRecord(BaseModel):
@@ -46,8 +70,12 @@ class ScientificBasicInfo(BaseModel):
     created_by_user_id: UUID
     performed_by_user_ids: list[UUID] = Field(min_length=1)
     recorded_by_user_id: UUID
-    ambient_temperature: AmbientMeasurement | None = None
-    ambient_humidity: AmbientMeasurement | None = None
+    ambient_temperature: AmbientMeasurement = Field(
+        default_factory=lambda: AmbientMeasurement(source_type="not_measured")
+    )
+    ambient_humidity: AmbientMeasurement = Field(
+        default_factory=lambda: AmbientMeasurement(source_type="not_measured")
+    )
     precheck: PrecheckRecord
 
     @field_validator("started_at", mode="before")
@@ -181,7 +209,15 @@ class SourcePositionPoint(SourcePosition):
 class PreparationStepPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    step_type: str = Field(min_length=1, max_length=64)
+    step_type: Literal[
+        "direct_load",
+        "grind",
+        "mix",
+        "pelletize",
+        "spin_coat",
+        "pre_anneal",
+        "other",
+    ]
     sequence: int = Field(ge=1)
     parameters: dict[str, Any] = Field(default_factory=dict)
 
@@ -341,6 +377,13 @@ class ProcessChannelPayload(BaseModel):
             starts = [point.start_s for point in self.series]
             if starts != sorted(starts):
                 raise ValueError("channel series must be ordered")
+        values: list[float | str | bool] = []
+        if self.scalar_value is not None:
+            values.append(self.scalar_value)
+        values.extend(point.value for point in self.series or [])
+        for value in values:
+            normalize_process_value(self.channel_type, self.unit, value)
+        validate_process_unit(self.channel_type, self.unit)
         return self
 
 
@@ -390,10 +433,54 @@ class ScientificProcessEventPayload(BaseModel):
     event_key: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
     start_s: float = Field(ge=0, allow_inf_nan=False)
     end_s: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    affected_objects: list[str] = Field(default_factory=list)
-    observed_deviations: list[str] = Field(min_length=1)
-    suspected_causes: list[str] = Field(default_factory=list)
-    intervention_actions: list[str] = Field(default_factory=list)
+    affected_objects: list[
+        Literal[
+            "source_load",
+            "gas_line",
+            "furnace",
+            "substrate",
+            "sample",
+            "process_channel",
+            "instrument",
+            "other",
+        ]
+    ] = Field(default_factory=list)
+    observed_deviations: list[
+        Literal[
+            "line_blockage",
+            "pressure_excursion",
+            "signal_anomaly",
+            "manual_intervention",
+            "equipment_alarm",
+            "manual_stop",
+            "power_interruption",
+            "water_interruption",
+            "gas_interruption",
+            "plan_changed",
+        ]
+    ] = Field(min_length=1)
+    suspected_causes: list[
+        Literal[
+            "line_blockage",
+            "equipment_fault",
+            "utility_interruption",
+            "operator_action",
+            "process_instability",
+            "unknown",
+            "other",
+        ]
+    ] = Field(default_factory=list)
+    intervention_actions: list[
+        Literal[
+            "adjust_flow",
+            "adjust_pressure",
+            "adjust_temperature",
+            "restart_supply",
+            "inspect_equipment",
+            "stop_run",
+            "other",
+        ]
+    ] = Field(default_factory=list)
     outcome: Literal["recovered", "partially_recovered", "terminated", "unknown"] | None = None
     data_validity_impact: Literal["none", "partial", "invalid", "unknown"] | None = None
     excluded_time_ranges: list[TimeRangePayload] = Field(default_factory=list)
@@ -404,6 +491,14 @@ class ScientificProcessEventPayload(BaseModel):
     def validate_event(self) -> Self:
         if self.end_s is not None and self.end_s < self.start_s:
             raise ValueError("event end cannot be before start")
+        for values in (
+            self.affected_objects,
+            self.observed_deviations,
+            self.suspected_causes,
+            self.intervention_actions,
+        ):
+            if len(values) != len(set(values)):
+                raise ValueError("process event controlled values must be unique")
         return self
 
 
@@ -822,6 +917,7 @@ class TransformationRunCreate(BaseModel):
         "other",
     ]
     input_sample_ids: list[UUID] = Field(min_length=1)
+    output_experiment_run_id: UUID | None = None
     outputs: list[TransformationOutputSpec] = Field(min_length=1)
     occurred_at: datetime
     parameters: dict[str, Any] = Field(default_factory=dict)
@@ -844,7 +940,7 @@ class TransformationRunCreate(BaseModel):
 
 class TransformationRunRead(BaseModel):
     id: UUID
-    run_revision_id: UUID
+    output_experiment_run_id: UUID
     transformation_type: str
     operator_id: UUID
     occurred_at: datetime
@@ -884,11 +980,15 @@ class DatasetFilter(BaseModel):
         "setup_id",
         "material_lot_id",
         "substrate_material",
-        "max_temperature_C",
-        "ramp_rate_C_min",
+        "max_temperature_setpoint_C",
+        "max_temperature_measured_C",
+        "ramp_rate_setpoint_C_min",
+        "ramp_rate_measured_C_min",
         "growth_duration_s",
-        "pressure_min_Pa",
-        "pressure_max_Pa",
+        "pressure_setpoint_min_Pa",
+        "pressure_setpoint_max_Pa",
+        "pressure_measured_min_Pa",
+        "pressure_measured_max_Pa",
         "gas_species",
         "has_process_event",
         "growth_presence",
@@ -902,11 +1002,15 @@ class DatasetFilter(BaseModel):
     @model_validator(mode="after")
     def validate_operator_and_value(self) -> Self:
         numeric_fields = {
-            "max_temperature_C",
-            "ramp_rate_C_min",
+            "max_temperature_setpoint_C",
+            "max_temperature_measured_C",
+            "ramp_rate_setpoint_C_min",
+            "ramp_rate_measured_C_min",
             "growth_duration_s",
-            "pressure_min_Pa",
-            "pressure_max_Pa",
+            "pressure_setpoint_min_Pa",
+            "pressure_setpoint_max_Pa",
+            "pressure_measured_min_Pa",
+            "pressure_measured_max_Pa",
             "property",
         }
         boolean_fields = {"has_process_event", "provenance_complete"}

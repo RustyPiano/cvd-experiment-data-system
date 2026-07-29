@@ -279,6 +279,23 @@ export interface paths {
     patch: operations['update_sample_api_v1_samples__sample_id__patch']
     trace?: never
   }
+  '/api/v1/contributors': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Contributors */
+    get: operations['list_contributors_api_v1_contributors_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/container-instances': {
     parameters: {
       query?: never
@@ -412,6 +429,23 @@ export interface paths {
     put?: never
     /** Create Transformation */
     post: operations['create_transformation_api_v1_transformations_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/samples/{sample_id}/lineage': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Sample Lineage */
+    get: operations['get_sample_lineage_api_v1_samples__sample_id__lineage_get']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -638,6 +672,23 @@ export interface paths {
     }
     /** Export Run Json */
     get: operations['export_run_json_api_v1_experiments__run_id__export_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/experiments/{run_id}/draft-export': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Export Draft Run Json */
+    get: operations['export_draft_run_json_api_v1_experiments__run_id__draft_export_get']
     put?: never
     post?: never
     delete?: never
@@ -929,6 +980,24 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** AmbientMeasurement */
+    AmbientMeasurement: {
+      /** Value */
+      value?: number | null
+      /** Measured At */
+      measured_at?: string | null
+      /**
+       * Source Type
+       * @enum {string}
+       */
+      source_type:
+        | 'room_sensor'
+        | 'setup_sensor'
+        | 'manual_estimate'
+        | 'not_measured'
+      /** Sensor Ref */
+      sensor_ref?: string | null
+    }
     /** AnalysisRunCreate */
     AnalysisRunCreate: {
       /** Software Name */
@@ -982,30 +1051,6 @@ export interface components {
       note?: string | null
       /** File Kind */
       file_kind?: string | null
-    }
-    /** CharacterizationRecordCreate */
-    CharacterizationRecordCreate: {
-      /**
-       * Sample Id
-       * Format: uuid
-       */
-      sample_id: string
-      /** Instrument Id */
-      instrument_id?: string | null
-      /** Instrument Version */
-      instrument_version?: number | null
-      /** Method Instrument */
-      method_instrument: string
-      /** Test Conditions */
-      test_conditions?: string | null
-      /** Raw Data */
-      raw_data?: {
-        [key: string]: unknown
-      } | null
-      /** Attrs */
-      attrs?: {
-        [key: string]: unknown
-      }
     }
     /** CharacterizationRecordListResponse */
     CharacterizationRecordListResponse: {
@@ -1061,21 +1106,6 @@ export interface components {
        * Format: date-time
        */
       updated_at: string
-    }
-    /** CharacterizationRecordUpdate */
-    CharacterizationRecordUpdate: {
-      /** Method Instrument */
-      method_instrument?: string | null
-      /** Test Conditions */
-      test_conditions?: string | null
-      /** Raw Data */
-      raw_data?: {
-        [key: string]: unknown
-      } | null
-      /** Attrs */
-      attrs?: {
-        [key: string]: unknown
-      }
     }
     /** ContainerInstanceCreate */
     ContainerInstanceCreate: {
@@ -1145,6 +1175,15 @@ export interface components {
         [key: string]: unknown
       }
     }
+    /** ControlSampleCreate */
+    ControlSampleCreate: {
+      /** Control Subtype */
+      control_subtype?: string | null
+      /** Metadata Json */
+      metadata_json?: {
+        [key: string]: unknown
+      }
+    }
     /** CreateCorrectionDraftRequest */
     CreateCorrectionDraftRequest: {
       /** Reason */
@@ -1162,11 +1201,15 @@ export interface components {
         | 'setup_id'
         | 'material_lot_id'
         | 'substrate_material'
-        | 'max_temperature_C'
-        | 'ramp_rate_C_min'
+        | 'max_temperature_setpoint_C'
+        | 'max_temperature_measured_C'
+        | 'ramp_rate_setpoint_C_min'
+        | 'ramp_rate_measured_C_min'
         | 'growth_duration_s'
-        | 'pressure_min_Pa'
-        | 'pressure_max_Pa'
+        | 'pressure_setpoint_min_Pa'
+        | 'pressure_setpoint_max_Pa'
+        | 'pressure_measured_min_Pa'
+        | 'pressure_measured_max_Pa'
         | 'gas_species'
         | 'has_process_event'
         | 'growth_presence'
@@ -1472,6 +1515,48 @@ export interface components {
       /** Certificate File Id */
       certificate_file_id: string | null
     }
+    /** LineageSampleRead */
+    LineageSampleRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Sample Code */
+      sample_code: string
+      /** Role */
+      role: string
+      /** Actual State */
+      actual_state: string
+      /** Actual Material Summary */
+      actual_material_summary: string | null
+      /** Lifecycle State */
+      lifecycle_state: string
+    }
+    /** LineageTransformationRead */
+    LineageTransformationRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Transformation Type */
+      transformation_type: string
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string
+      /**
+       * Operator Id
+       * Format: uuid
+       */
+      operator_id: string
+      /** Input Sample Ids */
+      input_sample_ids: string[]
+      /** Output Sample Ids */
+      output_sample_ids: string[]
+    }
     /** LoginRequest */
     LoginRequest: {
       /** Email */
@@ -1600,29 +1685,6 @@ export interface components {
       /** Gas Cylinder Number */
       gas_cylinder_number?: string | null
     }
-    /** MeasuredProductCreate */
-    MeasuredProductCreate: {
-      /** Observed Phenomena */
-      observed_phenomena?: string[] | null
-      /** Detected Phase Stacking */
-      detected_phase_stacking?: string | null
-      /** Layer Count */
-      layer_count?: number | null
-      /** Coverage Percent */
-      coverage_percent?: number | null
-      /** Domain Size Um */
-      domain_size_um?: number | null
-      /** Nucleation Density Cm2 */
-      nucleation_density_cm2?: number | null
-      /** Key Spectral Metrics */
-      key_spectral_metrics?: components['schemas']['SpectralMetric'][] | null
-      /** Characterization Record Id */
-      characterization_record_id?: string | null
-      /** Attrs */
-      attrs?: {
-        [key: string]: unknown
-      }
-    }
     /** MeasuredProductListResponse */
     MeasuredProductListResponse: {
       /** Items */
@@ -1681,27 +1743,6 @@ export interface components {
        * Format: date-time
        */
       updated_at: string
-    }
-    /** MeasuredProductUpdate */
-    MeasuredProductUpdate: {
-      /** Observed Phenomena */
-      observed_phenomena?: string[] | null
-      /** Detected Phase Stacking */
-      detected_phase_stacking?: string | null
-      /** Layer Count */
-      layer_count?: number | null
-      /** Coverage Percent */
-      coverage_percent?: number | null
-      /** Domain Size Um */
-      domain_size_um?: number | null
-      /** Nucleation Density Cm2 */
-      nucleation_density_cm2?: number | null
-      /** Key Spectral Metrics */
-      key_spectral_metrics?: components['schemas']['SpectralMetric'][] | null
-      /** Attrs */
-      attrs?: {
-        [key: string]: unknown
-      }
     }
     /** MeasurementBundleCreate */
     MeasurementBundleCreate: {
@@ -1969,15 +2010,12 @@ export interface components {
       /** Superseded At */
       superseded_at: string | null
     }
-    /** SampleCreate */
-    SampleCreate: {
-      role: components['schemas']['SampleRole']
-      /** Parent Sample Id */
-      parent_sample_id?: string | null
-      /** Metadata Json */
-      metadata_json?: {
-        [key: string]: unknown
-      }
+    /** SampleLineageRead */
+    SampleLineageRead: {
+      /** Samples */
+      samples: components['schemas']['LineageSampleRead'][]
+      /** Transformations */
+      transformations: components['schemas']['LineageTransformationRead'][]
     }
     /** SampleListResponse */
     SampleListResponse: {
@@ -2250,6 +2288,8 @@ export interface components {
         | 'other'
       /** Input Sample Ids */
       input_sample_ids: string[]
+      /** Output Experiment Run Id */
+      output_experiment_run_id?: string | null
       /** Outputs */
       outputs: components['schemas']['TransformationOutputSpec'][]
       /**
@@ -2281,10 +2321,10 @@ export interface components {
        */
       id: string
       /**
-       * Run Revision Id
+       * Output Experiment Run Id
        * Format: uuid
        */
-      run_revision_id: string
+      output_experiment_run_id: string
       /** Transformation Type */
       transformation_type: string
       /**
@@ -2428,10 +2468,8 @@ export interface components {
        * @constant
        */
       synthesis_method: 'CVD'
-      /** Ambient Temperature C */
-      ambient_temperature_C?: number | null
-      /** Ambient Humidity Percent */
-      ambient_humidity_percent?: number | null
+      ambient_temperature?: components['schemas']['AmbientMeasurement']
+      ambient_humidity?: components['schemas']['AmbientMeasurement']
       /** Precheck Confirmed */
       precheck_confirmed?: boolean | null
       /** Run Code */
@@ -2640,42 +2678,6 @@ export interface components {
        * Format: date-time
        */
       updated_at: string
-    }
-    /** V2ResultWrite */
-    V2ResultWrite: {
-      /** Observed Phenomena */
-      observed_phenomena?: string[] | null
-      /** Detected Phase Stacking */
-      detected_phase_stacking?: string | null
-      /** Layer Count */
-      layer_count?: number | null
-      /** Coverage Percent */
-      coverage_percent?: number | null
-      /** Domain Size Um */
-      domain_size_um?: number | null
-      /** Nucleation Density Cm2 */
-      nucleation_density_cm2?: number | null
-      /** Key Spectral Metrics */
-      key_spectral_metrics?: components['schemas']['SpectralMetric'][] | null
-      /**
-       * Kind
-       * @enum {string}
-       */
-      kind: 'direct_observation' | 'characterization'
-      /** File Asset Ids */
-      file_asset_ids?: string[]
-      /** Instrument Id */
-      instrument_id?: string | null
-      /** Instrument Version */
-      instrument_version?: number | null
-      /** Method Instrument */
-      method_instrument?: string | null
-      /** Method Other */
-      method_other?: string | null
-      /** Observed Phenomena Other */
-      observed_phenomena_other?: string | null
-      /** Test Conditions */
-      test_conditions?: string | null
     }
     /** V2RunAuditEventListResponse */
     V2RunAuditEventListResponse: {
@@ -3209,7 +3211,7 @@ export interface operations {
     }
     requestBody: {
       content: {
-        'application/json': components['schemas']['SampleCreate']
+        'application/json': components['schemas']['ControlSampleCreate']
       }
     }
     responses: {
@@ -3295,6 +3297,26 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_contributors_api_v1_contributors_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['UserRead'][]
         }
       }
     }
@@ -3640,6 +3662,37 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['TransformationRunRead']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_sample_lineage_api_v1_samples__sample_id__lineage_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        sample_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SampleLineageRead']
         }
       }
       /** @description Validation Error */
@@ -4238,6 +4291,39 @@ export interface operations {
   }
   export_run_json_api_v1_experiments__run_id__export_get: {
     parameters: {
+      query: {
+        revision_id: string
+      }
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_draft_run_json_api_v1_experiments__run_id__draft_export_get: {
+    parameters: {
       query?: never
       header?: never
       path: {
@@ -4679,19 +4765,15 @@ export interface operations {
       }
       cookie?: never
     }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CharacterizationRecordCreate']
-      }
-    }
+    requestBody?: never
     responses: {
       /** @description Successful Response */
-      201: {
+      200: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['CharacterizationRecordRead']
+          'application/json': unknown
         }
       }
       /** @description Validation Error */
@@ -4717,11 +4799,13 @@ export interface operations {
     requestBody?: never
     responses: {
       /** @description Successful Response */
-      204: {
+      200: {
         headers: {
           [name: string]: unknown
         }
-        content?: never
+        content: {
+          'application/json': unknown
+        }
       }
       /** @description Validation Error */
       422: {
@@ -4743,11 +4827,7 @@ export interface operations {
       }
       cookie?: never
     }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CharacterizationRecordUpdate']
-      }
-    }
+    requestBody?: never
     responses: {
       /** @description Successful Response */
       200: {
@@ -4755,7 +4835,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['CharacterizationRecordRead']
+          'application/json': unknown
         }
       }
       /** @description Validation Error */
@@ -4809,19 +4889,15 @@ export interface operations {
       }
       cookie?: never
     }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['MeasuredProductCreate']
-      }
-    }
+    requestBody?: never
     responses: {
       /** @description Successful Response */
-      201: {
+      200: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['MeasuredProductRead']
+          'application/json': unknown
         }
       }
       /** @description Validation Error */
@@ -4847,11 +4923,13 @@ export interface operations {
     requestBody?: never
     responses: {
       /** @description Successful Response */
-      204: {
+      200: {
         headers: {
           [name: string]: unknown
         }
-        content?: never
+        content: {
+          'application/json': unknown
+        }
       }
       /** @description Validation Error */
       422: {
@@ -4873,11 +4951,7 @@ export interface operations {
       }
       cookie?: never
     }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['MeasuredProductUpdate']
-      }
-    }
+    requestBody?: never
     responses: {
       /** @description Successful Response */
       200: {
@@ -4885,7 +4959,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['MeasuredProductRead']
+          'application/json': unknown
         }
       }
       /** @description Validation Error */
@@ -4939,19 +5013,15 @@ export interface operations {
       }
       cookie?: never
     }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['V2ResultWrite']
-      }
-    }
+    requestBody?: never
     responses: {
       /** @description Successful Response */
-      201: {
+      200: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['V2ResultRead']
+          'application/json': unknown
         }
       }
       /** @description Validation Error */
@@ -4974,11 +5044,7 @@ export interface operations {
       }
       cookie?: never
     }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['V2ResultWrite']
-      }
-    }
+    requestBody?: never
     responses: {
       /** @description Successful Response */
       200: {
@@ -4986,7 +5052,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['V2ResultRead']
+          'application/json': unknown
         }
       }
       /** @description Validation Error */
@@ -5012,11 +5078,13 @@ export interface operations {
     requestBody?: never
     responses: {
       /** @description Successful Response */
-      204: {
+      200: {
         headers: {
           [name: string]: unknown
         }
-        content?: never
+        content: {
+          'application/json': unknown
+        }
       }
       /** @description Validation Error */
       422: {

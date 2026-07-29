@@ -24,6 +24,7 @@ import {
   createMeasurement,
   createRun,
   listContainerInstances,
+  listContributors,
   listMeasurements,
   listSamples,
   setSetupReference,
@@ -151,6 +152,28 @@ type ProcessEvent = {
   excluded_time_ranges: Array<{ start_s: number; end_s: number }>
   description?: string
   attachment_file_ids: string[]
+}
+type AmbientSource =
+  | 'room_sensor'
+  | 'setup_sensor'
+  | 'manual_estimate'
+  | 'not_measured'
+type AmbientFormValue = {
+  value?: number
+  measured_at?: string
+  source_type: AmbientSource
+  sensor_ref?: string
+}
+type BasicInfo = {
+  started_at: string
+  synthesis_method: 'CVD'
+  run_code: string
+  created_by_user_id: string
+  performed_by_user_ids: string[]
+  recorded_by_user_id: string
+  ambient_temperature?: AmbientFormValue
+  ambient_humidity?: AmbientFormValue
+  precheck: Record<string, unknown>
 }
 
 const DEFAULT_TARGET: TargetSpec = {
@@ -285,9 +308,186 @@ const PROPERTY_UNITS: Record<string, string> = {
   afm_rms_roughness: 'nm',
   afm_step_height: 'nm',
 }
+const PROPERTY_LABELS: Record<string, string> = {
+  coverage_percent: '覆盖率',
+  domain_size_um: '晶畴尺寸',
+  layer_count: '层数',
+  nucleation_density_cm2: '成核密度',
+  raman_a1g_peak_position: 'Raman A₁g 峰位',
+  raman_e2g_peak_position: 'Raman E₂g 峰位',
+  raman_peak_separation: 'Raman 峰间距',
+  pl_a_exciton_peak_energy: 'PL A 激子峰能量',
+  pl_b_exciton_peak_energy: 'PL B 激子峰能量',
+  afm_rms_roughness: 'AFM 均方根粗糙度',
+  afm_step_height: 'AFM 台阶高度',
+}
+const PROCESS_UNITS: Record<string, string[]> = {
+  temperature: ['°C', 'K'],
+  flow: ['sccm', 'slm'],
+  pressure: ['Pa', 'kPa', 'mbar', 'Torr', 'bar', 'atm'],
+  valve_state: ['state'],
+  source_position: ['mm', 'cm', 'm'],
+  furnace_position: ['mm', 'cm', 'm'],
+  plasma_power: ['W', 'kW'],
+  shutter_state: ['state'],
+}
+const CHANNEL_LABELS: Record<string, string> = {
+  temperature: '温度',
+  flow: '气体流量',
+  pressure: '压力',
+  valve_state: '阀门状态',
+  source_position: '源位置',
+  furnace_position: '炉体位置',
+  plasma_power: '等离子体功率',
+  shutter_state: '挡板状态',
+}
+const SEGMENT_LABELS: Record<string, string> = {
+  purge: '吹扫',
+  ramp: '升降温',
+  nucleation: '成核',
+  growth: '生长',
+  anneal: '退火',
+  cooling: '冷却',
+  transfer: '转移',
+  other: '其他',
+}
+const LOADING_METHOD_LABELS: Record<string, string> = {
+  boat: '舟',
+  crucible: '坩埚',
+  substrate_surface: '衬底表面',
+  gas_line: '气路',
+  bubbler: '鼓泡瓶',
+  other: '其他',
+}
+const PREPARATION_STEP_LABELS: Record<string, string> = {
+  direct_load: '直接装载',
+  grind: '研磨',
+  mix: '混合',
+  pelletize: '压片',
+  spin_coat: '旋涂',
+  pre_anneal: '预退火',
+  other: '其他',
+}
+const INGREDIENT_ROLE_LABELS: Record<string, string> = {
+  metal_source: '金属源',
+  chalcogen_source: '硫族元素源',
+  carbon_source: '碳源',
+  dopant_source: '掺杂源',
+  promoter: '促进剂',
+  transport_agent: '输运剂',
+  etchant: '刻蚀剂',
+  reducing_agent: '还原剂',
+  oxidizing_agent: '氧化剂',
+  carrier_gas: '载气',
+  other: '其他',
+}
+const CONTAINER_STATUS_LABELS: Record<string, string> = {
+  available: '可用',
+  in_use: '使用中',
+  empty: '已空',
+  quarantined: '隔离',
+  disposed: '已处置',
+}
+const SAMPLE_ACTUAL_STATE_LABELS: Record<string, string> = {
+  unknown: '尚无实际结论',
+  growth_present: '观察到生长',
+  no_growth: '未观察到生长',
+  uncertain: '结论不确定',
+  asserted: '已确认材料结论',
+}
+const EVENT_OPTIONS = {
+  observed_deviations: [
+    ['line_blockage', '管路堵塞'],
+    ['pressure_excursion', '压力突变'],
+    ['signal_anomaly', '信号异常'],
+    ['manual_intervention', '人工干预'],
+    ['equipment_alarm', '设备报警'],
+    ['manual_stop', '人工停止'],
+    ['power_interruption', '供电中断'],
+    ['water_interruption', '供水中断'],
+    ['gas_interruption', '供气中断'],
+    ['plan_changed', '计划变更'],
+  ],
+  intervention_actions: [
+    ['adjust_flow', '调整流量'],
+    ['adjust_pressure', '调整压力'],
+    ['adjust_temperature', '调整温度'],
+    ['restart_supply', '恢复供应'],
+    ['inspect_equipment', '检查设备'],
+    ['stop_run', '停止实验'],
+    ['other', '其他'],
+  ],
+  affected_objects: [
+    ['source_load', '装料'],
+    ['gas_line', '气路'],
+    ['furnace', '炉体'],
+    ['substrate', '衬底'],
+    ['sample', '样品'],
+    ['process_channel', '过程通道'],
+    ['instrument', '仪器'],
+    ['other', '其他'],
+  ],
+  suspected_causes: [
+    ['line_blockage', '管路堵塞'],
+    ['equipment_fault', '设备故障'],
+    ['utility_interruption', '水/电/气供应中断'],
+    ['operator_action', '人员操作'],
+    ['process_instability', '过程不稳定'],
+    ['unknown', '原因未知'],
+    ['other', '其他'],
+  ],
+} satisfies Record<string, ReadonlyArray<readonly [string, string]>>
+const METHOD_LABELS: Record<string, string> = {
+  optical_microscopy: '光学显微镜',
+  Raman: '拉曼光谱',
+  low_frequency_raman: '低频拉曼',
+  PL: '光致发光（PL）',
+  AFM: '原子力显微镜（AFM）',
+  SEM: '扫描电子显微镜（SEM）',
+  XRD: 'X 射线衍射（XRD）',
+  TEM: '透射电子显微镜（TEM）',
+}
 
 function numberOrUndefined(value: string): number | undefined {
   return value.trim() === '' ? undefined : Number(value)
+}
+
+function machineKey(prefix: string): string {
+  return `${prefix}_${crypto.randomUUID().replaceAll('-', '_')}`
+}
+
+function ambientComplete(value: AmbientFormValue | undefined): boolean {
+  return (
+    value === undefined ||
+    value.source_type === 'not_measured' ||
+    (value.value !== undefined &&
+      Boolean(value.measured_at) &&
+      (value.source_type === 'manual_estimate' ||
+        Boolean(value.sensor_ref?.trim())))
+  )
+}
+
+function ambientPayload(value: AmbientFormValue | undefined) {
+  if (!value || value.source_type === 'not_measured') {
+    return { source_type: 'not_measured' as const }
+  }
+  if (!ambientComplete(value)) return undefined
+  return {
+    value: value.value!,
+    measured_at: value.measured_at!,
+    source_type: value.source_type,
+    ...(value.sensor_ref?.trim()
+      ? { sensor_ref: value.sensor_ref.trim() }
+      : {}),
+  }
+}
+
+function toLocalDateTime(value: string | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16)
 }
 
 function modulePayload<T>(
@@ -308,6 +508,98 @@ function SaveState({ save }: { save: ModuleSaveProps }) {
     >
       {save.saving ? '保存中…' : save.saved ? '已保存' : '保存本节'}
     </Button>
+  )
+}
+
+function AmbientEditor({
+  label,
+  unit,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string
+  unit: string
+  value: AmbientFormValue | undefined
+  disabled: boolean
+  onChange: (value: AmbientFormValue | undefined) => void
+}) {
+  return (
+    <fieldset className="grid gap-3 rounded-lg border p-3 sm:col-span-2 sm:grid-cols-4">
+      <legend className="px-1 text-sm font-medium">{label}</legend>
+      <Select
+        value={value?.source_type ?? 'not_measured'}
+        disabled={disabled}
+        onValueChange={(source) =>
+          onChange(
+            source === 'not_measured'
+              ? { source_type: 'not_measured' }
+              : {
+                  ...value,
+                  source_type: source as AmbientSource,
+                  measured_at: value?.measured_at ?? new Date().toISOString(),
+                  ...(source === 'manual_estimate'
+                    ? { sensor_ref: undefined }
+                    : {}),
+                },
+          )
+        }
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="not_measured">未测量</SelectItem>
+          <SelectItem value="room_sensor">实测（室内传感器）</SelectItem>
+          <SelectItem value="setup_sensor">实测（装置传感器）</SelectItem>
+          <SelectItem value="manual_estimate">估计</SelectItem>
+        </SelectContent>
+      </Select>
+      {value && value.source_type !== 'not_measured' ? (
+        <>
+          <Input
+            type="number"
+            value={value.value ?? ''}
+            disabled={disabled}
+            placeholder={`数值（${unit}）`}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                value: numberOrUndefined(event.target.value),
+              })
+            }
+          />
+          <Input
+            type="datetime-local"
+            value={toLocalDateTime(value.measured_at)}
+            disabled={disabled}
+            aria-label={`${label}读取时间`}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                measured_at: event.target.value
+                  ? new Date(event.target.value).toISOString()
+                  : undefined,
+              })
+            }
+          />
+          {value.source_type === 'manual_estimate' ? (
+            <div className="flex items-center text-xs text-muted-foreground">
+              估计值不绑定设备
+            </div>
+          ) : (
+            <Input
+              value={value.sensor_ref ?? ''}
+              disabled={disabled}
+              placeholder="传感器编号/位置"
+              onChange={(event) =>
+                onChange({ ...value, sensor_ref: event.target.value })
+              }
+            />
+          )}
+        </>
+      ) : null}
+    </fieldset>
   )
 }
 
@@ -348,8 +640,12 @@ export function ScientificExperimentForm({
   )
   const [formula, setFormula] = useState('')
   const [objective, setObjective] = useState('')
-  const [temperature, setTemperature] = useState('25')
-  const [humidity, setHumidity] = useState('45')
+  const [temperatureAmbient, setTemperatureAmbient] = useState<
+    AmbientFormValue | undefined
+  >()
+  const [humidityAmbient, setHumidityAmbient] = useState<
+    AmbientFormValue | undefined
+  >()
   const [precheck, setPrecheck] = useState(false)
 
   const [target, setTarget] = useState<TargetSpec>(() =>
@@ -375,6 +671,24 @@ export function ScientificExperimentForm({
   )
   const [substrates, setSubstrates] = useState(initialState.substrates)
   const [equipment, setEquipment] = useState(initialState.equipment)
+  const [basicInfo, setBasicInfo] = useState<BasicInfo>(() =>
+    modulePayload(modules, 'basic_info', {
+      started_at: new Date().toISOString(),
+      synthesis_method: 'CVD',
+      run_code: runCode ?? '',
+      created_by_user_id: session.currentUser?.id ?? '',
+      performed_by_user_ids: session.currentUser?.id
+        ? [session.currentUser.id]
+        : [],
+      recorded_by_user_id: session.currentUser?.id ?? '',
+      precheck: {},
+    }),
+  )
+  const contributors = useQuery({
+    queryKey: ['contributors', token],
+    queryFn: () => listContributors(token),
+    enabled: mode === 'edit' && Boolean(token),
+  })
 
   const markDirty = (key: string) => {
     const next = new Set(dirty).add(key)
@@ -449,8 +763,8 @@ export function ScientificExperimentForm({
         {
           started_at: new Date(startedAt).toISOString(),
           synthesis_method: 'CVD',
-          ambient_temperature_C: Number(temperature),
-          ambient_humidity_percent: Number(humidity),
+          ambient_temperature: ambientPayload(temperatureAmbient),
+          ambient_humidity: ambientPayload(humidityAmbient),
           precheck_confirmed: precheck,
           chemical_formula: formula.trim() || null,
           objective: objective.trim() || null,
@@ -506,26 +820,20 @@ export function ScientificExperimentForm({
               onChange={(event) => setObjective(event.target.value)}
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="scientific-temperature">室温 (℃)</Label>
-            <Input
-              id="scientific-temperature"
-              type="number"
-              value={temperature}
-              onChange={(event) => setTemperature(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="scientific-humidity">相对湿度 (%)</Label>
-            <Input
-              id="scientific-humidity"
-              type="number"
-              min="0"
-              max="100"
-              value={humidity}
-              onChange={(event) => setHumidity(event.target.value)}
-            />
-          </div>
+          <AmbientEditor
+            label="环境温度"
+            unit="℃"
+            value={temperatureAmbient}
+            disabled={false}
+            onChange={setTemperatureAmbient}
+          />
+          <AmbientEditor
+            label="环境相对湿度"
+            unit="%RH"
+            value={humidityAmbient}
+            disabled={false}
+            onChange={setHumidityAmbient}
+          />
           <label className="flex items-center gap-2 sm:col-span-2">
             <input
               type="checkbox"
@@ -537,7 +845,13 @@ export function ScientificExperimentForm({
           <div className="sm:col-span-2">
             <Button
               type="button"
-              disabled={!startedAt || !precheck || createMutation.isPending}
+              disabled={
+                !startedAt ||
+                !precheck ||
+                !ambientComplete(temperatureAmbient) ||
+                !ambientComplete(humidityAmbient) ||
+                createMutation.isPending
+              }
               onClick={() => createMutation.mutate()}
             >
               创建并继续填写科学记录
@@ -552,7 +866,15 @@ export function ScientificExperimentForm({
 
   return (
     <div className="grid gap-6">
-      <ModuleCard id="module-basic_info" index="§1" title="炉次身份与参与者">
+      <ModuleCard
+        id="module-basic_info"
+        index="§1"
+        title="炉次身份与参与者"
+        onSave={() => void save('basic_info', basicInfo)}
+        saving={savingKey === 'basic_info'}
+        saved={saved.has('basic_info')}
+        error={errors['basic_info'] || null}
+      >
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <Label>炉次编号</Label>
@@ -563,9 +885,94 @@ export function ScientificExperimentForm({
             <Input value="CVD" readOnly />
           </div>
           <div>
-            <Label>当前记录人</Label>
-            <Input value={session.currentUser?.name ?? ''} readOnly />
+            <Label>创建人</Label>
+            <Input
+              value={
+                contributors.data?.find(
+                  (item) => item.id === basicInfo.created_by_user_id,
+                )?.name ??
+                session.currentUser?.name ??
+                ''
+              }
+              readOnly
+            />
           </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label>实际执行人（可多选）</Label>
+            <div className="grid gap-2 rounded-md border p-3 sm:grid-cols-2">
+              {(contributors.data ?? []).map((contributor) => (
+                <label
+                  key={contributor.id}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    disabled={processReadOnly}
+                    checked={basicInfo.performed_by_user_ids.includes(
+                      contributor.id,
+                    )}
+                    onChange={(event) => {
+                      setBasicInfo({
+                        ...basicInfo,
+                        performed_by_user_ids: event.target.checked
+                          ? [...basicInfo.performed_by_user_ids, contributor.id]
+                          : basicInfo.performed_by_user_ids.filter(
+                              (id) => id !== contributor.id,
+                            ),
+                      })
+                      markDirty('basic_info')
+                    }}
+                  />
+                  {contributor.name}（{contributor.email}）
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>记录人</Label>
+            <Select
+              value={basicInfo.recorded_by_user_id}
+              disabled={processReadOnly}
+              onValueChange={(recordedBy) => {
+                setBasicInfo({
+                  ...basicInfo,
+                  recorded_by_user_id: recordedBy,
+                })
+                markDirty('basic_info')
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(contributors.data ?? []).map((contributor) => (
+                  <SelectItem key={contributor.id} value={contributor.id}>
+                    {contributor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AmbientEditor
+            label="环境温度"
+            unit="℃"
+            value={basicInfo.ambient_temperature}
+            disabled={processReadOnly}
+            onChange={(value) => {
+              setBasicInfo({ ...basicInfo, ambient_temperature: value })
+              markDirty('basic_info')
+            }}
+          />
+          <AmbientEditor
+            label="环境相对湿度"
+            unit="%RH"
+            value={basicInfo.ambient_humidity}
+            disabled={processReadOnly}
+            onChange={(value) => {
+              setBasicInfo({ ...basicInfo, ambient_humidity: value })
+              markDirty('basic_info')
+            }}
+          />
         </div>
       </ModuleCard>
 
@@ -624,6 +1031,7 @@ export function ScientificExperimentForm({
 
       <SourceLoadsEditor
         loads={loads}
+        channels={channels}
         disabled={processReadOnly}
         token={token}
         onChange={(value) => {
@@ -813,7 +1221,7 @@ function TargetEditor({
                 material_regions: [
                   ...target.material_regions,
                   {
-                    region_key: `region_${target.material_regions.length + 1}`,
+                    region_key: machineKey('region'),
                     formula: '',
                     spatial_role:
                       target.architecture_type === 'vertical_stack'
@@ -834,15 +1242,9 @@ function TargetEditor({
             key={`${region.region_key}-${index}`}
             className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6"
           >
-            <Input
-              aria-label="区域键"
-              value={region.region_key}
-              disabled={disabled}
-              onChange={(event) =>
-                setRegion(index, { region_key: event.target.value })
-              }
-              placeholder="region_1"
-            />
+            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
+              区域 {index + 1}
+            </div>
             <Input
               aria-label="化学式"
               value={region.formula}
@@ -1008,9 +1410,10 @@ function TargetEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {target.material_regions.map((region) => (
+                {target.material_regions.map((region, regionIndex) => (
                   <SelectItem key={region.region_key} value={region.region_key}>
-                    {region.region_key}
+                    区域 {regionIndex + 1}
+                    {region.formula ? ` · ${region.formula}` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1107,12 +1510,14 @@ function TargetEditor({
 
 function SourceLoadsEditor({
   loads,
+  channels,
   onChange,
   disabled,
   token,
   save,
 }: {
   loads: SourceLoad[]
+  channels: Channel[]
   onChange: (value: SourceLoad[]) => void
   disabled: boolean
   token: string
@@ -1145,14 +1550,9 @@ function SourceLoadsEditor({
       {loads.map((load, loadIndex) => (
         <div key={loadIndex} className="grid gap-4 rounded-lg border p-4">
           <div className="grid gap-3 sm:grid-cols-6">
-            <Input
-              value={load.load_key}
-              disabled={disabled}
-              placeholder="装料键，如 metal_source"
-              onChange={(event) =>
-                patchLoad(loadIndex, { load_key: event.target.value })
-              }
-            />
+            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
+              装料 {loadIndex + 1}
+            </div>
             <Select
               value={load.loading_method}
               disabled={disabled}
@@ -1173,7 +1573,7 @@ function SourceLoadsEditor({
                   'other',
                 ].map((value) => (
                   <SelectItem key={value} value={value}>
-                    {value}
+                    {LOADING_METHOD_LABELS[value]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1201,7 +1601,9 @@ function SourceLoadsEditor({
                   )
                   .map((container) => (
                     <SelectItem key={container.id} value={container.id}>
-                      {container.container_code} · {container.status}
+                      {container.container_code} ·{' '}
+                      {CONTAINER_STATUS_LABELS[container.status] ??
+                        container.status}
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -1223,16 +1625,31 @@ function SourceLoadsEditor({
                 })
               }
             />
-            <Input
-              value={load.heating_channel ?? ''}
+            <Select
+              value={load.heating_channel ?? 'none'}
               disabled={disabled}
-              placeholder="加热通道（可选）"
-              onChange={(event) =>
+              onValueChange={(value) =>
                 patchLoad(loadIndex, {
-                  heating_channel: event.target.value || undefined,
+                  heating_channel: value === 'none' ? undefined : value,
                 })
               }
-            />
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="加热通道（可选）" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">不绑定加热通道</SelectItem>
+                {channels.map((channel, channelIndex) => (
+                  <SelectItem
+                    key={channel.channel_key}
+                    value={channel.channel_key}
+                  >
+                    通道 {channelIndex + 1} ·{' '}
+                    {CHANNEL_LABELS[channel.channel_type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               type="button"
               variant="ghost"
@@ -1357,20 +1774,33 @@ function SourceLoadsEditor({
             </div>
             {load.preparation_steps.map((step, stepIndex) => (
               <div key={stepIndex} className="flex gap-2">
-                <Input
+                <Select
                   value={step.step_type}
                   disabled={disabled}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     patchLoad(loadIndex, {
                       preparation_steps: load.preparation_steps.map(
                         (item, current) =>
                           current === stepIndex
-                            ? { ...item, step_type: event.target.value }
+                            ? { ...item, step_type: value }
                             : item,
                       ),
                     })
                   }
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PREPARATION_STEP_LABELS).map(
+                      ([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   size="icon"
@@ -1478,7 +1908,7 @@ function SourceLoadsEditor({
                       'other',
                     ].map((value) => (
                       <SelectItem key={value} value={value}>
-                        {value}
+                        {INGREDIENT_ROLE_LABELS[value]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1542,7 +1972,7 @@ function SourceLoadsEditor({
           onChange([
             ...loads,
             {
-              load_key: `source_${loads.length + 1}`,
+              load_key: machineKey('source'),
               loading_method: 'boat',
               preparation_steps: [],
               position_program: [],
@@ -1645,7 +2075,7 @@ function TimelineEditor({
                 [
                   ...segments,
                   {
-                    segment_key: `segment_${segments.length + 1}`,
+                    segment_key: machineKey('segment'),
                     segment_type: 'other',
                     sequence: segments.length + 1,
                     start_s: segments.at(-1)?.end_s ?? 0,
@@ -1664,13 +2094,9 @@ function TimelineEditor({
             key={index}
             className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6"
           >
-            <Input
-              value={segment.segment_key}
-              disabled={disabled}
-              onChange={(event) =>
-                patchSegment(index, { segment_key: event.target.value })
-              }
-            />
+            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
+              分段 {index + 1}
+            </div>
             <Select
               value={segment.segment_type}
               disabled={disabled}
@@ -1693,7 +2119,7 @@ function TimelineEditor({
                   'other',
                 ].map((value) => (
                   <SelectItem key={value} value={value}>
-                    {value}
+                    {SEGMENT_LABELS[value]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1758,7 +2184,7 @@ function TimelineEditor({
               onChange(segments, [
                 ...channels,
                 {
-                  channel_key: `channel_${channels.length + 1}`,
+                  channel_key: machineKey('channel'),
                   channel_type: 'flow',
                   source_type: 'setpoint',
                   unit: 'sccm',
@@ -1776,20 +2202,26 @@ function TimelineEditor({
             key={index}
             className="grid gap-3 rounded-lg border p-3 sm:grid-cols-7"
           >
-            <Input
-              value={channel.channel_key}
-              disabled={disabled}
-              onChange={(event) =>
-                patchChannel(index, { channel_key: event.target.value })
-              }
-              placeholder="flow.ar"
-            />
+            <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
+              通道 {index + 1}
+            </div>
             <Select
               value={channel.channel_type}
               disabled={disabled}
-              onValueChange={(value) =>
-                patchChannel(index, { channel_type: value })
-              }
+              onValueChange={(value) => {
+                const stateChannel = value.endsWith('_state')
+                patchChannel(index, {
+                  channel_type: value,
+                  unit: PROCESS_UNITS[value][0],
+                  ...(stateChannel
+                    ? {
+                        data_kind: 'interval_series',
+                        scalar_value: undefined,
+                        series: [{ start_s: 0, end_s: 60, value: 'closed' }],
+                      }
+                    : {}),
+                })
+              }}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -1806,7 +2238,7 @@ function TimelineEditor({
                   'shutter_state',
                 ].map((value) => (
                   <SelectItem key={value} value={value}>
-                    {value}
+                    {CHANNEL_LABELS[value]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1827,14 +2259,22 @@ function TimelineEditor({
                 <SelectItem value="inferred">推断值</SelectItem>
               </SelectContent>
             </Select>
-            <Input
+            <Select
               value={channel.unit}
               disabled={disabled}
-              onChange={(event) =>
-                patchChannel(index, { unit: event.target.value })
-              }
-              placeholder="单位"
-            />
+              onValueChange={(unit) => patchChannel(index, { unit })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(PROCESS_UNITS[channel.channel_type] ?? []).map((unit) => (
+                  <SelectItem key={unit} value={unit}>
+                    {unit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select
               value={channel.data_kind}
               disabled={disabled}
@@ -1854,7 +2294,9 @@ function TimelineEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="scalar">单值</SelectItem>
+                {!channel.channel_type.endsWith('_state') ? (
+                  <SelectItem value="scalar">单值</SelectItem>
+                ) : null}
                 <SelectItem value="interval_series">区间序列</SelectItem>
                 <SelectItem value="timeseries_file">时间序列文件</SelectItem>
               </SelectContent>
@@ -1987,6 +2429,52 @@ function TimelineEditor({
   )
 }
 
+function ControlledChecklist({
+  label,
+  values,
+  options,
+  disabled,
+  required = false,
+  onChange,
+}: {
+  label: string
+  values: string[]
+  options: ReadonlyArray<readonly [string, string]>
+  disabled: boolean
+  required?: boolean
+  onChange: (values: string[]) => void
+}) {
+  return (
+    <fieldset className="grid gap-2 rounded-md border p-3 sm:col-span-2">
+      <legend className="px-1 text-sm font-medium">{label}</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map(([value, optionLabel]) => {
+          const checked = values.includes(value)
+          return (
+            <label key={value} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={
+                  disabled || (required && checked && values.length === 1)
+                }
+                onChange={(event) =>
+                  onChange(
+                    event.target.checked
+                      ? [...values, value]
+                      : values.filter((item) => item !== value),
+                  )
+                }
+              />
+              {optionLabel}
+            </label>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}
+
 function EventsEditor({
   events,
   onChange,
@@ -2019,14 +2507,9 @@ function EventsEditor({
           key={index}
           className="grid gap-3 rounded-lg border p-3 sm:grid-cols-6"
         >
-          <Input
-            value={event.event_key}
-            disabled={disabled}
-            onChange={(input) =>
-              patch(index, { event_key: input.target.value })
-            }
-            placeholder="gas_interruption_1"
-          />
+          <div className="flex items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
+            事件 {index + 1}
+          </div>
           <Input
             type="number"
             value={event.start_s}
@@ -2045,17 +2528,13 @@ function EventsEditor({
             }
             placeholder="结束 s"
           />
-          <Input
-            value={event.observed_deviations.join('；')}
+          <ControlledChecklist
+            label="观察到的偏差"
+            values={event.observed_deviations}
+            options={EVENT_OPTIONS.observed_deviations}
             disabled={disabled}
-            onChange={(input) =>
-              patch(index, {
-                observed_deviations: input.target.value
-                  .split('；')
-                  .filter(Boolean),
-              })
-            }
-            placeholder="观察到的偏差"
+            required
+            onChange={(values) => patch(index, { observed_deviations: values })}
           />
           <Select
             value={event.data_validity_impact ?? 'unknown'}
@@ -2095,29 +2574,35 @@ function EventsEditor({
           />
           {(
             [
-              ['intervention_actions', '干预动作（；分隔）'],
-              ['affected_objects', '受影响对象（；分隔）'],
-              ['suspected_causes', '怀疑原因（；分隔）'],
+              ['intervention_actions', '干预动作'],
+              ['affected_objects', '受影响对象'],
+              ['suspected_causes', '怀疑原因'],
             ] as const
-          ).map(([key, placeholder]) => (
-            <Textarea
+          ).map(([key, label]) => (
+            <ControlledChecklist
               key={key}
-              value={event[key].join('；')}
+              label={label}
+              values={event[key]}
+              options={EVENT_OPTIONS[key]}
               disabled={disabled}
-              onChange={(input) =>
-                patch(index, {
-                  [key]: input.target.value.split('；').filter(Boolean),
-                })
-              }
-              placeholder={placeholder}
+              onChange={(values) => patch(index, { [key]: values })}
             />
           ))}
-          <Textarea
-            value={event.outcome ?? ''}
+          <Select
+            value={event.outcome ?? 'unknown'}
             disabled={disabled}
-            onChange={(input) => patch(index, { outcome: input.target.value })}
-            placeholder="事件结果"
-          />
+            onValueChange={(outcome) => patch(index, { outcome })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recovered">已恢复</SelectItem>
+              <SelectItem value="partially_recovered">部分恢复</SelectItem>
+              <SelectItem value="terminated">实验终止</SelectItem>
+              <SelectItem value="unknown">结果未知</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="grid gap-2 sm:col-span-6">
             <div className="flex items-center justify-between">
               <Label>排除的数据时间范围</Label>
@@ -2193,9 +2678,9 @@ function EventsEditor({
           onChange([
             ...events,
             {
-              event_key: `event_${events.length + 1}`,
+              event_key: machineKey('event'),
               start_s: 0,
-              observed_deviations: [''],
+              observed_deviations: ['gas_interruption'],
               intervention_actions: [],
               affected_objects: [],
               suspected_causes: [],
@@ -2255,7 +2740,13 @@ function ScientificMeasurements({
   })
   const [propertyCode, setPropertyCode] = useState('')
   const [propertyValue, setPropertyValue] = useState('')
+  const [propertyUncertainty, setPropertyUncertainty] = useState('')
+  const [uncertaintyType, setUncertaintyType] = useState('')
+  const [sampleCount, setSampleCount] = useState('')
+  const [propertyQuality, setPropertyQuality] = useState('valid')
   const [growth, setGrowth] = useState('uncertain')
+  const [assertionType, setAssertionType] = useState('none')
+  const [assertionValue, setAssertionValue] = useState('')
   const [software, setSoftware] = useState('')
   const [softwareVersion, setSoftwareVersion] = useState('')
   const [rawFiles, setRawFiles] = useState<File[]>([])
@@ -2290,6 +2781,14 @@ function ScientificMeasurements({
                 numeric_value: Number(propertyValue),
                 unit: PROPERTY_UNITS[propertyCode],
                 statistic: 'single_observation',
+                ...(propertyUncertainty
+                  ? {
+                      uncertainty_value: Number(propertyUncertainty),
+                      uncertainty_type: uncertaintyType,
+                    }
+                  : {}),
+                ...(sampleCount ? { sample_count: Number(sampleCount) } : {}),
+                quality_flag: propertyQuality,
                 analysis_index: software ? 0 : undefined,
               },
             ]
@@ -2341,6 +2840,21 @@ function ScientificMeasurements({
               confidence: null,
               analysis_index: software ? 0 : undefined,
             },
+            ...(assertionType !== 'none' && assertionValue
+              ? [
+                  {
+                    assertion_type: assertionType,
+                    value: {
+                      value:
+                        assertionType === 'layer_count'
+                          ? Number(assertionValue)
+                          : assertionValue,
+                    },
+                    confidence: null,
+                    analysis_index: software ? 0 : undefined,
+                  },
+                ]
+              : []),
           ],
         },
         token,
@@ -2348,6 +2862,9 @@ function ScientificMeasurements({
     },
     onSuccess: async () => {
       setPropertyValue('')
+      setPropertyUncertainty('')
+      setSampleCount('')
+      setAssertionValue('')
       setRawFiles([])
       await queryClient.invalidateQueries({
         queryKey: ['measurements', runId],
@@ -2372,7 +2889,9 @@ function ScientificMeasurements({
               <SelectContent>
                 {(samples.data?.items ?? []).map((sample) => (
                   <SelectItem key={sample.id} value={sample.id}>
-                    {sample.sample_code} · 实际状态 {sample.actual_state}
+                    {sample.sample_code} ·{' '}
+                    {SAMPLE_ACTUAL_STATE_LABELS[sample.actual_state] ??
+                      sample.actual_state}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -2394,7 +2913,7 @@ function ScientificMeasurements({
               <SelectContent>
                 {Object.keys(METHOD_CONDITIONS).map((value) => (
                   <SelectItem key={value} value={value}>
-                    {value}
+                    {METHOD_LABELS[value] ?? value}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -2503,7 +3022,7 @@ function ScientificMeasurements({
                 <SelectItem value="none">不记录数值属性</SelectItem>
                 {Object.entries(PROPERTY_UNITS).map(([code, unit]) => (
                   <SelectItem key={code} value={code}>
-                    {code} ({unit})
+                    {PROPERTY_LABELS[code] ?? code}（{unit}）
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -2535,18 +3054,97 @@ function ScientificMeasurements({
           </div>
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-5">
+          <div className="grid gap-2">
+            <Label>属性不确定度</Label>
+            <Input
+              type="number"
+              min="0"
+              value={propertyUncertainty}
+              disabled={!propertyCode}
+              onChange={(event) => setPropertyUncertainty(event.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>不确定度类型</Label>
+            <Input
+              value={uncertaintyType}
+              disabled={!propertyCode || !propertyUncertainty}
+              placeholder="如 standard_deviation"
+              onChange={(event) => setUncertaintyType(event.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>样本数 n</Label>
+            <Input
+              type="number"
+              min="1"
+              value={sampleCount}
+              disabled={!propertyCode}
+              onChange={(event) => setSampleCount(event.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>属性质量</Label>
+            <Select
+              value={propertyQuality}
+              disabled={!propertyCode}
+              onValueChange={setPropertyQuality}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="valid">有效</SelectItem>
+                <SelectItem value="suspect">可疑</SelectItem>
+                <SelectItem value="invalid">无效</SelectItem>
+                <SelectItem value="below_detection_limit">
+                  低于检出限
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>其他材料事实</Label>
+            <Select value={assertionType} onValueChange={setAssertionType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">不添加</SelectItem>
+                <SelectItem value="phase_identity">物相身份</SelectItem>
+                <SelectItem value="composition">组成</SelectItem>
+                <SelectItem value="polytype">多型</SelectItem>
+                <SelectItem value="stacking_order">堆叠顺序</SelectItem>
+                <SelectItem value="orientation_relationship">
+                  取向关系
+                </SelectItem>
+                <SelectItem value="layer_count">层数结论</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              type={assertionType === 'layer_count' ? 'number' : 'text'}
+              value={assertionValue}
+              disabled={assertionType === 'none'}
+              placeholder="填写声明值"
+              onChange={(event) => setAssertionValue(event.target.value)}
+            />
+          </div>
+        </div>
+
         <Button
           type="button"
           disabled={
             readOnly ||
             !selectedSampleId ||
             conditionFields.some((field) => !conditions[field.key]) ||
+            (propertyUncertainty !== '' && !uncertaintyType.trim()) ||
             (software !== '' && (!softwareVersion || rawFiles.length === 0)) ||
             mutation.isPending
           }
           onClick={() => mutation.mutate()}
         >
-          保存 MeasurementRun → AnalysisRun → Property / Assertion
+          保存测量、分析与科学结论
         </Button>
       </div>
 

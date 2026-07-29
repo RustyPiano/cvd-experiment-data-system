@@ -4,7 +4,17 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Uuid, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
@@ -23,6 +33,14 @@ json_payload_type = JSON().with_variant(JSONB(), "postgresql")
 
 class CharacterizationRecord(Base):
     __tablename__ = "characterization_records"
+    __table_args__ = (
+        CheckConstraint(
+            "run_revision_id IS NULL OR "
+            "(performed_by_id IS NOT NULL AND measured_at IS NOT NULL "
+            "AND sample_region IS NOT NULL AND method_instrument IS NOT NULL)",
+            name="ck_characterization_records_scientific_identity",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     experiment_run_id: Mapped[uuid.UUID] = mapped_column(

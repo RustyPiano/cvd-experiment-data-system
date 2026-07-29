@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-rc.1
-  status: RELEASE_CANDIDATE
-  updated: '2026-07-28'
+  version: v4.0-alpha.2
+  status: INTERNAL_VALIDATION
+  updated: '2026-07-29'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -20,10 +20,26 @@ scientific_contract:
   run_revision:
     immutable: true
     correction: new revision with supersedes_revision_id and correction_reason
+    sample_provenance: append-only SampleRevisionAssociation snapshot per locked revision
     contributors:
     - performed_by
     - recorded_by
     - reviewed_by
+  ambient_measurements:
+    fields:
+    - value
+    - measured_at
+    - source_type
+    - sensor_ref
+    source_types:
+    - room_sensor
+    - setup_sensor
+    - manual_estimate
+    - not_measured
+    not_measured: store an explicit source_type without value, time, or sensor
+    sensor_ref_required_for:
+    - room_sensor
+    - setup_sensor
   target_spec:
     architecture_types:
     - single_region
@@ -38,8 +54,17 @@ scientific_contract:
   source_load:
     identity: physical loading instance
     ingredients: one or more MaterialLot version references
+    preparation_step_types:
+    - direct_load
+    - grind
+    - mix
+    - pelletize
+    - spin_coat
+    - pre_anneal
+    - other
     owns:
     - container_instance
+    - container_snapshot_at_lock
     - preparation_steps
     - position_program
     - heating_channel
@@ -54,7 +79,44 @@ scientific_contract:
     - furnace_position
     - plasma_power
     - shutter_state
-  result_chain: Sample → MeasurementRun → AnalysisRun → PropertyValue / MaterialAssertion
+  process_event:
+    observed_deviations:
+    - line_blockage
+    - pressure_excursion
+    - signal_anomaly
+    - manual_intervention
+    - equipment_alarm
+    - manual_stop
+    - power_interruption
+    - water_interruption
+    - gas_interruption
+    - plan_changed
+    intervention_actions:
+    - adjust_flow
+    - adjust_pressure
+    - adjust_temperature
+    - restart_supply
+    - inspect_equipment
+    - stop_run
+    - other
+    affected_objects:
+    - source_load
+    - gas_line
+    - furnace
+    - substrate
+    - sample
+    - process_channel
+    - instrument
+    - other
+    suspected_causes:
+    - line_blockage
+    - equipment_fault
+    - utility_interruption
+    - operator_action
+    - process_instability
+    - unknown
+    - other
+  result_chain: Sample → MeasurementRun (instrument + calibration-at-measurement snapshot) → AnalysisRun → PropertyValue / MaterialAssertion
   sample_actual_states:
   - unknown
   - growth_present
@@ -3493,6 +3555,10 @@ changelog:
     - 科学对象/实体/结果
     - 引入正交TargetSpec、物理SourceLoad、统一ProcessTimeline、不可变RunRevision、样品转换图及MeasurementRun→AnalysisRun→PropertyValue/MaterialAssertion溯源链；物料、装置部件和仪器能力补齐归一化字段；PVD不进入发布契约
     - 2026-07-28深度审查整改
+  - - v4.0-alpha.2
+    - 科学完整性复核
+    - 关闭旧结果写入与手工派生入口；收紧审阅和转化权限；修正跨炉次转化溯源、过程单位归一化、不可变修订导出及数据集查询语义；冻结装料容器、测量时校准和样品—修订关联快照；状态降为内部验证
+    - 2026-07-29二次复核整改
   - - R0
     - 硬必填核心(29项，含条件必填)
     - v3.18删除炉次内重复的前驱体化学式R0；物料身份仍由必填的批次版本快照冻结；其余R0定义不变

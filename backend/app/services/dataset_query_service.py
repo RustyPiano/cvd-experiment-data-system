@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.sample import Sample
 from app.models.scientific import (
-    MaterialAssertion,
     PropertyValue,
     RunFeature,
     RunRevision,
@@ -35,29 +34,41 @@ FEATURE_FIELDS = {
     "setup_id": "setup_id",
     "material_lot_id": "material_lot_id",
     "substrate_material": "substrate_material",
-    "max_temperature_C": "max_temperature_C",
-    "ramp_rate_C_min": "ramp_rate_C_min",
+    "max_temperature_setpoint_C": "max_temperature_setpoint_C",
+    "max_temperature_measured_C": "max_temperature_measured_C",
+    "ramp_rate_setpoint_C_min": "ramp_rate_setpoint_C_min",
+    "ramp_rate_measured_C_min": "ramp_rate_measured_C_min",
     "growth_duration_s": "growth_duration_s",
-    "pressure_min_Pa": "pressure_min_Pa",
-    "pressure_max_Pa": "pressure_max_Pa",
+    "pressure_setpoint_min_Pa": "pressure_setpoint_min_Pa",
+    "pressure_setpoint_max_Pa": "pressure_setpoint_max_Pa",
+    "pressure_measured_min_Pa": "pressure_measured_min_Pa",
+    "pressure_measured_max_Pa": "pressure_measured_max_Pa",
     "gas_species": "gas_species",
     "has_process_event": "has_process_event",
     "provenance_complete": "provenance_complete",
 }
 NUMERIC_FIELDS = {
-    "max_temperature_C",
-    "ramp_rate_C_min",
+    "max_temperature_setpoint_C",
+    "max_temperature_measured_C",
+    "ramp_rate_setpoint_C_min",
+    "ramp_rate_measured_C_min",
     "growth_duration_s",
-    "pressure_min_Pa",
-    "pressure_max_Pa",
+    "pressure_setpoint_min_Pa",
+    "pressure_setpoint_max_Pa",
+    "pressure_measured_min_Pa",
+    "pressure_measured_max_Pa",
 }
 BOOLEAN_FIELDS = {"has_process_event", "provenance_complete"}
 UNITS_REGISTRY = {
-    "max_temperature_C": "℃",
-    "ramp_rate_C_min": "℃/min",
+    "max_temperature_setpoint_C": "°C",
+    "max_temperature_measured_C": "°C",
+    "ramp_rate_setpoint_C_min": "°C/min",
+    "ramp_rate_measured_C_min": "°C/min",
     "growth_duration_s": "s",
-    "pressure_min_Pa": "Pa",
-    "pressure_max_Pa": "Pa",
+    "pressure_setpoint_min_Pa": "Pa",
+    "pressure_setpoint_max_Pa": "Pa",
+    "pressure_measured_min_Pa": "Pa",
+    "pressure_measured_max_Pa": "Pa",
 }
 
 
@@ -153,7 +164,7 @@ class DatasetQueryService:
             if has_more and rows
             else None
         )
-        manifest = self._manifest(payload)
+        manifest = self._manifest(payload, revision_ids)
         return DatasetQueryResponse(
             items=items,
             next_cursor=next_cursor,
@@ -161,6 +172,7 @@ class DatasetQueryService:
         )
 
     def _filter_clause(self, item: DatasetFilter) -> Any:
+        comparison_operator = "eq" if item.operator == "ne" else item.operator
         if item.field == "property":
             if not item.property_code:
                 raise HTTPException(
@@ -169,10 +181,10 @@ class DatasetQueryService:
                 )
             value_clause = self._comparison(
                 PropertyValue.numeric_value,
-                item.operator,
+                comparison_operator,
                 item.value,
             )
-            return exists(
+            matched = exists(
                 select(PropertyValue.id)
                 .join(
                     CharacterizationRecord,
@@ -182,30 +194,28 @@ class DatasetQueryService:
                 .where(
                     Sample.experiment_run_id == RunRevision.experiment_run_id,
                     CharacterizationRecord.run_revision_id == RunRevision.id,
+                    CharacterizationRecord.quality_flag == "valid",
                     PropertyValue.property_code == item.property_code,
+                    PropertyValue.quality_flag == "valid",
                     value_clause,
                 )
             )
+            return ~matched if item.operator == "ne" else matched
         if item.field == "growth_presence":
-            return exists(
-                select(MaterialAssertion.id)
-                .join(
-                    CharacterizationRecord,
-                    CharacterizationRecord.id == MaterialAssertion.measurement_run_id,
-                )
-                .join(Sample, Sample.id == MaterialAssertion.sample_id)
-                .where(
+            states = {
+                "present": ["growth_present", "asserted"],
+                "absent": ["no_growth"],
+                "uncertain": ["uncertain"],
+            }[str(item.value)]
+            matched = exists(
+                select(Sample.id).where(
                     Sample.experiment_run_id == RunRevision.experiment_run_id,
-                    CharacterizationRecord.run_revision_id == RunRevision.id,
-                    MaterialAssertion.assertion_type == "growth_presence",
-                    MaterialAssertion.validity == "active",
-                    self._comparison(
-                        MaterialAssertion.value_json["state"].as_string(),
-                        item.operator,
-                        item.value,
-                    ),
+                    Sample.run_revision_id == RunRevision.id,
+                    Sample.deleted_at.is_(None),
+                    Sample.actual_state.in_(states),
                 )
             )
+            return ~matched if item.operator == "ne" else matched
         feature_code = FEATURE_FIELDS[item.field]
         column = (
             RunFeature.numeric_value
@@ -214,13 +224,14 @@ class DatasetQueryService:
             if item.field in BOOLEAN_FIELDS
             else RunFeature.text_value
         )
-        return exists(
+        matched = exists(
             select(RunFeature.id).where(
                 RunFeature.run_revision_id == RunRevision.id,
                 RunFeature.feature_code == feature_code,
-                self._comparison(column, item.operator, item.value),
+                self._comparison(column, comparison_operator, item.value),
             )
         )
+        return ~matched if item.operator == "ne" else matched
 
     @staticmethod
     def _comparison(column: Any, operator: str, value: Any) -> Any:
@@ -251,7 +262,7 @@ class DatasetQueryService:
         )
 
     @staticmethod
-    def _manifest(payload: DatasetQuery) -> dict[str, Any]:
+    def _manifest(payload: DatasetQuery, revision_ids: list[UUID]) -> dict[str, Any]:
         meta = load_field_source()["meta"]
         query = payload.model_dump(mode="json", exclude_none=True)
         query_json = json.dumps(
@@ -266,6 +277,7 @@ class DatasetQueryService:
             "schema_version": meta["version"],
             "schema_status": meta["status"],
             "generated_at": datetime.now(UTC).isoformat(),
+            "run_revision_ids": [str(value) for value in revision_ids],
             "units_registry": UNITS_REGISTRY,
             "missing_value_states": [
                 "unknown",

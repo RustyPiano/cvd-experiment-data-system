@@ -1,7 +1,7 @@
 {
   "standard_id": "cvd-2d-process",
-  "version": "v4.0-rc.1",
-  "status": "RELEASE_CANDIDATE",
+  "version": "v4.0-alpha.2",
+  "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "fields": [
     {

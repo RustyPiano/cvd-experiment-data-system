@@ -34,6 +34,13 @@ import {
 } from '@/components/ui/table'
 
 const roleFilters = ['', 'growth', 'derived', 'control'] as const
+const actualStateLabels: Record<string, string> = {
+  unknown: '尚无实际结论',
+  growth_present: '观察到生长',
+  no_growth: '未观察到生长',
+  uncertain: '结论不确定',
+  asserted: '已确认材料结论',
+}
 
 export function SampleListPage() {
   const { t } = useTranslation()
@@ -207,7 +214,8 @@ export function SampleListPage() {
                                 : 'outline'
                             }
                           >
-                            {sample.actual_state}
+                            {actualStateLabels[sample.actual_state] ??
+                              sample.actual_state}
                           </Badge>
                           {sample.actual_material_summary ? (
                             <span>{sample.actual_material_summary}</span>

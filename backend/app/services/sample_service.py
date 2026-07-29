@@ -12,13 +12,18 @@ from sqlalchemy.orm import Session
 from app.models.experiment import ExperimentRun
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample, SampleRole
+from app.models.scientific import SampleRevisionAssociation
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.sample_repository import SampleRepository
-from app.schemas.sample import SampleCreate, SampleListResponse, SampleRead, SampleUpdate
+from app.schemas.sample import ControlSampleCreate, SampleListResponse, SampleRead, SampleUpdate
 from app.services.audit_service import AuditService
-from app.services.experiment_guards import ensure_results_editable, get_visible_experiment
+from app.services.experiment_guards import (
+    ensure_results_editable,
+    get_owned_experiment,
+    get_visible_experiment,
+)
 from app.services.v2_entity_snapshot_service import (
     MATERIAL_LOT_PROJECTED_FIELDS,
     material_lot_item_projection,
@@ -57,28 +62,17 @@ class SampleService:
     def create_sample(
         self,
         experiment_id: UUID,
-        payload: SampleCreate,
+        payload: ControlSampleCreate,
         current_user: User,
     ) -> SampleRead:
-        experiment = get_visible_experiment(self.experiments, experiment_id, current_user)
+        experiment = get_owned_experiment(self.experiments, experiment_id, current_user)
         ensure_results_editable(experiment)
-        if payload.role == SampleRole.GROWTH:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Growth samples are generated when the run is locked",
-            )
-        parent = self._validate_parent(experiment.id, payload.parent_sample_id)
-        if payload.role == SampleRole.DERIVED and parent is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Derived samples require a parent sample",
-            )
 
         sample = Sample(
             sample_code=self.next_sample_code(experiment),
             experiment_run_id=experiment.id,
-            parent_sample_id=parent.id if parent else None,
-            role=payload.role.value,
+            role=SampleRole.CONTROL.value,
+            control_subtype=payload.control_subtype,
             metadata_json=payload.metadata_json,
         )
         try:
@@ -186,6 +180,7 @@ class SampleService:
                     after_json=self._serialize_sample(sample),
                 )
                 existing.append(sample)
+                self._record_revision_association(sample, run_revision_id, snapshot)
                 continue
 
             before = self._serialize_sample(sample)
@@ -206,6 +201,7 @@ class SampleService:
                     before_json=before,
                     after_json=after,
                 )
+            self._record_revision_association(sample, run_revision_id, snapshot)
 
         for sample in stale:
             if self._has_result_evidence(sample.id):
@@ -234,17 +230,6 @@ class SampleService:
                 projected.pop(key, None)
             projected.update(material_lot_item_projection("substrates", frozen_snapshot))
         return {key: value for key, value in projected.items() if key != "source_id"}
-
-    def _validate_parent(self, experiment_id: UUID, parent_id: UUID | None) -> Sample | None:
-        if parent_id is None:
-            return None
-        parent = self.samples.get_by_id(parent_id)
-        if parent is None or parent.experiment_run_id != experiment_id:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Parent sample must belong to the same experiment",
-            )
-        return parent
 
     def next_sample_code(self, experiment: ExperimentRun) -> str:
         prefix = f"{experiment.run_code}-S"
@@ -293,9 +278,7 @@ class SampleService:
 
     def _get_editable_sample(self, sample_id: UUID, current_user: User) -> Sample:
         sample = self._get_visible_sample(sample_id, current_user)
-        experiment = get_visible_experiment(
-            self.experiments, sample.experiment_run_id, current_user
-        )
+        experiment = get_owned_experiment(self.experiments, sample.experiment_run_id, current_user)
         ensure_results_editable(experiment)
         return sample
 
@@ -317,3 +300,24 @@ class SampleService:
             "deleted_by_id": str(sample.deleted_by_id) if sample.deleted_by_id else None,
             "is_deleted": sample.deleted_at is not None,
         }
+
+    def _record_revision_association(
+        self,
+        sample: Sample,
+        run_revision_id: UUID | None,
+        source_snapshot: dict[str, Any],
+    ) -> None:
+        if run_revision_id is None:
+            return
+        self.db.add(
+            SampleRevisionAssociation(
+                sample_id=sample.id,
+                run_revision_id=run_revision_id,
+                sample_snapshot_json={
+                    "sample_code": sample.sample_code,
+                    "role": sample.role,
+                    "source_substrate_id": str(sample.source_substrate_id),
+                    "source_substrate_snapshot": source_snapshot,
+                },
+            )
+        )

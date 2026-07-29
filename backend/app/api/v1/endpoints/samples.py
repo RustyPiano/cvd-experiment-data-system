@@ -8,7 +8,7 @@ from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.sample import SampleRole
 from app.models.user import User
-from app.schemas.sample import SampleCreate, SampleListResponse, SampleRead, SampleUpdate
+from app.schemas.sample import ControlSampleCreate, SampleListResponse, SampleRead, SampleUpdate
 from app.services.sample_service import SampleService
 
 router = APIRouter(prefix="/api/v1", tags=["samples"])
@@ -39,7 +39,7 @@ def list_samples(
 )
 def create_sample(
     experiment_id: UUID,
-    payload: SampleCreate,
+    payload: ControlSampleCreate,
     db: DbSession,
     current_user: CurrentUser,
 ) -> SampleRead:

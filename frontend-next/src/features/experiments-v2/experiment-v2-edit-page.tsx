@@ -213,7 +213,12 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
       toast.error(resolveErrorMessage(reviewError, '审阅失败')),
   })
   const exportMutation = useMutation({
-    mutationFn: () => downloadRunExport(runId, token),
+    mutationFn: () => {
+      if (!data?.run.current_revision_id) {
+        throw new Error('当前炉次还没有可导出的不可变修订')
+      }
+      return downloadRunExport(runId, data.run.current_revision_id, token)
+    },
     onSuccess: ({ blob, filename }) => {
       triggerBlobDownload(
         blob,
@@ -308,7 +313,7 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                 )}
               </Button>
             ) : null}
-            {data?.run.status === 'locked' ? (
+            {data?.run.status === 'locked' && isAdmin ? (
               <Button
                 type="button"
                 variant="outline"
@@ -321,7 +326,11 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
             <Button
               type="button"
               variant="outline"
-              disabled={!data || exportMutation.isPending || formDirty}
+              disabled={
+                !data?.run.current_revision_id ||
+                exportMutation.isPending ||
+                formDirty
+              }
               onClick={() => exportMutation.mutate()}
             >
               <Download data-icon="inline-start" />
@@ -421,9 +430,17 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">
-                        Revision {revision.revision_number}
+                        修订 {revision.revision_number}
                       </span>
-                      <Badge variant="outline">{revision.status}</Badge>
+                      <Badge variant="outline">
+                        {
+                          {
+                            locked: '已锁定',
+                            reviewed: '已审阅',
+                            superseded: '已被替代',
+                          }[revision.status]
+                        }
+                      </Badge>
                     </div>
                     <span className="text-muted-foreground">
                       {revision.schema_version} ·{' '}

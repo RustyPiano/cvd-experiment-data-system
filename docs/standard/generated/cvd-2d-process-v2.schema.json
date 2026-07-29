@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-rc.1",
-  "status": "RELEASE_CANDIDATE",
+  "version": "v4.0-alpha.2",
+  "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
   "scientific_contract": {
@@ -15,10 +15,30 @@
     "run_revision": {
       "immutable": true,
       "correction": "new revision with supersedes_revision_id and correction_reason",
+      "sample_provenance": "append-only SampleRevisionAssociation snapshot per locked revision",
       "contributors": [
         "performed_by",
         "recorded_by",
         "reviewed_by"
+      ]
+    },
+    "ambient_measurements": {
+      "fields": [
+        "value",
+        "measured_at",
+        "source_type",
+        "sensor_ref"
+      ],
+      "source_types": [
+        "room_sensor",
+        "setup_sensor",
+        "manual_estimate",
+        "not_measured"
+      ],
+      "not_measured": "store an explicit source_type without value, time, or sensor",
+      "sensor_ref_required_for": [
+        "room_sensor",
+        "setup_sensor"
       ]
     },
     "target_spec": {
@@ -38,8 +58,18 @@
     "source_load": {
       "identity": "physical loading instance",
       "ingredients": "one or more MaterialLot version references",
+      "preparation_step_types": [
+        "direct_load",
+        "grind",
+        "mix",
+        "pelletize",
+        "spin_coat",
+        "pre_anneal",
+        "other"
+      ],
       "owns": [
         "container_instance",
+        "container_snapshot_at_lock",
         "preparation_steps",
         "position_program",
         "heating_channel"
@@ -58,7 +88,49 @@
         "shutter_state"
       ]
     },
-    "result_chain": "Sample → MeasurementRun → AnalysisRun → PropertyValue / MaterialAssertion",
+    "process_event": {
+      "observed_deviations": [
+        "line_blockage",
+        "pressure_excursion",
+        "signal_anomaly",
+        "manual_intervention",
+        "equipment_alarm",
+        "manual_stop",
+        "power_interruption",
+        "water_interruption",
+        "gas_interruption",
+        "plan_changed"
+      ],
+      "intervention_actions": [
+        "adjust_flow",
+        "adjust_pressure",
+        "adjust_temperature",
+        "restart_supply",
+        "inspect_equipment",
+        "stop_run",
+        "other"
+      ],
+      "affected_objects": [
+        "source_load",
+        "gas_line",
+        "furnace",
+        "substrate",
+        "sample",
+        "process_channel",
+        "instrument",
+        "other"
+      ],
+      "suspected_causes": [
+        "line_blockage",
+        "equipment_fault",
+        "utility_interruption",
+        "operator_action",
+        "process_instability",
+        "unknown",
+        "other"
+      ]
+    },
+    "result_chain": "Sample → MeasurementRun (instrument + calibration-at-measurement snapshot) → AnalysisRun → PropertyValue / MaterialAssertion",
     "sample_actual_states": [
       "unknown",
       "growth_present",
@@ -85,19 +157,36 @@
           "additionalProperties": false,
           "properties": {
             "value": {
-              "title": "Value",
-              "type": "number"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Value"
             },
             "measured_at": {
-              "format": "date-time",
-              "title": "Measured At",
-              "type": "string"
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Measured At"
             },
             "source_type": {
               "enum": [
                 "room_sensor",
                 "setup_sensor",
-                "manual_estimate"
+                "manual_estimate",
+                "not_measured"
               ],
               "title": "Source Type",
               "type": "string"
@@ -117,8 +206,6 @@
             }
           },
           "required": [
-            "value",
-            "measured_at",
             "source_type"
           ],
           "title": "AmbientMeasurement",
@@ -202,26 +289,10 @@
           "type": "string"
         },
         "ambient_temperature": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AmbientMeasurement"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/AmbientMeasurement"
         },
         "ambient_humidity": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AmbientMeasurement"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/AmbientMeasurement"
         },
         "precheck": {
           "$ref": "#/$defs/PrecheckRecord"
@@ -238,7 +309,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-rc.1/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -521,7 +592,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-rc.1/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/target_product.schema.json"
     },
     "equipment": {
       "$defs": {
@@ -969,7 +1040,7 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-rc.1/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/equipment.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -977,8 +1048,15 @@
           "additionalProperties": false,
           "properties": {
             "step_type": {
-              "maxLength": 64,
-              "minLength": 1,
+              "enum": [
+                "direct_load",
+                "grind",
+                "mix",
+                "pelletize",
+                "spin_coat",
+                "pre_anneal",
+                "other"
+              ],
               "title": "Step Type",
               "type": "string"
             },
@@ -1306,7 +1384,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-rc.1/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/precursors.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -1972,7 +2050,7 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-rc.1/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/substrates.schema.json"
     },
     "process_steps": {
       "$defs": {
@@ -2233,7 +2311,7 @@
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-rc.1/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -2267,6 +2345,16 @@
             },
             "affected_objects": {
               "items": {
+                "enum": [
+                  "source_load",
+                  "gas_line",
+                  "furnace",
+                  "substrate",
+                  "sample",
+                  "process_channel",
+                  "instrument",
+                  "other"
+                ],
                 "type": "string"
               },
               "title": "Affected Objects",
@@ -2274,6 +2362,18 @@
             },
             "observed_deviations": {
               "items": {
+                "enum": [
+                  "line_blockage",
+                  "pressure_excursion",
+                  "signal_anomaly",
+                  "manual_intervention",
+                  "equipment_alarm",
+                  "manual_stop",
+                  "power_interruption",
+                  "water_interruption",
+                  "gas_interruption",
+                  "plan_changed"
+                ],
                 "type": "string"
               },
               "minItems": 1,
@@ -2282,6 +2382,15 @@
             },
             "suspected_causes": {
               "items": {
+                "enum": [
+                  "line_blockage",
+                  "equipment_fault",
+                  "utility_interruption",
+                  "operator_action",
+                  "process_instability",
+                  "unknown",
+                  "other"
+                ],
                 "type": "string"
               },
               "title": "Suspected Causes",
@@ -2289,6 +2398,15 @@
             },
             "intervention_actions": {
               "items": {
+                "enum": [
+                  "adjust_flow",
+                  "adjust_pressure",
+                  "adjust_temperature",
+                  "restart_supply",
+                  "inspect_equipment",
+                  "stop_run",
+                  "other"
+                ],
                 "type": "string"
               },
               "title": "Intervention Actions",
@@ -2401,7 +2519,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-rc.1/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/process_events.schema.json"
     }
   },
   "entities": {
@@ -4474,6 +4592,19 @@
           "title": "Input Sample Ids",
           "type": "array"
         },
+        "output_experiment_run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Experiment Run Id"
+        },
         "outputs": {
           "items": {
             "$ref": "#/$defs/TransformationOutputSpec"
@@ -4545,11 +4676,15 @@
                 "setup_id",
                 "material_lot_id",
                 "substrate_material",
-                "max_temperature_C",
-                "ramp_rate_C_min",
+                "max_temperature_setpoint_C",
+                "max_temperature_measured_C",
+                "ramp_rate_setpoint_C_min",
+                "ramp_rate_measured_C_min",
                 "growth_duration_s",
-                "pressure_min_Pa",
-                "pressure_max_Pa",
+                "pressure_setpoint_min_Pa",
+                "pressure_setpoint_max_Pa",
+                "pressure_measured_min_Pa",
+                "pressure_measured_max_Pa",
                 "gas_species",
                 "has_process_event",
                 "growth_presence",

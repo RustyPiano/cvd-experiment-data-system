@@ -17,19 +17,6 @@ export type TubeUsageHistoryPayload = Schemas['TubeUsageHistoryPayload']
 // §7 表征 + 实测产物（走各自端点，非模块 payload；均以样品为关联主键）。
 export type SampleRead = Schemas['SampleRead']
 export type SampleListResponse = Schemas['SampleListResponse']
-export type SampleCreate = Schemas['SampleCreate']
-export type CharacterizationRecordCreate =
-  Schemas['CharacterizationRecordCreate']
-export type CharacterizationRecordRead = Schemas['CharacterizationRecordRead']
-export type CharacterizationRecordUpdate =
-  Schemas['CharacterizationRecordUpdate']
-export type CharacterizationRecordListResponse =
-  Schemas['CharacterizationRecordListResponse']
-export type MeasuredProductCreate = Schemas['MeasuredProductCreate']
-export type MeasuredProductRead = Schemas['MeasuredProductRead']
-export type MeasuredProductUpdate = Schemas['MeasuredProductUpdate']
-export type MeasuredProductListResponse = Schemas['MeasuredProductListResponse']
-export type V2ResultWrite = Schemas['V2ResultWrite']
 export type V2ResultRead = Schemas['V2ResultRead']
 export type V2ResultListResponse = Schemas['V2ResultListResponse']
 
@@ -111,9 +98,19 @@ export type ContainerInstance = {
   container_code: string
   status: string
 }
+export type Contributor = {
+  id: string
+  name: string
+  email: string
+  role: string
+}
 
 const BASE = '/api/v1/experiments'
 const V2 = '/api/v1'
+
+export function listContributors(token: string) {
+  return apiRequest<Contributor[]>(`${V2}/contributors`, { token })
+}
 
 export function createRun(payload: V2ExperimentCreate, token: string) {
   return apiRequest<V2ExperimentRead>(BASE, {
@@ -162,8 +159,15 @@ export function listRunAuditEvents(runId: string, token: string) {
   )
 }
 
-export function downloadRunExport(runId: string, token: string) {
-  return apiDownload(`${BASE}/${runId}/export`, { token })
+export function downloadRunExport(
+  runId: string,
+  revisionId: string,
+  token: string,
+) {
+  return apiDownload(
+    `${BASE}/${runId}/export?revision_id=${encodeURIComponent(revisionId)}`,
+    { token },
+  )
 }
 
 export function downloadRunsExport(filters: RunFilters, token: string) {
@@ -250,7 +254,7 @@ export function createTransformation(
 ) {
   return apiRequest<{
     id: string
-    run_revision_id: string
+    output_experiment_run_id: string
     transformation_type: string
     input_sample_ids: string[]
     output_sample_ids: string[]
@@ -359,130 +363,9 @@ export function listSamples(runId: string, token: string) {
   )
 }
 
-export function createSample(
-  runId: string,
-  payload: SampleCreate,
-  token: string,
-) {
-  return apiRequest<SampleRead>(`/api/v1/experiments/${runId}/samples`, {
-    method: 'POST',
-    body: payload,
-    token,
-  })
-}
-
-// ── 样品结果：用户层统一契约，底层仍由表征记录 + 实测产物组成 ──
+// 历史结果只读；v4 写入统一走 MeasurementRun。
 export function listResults(sampleId: string, token: string) {
   return apiRequest<V2ResultListResponse>(`${V2}/samples/${sampleId}/results`, {
     token,
   })
-}
-
-export function createResult(
-  sampleId: string,
-  payload: V2ResultWrite,
-  token: string,
-) {
-  return apiRequest<V2ResultRead>(`${V2}/samples/${sampleId}/results`, {
-    method: 'POST',
-    body: payload,
-    token,
-  })
-}
-
-export function updateResult(
-  resultId: string,
-  payload: V2ResultWrite,
-  token: string,
-) {
-  return apiRequest<V2ResultRead>(`${V2}/results/${resultId}`, {
-    method: 'PUT',
-    body: payload,
-    token,
-  })
-}
-
-export function deleteResult(resultId: string, token: string) {
-  return apiRequest<void>(`${V2}/results/${resultId}`, {
-    method: 'DELETE',
-    token,
-  })
-}
-
-// ── §7 表征记录（走 characterization-records 端点，FK→样品） ──
-export function listCharacterizationRecords(runId: string, token: string) {
-  return apiRequest<CharacterizationRecordListResponse>(
-    `${BASE}/${runId}/characterization-records`,
-    { token },
-  )
-}
-
-export function createCharacterizationRecord(
-  runId: string,
-  payload: CharacterizationRecordCreate,
-  token: string,
-) {
-  return apiRequest<CharacterizationRecordRead>(
-    `${BASE}/${runId}/characterization-records`,
-    { method: 'POST', body: payload, token },
-  )
-}
-
-export function deleteCharacterizationRecord(recordId: string, token: string) {
-  return apiRequest<void>(`${V2}/characterization-records/${recordId}`, {
-    method: 'DELETE',
-    token,
-  })
-}
-
-export function updateCharacterizationRecord(
-  recordId: string,
-  payload: CharacterizationRecordUpdate,
-  token: string,
-) {
-  return apiRequest<CharacterizationRecordRead>(
-    `${V2}/characterization-records/${recordId}`,
-    { method: 'PATCH', body: payload, token },
-  )
-}
-
-// ── §7 实测产物（走 measured-products 端点，FK→样品） ──
-export function listMeasuredProducts(sampleId: string, token: string) {
-  return apiRequest<MeasuredProductListResponse>(
-    `${V2}/samples/${sampleId}/measured-products`,
-    { token },
-  )
-}
-
-export function createMeasuredProduct(
-  sampleId: string,
-  payload: MeasuredProductCreate,
-  token: string,
-) {
-  return apiRequest<MeasuredProductRead>(
-    `${V2}/samples/${sampleId}/measured-products`,
-    { method: 'POST', body: payload, token },
-  )
-}
-
-export function deleteMeasuredProduct(productId: string, token: string) {
-  return apiRequest<void>(`${V2}/measured-products/${productId}`, {
-    method: 'DELETE',
-    token,
-  })
-}
-
-export function updateMeasuredProduct(
-  productId: string,
-  payload: MeasuredProductUpdate,
-  token: string,
-) {
-  return apiRequest<MeasuredProductRead>(
-    `${V2}/measured-products/${productId}`,
-    {
-      method: 'PATCH',
-      body: payload,
-      token,
-    },
-  )
 }

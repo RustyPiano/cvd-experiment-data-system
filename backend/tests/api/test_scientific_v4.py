@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.scientific import RunRevision
+from app.models.scientific import RunRevision, SampleRevisionAssociation, SourceLoad
 from tests.helpers.v2_payloads import setup_payload, substrate_item, substrate_lot_payload
 
 client = TestClient(app)
@@ -48,8 +48,17 @@ def test_scientific_revision_measurement_and_query_chain(
             "started_at": "2026-07-28T09:00:00+08:00",
             "synthesis_method": "CVD",
             "chemical_formula": "MoS2",
-            "ambient_temperature_C": 25,
-            "ambient_humidity_percent": 45,
+            "ambient_temperature": {
+                "value": 25,
+                "measured_at": "2026-07-28T08:55:00+08:00",
+                "source_type": "room_sensor",
+                "sensor_ref": "room-sensor-01",
+            },
+            "ambient_humidity": {
+                "value": 45,
+                "measured_at": "2026-07-28T08:55:00+08:00",
+                "source_type": "manual_estimate",
+            },
             "precheck_confirmed": True,
         },
         headers=headers,
@@ -91,6 +100,21 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert source_response.status_code == 201, source_response.text
     source_lot = source_response.json()
+    container_response = client.post(
+        "/api/v1/container-instances",
+        json={
+            "material_lot_id": source_lot["id"],
+            "container_code": "MO-V4-01-BOTTLE",
+            "container_type": "bottle",
+            "opened_date": "2026-07-01",
+            "remaining_amount": 40,
+            "remaining_unit": "g",
+            "storage_history": [{"location": "desiccator_A"}],
+        },
+        headers=admin_headers,
+    )
+    assert container_response.status_code == 201, container_response.text
+    container = container_response.json()
 
     substrate_response = client.post(
         "/api/v1/material-lots",
@@ -128,6 +152,7 @@ def test_scientific_revision_measurement_and_query_chain(
             "items": [
                 {
                     "load_key": "metal_source",
+                    "container_instance_id": container["id"],
                     "loading_method": "boat",
                     "initial_position": {
                         "axial_mm": 0,
@@ -171,17 +196,17 @@ def test_scientific_revision_measurement_and_query_chain(
                     "channel_key": "temperature.zone_1",
                     "channel_type": "temperature",
                     "source_type": "setpoint",
-                    "unit": "℃",
+                    "unit": "K",
                     "data_kind": "interval_series",
-                    "series": [{"start_s": 0, "end_s": 1800, "value": 750}],
+                    "series": [{"start_s": 0, "end_s": 1800, "value": 1023}],
                 },
                 {
                     "channel_key": "pressure",
                     "channel_type": "pressure",
                     "source_type": "measured",
-                    "unit": "Pa",
+                    "unit": "Torr",
                     "data_kind": "scalar",
-                    "scalar_value": 101325,
+                    "scalar_value": 760,
                 },
                 {
                     "channel_key": "flow.ar",
@@ -200,6 +225,9 @@ def test_scientific_revision_measurement_and_query_chain(
     assert locked.status_code == 200, locked.text
     revision_1 = locked.json()["current_revision_id"]
     assert locked.json()["status"] == "locked"
+    projected_load = db_session.query(SourceLoad).filter_by(load_key="metal_source").one()
+    assert projected_load.container_state_at_loading == "available"
+    assert projected_load.container_snapshot_json["remaining_amount"] == 40
 
     samples = client.get(
         f"/api/v1/samples?experiment_id={run_id}",
@@ -280,15 +308,70 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert dataset.status_code == 200, dataset.text
     assert [item["run_id"] for item in dataset.json()["items"]] == [run_id]
-    assert dataset.json()["query_manifest"]["schema_status"] == "RELEASE_CANDIDATE"
+    assert dataset.json()["items"][0]["features"]["max_temperature_setpoint_C"] == (
+        pytest.approx(749.85)
+    )
+    assert dataset.json()["items"][0]["features"]["pressure_measured_max_Pa"] == (
+        pytest.approx(101_325)
+    )
+    assert dataset.json()["query_manifest"]["schema_status"] == "INTERNAL_VALIDATION"
+    assert dataset.json()["query_manifest"]["run_revision_ids"] == [revision_1]
+    not_equal_existing = client.post(
+        "/api/v1/datasets/query",
+        json={
+            "filters": [
+                {
+                    "field": "property",
+                    "property_code": "coverage_percent",
+                    "operator": "ne",
+                    "value": 0,
+                }
+            ]
+        },
+        headers=headers,
+    )
+    assert not_equal_existing.json()["items"] == []
+    not_equal_missing = client.post(
+        "/api/v1/datasets/query",
+        json={
+            "filters": [
+                {
+                    "field": "property",
+                    "property_code": "coverage_percent",
+                    "operator": "ne",
+                    "value": 1,
+                }
+            ]
+        },
+        headers=headers,
+    )
+    assert [item["run_id"] for item in not_equal_missing.json()["items"]] == [run_id]
 
-    exported = client.get(f"/api/v1/experiments/{run_id}/export", headers=headers)
+    exported = client.get(
+        f"/api/v1/experiments/{run_id}/export?revision_id={revision_1}",
+        headers=headers,
+    )
     assert exported.status_code == 200, exported.text
     export_json = exported.json()
-    assert export_json["run"]["target_material_system"] == "MoS2"
-    assert export_json["samples"][0]["actual_state"] == "no_growth"
-    assert export_json["samples"][0]["actual_material_summary"] is None
+    assert export_json["export_kind"] == "immutable_run_revision"
+    assert export_json["citation_status"] == "CITABLE"
+    assert export_json["run"]["revision_id"] == revision_1
+    assert export_json["modules"]["target_product"]["material_regions"][0]["formula"] == "MoS2"
+    assert export_json["modules"]["basic_info"]["ambient_temperature"]["source_type"] == (
+        "room_sensor"
+    )
+    assert export_json["modules"]["basic_info"]["ambient_humidity"]["source_type"] == (
+        "manual_estimate"
+    )
+    assert "samples" not in export_json
     assert export_json["scientific_record"]["revisions"][0]["content_sha256"]
+    assert export_json["scientific_record"]["source_loads"][0]["container_snapshot"][
+        "container_code"
+    ] == ("MO-V4-01-BOTTLE")
+    assert (
+        export_json["scientific_record"]["sample_revision_associations"][0]["run_revision_id"]
+        == revision_1
+    )
     assert export_json["scientific_record"]["measurements"][0]["properties"][0] == {
         "id": export_json["scientific_record"]["measurements"][0]["properties"][0]["id"],
         "analysis_run_id": None,
@@ -381,7 +464,7 @@ def test_scientific_revision_measurement_and_query_chain(
     review = client.post(
         f"/api/v1/experiments/{run_id}/review",
         json={"note": "scientific review complete"},
-        headers=headers,
+        headers=admin_headers,
     )
     assert review.status_code == 200, review.text
     assert review.json()["status"] == "reviewed"
@@ -404,6 +487,13 @@ def test_scientific_revision_measurement_and_query_chain(
     assert relocked.status_code == 200, relocked.text
     revision_2 = relocked.json()["current_revision_id"]
     assert revision_2 != revision_1
+    associations = (
+        db_session.query(SampleRevisionAssociation).filter_by(sample_id=UUID(sample["id"])).all()
+    )
+    assert {str(item.run_revision_id) for item in associations} == {
+        revision_1,
+        revision_2,
+    }
     revisions = client.get(
         f"/api/v1/experiments/{run_id}/revisions",
         headers=headers,

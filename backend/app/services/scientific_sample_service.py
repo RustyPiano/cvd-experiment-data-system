@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.experiment import ExperimentRun
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.sample import Sample, SampleRole
 from app.models.scientific import (
     TransformationInput,
@@ -38,10 +39,13 @@ class ScientificSampleService:
     ) -> TransformationRunRead:
         inputs = list(
             self.db.scalars(
-                select(Sample).where(
+                select(Sample)
+                .where(
                     Sample.id.in_(payload.input_sample_ids),
                     Sample.deleted_at.is_(None),
                 )
+                .order_by(Sample.id)
+                .with_for_update()
             )
         )
         if {item.id for item in inputs} != set(payload.input_sample_ids):
@@ -49,6 +53,13 @@ class ScientificSampleService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="An input sample is missing or inactive",
             )
+        if any(item.lifecycle_state != "active" for item in inputs):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Every input sample must be active",
+            )
+        by_id = {item.id: item for item in inputs}
+        inputs = [by_id[item_id] for item_id in payload.input_sample_ids]
         runs = {
             run.id: run
             for run in self.db.scalars(
@@ -57,22 +68,32 @@ class ScientificSampleService:
                 )
             )
         }
-        if actor.role != UserRole.ADMIN and any(
-            run.owner_id != actor.id and run.status.value not in {"locked", "reviewed"}
+        if actor.role != UserRole.ADMIN and any(run.owner_id != actor.id for run in runs.values()):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        if any(
+            run.status not in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
             for run in runs.values()
         ):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-        run_revision_ids = {item.run_revision_id for item in inputs}
-        if None in run_revision_ids:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Every input sample must belong to an immutable run revision",
+                detail="Every input run must be locked or reviewed",
             )
-        context_revision_id = inputs[0].run_revision_id
-        if context_revision_id is None:
-            raise RuntimeError("missing transformation revision")
+        if payload.output_experiment_run_id is None:
+            if len(runs) != 1:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Cross-run transformations require output_experiment_run_id",
+                )
+            output_run = next(iter(runs.values()))
+        else:
+            output_run = runs.get(payload.output_experiment_run_id)
+            if output_run is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Output run must be one of the input sample runs",
+                )
         transformation = TransformationRun(
-            run_revision_id=context_revision_id,
+            output_experiment_run_id=output_run.id,
             transformation_type=payload.transformation_type,
             operator_id=actor.id,
             occurred_at=payload.occurred_at,
@@ -87,18 +108,30 @@ class ScientificSampleService:
                 TransformationInput(
                     transformation_run_id=transformation.id,
                     sample_id=sample.id,
+                    run_revision_id=sample.run_revision_id,
+                    provenance_json={
+                        "sample_id": str(sample.id),
+                        "sample_code": sample.sample_code,
+                        "experiment_run_id": str(sample.experiment_run_id),
+                        "run_revision_id": (
+                            str(sample.run_revision_id) if sample.run_revision_id else None
+                        ),
+                        "role": sample.role,
+                        "actual_state": sample.actual_state,
+                        "lifecycle_state": sample.lifecycle_state,
+                        "captured_at": datetime.now(UTC).isoformat(),
+                    },
                 )
             )
             if payload.consume_inputs:
                 sample.lifecycle_state = "consumed"
 
-        primary_run = runs[inputs[0].experiment_run_id]
         outputs: list[Sample] = []
         for output in payload.outputs:
             sample = Sample(
-                sample_code=self.samples.next_sample_code(primary_run),
-                experiment_run_id=primary_run.id,
-                run_revision_id=context_revision_id,
+                sample_code=self.samples.next_sample_code(output_run),
+                experiment_run_id=output_run.id,
+                run_revision_id=None,
                 role=SampleRole.DERIVED.value,
                 parent_sample_id=inputs[0].id if len(inputs) == 1 else None,
                 actual_state="unknown",
@@ -135,7 +168,7 @@ class ScientificSampleService:
         self.db.commit()
         return TransformationRunRead(
             id=transformation.id,
-            run_revision_id=context_revision_id,
+            output_experiment_run_id=output_run.id,
             transformation_type=transformation.transformation_type,
             operator_id=actor.id,
             occurred_at=transformation.occurred_at,
@@ -144,31 +177,57 @@ class ScientificSampleService:
         )
 
     def lineage(self, sample_id: UUID, actor: User) -> SampleLineageRead:
-        visible = self.samples.get_sample(sample_id, actor)
+        self.samples.get_sample(sample_id, actor)
+        sample_ids = {sample_id}
+        transformation_ids: set[UUID] = set()
+        frontier = {sample_id}
+        # ponytail: breadth-first queries are enough for lab-scale graphs; use a recursive
+        # CTE if lineage depth or query counts become measurable.
+        while frontier:
+            found = set(
+                self.db.scalars(
+                    select(TransformationInput.transformation_run_id).where(
+                        TransformationInput.sample_id.in_(frontier)
+                    )
+                )
+            ) | set(
+                self.db.scalars(
+                    select(TransformationOutput.transformation_run_id).where(
+                        TransformationOutput.sample_id.in_(frontier)
+                    )
+                )
+            )
+            found -= transformation_ids
+            if not found:
+                break
+            transformation_ids.update(found)
+            connected = set(
+                self.db.scalars(
+                    select(TransformationInput.sample_id).where(
+                        TransformationInput.transformation_run_id.in_(found)
+                    )
+                )
+            ) | set(
+                self.db.scalars(
+                    select(TransformationOutput.sample_id).where(
+                        TransformationOutput.transformation_run_id.in_(found)
+                    )
+                )
+            )
+            frontier = connected - sample_ids
+            sample_ids.update(connected)
         samples = list(
             self.db.scalars(
                 select(Sample)
-                .where(
-                    Sample.experiment_run_id == visible.experiment_run_id,
-                    Sample.deleted_at.is_(None),
-                )
+                .where(Sample.id.in_(sample_ids), Sample.deleted_at.is_(None))
                 .order_by(Sample.sample_code)
             )
         )
-        sample_ids = [item.id for item in samples]
-        transformation_ids = set(
-            self.db.scalars(
-                select(TransformationInput.transformation_run_id).where(
-                    TransformationInput.sample_id.in_(sample_ids)
-                )
+        for run_id in {item.experiment_run_id for item in samples}:
+            self.samples.get_sample(
+                next(item.id for item in samples if item.experiment_run_id == run_id),
+                actor,
             )
-        ) | set(
-            self.db.scalars(
-                select(TransformationOutput.transformation_run_id).where(
-                    TransformationOutput.sample_id.in_(sample_ids)
-                )
-            )
-        )
         transformations = (
             list(
                 self.db.scalars(

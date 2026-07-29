@@ -12,9 +12,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from app.models.experiment import ExperimentRun
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample
+from app.models.scientific import RunRevision
 from app.models.v2_entities import MaterialLotVersion
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.schemas.generated.v2_module_payload import MaterialLotVersionPayload
@@ -24,7 +25,7 @@ from app.services.v2_reporting_service import V2ReportingService
 from tests.helpers.v2_payloads import chemical_lot_payload
 
 
-def test_postgres_search_indexes_and_version_triggers(db_session) -> None:
+def test_postgres_search_indexes_and_version_triggers(db_session, active_user) -> None:
     if db_session.bind.dialect.name != "postgresql":
         pytest.skip("PostgreSQL smoke only")
 
@@ -52,7 +53,38 @@ def test_postgres_search_indexes_and_version_triggers(db_session) -> None:
         "trg_material_lot_versions_immutable",
         "trg_setup_versions_immutable",
         "trg_instrument_versions_immutable",
+        "trg_run_revisions_immutable",
     } <= triggers
+
+    run = ExperimentRun(
+        run_code="CVD-2026-9699",
+        owner_id=active_user.id,
+        schema_version=SCHEMA_VERSION,
+        material_system="MoS2",
+        experiment_date=date(2026, 7, 24),
+        status=ExperimentStatus.LOCKED,
+    )
+    db_session.add(run)
+    db_session.flush()
+    revision_row = RunRevision(
+        experiment_run_id=run.id,
+        revision_number=1,
+        schema_version=SCHEMA_VERSION,
+        schema_status="INTERNAL_VALIDATION",
+        status="locked",
+        content_json={"run": {"id": str(run.id)}, "modules": {}},
+        content_sha256="a" * 64,
+        locked_by_id=active_user.id,
+    )
+    db_session.add(revision_row)
+    db_session.commit()
+    with pytest.raises(DBAPIError):
+        db_session.execute(
+            text("UPDATE run_revisions SET content_sha256 = :hash WHERE id = :id"),
+            {"hash": "f" * 64, "id": revision_row.id},
+        )
+        db_session.commit()
+    db_session.rollback()
 
     entity_id = uuid4()
     version_id = uuid4()
@@ -104,8 +136,23 @@ def test_postgres_batch_export_uses_one_repeatable_read_snapshot(
         schema_version=SCHEMA_VERSION,
         material_system="MoS2",
         experiment_date=date(2026, 7, 24),
+        status=ExperimentStatus.LOCKED,
     )
     db_session.add(run)
+    db_session.flush()
+    batch_revision = RunRevision(
+        experiment_run_id=run.id,
+        revision_number=1,
+        schema_version=SCHEMA_VERSION,
+        schema_status="INTERNAL_VALIDATION",
+        status="locked",
+        content_json={"run": {"id": str(run.id)}, "modules": {}},
+        content_sha256="b" * 64,
+        locked_by_id=active_user.id,
+    )
+    db_session.add(batch_revision)
+    db_session.flush()
+    run.current_revision_id = batch_revision.id
     db_session.commit()
     run_id = run.id
 
@@ -151,6 +198,7 @@ def test_postgres_single_export_uses_one_repeatable_read_snapshot(
         schema_version=SCHEMA_VERSION,
         material_system="MoS2",
         experiment_date=date(2026, 7, 24),
+        status=ExperimentStatus.LOCKED,
     )
     db_session.add(run)
     db_session.flush()
@@ -160,13 +208,27 @@ def test_postgres_single_export_uses_one_repeatable_read_snapshot(
         role="control",
     )
     db_session.add(sample)
+    revision = RunRevision(
+        experiment_run_id=run.id,
+        revision_number=1,
+        schema_version=SCHEMA_VERSION,
+        schema_status="INTERNAL_VALIDATION",
+        status="locked",
+        content_json={"run": {"id": str(run.id)}, "modules": {}},
+        content_sha256="c" * 64,
+        locked_by_id=active_user.id,
+    )
+    db_session.add(revision)
+    db_session.flush()
+    run.current_revision_id = revision.id
+    sample.run_revision_id = revision.id
     db_session.commit()
     run_id = run.id
     sample_id = sample.id
 
     class ConcurrentInsertReportingService(V2ReportingService):
-        def _records(self, export_run_id):
-            records = super()._records(export_run_id)
+        def _records(self, export_run_id, revision_id=None):
+            records = super()._records(export_run_id, revision_id)
             with Session(bind=self.db.get_bind()) as writer:
                 record = CharacterizationRecord(
                     experiment_run_id=run_id,
@@ -187,10 +249,11 @@ def test_postgres_single_export_uses_one_repeatable_read_snapshot(
 
     content, _ = ConcurrentInsertReportingService(db_session).export_run_json(
         run_id,
+        revision.id,
         active_user,
     )
 
-    assert b'"results": []' in content
+    assert b'"measurements": []' in content
     with Session(bind=db_session.get_bind()) as verifier:
         assert verifier.query(CharacterizationRecord).filter_by(sample_id=sample_id).count() == 1
         assert verifier.query(MeasuredProduct).filter_by(sample_id=sample_id).count() == 1

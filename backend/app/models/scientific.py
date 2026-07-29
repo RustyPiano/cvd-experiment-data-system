@@ -90,6 +90,40 @@ class RunRevision(Base):
     )
 
 
+class SampleRevisionAssociation(Base):
+    __tablename__ = "sample_revision_associations"
+    __table_args__ = (
+        UniqueConstraint(
+            "sample_id",
+            "run_revision_id",
+            name="uq_sample_revision_associations_sample_revision",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sample_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("samples.id"),
+        nullable=False,
+        index=True,
+    )
+    run_revision_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("run_revisions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sample_snapshot_json: Mapped[dict[str, Any]] = mapped_column(
+        json_payload_type,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class RunContributor(Base):
     __tablename__ = "run_contributors"
     __table_args__ = (
@@ -225,6 +259,14 @@ class SourceLoad(Base):
         nullable=True,
         index=True,
     )
+    container_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
+    container_state_at_loading: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+    )
     loading_method: Mapped[str] = mapped_column(String(64), nullable=False)
     preparation_steps: Mapped[list[dict[str, Any]]] = mapped_column(
         json_payload_type,
@@ -348,6 +390,13 @@ class ProcessChannel(Base):
         json_payload_type,
         nullable=True,
     )
+    canonical_unit: Mapped[str] = mapped_column(String(32), nullable=False)
+    canonical_scalar_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    canonical_series_json: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
+    projection_status: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
 class ScientificProcessEvent(Base):
@@ -417,9 +466,9 @@ class TransformationRun(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    run_revision_id: Mapped[uuid.UUID] = mapped_column(
+    output_experiment_run_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("run_revisions.id"),
+        ForeignKey("experiment_runs.id"),
         nullable=False,
         index=True,
     )
@@ -469,6 +518,16 @@ class TransformationInput(Base):
         index=True,
     )
     input_role: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    run_revision_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("run_revisions.id"),
+        nullable=True,
+        index=True,
+    )
+    provenance_json: Mapped[dict[str, Any]] = mapped_column(
+        json_payload_type,
+        nullable=False,
+    )
 
 
 class TransformationOutput(Base):

@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.scientific_units import canonicalize_process_channel
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.scientific import (
@@ -186,6 +187,8 @@ class ScientificRevisionService:
         )
 
     def review(self, run: ExperimentRun, actor: User, note: str | None) -> RunRevision:
+        if actor.role != UserRole.ADMIN:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
         if run.status != ExperimentStatus.LOCKED or run.current_revision_id is None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -293,6 +296,7 @@ class ScientificRevisionService:
         modules: dict[str, dict[str, Any]],
     ) -> None:
         timeline = modules["process_steps"]
+        channel_keys = {item["channel_key"] for item in timeline["channels"]}
         process_end = max(item["end_s"] for item in timeline["segments"])
         referenced: dict[UUID, tuple[str, str]] = {}
         for channel in timeline["channels"]:
@@ -314,6 +318,14 @@ class ScientificRevisionService:
                     "outside_process_timeline",
                 )
         for source_load in modules["precursors"]["items"]:
+            if (
+                source_load.get("heating_channel")
+                and source_load["heating_channel"] not in channel_keys
+            ):
+                self._invalid_process_reference(
+                    "precursors.heating_channel",
+                    "unknown_process_channel",
+                )
             if any(
                 point["t_s"] > process_end for point in source_load.get("position_program") or []
             ):
@@ -431,14 +443,34 @@ class ScientificRevisionService:
 
     def _project_source_loads(self, revision: RunRevision, payload: dict[str, Any]) -> None:
         for item in payload["items"]:
+            container = (
+                self.db.get(ContainerInstance, UUID(item["container_instance_id"]))
+                if item.get("container_instance_id")
+                else None
+            )
             load = SourceLoad(
                 run_revision_id=revision.id,
                 load_key=item["load_key"],
-                container_instance_id=(
-                    UUID(item["container_instance_id"])
-                    if item.get("container_instance_id")
+                container_instance_id=container.id if container else None,
+                container_snapshot_json=(
+                    {
+                        "id": str(container.id),
+                        "material_lot_id": str(container.material_lot_id),
+                        "container_code": container.container_code,
+                        "container_type": container.container_type,
+                        "opened_date": (
+                            container.opened_date.isoformat() if container.opened_date else None
+                        ),
+                        "storage_history": container.storage_history,
+                        "remaining_amount": container.remaining_amount,
+                        "remaining_unit": container.remaining_unit,
+                        "status": container.status,
+                        "attrs": container.attrs,
+                    }
+                    if container
                     else None
                 ),
+                container_state_at_loading=container.status if container else None,
                 loading_method=item["loading_method"],
                 preparation_steps=item.get("preparation_steps") or [],
                 initial_position=item.get("initial_position"),
@@ -482,6 +514,9 @@ class ScientificRevisionService:
                 )
             )
         for item in payload["channels"]:
+            canonical_unit, canonical_scalar, canonical_series, projection_status = (
+                canonicalize_process_channel(item)
+            )
             self.db.add(
                 ProcessChannel(
                     run_revision_id=revision.id,
@@ -496,6 +531,10 @@ class ScientificRevisionService:
                         UUID(item["file_asset_id"]) if item.get("file_asset_id") else None
                     ),
                     sensor_or_controller_snapshot=item.get("sensor_or_controller_snapshot"),
+                    canonical_unit=canonical_unit,
+                    canonical_scalar_value=canonical_scalar,
+                    canonical_series_json=canonical_series,
+                    projection_status=projection_status,
                 )
             )
 
@@ -567,28 +606,34 @@ class ScientificRevisionService:
                     source="substrates.items.material",
                 )
         timeline = modules["process_steps"]
-        numeric_by_type: dict[str, list[float]] = {}
+        numeric_by_type_and_source: dict[tuple[str, str], list[float]] = {}
         gas_ordinal = 0
-        ramp_rates: list[float] = []
+        ramp_rates: dict[str, list[float]] = {"setpoint": [], "measured": []}
         for channel in timeline["channels"]:
-            values = numeric_by_type.setdefault(channel["channel_type"], [])
-            if channel.get("scalar_value") is not None:
-                values.append(float(channel["scalar_value"]))
-            for point in channel.get("series") or []:
+            _, scalar, series, projection_status = canonicalize_process_channel(channel)
+            if projection_status == "unavailable":
+                continue
+            values = numeric_by_type_and_source.setdefault(
+                (channel["channel_type"], channel["source_type"]),
+                [],
+            )
+            if scalar is not None:
+                values.append(scalar)
+            for point in series or []:
                 value = point.get("value")
                 if isinstance(value, int | float) and not isinstance(value, bool):
                     values.append(float(value))
-            if channel["channel_type"] == "temperature":
+            if channel["channel_type"] == "temperature" and channel["source_type"] in ramp_rates:
                 numeric_points = [
                     point
-                    for point in channel.get("series") or []
+                    for point in series or []
                     if isinstance(point.get("value"), int | float)
                     and not isinstance(point.get("value"), bool)
                 ]
                 for left, right in zip(numeric_points, numeric_points[1:], strict=False):
                     elapsed_s = right["start_s"] - left["start_s"]
                     if elapsed_s > 0:
-                        ramp_rates.append(
+                        ramp_rates[channel["source_type"]].append(
                             abs(float(right["value"]) - float(left["value"])) / (elapsed_s / 60)
                         )
             if channel["channel_type"] == "flow":
@@ -601,28 +646,35 @@ class ScientificRevisionService:
                     source=f"process_steps.channels.{channel['channel_key']}",
                 )
                 gas_ordinal += 1
-        if ramp_rates:
-            self._feature(
-                revision,
-                "ramp_rate_C_min",
-                numeric=max(ramp_rates),
-                unit="℃/min",
-                source="process_steps.channels.temperature",
-            )
-        for feature, channel_type, reducer, unit in (
-            ("max_temperature_C", "temperature", max, "℃"),
-            ("pressure_min_Pa", "pressure", min, "Pa"),
-            ("pressure_max_Pa", "pressure", max, "Pa"),
-        ):
-            values = numeric_by_type.get(channel_type) or []
-            if values:
+        for source_type, rates in ramp_rates.items():
+            if rates:
                 self._feature(
                     revision,
-                    feature,
-                    numeric=reducer(values),
-                    unit=unit,
-                    source=f"process_steps.channels.{channel_type}",
+                    f"ramp_rate_{source_type}_C_min",
+                    numeric=max(rates),
+                    unit="°C/min",
+                    source=f"process_steps.channels.temperature.{source_type}",
                 )
+        for source_type in ("setpoint", "measured"):
+            temperature = numeric_by_type_and_source.get(("temperature", source_type)) or []
+            pressure = numeric_by_type_and_source.get(("pressure", source_type)) or []
+            if temperature:
+                self._feature(
+                    revision,
+                    f"max_temperature_{source_type}_C",
+                    numeric=max(temperature),
+                    unit="°C",
+                    source=f"process_steps.channels.temperature.{source_type}",
+                )
+            for suffix, reducer in (("min", min), ("max", max)):
+                if pressure:
+                    self._feature(
+                        revision,
+                        f"pressure_{source_type}_{suffix}_Pa",
+                        numeric=reducer(pressure),
+                        unit="Pa",
+                        source=f"process_steps.channels.pressure.{source_type}",
+                    )
         growth_duration = sum(
             item["end_s"] - item["start_s"]
             for item in timeline["segments"]

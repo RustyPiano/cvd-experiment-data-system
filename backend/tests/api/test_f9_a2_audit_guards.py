@@ -84,75 +84,31 @@ def test_entity_run_and_setup_reference_writes_are_audited(
     }
 
 
-def test_result_crud_writes_are_audited_with_delete_snapshots(active_user, db_session) -> None:
+def test_legacy_result_writes_are_gone(active_user) -> None:
     headers = _headers(active_user.email)
     run = _run(headers, "CVD-2026-0902")
-    sample = client.post(
+    sample_response = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "control"},
-        headers=headers,
-    ).json()
-    record = client.post(
-        f"/api/v1/experiments/{run['id']}/characterization-records",
-        json={
-            "sample_id": sample["id"],
-            "method_instrument": "Raman",
-            "test_conditions": "ambient",
-        },
+        json={},
         headers=headers,
     )
-    record_id = record.json()["id"]
-    assert (
-        client.patch(
-            f"/api/v1/characterization-records/{record_id}",
-            json={"test_conditions": "vacuum"},
-            headers=headers,
-        ).status_code
-        == 200
-    )
-    product = client.post(
-        f"/api/v1/samples/{sample['id']}/measured-products",
-        json={
-            "characterization_record_id": record_id,
-            "observed_phenomena": ["不连续覆盖"],
-        },
-        headers=headers,
-    )
-    product_id = product.json()["id"]
-    assert (
-        client.patch(
-            f"/api/v1/measured-products/{product_id}",
-            json={"layer_count": 1, "coverage_percent": 70},
-            headers=headers,
-        ).status_code
-        == 200
-    )
-    assert (
-        client.delete(f"/api/v1/measured-products/{product_id}", headers=headers).status_code == 204
-    )
-    assert (
-        client.delete(f"/api/v1/characterization-records/{record_id}", headers=headers).status_code
-        == 204
-    )
-
-    record_events = (
-        db_session.query(AuditEvent)
-        .filter_by(entity_type="characterization_record", entity_id=UUID(record_id))
-        .all()
-    )
-    product_events = (
-        db_session.query(AuditEvent)
-        .filter_by(entity_type="measured_product", entity_id=UUID(product_id))
-        .all()
-    )
-    assert [event.action for event in record_events] == ["create", "update", "delete"]
-    assert record_events[1].before_json["test_conditions"] == "ambient"
-    assert record_events[2].before_json["test_conditions"] == "vacuum"
-    assert record_events[2].after_json is None
-    assert [event.action for event in product_events] == ["create", "update", "delete"]
-    assert product_events[2].before_json["layer_count"] == 1
-    assert product_events[2].before_json["coverage_percent"] == 70
-    assert product_events[2].after_json is None
+    assert sample_response.status_code == 201, sample_response.text
+    sample_id = sample_response.json()["id"]
+    missing_id = "00000000-0000-0000-0000-000000000001"
+    calls = [
+        ("post", f"/api/v1/experiments/{run['id']}/characterization-records"),
+        ("patch", f"/api/v1/characterization-records/{missing_id}"),
+        ("delete", f"/api/v1/characterization-records/{missing_id}"),
+        ("post", f"/api/v1/samples/{sample_id}/measured-products"),
+        ("patch", f"/api/v1/measured-products/{missing_id}"),
+        ("delete", f"/api/v1/measured-products/{missing_id}"),
+        ("post", f"/api/v1/samples/{sample_id}/results"),
+        ("put", f"/api/v1/results/{missing_id}"),
+        ("delete", f"/api/v1/results/{missing_id}"),
+    ]
+    for method, path in calls:
+        response = client.request(method, path, json={}, headers=headers)
+        assert response.status_code == 410, (method, path, response.text)
 
 
 def test_setup_field_devices_none_is_exclusive_on_create_and_append(admin_user) -> None:

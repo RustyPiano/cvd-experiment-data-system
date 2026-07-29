@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, NoReturn
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_admin_user, get_current_user
@@ -37,15 +38,10 @@ from app.schemas.scientific import (
     TransformationRunCreate,
     TransformationRunRead,
 )
+from app.schemas.user import UserRead
 from app.schemas.v2 import (
-    CharacterizationRecordCreate,
     CharacterizationRecordListResponse,
-    CharacterizationRecordRead,
-    CharacterizationRecordUpdate,
-    MeasuredProductCreate,
     MeasuredProductListResponse,
-    MeasuredProductRead,
-    MeasuredProductUpdate,
     V2EntityListResponse,
     V2EntityRead,
     V2EntityVersionListResponse,
@@ -58,8 +54,6 @@ from app.schemas.v2 import (
     V2ModulePayloadUpsert,
     V2NotCharacterizedRequest,
     V2ResultListResponse,
-    V2ResultRead,
-    V2ResultWrite,
     V2RunAuditEventListResponse,
     V2SetupReferenceRequest,
 )
@@ -76,6 +70,11 @@ router = APIRouter(prefix="/api/v1", tags=["v2"])
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin_user)]
+
+
+@router.get("/contributors", response_model=list[UserRead])
+def list_contributors(db: DbSession, _current_user: CurrentUser) -> list[User]:
+    return list(db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.name)))
 
 
 @router.get("/container-instances", response_model=list[ContainerInstanceRead])
@@ -417,10 +416,29 @@ def list_run_audit_events(
 @router.get("/experiments/{run_id}/export")
 def export_run_json(
     run_id: UUID,
+    revision_id: UUID,
     db: DbSession,
     current_user: CurrentUser,
 ) -> Response:
-    content, filename = V2ReportingService(db).export_run_json(run_id, current_user)
+    content, filename = V2ReportingService(db).export_run_json(
+        run_id,
+        revision_id,
+        current_user,
+    )
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/experiments/{run_id}/draft-export")
+def export_draft_run_json(
+    run_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> Response:
+    content, filename = V2ReportingService(db).export_draft_json(run_id, current_user)
     return Response(
         content=content,
         media_type="application/json",
@@ -573,38 +591,35 @@ def list_characterization_records(
     return V2ResultsService(db).list_characterization_records(run_id, current_user)
 
 
-@router.post(
-    "/experiments/{run_id}/characterization-records",
-    response_model=CharacterizationRecordRead,
-    status_code=status.HTTP_201_CREATED,
-)
+def _legacy_result_write_gone() -> NoReturn:
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Legacy result writes are retired; use /api/v1/measurements",
+    )
+
+
+@router.post("/experiments/{run_id}/characterization-records", response_model=None)
 def create_characterization_record(
     run_id: UUID,
-    payload: CharacterizationRecordCreate,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> CharacterizationRecordRead:
-    return V2ResultsService(db).create_characterization_record(run_id, payload, current_user)
+    _current_user: CurrentUser,
+) -> NoReturn:
+    _legacy_result_write_gone()
 
 
-@router.patch(
-    "/characterization-records/{record_id}",
-    response_model=CharacterizationRecordRead,
-)
+@router.patch("/characterization-records/{record_id}", response_model=None)
 def update_characterization_record(
     record_id: UUID,
-    payload: CharacterizationRecordUpdate,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> CharacterizationRecordRead:
-    return V2ResultsService(db).update_characterization_record(record_id, payload, current_user)
+    _current_user: CurrentUser,
+) -> NoReturn:
+    _legacy_result_write_gone()
 
 
-@router.delete("/characterization-records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/characterization-records/{record_id}", response_model=None)
 def delete_characterization_record(
-    record_id: UUID, db: DbSession, current_user: CurrentUser
-) -> None:
-    V2ResultsService(db).delete_characterization_record(record_id, current_user)
+    record_id: UUID,
+    _current_user: CurrentUser,
+) -> NoReturn:
+    _legacy_result_write_gone()
 
 
 @router.get(
@@ -617,33 +632,25 @@ def list_measured_products(
     return V2ResultsService(db).list_measured_products(sample_id, current_user)
 
 
-@router.post(
-    "/samples/{sample_id}/measured-products",
-    response_model=MeasuredProductRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/samples/{sample_id}/measured-products", response_model=None)
 def create_measured_product(
     sample_id: UUID,
-    payload: MeasuredProductCreate,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> MeasuredProductRead:
-    return V2ResultsService(db).create_measured_product(sample_id, payload, current_user)
+    _current_user: CurrentUser,
+) -> NoReturn:
+    _legacy_result_write_gone()
 
 
-@router.patch("/measured-products/{product_id}", response_model=MeasuredProductRead)
+@router.patch("/measured-products/{product_id}", response_model=None)
 def update_measured_product(
     product_id: UUID,
-    payload: MeasuredProductUpdate,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> MeasuredProductRead:
-    return V2ResultsService(db).update_measured_product(product_id, payload, current_user)
+    _current_user: CurrentUser,
+) -> NoReturn:
+    _legacy_result_write_gone()
 
 
-@router.delete("/measured-products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_measured_product(product_id: UUID, db: DbSession, current_user: CurrentUser) -> None:
-    V2ResultsService(db).delete_measured_product(product_id, current_user)
+@router.delete("/measured-products/{product_id}", response_model=None)
+def delete_measured_product(product_id: UUID, _current_user: CurrentUser) -> NoReturn:
+    _legacy_result_write_gone()
 
 
 @router.get("/samples/{sample_id}/results", response_model=V2ResultListResponse)
@@ -655,30 +662,22 @@ def list_results(
     return V2ResultsService(db).list_results(sample_id, current_user)
 
 
-@router.post(
-    "/samples/{sample_id}/results",
-    response_model=V2ResultRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/samples/{sample_id}/results", response_model=None)
 def create_result(
     sample_id: UUID,
-    payload: V2ResultWrite,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> V2ResultRead:
-    return V2ResultsService(db).create_result(sample_id, payload, current_user)
+    _current_user: CurrentUser,
+) -> NoReturn:
+    _legacy_result_write_gone()
 
 
-@router.put("/results/{result_id}", response_model=V2ResultRead)
+@router.put("/results/{result_id}", response_model=None)
 def update_result(
     result_id: UUID,
-    payload: V2ResultWrite,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> V2ResultRead:
-    return V2ResultsService(db).update_result(result_id, payload, current_user)
+    _current_user: CurrentUser,
+) -> NoReturn:
+    _legacy_result_write_gone()
 
 
-@router.delete("/results/{result_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_result(result_id: UUID, db: DbSession, current_user: CurrentUser) -> None:
-    V2ResultsService(db).delete_result(result_id, current_user)
+@router.delete("/results/{result_id}", response_model=None)
+def delete_result(result_id: UUID, _current_user: CurrentUser) -> NoReturn:
+    _legacy_result_write_gone()

@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.generated.v2_module_payload import TubeUsageHistoryPayload
+from app.schemas.scientific import AmbientMeasurement
 from app.services.v2_field_source import normalize_offset_datetime, validate_chemical_formula
 from app.services.v2_result_evidence import has_measured_product_evidence
 
@@ -43,12 +44,11 @@ class V2EntityVersionListResponse(BaseModel):
 class V2ExperimentCreate(BaseModel):
     started_at: datetime
     synthesis_method: Literal["CVD"]
-    ambient_temperature_C: float | None = Field(default=None, allow_inf_nan=False)
-    ambient_humidity_percent: float | None = Field(
-        default=None,
-        ge=0,
-        le=100,
-        allow_inf_nan=False,
+    ambient_temperature: AmbientMeasurement = Field(
+        default_factory=lambda: AmbientMeasurement(source_type="not_measured")
+    )
+    ambient_humidity: AmbientMeasurement = Field(
+        default_factory=lambda: AmbientMeasurement(source_type="not_measured")
     )
     precheck_confirmed: bool | None = None
     run_code: str | None = Field(
@@ -72,6 +72,12 @@ class V2ExperimentCreate(BaseModel):
         if not isinstance(value, str):
             raise ValueError("invalid chemical formula")
         return validate_chemical_formula(value)
+
+    @model_validator(mode="after")
+    def validate_ambient_humidity(self) -> V2ExperimentCreate:
+        if self.ambient_humidity.value is not None and not 0 <= self.ambient_humidity.value <= 100:
+            raise ValueError("ambient humidity must be between 0 and 100 percent")
+        return self
 
 
 class V2ExperimentRead(BaseModel):

@@ -144,18 +144,14 @@ class V2ExperimentService:
                 "confirmed_at": started_at.isoformat(),
             },
         }
-        if payload.ambient_temperature_C is not None:
-            basic_info["ambient_temperature"] = {
-                "value": payload.ambient_temperature_C,
-                "measured_at": started_at.isoformat(),
-                "source_type": "manual_estimate",
-            }
-        if payload.ambient_humidity_percent is not None:
-            basic_info["ambient_humidity"] = {
-                "value": payload.ambient_humidity_percent,
-                "measured_at": started_at.isoformat(),
-                "source_type": "manual_estimate",
-            }
+        basic_info["ambient_temperature"] = payload.ambient_temperature.model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+        basic_info["ambient_humidity"] = payload.ambient_humidity.model_dump(
+            mode="json",
+            exclude_none=True,
+        )
         self._save_v2_payload(
             run.id,
             "basic_info",

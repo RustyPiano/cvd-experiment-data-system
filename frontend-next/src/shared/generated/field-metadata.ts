@@ -90,8 +90,8 @@ export interface StageType {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-rc.1',
-  status: 'RELEASE_CANDIDATE',
+  version: 'v4.0-alpha.2',
+  status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
 }
 

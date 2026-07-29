@@ -4,12 +4,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.sample import SampleRole
 
+class ControlSampleCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-class SampleCreate(BaseModel):
-    role: SampleRole
-    parent_sample_id: UUID | None = None
+    control_subtype: str | None = Field(default=None, max_length=64)
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -14,6 +14,7 @@ import {
   getSample,
   getSampleLineage,
   listExperimentFiles,
+  listSamples,
 } from './api'
 import { createTransformation } from '@/features/experiments-v2/api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
@@ -60,6 +61,28 @@ import {
 import type { TFunction } from 'i18next'
 
 const routeApi = getRouteApi('/_authed/samples/$sampleId')
+const TRANSFORMATION_LABELS: Record<string, string> = {
+  cut: '切割',
+  split: '分片',
+  transfer: '转移',
+  stack: '堆叠',
+  anneal: '退火',
+  etch: '刻蚀',
+  clean: '清洗',
+  encapsulate: '封装',
+  contact_fabrication: '电极制备',
+}
+const ACTUAL_STATE_LABELS: Record<string, string> = {
+  unknown: '尚无实际结论',
+  growth_present: '观察到生长',
+  no_growth: '未观察到生长',
+  uncertain: '结论不确定',
+  asserted: '已确认材料结论',
+}
+const LIFECYCLE_STATE_LABELS: Record<string, string> = {
+  active: '在用',
+  consumed: '已消耗',
+}
 
 function formatBytes(sizeBytes: number) {
   if (sizeBytes < 1024) return `${sizeBytes} B`
@@ -215,6 +238,8 @@ export function SampleDetailPage() {
   const [outputCount, setOutputCount] = useState('2')
   const [carrier, setCarrier] = useState('')
   const [consumeInput, setConsumeInput] = useState(true)
+  const [extraInputIds, setExtraInputIds] = useState<string[]>([])
+  const [outputRunId, setOutputRunId] = useState('')
   const queryClient = useQueryClient()
 
   const sampleQuery = useQuery({
@@ -246,12 +271,30 @@ export function SampleDetailPage() {
     queryFn: () => getSampleLineage(session.accessToken!, sampleId),
     enabled: session.isAuthenticated && Boolean(sampleId),
   })
+  const visibleSamplesQuery = useQuery({
+    queryKey: ['samples', 'transformation-options', viewerKey],
+    queryFn: () => listSamples(session.accessToken!),
+    enabled: session.isAuthenticated,
+  })
+  const selectedInputIds = [sampleId, ...extraInputIds]
+  const selectedSamples = (visibleSamplesQuery.data?.items ?? []).filter(
+    (item) => selectedInputIds.includes(item.id),
+  )
+  const outputRuns = Array.from(
+    new Map(
+      selectedSamples.map((item) => [
+        item.experiment_run_id,
+        item.run_code ?? item.experiment_run_id,
+      ]),
+    ),
+  )
   const transformationMutation = useMutation({
     mutationFn: () =>
       createTransformation(
         {
           transformation_type: transformationType,
-          input_sample_ids: [sampleId],
+          input_sample_ids: selectedInputIds,
+          output_experiment_run_id: outputRunId || experimentId,
           outputs: Array.from(
             { length: Math.max(1, Number(outputCount)) },
             (_, index) => ({
@@ -406,15 +449,22 @@ export function SampleDetailPage() {
               label="实际材料状态"
               value={
                 sample.actual_material_summary
-                  ? `${sample.actual_state} · ${sample.actual_material_summary}`
-                  : sample.actual_state
+                  ? `${ACTUAL_STATE_LABELS[sample.actual_state] ?? sample.actual_state} · ${sample.actual_material_summary}`
+                  : (ACTUAL_STATE_LABELS[sample.actual_state] ??
+                    sample.actual_state)
               }
             />
             <DetailRow
               label="绑定炉次修订"
               value={sample.run_revision_id || '—'}
             />
-            <DetailRow label="样品生命周期" value={sample.lifecycle_state} />
+            <DetailRow
+              label="样品生命周期"
+              value={
+                LIFECYCLE_STATE_LABELS[sample.lifecycle_state] ??
+                sample.lifecycle_state
+              }
+            />
           </dl>
         </CardContent>
       </Card>
@@ -434,7 +484,10 @@ export function SampleDetailPage() {
               >
                 <span className="font-medium">{item.sample_code}</span>
                 <span className="ml-2 text-muted-foreground">
-                  {item.lifecycle_state} · {item.actual_state}
+                  {LIFECYCLE_STATE_LABELS[item.lifecycle_state] ??
+                    item.lifecycle_state}{' '}
+                  ·{' '}
+                  {ACTUAL_STATE_LABELS[item.actual_state] ?? item.actual_state}
                 </span>
               </Link>
             ))}
@@ -444,7 +497,10 @@ export function SampleDetailPage() {
               key={item.id}
               className="rounded-lg border border-dashed p-3 text-sm"
             >
-              <span className="font-medium">{item.transformation_type}</span>
+              <span className="font-medium">
+                {TRANSFORMATION_LABELS[item.transformation_type] ??
+                  item.transformation_type}
+              </span>
               <span className="mx-2 text-muted-foreground">·</span>
               {item.input_sample_ids.length} 输入 →{' '}
               {item.output_sample_ids.length} 输出
@@ -470,6 +526,7 @@ export function SampleDetailPage() {
                       'cut',
                       'split',
                       'transfer',
+                      'stack',
                       'anneal',
                       'etch',
                       'clean',
@@ -477,7 +534,7 @@ export function SampleDetailPage() {
                       'contact_fabrication',
                     ].map((value) => (
                       <SelectItem key={value} value={value}>
-                        {value}
+                        {TRANSFORMATION_LABELS[value]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -500,6 +557,54 @@ export function SampleDetailPage() {
                   onChange={(event) => setCarrier(event.target.value)}
                 />
               </div>
+              <div className="grid gap-2 sm:col-span-2">
+                <Label>输入样品（当前样品固定，可追加其他炉次样品）</Label>
+                <div className="grid max-h-40 gap-2 overflow-auto rounded-md border p-3 sm:grid-cols-2">
+                  {(visibleSamplesQuery.data?.items ?? [])
+                    .filter(
+                      (item) =>
+                        item.id !== sampleId &&
+                        item.lifecycle_state === 'active',
+                    )
+                    .map((item) => (
+                      <label
+                        key={item.id}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={extraInputIds.includes(item.id)}
+                          onChange={(event) =>
+                            setExtraInputIds((current) =>
+                              event.target.checked
+                                ? [...current, item.id]
+                                : current.filter((id) => id !== item.id),
+                            )
+                          }
+                        />
+                        {item.sample_code} · {item.run_code}
+                      </label>
+                    ))}
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>输出样品归属炉次</Label>
+                <Select
+                  value={outputRunId || experimentId}
+                  onValueChange={setOutputRunId}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {outputRuns.map(([runId, runLabel]) => (
+                      <SelectItem key={runId} value={runId}>
+                        {runLabel}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex flex-col justify-end gap-2">
                 <label className="flex items-center gap-2 text-sm">
                   <input
@@ -512,11 +617,13 @@ export function SampleDetailPage() {
                 <Button
                   type="button"
                   disabled={
-                    transformationMutation.isPending || Number(outputCount) < 1
+                    transformationMutation.isPending ||
+                    Number(outputCount) < 1 ||
+                    selectedInputIds.length < 1
                   }
                   onClick={() => transformationMutation.mutate()}
                 >
-                  创建 TransformationRun
+                  创建样品转化
                 </Button>
               </div>
             </div>

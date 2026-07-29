@@ -11,7 +11,8 @@ from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, text
+from fastapi import HTTPException, status
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.commands.export_v2_schema import (
@@ -30,6 +31,9 @@ from app.models.scientific import (
     RunContributor,
     RunFeature,
     RunRevision,
+    SampleRevisionAssociation,
+    SourceLoad,
+    SourceLoadIngredient,
     TransformationInput,
     TransformationOutput,
     TransformationRun,
@@ -37,7 +41,7 @@ from app.models.scientific import (
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
-from app.services.experiment_guards import get_visible_experiment
+from app.services.experiment_guards import get_owned_experiment, get_visible_experiment
 from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
@@ -239,13 +243,23 @@ class V2ReportingService:
         self.db = db
         self.experiments = ExperimentRepository(db)
 
-    def export_run_json(self, run_id: UUID, current_user: User) -> tuple[bytes, str]:
+    def export_run_json(
+        self,
+        run_id: UUID,
+        revision_id: UUID,
+        current_user: User,
+    ) -> tuple[bytes, str]:
         with self._batch_export_snapshot() as snapshot:
-            return snapshot._export_run_json_from_snapshot(run_id, current_user)
+            return snapshot._export_run_json_from_snapshot(
+                run_id,
+                revision_id,
+                current_user,
+            )
 
     def _export_run_json_from_snapshot(
         self,
         run_id: UUID,
+        revision_id: UUID,
         current_user: User,
     ) -> tuple[bytes, str]:
         run = get_visible_experiment(
@@ -254,12 +268,53 @@ class V2ReportingService:
             current_user,
             schema_version=SCHEMA_VERSION,
         )
+        revision = self.db.get(RunRevision, revision_id)
+        if revision is None or revision.experiment_run_id != run.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Revision not found")
         content = json.dumps(
-            self._run_bundle(run),
+            self._run_bundle(run, revision),
             ensure_ascii=False,
             indent=2,
         ).encode("utf-8")
-        return content, f"{run.run_code}.json"
+        return content, f"{run.run_code}-r{revision.revision_number}.json"
+
+    def export_draft_json(
+        self,
+        run_id: UUID,
+        current_user: User,
+    ) -> tuple[bytes, str]:
+        run = get_owned_experiment(
+            self.experiments,
+            run_id,
+            current_user,
+            schema_version=SCHEMA_VERSION,
+        )
+        if run.status != ExperimentStatus.DRAFT:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only drafts have a working-copy export",
+            )
+        bundle = {
+            "export_kind": "draft_working_copy",
+            "citation_status": "NON_CITABLE",
+            "schema_version": SCHEMA_VERSION,
+            "exported_at": datetime.now(UTC).isoformat(),
+            "run": {
+                "id": str(run.id),
+                "run_code": run.run_code,
+                "status": run.status.value,
+                "based_on_revision_id": (
+                    str(run.draft_supersedes_revision_id)
+                    if run.draft_supersedes_revision_id
+                    else None
+                ),
+            },
+            "modules": canonicalize_controlled_values(effective_run_module_payloads(run)),
+        }
+        return (
+            json.dumps(bundle, ensure_ascii=False, indent=2).encode("utf-8"),
+            f"{run.run_code}-DRAFT-NON-CITABLE.json",
+        )
 
     def export_runs_zip(
         self,
@@ -303,11 +358,12 @@ class V2ReportingService:
             date_to=date_to,
             status_filters=status_filters,
         )
+        revisions = {run.id: self._current_revision(run) for run in runs}
         records = {
             "schema_version": SCHEMA_VERSION,
-            "runs": [self._run_bundle(run) for run in runs],
+            "runs": [self._run_bundle(run, revisions[run.id]) for run in runs],
         }
-        tables = self._csv_tables(runs)
+        tables = self._csv_tables(runs, revisions)
         field_dictionary = build_v2_field_dictionary(load_field_source())
         json_schema = build_v2_json_schema()
         dictionary_fields = [
@@ -348,6 +404,7 @@ class V2ReportingService:
             "schema_version": SCHEMA_VERSION,
             "exported_at": datetime.now(UTC).isoformat(),
             "run_count": len(runs),
+            "run_revision_ids": [str(revisions[run.id].id) for run in runs],
             "tables": [*tables, "field_dictionary.csv"],
             "artifacts": [
                 "records.json",
@@ -453,138 +510,79 @@ class V2ReportingService:
             schema_version=SCHEMA_VERSION,
             **filters,
         )
-        return runs
+        return [
+            run
+            for run in runs
+            if run.status in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
+            and run.current_revision_id is not None
+        ]
 
-    def _run_bundle(self, run: ExperimentRun) -> dict[str, Any]:
+    def _current_revision(self, run: ExperimentRun) -> RunRevision:
+        revision = self.db.get(RunRevision, run.current_revision_id)
+        if revision is None:
+            raise RuntimeError(f"Run {run.id} has no current immutable revision")
+        return revision
+
+    def _run_bundle(self, run: ExperimentRun, revision: RunRevision) -> dict[str, Any]:
         modules = {
             module_key: canonicalize_controlled_values(payload)
-            for module_key, payload in effective_run_module_payloads(run).items()
+            for module_key, payload in revision.content_json["modules"].items()
         }
-        operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
-        samples = self._samples(run.id)
-        records = self._records(run.id)
-        products = self._products(samples)
-        files = self._files(run.id)
-        sample_by_id = {sample.id: sample for sample in samples}
-        record_by_id = {record.id: record for record in records}
-        files_by_record: dict[UUID, list[FileAsset]] = {}
-        for file in files:
-            if file.characterization_record_id:
-                files_by_record.setdefault(file.characterization_record_id, []).append(file)
+        records = self._records(run.id, revision.id)
+        samples = self._samples_for_revision(run.id, revision.id, records)
+        files = self._files_for_records(records)
 
-        products_by_record: dict[UUID, list[MeasuredProduct]] = {}
-        for product in products:
-            if product.characterization_record_id:
-                products_by_record.setdefault(product.characterization_record_id, []).append(
-                    product
-                )
-
-        results_by_sample: dict[UUID, list[dict[str, Any]]] = {}
-        for product in products:
-            record = (
-                record_by_id.get(product.characterization_record_id)
-                if product.characterization_record_id
-                else None
-            )
-            result_files = files_by_record.get(record.id, []) if record else []
-            results_by_sample.setdefault(product.sample_id, []).append(
-                self._result_json(product, record, result_files)
-            )
-        for record in records:
-            if products_by_record.get(record.id):
-                continue
-            results_by_sample.setdefault(record.sample_id, []).append(
-                self._standalone_record_json(record, files_by_record.get(record.id, []))
-            )
-
-        sample_json = []
-        for sample in samples:
-            parent = sample_by_id.get(sample.parent_sample_id) if sample.parent_sample_id else None
-            sample_json.append(
-                {
-                    "id": str(sample.id),
-                    "sample_code": sample.sample_code,
-                    "run_revision_id": (
-                        str(sample.run_revision_id) if sample.run_revision_id else None
-                    ),
-                    "role": sample.role,
-                    "target_material_system": sample.target_material_system,
-                    "actual_state": sample.actual_state,
-                    "actual_material_summary": sample.actual_material_summary,
-                    "current_carrier": sample.current_carrier,
-                    "sample_region": sample.sample_region,
-                    "dimensions": sample.dimensions_json,
-                    "lifecycle_state": sample.lifecycle_state,
-                    "control_subtype": sample.control_subtype,
-                    "parent_sample_code": parent.sample_code if parent else None,
-                    "source_substrate_id": (
-                        str(sample.source_substrate_id) if sample.source_substrate_id else None
-                    ),
-                    "source_substrate_snapshot": sample.source_substrate_snapshot_json,
-                    "metadata": sample.metadata_json,
-                    "created_at": _iso(sample.created_at),
-                    "updated_at": _iso(sample.updated_at),
-                    "deleted_at": _iso(sample.deleted_at) or None,
-                    "results": results_by_sample.get(sample.id, []),
-                }
-            )
-
-        attached_file_ids = {file.id for rows in files_by_record.values() for file in rows}
         bundle = {
+            "export_kind": "immutable_run_revision",
+            "citation_status": "CITABLE",
             "schema_version": SCHEMA_VERSION,
             "exported_at": datetime.now(UTC).isoformat(),
             "run": {
-                "id": str(run.id),
-                "run_code": run.run_code,
-                "operator": operator,
-                "target_material_system": run.target_material_system,
-                "experiment_date": run.experiment_date.isoformat(),
-                "objective": run.objective,
-                "status": run.status.value,
-                "invalid_reason": run.invalid_reason,
-                "result_missing_todo": run.result_missing_todo,
-                "not_characterized_by_id": (
-                    str(run.not_characterized_by_id) if run.not_characterized_by_id else None
-                ),
-                "not_characterized_at": _iso(run.not_characterized_at) or None,
-                "created_at": _iso(run.created_at),
-                "updated_at": _iso(run.updated_at),
-                "locked_at": _iso(run.locked_at) or None,
-                "setup_reference": {
-                    "id": str(run.setup_ref) if run.setup_ref else None,
-                    "version": run.setup_ref_version,
-                    "snapshot": run.setup_ref_snapshot_json,
-                },
-                "current_revision_id": (
-                    str(run.current_revision_id) if run.current_revision_id else None
-                ),
+                **revision.content_json["run"],
+                "revision_id": str(revision.id),
+                "revision_number": revision.revision_number,
+                "revision_status": revision.status,
+                "content_sha256": revision.content_sha256,
             },
             "modules": modules,
-            "scientific_record": self._scientific_json(run, samples, records, files),
-            "samples": sample_json,
-            "other_files": [
-                self._file_json(file) for file in files if file.id not in attached_file_ids
-            ],
+            "scientific_record": self._scientific_json(
+                run,
+                revision,
+                samples,
+                records,
+                files,
+            ),
         }
         return canonicalize_controlled_values(bundle)
 
     def _scientific_json(
         self,
         run: ExperimentRun,
+        revision: RunRevision,
         samples: list[Sample],
         records: list[CharacterizationRecord],
         files: list[FileAsset],
     ) -> dict[str, Any]:
-        revisions = list(
-            self.db.scalars(
-                select(RunRevision)
-                .where(RunRevision.experiment_run_id == run.id)
-                .order_by(RunRevision.revision_number)
-            )
-        )
+        revisions = [revision]
         revision_ids = [item.id for item in revisions]
         record_ids = [item.id for item in records if item.run_revision_id is not None]
         sample_codes = {item.id: item.sample_code for item in samples}
+        source_loads = list(
+            self.db.scalars(
+                select(SourceLoad)
+                .where(SourceLoad.run_revision_id == revision.id)
+                .order_by(SourceLoad.load_key)
+            )
+        )
+        source_load_ids = [item.id for item in source_loads]
+        ingredients_by_load: dict[UUID, list[SourceLoadIngredient]] = {}
+        if source_load_ids:
+            for ingredient in self.db.scalars(
+                select(SourceLoadIngredient)
+                .where(SourceLoadIngredient.source_load_id.in_(source_load_ids))
+                .order_by(SourceLoadIngredient.id)
+            ):
+                ingredients_by_load.setdefault(ingredient.source_load_id, []).append(ingredient)
         files_by_record: dict[UUID, list[FileAsset]] = {}
         for file in files:
             if file.characterization_record_id and file.deleted_at is None:
@@ -647,15 +645,22 @@ class V2ReportingService:
         for item in assertions:
             assertions_by_measurement.setdefault(item.measurement_run_id, []).append(item)
 
+        transformation_ids_for_revision = set(
+            self.db.scalars(
+                select(TransformationInput.transformation_run_id).where(
+                    TransformationInput.run_revision_id == revision.id
+                )
+            )
+        )
         transformations = (
             list(
                 self.db.scalars(
                     select(TransformationRun)
-                    .where(TransformationRun.run_revision_id.in_(revision_ids))
+                    .where(TransformationRun.id.in_(transformation_ids_for_revision))
                     .order_by(TransformationRun.occurred_at, TransformationRun.id)
                 )
             )
-            if revision_ids
+            if transformation_ids_for_revision
             else []
         )
         transformation_ids = [item.id for item in transformations]
@@ -753,6 +758,52 @@ class V2ReportingService:
                     else []
                 )
             ],
+            "source_loads": [
+                {
+                    "id": str(item.id),
+                    "run_revision_id": str(item.run_revision_id),
+                    "load_key": item.load_key,
+                    "container_instance_id": (
+                        str(item.container_instance_id) if item.container_instance_id else None
+                    ),
+                    "container_snapshot": item.container_snapshot_json,
+                    "container_state_at_loading": item.container_state_at_loading,
+                    "loading_method": item.loading_method,
+                    "preparation_steps": item.preparation_steps,
+                    "initial_position": item.initial_position,
+                    "position_program": item.position_program,
+                    "heating_channel": item.heating_channel,
+                    "attrs": item.attrs,
+                    "ingredients": [
+                        {
+                            "material_lot_id": str(ingredient.material_lot_id),
+                            "material_lot_version": ingredient.material_lot_version,
+                            "material_snapshot": ingredient.material_snapshot_json,
+                            "function_role": ingredient.function_role,
+                            "amount": ingredient.amount,
+                            "unit": ingredient.unit,
+                            "composition_basis": ingredient.composition_basis,
+                            "uncertainty": ingredient.uncertainty,
+                            "attrs": ingredient.attrs,
+                        }
+                        for ingredient in ingredients_by_load.get(item.id, [])
+                    ],
+                }
+                for item in source_loads
+            ],
+            "sample_revision_associations": [
+                {
+                    "sample_id": str(item.sample_id),
+                    "run_revision_id": str(item.run_revision_id),
+                    "sample_snapshot": item.sample_snapshot_json,
+                    "created_at": _iso(item.created_at),
+                }
+                for item in self.db.scalars(
+                    select(SampleRevisionAssociation)
+                    .where(SampleRevisionAssociation.run_revision_id == revision.id)
+                    .order_by(SampleRevisionAssociation.sample_id)
+                )
+            ],
             "measurements": [
                 {
                     "id": str(record.id),
@@ -832,7 +883,7 @@ class V2ReportingService:
             "transformations": [
                 {
                     "id": str(item.id),
-                    "run_revision_id": str(item.run_revision_id),
+                    "output_experiment_run_id": str(item.output_experiment_run_id),
                     "transformation_type": item.transformation_type,
                     "operator_id": str(item.operator_id),
                     "occurred_at": _iso(item.occurred_at),
@@ -844,6 +895,10 @@ class V2ReportingService:
                             "sample_id": str(link.sample_id),
                             "sample_code": sample_codes.get(link.sample_id),
                             "role": link.input_role,
+                            "run_revision_id": (
+                                str(link.run_revision_id) if link.run_revision_id else None
+                            ),
+                            "provenance": link.provenance_json,
                         }
                         for link in inputs
                         if link.transformation_run_id == item.id
@@ -863,7 +918,9 @@ class V2ReportingService:
         }
 
     def _csv_tables(
-        self, runs: list[ExperimentRun]
+        self,
+        runs: list[ExperimentRun],
+        revisions: dict[UUID, RunRevision],
     ) -> dict[str, tuple[list[str], list[dict[str, Any]]]]:
         module_fields = payload_fields_by_module()
         precursor_keys = [field["key"] for field in module_fields["precursors"]]
@@ -884,16 +941,23 @@ class V2ReportingService:
         scientific_fact_rows: list[dict[str, Any]] = []
 
         for run in runs:
+            revision = revisions[run.id]
             modules = {
                 module_key: canonicalize_controlled_values(payload)
-                for module_key, payload in effective_run_module_payloads(run).items()
+                for module_key, payload in revision.content_json["modules"].items()
             }
             operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
-            samples = self._samples(run.id)
-            records = self._records(run.id)
-            products = self._products(samples)
-            files = self._files(run.id)
-            scientific = self._scientific_json(run, samples, records, files)
+            records = self._records(run.id, revision.id)
+            samples = self._samples_for_revision(run.id, revision.id, records)
+            products: list[MeasuredProduct] = []
+            files = self._files_for_records(records)
+            scientific = self._scientific_json(
+                run,
+                revision,
+                samples,
+                records,
+                files,
+            )
             sample_by_id = {sample.id: sample for sample in samples}
             sample_by_source = {
                 str(sample.source_substrate_id): sample
@@ -902,7 +966,9 @@ class V2ReportingService:
             }
             record_by_id = {record.id: record for record in records}
 
-            setup_snapshot = canonicalize_controlled_values(run.setup_ref_snapshot_json or {})
+            setup_snapshot = canonicalize_controlled_values(
+                revision.content_json["run"].get("setup_ref_snapshot") or {}
+            )
             setup_attrs = setup_snapshot.get("attrs_snapshot")
             setup_leaves = (
                 _nested_leaves(setup_attrs) if isinstance(setup_attrs, (dict, list)) else []
@@ -996,36 +1062,6 @@ class V2ReportingService:
                             "sample_code": generated.sample_code if generated else "",
                         },
                         {key: item.get(key) for key in substrate_keys},
-                    )
-                )
-
-            for sample in samples:
-                parent = (
-                    sample_by_id.get(sample.parent_sample_id) if sample.parent_sample_id else None
-                )
-                sample_rows.extend(
-                    _relational_rows(
-                        {
-                            "run_code": run.run_code,
-                            "sample_code": sample.sample_code,
-                            "role": sample.role,
-                            "run_revision_id": sample.run_revision_id,
-                            "target_material_system": sample.target_material_system,
-                            "actual_state": sample.actual_state,
-                            "actual_material_summary": sample.actual_material_summary,
-                            "lifecycle_state": sample.lifecycle_state,
-                            "parent_sample_code": parent.sample_code if parent else "",
-                            "deleted_at": sample.deleted_at,
-                        },
-                        {
-                            **{
-                                f"source_{key}": canonicalize_controlled_values(
-                                    sample.source_substrate_snapshot_json or {}
-                                ).get(key, "")
-                                for key in substrate_keys
-                            },
-                            "sample_metadata": sample.metadata_json,
-                        },
                     )
                 )
 
@@ -1443,12 +1479,36 @@ class V2ReportingService:
             )
         )
 
-    def _records(self, run_id: UUID) -> list[CharacterizationRecord]:
+    def _records(
+        self,
+        run_id: UUID,
+        revision_id: UUID | None = None,
+    ) -> list[CharacterizationRecord]:
+        statement = select(CharacterizationRecord).where(
+            CharacterizationRecord.experiment_run_id == run_id
+        )
+        if revision_id is not None:
+            statement = statement.where(CharacterizationRecord.run_revision_id == revision_id)
+        return list(self.db.scalars(statement.order_by(CharacterizationRecord.created_at.asc())))
+
+    def _samples_for_revision(
+        self,
+        run_id: UUID,
+        revision_id: UUID,
+        records: list[CharacterizationRecord],
+    ) -> list[Sample]:
+        measured_sample_ids = [record.sample_id for record in records]
+        revision_filter = Sample.run_revision_id == revision_id
+        if measured_sample_ids:
+            revision_filter = or_(revision_filter, Sample.id.in_(measured_sample_ids))
         return list(
             self.db.scalars(
-                select(CharacterizationRecord)
-                .where(CharacterizationRecord.experiment_run_id == run_id)
-                .order_by(CharacterizationRecord.created_at.asc())
+                select(Sample)
+                .where(
+                    Sample.experiment_run_id == run_id,
+                    revision_filter,
+                )
+                .order_by(Sample.sample_code.asc())
             )
         )
 
@@ -1469,6 +1529,24 @@ class V2ReportingService:
             self.db.scalars(
                 select(FileAsset)
                 .where(FileAsset.experiment_run_id == run_id)
+                .order_by(FileAsset.created_at.asc(), FileAsset.id.asc())
+            )
+        )
+
+    def _files_for_records(
+        self,
+        records: list[CharacterizationRecord],
+    ) -> list[FileAsset]:
+        record_ids = [record.id for record in records]
+        if not record_ids:
+            return []
+        return list(
+            self.db.scalars(
+                select(FileAsset)
+                .where(
+                    FileAsset.characterization_record_id.in_(record_ids),
+                    FileAsset.deleted_at.is_(None),
+                )
                 .order_by(FileAsset.created_at.asc(), FileAsset.id.asc())
             )
         )

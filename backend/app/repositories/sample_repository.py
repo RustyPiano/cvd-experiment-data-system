@@ -65,7 +65,7 @@ class SampleRepository:
             statement = statement.where(
                 or_(
                     ExperimentRun.owner_id == current_user.id,
-                    ExperimentRun.status == ExperimentStatus.LOCKED,
+                    ExperimentRun.status.in_([ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED]),
                 )
             )
 

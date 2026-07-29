@@ -41,7 +41,7 @@ def create_run(email: str, *, formula: str = "MoS2") -> dict:
 def create_sample(run_id: str, email: str, payload: dict | None = None) -> dict:
     response = client.post(
         f"/api/v1/experiments/{run_id}/samples",
-        json=payload or {"role": "control"},
+        json=payload if payload is not None else {},
         headers=auth_headers(email),
     )
     assert response.status_code == 201
@@ -54,7 +54,7 @@ def test_manual_sample_create_list_and_detail(active_user) -> None:
         run["id"],
         active_user.email,
         {
-            "role": "control",
+            "control_subtype": "blank_substrate",
             "metadata_json": {"quality": "good"},
         },
     )
@@ -104,7 +104,7 @@ def test_patch_sample_rejects_null_metadata_json(active_user) -> None:
     assert response.status_code == 422
 
 
-def test_create_sample_rejects_cross_experiment_parent(active_user, admin_user) -> None:
+def test_manual_derived_sample_creation_is_forbidden(active_user, admin_user) -> None:
     parent_run = create_run(active_user.email)
     parent = create_sample(parent_run["id"], active_user.email)
     other_run = create_run(admin_user.email)
@@ -116,7 +116,11 @@ def test_create_sample_rejects_cross_experiment_parent(active_user, admin_user) 
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Parent sample must belong to the same experiment"
+    samples = client.get(
+        f"/api/v1/samples?experiment_id={other_run['id']}",
+        headers=auth_headers(admin_user.email),
+    )
+    assert samples.json()["items"] == []
 
 
 def test_create_control_samples_generates_incremental_codes(active_user) -> None:
@@ -147,7 +151,7 @@ def test_locked_samples_remain_editable_but_invalid_samples_do_not(active_user, 
     db_session.commit()
     create = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "control"},
+        json={},
         headers=auth_headers(active_user.email),
     )
     assert create.status_code == 409
@@ -159,7 +163,7 @@ def test_locked_samples_remain_editable_but_invalid_samples_do_not(active_user, 
     assert update.status_code == 409
 
 
-def test_sample_write_permissions_follow_run_visibility(active_user, db_session) -> None:
+def test_only_owner_or_admin_can_write_samples(active_user, db_session) -> None:
     run = create_run(active_user.email)
     other = User(
         email="sample-other@example.com",
@@ -174,7 +178,7 @@ def test_sample_write_permissions_follow_run_visibility(active_user, db_session)
 
     hidden = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "control"},
+        json={},
         headers=headers,
     )
     assert hidden.status_code == 404
@@ -184,7 +188,7 @@ def test_sample_write_permissions_follow_run_visibility(active_user, db_session)
     db_session.commit()
     visible = client.post(
         f"/api/v1/experiments/{run['id']}/samples",
-        json={"role": "control"},
+        json={},
         headers=headers,
     )
-    assert visible.status_code == 201
+    assert visible.status_code == 403

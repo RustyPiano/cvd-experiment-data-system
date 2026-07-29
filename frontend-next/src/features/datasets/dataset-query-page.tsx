@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { Download, Plus, Search, Trash2 } from 'lucide-react'
 
 import { useAuth } from '@/features/auth/use-auth'
 import { queryDataset } from '@/features/experiments-v2/api'
 import type { DatasetFilter } from '@/features/experiments-v2/api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { triggerBlobDownload } from '@/shared/lib/download'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,16 +49,63 @@ const FIELD_TYPES: Record<string, ValueType> = {
   setup_id: 'text',
   material_lot_id: 'text',
   substrate_material: 'text',
-  max_temperature_C: 'number',
-  ramp_rate_C_min: 'number',
+  max_temperature_setpoint_C: 'number',
+  max_temperature_measured_C: 'number',
+  ramp_rate_setpoint_C_min: 'number',
+  ramp_rate_measured_C_min: 'number',
   growth_duration_s: 'number',
-  pressure_min_Pa: 'number',
-  pressure_max_Pa: 'number',
+  pressure_setpoint_min_Pa: 'number',
+  pressure_setpoint_max_Pa: 'number',
+  pressure_measured_min_Pa: 'number',
+  pressure_measured_max_Pa: 'number',
   gas_species: 'text',
   has_process_event: 'boolean',
   growth_presence: 'growth',
   property: 'number',
   provenance_complete: 'boolean',
+}
+const FIELD_LABELS: Record<string, string> = {
+  target_formula: '目标化学式',
+  architecture_type: '空间架构',
+  setup_id: '实验装置',
+  material_lot_id: '物料批次',
+  substrate_material: '衬底材料',
+  max_temperature_setpoint_C: '最高设定温度（°C）',
+  max_temperature_measured_C: '最高实测温度（°C）',
+  ramp_rate_setpoint_C_min: '最大设定升温速率（°C/min）',
+  ramp_rate_measured_C_min: '最大实测升温速率（°C/min）',
+  growth_duration_s: '生长时长（s）',
+  pressure_setpoint_min_Pa: '最低设定压力（Pa）',
+  pressure_setpoint_max_Pa: '最高设定压力（Pa）',
+  pressure_measured_min_Pa: '最低实测压力（Pa）',
+  pressure_measured_max_Pa: '最高实测压力（Pa）',
+  gas_species: '气体种类',
+  has_process_event: '是否有过程事件',
+  growth_presence: '实际生长结论',
+  property: '实测属性',
+  provenance_complete: '溯源是否完整',
+}
+const OPERATOR_LABELS: Record<string, string> = {
+  eq: '等于',
+  ne: '不等于',
+  lt: '小于',
+  lte: '小于或等于',
+  gt: '大于',
+  gte: '大于或等于',
+  contains: '包含',
+  between: '介于',
+}
+const PROPERTY_LABELS: Record<string, string> = {
+  coverage_percent: '覆盖率（%）',
+  domain_size_um: '晶畴尺寸（μm）',
+  layer_count: '层数',
+  nucleation_density_cm2: '成核密度（cm⁻²）',
+  raman_a1g_peak_position: 'Raman A₁g 峰位',
+  raman_e2g_peak_position: 'Raman E₂g 峰位',
+  raman_peak_separation: 'Raman 峰间距',
+  pl_a_exciton_peak_energy: 'PL A 激子峰能量',
+  afm_rms_roughness: 'AFM 均方根粗糙度',
+  afm_step_height: 'AFM 台阶高度',
 }
 const PROPERTY_CODES = [
   'coverage_percent',
@@ -107,9 +155,27 @@ export function DatasetQueryPage() {
       propertyCode: 'coverage_percent',
     },
   ])
+  const [result, setResult] = useState<Awaited<
+    ReturnType<typeof queryDataset>
+  > | null>(null)
   const mutation = useMutation({
-    mutationFn: () =>
-      queryDataset(filters.map(toFilter), session.accessToken || ''),
+    mutationFn: ({ cursor }: { cursor?: string; append: boolean }) =>
+      queryDataset(filters.map(toFilter), session.accessToken || '', cursor),
+    onSuccess: (data, variables) =>
+      setResult((current) =>
+        variables.append && current
+          ? {
+              ...data,
+              items: [...current.items, ...data.items],
+              query_manifest: {
+                ...current.query_manifest,
+                run_revision_ids: [...current.items, ...data.items].map(
+                  (item) => item.run_revision_id,
+                ),
+              },
+            }
+          : data,
+      ),
   })
   const patch = (index: number, value: Partial<FilterDraft>) =>
     setFilters((current) =>
@@ -164,7 +230,7 @@ export function DatasetQueryPage() {
                   <SelectContent>
                     {Object.keys(FIELD_TYPES).map((field) => (
                       <SelectItem key={field} value={field}>
-                        {field}
+                        {FIELD_LABELS[field]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -179,7 +245,7 @@ export function DatasetQueryPage() {
                   <SelectContent>
                     {operators(type).map((operator) => (
                       <SelectItem key={operator} value={operator}>
-                        {operator}
+                        {OPERATOR_LABELS[operator]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -198,7 +264,7 @@ export function DatasetQueryPage() {
                       <SelectContent>
                         {PROPERTY_CODES.map((code) => (
                           <SelectItem key={code} value={code}>
-                            {code}
+                            {PROPERTY_LABELS[code]}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -235,7 +301,7 @@ export function DatasetQueryPage() {
                 setFilters((current) => [
                   ...current,
                   {
-                    field: 'max_temperature_C',
+                    field: 'max_temperature_setpoint_C',
                     operator: 'between',
                     value: '',
                     propertyCode: 'coverage_percent',
@@ -251,7 +317,10 @@ export function DatasetQueryPage() {
                 mutation.isPending ||
                 filters.some((filter) => !filter.value.trim())
               }
-              onClick={() => mutation.mutate()}
+              onClick={() => {
+                setResult(null)
+                mutation.mutate({ append: false })
+              }}
             >
               <Search /> 构建数据集
             </Button>
@@ -266,24 +335,50 @@ export function DatasetQueryPage() {
           </AlertDescription>
         </Alert>
       ) : null}
-      {mutation.data ? (
+      {result ? (
         <Card>
           <CardHeader>
             <CardTitle>查询结果</CardTitle>
             <CardDescription className="flex flex-wrap gap-2">
               <Badge variant="secondary">
-                {mutation.data.items.length} 条不可变修订
+                {result.items.length} 条不可变修订
               </Badge>
               <Badge variant="outline">
                 查询指纹{' '}
-                {String(mutation.data.query_manifest['query_sha256']).slice(
-                  0,
-                  12,
-                )}
+                {String(result.query_manifest['query_sha256']).slice(0, 12)}
               </Badge>
               <Badge variant="outline">
-                schema {String(mutation.data.query_manifest['schema_version'])}
+                schema {String(result.query_manifest['schema_version'])}
               </Badge>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  triggerBlobDownload(
+                    new Blob(
+                      [
+                        JSON.stringify(
+                          {
+                            ...result.query_manifest,
+                            run_revision_ids: result.items.map(
+                              (item) => item.run_revision_id,
+                            ),
+                          },
+                          null,
+                          2,
+                        ),
+                      ],
+                      { type: 'application/json' },
+                    ),
+                    `cvd-dataset-${String(
+                      result.query_manifest['query_sha256'],
+                    ).slice(0, 12)}.json`,
+                  )
+                }
+              >
+                <Download /> 下载查询清单
+              </Button>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -298,7 +393,7 @@ export function DatasetQueryPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mutation.data.items.map((item) => (
+                {result.items.map((item) => (
                   <TableRow key={item.run_revision_id}>
                     <TableCell>
                       <Link
@@ -321,6 +416,22 @@ export function DatasetQueryPage() {
                 ))}
               </TableBody>
             </Table>
+            {result.next_cursor ? (
+              <Button
+                type="button"
+                className="mt-4"
+                variant="outline"
+                disabled={mutation.isPending}
+                onClick={() =>
+                  mutation.mutate({
+                    cursor: result.next_cursor ?? undefined,
+                    append: true,
+                  })
+                }
+              >
+                加载更多
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -352,7 +463,15 @@ function FilterValue({
         <SelectContent>
           {options.map((option) => (
             <SelectItem key={option} value={option}>
-              {option}
+              {type === 'boolean'
+                ? option === 'true'
+                  ? '是'
+                  : '否'
+                : {
+                    present: '已生长',
+                    absent: '未生长',
+                    uncertain: '结论不确定',
+                  }[option]}
             </SelectItem>
           ))}
         </SelectContent>

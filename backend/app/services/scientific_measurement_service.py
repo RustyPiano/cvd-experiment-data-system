@@ -19,7 +19,7 @@ from app.models.scientific import (
     RunFeature,
 )
 from app.models.user import User, UserRole
-from app.models.v2_entities import InstrumentCapability
+from app.models.v2_entities import InstrumentCapability, InstrumentLifecycleEvent
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import (
@@ -34,7 +34,7 @@ from app.services.experiment_guards import (
 )
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import instrument_version_snapshot
-from app.services.v2_field_source import SCHEMA_VERSION
+from app.services.v2_field_source import SCHEMA_VERSION, normalize_offset_datetime
 from app.services.v2_result_status_service import refresh_result_missing_todo
 
 
@@ -77,6 +77,7 @@ class ScientificMeasurementService:
             measurement.instrument_id,
             measurement.instrument_version,
             measurement.method_profile,
+            measurement.measured_at,
         )
         raw_files = self._active_files(
             measurement.raw_file_ids,
@@ -318,6 +319,7 @@ class ScientificMeasurementService:
         instrument_id: UUID | None,
         version_number: int | None,
         method_profile: str,
+        measured_at: datetime,
     ) -> dict | None:
         if instrument_id is None or version_number is None:
             if method_profile != "optical_microscopy":
@@ -347,7 +349,65 @@ class ScientificMeasurementService:
             )
         snapshot = instrument_version_snapshot(version)
         snapshot["capabilities"] = sorted(capabilities or {legacy_capability})
+        snapshot["calibration_at_measurement"] = self._calibration_snapshot(
+            instrument_id,
+            measured_at,
+        )
         return snapshot
+
+    def _calibration_snapshot(self, instrument_id: UUID, measured_at: datetime) -> dict:
+        event = self.db.scalar(
+            select(InstrumentLifecycleEvent)
+            .where(
+                InstrumentLifecycleEvent.instrument_id == instrument_id,
+                InstrumentLifecycleEvent.event_type == "calibration",
+                InstrumentLifecycleEvent.occurred_at <= measured_at,
+            )
+            .order_by(
+                InstrumentLifecycleEvent.occurred_at.desc(),
+                InstrumentLifecycleEvent.id.desc(),
+            )
+            .limit(1)
+        )
+        if event is None:
+            return {
+                "measured_at": measured_at.isoformat(),
+                "validity_status": "not_recorded",
+            }
+        certificate = (
+            self.db.get(FileAsset, event.certificate_file_id) if event.certificate_file_id else None
+        )
+        validity = (
+            "validity_not_declared"
+            if event.valid_until is None
+            else "valid"
+            if normalize_offset_datetime(event.valid_until) >= measured_at
+            else "expired"
+        )
+        return {
+            "event_id": str(event.id),
+            "occurred_at": normalize_offset_datetime(event.occurred_at).isoformat(),
+            "valid_until": (
+                normalize_offset_datetime(event.valid_until).isoformat()
+                if event.valid_until
+                else None
+            ),
+            "validity_status": validity,
+            "affected_component": event.affected_component,
+            "quantity": event.quantity,
+            "correction": event.correction,
+            "expanded_uncertainty": event.expanded_uncertainty,
+            "details": event.details_json,
+            "certificate": (
+                {
+                    "file_asset_id": str(certificate.id),
+                    "original_name": certificate.original_name,
+                    "sha256": certificate.sha256,
+                }
+                if certificate
+                else None
+            ),
+        }
 
     def _active_files(
         self,
