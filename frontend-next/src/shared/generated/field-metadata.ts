@@ -89,6 +89,41 @@ export interface StageType {
   requiredExtra?: string[]
 }
 
+export interface CharacterizationConditionField {
+  key: string
+  label_zh: string
+  label_en: string
+  value_type: 'text' | 'number' | 'integer' | 'range' | 'size' | 'resolution'
+  unit?: string
+  components?: Array<{ key: string; label_zh: string; label_en: string }>
+}
+
+export interface CharacterizationProfile {
+  label_zh: string
+  label_en: string
+  instrument_required: boolean
+  raw_files_required: boolean
+  show_growth_presence: boolean
+  raw_file_guidance_zh: string
+  allowed_region_types: string[]
+  condition_fields: CharacterizationConditionField[]
+  allowed_property_codes: string[]
+  default_property_codes: string[]
+  allowed_assertion_types: string[]
+}
+
+export interface CharacterizationProperty {
+  label_zh: string
+  label_en: string
+  unit: string
+}
+
+export interface GasSpecies {
+  label_zh: string
+  label_en: string
+  aliases: string[]
+}
+
 export const fieldMetadataMeta: FieldMetadataMeta = {
   version: 'v4.0-alpha.2',
   status: 'INTERNAL_VALIDATION',
@@ -4027,3 +4062,620 @@ export const stageTypes: StageType[] = [
     requiredExtra: ['other_stage_name', 'notes'],
   },
 ]
+
+/** 表征属性代码、显示名与规范单位。 */
+export const characterizationProperties: Record<
+  string,
+  CharacterizationProperty
+> = {
+  coverage_percent: {
+    label_zh: '覆盖率',
+    label_en: 'Coverage',
+    unit: '%',
+  },
+  domain_size_um: {
+    label_zh: '晶畴尺寸',
+    label_en: 'Domain size',
+    unit: 'μm',
+  },
+  nucleation_density_cm2: {
+    label_zh: '成核密度',
+    label_en: 'Nucleation density',
+    unit: 'cm⁻²',
+  },
+  raman_e2g_peak_position: {
+    label_zh: 'Raman E₂g 峰位',
+    label_en: 'Raman E2g peak position',
+    unit: 'cm⁻¹',
+  },
+  raman_a1g_peak_position: {
+    label_zh: 'Raman A₁g 峰位',
+    label_en: 'Raman A1g peak position',
+    unit: 'cm⁻¹',
+  },
+  raman_peak_separation: {
+    label_zh: 'Raman 峰间距',
+    label_en: 'Raman peak separation',
+    unit: 'cm⁻¹',
+  },
+  raman_peak_fwhm: {
+    label_zh: 'Raman 峰宽',
+    label_en: 'Raman peak FWHM',
+    unit: 'cm⁻¹',
+  },
+  raman_intensity_ratio: {
+    label_zh: 'Raman 强度比',
+    label_en: 'Raman intensity ratio',
+    unit: 'ratio',
+  },
+  shear_mode_peak_position: {
+    label_zh: '剪切模峰位',
+    label_en: 'Shear-mode peak position',
+    unit: 'cm⁻¹',
+  },
+  low_frequency_peak_fwhm: {
+    label_zh: '低频 Raman 峰宽',
+    label_en: 'Low-frequency Raman peak FWHM',
+    unit: 'cm⁻¹',
+  },
+  pl_a_exciton_peak_energy: {
+    label_zh: 'PL A 激子峰能量',
+    label_en: 'PL A-exciton peak energy',
+    unit: 'eV',
+  },
+  pl_b_exciton_peak_energy: {
+    label_zh: 'PL B 激子峰能量',
+    label_en: 'PL B-exciton peak energy',
+    unit: 'eV',
+  },
+  pl_integrated_intensity: {
+    label_zh: 'PL 积分强度',
+    label_en: 'PL integrated intensity',
+    unit: 'a.u.',
+  },
+  pl_peak_fwhm: {
+    label_zh: 'PL 峰宽',
+    label_en: 'PL peak FWHM',
+    unit: 'meV',
+  },
+  afm_ra_roughness: {
+    label_zh: 'AFM 算术平均粗糙度',
+    label_en: 'AFM arithmetic roughness',
+    unit: 'nm',
+  },
+  afm_rms_roughness: {
+    label_zh: 'AFM 均方根粗糙度',
+    label_en: 'AFM RMS roughness',
+    unit: 'nm',
+  },
+  afm_step_height: {
+    label_zh: 'AFM 台阶高度',
+    label_en: 'AFM step height',
+    unit: 'nm',
+  },
+  xrd_peak_2theta: {
+    label_zh: 'XRD 衍射峰位',
+    label_en: 'XRD peak 2-theta',
+    unit: '° 2θ',
+  },
+  xrd_peak_fwhm: {
+    label_zh: 'XRD 衍射峰宽',
+    label_en: 'XRD peak FWHM',
+    unit: '° 2θ',
+  },
+  xrd_d_spacing: {
+    label_zh: 'XRD 晶面间距',
+    label_en: 'XRD d-spacing',
+    unit: 'nm',
+  },
+  tem_lattice_spacing: {
+    label_zh: 'TEM 晶格间距',
+    label_en: 'TEM lattice spacing',
+    unit: 'nm',
+  },
+}
+
+/** 表征方法、条件、区域、属性与材料结论的单一合同。 */
+export const characterizationProfiles: Record<string, CharacterizationProfile> =
+  {
+    optical_microscopy: {
+      label_zh: '光学显微镜',
+      label_en: 'Optical microscopy',
+      instrument_required: false,
+      raw_files_required: false,
+      show_growth_presence: true,
+      raw_file_guidance_zh: '建议上传原始图像；仅记录直接观察结论时可不上传。',
+      allowed_region_types: ['point', 'area', 'whole_sample'],
+      condition_fields: [
+        {
+          key: 'objective',
+          label_zh: '物镜',
+          label_en: 'Objective',
+          value_type: 'text',
+        },
+        {
+          key: 'illumination_mode',
+          label_zh: '照明模式',
+          label_en: 'Illumination mode',
+          value_type: 'text',
+        },
+      ],
+      allowed_property_codes: [
+        'coverage_percent',
+        'domain_size_um',
+        'nucleation_density_cm2',
+      ],
+      default_property_codes: ['coverage_percent'],
+      allowed_assertion_types: [
+        'growth_presence',
+        'phase_identity',
+        'composition',
+        'polytype',
+        'stacking_order',
+        'orientation_relationship',
+        'layer_count',
+      ],
+    },
+    Raman: {
+      label_zh: '拉曼光谱',
+      label_en: 'Raman spectroscopy',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '请上传原始光谱或仪器导出文件。',
+      allowed_region_types: ['point', 'line'],
+      condition_fields: [
+        {
+          key: 'laser_wavelength_nm',
+          label_zh: '激光波长',
+          label_en: 'Laser wavelength',
+          value_type: 'number',
+          unit: 'nm',
+        },
+        {
+          key: 'power_setting',
+          label_zh: '功率设置',
+          label_en: 'Power setting',
+          value_type: 'text',
+        },
+        {
+          key: 'objective',
+          label_zh: '物镜',
+          label_en: 'Objective',
+          value_type: 'text',
+        },
+        {
+          key: 'integration_time_s',
+          label_zh: '积分时间',
+          label_en: 'Integration time',
+          value_type: 'number',
+          unit: 's',
+        },
+        {
+          key: 'accumulations',
+          label_zh: '累加次数',
+          label_en: 'Accumulations',
+          value_type: 'integer',
+        },
+      ],
+      allowed_property_codes: [
+        'raman_e2g_peak_position',
+        'raman_a1g_peak_position',
+        'raman_peak_separation',
+        'raman_peak_fwhm',
+        'raman_intensity_ratio',
+      ],
+      default_property_codes: [
+        'raman_e2g_peak_position',
+        'raman_a1g_peak_position',
+        'raman_peak_separation',
+      ],
+      allowed_assertion_types: [
+        'phase_identity',
+        'polytype',
+        'stacking_order',
+        'layer_count',
+      ],
+    },
+    low_frequency_raman: {
+      label_zh: '低频拉曼',
+      label_en: 'Low-frequency Raman spectroscopy',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '请上传原始光谱或仪器导出文件。',
+      allowed_region_types: ['point', 'line'],
+      condition_fields: [
+        {
+          key: 'laser_wavelength_nm',
+          label_zh: '激光波长',
+          label_en: 'Laser wavelength',
+          value_type: 'number',
+          unit: 'nm',
+        },
+        {
+          key: 'power_setting',
+          label_zh: '功率设置',
+          label_en: 'Power setting',
+          value_type: 'text',
+        },
+        {
+          key: 'objective',
+          label_zh: '物镜',
+          label_en: 'Objective',
+          value_type: 'text',
+        },
+        {
+          key: 'integration_time_s',
+          label_zh: '积分时间',
+          label_en: 'Integration time',
+          value_type: 'number',
+          unit: 's',
+        },
+        {
+          key: 'accumulations',
+          label_zh: '累加次数',
+          label_en: 'Accumulations',
+          value_type: 'integer',
+        },
+      ],
+      allowed_property_codes: [
+        'shear_mode_peak_position',
+        'low_frequency_peak_fwhm',
+      ],
+      default_property_codes: ['shear_mode_peak_position'],
+      allowed_assertion_types: ['polytype', 'stacking_order', 'layer_count'],
+    },
+    PL: {
+      label_zh: '光致发光（PL）',
+      label_en: 'Photoluminescence',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '请上传原始光谱。',
+      allowed_region_types: ['point', 'line'],
+      condition_fields: [
+        {
+          key: 'excitation_wavelength_nm',
+          label_zh: '激发波长',
+          label_en: 'Excitation wavelength',
+          value_type: 'number',
+          unit: 'nm',
+        },
+        {
+          key: 'power_setting',
+          label_zh: '功率设置',
+          label_en: 'Power setting',
+          value_type: 'text',
+        },
+        {
+          key: 'integration_time_s',
+          label_zh: '积分时间',
+          label_en: 'Integration time',
+          value_type: 'number',
+          unit: 's',
+        },
+        {
+          key: 'spectral_range_nm',
+          label_zh: '光谱范围',
+          label_en: 'Spectral range',
+          value_type: 'range',
+          unit: 'nm',
+          components: [
+            {
+              key: 'min',
+              label_zh: '最小值',
+              label_en: 'Minimum',
+            },
+            {
+              key: 'max',
+              label_zh: '最大值',
+              label_en: 'Maximum',
+            },
+          ],
+        },
+        {
+          key: 'temperature_K',
+          label_zh: '测量温度',
+          label_en: 'Measurement temperature',
+          value_type: 'number',
+          unit: 'K',
+        },
+      ],
+      allowed_property_codes: [
+        'pl_a_exciton_peak_energy',
+        'pl_b_exciton_peak_energy',
+        'pl_integrated_intensity',
+        'pl_peak_fwhm',
+      ],
+      default_property_codes: [
+        'pl_a_exciton_peak_energy',
+        'pl_b_exciton_peak_energy',
+      ],
+      allowed_assertion_types: ['phase_identity', 'layer_count'],
+    },
+    AFM: {
+      label_zh: '原子力显微镜（AFM）',
+      label_en: 'Atomic force microscopy',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '请上传原始高度数据及导出图。',
+      allowed_region_types: ['point', 'area', 'whole_sample'],
+      condition_fields: [
+        {
+          key: 'mode',
+          label_zh: '模式',
+          label_en: 'Mode',
+          value_type: 'text',
+        },
+        {
+          key: 'probe',
+          label_zh: '探针',
+          label_en: 'Probe',
+          value_type: 'text',
+        },
+        {
+          key: 'scan_size_um',
+          label_zh: '扫描尺寸',
+          label_en: 'Scan size',
+          value_type: 'size',
+          unit: 'μm',
+          components: [
+            {
+              key: 'x',
+              label_zh: 'X',
+              label_en: 'X',
+            },
+            {
+              key: 'y',
+              label_zh: 'Y',
+              label_en: 'Y',
+            },
+          ],
+        },
+        {
+          key: 'resolution_px',
+          label_zh: '分辨率',
+          label_en: 'Resolution',
+          value_type: 'resolution',
+          unit: 'px',
+          components: [
+            {
+              key: 'width',
+              label_zh: '宽',
+              label_en: 'Width',
+            },
+            {
+              key: 'height',
+              label_zh: '高',
+              label_en: 'Height',
+            },
+          ],
+        },
+        {
+          key: 'scan_rate_hz',
+          label_zh: '扫描速率',
+          label_en: 'Scan rate',
+          value_type: 'number',
+          unit: 'Hz',
+        },
+      ],
+      allowed_property_codes: [
+        'afm_ra_roughness',
+        'afm_rms_roughness',
+        'afm_step_height',
+      ],
+      default_property_codes: ['afm_rms_roughness', 'afm_step_height'],
+      allowed_assertion_types: ['layer_count'],
+    },
+    SEM: {
+      label_zh: '扫描电子显微镜（SEM）',
+      label_en: 'Scanning electron microscopy',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: true,
+      raw_file_guidance_zh: '请上传原始图像与仪器元数据。',
+      allowed_region_types: ['point', 'area', 'whole_sample'],
+      condition_fields: [
+        {
+          key: 'accelerating_voltage_kV',
+          label_zh: '加速电压',
+          label_en: 'Accelerating voltage',
+          value_type: 'number',
+          unit: 'kV',
+        },
+        {
+          key: 'working_distance_mm',
+          label_zh: '工作距离',
+          label_en: 'Working distance',
+          value_type: 'number',
+          unit: 'mm',
+        },
+        {
+          key: 'detector',
+          label_zh: '探测器',
+          label_en: 'Detector',
+          value_type: 'text',
+        },
+        {
+          key: 'field_of_view_um',
+          label_zh: '视场',
+          label_en: 'Field of view',
+          value_type: 'size',
+          unit: 'μm',
+          components: [
+            {
+              key: 'width',
+              label_zh: '宽',
+              label_en: 'Width',
+            },
+            {
+              key: 'height',
+              label_zh: '高',
+              label_en: 'Height',
+            },
+          ],
+        },
+      ],
+      allowed_property_codes: [
+        'coverage_percent',
+        'domain_size_um',
+        'nucleation_density_cm2',
+      ],
+      default_property_codes: ['coverage_percent', 'domain_size_um'],
+      allowed_assertion_types: ['growth_presence', 'composition'],
+    },
+    XRD: {
+      label_zh: 'X 射线衍射（XRD）',
+      label_en: 'X-ray diffraction',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '请上传原始衍射数据。',
+      allowed_region_types: ['whole_sample', 'area'],
+      condition_fields: [
+        {
+          key: 'radiation_source',
+          label_zh: '辐射源',
+          label_en: 'Radiation source',
+          value_type: 'text',
+        },
+        {
+          key: 'scan_range_2theta_deg',
+          label_zh: '2θ 扫描范围',
+          label_en: '2-theta scan range',
+          value_type: 'range',
+          unit: '°',
+          components: [
+            {
+              key: 'start',
+              label_zh: '起点',
+              label_en: 'Start',
+            },
+            {
+              key: 'end',
+              label_zh: '终点',
+              label_en: 'End',
+            },
+          ],
+        },
+        {
+          key: 'step_size_deg',
+          label_zh: '步长',
+          label_en: 'Step size',
+          value_type: 'number',
+          unit: '°',
+        },
+        {
+          key: 'scan_rate_deg_min',
+          label_zh: '扫描速率',
+          label_en: 'Scan rate',
+          value_type: 'number',
+          unit: '°/min',
+        },
+        {
+          key: 'geometry',
+          label_zh: '几何构型',
+          label_en: 'Geometry',
+          value_type: 'text',
+        },
+      ],
+      allowed_property_codes: [
+        'xrd_peak_2theta',
+        'xrd_peak_fwhm',
+        'xrd_d_spacing',
+      ],
+      default_property_codes: ['xrd_peak_2theta', 'xrd_d_spacing'],
+      allowed_assertion_types: [
+        'phase_identity',
+        'polytype',
+        'stacking_order',
+        'orientation_relationship',
+      ],
+    },
+    TEM: {
+      label_zh: '透射电子显微镜（TEM）',
+      label_en: 'Transmission electron microscopy',
+      instrument_required: true,
+      raw_files_required: true,
+      show_growth_presence: false,
+      raw_file_guidance_zh: '请上传原始图像、衍射或 EDS 数据。',
+      allowed_region_types: ['lamella', 'particle', 'selected_area'],
+      condition_fields: [
+        {
+          key: 'accelerating_voltage_kV',
+          label_zh: '加速电压',
+          label_en: 'Accelerating voltage',
+          value_type: 'number',
+          unit: 'kV',
+        },
+        {
+          key: 'mode',
+          label_zh: '模式',
+          label_en: 'Mode',
+          value_type: 'text',
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '样品制备',
+          label_en: 'Sample preparation',
+          value_type: 'text',
+        },
+      ],
+      allowed_property_codes: ['tem_lattice_spacing'],
+      default_property_codes: ['tem_lattice_spacing'],
+      allowed_assertion_types: [
+        'phase_identity',
+        'composition',
+        'polytype',
+        'stacking_order',
+        'orientation_relationship',
+        'layer_count',
+      ],
+    },
+  }
+
+/** 过程气体稳定机器码与显示/兼容别名。 */
+export const gasSpecies: Record<string, GasSpecies> = {
+  Ar: {
+    label_zh: '氩气',
+    label_en: 'Argon',
+    aliases: ['Ar', 'AR', 'argon', '氩气'],
+  },
+  N2: {
+    label_zh: '氮气',
+    label_en: 'Nitrogen',
+    aliases: ['N2', 'n2', 'nitrogen', '氮气'],
+  },
+  H2: {
+    label_zh: '氢气',
+    label_en: 'Hydrogen',
+    aliases: ['H2', 'h2', 'hydrogen', '氢气'],
+  },
+  O2: {
+    label_zh: '氧气',
+    label_en: 'Oxygen',
+    aliases: ['O2', 'o2', 'oxygen', '氧气'],
+  },
+  He: {
+    label_zh: '氦气',
+    label_en: 'Helium',
+    aliases: ['He', 'HE', 'helium', '氦气'],
+  },
+  CH4: {
+    label_zh: '甲烷',
+    label_en: 'Methane',
+    aliases: ['CH4', 'ch4', 'methane', '甲烷'],
+  },
+  H2S: {
+    label_zh: '硫化氢',
+    label_en: 'Hydrogen sulfide',
+    aliases: ['H2S', 'h2s', 'hydrogen sulfide', '硫化氢'],
+  },
+  NH3: {
+    label_zh: '氨气',
+    label_en: 'Ammonia',
+    aliases: ['NH3', 'nh3', 'ammonia', '氨气'],
+  },
+}

@@ -75,6 +75,26 @@ def load_field_source(path: str = str(DEFAULT_FIELD_SOURCE)) -> dict[str, Any]:
     return _load_field_source_cached(path)
 
 
+def characterization_profiles(
+    doc: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    return (doc or load_field_source())["characterization_profiles"]
+
+
+def characterization_property_units(
+    doc: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    return (doc or load_field_source())["scientific_contract"]["property_units"]
+
+
+def canonical_gas_species(value: str, doc: dict[str, Any] | None = None) -> str:
+    normalized = value.strip().casefold()
+    for code, definition in (doc or load_field_source())["gas_species"].items():
+        if normalized in {str(alias).strip().casefold() for alias in definition["aliases"]}:
+            return str(code)
+    raise ValueError("unsupported gas species")
+
+
 def experiment_fields(doc: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     source = doc or load_field_source()
     return [

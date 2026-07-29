@@ -4,7 +4,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.scientific import RunRevision, SampleRevisionAssociation, SourceLoad
+from app.models.file_asset import FileAsset
+from app.models.scientific import (
+    ProcessChannel,
+    RunFeature,
+    RunRevision,
+    SampleRevisionAssociation,
+    SampleRevisionState,
+    SourceLoad,
+)
 from tests.helpers.v2_payloads import setup_payload, substrate_item, substrate_lot_payload
 
 client = TestClient(app)
@@ -177,6 +185,57 @@ def test_scientific_revision_measurement_and_query_chain(
         "substrates",
         {"items": [substrate_item(substrate_lot)]},
     )
+    temperature_upload = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        headers=headers,
+        data={
+            "asset_role": "process_timeseries",
+            "binding_type": "process_channel",
+            "binding_id": "channel_22222222_2222_4222_8222_222222222222",
+        },
+        files={
+            "file": (
+                "temperature.csv",
+                b"time_s,value\n0,25\n600,750\n1200,750\n1800,100\n",
+                "text/csv",
+            )
+        },
+    )
+    assert temperature_upload.status_code == 201, temperature_upload.text
+    pressure_upload = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        headers=headers,
+        data={
+            "asset_role": "process_timeseries",
+            "binding_type": "process_channel",
+            "binding_id": "channel_33333333_3333_4333_8333_333333333333",
+        },
+        files={
+            "file": (
+                "pressure.csv",
+                b"time_s,value\n0,1\n900,2\n1800,1\n",
+                "text/csv",
+            )
+        },
+    )
+    assert pressure_upload.status_code == 201, pressure_upload.text
+    orphan_timeseries = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        headers=headers,
+        data={
+            "asset_role": "process_timeseries",
+            "binding_type": "process_channel",
+            "binding_id": "channel_99999999_9999_4999_8999_999999999999",
+        },
+        files={
+            "file": (
+                "orphan.csv",
+                b"time_s,value\n0,1\n1800,2\n",
+                "text/csv",
+            )
+        },
+    )
+    assert orphan_timeseries.status_code == 201, orphan_timeseries.text
     _put_module(
         headers,
         run_id,
@@ -197,6 +256,7 @@ def test_scientific_revision_measurement_and_query_chain(
                     "channel_type": "temperature",
                     "subject_type": "temperature_zone",
                     "subject_ref": "zone_1",
+                    "subject_instance_ref": "zone_1_controller",
                     "zone_index": 1,
                     "source_type": "setpoint",
                     "unit": "K",
@@ -208,30 +268,33 @@ def test_scientific_revision_measurement_and_query_chain(
                     "channel_type": "temperature",
                     "subject_type": "temperature_zone",
                     "subject_ref": "zone_1",
+                    "subject_instance_ref": "tc_zone_1",
                     "zone_index": 1,
                     "source_type": "measured",
                     "unit": "°C",
-                    "data_kind": "scalar",
-                    "scalar_value": 749,
+                    "data_kind": "timeseries_file",
+                    "file_asset_id": temperature_upload.json()["id"],
                 },
                 {
                     "channel_key": "channel_33333333_3333_4333_8333_333333333333",
                     "channel_type": "pressure",
                     "subject_type": "pressure_location",
                     "subject_ref": "tube_outlet",
+                    "subject_instance_ref": "pressure_gauge_outlet",
                     "pressure_location": "tube_outlet",
                     "pressure_type": "absolute",
                     "source_type": "measured",
                     "unit": "Torr",
-                    "data_kind": "scalar",
-                    "scalar_value": 760,
+                    "data_kind": "timeseries_file",
+                    "file_asset_id": pressure_upload.json()["id"],
                 },
                 {
                     "channel_key": "channel_44444444_4444_4444_8444_444444444444",
                     "channel_type": "flow",
                     "subject_type": "gas_species",
                     "subject_ref": "氩气",
-                    "gas_species": "氩气",
+                    "subject_instance_ref": "mfc_ar_1",
+                    "gas_species_code": "氩气",
                     "source_type": "setpoint",
                     "unit": "sccm",
                     "data_kind": "scalar",
@@ -240,21 +303,73 @@ def test_scientific_revision_measurement_and_query_chain(
             ],
         },
     )
-    _put_module(headers, run_id, "process_events", {"items": []})
+    db_session.expire_all()
+    assert db_session.get(FileAsset, UUID(temperature_upload.json()["id"])).deleted_at is None
+    assert db_session.get(FileAsset, UUID(pressure_upload.json()["id"])).deleted_at is None
+    assert db_session.get(FileAsset, UUID(orphan_timeseries.json()["id"])).deleted_at is not None
+    event_attachment = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        headers=headers,
+        data={
+            "asset_role": "process_event_attachment",
+            "binding_type": "process_event",
+            "binding_id": "gas_line_event",
+        },
+        files={"file": ("event.txt", b"gas line interruption", "text/plain")},
+    )
+    assert event_attachment.status_code == 201, event_attachment.text
+    orphan_attachment = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        headers=headers,
+        data={
+            "asset_role": "process_event_attachment",
+            "binding_type": "process_event",
+            "binding_id": "orphan_event",
+        },
+        files={"file": ("orphan.txt", b"orphan", "text/plain")},
+    )
+    assert orphan_attachment.status_code == 201, orphan_attachment.text
+    _put_module(
+        headers,
+        run_id,
+        "process_events",
+        {
+            "items": [
+                {
+                    "event_key": "gas_line_event",
+                    "start_s": 0,
+                    "end_s": 1800,
+                    "affected_objects": ["gas_line"],
+                    "observed_deviations": ["gas_interruption"],
+                    "data_validity_impact": "partial",
+                    "excluded_time_ranges": [{"start_s": 0, "end_s": 1800}],
+                    "attachment_file_ids": [event_attachment.json()["id"]],
+                },
+                {
+                    "event_key": "channel_gap",
+                    "start_s": 0,
+                    "end_s": 60,
+                    "affected_objects": ["process_channel"],
+                    "observed_deviations": ["signal_anomaly"],
+                    "data_validity_impact": "partial",
+                    "excluded_time_ranges": [{"start_s": 0, "end_s": 60}],
+                },
+            ]
+        },
+    )
+    db_session.expire_all()
+    assert db_session.get(FileAsset, UUID(event_attachment.json()["id"])).deleted_at is None
+    assert db_session.get(FileAsset, UUID(orphan_attachment.json()["id"])).deleted_at is not None
 
     precursor_payload = client.get(
         f"/api/v1/experiments/{run_id}/modules/precursors",
         headers=headers,
     ).json()["payload_json"]
-    precursor_payload["items"][0]["heating_channel"] = (
-        "channel_44444444_4444_4444_8444_444444444444"
-    )
+    precursor_payload["items"][0]["heating_zone_ref"] = "zone_99"
     _put_module(headers, run_id, "precursors", precursor_payload)
     invalid_heating = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
     assert invalid_heating.status_code == 422
-    precursor_payload["items"][0]["heating_channel"] = (
-        "channel_11111111_1111_4111_8111_111111111111"
-    )
+    precursor_payload["items"][0]["heating_zone_ref"] = "zone_1"
     _put_module(headers, run_id, "precursors", precursor_payload)
 
     locked = client.post(f"/api/v1/experiments/{run_id}/lock", headers=headers)
@@ -264,6 +379,18 @@ def test_scientific_revision_measurement_and_query_chain(
     projected_load = db_session.query(SourceLoad).filter_by(load_key="metal_source").one()
     assert projected_load.container_state_at_loading == "available"
     assert projected_load.container_snapshot_json["remaining_amount"] == 40
+    temperature_channel = (
+        db_session.query(ProcessChannel)
+        .filter_by(
+            run_revision_id=UUID(revision_1),
+            channel_key="channel_22222222_2222_4222_8222_222222222222",
+        )
+        .one()
+    )
+    assert temperature_channel.statistics_json["max"] == 750
+    assert temperature_channel.statistics_json["excluded_duration_s"] == 60
+    assert temperature_channel.source_file_sha256 == temperature_upload.json()["sha256"]
+    assert temperature_channel.parser_version == "process_timeseries_csv_v1"
 
     samples = client.get(
         f"/api/v1/samples?experiment_id={run_id}",
@@ -316,6 +443,50 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert measurement.status_code == 201, measurement.text
     assert measurement.json()["run_revision_id"] == revision_1
+    evidence_upload = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        headers=headers,
+        data={
+            "sample_id": sample["id"],
+            "characterization_record_id": measurement.json()["id"],
+            "method": "optical_microscopy",
+            "asset_role": "characterization_file",
+        },
+        files={"file": ("optical.png", b"raw optical evidence", "image/png")},
+    )
+    assert evidence_upload.status_code == 201, evidence_upload.text
+    db_session.expire_all()
+    provenance = (
+        db_session.query(RunFeature)
+        .filter_by(
+            run_revision_id=UUID(revision_1),
+            feature_code="provenance_complete",
+            ordinal=0,
+        )
+        .one()
+    )
+    assert provenance.boolean_value is True
+    deleted_evidence = client.delete(
+        f"/api/v1/files/{evidence_upload.json()['id']}",
+        headers=headers,
+    )
+    assert deleted_evidence.status_code == 204
+    db_session.refresh(provenance)
+    assert provenance.boolean_value is False
+    replacement_evidence = client.post(
+        f"/api/v1/experiments/{run_id}/files",
+        headers=headers,
+        data={
+            "sample_id": sample["id"],
+            "characterization_record_id": measurement.json()["id"],
+            "method": "optical_microscopy",
+            "asset_role": "characterization_file",
+        },
+        files={"file": ("optical-replacement.png", b"replacement evidence", "image/png")},
+    )
+    assert replacement_evidence.status_code == 201, replacement_evidence.text
+    db_session.refresh(provenance)
+    assert provenance.boolean_value is True
 
     sample_after = client.get(f"/api/v1/samples/{sample['id']}", headers=headers)
     assert sample_after.status_code == 200, sample_after.text
@@ -347,10 +518,12 @@ def test_scientific_revision_measurement_and_query_chain(
     assert dataset.json()["items"][0]["features"]["max_temperature_setpoint_C"] == (
         pytest.approx(749.85)
     )
+    assert dataset.json()["items"][0]["features"]["max_temperature_measured_C"] == 750
+    assert dataset.json()["items"][0]["features"]["ramp_rate_measured_C_min"] == 72.5
     assert dataset.json()["items"][0]["features"]["pressure_measured_max_Pa"] == (
-        pytest.approx(101_325)
+        pytest.approx(266.64473684210526)
     )
-    assert dataset.json()["items"][0]["features"]["gas_species"] == "氩气"
+    assert dataset.json()["items"][0]["features"]["gas_species"] == "Ar"
     assert dataset.json()["query_manifest"]["schema_status"] == "INTERNAL_VALIDATION"
     assert dataset.json()["query_manifest"]["run_revision_ids"] == [revision_1]
     not_equal_existing = client.post(
@@ -513,6 +686,20 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert correction.status_code == 200, correction.text
     assert correction.json()["status"] == "draft"
+    corrected_process = client.get(
+        f"/api/v1/experiments/{run_id}/modules/process_steps",
+        headers=headers,
+    ).json()["payload_json"]
+    corrected_process["channels"] = [
+        channel
+        for channel in corrected_process["channels"]
+        if channel.get("file_asset_id") != temperature_upload.json()["id"]
+    ]
+    _put_module(headers, run_id, "process_steps", corrected_process)
+    _put_module(headers, run_id, "process_events", {"items": []})
+    db_session.expire_all()
+    assert db_session.get(FileAsset, UUID(temperature_upload.json()["id"])).deleted_at is None
+    assert db_session.get(FileAsset, UUID(event_attachment.json()["id"])).deleted_at is None
     target = client.get(
         f"/api/v1/experiments/{run_id}/modules/target_product",
         headers=headers,
@@ -531,6 +718,18 @@ def test_scientific_revision_measurement_and_query_chain(
         revision_1,
         revision_2,
     }
+    states = db_session.query(SampleRevisionState).filter_by(sample_id=UUID(sample["id"])).all()
+    assert {
+        str(item.run_revision_id): (item.growth_state, item.identity_state) for item in states
+    } == {
+        revision_1: ("uncertain", "unknown"),
+        revision_2: ("unknown", "unknown"),
+    }
+    sample_in_revision_2 = client.get(
+        f"/api/v1/samples/{sample['id']}",
+        headers=headers,
+    )
+    assert sample_in_revision_2.json()["actual_state"] == "unknown"
     revisions = client.get(
         f"/api/v1/experiments/{run_id}/revisions",
         headers=headers,

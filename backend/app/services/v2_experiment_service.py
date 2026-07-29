@@ -8,12 +8,14 @@ from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.module_payload import ExperimentModulePayload
+from app.models.scientific import ProcessChannel, RunRevision, ScientificProcessEvent
 from app.models.user import User
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
@@ -487,6 +489,13 @@ class V2ExperimentService:
                 substrate_source_ids,
             )
         saved = self._save_v2_payload(run.id, module_key, validated)
+        if module_key in {"process_steps", "process_events"}:
+            self._prune_unreferenced_process_files(
+                run.id,
+                module_key,
+                validated,
+                current_user,
+            )
         self.audit.record_event(
             actor=current_user,
             entity_type="experiment_run",
@@ -951,32 +960,44 @@ class V2ExperimentService:
     ) -> None:
         if module_key == "process_events":
             asset_role = "process_event_attachment"
-            retained_binding_ids = {
-                str(event.get("event_id"))
-                for event in payload_json.get("items") or []
-                if isinstance(event, dict)
-            }
             raw_ids = (
                 raw_id
                 for event in payload_json.get("items") or []
                 if isinstance(event, dict)
                 for raw_id in event.get("attachment_file_ids") or []
             )
-        else:
-            asset_role = "temperature_timeseries"
-            retained_binding_ids = None
+        elif module_key == "process_steps":
+            asset_role = "process_timeseries"
             raw_ids = (
-                measured["file_asset_id"]
-                for step in payload_json.get("items") or []
-                if isinstance(step, dict)
-                and step.get("stage_type") == "reaction_conditions"
-                and isinstance((measured := step.get("measured_temperature")), dict)
+                channel["file_asset_id"]
+                for channel in payload_json.get("channels") or []
+                if isinstance(channel, dict) and channel.get("file_asset_id")
             )
+        else:
+            return
+        referenced_file_ids = {UUID(str(raw_id)) for raw_id in raw_ids}
+        if asset_role == "process_timeseries":
+            referenced_file_ids.update(
+                self.db.scalars(
+                    select(ProcessChannel.file_asset_id)
+                    .join(RunRevision, RunRevision.id == ProcessChannel.run_revision_id)
+                    .where(
+                        RunRevision.experiment_run_id == run_id,
+                        ProcessChannel.file_asset_id.is_not(None),
+                    )
+                )
+            )
+        else:
+            for attachment_ids in self.db.scalars(
+                select(ScientificProcessEvent.attachment_file_ids)
+                .join(RunRevision, RunRevision.id == ScientificProcessEvent.run_revision_id)
+                .where(RunRevision.experiment_run_id == run_id)
+            ):
+                referenced_file_ids.update(UUID(file_id) for file_id in attachment_ids)
         FileAssetService(self.db).soft_delete_unreferenced_process_files(
             experiment_id=run_id,
             asset_role=asset_role,
-            referenced_file_ids={UUID(str(raw_id)) for raw_id in raw_ids},
-            retained_binding_ids=retained_binding_ids,
+            referenced_file_ids=referenced_file_ids,
             current_user=current_user,
         )
 

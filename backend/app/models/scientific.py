@@ -124,6 +124,53 @@ class SampleRevisionAssociation(Base):
     )
 
 
+class SampleRevisionState(Base):
+    __tablename__ = "sample_revision_states"
+    __table_args__ = (
+        UniqueConstraint(
+            "sample_id",
+            "run_revision_id",
+            name="uq_sample_revision_states_sample_revision",
+        ),
+        CheckConstraint(
+            "growth_state IN ('unknown', 'present', 'absent', 'uncertain')",
+            name="ck_sample_revision_states_growth",
+        ),
+        CheckConstraint(
+            "identity_state IN ('unknown', 'asserted', 'conflicting')",
+            name="ck_sample_revision_states_identity",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sample_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("samples.id"),
+        nullable=False,
+        index=True,
+    )
+    run_revision_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("run_revisions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    growth_state: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    identity_state: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    material_summary: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    evidence_assertion_ids: Mapped[list[str]] = mapped_column(
+        json_payload_type,
+        nullable=False,
+        default=list,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class RunContributor(Base):
     __tablename__ = "run_contributors"
     __table_args__ = (
@@ -282,7 +329,7 @@ class SourceLoad(Base):
         nullable=False,
         default=list,
     )
-    heating_channel: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    heating_zone_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
     attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
 
 
@@ -355,9 +402,9 @@ class ProcessChannel(Base):
         UniqueConstraint(
             "run_revision_id",
             "channel_type",
-            "subject_ref",
+            "subject_instance_ref",
             "source_type",
-            name="uq_process_channels_revision_subject_source",
+            name="uq_process_channels_revision_instance_source",
         ),
         CheckConstraint(
             "source_type IN ('setpoint', 'measured', 'inferred')",
@@ -382,7 +429,23 @@ class ProcessChannel(Base):
     source_type: Mapped[str] = mapped_column(String(32), nullable=False)
     subject_type: Mapped[str] = mapped_column(String(32), nullable=False)
     subject_ref: Mapped[str] = mapped_column(String(128), nullable=False)
-    gas_species: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    subject_instance_ref: Mapped[str] = mapped_column(String(128), nullable=False)
+    subject_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
+    gas_species_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    gas_lot_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("material_lots.id"),
+        nullable=True,
+        index=True,
+    )
+    gas_lot_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    gas_lot_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
     zone_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pressure_location: Mapped[str | None] = mapped_column(String(128), nullable=True)
     pressure_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -399,10 +462,6 @@ class ProcessChannel(Base):
         nullable=True,
         index=True,
     )
-    sensor_or_controller_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
-        json_payload_type,
-        nullable=True,
-    )
     canonical_unit: Mapped[str] = mapped_column(String(32), nullable=False)
     canonical_scalar_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     canonical_series_json: Mapped[list[dict[str, Any]] | None] = mapped_column(
@@ -410,6 +469,12 @@ class ProcessChannel(Base):
         nullable=True,
     )
     projection_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    statistics_json: Mapped[dict[str, Any] | None] = mapped_column(
+        json_payload_type,
+        nullable=True,
+    )
+    source_file_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    parser_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class ScientificProcessEvent(Base):

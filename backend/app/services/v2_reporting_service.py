@@ -27,11 +27,13 @@ from app.models.scientific import (
     AnalysisRun,
     DataDerivationEdge,
     MaterialAssertion,
+    ProcessChannel,
     PropertyValue,
     RunContributor,
     RunFeature,
     RunRevision,
     SampleRevisionAssociation,
+    SampleRevisionState,
     SourceLoad,
     SourceLoadIngredient,
     TransformationInput,
@@ -50,6 +52,8 @@ from app.services.v2_field_source import (
     load_field_source,
     payload_fields_by_module,
 )
+
+LEGACY_BACKFILL_REASON = "Backfilled from production revision 20260728_0002"
 
 
 def _iso(value: date | datetime | None) -> str:
@@ -563,6 +567,7 @@ class V2ReportingService:
         records: list[CharacterizationRecord],
         files: list[FileAsset],
     ) -> dict[str, Any]:
+        legacy_products = self._products(samples, records, revision)
         revisions = [revision]
         revision_ids = [item.id for item in revisions]
         record_ids = [item.id for item in records if item.run_revision_id is not None]
@@ -772,7 +777,7 @@ class V2ReportingService:
                     "preparation_steps": item.preparation_steps,
                     "initial_position": item.initial_position,
                     "position_program": item.position_program,
-                    "heating_channel": item.heating_channel,
+                    "heating_zone_ref": item.heating_zone_ref,
                     "attrs": item.attrs,
                     "ingredients": [
                         {
@@ -802,6 +807,56 @@ class V2ReportingService:
                     select(SampleRevisionAssociation)
                     .where(SampleRevisionAssociation.run_revision_id == revision.id)
                     .order_by(SampleRevisionAssociation.sample_id)
+                )
+            ],
+            "sample_revision_states": [
+                {
+                    "sample_id": str(item.sample_id),
+                    "run_revision_id": str(item.run_revision_id),
+                    "growth_state": item.growth_state,
+                    "identity_state": item.identity_state,
+                    "material_summary": item.material_summary,
+                    "evidence_assertion_ids": item.evidence_assertion_ids,
+                    "updated_at": _iso(item.updated_at),
+                }
+                for item in self.db.scalars(
+                    select(SampleRevisionState)
+                    .where(SampleRevisionState.run_revision_id == revision.id)
+                    .order_by(SampleRevisionState.sample_id)
+                )
+            ],
+            "process_channels": [
+                {
+                    "id": str(item.id),
+                    "channel_key": item.channel_key,
+                    "channel_type": item.channel_type,
+                    "source_type": item.source_type,
+                    "subject_type": item.subject_type,
+                    "subject_ref": item.subject_ref,
+                    "subject_instance_ref": item.subject_instance_ref,
+                    "subject_snapshot": item.subject_snapshot_json,
+                    "gas_species_code": item.gas_species_code,
+                    "gas_lot_id": str(item.gas_lot_id) if item.gas_lot_id else None,
+                    "gas_lot_version": item.gas_lot_version,
+                    "gas_lot_snapshot": item.gas_lot_snapshot_json,
+                    "zone_index": item.zone_index,
+                    "pressure_location": item.pressure_location,
+                    "pressure_type": item.pressure_type,
+                    "unit": item.unit,
+                    "data_kind": item.data_kind,
+                    "file_asset_id": str(item.file_asset_id) if item.file_asset_id else None,
+                    "canonical_unit": item.canonical_unit,
+                    "canonical_scalar_value": item.canonical_scalar_value,
+                    "canonical_series": item.canonical_series_json,
+                    "statistics": item.statistics_json,
+                    "source_file_sha256": item.source_file_sha256,
+                    "parser_version": item.parser_version,
+                    "projection_status": item.projection_status,
+                }
+                for item in self.db.scalars(
+                    select(ProcessChannel)
+                    .where(ProcessChannel.run_revision_id == revision.id)
+                    .order_by(ProcessChannel.channel_key)
                 )
             ],
             "measurements": [
@@ -880,6 +935,31 @@ class V2ReportingService:
                 for record in records
                 if record.run_revision_id is not None
             ],
+            "legacy_measured_products": [
+                {
+                    "id": str(product.id),
+                    "sample_id": str(product.sample_id),
+                    "sample_code": sample_codes.get(product.sample_id),
+                    "characterization_record_id": (
+                        str(product.characterization_record_id)
+                        if product.characterization_record_id
+                        else None
+                    ),
+                    "observed_phenomena": product.observed_phenomena,
+                    "detected_phase_stacking": product.detected_phase_stacking,
+                    "layer_count": product.layer_count,
+                    "coverage_percent": product.coverage_percent,
+                    "domain_size_um": product.domain_size_um,
+                    "nucleation_density_cm2": product.nucleation_density_cm2,
+                    "measured_layers_coverage": product.measured_layers_coverage,
+                    "domain_nucleation_continuity": product.domain_nucleation_continuity,
+                    "key_spectral_metrics": product.key_spectral_metrics,
+                    "attrs": product.attrs,
+                    "created_at": _iso(product.created_at),
+                    "updated_at": _iso(product.updated_at),
+                }
+                for product in legacy_products
+            ],
             "transformations": [
                 {
                     "id": str(item.id),
@@ -949,7 +1029,7 @@ class V2ReportingService:
             operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
             records = self._records(run.id, revision.id)
             samples = self._samples_for_revision(run.id, revision.id, records)
-            products: list[MeasuredProduct] = []
+            products = self._products(samples, records, revision)
             files = self._files_for_records(records)
             scientific = self._scientific_json(
                 run,
@@ -1062,6 +1142,36 @@ class V2ReportingService:
                             "sample_code": generated.sample_code if generated else "",
                         },
                         {key: item.get(key) for key in substrate_keys},
+                    )
+                )
+
+            for sample in samples:
+                parent = (
+                    sample_by_id.get(sample.parent_sample_id) if sample.parent_sample_id else None
+                )
+                sample_rows.extend(
+                    _relational_rows(
+                        {
+                            "run_code": run.run_code,
+                            "sample_code": sample.sample_code,
+                            "role": sample.role,
+                            "run_revision_id": str(revision.id),
+                            "target_material_system": sample.target_material_system,
+                            "actual_state": sample.actual_state,
+                            "actual_material_summary": sample.actual_material_summary,
+                            "lifecycle_state": sample.lifecycle_state,
+                            "parent_sample_code": parent.sample_code if parent else "",
+                            "deleted_at": sample.deleted_at,
+                        },
+                        {
+                            **{
+                                f"source_{key}": canonicalize_controlled_values(
+                                    sample.source_substrate_snapshot_json or {}
+                                ).get(key, "")
+                                for key in substrate_keys
+                            },
+                            "sample_metadata": sample.metadata_json,
+                        },
                     )
                 )
 
@@ -1498,7 +1608,13 @@ class V2ReportingService:
         records: list[CharacterizationRecord],
     ) -> list[Sample]:
         measured_sample_ids = [record.sample_id for record in records]
-        revision_filter = Sample.run_revision_id == revision_id
+        associated_sample_ids = select(SampleRevisionAssociation.sample_id).where(
+            SampleRevisionAssociation.run_revision_id == revision_id
+        )
+        revision_filter = or_(
+            Sample.run_revision_id == revision_id,
+            Sample.id.in_(associated_sample_ids),
+        )
         if measured_sample_ids:
             revision_filter = or_(revision_filter, Sample.id.in_(measured_sample_ids))
         return list(
@@ -1512,14 +1628,30 @@ class V2ReportingService:
             )
         )
 
-    def _products(self, samples: list[Sample]) -> list[MeasuredProduct]:
+    def _products(
+        self,
+        samples: list[Sample],
+        records: list[CharacterizationRecord],
+        revision: RunRevision,
+    ) -> list[MeasuredProduct]:
         sample_ids = [sample.id for sample in samples]
         if not sample_ids:
+            return []
+        record_ids = [record.id for record in records]
+        revision_scope = []
+        if record_ids:
+            revision_scope.append(MeasuredProduct.characterization_record_id.in_(record_ids))
+        if revision.correction_reason == LEGACY_BACKFILL_REASON:
+            revision_scope.append(MeasuredProduct.characterization_record_id.is_(None))
+        if not revision_scope:
             return []
         return list(
             self.db.scalars(
                 select(MeasuredProduct)
-                .where(MeasuredProduct.sample_id.in_(sample_ids))
+                .where(
+                    MeasuredProduct.sample_id.in_(sample_ids),
+                    or_(*revision_scope),
+                )
                 .order_by(MeasuredProduct.created_at.asc(), MeasuredProduct.id.asc())
             )
         )

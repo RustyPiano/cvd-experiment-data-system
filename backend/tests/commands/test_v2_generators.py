@@ -389,6 +389,7 @@ def test_process_step_schema_discriminates_stage_type_and_forbids_hidden_groups(
                     "source_type": "setpoint",
                     "subject_type": "temperature_zone",
                     "subject_ref": "zone_1",
+                    "subject_instance_ref": "zone_1_controller",
                     "zone_index": 1,
                     "unit": "℃",
                     "data_kind": "scalar",

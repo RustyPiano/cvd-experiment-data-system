@@ -27,6 +27,7 @@ class SampleRead(BaseModel):
     target_material_system: str | None = None
     material_system: str | None = None
     actual_state: str
+    identity_state: str
     actual_material_summary: str | None
     parent_sample_id: UUID | None
     role: str

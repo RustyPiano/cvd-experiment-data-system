@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +16,14 @@ from app.models.v2_entities import (
     InstrumentLifecycleEvent,
     InstrumentVersion,
 )
-from app.schemas.scientific import AmbientMeasurement, ScientificProcessEventPayload
+from app.models.v2_results import CharacterizationRecord
+from app.schemas.scientific import (
+    AmbientMeasurement,
+    MaterialAssertionWrite,
+    MeasurementBundleCreate,
+    ProcessTimelinePayload,
+    ScientificProcessEventPayload,
+)
 from app.services.v2_field_source import SCHEMA_VERSION
 
 client = TestClient(app)
@@ -59,6 +66,157 @@ def test_process_event_uses_unique_controlled_values() -> None:
         ScientificProcessEventPayload.model_validate(
             {**payload, "affected_objects": ["gas_line", "gas_line"]}
         )
+
+
+def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> None:
+    timeline = ProcessTimelinePayload.model_validate(
+        {
+            "segments": [
+                {
+                    "segment_key": "growth",
+                    "segment_type": "growth",
+                    "sequence": 1,
+                    "start_s": 0,
+                    "end_s": 60,
+                }
+            ],
+            "channels": [
+                {
+                    "channel_key": f"channel_{uuid4()}".replace("-", "_"),
+                    "channel_type": "temperature",
+                    "source_type": "measured",
+                    "subject_type": "temperature_zone",
+                    "subject_ref": "zone_1",
+                    "subject_instance_ref": "TC-1A",
+                    "zone_index": 1,
+                    "unit": "°C",
+                    "data_kind": "scalar",
+                    "scalar_value": 749,
+                },
+                {
+                    "channel_key": f"channel_{uuid4()}".replace("-", "_"),
+                    "channel_type": "temperature",
+                    "source_type": "measured",
+                    "subject_type": "temperature_zone",
+                    "subject_ref": "zone_1",
+                    "subject_instance_ref": "TC-1B",
+                    "zone_index": 1,
+                    "unit": "°C",
+                    "data_kind": "scalar",
+                    "scalar_value": 751,
+                },
+                *[
+                    {
+                        "channel_key": f"channel_{uuid4()}".replace("-", "_"),
+                        "channel_type": "flow",
+                        "source_type": "measured",
+                        "subject_type": "gas_species",
+                        "subject_ref": alias,
+                        "subject_instance_ref": instance,
+                        "gas_species_code": alias,
+                        "unit": "sccm",
+                        "data_kind": "scalar",
+                        "scalar_value": 50,
+                    }
+                    for alias, instance in (("氩气", "MFC-Ar-1"), ("argon", "MFC-Ar-2"))
+                ],
+                *[
+                    {
+                        "channel_key": f"channel_{uuid4()}".replace("-", "_"),
+                        "channel_type": "valve_state",
+                        "source_type": "measured",
+                        "subject_type": "device",
+                        "subject_ref": "valve_state",
+                        "subject_instance_ref": instance,
+                        "unit": "state",
+                        "data_kind": "interval_series",
+                        "series": [{"start_s": 0, "end_s": 60, "value": "open"}],
+                    }
+                    for instance in ("valve-1", "valve-2")
+                ],
+            ],
+        }
+    )
+    assert [item.gas_species_code for item in timeline.channels[2:4]] == ["Ar", "Ar"]
+
+
+def test_measurement_contract_rejects_cross_method_properties_and_bad_composition() -> None:
+    with pytest.raises(ValueError, match="sum to one"):
+        MaterialAssertionWrite.model_validate(
+            {
+                "assertion_type": "composition",
+                "value": {
+                    "basis": "atomic_fraction",
+                    "components": [
+                        {"species": "Mo", "fraction": 0.8},
+                        {"species": "W", "fraction": 0.8},
+                    ],
+                },
+            }
+        )
+    payload = {
+        "measurement": {
+            "sample_id": str(uuid4()),
+            "method_profile": "AFM",
+            "instrument_id": str(uuid4()),
+            "instrument_version": 1,
+            "measured_at": "2026-07-29T10:00:00+08:00",
+            "sample_region": {
+                "geometry_type": "area",
+                "label": "center",
+                "coordinate_system": "sample_local",
+                "width": 5,
+                "height": 5,
+                "unit": "μm",
+            },
+            "typed_conditions": {
+                "mode": "tapping",
+                "probe": "Si",
+                "scan_size_um": {"x": 5, "y": 5},
+                "resolution_px": {"width": 512, "height": 512},
+                "scan_rate_hz": 1,
+            },
+            "raw_file_ids": [str(uuid4())],
+        },
+        "properties": [
+            {
+                "property_code": "raman_a1g_peak_position",
+                "numeric_value": 405,
+                "unit": "cm⁻¹",
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="do not apply to AFM"):
+        MeasurementBundleCreate.model_validate(payload)
+
+
+def test_optical_measurement_does_not_require_growth_assertion() -> None:
+    bundle = MeasurementBundleCreate.model_validate(
+        {
+            "measurement": {
+                "sample_id": str(uuid4()),
+                "method_profile": "optical_microscopy",
+                "measured_at": "2026-07-29T10:00:00+08:00",
+                "sample_region": {
+                    "geometry_type": "whole_sample",
+                    "label": "whole sample",
+                    "coordinate_system": "sample_local",
+                },
+                "typed_conditions": {
+                    "objective": "10x",
+                    "illumination_mode": "bright_field",
+                },
+            },
+            "properties": [
+                {
+                    "property_code": "coverage_percent",
+                    "numeric_value": 10,
+                    "unit": "%",
+                }
+            ],
+        }
+    )
+    assert bundle.assertions == []
 
 
 def _headers(email: str) -> dict[str, str]:
@@ -301,10 +459,21 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
         headers=headers,
     )
     assert response.status_code == 201, response.text
+    duplicate = client.post(
+        "/api/v1/measurements",
+        json=payload,
+        headers=headers,
+    )
+    assert duplicate.status_code == 422
+    assert duplicate.json()["detail"] == "Raw data files are already linked to a measurement"
+    db_session.refresh(raw_file)
+    assert raw_file.characterization_record_id == UUID(response.json()["id"])
+    assert db_session.query(CharacterizationRecord).count() == 1
     snapshot = response.json()["instrument_snapshot_json"]["calibration_at_measurement"]
     assert snapshot["event_id"] == str(calibration.id)
     assert snapshot["validity_status"] == "valid"
     assert snapshot["expanded_uncertainty"] == 0.5
     db_session.refresh(sample)
-    assert sample.actual_state == "asserted"
+    assert sample.actual_state == "unknown"
+    assert sample.identity_state == "asserted"
     assert sample.actual_material_summary == "2H-MoS2"

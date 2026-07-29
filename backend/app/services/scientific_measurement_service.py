@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from datetime import datetime
 from uuid import UUID
 
@@ -16,7 +17,7 @@ from app.models.scientific import (
     DataDerivationEdge,
     MaterialAssertion,
     PropertyValue,
-    RunFeature,
+    SampleRevisionState,
 )
 from app.models.user import User, UserRole
 from app.models.v2_entities import InstrumentCapability, InstrumentLifecycleEvent
@@ -32,6 +33,7 @@ from app.services.experiment_guards import (
     ensure_results_editable,
     get_locked_visible_experiment,
 )
+from app.services.file_asset_service import refresh_revision_provenance
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import instrument_version_snapshot
 from app.services.v2_field_source import SCHEMA_VERSION, normalize_offset_datetime
@@ -84,6 +86,11 @@ class ScientificMeasurementService:
             run.id,
             sample.id,
         )
+        if any(file.characterization_record_id is not None for file in raw_files):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Raw data files are already linked to a measurement",
+            )
         if any(
             file.asset_role != "characterization_file" or file.method != measurement.method_profile
             for file in raw_files
@@ -180,8 +187,8 @@ class ScientificMeasurementService:
             assertions.append(assertion)
 
         self.db.flush()
-        self._refresh_sample_actual_state(sample)
-        self._refresh_provenance(run_revision_id)
+        self._refresh_sample_actual_state(sample, run_revision_id)
+        refresh_revision_provenance(self.db, run_revision_id)
         self.audit.record_event(
             actor=actor,
             entity_type="measurement_run",
@@ -427,12 +434,14 @@ class ScientificMeasurementService:
             return []
         files = list(
             self.db.scalars(
-                select(FileAsset).where(
+                select(FileAsset)
+                .where(
                     FileAsset.id.in_(file_ids),
                     FileAsset.experiment_run_id == run_id,
                     FileAsset.sample_id == sample_id,
                     FileAsset.deleted_at.is_(None),
                 )
+                .with_for_update()
             )
         )
         if {file.id for file in files} != set(file_ids):
@@ -478,51 +487,6 @@ class ScientificMeasurementService:
             or 0,
         )
 
-    def _refresh_provenance(self, run_revision_id: UUID) -> None:
-        records = list(
-            self.db.scalars(
-                select(CharacterizationRecord).where(
-                    CharacterizationRecord.run_revision_id == run_revision_id
-                )
-            )
-        )
-        complete = bool(records)
-        for record in records:
-            has_raw = bool(
-                self.db.scalar(
-                    select(FileAsset.id)
-                    .where(
-                        FileAsset.characterization_record_id == record.id,
-                        FileAsset.deleted_at.is_(None),
-                    )
-                    .limit(1)
-                )
-            )
-            has_evidence = bool(
-                self.db.scalar(
-                    select(PropertyValue.id)
-                    .where(PropertyValue.measurement_run_id == record.id)
-                    .limit(1)
-                )
-                or self.db.scalar(
-                    select(MaterialAssertion.id)
-                    .where(MaterialAssertion.measurement_run_id == record.id)
-                    .limit(1)
-                )
-            )
-            if not record.typed_conditions or not has_raw or not has_evidence:
-                complete = False
-                break
-        feature = self.db.scalar(
-            select(RunFeature).where(
-                RunFeature.run_revision_id == run_revision_id,
-                RunFeature.feature_code == "provenance_complete",
-                RunFeature.ordinal == 0,
-            )
-        )
-        if feature is not None:
-            feature.boolean_value = complete
-
     @staticmethod
     def _summary_from_values(
         *,
@@ -555,43 +519,72 @@ class ScientificMeasurementService:
             assertion_count=assertion_count,
         )
 
-    def _refresh_sample_actual_state(self, sample: Sample) -> None:
+    def _refresh_sample_actual_state(self, sample: Sample, run_revision_id: UUID) -> None:
         assertions = list(
             self.db.scalars(
-                select(MaterialAssertion).where(
+                select(MaterialAssertion)
+                .join(
+                    CharacterizationRecord,
+                    CharacterizationRecord.id == MaterialAssertion.measurement_run_id,
+                )
+                .where(
                     MaterialAssertion.sample_id == sample.id,
                     MaterialAssertion.validity == "active",
+                    CharacterizationRecord.run_revision_id == run_revision_id,
                 )
             )
         )
         phases: list[str] = []
         growth_states: set[str] = set()
+        identity_values: dict[str, set[str]] = {}
         for item in assertions:
             value = item.value_json
             if item.assertion_type == "growth_presence" and value.get("state"):
                 growth_states.add(str(value["state"]))
+            if item.assertion_type != "growth_presence":
+                identity_values.setdefault(item.assertion_type, set()).add(
+                    json.dumps(value, ensure_ascii=False, sort_keys=True)
+                )
             if item.assertion_type != "phase_identity":
                 continue
-            phase_values = value.get("phases")
-            if isinstance(phase_values, list):
-                phases.extend(str(phase) for phase in phase_values)
-            elif value.get("phase"):
+            if value.get("phase"):
                 phases.append(str(value["phase"]))
-        if phases:
-            sample.actual_state = "asserted"
-            sample.actual_material_summary = " + ".join(dict.fromkeys(phases))
-        elif growth_states == {"absent"}:
+        state = self.db.scalar(
+            select(SampleRevisionState).where(
+                SampleRevisionState.sample_id == sample.id,
+                SampleRevisionState.run_revision_id == run_revision_id,
+            )
+        )
+        if state is None:
+            state = SampleRevisionState(
+                sample_id=sample.id,
+                run_revision_id=run_revision_id,
+                evidence_assertion_ids=[],
+            )
+            self.db.add(state)
+        if growth_states == {"absent"}:
+            state.growth_state = "absent"
             sample.actual_state = "no_growth"
-            sample.actual_material_summary = None
         elif growth_states == {"present"}:
+            state.growth_state = "present"
             sample.actual_state = "growth_present"
-            sample.actual_material_summary = None
         elif growth_states:
+            state.growth_state = "uncertain"
             sample.actual_state = "uncertain"
-            sample.actual_material_summary = None
         else:
+            state.growth_state = "unknown"
             sample.actual_state = "unknown"
-            sample.actual_material_summary = None
+        state.identity_state = (
+            "conflicting"
+            if any(len(values) > 1 for values in identity_values.values())
+            else "asserted"
+            if identity_values
+            else "unknown"
+        )
+        state.material_summary = " + ".join(dict.fromkeys(phases)) or None
+        state.evidence_assertion_ids = [str(item.id) for item in assertions]
+        sample.identity_state = state.identity_state
+        sample.actual_material_summary = state.material_summary
 
     @staticmethod
     def _encode_cursor(measured_at: datetime, measurement_id: UUID) -> str:

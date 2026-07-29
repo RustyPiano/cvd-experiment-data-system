@@ -38,6 +38,11 @@ from app.schemas.scientific import (
     TargetSpecPayload,
 )
 from app.services.audit_service import AuditService
+from app.services.file_storage_service import FileStorageService
+from app.services.process_timeseries import (
+    ProcessTimeseriesError,
+    project_process_timeseries,
+)
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import material_lot_version_snapshot
 from app.services.v2_field_source import load_field_source
@@ -62,6 +67,7 @@ class ScientificRevisionService:
         self.db = db
         self.audit = AuditService(db)
         self.entities = V2EntityService(db)
+        self.file_storage = FileStorageService()
 
     def create_locked_revision(
         self,
@@ -75,7 +81,7 @@ class ScientificRevisionService:
         }
         self._validate_basic(run, normalized["basic_info"])
         self._validate_source_references(normalized["precursors"])
-        self._validate_process_references(run, normalized)
+        process_end = self._validate_process_references(run, normalized)
         content = {
             "run": {
                 "id": str(run.id),
@@ -126,7 +132,18 @@ class ScientificRevisionService:
         self._project_contributors(revision, normalized["basic_info"])
         self._project_target(revision, normalized["target_product"])
         self._project_source_loads(revision, normalized["precursors"])
-        self._project_timeline(revision, normalized["process_steps"])
+        excluded_ranges = [
+            time_range
+            for event in (normalized.get("process_events") or {}).get("items") or []
+            if "process_channel" in (event.get("affected_objects") or [])
+            for time_range in event.get("excluded_time_ranges") or []
+        ]
+        self._project_timeline(
+            revision,
+            normalized["process_steps"],
+            excluded_ranges,
+            process_end,
+        )
         self._project_events(revision, normalized.get("process_events") or {"items": []})
         self._project_features(revision, normalized, run)
 
@@ -294,19 +311,14 @@ class ScientificRevisionService:
         self,
         run: ExperimentRun,
         modules: dict[str, dict[str, Any]],
-    ) -> None:
+    ) -> float:
         timeline = modules["process_steps"]
-        channel_types = {item["channel_key"]: item["channel_type"] for item in timeline["channels"]}
         process_end = max(item["end_s"] for item in timeline["segments"])
         referenced: dict[UUID, tuple[str, str]] = {}
         for channel in timeline["channels"]:
             if channel.get("file_asset_id"):
                 referenced[UUID(channel["file_asset_id"])] = (
-                    (
-                        "temperature_timeseries"
-                        if channel["channel_type"] == "temperature"
-                        else "process_timeseries"
-                    ),
+                    "process_timeseries",
                     channel["channel_key"],
                 )
             if any(
@@ -317,22 +329,33 @@ class ScientificRevisionService:
                     "process_steps.channels",
                     "outside_process_timeline",
                 )
+        zone_count = (run.setup_ref_snapshot_json or {}).get("zone_count_snapshot")
+        valid_zones = (
+            {f"zone_{index}" for index in range(1, zone_count + 1)}
+            if isinstance(zone_count, int)
+            else set()
+        )
+        for channel in timeline["channels"]:
+            if (
+                channel["channel_type"] == "temperature"
+                and channel["subject_ref"] not in valid_zones
+            ):
+                self._invalid_process_reference("process_steps.zone_index", "setup_zone")
+            gas_lot_id = channel.get("gas_lot_id")
+            if gas_lot_id:
+                self.entities.get_version(
+                    "material_lot",
+                    UUID(gas_lot_id),
+                    channel["gas_lot_version"],
+                )
         for source_load in modules["precursors"]["items"]:
             if (
-                source_load.get("heating_channel")
-                and source_load["heating_channel"] not in channel_types
+                source_load.get("heating_zone_ref")
+                and source_load["heating_zone_ref"] not in valid_zones
             ):
                 self._invalid_process_reference(
-                    "precursors.heating_channel",
-                    "unknown_process_channel",
-                )
-            if (
-                source_load.get("heating_channel")
-                and channel_types[source_load["heating_channel"]] != "temperature"
-            ):
-                self._invalid_process_reference(
-                    "precursors.heating_channel",
-                    "not_temperature_channel",
+                    "precursors.heating_zone_ref",
+                    "setup_zone",
                 )
             if any(
                 point["t_s"] > process_end for point in source_load.get("position_program") or []
@@ -352,28 +375,28 @@ class ScientificRevisionService:
                     "process_event_attachment",
                     event["event_key"],
                 )
-        if not referenced:
-            return
-        files = {
-            item.id: item
-            for item in self.db.scalars(
-                select(FileAsset).where(
-                    FileAsset.id.in_(referenced),
-                    FileAsset.experiment_run_id == run.id,
-                    FileAsset.deleted_at.is_(None),
+        if referenced:
+            files = {
+                item.id: item
+                for item in self.db.scalars(
+                    select(FileAsset).where(
+                        FileAsset.id.in_(referenced),
+                        FileAsset.experiment_run_id == run.id,
+                        FileAsset.deleted_at.is_(None),
+                    )
                 )
-            )
-        }
-        if set(files) != set(referenced) or any(
-            files[file_id].asset_role != expected_role
-            or files[file_id].metadata_json.get("binding_id") != expected_binding
-            for file_id, (expected_role, expected_binding) in referenced.items()
-            if file_id in files
-        ):
-            self._invalid_process_reference(
-                "file_asset_id",
-                "missing_run_or_role",
-            )
+            }
+            if set(files) != set(referenced) or any(
+                files[file_id].asset_role != expected_role
+                or files[file_id].metadata_json.get("binding_id") != expected_binding
+                for file_id, (expected_role, expected_binding) in referenced.items()
+                if file_id in files
+            ):
+                self._invalid_process_reference(
+                    "file_asset_id",
+                    "missing_run_or_role",
+                )
+        return process_end
 
     @staticmethod
     def _invalid_process_reference(key: str, reason: str) -> None:
@@ -483,7 +506,7 @@ class ScientificRevisionService:
                 preparation_steps=item.get("preparation_steps") or [],
                 initial_position=item.get("initial_position"),
                 position_program=item.get("position_program") or [],
-                heating_channel=item.get("heating_channel"),
+                heating_zone_ref=item.get("heating_zone_ref"),
                 attrs=item.get("attrs") or {},
             )
             self.db.add(load)
@@ -507,7 +530,13 @@ class ScientificRevisionService:
                     )
                 )
 
-    def _project_timeline(self, revision: RunRevision, payload: dict[str, Any]) -> None:
+    def _project_timeline(
+        self,
+        revision: RunRevision,
+        payload: dict[str, Any],
+        excluded_ranges: list[dict[str, Any]],
+        process_end: float,
+    ) -> None:
         for item in payload["segments"]:
             self.db.add(
                 ProcessSegment(
@@ -522,9 +551,51 @@ class ScientificRevisionService:
                 )
             )
         for item in payload["channels"]:
-            canonical_unit, canonical_scalar, canonical_series, projection_status = (
-                canonicalize_process_channel(item)
-            )
+            statistics = None
+            source_file_sha256 = None
+            parser_version = None
+            if item["data_kind"] == "timeseries_file":
+                file_asset = self.db.get(FileAsset, UUID(item["file_asset_id"]))
+                if file_asset is None:
+                    self._invalid_process_reference("file_asset_id", "missing")
+                try:
+                    canonical_series, statistics = project_process_timeseries(
+                        file_asset,
+                        self.file_storage,
+                        item["channel_type"],
+                        item["unit"],
+                        excluded_ranges,
+                        process_end,
+                    )
+                except ProcessTimeseriesError as exc:
+                    self._invalid_process_reference(
+                        "process_steps.timeseries_file",
+                        str(exc),
+                    )
+                canonical_unit = (
+                    "state"
+                    if item["channel_type"].endswith("_state")
+                    else canonicalize_process_channel(
+                        {**item, "data_kind": "scalar", "scalar_value": 0, "file_asset_id": None}
+                    )[0]
+                )
+                canonical_scalar = None
+                projection_status = "ready"
+                source_file_sha256 = file_asset.sha256
+                parser_version = str(statistics["parser_version"])
+            else:
+                canonical_unit, canonical_scalar, canonical_series, projection_status = (
+                    canonicalize_process_channel(item)
+                )
+            gas_lot_snapshot = None
+            if item.get("gas_lot_id"):
+                gas_lot_snapshot = material_lot_version_snapshot(
+                    self.entities.get_version(
+                        "material_lot",
+                        UUID(item["gas_lot_id"]),
+                        item["gas_lot_version"],
+                    )
+                )
             self.db.add(
                 ProcessChannel(
                     run_revision_id=revision.id,
@@ -533,7 +604,17 @@ class ScientificRevisionService:
                     source_type=item["source_type"],
                     subject_type=item["subject_type"],
                     subject_ref=item["subject_ref"],
-                    gas_species=item.get("gas_species"),
+                    subject_instance_ref=item["subject_instance_ref"],
+                    subject_snapshot_json=item.get("subject_snapshot")
+                    or {
+                        "subject_type": item["subject_type"],
+                        "subject_ref": item["subject_ref"],
+                        "subject_instance_ref": item["subject_instance_ref"],
+                    },
+                    gas_species_code=item.get("gas_species_code"),
+                    gas_lot_id=(UUID(item["gas_lot_id"]) if item.get("gas_lot_id") else None),
+                    gas_lot_version=item.get("gas_lot_version"),
+                    gas_lot_snapshot_json=gas_lot_snapshot,
                     zone_index=item.get("zone_index"),
                     pressure_location=item.get("pressure_location"),
                     pressure_type=item.get("pressure_type"),
@@ -544,13 +625,16 @@ class ScientificRevisionService:
                     file_asset_id=(
                         UUID(item["file_asset_id"]) if item.get("file_asset_id") else None
                     ),
-                    sensor_or_controller_snapshot=item.get("sensor_or_controller_snapshot"),
                     canonical_unit=canonical_unit,
                     canonical_scalar_value=canonical_scalar,
                     canonical_series_json=canonical_series,
                     projection_status=projection_status,
+                    statistics_json=statistics,
+                    source_file_sha256=source_file_sha256,
+                    parser_version=parser_version,
                 )
             )
+        self.db.flush()
 
     def _project_events(self, revision: RunRevision, payload: dict[str, Any]) -> None:
         for item in payload.get("items") or []:
@@ -623,40 +707,59 @@ class ScientificRevisionService:
         numeric_by_type_and_source: dict[tuple[str, str], list[float]] = {}
         gas_ordinal = 0
         ramp_rates: dict[str, list[float]] = {"setpoint": [], "measured": []}
-        for channel in timeline["channels"]:
-            _, scalar, series, projection_status = canonicalize_process_channel(channel)
-            if projection_status == "unavailable":
+        cooling_rates: dict[str, list[float]] = {"setpoint": [], "measured": []}
+        projected_channels = list(
+            self.db.scalars(
+                select(ProcessChannel).where(ProcessChannel.run_revision_id == revision.id)
+            )
+        )
+        for channel in projected_channels:
+            if channel.projection_status != "ready":
                 continue
             values = numeric_by_type_and_source.setdefault(
-                (channel["channel_type"], channel["source_type"]),
+                (channel.channel_type, channel.source_type),
                 [],
             )
-            if scalar is not None:
-                values.append(scalar)
-            for point in series or []:
+            if channel.canonical_scalar_value is not None:
+                values.append(channel.canonical_scalar_value)
+            for point in channel.canonical_series_json or []:
                 value = point.get("value")
                 if isinstance(value, int | float) and not isinstance(value, bool):
                     values.append(float(value))
-            if channel["channel_type"] == "temperature" and channel["source_type"] in ramp_rates:
+            if channel.statistics_json:
+                values.extend(
+                    float(channel.statistics_json[key])
+                    for key in ("min", "max")
+                    if isinstance(channel.statistics_json.get(key), int | float)
+                )
+            if channel.channel_type == "temperature" and channel.source_type in ramp_rates:
+                if channel.statistics_json:
+                    ramp_rates[channel.source_type].append(
+                        float(channel.statistics_json["ramp_rate_per_min"])
+                    )
+                    cooling_rates[channel.source_type].append(
+                        float(channel.statistics_json["cooling_rate_per_min"])
+                    )
                 numeric_points = [
                     point
-                    for point in series or []
+                    for point in channel.canonical_series_json or []
                     if isinstance(point.get("value"), int | float)
                     and not isinstance(point.get("value"), bool)
+                    and "start_s" in point
                 ]
                 for left, right in zip(numeric_points, numeric_points[1:], strict=False):
                     elapsed_s = right["start_s"] - left["start_s"]
                     if elapsed_s > 0:
-                        ramp_rates[channel["source_type"]].append(
+                        ramp_rates[channel.source_type].append(
                             abs(float(right["value"]) - float(left["value"])) / (elapsed_s / 60)
                         )
-            if channel["channel_type"] == "flow":
+            if channel.channel_type == "flow":
                 self._feature(
                     revision,
                     "gas_species",
-                    text=channel["gas_species"],
+                    text=channel.gas_species_code,
                     ordinal=gas_ordinal,
-                    source="process_steps.channels.gas_species",
+                    source="process_steps.channels.gas_species_code",
                 )
                 gas_ordinal += 1
         for source_type, rates in ramp_rates.items():
@@ -664,6 +767,15 @@ class ScientificRevisionService:
                 self._feature(
                     revision,
                     f"ramp_rate_{source_type}_C_min",
+                    numeric=max(rates),
+                    unit="°C/min",
+                    source=f"process_steps.channels.temperature.{source_type}",
+                )
+        for source_type, rates in cooling_rates.items():
+            if rates:
+                self._feature(
+                    revision,
+                    f"cooling_rate_{source_type}_C_min",
                     numeric=max(rates),
                     unit="°C/min",
                     source=f"process_steps.channels.temperature.{source_type}",

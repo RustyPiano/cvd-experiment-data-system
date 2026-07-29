@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.experiment import ExperimentRun
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample, SampleRole
-from app.models.scientific import SampleRevisionAssociation
+from app.models.scientific import SampleRevisionAssociation, SampleRevisionState
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
@@ -187,6 +187,9 @@ class SampleService:
             action = "restore" if sample.deleted_at is not None else "update"
             sample.role = SampleRole.GROWTH.value
             sample.run_revision_id = run_revision_id
+            sample.actual_state = "unknown"
+            sample.identity_state = "unknown"
+            sample.actual_material_summary = None
             sample.source_substrate_snapshot_json = snapshot
             sample.deleted_at = None
             sample.deleted_by_id = None
@@ -319,5 +322,14 @@ class SampleService:
                     "source_substrate_id": str(sample.source_substrate_id),
                     "source_substrate_snapshot": source_snapshot,
                 },
+            )
+        )
+        self.db.add(
+            SampleRevisionState(
+                sample_id=sample.id,
+                run_revision_id=run_revision_id,
+                growth_state="unknown",
+                identity_state="unknown",
+                evidence_assertion_ids=[],
             )
         )

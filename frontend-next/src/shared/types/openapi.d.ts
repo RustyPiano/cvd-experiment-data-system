@@ -1768,18 +1768,15 @@ export interface components {
       integration_time_s?: number | null
       /** Accumulations */
       accumulations?: number | null
-      /** Spectral Range Nm */
-      spectral_range_nm?: number | null
+      spectral_range_nm?: components['schemas']['NumericRange'] | null
       /** Temperature K */
       temperature_K?: number | null
       /** Mode */
       mode?: string | null
       /** Probe */
       probe?: string | null
-      /** Scan Size Um */
-      scan_size_um?: number | null
-      /** Resolution Px */
-      resolution_px?: number | null
+      scan_size_um?: components['schemas']['Size2D'] | null
+      resolution_px?: components['schemas']['Resolution2D'] | null
       /** Scan Rate Hz */
       scan_rate_hz?: number | null
       /** Accelerating Voltage Kv */
@@ -1788,12 +1785,10 @@ export interface components {
       working_distance_mm?: number | null
       /** Detector */
       detector?: string | null
-      /** Field Of View Um */
-      field_of_view_um?: number | null
+      field_of_view_um?: components['schemas']['WidthHeight'] | null
       /** Radiation Source */
       radiation_source?: string | null
-      /** Scan Range 2Theta Deg */
-      scan_range_2theta_deg?: number | null
+      scan_range_2theta_deg?: components['schemas']['ScanRange'] | null
       /** Step Size Deg */
       step_size_deg?: number | null
       /** Scan Rate Deg Min */
@@ -1899,6 +1894,13 @@ export interface components {
       /** Assertion Count */
       assertion_count: number
     }
+    /** NumericRange */
+    NumericRange: {
+      /** Min */
+      min: number
+      /** Max */
+      max: number
+    }
     /** PropertyValueWrite */
     PropertyValueWrite: {
       /** Property Code */
@@ -1951,6 +1953,13 @@ export interface components {
       password_confirmation: string
       /** Invite Code */
       invite_code: string
+    }
+    /** Resolution2D */
+    Resolution2D: {
+      /** Width */
+      width: number
+      /** Height */
+      height: number
     }
     /** ReviewRunRequest */
     ReviewRunRequest: {
@@ -2048,6 +2057,8 @@ export interface components {
       material_system?: string | null
       /** Actual State */
       actual_state: string
+      /** Identity State */
+      identity_state: string
       /** Actual Material Summary */
       actual_material_summary: string | null
       /** Parent Sample Id */
@@ -2142,6 +2153,13 @@ export interface components {
         [key: string]: unknown
       }
     }
+    /** ScanRange */
+    ScanRange: {
+      /** Start */
+      start: number
+      /** End */
+      end: number
+    }
     /** SetupComponentBindingCreate */
     SetupComponentBindingCreate: {
       /**
@@ -2199,6 +2217,13 @@ export interface components {
             [key: string]: unknown
           }[]
         | null
+    }
+    /** Size2D */
+    Size2D: {
+      /** X */
+      x: number
+      /** Y */
+      y: number
     }
     /** SpectralMetric */
     SpectralMetric: {
@@ -2730,6 +2755,13 @@ export interface components {
       input?: unknown
       /** Context */
       ctx?: Record<string, never>
+    }
+    /** WidthHeight */
+    WidthHeight: {
+      /** Width */
+      width: number
+      /** Height */
+      height: number
     }
   }
   responses: never

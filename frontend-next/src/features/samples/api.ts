@@ -88,6 +88,10 @@ export function listExperimentFiles(
   return apiRequest<FileAssetListResponse>(`/api/v1/files?${query}`, { token })
 }
 
+export function getExperimentFile(token: string, fileId: string) {
+  return apiRequest<FileAssetRead>(`/api/v1/files/${fileId}`, { token })
+}
+
 export function uploadExperimentFile(
   token: string,
   experimentId: string,

@@ -14,7 +14,11 @@ import { toast } from 'sonner'
 
 import type { V2EntityRead } from '@/features/entity-library/api'
 import { useAuth } from '@/features/auth/use-auth'
-import { uploadExperimentFile } from '@/features/samples/api'
+import {
+  deleteExperimentFile,
+  getExperimentFile,
+  uploadExperimentFile,
+} from '@/features/samples/api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +37,11 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  characterizationProfiles,
+  characterizationProperties,
+  gasSpecies,
+} from '@/shared/generated/field-metadata'
+import {
   createMeasurement,
   createRun,
   listContainerInstances,
@@ -49,6 +58,7 @@ import {
   materialAssertionValue,
   peakTemperatureC,
   processChannelTitle,
+  saveBeforeStepChange,
   targetSummary,
   timelineValidationIssue,
   tubeUsageParts,
@@ -135,7 +145,7 @@ type SourceLoad = {
     azimuth_deg?: number
     reference: 'setup_origin'
   }>
-  heating_channel?: string
+  heating_zone_ref?: string
   ingredients: Ingredient[]
 }
 
@@ -155,7 +165,11 @@ type Channel = {
   source_type: string
   subject_type: string
   subject_ref: string
-  gas_species?: string
+  subject_instance_ref: string
+  subject_snapshot?: Record<string, unknown>
+  gas_species_code?: string
+  gas_lot_id?: string
+  gas_lot_version?: number
   zone_index?: number
   pressure_location?: string
   pressure_type?: string
@@ -164,7 +178,6 @@ type Channel = {
   scalar_value?: number
   series?: Array<{ start_s: number; end_s?: number; value: number | string }>
   file_asset_id?: string
-  sensor_or_controller_snapshot?: Record<string, unknown>
 }
 
 type ProcessEvent = {
@@ -222,179 +235,36 @@ const EMPTY_TIMELINE = {
   channels: [] satisfies Channel[],
 }
 
-const METHOD_CONDITIONS: Record<
-  string,
-  Array<{ key: string; label: string; type?: 'number' }>
-> = {
-  optical_microscopy: [
-    { key: 'objective', label: '物镜' },
-    { key: 'illumination_mode', label: '照明模式' },
-  ],
-  Raman: [
-    { key: 'laser_wavelength_nm', label: '激光波长 (nm)', type: 'number' },
-    { key: 'power_setting', label: '功率设置' },
-    { key: 'objective', label: '物镜' },
-    { key: 'integration_time_s', label: '积分时间 (s)', type: 'number' },
-    { key: 'accumulations', label: '累加次数', type: 'number' },
-  ],
-  low_frequency_raman: [
-    { key: 'laser_wavelength_nm', label: '激光波长 (nm)', type: 'number' },
-    { key: 'power_setting', label: '功率设置' },
-    { key: 'objective', label: '物镜' },
-    { key: 'integration_time_s', label: '积分时间 (s)', type: 'number' },
-    { key: 'accumulations', label: '累加次数', type: 'number' },
-  ],
-  PL: [
-    {
-      key: 'excitation_wavelength_nm',
-      label: '激发波长 (nm)',
-      type: 'number',
-    },
-    { key: 'power_setting', label: '功率设置' },
-    { key: 'integration_time_s', label: '积分时间 (s)', type: 'number' },
-    { key: 'spectral_range_nm', label: '光谱范围 (nm)', type: 'number' },
-    { key: 'temperature_K', label: '测量温度 (K)', type: 'number' },
-  ],
-  AFM: [
-    { key: 'mode', label: '模式' },
-    { key: 'probe', label: '探针' },
-    { key: 'scan_size_um', label: '扫描尺寸 (μm)', type: 'number' },
-    { key: 'resolution_px', label: '分辨率 (px)', type: 'number' },
-    { key: 'scan_rate_hz', label: '扫描速率 (Hz)', type: 'number' },
-  ],
-  SEM: [
-    {
-      key: 'accelerating_voltage_kV',
-      label: '加速电压 (kV)',
-      type: 'number',
-    },
-    {
-      key: 'working_distance_mm',
-      label: '工作距离 (mm)',
-      type: 'number',
-    },
-    { key: 'detector', label: '探测器' },
-    { key: 'field_of_view_um', label: '视场 (μm)', type: 'number' },
-  ],
-  XRD: [
-    { key: 'radiation_source', label: '辐射源' },
-    {
-      key: 'scan_range_2theta_deg',
-      label: '2θ 扫描范围',
-      type: 'number',
-    },
-    { key: 'step_size_deg', label: '步长 (°)', type: 'number' },
-    { key: 'scan_rate_deg_min', label: '扫描速率 (°/min)', type: 'number' },
-    { key: 'geometry', label: '几何构型' },
-  ],
-  TEM: [
-    {
-      key: 'accelerating_voltage_kV',
-      label: '加速电压 (kV)',
-      type: 'number',
-    },
-    { key: 'mode', label: '模式' },
-    { key: 'sample_preparation', label: '样品制备' },
-  ],
-}
-
-const PROPERTY_UNITS: Record<string, string> = {
-  afm_ra_roughness: 'nm',
-  afm_rms_roughness: 'nm',
-  afm_step_height: 'nm',
-  coverage_percent: '%',
-  domain_size_um: 'μm',
-  layer_count: 'count',
-  low_frequency_peak_fwhm: 'cm⁻¹',
-  nucleation_density_cm2: 'cm⁻²',
-  pl_integrated_intensity: 'a.u.',
-  pl_peak_fwhm: 'meV',
-  raman_a1g_peak_position: 'cm⁻¹',
-  raman_e2g_peak_position: 'cm⁻¹',
-  raman_intensity_ratio: 'ratio',
-  raman_peak_fwhm: 'cm⁻¹',
-  raman_peak_separation: 'cm⁻¹',
-  pl_a_exciton_peak_energy: 'eV',
-  pl_b_exciton_peak_energy: 'eV',
-  shear_mode_peak_position: 'cm⁻¹',
-  tem_lattice_spacing: 'nm',
-  xrd_d_spacing: 'nm',
-  xrd_peak_2theta: '° 2θ',
-  xrd_peak_fwhm: '° 2θ',
-}
-const PROPERTY_LABELS: Record<string, string> = {
-  afm_ra_roughness: 'AFM 算术平均粗糙度',
-  afm_rms_roughness: 'AFM 均方根粗糙度',
-  afm_step_height: 'AFM 台阶高度',
-  coverage_percent: '覆盖率',
-  domain_size_um: '晶畴尺寸',
-  layer_count: '层数',
-  low_frequency_peak_fwhm: '低频 Raman 峰宽',
-  nucleation_density_cm2: '成核密度',
-  pl_integrated_intensity: 'PL 积分强度',
-  pl_peak_fwhm: 'PL 峰宽',
-  raman_a1g_peak_position: 'Raman A₁g 峰位',
-  raman_e2g_peak_position: 'Raman E₂g 峰位',
-  raman_intensity_ratio: 'Raman 强度比',
-  raman_peak_fwhm: 'Raman 峰宽',
-  raman_peak_separation: 'Raman 峰间距',
-  pl_a_exciton_peak_energy: 'PL A 激子峰能量',
-  pl_b_exciton_peak_energy: 'PL B 激子峰能量',
-  shear_mode_peak_position: '剪切模峰位',
-  tem_lattice_spacing: 'TEM 晶格间距',
-  xrd_d_spacing: 'XRD 晶面间距',
-  xrd_peak_2theta: 'XRD 衍射峰位',
-  xrd_peak_fwhm: 'XRD 衍射峰宽',
-}
-const METHOD_PROPERTY_CODES: Record<string, string[]> = {
-  optical_microscopy: [
-    'coverage_percent',
-    'domain_size_um',
-    'nucleation_density_cm2',
-  ],
-  Raman: [
-    'raman_e2g_peak_position',
-    'raman_a1g_peak_position',
-    'raman_peak_separation',
-    'raman_peak_fwhm',
-    'raman_intensity_ratio',
-  ],
-  low_frequency_raman: ['shear_mode_peak_position', 'low_frequency_peak_fwhm'],
-  PL: [
-    'pl_a_exciton_peak_energy',
-    'pl_b_exciton_peak_energy',
-    'pl_integrated_intensity',
-    'pl_peak_fwhm',
-  ],
-  AFM: ['afm_ra_roughness', 'afm_rms_roughness', 'afm_step_height'],
-  SEM: ['coverage_percent', 'domain_size_um', 'nucleation_density_cm2'],
-  XRD: ['xrd_peak_2theta', 'xrd_peak_fwhm', 'xrd_d_spacing'],
-  TEM: ['tem_lattice_spacing', 'layer_count'],
-}
-const METHOD_DEFAULT_PROPERTIES: Record<string, string[]> = {
-  Raman: [
-    'raman_e2g_peak_position',
-    'raman_a1g_peak_position',
-    'raman_peak_separation',
-  ],
-  low_frequency_raman: ['shear_mode_peak_position'],
-  PL: ['pl_a_exciton_peak_energy', 'pl_b_exciton_peak_energy'],
-  AFM: ['afm_rms_roughness', 'afm_step_height'],
-  XRD: ['xrd_peak_2theta', 'xrd_d_spacing'],
-  TEM: ['tem_lattice_spacing'],
-  optical_microscopy: ['coverage_percent'],
-  SEM: ['coverage_percent', 'domain_size_um'],
-}
-const METHOD_GEOMETRIES: Record<string, string[]> = {
-  optical_microscopy: ['point', 'area', 'whole_sample'],
-  Raman: ['point', 'line'],
-  low_frequency_raman: ['point', 'line'],
-  PL: ['point', 'line'],
-  AFM: ['point', 'area', 'whole_sample'],
-  SEM: ['point', 'area', 'whole_sample'],
-  XRD: ['whole_sample', 'area'],
-  TEM: ['lamella', 'particle', 'selected_area'],
-}
+const PROPERTY_UNITS = Object.fromEntries(
+  Object.entries(characterizationProperties).map(([code, item]) => [
+    code,
+    item.unit,
+  ]),
+)
+const PROPERTY_LABELS = Object.fromEntries(
+  Object.entries(characterizationProperties).map(([code, item]) => [
+    code,
+    item.label_zh,
+  ]),
+)
+const METHOD_PROPERTY_CODES = Object.fromEntries(
+  Object.entries(characterizationProfiles).map(([code, item]) => [
+    code,
+    item.allowed_property_codes,
+  ]),
+)
+const METHOD_DEFAULT_PROPERTIES = Object.fromEntries(
+  Object.entries(characterizationProfiles).map(([code, item]) => [
+    code,
+    item.default_property_codes,
+  ]),
+)
+const METHOD_GEOMETRIES = Object.fromEntries(
+  Object.entries(characterizationProfiles).map(([code, item]) => [
+    code,
+    item.allowed_region_types,
+  ]),
+)
 const GEOMETRY_LABELS: Record<string, string> = {
   point: '点测量',
   line: '线扫',
@@ -403,16 +273,6 @@ const GEOMETRY_LABELS: Record<string, string> = {
   lamella: '薄片',
   particle: '颗粒',
   selected_area: '选区',
-}
-const RAW_FILE_GUIDANCE: Record<string, string> = {
-  optical_microscopy: '建议上传原始图像；仅记录直接观察结论时可不上传。',
-  Raman: '请上传原始光谱或仪器导出文件。',
-  low_frequency_raman: '请上传原始光谱或仪器导出文件。',
-  PL: '请上传原始光谱。',
-  AFM: '请上传原始高度数据及导出图。',
-  SEM: '请上传原始图像与仪器元数据。',
-  XRD: '请上传原始衍射数据。',
-  TEM: '请上传原始图像、衍射或 EDS 数据。',
 }
 const PROCESS_UNITS: Record<string, string[]> = {
   temperature: ['°C', 'K'],
@@ -530,16 +390,12 @@ const EVENT_OPTIONS = {
     ['other', '其他'],
   ],
 } satisfies Record<string, ReadonlyArray<readonly [string, string]>>
-const METHOD_LABELS: Record<string, string> = {
-  optical_microscopy: '光学显微镜',
-  Raman: '拉曼光谱',
-  low_frequency_raman: '低频拉曼',
-  PL: '光致发光（PL）',
-  AFM: '原子力显微镜（AFM）',
-  SEM: '扫描电子显微镜（SEM）',
-  XRD: 'X 射线衍射（XRD）',
-  TEM: '透射电子显微镜（TEM）',
-}
+const METHOD_LABELS = Object.fromEntries(
+  Object.entries(characterizationProfiles).map(([code, item]) => [
+    code,
+    item.label_zh,
+  ]),
+)
 const REGION_LABELS: Record<string, string> = {
   label: '测量区域名称',
   x: '横坐标',
@@ -1278,10 +1134,29 @@ export function ScientificExperimentForm({
     !currentStepDirty && STEP_MODULES[activeStep].some((key) => saved.has(key))
 
   const showNextStep = async () => {
-    if (processReadOnly || (await saveCurrentStep())) {
+    if (
+      await saveBeforeStepChange(
+        processReadOnly,
+        currentStepDirty,
+        saveCurrentStep,
+      )
+    ) {
       setActiveStep((current) =>
         Math.min(current + 1, WORKFLOW_STEPS.length - 1),
       )
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+  const showStep = async (index: number) => {
+    if (index === activeStep) return
+    if (
+      await saveBeforeStepChange(
+        processReadOnly,
+        currentStepDirty,
+        saveCurrentStep,
+      )
+    ) {
+      setActiveStep(index)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
@@ -1322,7 +1197,7 @@ export function ScientificExperimentForm({
               variant={index === activeStep ? 'secondary' : 'ghost'}
               className="h-auto justify-start py-2 text-left whitespace-normal"
               aria-current={index === activeStep ? 'step' : undefined}
-              onClick={() => setActiveStep(index)}
+              onClick={() => void showStep(index)}
             >
               <span className="tabular-nums">{index + 1}.</span>
               {step}
@@ -1527,6 +1402,7 @@ export function ScientificExperimentForm({
               </ModuleCard>
               <SourceLoadsEditor
                 loads={loads}
+                zoneCount={setupZoneCount}
                 disabled={processReadOnly}
                 token={token}
                 onChange={(value) => {
@@ -2319,11 +2195,13 @@ function TargetEditor({
 
 function SourceLoadsEditor({
   loads,
+  zoneCount,
   onChange,
   disabled,
   token,
 }: {
   loads: SourceLoad[]
+  zoneCount: number | null
   onChange: (value: SourceLoad[]) => void
   disabled: boolean
   token: string
@@ -2392,6 +2270,39 @@ function SourceLoadsEditor({
               </Select>
             </div>
             <div className="grid gap-2">
+              <Label>对应加热温区（选填）</Label>
+              <Select
+                value={load.heating_zone_ref ?? 'none'}
+                disabled={disabled || zoneCount === null}
+                onValueChange={(value) =>
+                  patchLoad(loadIndex, {
+                    heating_zone_ref: value === 'none' ? undefined : value,
+                  })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={
+                      zoneCount === null ? '请先选择实验装置' : '选择温区'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="none">未指定</SelectItem>
+                    {Array.from(
+                      { length: zoneCount ?? 0 },
+                      (_, index) => index + 1,
+                    ).map((index) => (
+                      <SelectItem key={index} value={`zone_${index}`}>
+                        温区 {index}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
               <Label>本次使用的具体容器（选填）</Label>
               <Select
                 value={load.container_instance_id ?? 'none'}
@@ -2446,7 +2357,7 @@ function SourceLoadsEditor({
               />
             </div>
             <p className="text-sm text-muted-foreground sm:col-span-2">
-              前驱体加热位置在这里用初始轴向位置表达；对应温区的设定与实测温度在“生长程序”中记录。
+              温区引用来自当前装置；轴向位置用于记录装料在炉管中的实际位置。
             </p>
           </div>
 
@@ -2844,15 +2755,6 @@ function TimelineEditor({
         current === index ? { ...item, ...patch } : item,
       ),
     )
-  const patchChannelMetadata = (index: number, key: string, value: string) => {
-    const channel = channels[index]
-    patchChannel(index, {
-      sensor_or_controller_snapshot: {
-        ...channel.sensor_or_controller_snapshot,
-        [key]: value,
-      },
-    })
-  }
   const addChannel = (channelType: string) => {
     const stateChannel = channelType.endsWith('_state')
     const deviceChannel = !['temperature', 'flow', 'pressure'].includes(
@@ -2870,6 +2772,7 @@ function TimelineEditor({
             ? 'gas_species'
             : 'pressure_location',
       subject_ref: deviceChannel ? channelType : '',
+      subject_instance_ref: '',
       unit: PROCESS_UNITS[channelType][0],
       data_kind: stateChannel ? 'interval_series' : 'scalar',
       ...(stateChannel
@@ -2894,8 +2797,8 @@ function TimelineEditor({
         : subject === 'gas_species'
           ? {
               subject_type: 'gas_species',
-              subject_ref: value.trim(),
-              gas_species: value,
+              subject_ref: value,
+              gas_species_code: value,
             }
           : {
               subject_type: 'pressure_location',
@@ -2909,10 +2812,7 @@ function TimelineEditor({
     try {
       const uploaded = await uploadExperimentFile(token, runId, {
         file,
-        assetRole:
-          channel.channel_type === 'temperature'
-            ? 'temperature_timeseries'
-            : 'process_timeseries',
+        assetRole: 'process_timeseries',
         bindingType: 'process_channel',
         bindingId: channel.channel_key,
       })
@@ -3175,53 +3075,46 @@ function TimelineEditor({
                 <>
                   <div className="grid gap-2">
                     <Label>气体种类</Label>
-                    <Input
-                      value={String(channel.gas_species ?? '')}
+                    <Select
+                      value={String(channel.gas_species_code ?? '')}
                       disabled={disabled}
-                      placeholder="例如 Ar"
-                      onChange={(event) =>
-                        setChannelSubject(
-                          index,
-                          'gas_species',
-                          event.target.value,
-                        )
+                      onValueChange={(value) =>
+                        setChannelSubject(index, 'gas_species', value)
                       }
-                    />
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="选择气体" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {Object.entries(gasSpecies).map(([code, item]) => (
+                            <SelectItem key={code} value={code}>
+                              {item.label_zh}（{code}）
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label>气瓶批次（选填）</Label>
-                    <Input
-                      value={String(
-                        channel.sensor_or_controller_snapshot?.['gas_batch'] ??
-                          '',
-                      )}
+                    <Label>气瓶批次（物料批次库，选填）</Label>
+                    <EntityReferenceSelect
+                      kind="material_lot"
+                      value={channel.gas_lot_id ?? ''}
+                      selectedVersion={channel.gas_lot_version}
+                      selectedSnapshot={null}
                       disabled={disabled}
-                      placeholder="例如 Ar-2026-03"
-                      onChange={(event) =>
-                        patchChannelMetadata(
-                          index,
-                          'gas_batch',
-                          event.target.value,
-                        )
+                      filter={(entity) =>
+                        entity.latest_version?.data['lot_category'] ===
+                        'gas_cylinder'
                       }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>流量控制器或来源</Label>
-                    <Input
-                      value={String(
-                        channel.sensor_or_controller_snapshot?.[
-                          'controller_ref'
-                        ] ?? '',
-                      )}
-                      disabled={disabled}
-                      placeholder="例如 MFC-1"
-                      onChange={(event) =>
-                        patchChannelMetadata(
-                          index,
-                          'controller_ref',
-                          event.target.value,
-                        )
+                      allowedLotCategories={['gas_cylinder']}
+                      onChange={(gas_lot_id, entity) =>
+                        patchChannel(index, {
+                          gas_lot_id,
+                          gas_lot_version:
+                            entity?.latest_version?.version ?? undefined,
+                        })
                       }
                     />
                   </div>
@@ -3309,6 +3202,30 @@ function TimelineEditor({
                 </div>
               )}
               <div className="grid gap-2">
+                <Label>物理通道实例</Label>
+                <Input
+                  value={channel.subject_instance_ref}
+                  disabled={disabled}
+                  placeholder={
+                    channel.channel_type === 'flow'
+                      ? '例如 MFC-Ar-1'
+                      : channel.channel_type === 'temperature'
+                        ? '例如 TC-zone1-A'
+                        : channel.channel_type === 'pressure'
+                          ? '例如 PG-outlet-1'
+                          : '例如 valve-1'
+                  }
+                  onChange={(event) =>
+                    patchChannel(index, {
+                      subject_instance_ref: event.target.value,
+                    })
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  填写装置中可稳定识别的传感器、MFC、阀门或执行器编号。
+                </p>
+              </div>
+              <div className="grid gap-2">
                 <Label>记录的是</Label>
                 <Select
                   value={channel.source_type}
@@ -3378,9 +3295,11 @@ function TimelineEditor({
                         <SelectItem value="scalar">单次值</SelectItem>
                       ) : null}
                       <SelectItem value="interval_series">分时段</SelectItem>
-                      <SelectItem value="timeseries_file">
-                        上传时间序列
-                      </SelectItem>
+                      {!channel.channel_type.endsWith('_state') ? (
+                        <SelectItem value="timeseries_file">
+                          上传时间序列
+                        </SelectItem>
+                      ) : null}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
@@ -3523,6 +3442,7 @@ function TimelineEditor({
                     {channel.file_asset_id ? '已上传' : '上传 CSV'}
                     <input
                       type="file"
+                      accept=".csv,text/csv"
                       className="sr-only"
                       disabled={disabled}
                       onChange={(event) => {
@@ -3530,6 +3450,9 @@ function TimelineEditor({
                         if (file) void uploadSeries(index, file)
                       }}
                     />
+                    <span className="text-xs text-muted-foreground">
+                      表头须含 time_s,value
+                    </span>
                   </label>
                 )}
               </div>
@@ -3858,10 +3781,10 @@ function newPropertyDraft(propertyCode = ''): MeasurementPropertyDraft {
   }
 }
 
-function newAssertionDraft(): MaterialAssertionDraft {
+function newAssertionDraft(type = 'phase_identity'): MaterialAssertionDraft {
   return {
     id: crypto.randomUUID(),
-    type: 'phase_identity',
+    type,
     value: '',
     basis: 'site_fraction',
     components: [{ id: crypto.randomUUID(), species: '', fraction: '' }],
@@ -3884,12 +3807,20 @@ function propertyDraftValid(property: MeasurementPropertyDraft): boolean {
 
 function assertionDraftValid(assertion: MaterialAssertionDraft): boolean {
   if (assertion.type === 'composition') {
-    return assertion.components.every(
-      (component) =>
-        Boolean(component.species.trim()) &&
-        component.fraction !== '' &&
-        Number(component.fraction) >= 0 &&
-        Number(component.fraction) <= 1,
+    return (
+      assertion.components.every(
+        (component) =>
+          Boolean(component.species.trim()) &&
+          component.fraction !== '' &&
+          Number(component.fraction) >= 0 &&
+          Number(component.fraction) <= 1,
+      ) &&
+      Math.abs(
+        assertion.components.reduce(
+          (total, component) => total + Number(component.fraction),
+          0,
+        ) - 1,
+      ) <= 1e-6
     )
   }
   if (assertion.type === 'layer_count') {
@@ -4074,10 +4005,12 @@ function MeasurementPropertyEditor({
 
 function MaterialAssertionEditor({
   assertion,
+  assertionTypes,
   onChange,
   onRemove,
 }: {
   assertion: MaterialAssertionDraft
+  assertionTypes: string[]
   onChange: (patch: Partial<MaterialAssertionDraft>) => void
   onRemove: () => void
 }) {
@@ -4116,14 +4049,22 @@ function MaterialAssertionEditor({
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="phase_identity">物相身份</SelectItem>
-                <SelectItem value="composition">组成</SelectItem>
-                <SelectItem value="polytype">多型</SelectItem>
-                <SelectItem value="stacking_order">堆叠顺序</SelectItem>
-                <SelectItem value="orientation_relationship">
-                  取向关系
-                </SelectItem>
-                <SelectItem value="layer_count">层数结论</SelectItem>
+                {assertionTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {
+                      (
+                        {
+                          phase_identity: '物相身份',
+                          composition: '组成',
+                          polytype: '多型',
+                          stacking_order: '堆叠顺序',
+                          orientation_relationship: '取向关系',
+                          layer_count: '层数结论',
+                        } as Record<string, string>
+                      )[type]
+                    }
+                  </SelectItem>
+                ))}
               </SelectGroup>
             </SelectContent>
           </Select>
@@ -4223,6 +4164,17 @@ function MaterialAssertionEditor({
               >
                 <Plus data-icon="inline-start" /> 添加组分
               </Button>
+              <p className="text-xs text-muted-foreground">
+                归一化完整组成；当前分数总和：
+                {assertion.components
+                  .reduce(
+                    (total, component) =>
+                      total + Number(component.fraction || 0),
+                    0,
+                  )
+                  .toFixed(6)}
+                （须为 1）
+              </p>
             </div>
           </>
         ) : (
@@ -4306,108 +4258,142 @@ export function ScientificMeasurementWorkspace({
   const selectedSample = samples.data?.items.find(
     (sample) => sample.id === selectedSampleId,
   )
-  const conditionFields = METHOD_CONDITIONS[method] ?? []
+  const profile = characterizationProfiles[method]
+  const conditionFields = profile?.condition_fields ?? []
+  const assertionTypes = (profile?.allowed_assertion_types ?? []).filter(
+    (type) => type !== 'growth_presence',
+  )
+  const hasEvidence =
+    rawFiles.length > 0 ||
+    Boolean(growth) ||
+    properties.some(
+      (property) => property.propertyCode && property.value.trim(),
+    ) ||
+    assertions.length > 0
   const mutation = useMutation({
     mutationFn: async () => {
-      const uploaded = await Promise.all(
-        rawFiles.map((file) =>
-          uploadExperimentFile(token, runId, {
+      const uploadedFileIds: string[] = []
+      try {
+        for (const file of rawFiles) {
+          const uploaded = await uploadExperimentFile(token, runId, {
             file,
             sampleId: selectedSampleId,
             method,
             assetRole: 'characterization_file',
-          }),
-        ),
-      )
-      const typedConditions = Object.fromEntries(
-        conditionFields.map((field) => [
-          field.key,
-          field.type === 'number'
-            ? Number(conditions[field.key])
-            : conditions[field.key],
-        ]),
-      )
-      const propertyPayload = properties
-        .filter((property) => property.propertyCode && property.value !== '')
-        .map((property) => ({
-          property_code: property.propertyCode,
-          numeric_value: Number(property.value),
-          unit: PROPERTY_UNITS[property.propertyCode],
-          statistic: 'single_observation',
-          ...(property.uncertainty
-            ? {
-                uncertainty_value: Number(property.uncertainty),
-                uncertainty_type: property.uncertaintyType,
-              }
-            : {}),
-          ...(property.sampleCount
-            ? { sample_count: Number(property.sampleCount) }
-            : {}),
-          quality_flag: property.quality,
-          analysis_index: software ? 0 : undefined,
-        }))
-      return createMeasurement(
-        {
-          measurement: {
-            sample_id: selectedSampleId,
-            method_profile: method,
-            ...(instrumentId
+          })
+          uploadedFileIds.push(uploaded.id)
+        }
+        const typedConditions = Object.fromEntries(
+          conditionFields.map((field) => [
+            field.key,
+            field.components
+              ? Object.fromEntries(
+                  field.components.map((component) => [
+                    component.key,
+                    Number(conditions[`${field.key}.${component.key}`]),
+                  ]),
+                )
+              : field.value_type === 'text'
+                ? conditions[field.key]
+                : Number(conditions[field.key]),
+          ]),
+        )
+        const propertyPayload = properties
+          .filter((property) => property.propertyCode && property.value.trim())
+          .map((property) => ({
+            property_code: property.propertyCode,
+            numeric_value: Number(property.value),
+            unit: PROPERTY_UNITS[property.propertyCode],
+            statistic: 'single_observation',
+            ...(property.uncertainty
               ? {
-                  instrument_id: instrumentId,
-                  instrument_version: instrumentVersion,
+                  uncertainty_value: Number(property.uncertainty),
+                  uncertainty_type: property.uncertaintyType,
                 }
               : {}),
-            measured_at: new Date(measuredAt).toISOString(),
-            sample_region: {
-              geometry_type: region.geometryType,
-              label: region.label,
-              coordinate_system: 'sample_local',
-              x: numberOrUndefined(region.x),
-              y: numberOrUndefined(region.y),
-              width: numberOrUndefined(region.width),
-              height: numberOrUndefined(region.height),
-              unit: region.unit,
+            ...(property.sampleCount
+              ? { sample_count: Number(property.sampleCount) }
+              : {}),
+            quality_flag: property.quality,
+            analysis_index: software ? 0 : undefined,
+          }))
+        return await createMeasurement(
+          {
+            measurement: {
+              sample_id: selectedSampleId,
+              method_profile: method,
+              ...(instrumentId
+                ? {
+                    instrument_id: instrumentId,
+                    instrument_version: instrumentVersion,
+                  }
+                : {}),
+              measured_at: new Date(measuredAt).toISOString(),
+              sample_region: {
+                geometry_type: region.geometryType,
+                label: region.label,
+                coordinate_system: 'sample_local',
+                x: numberOrUndefined(region.x),
+                y: numberOrUndefined(region.y),
+                width: numberOrUndefined(region.width),
+                height: numberOrUndefined(region.height),
+                unit: region.unit,
+              },
+              typed_conditions: typedConditions,
+              raw_file_ids: uploadedFileIds,
+              quality_flag: 'valid',
             },
-            typed_conditions: typedConditions,
-            raw_file_ids: uploaded.map((file) => file.id),
-            quality_flag: 'valid',
+            analyses: software
+              ? [
+                  {
+                    software_name: software,
+                    software_version: softwareVersion,
+                    parameters: {},
+                    started_at: new Date(measuredAt).toISOString(),
+                    completed_at: new Date().toISOString(),
+                    input_file_ids: uploadedFileIds,
+                    output_file_ids: [],
+                  },
+                ]
+              : [],
+            properties: propertyPayload,
+            assertions: [
+              ...(growth
+                ? [
+                    {
+                      assertion_type: 'growth_presence',
+                      value: { state: growth },
+                      confidence: null,
+                      analysis_index: software ? 0 : undefined,
+                    },
+                  ]
+                : []),
+              ...assertions.map((assertion) => ({
+                assertion_type: assertion.type,
+                value: materialAssertionValue(
+                  assertion.type,
+                  assertion.value,
+                  assertion.components,
+                  assertion.basis,
+                ),
+                confidence: null,
+                analysis_index: software ? 0 : undefined,
+              })),
+            ],
           },
-          analyses: software
-            ? [
-                {
-                  software_name: software,
-                  software_version: softwareVersion,
-                  parameters: {},
-                  started_at: new Date(measuredAt).toISOString(),
-                  completed_at: new Date().toISOString(),
-                  input_file_ids: uploaded.map((file) => file.id),
-                  output_file_ids: [],
-                },
-              ]
-            : [],
-          properties: propertyPayload,
-          assertions: [
-            {
-              assertion_type: 'growth_presence',
-              value: { state: growth },
-              confidence: null,
-              analysis_index: software ? 0 : undefined,
-            },
-            ...assertions.map((assertion) => ({
-              assertion_type: assertion.type,
-              value: materialAssertionValue(
-                assertion.type,
-                assertion.value,
-                assertion.components,
-                assertion.basis,
-              ),
-              confidence: null,
-              analysis_index: software ? 0 : undefined,
-            })),
-          ],
-        },
-        token,
-      )
+          token,
+        )
+      } catch (error) {
+        for (const fileId of uploadedFileIds) {
+          const uploaded = await getExperimentFile(token, fileId).catch(
+            () => null,
+          )
+          if (uploaded?.characterization_record_id === null) {
+            await deleteExperimentFile(token, fileId).catch(() => undefined)
+          }
+        }
+        throw error
+      }
     },
     onSuccess: async () => {
       setGrowth('')
@@ -4473,6 +4459,7 @@ export function ScientificMeasurementWorkspace({
                 value={method}
                 onValueChange={(value) => {
                   setMethod(value)
+                  setGrowth('')
                   setConditions({})
                   setInstrumentId('')
                   setInstrumentVersion(null)
@@ -4499,7 +4486,7 @@ export function ScientificMeasurementWorkspace({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {Object.keys(METHOD_CONDITIONS).map((value) => (
+                    {Object.keys(characterizationProfiles).map((value) => (
                       <SelectItem key={value} value={value}>
                         {METHOD_LABELS[value] ?? value}
                       </SelectItem>
@@ -4522,7 +4509,7 @@ export function ScientificMeasurementWorkspace({
                 onChange={(event) => setMeasuredAt(event.target.value)}
               />
             </div>
-            {method && method !== 'optical_microscopy' ? (
+            {profile?.instrument_required ? (
               <div className="grid gap-2">
                 <Label>使用的仪器版本</Label>
                 <EntityReferenceSelect
@@ -4544,17 +4531,48 @@ export function ScientificMeasurementWorkspace({
             <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
               {conditionFields.map((field) => (
                 <div key={field.key} className="grid gap-2">
-                  <Label>{field.label}</Label>
-                  <Input
-                    type={field.type ?? 'text'}
-                    value={conditions[field.key] ?? ''}
-                    onChange={(event) =>
-                      setConditions({
-                        ...conditions,
-                        [field.key]: event.target.value,
-                      })
-                    }
-                  />
+                  <Label>
+                    {field.label_zh}
+                    {field.unit ? `（${field.unit}）` : ''}
+                  </Label>
+                  {field.components ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {field.components.map((component) => {
+                        const key = `${field.key}.${component.key}`
+                        return (
+                          <Input
+                            key={component.key}
+                            type="number"
+                            min={field.value_type === 'resolution' ? '1' : '0'}
+                            step={
+                              field.value_type === 'resolution' ? '1' : 'any'
+                            }
+                            aria-label={`${field.label_zh} ${component.label_zh}`}
+                            placeholder={component.label_zh}
+                            value={conditions[key] ?? ''}
+                            onChange={(event) =>
+                              setConditions((current) => ({
+                                ...current,
+                                [key]: event.target.value,
+                              }))
+                            }
+                          />
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <Input
+                      type={field.value_type === 'text' ? 'text' : 'number'}
+                      step={field.value_type === 'integer' ? '1' : undefined}
+                      value={conditions[field.key] ?? ''}
+                      onChange={(event) =>
+                        setConditions((current) => ({
+                          ...current,
+                          [field.key]: event.target.value,
+                        }))
+                      }
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -4567,12 +4585,12 @@ export function ScientificMeasurementWorkspace({
                   value={region.geometryType}
                   disabled={!method}
                   onValueChange={(geometryType) =>
-                    setRegion({
-                      ...region,
+                    setRegion((current) => ({
+                      ...current,
                       geometryType,
                       width: '',
                       height: '',
-                    })
+                    }))
                   }
                 >
                   <SelectTrigger>
@@ -4595,7 +4613,10 @@ export function ScientificMeasurementWorkspace({
                   value={region.label}
                   placeholder="例如样品中心"
                   onChange={(event) =>
-                    setRegion({ ...region, label: event.target.value })
+                    setRegion((current) => ({
+                      ...current,
+                      label: event.target.value,
+                    }))
                   }
                 />
               </div>
@@ -4607,7 +4628,10 @@ export function ScientificMeasurementWorkspace({
                       type="number"
                       value={region.x}
                       onChange={(event) =>
-                        setRegion({ ...region, x: event.target.value })
+                        setRegion((current) => ({
+                          ...current,
+                          x: event.target.value,
+                        }))
                       }
                     />
                   </div>
@@ -4617,7 +4641,10 @@ export function ScientificMeasurementWorkspace({
                       type="number"
                       value={region.y}
                       onChange={(event) =>
-                        setRegion({ ...region, y: event.target.value })
+                        setRegion((current) => ({
+                          ...current,
+                          y: event.target.value,
+                        }))
                       }
                     />
                   </div>
@@ -4631,7 +4658,10 @@ export function ScientificMeasurementWorkspace({
                     min="0"
                     value={region.width}
                     onChange={(event) =>
-                      setRegion({ ...region, width: event.target.value })
+                      setRegion((current) => ({
+                        ...current,
+                        width: event.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -4644,7 +4674,10 @@ export function ScientificMeasurementWorkspace({
                     min="0"
                     value={region.height}
                     onChange={(event) =>
-                      setRegion({ ...region, height: event.target.value })
+                      setRegion((current) => ({
+                        ...current,
+                        height: event.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -4655,7 +4688,10 @@ export function ScientificMeasurementWorkspace({
                   <Input
                     value={region.unit}
                     onChange={(event) =>
-                      setRegion({ ...region, unit: event.target.value })
+                      setRegion((current) => ({
+                        ...current,
+                        unit: event.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -4677,30 +4713,34 @@ export function ScientificMeasurementWorkspace({
             />
             <p className="text-xs text-muted-foreground">
               已选择 {rawFiles.length} 个文件。
-              {method ? ` ${RAW_FILE_GUIDANCE[method]}` : ' 请先选择表征方法。'}
+              {method
+                ? ` ${profile?.raw_file_guidance_zh ?? ''}`
+                : ' 请先选择表征方法。'}
             </p>
           </div>
         </section>
 
         <section className="grid gap-4 rounded-lg border p-4">
           <h3 className="font-medium">4. 填写结果与材料结论</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>是否观察到材料生长</Label>
-              <Select value={growth} onValueChange={setGrowth}>
-                <SelectTrigger>
-                  <SelectValue placeholder="选择观察结论" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="present">观察到生长</SelectItem>
-                    <SelectItem value="absent">未观察到生长</SelectItem>
-                    <SelectItem value="uncertain">结论不确定</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+          {profile?.show_growth_presence ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>是否观察到材料生长（选填）</Label>
+                <Select value={growth} onValueChange={setGrowth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择观察结论" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="present">观察到生长</SelectItem>
+                      <SelectItem value="absent">未观察到生长</SelectItem>
+                      <SelectItem value="uncertain">结论不确定</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="grid gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -4716,7 +4756,7 @@ export function ScientificMeasurementWorkspace({
                 variant="outline"
                 disabled={!method}
                 onClick={() =>
-                  setProperties([...properties, newPropertyDraft()])
+                  setProperties((current) => [...current, newPropertyDraft()])
                 }
               >
                 <Plus data-icon="inline-start" /> 添加结果
@@ -4728,15 +4768,15 @@ export function ScientificMeasurementWorkspace({
                 property={property}
                 propertyCodes={METHOD_PROPERTY_CODES[method] ?? []}
                 onChange={(patch) =>
-                  setProperties(
-                    properties.map((item) =>
+                  setProperties((current) =>
+                    current.map((item) =>
                       item.id === property.id ? { ...item, ...patch } : item,
                     ),
                   )
                 }
                 onRemove={() =>
-                  setProperties(
-                    properties.filter((item) => item.id !== property.id),
+                  setProperties((current) =>
+                    current.filter((item) => item.id !== property.id),
                   )
                 }
               />
@@ -4755,8 +4795,12 @@ export function ScientificMeasurementWorkspace({
                 type="button"
                 size="sm"
                 variant="outline"
+                disabled={assertionTypes.length === 0}
                 onClick={() =>
-                  setAssertions([...assertions, newAssertionDraft()])
+                  setAssertions((current) => [
+                    ...current,
+                    newAssertionDraft(assertionTypes[0]),
+                  ])
                 }
               >
                 <Plus data-icon="inline-start" /> 添加材料结论
@@ -4766,16 +4810,17 @@ export function ScientificMeasurementWorkspace({
               <MaterialAssertionEditor
                 key={assertion.id}
                 assertion={assertion}
+                assertionTypes={assertionTypes}
                 onChange={(patch) =>
-                  setAssertions(
-                    assertions.map((item) =>
+                  setAssertions((current) =>
+                    current.map((item) =>
                       item.id === assertion.id ? { ...item, ...patch } : item,
                     ),
                   )
                 }
                 onRemove={() =>
-                  setAssertions(
-                    assertions.filter((item) => item.id !== assertion.id),
+                  setAssertions((current) =>
+                    current.filter((item) => item.id !== assertion.id),
                   )
                 }
               />
@@ -4813,14 +4858,20 @@ export function ScientificMeasurementWorkspace({
             readOnly ||
             !selectedSampleId ||
             !method ||
-            (method !== 'optical_microscopy' &&
+            !hasEvidence ||
+            (profile?.instrument_required &&
               (!instrumentId || instrumentVersion === null)) ||
-            !growth ||
             !regionDraftValid(region) ||
-            conditionFields.some((field) => !conditions[field.key]) ||
+            conditionFields.some((field) =>
+              field.components
+                ? field.components.some(
+                    (component) => !conditions[`${field.key}.${component.key}`],
+                  )
+                : !conditions[field.key],
+            ) ||
             properties.some((property) => !propertyDraftValid(property)) ||
             assertions.some((assertion) => !assertionDraftValid(assertion)) ||
-            (method !== 'optical_microscopy' && rawFiles.length === 0) ||
+            (profile?.raw_files_required && rawFiles.length === 0) ||
             Boolean(software) !== Boolean(softwareVersion) ||
             (software !== '' && rawFiles.length === 0) ||
             mutation.isPending

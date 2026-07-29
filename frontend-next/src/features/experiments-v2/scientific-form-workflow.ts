@@ -3,6 +3,14 @@ export function tubeUsageParts(value: string): [string, string] {
   return [resetCount.trim(), useNumber.trim()]
 }
 
+export async function saveBeforeStepChange(
+  readOnly: boolean,
+  hasUnsavedChanges: boolean,
+  saveCurrentStep: () => Promise<boolean>,
+): Promise<boolean> {
+  return readOnly || !hasUnsavedChanges || saveCurrentStep()
+}
+
 type WorkflowSegment = {
   segment_type: string
   start_s: number
@@ -15,7 +23,8 @@ type WorkflowChannel = {
   source_type: string
   subject_type?: string
   subject_ref?: string
-  gas_species?: string
+  subject_instance_ref?: string
+  gas_species_code?: string
   zone_index?: number
   pressure_location?: string
   pressure_type?: string
@@ -24,7 +33,6 @@ type WorkflowChannel = {
   scalar_value?: number
   series?: Array<{ start_s: number; end_s?: number; value: number | string }>
   file_asset_id?: string
-  sensor_or_controller_snapshot?: Record<string, unknown>
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -41,11 +49,6 @@ const CHANNEL_LABELS: Record<string, string> = {
   shutter_state: '挡板状态',
 }
 
-function snapshotText(channel: WorkflowChannel, key: string): string {
-  const value = channel.sensor_or_controller_snapshot?.[key]
-  return typeof value === 'string' ? value.trim() : ''
-}
-
 function zoneLabel(value: string): string {
   const match = /^zone_(\d+)$/.exec(value)
   return match ? `温区 ${match[1]}` : value
@@ -59,8 +62,8 @@ export function processChannelTitle(channel: WorkflowChannel): string {
     return `${zone ? zoneLabel(zone) : '未选择温区'} ${source}温度`
   }
   if (channel.channel_type === 'flow') {
-    const gas = channel.gas_species?.trim() ?? ''
-    return `${gas || '未填写气体'} 流量`
+    const gas = channel.gas_species_code?.trim() ?? ''
+    return `${gas || '未选择气体'} 流量`
   }
   if (channel.channel_type === 'pressure') {
     const location = channel.pressure_location?.trim() ?? ''
@@ -97,7 +100,7 @@ export function timelineValidationIssue(
   const semanticKeys = channels.map((channel) =>
     [
       channel.channel_type,
-      channel.subject_ref?.trim().toLocaleLowerCase(),
+      channel.subject_instance_ref?.trim().toLocaleLowerCase(),
       channel.source_type,
     ].join('|'),
   )
@@ -109,6 +112,9 @@ export function timelineValidationIssue(
     if (!SOURCE_LABELS[channel.source_type]) {
       return `请为“${title}”选择数据来源。`
     }
+    if (!channel.subject_instance_ref?.trim()) {
+      return `请填写“${title}”对应的物理通道实例。`
+    }
     if (
       channel.channel_type === 'temperature' &&
       (!channel.zone_index || channel.subject_type !== 'temperature_zone')
@@ -117,13 +123,10 @@ export function timelineValidationIssue(
     }
     if (channel.channel_type === 'flow') {
       if (
-        !channel.gas_species?.trim() ||
+        !channel.gas_species_code?.trim() ||
         channel.subject_type !== 'gas_species'
       )
-        return '请填写气体种类。'
-      if (!snapshotText(channel, 'controller_ref')) {
-        return `请填写${title}的流量控制器或来源。`
-      }
+        return '请选择气体种类。'
     }
     if (channel.channel_type === 'pressure') {
       if (
@@ -157,7 +160,8 @@ export function withProcessChannelSubject(
       WorkflowChannel,
       | 'subject_type'
       | 'subject_ref'
-      | 'gas_species'
+      | 'subject_instance_ref'
+      | 'gas_species_code'
       | 'zone_index'
       | 'pressure_location'
       | 'pressure_type'
@@ -189,9 +193,10 @@ export function peakTemperatureC(channels: WorkflowChannel[]): number | null {
 
 type TargetSummaryInput = {
   architecture_type: string
-  material_regions: Array<{ formula: string }>
+  material_regions: Array<{ region_key: string; formula: string }>
   composition_relations: Array<{
     relation_type: string
+    host_region_key: string
     species: string
     nominal_value?: number
     value_basis: string
@@ -202,22 +207,34 @@ export function targetSummary(target: TargetSummaryInput): string {
   const formulas = target.material_regions
     .map((region) => region.formula.trim())
     .filter(Boolean)
-  if (target.architecture_type === 'vertical_stack') return formulas.join(' / ')
-  if (target.architecture_type === 'lateral_junction') return formulas.join('–')
-  if (target.architecture_type === 'mixed_architecture')
-    return `混合结构：${formulas.join(' / ')}`
-  const relation = target.composition_relations[0]
-  if (!relation) return formulas.join(' / ')
-  if (relation.relation_type === 'doped_by')
-    return `${relation.species} 掺杂 ${formulas[0] ?? ''}`
-  if (relation.relation_type === 'substitutional_alloy') {
+  const relations = target.composition_relations.map((relation) => {
+    const host =
+      target.material_regions.find(
+        (region) => region.region_key === relation.host_region_key,
+      )?.formula ?? relation.host_region_key
     const amount =
       relation.nominal_value === undefined
         ? ''
-        : `（${relation.value_basis} ${relation.nominal_value}）`
-    return `${formulas[0] ?? ''}–${relation.species} 取代合金${amount}`
-  }
-  return `${formulas[0] ?? ''} · ${relation.species}`
+        : ` ${relation.value_basis} ${relation.nominal_value}`
+    const action =
+      relation.relation_type === 'doped_by'
+        ? '掺杂'
+        : relation.relation_type === 'substitutional_alloy'
+          ? '取代合金'
+          : relation.relation_type === 'intercalated_by'
+            ? '插层'
+            : '表面修饰'
+    return `${host}：${relation.species} ${action}${amount}`
+  })
+  const base =
+    target.architecture_type === 'vertical_stack'
+      ? formulas.join(' / ')
+      : target.architecture_type === 'lateral_junction'
+        ? formulas.join('–')
+        : target.architecture_type === 'mixed_architecture'
+          ? `混合结构：${formulas.join(' / ')}`
+          : formulas.join(' / ')
+  return relations.length ? `${base}；${relations.join('；')}` : base
 }
 
 export function materialAssertionValue(

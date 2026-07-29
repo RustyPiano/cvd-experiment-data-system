@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
@@ -9,7 +9,6 @@ import { listCharacterizationItems } from './api'
 import type { CharacterizationListItem } from './api'
 import { getRun } from '@/features/experiments-v2/api'
 import type { V2ResultRead } from '@/features/experiments-v2/api'
-import { ScientificMeasurementWorkspace } from '@/features/experiments-v2/scientific-experiment-form'
 import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { localizedOption } from '@/shared/field-i18n'
@@ -35,6 +34,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+
+const ScientificMeasurementWorkspace = lazy(() =>
+  import('@/features/experiments-v2/scientific-experiment-form').then(
+    (module) => ({ default: module.ScientificMeasurementWorkspace }),
+  ),
+)
 
 function resultTypeLabel(result: V2ResultRead, t: TFunction) {
   return t(
@@ -128,11 +133,20 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
         ) : runQuery.isLoading ? (
           <Skeleton className="h-32 w-full rounded-lg" />
         ) : canAddMeasurement ? (
-          <ScientificMeasurementWorkspace
-            runId={runId}
-            token={session.accessToken!}
-            readOnly={false}
-          />
+          <Suspense
+            fallback={
+              <Skeleton
+                className="h-96 w-full rounded-lg"
+                data-testid="measurement-workspace-loading"
+              />
+            }
+          >
+            <ScientificMeasurementWorkspace
+              runId={runId}
+              token={session.accessToken!}
+              readOnly={false}
+            />
+          </Suspense>
         ) : (
           <Alert>
             <AlertDescription>

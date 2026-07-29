@@ -129,9 +129,7 @@ for part, scope_of in (
             err(f"{where}: 条件级别缺少 condition 表达式")
         condition = req.get("condition")
         otherwise = req.get("otherwise")
-        if otherwise is not None and (
-            otherwise != "optional" or level != "conditional_required"
-        ):
+        if otherwise is not None and (otherwise != "optional" or level != "conditional_required"):
             err(f"{where}: requirement.otherwise 仅支持 conditional_required + optional")
         if condition and not {"field", "op", "value"} <= set(condition):
             err(f"{where}: condition 缺少 field/op/value")
@@ -171,10 +169,7 @@ for part, scope_of in (
                         if isinstance(condition["value"], list)
                         else [condition["value"]]
                     )
-                    values = [
-                        doc.get("option_codes", {}).get(value, value)
-                        for value in raw_values
-                    ]
+                    values = [doc.get("option_codes", {}).get(value, value) for value in raw_values]
                     unknown = [value for value in values if value not in options]
                     if unknown:
                         err(f"{where}: condition 值 {unknown!r} 不在驱动字段 options 词表内")
@@ -231,10 +226,7 @@ for part, scope_of in (
                         )
                     for option, bounds in option_ranges.items():
                         if not isinstance(bounds, dict) or not bounds:
-                            err(
-                                f"{where}: validation.option_ranges.{option} "
-                                "必须为非空边界对象"
-                            )
+                            err(f"{where}: validation.option_ranges.{option} 必须为非空边界对象")
                             continue
                         unknown_bounds = set(bounds) - {"ge", "gt", "le", "lt"}
                         if unknown_bounds:
@@ -245,8 +237,7 @@ for part, scope_of in (
                         for bound, value in bounds.items():
                             if isinstance(value, bool) or not isinstance(value, (int, float)):
                                 err(
-                                    f"{where}: validation.option_ranges.{option}.{bound} "
-                                    "必须为数值"
+                                    f"{where}: validation.option_ranges.{option}.{bound} 必须为数值"
                                 )
         # D10: 机器字段键——必有、合法、模块/实体内唯一
         scope = scope_of(f)
@@ -262,9 +253,7 @@ for part, scope_of in (
             str(f.get("placeholder_en") or "").strip()
         ):
             err(f"{where}: placeholder / placeholder_en 必须成对填写")
-        if bool(str(f.get("help") or "").strip()) != bool(
-            str(f.get("help_en") or "").strip()
-        ):
+        if bool(str(f.get("help") or "").strip()) != bool(str(f.get("help_en") or "").strip()):
             err(f"{where}: help / help_en 必须成对填写")
         if scope:
             if key in seen_keys.setdefault(scope, set()):
@@ -290,6 +279,73 @@ for t in stage_types.get("types", []):
         err(f"stage_types[{t.get('name')}]: required_extra 引用不存在的字段键 {sorted(bad)}")
 if not stage_types.get("types"):
     err("缺少 stage_types.types（§5 动态表单权威映射，D11）")
+
+# 科学合同：表征方法、属性单位和气体机器码必须自洽。
+properties = doc.get("characterization_properties") or {}
+property_units = (doc.get("scientific_contract") or {}).get("property_units") or {}
+if set(properties) != set(property_units):
+    err(
+        "characterization_properties 与 scientific_contract.property_units "
+        f"键不一致：{sorted(set(properties) ^ set(property_units))}"
+    )
+if "layer_count" in properties:
+    err("layer_count 只能作为 MaterialAssertion，不能同时作为 PropertyValue")
+known_assertions = {
+    "growth_presence",
+    "phase_identity",
+    "composition",
+    "polytype",
+    "stacking_order",
+    "orientation_relationship",
+    "layer_count",
+}
+component_keys = {
+    "range": [{"min", "max"}, {"start", "end"}],
+    "size": [{"x", "y"}, {"width", "height"}],
+    "resolution": [{"width", "height"}],
+}
+for profile_code, profile in (doc.get("characterization_profiles") or {}).items():
+    condition_fields = profile.get("condition_fields") or []
+    condition_codes = [item.get("key") for item in condition_fields]
+    if len(condition_codes) != len(set(condition_codes)):
+        err(f"characterization_profiles.{profile_code}: 条件 key 重复")
+    allowed_properties = set(profile.get("allowed_property_codes") or [])
+    unknown_properties = allowed_properties - set(properties)
+    if unknown_properties:
+        err(f"characterization_profiles.{profile_code}: 未知属性 {sorted(unknown_properties)}")
+    if not set(profile.get("default_property_codes") or []) <= allowed_properties:
+        err(f"characterization_profiles.{profile_code}: 默认属性不属于允许属性")
+    unknown_assertions = set(profile.get("allowed_assertion_types") or []) - known_assertions
+    if unknown_assertions:
+        err(f"characterization_profiles.{profile_code}: 未知材料结论 {sorted(unknown_assertions)}")
+    for field in condition_fields:
+        value_type = field.get("value_type")
+        components = field.get("components") or []
+        if value_type in component_keys:
+            keys = {item.get("key") for item in components}
+            if keys not in component_keys[value_type]:
+                err(
+                    f"characterization_profiles.{profile_code}.{field.get('key')}: "
+                    f"{value_type} 分量 {sorted(keys)} 不合法"
+                )
+        elif components:
+            err(
+                f"characterization_profiles.{profile_code}.{field.get('key')}: "
+                "标量条件不能声明 components"
+            )
+if not doc.get("characterization_profiles"):
+    err("缺少 characterization_profiles")
+
+gas_aliases: dict[str, str] = {}
+for code, definition in (doc.get("gas_species") or {}).items():
+    for alias in definition.get("aliases") or []:
+        normalized = str(alias).strip().casefold()
+        previous = gas_aliases.get(normalized)
+        if previous and previous != code:
+            err(f"gas_species 别名 {alias!r} 同时映射到 {previous} 与 {code}")
+        gas_aliases[normalized] = code
+if not doc.get("gas_species"):
+    err("缺少 gas_species 受控词表")
 
 # ---- 2. xlsx 逐格一致 ----
 if not os.path.exists(COMMITTED):

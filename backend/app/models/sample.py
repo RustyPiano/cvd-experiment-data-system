@@ -69,6 +69,12 @@ class Sample(Base):
         nullable=True,
         index=True,
     )
+    identity_state: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unknown",
+        index=True,
+    )
     current_carrier: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sample_region: Mapped[dict | None] = mapped_column(json_payload_type, nullable=True)
     dimensions_json: Mapped[dict | None] = mapped_column(json_payload_type, nullable=True)

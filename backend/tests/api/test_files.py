@@ -323,7 +323,11 @@ def test_locked_experiment_allows_characterization_file_but_rejects_setup_diagra
     )
 
 
-def test_file_write_permissions_follow_run_visibility(active_user, db_session) -> None:
+def test_file_write_permissions_follow_run_visibility(
+    active_user,
+    admin_user,
+    db_session,
+) -> None:
     experiment_id = create_experiment(active_user.email)
     owned_file = client.post(
         f"/api/v1/experiments/{experiment_id}/files",
@@ -356,15 +360,39 @@ def test_file_write_permissions_follow_run_visibility(active_user, db_session) -
     assert hidden.status_code == 404
 
     experiment = db_session.get(ExperimentRun, UUID(experiment_id))
-    experiment.status = ExperimentStatus.LOCKED
-    db_session.commit()
-    visible = client.post(
-        f"/api/v1/experiments/{experiment_id}/files",
-        headers=headers,
-        data={"method": "Raman"},
-        files={"file": ("visible.txt", b"visible", "text/plain")},
+    for run_status in (ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED):
+        experiment.status = run_status
+        db_session.commit()
+        forbidden_delete = client.delete(
+            f"/api/v1/files/{owned_file['id']}",
+            headers=headers,
+        )
+        assert forbidden_delete.status_code == 403
+
+    uploads = [
+        client.post(
+            f"/api/v1/experiments/{experiment_id}/files",
+            headers=headers,
+            data={"method": "Raman"},
+            files={"file": (f"visible-{index}.txt", b"visible", "text/plain")},
+        ).json()
+        for index in range(3)
+    ]
+    assert client.delete(f"/api/v1/files/{uploads[0]['id']}", headers=headers).status_code == 204
+    assert (
+        client.delete(
+            f"/api/v1/files/{uploads[1]['id']}",
+            headers=auth_headers(active_user.email),
+        ).status_code
+        == 204
     )
-    assert visible.status_code == 201
+    assert (
+        client.delete(
+            f"/api/v1/files/{uploads[2]['id']}",
+            headers=auth_headers(admin_user.email),
+        ).status_code
+        == 204
+    )
 
 
 def test_invalid_experiment_rejects_characterization_file_writes(active_user, db_session) -> None:

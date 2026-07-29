@@ -7,7 +7,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.scientific_units import normalize_process_value, validate_process_unit
-from app.services.v2_field_source import normalize_offset_datetime, validate_chemical_formula
+from app.services.v2_field_source import (
+    canonical_gas_species,
+    characterization_profiles,
+    characterization_property_units,
+    normalize_offset_datetime,
+    validate_chemical_formula,
+)
 
 
 class AmbientMeasurement(BaseModel):
@@ -269,7 +275,11 @@ class SourceLoadPayload(BaseModel):
     preparation_steps: list[PreparationStepPayload] = Field(default_factory=list)
     initial_position: SourcePosition | None = None
     position_program: list[SourcePositionPoint] = Field(default_factory=list)
-    heating_channel: str | None = Field(default=None, max_length=128)
+    heating_zone_ref: str | None = Field(
+        default=None,
+        max_length=64,
+        pattern=r"^zone_[1-9][0-9]*$",
+    )
     ingredients: list[SourceIngredientPayload] = Field(min_length=1)
     attrs: dict[str, Any] = Field(default_factory=dict)
 
@@ -364,7 +374,11 @@ class ProcessChannelPayload(BaseModel):
         "device",
     ]
     subject_ref: str = Field(min_length=1, max_length=128)
-    gas_species: str | None = Field(default=None, max_length=128)
+    subject_instance_ref: str = Field(min_length=1, max_length=128)
+    subject_snapshot: dict[str, Any] | None = None
+    gas_species_code: str | None = Field(default=None, max_length=32)
+    gas_lot_id: UUID | None = None
+    gas_lot_version: int | None = Field(default=None, ge=1)
     zone_index: int | None = Field(default=None, ge=1)
     pressure_location: str | None = Field(default=None, max_length=128)
     pressure_type: Literal["absolute", "gauge", "differential"] | None = None
@@ -373,13 +387,15 @@ class ProcessChannelPayload(BaseModel):
     scalar_value: float | None = Field(default=None, allow_inf_nan=False)
     series: list[ProcessChannelPoint] | None = None
     file_asset_id: UUID | None = None
-    sensor_or_controller_snapshot: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def validate_data_shape(self) -> Self:
         self.subject_ref = self.subject_ref.strip()
         if not self.subject_ref:
             raise ValueError("subject_ref cannot be blank")
+        self.subject_instance_ref = self.subject_instance_ref.strip()
+        if not self.subject_instance_ref:
+            raise ValueError("subject_instance_ref cannot be blank")
         if self.channel_type == "temperature":
             if (
                 self.subject_type != "temperature_zone"
@@ -388,13 +404,13 @@ class ProcessChannelPayload(BaseModel):
             ):
                 raise ValueError("temperature channels require a matching zone subject")
         elif self.channel_type == "flow":
-            self.gas_species = (self.gas_species or "").strip() or None
-            if (
-                self.subject_type != "gas_species"
-                or self.gas_species is None
-                or self.subject_ref != self.gas_species
-            ):
+            self.gas_species_code = (self.gas_species_code or "").strip() or None
+            if self.subject_type != "gas_species" or self.gas_species_code is None:
                 raise ValueError("flow channels require an explicit gas species subject")
+            self.gas_species_code = canonical_gas_species(self.gas_species_code)
+            self.subject_ref = self.gas_species_code
+            if (self.gas_lot_id is None) != (self.gas_lot_version is None):
+                raise ValueError("gas_lot_id and gas_lot_version must be provided together")
         elif self.channel_type == "pressure":
             self.pressure_location = (self.pressure_location or "").strip() or None
             if (
@@ -404,8 +420,8 @@ class ProcessChannelPayload(BaseModel):
                 or self.subject_ref != self.pressure_location
             ):
                 raise ValueError("pressure channels require location and pressure type")
-        elif self.subject_type != "device" or self.subject_ref != self.channel_type:
-            raise ValueError("device channels require their channel type as subject")
+        elif self.subject_type != "device":
+            raise ValueError("device channels require a device subject")
         present = {
             "scalar": self.scalar_value is not None,
             "interval_series": bool(self.series),
@@ -413,6 +429,8 @@ class ProcessChannelPayload(BaseModel):
         }
         if not present[self.data_kind] or sum(present.values()) != 1:
             raise ValueError("channel data must match exactly one data_kind")
+        if self.data_kind == "timeseries_file" and self.channel_type.endswith("_state"):
+            raise ValueError("state channels must use interval_series")
         if self.series:
             starts = [point.start_s for point in self.series]
             if starts != sorted(starts):
@@ -442,11 +460,15 @@ class ProcessTimelinePayload(BaseModel):
         if len(channel_keys) != len(set(channel_keys)):
             raise ValueError("channel keys must be unique")
         semantic_keys = [
-            (item.channel_type, item.subject_ref.casefold(), item.source_type)
+            (
+                item.channel_type,
+                item.subject_instance_ref.casefold(),
+                item.source_type,
+            )
             for item in self.channels
         ]
         if len(semantic_keys) != len(set(semantic_keys)):
-            raise ValueError("channel type, subject, and source type must be unique")
+            raise ValueError("channel type, physical instance, and source type must be unique")
         sequences = [item.sequence for item in self.segments]
         if sorted(sequences) != list(range(1, len(sequences) + 1)):
             raise ValueError("segment sequence must be consecutive from one")
@@ -639,80 +661,51 @@ class SampleRegion(BaseModel):
         return self
 
 
-METHOD_REQUIRED_CONDITIONS: dict[str, frozenset[str]] = {
-    "Raman": frozenset(
-        {
-            "laser_wavelength_nm",
-            "power_setting",
-            "objective",
-            "integration_time_s",
-            "accumulations",
-        }
-    ),
-    "PL": frozenset(
-        {
-            "excitation_wavelength_nm",
-            "power_setting",
-            "integration_time_s",
-            "spectral_range_nm",
-            "temperature_K",
-        }
-    ),
-    "AFM": frozenset(
-        {
-            "mode",
-            "probe",
-            "scan_size_um",
-            "resolution_px",
-            "scan_rate_hz",
-        }
-    ),
-    "SEM": frozenset(
-        {
-            "accelerating_voltage_kV",
-            "working_distance_mm",
-            "detector",
-            "field_of_view_um",
-        }
-    ),
-    "XRD": frozenset(
-        {
-            "radiation_source",
-            "scan_range_2theta_deg",
-            "step_size_deg",
-            "scan_rate_deg_min",
-            "geometry",
-        }
-    ),
-    "TEM": frozenset(
-        {
-            "accelerating_voltage_kV",
-            "mode",
-            "sample_preparation",
-        }
-    ),
-    "optical_microscopy": frozenset({"objective", "illumination_mode"}),
-    "low_frequency_raman": frozenset(
-        {
-            "laser_wavelength_nm",
-            "power_setting",
-            "objective",
-            "integration_time_s",
-            "accumulations",
-        }
-    ),
-}
+class NumericRange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-METHOD_REGION_TYPES: dict[str, frozenset[str]] = {
-    "optical_microscopy": frozenset({"point", "area", "whole_sample"}),
-    "Raman": frozenset({"point", "line"}),
-    "low_frequency_raman": frozenset({"point", "line"}),
-    "PL": frozenset({"point", "line"}),
-    "AFM": frozenset({"point", "area", "whole_sample"}),
-    "SEM": frozenset({"point", "area", "whole_sample"}),
-    "XRD": frozenset({"area", "whole_sample"}),
-    "TEM": frozenset({"lamella", "particle", "selected_area"}),
-}
+    min: float = Field(ge=0, allow_inf_nan=False)
+    max: float = Field(gt=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.max <= self.min:
+            raise ValueError("range maximum must be greater than minimum")
+        return self
+
+
+class ScanRange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: float = Field(ge=0, allow_inf_nan=False)
+    end: float = Field(gt=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.end <= self.start:
+            raise ValueError("scan end must be greater than start")
+        return self
+
+
+class Size2D(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: float = Field(gt=0, allow_inf_nan=False)
+    y: float = Field(gt=0, allow_inf_nan=False)
+
+
+class WidthHeight(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    width: float = Field(gt=0, allow_inf_nan=False)
+    height: float = Field(gt=0, allow_inf_nan=False)
+
+
+class Resolution2D(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    width: int = Field(ge=1)
+    height: int = Field(ge=1)
 
 
 class MeasurementConditions(BaseModel):
@@ -724,19 +717,19 @@ class MeasurementConditions(BaseModel):
     objective: str | None = Field(default=None, max_length=128)
     integration_time_s: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     accumulations: int | None = Field(default=None, ge=1)
-    spectral_range_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    spectral_range_nm: NumericRange | None = None
     temperature_K: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     mode: str | None = Field(default=None, max_length=128)
     probe: str | None = Field(default=None, max_length=128)
-    scan_size_um: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    resolution_px: int | None = Field(default=None, ge=1)
+    scan_size_um: Size2D | None = None
+    resolution_px: Resolution2D | None = None
     scan_rate_hz: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     accelerating_voltage_kV: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     working_distance_mm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     detector: str | None = Field(default=None, max_length=128)
-    field_of_view_um: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    field_of_view_um: WidthHeight | None = None
     radiation_source: str | None = Field(default=None, max_length=128)
-    scan_range_2theta_deg: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    scan_range_2theta_deg: ScanRange | None = None
     step_size_deg: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     scan_rate_deg_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     geometry: str | None = Field(default=None, max_length=128)
@@ -775,11 +768,12 @@ class MeasurementRunCreate(BaseModel):
     def validate_measurement(self) -> Self:
         if (self.instrument_id is None) != (self.instrument_version is None):
             raise ValueError("instrument_id and instrument_version must be provided together")
-        if self.method_profile != "optical_microscopy" and self.instrument_id is None:
-            raise ValueError("non-optical measurements require an instrument")
-        required = METHOD_REQUIRED_CONDITIONS.get(self.method_profile)
-        if required is None:
+        profile = characterization_profiles().get(self.method_profile)
+        if profile is None:
             raise ValueError("unsupported method profile")
+        if profile["instrument_required"] and self.instrument_id is None:
+            raise ValueError("selected measurement profile requires an instrument")
+        required = {item["key"] for item in profile["condition_fields"]}
         conditions = self.typed_conditions.model_dump(exclude_none=True)
         missing = sorted(required - conditions.keys())
         if missing:
@@ -789,7 +783,7 @@ class MeasurementRunCreate(BaseModel):
             raise ValueError(
                 f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
             )
-        if self.sample_region.geometry_type not in METHOD_REGION_TYPES[self.method_profile]:
+        if self.sample_region.geometry_type not in profile["allowed_region_types"]:
             raise ValueError(
                 f"{self.sample_region.geometry_type} does not apply to {self.method_profile}"
             )
@@ -828,32 +822,6 @@ class AnalysisRunCreate(BaseModel):
         return self
 
 
-PROPERTY_UNITS: dict[str, str] = {
-    "afm_ra_roughness": "nm",
-    "afm_rms_roughness": "nm",
-    "afm_step_height": "nm",
-    "coverage_percent": "%",
-    "domain_size_um": "μm",
-    "layer_count": "count",
-    "low_frequency_peak_fwhm": "cm⁻¹",
-    "nucleation_density_cm2": "cm⁻²",
-    "pl_a_exciton_peak_energy": "eV",
-    "pl_b_exciton_peak_energy": "eV",
-    "pl_integrated_intensity": "a.u.",
-    "pl_peak_fwhm": "meV",
-    "raman_a1g_peak_position": "cm⁻¹",
-    "raman_e2g_peak_position": "cm⁻¹",
-    "raman_intensity_ratio": "ratio",
-    "raman_peak_fwhm": "cm⁻¹",
-    "raman_peak_separation": "cm⁻¹",
-    "shear_mode_peak_position": "cm⁻¹",
-    "tem_lattice_spacing": "nm",
-    "xrd_d_spacing": "nm",
-    "xrd_peak_2theta": "° 2θ",
-    "xrd_peak_fwhm": "° 2θ",
-}
-
-
 class PropertyValueWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -873,7 +841,7 @@ class PropertyValueWrite(BaseModel):
 
     @model_validator(mode="after")
     def validate_property(self) -> Self:
-        expected_unit = PROPERTY_UNITS.get(self.property_code)
+        expected_unit = characterization_property_units().get(self.property_code)
         if expected_unit is None:
             raise ValueError("unsupported property_code")
         supplied = [
@@ -939,6 +907,8 @@ class MaterialAssertionWrite(BaseModel):
                 not in {"site_fraction", "atomic_fraction", "mass_fraction"}
             ):
                 raise ValueError("composition requires components and a supported fraction basis")
+            if abs(sum(float(component["fraction"]) for component in components) - 1) > 1e-6:
+                raise ValueError("composition fractions must sum to one")
         else:
             key = {
                 "polytype": "polytype",
@@ -960,13 +930,35 @@ class MeasurementBundleCreate(BaseModel):
 
     @model_validator(mode="after")
     def require_evidence(self) -> Self:
+        profile = characterization_profiles()[self.measurement.method_profile]
         if not self.measurement.raw_file_ids and not self.properties and not self.assertions:
             raise ValueError("measurement requires raw data, a property, or an assertion")
-        if (
-            self.measurement.method_profile != "optical_microscopy"
-            and not self.measurement.raw_file_ids
-        ):
-            raise ValueError("non-optical measurements require at least one raw data file")
+        if profile["raw_files_required"] and not self.measurement.raw_file_ids:
+            raise ValueError("selected measurement profile requires at least one raw data file")
+        unsupported_properties = sorted(
+            {
+                item.property_code
+                for item in self.properties
+                if item.property_code not in profile["allowed_property_codes"]
+            }
+        )
+        if unsupported_properties:
+            raise ValueError(
+                f"properties do not apply to {self.measurement.method_profile}: "
+                f"{', '.join(unsupported_properties)}"
+            )
+        unsupported_assertions = sorted(
+            {
+                item.assertion_type
+                for item in self.assertions
+                if item.assertion_type not in profile["allowed_assertion_types"]
+            }
+        )
+        if unsupported_assertions:
+            raise ValueError(
+                f"assertions do not apply to {self.measurement.method_profile}: "
+                f"{', '.join(unsupported_assertions)}"
+            )
         for item in [*self.properties, *self.assertions]:
             if item.analysis_index is not None and item.analysis_index >= len(self.analyses):
                 raise ValueError("analysis_index is out of range")
@@ -1125,7 +1117,7 @@ class DatasetFilter(BaseModel):
         }
         boolean_fields = {"has_process_event", "provenance_complete"}
         if self.field == "property":
-            if self.property_code not in PROPERTY_UNITS:
+            if self.property_code not in characterization_property_units():
                 raise ValueError("property filters require a supported property_code")
         elif self.property_code is not None:
             raise ValueError("property_code applies only to property filters")

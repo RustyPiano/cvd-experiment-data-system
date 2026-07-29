@@ -7,11 +7,13 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.file_asset import FILE_NOTE_MAX_LENGTH, FileAsset
-from app.models.user import User
+from app.models.scientific import MaterialAssertion, PropertyValue, RunFeature
+from app.models.user import User, UserRole
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.file_asset_repository import FileAssetRepository
@@ -31,6 +33,52 @@ from app.services.temperature_timeseries import (
 )
 from app.services.v2_field_source import canonical_option_value, field_option_values
 from app.services.v2_result_status_service import refresh_result_missing_todo
+
+
+def refresh_revision_provenance(db: Session, run_revision_id: UUID) -> None:
+    records = list(
+        db.scalars(
+            select(CharacterizationRecord).where(
+                CharacterizationRecord.run_revision_id == run_revision_id
+            )
+        )
+    )
+    complete = bool(records)
+    for record in records:
+        has_raw = bool(
+            db.scalar(
+                select(FileAsset.id)
+                .where(
+                    FileAsset.characterization_record_id == record.id,
+                    FileAsset.deleted_at.is_(None),
+                )
+                .limit(1)
+            )
+        )
+        has_evidence = bool(
+            db.scalar(
+                select(PropertyValue.id)
+                .where(PropertyValue.measurement_run_id == record.id)
+                .limit(1)
+            )
+            or db.scalar(
+                select(MaterialAssertion.id)
+                .where(MaterialAssertion.measurement_run_id == record.id)
+                .limit(1)
+            )
+        )
+        if not record.typed_conditions or not has_raw or not has_evidence:
+            complete = False
+            break
+    feature = db.scalar(
+        select(RunFeature).where(
+            RunFeature.run_revision_id == run_revision_id,
+            RunFeature.feature_code == "provenance_complete",
+            RunFeature.ordinal == 0,
+        )
+    )
+    if feature is not None:
+        feature.boolean_value = complete
 
 
 def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
@@ -171,6 +219,7 @@ class FileAssetService:
         )
         ensure_files_editable(experiment, resolved_asset_role)
         record_method: str | None = None
+        run_revision_id: UUID | None = None
         if characterization_record_id is not None:
             record = self.db.get(CharacterizationRecord, characterization_record_id)
             if record is None or record.experiment_run_id != experiment.id:
@@ -185,6 +234,7 @@ class FileAssetService:
                 )
             sample_id = record.sample_id
             record_method = self._normalize_method(record.method_instrument)
+            run_revision_id = record.run_revision_id
         if sample_id is not None:
             sample = self.samples.get_by_id(sample_id)
             if sample is None or sample.experiment_run_id != experiment.id:
@@ -279,6 +329,8 @@ class FileAssetService:
         )
         try:
             saved = self.files.create(file_asset)
+            if run_revision_id is not None:
+                refresh_revision_provenance(self.db, run_revision_id)
             self.audit.record_event(
                 actor=current_user,
                 entity_type="file_asset",
@@ -304,8 +356,15 @@ class FileAssetService:
 
     def delete_file(self, file_id: UUID, current_user: User) -> None:
         file_asset = self._get_editable_file(file_id, current_user)
+        record = (
+            self.db.get(CharacterizationRecord, file_asset.characterization_record_id)
+            if file_asset.characterization_record_id
+            else None
+        )
         self._soft_delete_files([file_asset], current_user)
         try:
+            if record is not None and record.run_revision_id is not None:
+                refresh_revision_provenance(self.db, record.run_revision_id)
             if file_asset.asset_role == "direct_observation_file":
                 experiment = self.experiments.get_by_id(file_asset.experiment_run_id)
                 if experiment is not None:
@@ -322,7 +381,6 @@ class FileAssetService:
         asset_role: str,
         referenced_file_ids: set[UUID],
         current_user: User,
-        retained_binding_ids: set[str] | None = None,
     ) -> None:
         if asset_role not in {
             "process_event_attachment",
@@ -342,13 +400,7 @@ class FileAssetService:
             asset_role=asset_role,
         )
         self._soft_delete_files(
-            [
-                file
-                for file in files
-                if file.id not in referenced_file_ids
-                and str(file.metadata_json.get("binding_id") or "")
-                not in (retained_binding_ids or set())
-            ],
+            [file for file in files if file.id not in referenced_file_ids],
             current_user,
         )
 
@@ -417,7 +469,19 @@ class FileAssetService:
             file_asset.experiment_run_id,
             current_user,
         )
+        file_asset = self.files.get_by_id_for_update(file_id)
+        if file_asset is None or file_asset.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
         ensure_files_editable(experiment, file_asset.asset_role)
+        if (
+            current_user.role != UserRole.ADMIN
+            and experiment.owner_id != current_user.id
+            and file_asset.uploaded_by_id != current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
         return file_asset
 
     def to_read_model(self, file_asset: FileAsset) -> FileAssetRead:

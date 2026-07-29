@@ -71,6 +71,48 @@ interface RawStageType {
 }
 interface RawDoc {
   meta: { version: string; status: string }
+  scientific_contract: { property_units: Record<string, string> }
+  gas_species: Record<
+    string,
+    { label_zh: string; label_en: string; aliases: string[] }
+  >
+  characterization_properties: Record<
+    string,
+    { label_zh: string; label_en: string }
+  >
+  characterization_profiles: Record<
+    string,
+    {
+      label_zh: string
+      label_en: string
+      instrument_required: boolean
+      raw_files_required: boolean
+      show_growth_presence: boolean
+      raw_file_guidance_zh: string
+      allowed_region_types: string[]
+      condition_fields: Array<{
+        key: string
+        label_zh: string
+        label_en: string
+        value_type:
+          | 'text'
+          | 'number'
+          | 'integer'
+          | 'range'
+          | 'size'
+          | 'resolution'
+        unit?: string
+        components?: Array<{
+          key: string
+          label_zh: string
+          label_en: string
+        }>
+      }>
+      allowed_property_codes: string[]
+      default_property_codes: string[]
+      allowed_assertion_types: string[]
+    }
+  >
   modules: Record<string, string>
   entity_keys: Record<string, string>
   option_labels_en: Record<string, string>
@@ -335,6 +377,47 @@ export interface StageType {
   /** 该阶段额外强制必填的字段键 */
   requiredExtra?: string[]
 }
+
+export interface CharacterizationConditionField {
+  key: string
+  label_zh: string
+  label_en: string
+  value_type:
+    | 'text'
+    | 'number'
+    | 'integer'
+    | 'range'
+    | 'size'
+    | 'resolution'
+  unit?: string
+  components?: Array<{ key: string; label_zh: string; label_en: string }>
+}
+
+export interface CharacterizationProfile {
+  label_zh: string
+  label_en: string
+  instrument_required: boolean
+  raw_files_required: boolean
+  show_growth_presence: boolean
+  raw_file_guidance_zh: string
+  allowed_region_types: string[]
+  condition_fields: CharacterizationConditionField[]
+  allowed_property_codes: string[]
+  default_property_codes: string[]
+  allowed_assertion_types: string[]
+}
+
+export interface CharacterizationProperty {
+  label_zh: string
+  label_en: string
+  unit: string
+}
+
+export interface GasSpecies {
+  label_zh: string
+  label_en: string
+  aliases: string[]
+}
 `
 
 const BANNER = `// AUTO-GENERATED — 请勿手改。
@@ -357,6 +440,9 @@ const content =
     `/** 规范单位 → 英文显示名 */\nexport const unitLabelsEn: Record<string, string> = ${JSON.stringify(doc.unit_labels_en, null, 2)}`,
     `/** §5 参数组：组名 → 说明（common 恒显） */\nexport const stageGroups: Record<string, string> = ${JSON.stringify(stageGroups, null, 2)}`,
     `/** §5 阶段类型 → 参数组显隐映射（驱动动态表单，D11） */\nexport const stageTypes: StageType[] = ${JSON.stringify(stageTypes, null, 2)}`,
+    `/** 表征属性代码、显示名与规范单位。 */\nexport const characterizationProperties: Record<string, CharacterizationProperty> = ${JSON.stringify(Object.fromEntries(Object.entries(doc.characterization_properties).map(([code, property]) => [code, { ...property, unit: doc.scientific_contract.property_units[code] }])), null, 2)}`,
+    `/** 表征方法、条件、区域、属性与材料结论的单一合同。 */\nexport const characterizationProfiles: Record<string, CharacterizationProfile> = ${JSON.stringify(doc.characterization_profiles, null, 2)}`,
+    `/** 过程气体稳定机器码与显示/兼容别名。 */\nexport const gasSpecies: Record<string, GasSpecies> = ${JSON.stringify(doc.gas_species, null, 2)}`,
   ].join('\n\n') + '\n'
 
 await Bun.write(OUT, content)

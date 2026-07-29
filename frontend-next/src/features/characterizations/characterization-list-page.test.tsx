@@ -10,13 +10,24 @@ import { CharacterizationListPage } from './characterization-list-page'
 
 const api = vi.hoisted(() => ({ listCharacterizationItems: vi.fn() }))
 const experimentApi = vi.hoisted(() => ({ getRun: vi.fn() }))
+const workspaceModule = vi.hoisted(() => {
+  let release: (() => void) | undefined
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return { gate, loaded: vi.fn(), release: () => release?.() }
+})
 vi.mock('./api', () => api)
 vi.mock('@/features/experiments-v2/api', () => experimentApi)
-vi.mock('@/features/experiments-v2/scientific-experiment-form', () => ({
-  ScientificMeasurementWorkspace: ({ runId }: { runId: string }) => (
-    <div>Workspace {runId}</div>
-  ),
-}))
+vi.mock('@/features/experiments-v2/scientific-experiment-form', async () => {
+  workspaceModule.loaded()
+  await workspaceModule.gate
+  return {
+    ScientificMeasurementWorkspace: ({ runId }: { runId: string }) => (
+      <div>Workspace {runId}</div>
+    ),
+  }
+})
 vi.mock('@/features/auth/use-auth', () => ({
   useAuth: () => ({
     session: {
@@ -136,6 +147,7 @@ describe('CharacterizationListPage', () => {
     expect(
       screen.getAllByRole('link', { name: '补录或查看表征' })[2],
     ).toHaveAttribute('href', '/characterizations?runId=run-3')
+    expect(workspaceModule.loaded).not.toHaveBeenCalled()
   })
 
   it('filters by preparation record, sample, material, or method', async () => {
@@ -167,6 +179,11 @@ describe('CharacterizationListPage', () => {
     expect(
       await screen.findByRole('heading', { name: '添加表征记录' }),
     ).toBeInTheDocument()
+    expect(
+      await screen.findByTestId('measurement-workspace-loading'),
+    ).toBeInTheDocument()
+    expect(workspaceModule.loaded).toHaveBeenCalledOnce()
+    workspaceModule.release()
     expect(await screen.findByText('Workspace run-3')).toBeInTheDocument()
     expect(screen.queryByText('样品与表征')).not.toBeInTheDocument()
     expect(api.listCharacterizationItems).not.toHaveBeenCalled()

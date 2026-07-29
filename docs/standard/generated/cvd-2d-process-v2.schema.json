@@ -72,11 +72,32 @@
         "container_snapshot_at_lock",
         "preparation_steps",
         "position_program",
-        "heating_channel"
+        "heating_zone_ref"
       ]
     },
     "process_timeline": {
       "time_origin": "basic_info.started_at",
+      "channel_identity": "channel_type + subject_instance_ref + source_type",
+      "timeseries_file": {
+        "required_columns": [
+          "time_s",
+          "value"
+        ],
+        "parser_version": "process_timeseries_csv_v1",
+        "frozen_projection": [
+          "source_file_sha256",
+          "min",
+          "max",
+          "mean",
+          "median",
+          "time_weighted_mean",
+          "ramp_rate_per_min",
+          "cooling_rate_per_min",
+          "valid_duration_s",
+          "excluded_duration_s",
+          "sampling_interval_s"
+        ]
+      },
       "channels": [
         "temperature",
         "flow",
@@ -138,16 +159,27 @@
       "uncertain"
     ],
     "property_units": {
+      "afm_ra_roughness": "nm",
       "raman_e2g_peak_position": "cm⁻¹",
       "raman_a1g_peak_position": "cm⁻¹",
       "raman_peak_separation": "cm⁻¹",
+      "raman_peak_fwhm": "cm⁻¹",
+      "raman_intensity_ratio": "ratio",
+      "shear_mode_peak_position": "cm⁻¹",
+      "low_frequency_peak_fwhm": "cm⁻¹",
       "pl_a_exciton_peak_energy": "eV",
       "pl_b_exciton_peak_energy": "eV",
+      "pl_integrated_intensity": "a.u.",
+      "pl_peak_fwhm": "meV",
       "afm_step_height": "nm",
       "afm_rms_roughness": "nm",
       "coverage_percent": "%",
       "domain_size_um": "μm",
-      "nucleation_density_cm2": "cm⁻²"
+      "nucleation_density_cm2": "cm⁻²",
+      "xrd_peak_2theta": "° 2θ",
+      "xrd_peak_fwhm": "° 2θ",
+      "xrd_d_spacing": "nm",
+      "tem_lattice_spacing": "nm"
     }
   },
   "modules": {
@@ -1234,10 +1266,11 @@
               "title": "Position Program",
               "type": "array"
             },
-            "heating_channel": {
+            "heating_zone_ref": {
               "anyOf": [
                 {
-                  "maxLength": 128,
+                  "maxLength": 64,
+                  "pattern": "^zone_[1-9][0-9]*$",
                   "type": "string"
                 },
                 {
@@ -1245,7 +1278,7 @@
                 }
               ],
               "default": null,
-              "title": "Heating Channel"
+              "title": "Heating Zone Ref"
             },
             "ingredients": {
               "items": {
@@ -2101,10 +2134,29 @@
               "title": "Subject Ref",
               "type": "string"
             },
-            "gas_species": {
+            "subject_instance_ref": {
+              "maxLength": 128,
+              "minLength": 1,
+              "title": "Subject Instance Ref",
+              "type": "string"
+            },
+            "subject_snapshot": {
               "anyOf": [
                 {
-                  "maxLength": 128,
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Subject Snapshot"
+            },
+            "gas_species_code": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -2112,7 +2164,33 @@
                 }
               ],
               "default": null,
-              "title": "Gas Species"
+              "title": "Gas Species Code"
+            },
+            "gas_lot_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Gas Lot Id"
+            },
+            "gas_lot_version": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Gas Lot Version"
             },
             "zone_index": {
               "anyOf": [
@@ -2211,19 +2289,6 @@
               ],
               "default": null,
               "title": "File Asset Id"
-            },
-            "sensor_or_controller_snapshot": {
-              "anyOf": [
-                {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "title": "Sensor Or Controller Snapshot"
             }
           },
           "required": [
@@ -2232,6 +2297,7 @@
             "source_type",
             "subject_type",
             "subject_ref",
+            "subject_instance_ref",
             "unit",
             "data_kind"
           ],
@@ -3938,15 +4004,13 @@
             "spectral_range_nm": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
+                  "$ref": "#/$defs/NumericRange"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Spectral Range Nm"
+              "default": null
             },
             "temperature_K": {
               "anyOf": [
@@ -3990,28 +4054,24 @@
             "scan_size_um": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
+                  "$ref": "#/$defs/Size2D"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Scan Size Um"
+              "default": null
             },
             "resolution_px": {
               "anyOf": [
                 {
-                  "minimum": 1,
-                  "type": "integer"
+                  "$ref": "#/$defs/Resolution2D"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Resolution Px"
+              "default": null
             },
             "scan_rate_hz": {
               "anyOf": [
@@ -4068,15 +4128,13 @@
             "field_of_view_um": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
+                  "$ref": "#/$defs/WidthHeight"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Field Of View Um"
+              "default": null
             },
             "radiation_source": {
               "anyOf": [
@@ -4094,15 +4152,13 @@
             "scan_range_2theta_deg": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "type": "number"
+                  "$ref": "#/$defs/ScanRange"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Scan Range 2Theta Deg"
+              "default": null
             },
             "step_size_deg": {
               "anyOf": [
@@ -4251,6 +4307,27 @@
             "typed_conditions"
           ],
           "title": "MeasurementRunCreate",
+          "type": "object"
+        },
+        "NumericRange": {
+          "additionalProperties": false,
+          "properties": {
+            "min": {
+              "minimum": 0,
+              "title": "Min",
+              "type": "number"
+            },
+            "max": {
+              "exclusiveMinimum": 0,
+              "title": "Max",
+              "type": "number"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "title": "NumericRange",
           "type": "object"
         },
         "PropertyValueWrite": {
@@ -4404,6 +4481,27 @@
           "title": "PropertyValueWrite",
           "type": "object"
         },
+        "Resolution2D": {
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "minimum": 1,
+              "title": "Width",
+              "type": "integer"
+            },
+            "height": {
+              "minimum": 1,
+              "title": "Height",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ],
+          "title": "Resolution2D",
+          "type": "object"
+        },
         "SampleRegion": {
           "additionalProperties": false,
           "properties": {
@@ -4530,6 +4628,69 @@
             "coordinate_system"
           ],
           "title": "SampleRegion",
+          "type": "object"
+        },
+        "ScanRange": {
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "minimum": 0,
+              "title": "Start",
+              "type": "number"
+            },
+            "end": {
+              "exclusiveMinimum": 0,
+              "title": "End",
+              "type": "number"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "title": "ScanRange",
+          "type": "object"
+        },
+        "Size2D": {
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "exclusiveMinimum": 0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "exclusiveMinimum": 0,
+              "title": "Y",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "title": "Size2D",
+          "type": "object"
+        },
+        "WidthHeight": {
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "exclusiveMinimum": 0,
+              "title": "Width",
+              "type": "number"
+            },
+            "height": {
+              "exclusiveMinimum": 0,
+              "title": "Height",
+              "type": "number"
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ],
+          "title": "WidthHeight",
           "type": "object"
         }
       },
