@@ -76,7 +76,10 @@ import type {
   SimpleProcessSettings,
   SimpleTarget,
 } from './simple-preparation-editors'
-import { simpleGrowthIssue } from './simple-form-adapters'
+import {
+  buildSimpleSourceLoadsPayload,
+  simpleGrowthIssue,
+} from './simple-form-adapters'
 
 type Region = {
   region_key: string
@@ -1193,7 +1196,7 @@ export function ScientificExperimentForm({
   const payloadFor = (key: string): Record<string, unknown> => {
     if (key === 'basic_info') return basicInfo
     if (key === 'target_product') return target
-    if (key === 'precursors') return { items: loads }
+    if (key === 'precursors') return buildSimpleSourceLoadsPayload(loads)
     if (key === 'substrates') {
       return buildItemsModulePayload(
         'substrates',

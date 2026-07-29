@@ -97,7 +97,7 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
     staleTime: 0,
   })
   const runQuery = useQuery({
-    queryKey: ['v2-experiment', runId, session.accessToken],
+    queryKey: ['v2-experiment-status', runId, session.accessToken],
     queryFn: () => getRun(runId!, session.accessToken!),
     enabled: session.isAuthenticated && Boolean(runId),
   })

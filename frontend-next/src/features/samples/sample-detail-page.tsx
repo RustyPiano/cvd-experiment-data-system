@@ -34,11 +34,31 @@ const actualStateLabels: Record<string, string> = {
   uncertain: '结论不确定',
   asserted: '已有材料结论',
 }
+const faceLabels: Record<string, string> = {
+  face_up: '朝上',
+  face_down: '朝下',
+  face_to_face: '面对另一片衬底',
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null
+}
+
+function pretreatmentSummary(value: unknown, language: string) {
+  if (!Array.isArray(value)) return localizedValue(value, language)
+  return value
+    .map((step) => {
+      const record = asRecord(step)
+      return record?.other_name
+        ? String(record.other_name)
+        : record?.type
+          ? localizedOption(String(record.type), language)
+          : ''
+    })
+    .filter(Boolean)
+    .join('；')
 }
 
 function substrateRows(
@@ -72,11 +92,17 @@ function substrateRows(
     ],
     [
       '朝向',
-      substrate.face_orientation
-        ? localizedOption(String(substrate.face_orientation), language)
-        : '—',
+      (() => {
+        const face = String(substrate.face_orientation ?? size?.placement ?? '')
+        return face
+          ? (faceLabels[face] ?? localizedOption(face, language))
+          : '—'
+      })(),
     ],
-    ['预处理', localizedValue(substrate.pretreatment_steps, language) || '—'],
+    [
+      '预处理',
+      pretreatmentSummary(substrate.pretreatment_steps, language) || '—',
+    ],
   ]
 }
 

@@ -20,10 +20,14 @@ function RootComponent() {
     <TooltipProvider>
       <Outlet />
       <Toaster />
-      {/* Stripped from production builds by the @tanstack/devtools-vite plugin
-          (see vite.config.ts) — ships only in dev. */}
       <TanStackDevtools
-        config={{ position: 'bottom-right' }}
+        config={{
+          position: 'bottom-right',
+          customTrigger:
+            import.meta.env.VITE_TANSTACK_DEVTOOLS === 'true' ? undefined : (
+              <span className="hidden" />
+            ),
+        }}
         plugins={[
           {
             name: 'TanStack Router',

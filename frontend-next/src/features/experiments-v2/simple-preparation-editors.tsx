@@ -18,6 +18,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { gasSpecies } from '@/shared/generated/field-metadata'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { localizedOption } from '@/shared/field-i18n'
 import { uploadExperimentFile } from '@/features/samples/api'
 
 import type { ModuleValues } from './field-logic'
@@ -1048,6 +1049,13 @@ function substrateStackSummary(value: unknown) {
     .join(' / ')
 }
 
+function substrateOrientationSummary(value: string) {
+  return value
+    .split(/[；;]/)
+    .map((part) => localizedOption(part.trim(), 'zh'))
+    .join('；')
+}
+
 export function SimpleSubstratesEditor({
   substrates,
   disabled,
@@ -1225,7 +1233,9 @@ export function SimpleSubstratesEditor({
                 <div className="flex flex-col gap-2">
                   <Label>晶向</Label>
                   <Input
-                    value={moduleValueAsString(item['crystal_orientation'])}
+                    value={substrateOrientationSummary(
+                      moduleValueAsString(item['crystal_orientation']),
+                    )}
                     readOnly
                     placeholder="由衬底批次带入"
                   />
@@ -1335,7 +1345,9 @@ export function SimpleSubstratesEditor({
 }
 
 function minuteValue(seconds: number | undefined) {
-  return seconds === undefined ? '' : String(seconds / 60)
+  return seconds === undefined || !Number.isFinite(seconds)
+    ? ''
+    : String(seconds / 60)
 }
 
 function newTemperatureChannel(zone: number, setupId: string): SimpleChannel {
@@ -1523,10 +1535,10 @@ export function SimpleGrowthEditor({
           {temperatureChannels.map((channel, zoneIndex) => (
             <div key={zoneIndex} className="flex flex-col gap-3">
               <p className="text-sm font-medium">温区 {zoneIndex + 1}</p>
-              <div className="grid grid-cols-[1fr_1fr_auto] gap-3 text-sm">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 text-sm">
                 <span>时间（min）</span>
                 <span>设定温度（℃）</span>
-                <span className="sr-only">操作</span>
+                <span aria-hidden="true" />
                 {(channel.series ?? []).map((point, pointIndex) => (
                   <Fragment key={`${channel.channel_key}-${pointIndex}`}>
                     <Input
@@ -1561,7 +1573,10 @@ export function SimpleGrowthEditor({
                             current === pointIndex
                               ? {
                                   ...item,
-                                  value: Number(event.target.value),
+                                  value:
+                                    event.target.value === ''
+                                      ? ''
+                                      : Number(event.target.value),
                                 }
                               : item,
                           ),
@@ -1604,7 +1619,7 @@ export function SimpleGrowthEditor({
                         start_s: channel.series?.length
                           ? (channel.series.at(-1)?.start_s ?? 0) + 60
                           : 0,
-                        value: 0,
+                        value: '',
                       },
                     ],
                   }
@@ -1669,7 +1684,7 @@ export function SimpleGrowthEditor({
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue placeholder="请选择" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -1702,17 +1717,17 @@ export function SimpleGrowthEditor({
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 text-sm">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 text-sm">
                 <span>开始时间（min）</span>
                 <span>结束时间（min）</span>
                 <span>流量（sccm）</span>
-                <span className="sr-only">操作</span>
+                <span aria-hidden="true" />
                 {(channel.series ?? []).map((interval, intervalIndex) => (
                   <Fragment key={`${channel.channel_key}-${intervalIndex}`}>
                     {(
                       [
-                        ['start_s', interval.start_s / 60],
-                        ['end_s', (interval.end_s ?? 0) / 60],
+                        ['start_s', minuteValue(interval.start_s)],
+                        ['end_s', minuteValue(interval.end_s)],
                         ['value', interval.value],
                       ] as const
                     ).map(([field, value]) => (
@@ -1732,9 +1747,13 @@ export function SimpleGrowthEditor({
                                   ? {
                                       ...item,
                                       [field]:
-                                        field === 'value'
-                                          ? Number(event.target.value)
-                                          : Number(event.target.value) * 60,
+                                        event.target.value === ''
+                                          ? field === 'value'
+                                            ? ''
+                                            : Number.NaN
+                                          : field === 'value'
+                                            ? Number(event.target.value)
+                                            : Number(event.target.value) * 60,
                                     }
                                   : item,
                             ),
@@ -1774,9 +1793,8 @@ export function SimpleGrowthEditor({
                       series: [
                         ...(channel.series ?? []),
                         {
-                          start_s: channel.series?.at(-1)?.end_s ?? 0,
-                          end_s: (channel.series?.at(-1)?.end_s ?? 0) + 60,
-                          value: 0,
+                          start_s: Number.NaN,
+                          value: '',
                         },
                       ],
                     })
@@ -1811,7 +1829,7 @@ export function SimpleGrowthEditor({
             onClick={() =>
               onTimelineChange(segments, [
                 ...channels,
-                newGasChannel('Ar', setupId),
+                newGasChannel('', setupId),
               ])
             }
           >

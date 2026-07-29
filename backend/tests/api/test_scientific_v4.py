@@ -814,3 +814,252 @@ def test_scientific_revision_measurement_and_query_chain(
     with pytest.raises(ValueError, match="immutable"):
         db_session.flush()
     db_session.rollback()
+
+
+def test_product_golden_workflows(active_user, admin_user) -> None:
+    """G1–G5: create, fill, submit, generate a sample, characterize, and verify."""
+    headers = _headers(active_user.email)
+    admin_headers = _headers(admin_user.email)
+
+    setup = client.post(
+        "/api/v1/setups",
+        json=setup_payload(setup_code="SETUP-GOLDEN", zone_count=1),
+        headers=admin_headers,
+    )
+    assert setup.status_code == 201, setup.text
+    source = client.post(
+        "/api/v1/material-lots",
+        json={
+            "lot_category": "chemical",
+            "substance_name": "MoO3",
+            "chemical_formula": "MoO3",
+            "cas_number": "1313-27-5",
+            "batch_number": "DEMO-MOO3",
+            "purity": 99.9,
+            "purity_basis": "mass_fraction",
+            "purity_source": "supplier_declared",
+        },
+        headers=admin_headers,
+    )
+    assert source.status_code == 201, source.text
+    substrate = client.post(
+        "/api/v1/material-lots",
+        json=substrate_lot_payload(batch_number="DEMO-SUBSTRATE"),
+        headers=admin_headers,
+    )
+    assert substrate.status_code == 201, substrate.text
+
+    single = {
+        "architecture_type": "single_region",
+        "material_regions": [
+            {
+                "region_key": "film",
+                "formula": "MoS2",
+                "spatial_role": "single_region",
+            }
+        ],
+        "composition_relations": [],
+    }
+    cases = [
+        ("G1", single, "growth_present"),
+        (
+            "G2",
+            {
+                **single,
+                "composition_relations": [
+                    {
+                        "relation_type": "doped_by",
+                        "host_region_key": "film",
+                        "species": "Pt",
+                        "nominal_value": 1,
+                        "value_basis": "at_percent",
+                    }
+                ],
+            },
+            "growth_present",
+        ),
+        (
+            "G3",
+            {
+                **single,
+                "composition_relations": [
+                    {
+                        "relation_type": "substitutional_alloy",
+                        "host_region_key": "film",
+                        "species": "W",
+                        "nominal_value": 0.5,
+                        "value_basis": "site_fraction",
+                        "site_or_location": "Mo site",
+                    }
+                ],
+            },
+            "growth_present",
+        ),
+        (
+            "G4",
+            {
+                "architecture_type": "vertical_stack",
+                "material_regions": [
+                    {
+                        "region_key": "layer_1",
+                        "formula": "MoS2",
+                        "spatial_role": "layer",
+                        "layer_index": 1,
+                    },
+                    {
+                        "region_key": "layer_2",
+                        "formula": "WS2",
+                        "spatial_role": "layer",
+                        "layer_index": 2,
+                    },
+                ],
+                "composition_relations": [],
+            },
+            "growth_present",
+        ),
+        ("G5", single, "no_growth"),
+    ]
+
+    for index, (_case, target, expected_state) in enumerate(cases, start=1):
+        started_at = f"2026-07-{index + 20:02d}T09:00:00+08:00"
+        created = client.post(
+            "/api/v1/experiments",
+            json={
+                "run_code": f"CVD-2026-10{index:02d}",
+                "started_at": started_at,
+                "synthesis_method": "CVD",
+                "performed_by_user_ids": [str(active_user.id)],
+                "ambient_temperature": {
+                    "value": 24 + index / 10,
+                    "measured_at": started_at,
+                    "source_type": "manual_entry",
+                },
+                "ambient_humidity": {
+                    "value": 40 + index,
+                    "measured_at": started_at,
+                    "source_type": "manual_entry",
+                },
+                "precheck_confirmed": True,
+            },
+            headers=headers,
+        )
+        assert created.status_code == 201, created.text
+        run_id = created.json()["id"]
+        setup_ref = client.put(
+            f"/api/v1/experiments/{run_id}/setup-reference",
+            json={
+                "setup_id": setup.json()["id"],
+                "version": 1,
+                "tube_usage_history": {
+                    "reset_count": index - 1,
+                    "use_number_since_reset": index,
+                },
+            },
+            headers=headers,
+        )
+        assert setup_ref.status_code == 200, setup_ref.text
+        _put_module(headers, run_id, "target_product", target)
+        _put_module(
+            headers,
+            run_id,
+            "precursors",
+            {
+                "items": [
+                    {
+                        "load_key": "metal_source",
+                        "loading_method": "boat",
+                        "initial_position": {
+                            "axial_mm": 0,
+                            "reference": "setup_origin",
+                        },
+                        "ingredients": [
+                            {
+                                "material_lot_id": source.json()["id"],
+                                "material_lot_version": 1,
+                                "function_role": "metal_source",
+                                "amount": 10,
+                                "unit": "mg",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+        _put_module(
+            headers,
+            run_id,
+            "substrates",
+            {"items": [substrate_item(substrate.json())]},
+        )
+        _put_module(
+            headers,
+            run_id,
+            "process_steps",
+            {
+                "segments": [
+                    {
+                        "segment_key": "growth",
+                        "segment_type": "growth",
+                        "sequence": 1,
+                        "start_s": 0,
+                        "end_s": 3600,
+                    }
+                ],
+                "channels": [
+                    {
+                        "channel_key": (
+                            f"channel_0000000{index}_0000_4000_8000_00000000000{index}"
+                        ),
+                        "channel_type": "temperature",
+                        "source_type": "setpoint",
+                        "subject_type": "temperature_zone",
+                        "subject_ref": "zone_1",
+                        "subject_instance_ref": (f"setup:{setup.json()['id']}:zone:1"),
+                        "zone_index": 1,
+                        "unit": "°C",
+                        "data_kind": "interval_series",
+                        "series": [{"start_s": 0, "value": 750}],
+                    }
+                ],
+                "pressure_regime": "atmospheric",
+                "cooling_method": "natural",
+            },
+        )
+        locked = client.post(
+            f"/api/v1/experiments/{run_id}/lock",
+            headers=headers,
+        )
+        assert locked.status_code == 200, locked.text
+        samples = client.get(
+            f"/api/v1/samples?experiment_id={run_id}",
+            headers=headers,
+        )
+        assert samples.status_code == 200, samples.text
+        assert len(samples.json()["items"]) == 1
+        sample_id = samples.json()["items"][0]["id"]
+
+        measured = client.post(
+            "/api/v1/measurements",
+            json={
+                "measurement": {
+                    "sample_id": sample_id,
+                    "method_profile": "optical_microscopy",
+                    "measured_at": f"2026-07-{index + 20:02d}T12:00:00+08:00",
+                    "typed_conditions": {},
+                },
+                "assertions": [
+                    {
+                        "assertion_type": "growth_presence",
+                        "value": {
+                            "state": ("absent" if expected_state == "no_growth" else "present")
+                        },
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert measured.status_code == 201, measured.text
+        sample = client.get(f"/api/v1/samples/{sample_id}", headers=headers)
+        assert sample.status_code == 200, sample.text
+        assert sample.json()["actual_state"] == expected_state
+        assert sample.json()["characterization_count"] == 1

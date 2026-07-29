@@ -137,7 +137,7 @@ function SidebarBody({
 
       {isAdmin ? (
         <SidebarGroup>
-          <SidebarGroupLabel>基础资料维护</SidebarGroupLabel>
+          <SidebarGroupLabel>{t('entityLibrary.nav.group')}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {entityLibraryNavItems.map((item) => {

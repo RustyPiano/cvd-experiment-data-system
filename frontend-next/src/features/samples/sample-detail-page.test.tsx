@@ -71,7 +71,11 @@ vi.mock('@tanstack/react-query', () => ({
             length_mm: 10,
             width_mm: 10,
             thickness_mm: 0.5,
+            placement: 'face_up',
           },
+          pretreatment_steps: [
+            { type: 'other', other_name: '丙酮与异丙醇清洗' },
+          ],
           lot_ref: {
             snapshot: { batch_number: 'SUB-DEMO-01' },
           },
@@ -99,6 +103,8 @@ describe('sample detail product view', () => {
     expect(screen.getByText('2H-MoS₂')).toBeInTheDocument()
     expect(screen.getByText('SUB-DEMO-01')).toBeInTheDocument()
     expect(screen.getByText('10 × 10 × 0.5 mm')).toBeInTheDocument()
+    expect(screen.getByText('朝上')).toBeInTheDocument()
+    expect(screen.getByText('丙酮与异丙醇清洗')).toBeInTheDocument()
     expect(screen.getByText('已有表征记录')).toBeInTheDocument()
     expect(screen.getByText('Raman')).toBeInTheDocument()
     expect(screen.getByText('边缘有少量沉积')).toBeInTheDocument()

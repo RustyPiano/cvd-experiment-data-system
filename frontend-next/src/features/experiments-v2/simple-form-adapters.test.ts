@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildEventDescription,
   buildSimpleCreatePayload,
+  buildSimpleSourceLoadsPayload,
   compositionValueForDisplay,
   compositionValueForPayload,
   simpleGrowthIssue,
@@ -55,6 +56,29 @@ describe('simple product form adapters', () => {
     })
   })
 
+  it('keeps display snapshots out of the precursor write payload', () => {
+    expect(
+      buildSimpleSourceLoadsPayload([
+        {
+          load_key: 'load_1',
+          ingredients: [
+            {
+              material_lot_id: 'lot-1',
+              snapshot: { substance_name: 'MoO3' },
+            },
+          ],
+        },
+      ]),
+    ).toEqual({
+      items: [
+        {
+          load_key: 'load_1',
+          ingredients: [{ material_lot_id: 'lot-1' }],
+        },
+      ],
+    })
+  })
+
   it('requires a zero-based increasing temperature program and no fake atmospheric pressure', () => {
     const segments = [{ segment_type: 'growth', start_s: 0, end_s: 3600 }]
     const temperature = {
@@ -79,5 +103,39 @@ describe('simple product form adapters', () => {
         1,
       ),
     ).toContain('0 分钟')
+  })
+
+  it('rejects blank generated temperature and gas values', () => {
+    const segments = [{ segment_type: 'growth', start_s: 0, end_s: 3600 }]
+    const temperature = {
+      channel_type: 'temperature',
+      source_type: 'setpoint',
+      zone_index: 1,
+      series: [{ start_s: 0, value: '' }],
+    }
+    expect(
+      simpleGrowthIssue(
+        segments,
+        [temperature],
+        { pressure_regime: 'atmospheric', cooling_method: 'natural' },
+        1,
+      ),
+    ).toContain('温度程序')
+    expect(
+      simpleGrowthIssue(
+        segments,
+        [
+          { ...temperature, series: [{ start_s: 0, value: 700 }] },
+          {
+            channel_type: 'flow',
+            source_type: 'setpoint',
+            gas_species_code: '',
+            series: [],
+          },
+        ],
+        { pressure_regime: 'atmospheric', cooling_method: 'natural' },
+        1,
+      ),
+    ).toBe('请选择气体种类。')
   })
 })

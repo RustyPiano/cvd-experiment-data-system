@@ -79,11 +79,27 @@ export function buildEventDescription(description: string, action: string) {
     : trimmedDescription
 }
 
+export function buildSimpleSourceLoadsPayload<
+  T extends { ingredients: Array<{ snapshot?: unknown }> },
+>(loads: T[]) {
+  return {
+    items: loads.map((load) => ({
+      ...load,
+      ingredients: load.ingredients.map((ingredient) => {
+        const payload = { ...ingredient }
+        delete payload.snapshot
+        return payload
+      }),
+    })),
+  }
+}
+
 export function simpleGrowthIssue(
   segments: Array<{ segment_type: string; start_s: number; end_s: number }>,
   channels: Array<{
     channel_type: string
     source_type: string
+    gas_species_code?: string
     zone_index?: number
     series?: Array<{ start_s: number; end_s?: number; value: number | string }>
     scalar_value?: number
@@ -116,7 +132,10 @@ export function simpleGrowthIssue(
     if (
       !points?.length ||
       times[0] !== 0 ||
-      times.some((time, index) => index > 0 && time <= times[index - 1])
+      times.some((time, index) => index > 0 && time <= times[index - 1]) ||
+      points.some(
+        (point) => point.value === '' || !Number.isFinite(Number(point.value)),
+      )
     ) {
       return `温区 ${zone} 的温度程序必须从 0 分钟开始，并按时间递增。`
     }
@@ -124,12 +143,15 @@ export function simpleGrowthIssue(
   for (const channel of channels.filter(
     (item) => item.channel_type === 'flow',
   )) {
+    if (!channel.gas_species_code?.trim()) return '请选择气体种类。'
     if (
       !channel.series?.length ||
       channel.series.some(
         (item) =>
+          !Number.isFinite(item.start_s) ||
           item.end_s === undefined ||
           item.end_s <= item.start_s ||
+          item.value === '' ||
           !Number.isFinite(Number(item.value)),
       )
     ) {

@@ -8,12 +8,12 @@ import {
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('exports only the 77 released experiment fields', () => {
+  it('exports only the 79 released experiment fields', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(77)
+    expect(total).toBe(79)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',

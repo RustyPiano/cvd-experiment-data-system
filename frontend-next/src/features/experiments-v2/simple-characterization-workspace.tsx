@@ -609,7 +609,7 @@ export function SimpleCharacterizationWorkspace({
                 id="characterization-measured-at"
                 type="datetime-local"
                 value={measuredAt}
-                onChange={(event) => setMeasuredAt(event.target.value)}
+                onInput={(event) => setMeasuredAt(event.currentTarget.value)}
               />
             </div>
             {profile?.instrument_required ? (
