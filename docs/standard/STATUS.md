@@ -7,8 +7,8 @@
 
 - 这是一个 **CVD 二维材料实验数据采集系统**。
 - **仓库已 v2 单轨**（2026-07-11 批1–7 执行完毕，v1 代码/表/端点/前端全部拆除）：唯一实验域 `cvd_v2`、唯一前端 `frontend-next`、唯一命名空间 `/api/v1`、schema = 单一 initial（14 表）。计划与执行记录见 **`docs/engineering/v2-single-track-plan.md`**（批0–批8）。
-- **香港生产已于 2026-07-30 部署 v4 内部验证版**：当前应用提交为 `89e427e`，分支 `codex/scientific-v4-audit-remediation`；backend/frontend healthy，公网首页、`/health`、`runtime-config.js`、匿名 401 与新管理员真实 API 登录通过。按用户明确要求，活动库 `cvd` 未迁移旧数据而是清空后从 Alembic initial 前滚至 `20260729_0007`，活动附件卷也保持为空；独立归档库和既有备份未触碰。证据见 `docs/operations/production-deployment-report-2026-07-24.md`。
-- 当前阶段：**香港生产应用运行 `89e427e / v4.0-alpha.2 / INTERNAL_VALIDATION`；活动库为全新空库，仅含新建临时管理员**。下一步由用户在线审阅，再由俊杰、博研从基础资料开始按真实炉次试填 G1—G12；不得把内部验证状态写成正式 release candidate。
+- **香港生产已于 2026-07-30 部署 v4 内部验证版**：当前应用提交为 `89e427e`，分支 `codex/scientific-v4-audit-remediation`；backend/frontend healthy，公网首页、`/health`、`runtime-config.js`、匿名 401 与用户指定管理员真实 API 登录通过。按用户明确要求，活动库 `cvd` 未迁移旧数据而是清空后从 Alembic initial 前滚至 `20260729_0007`，活动附件卷也保持为空；独立归档库和既有备份未触碰。证据见 `docs/operations/production-deployment-report-2026-07-24.md`。
+- 当前阶段：**香港生产应用运行 `89e427e / v4.0-alpha.2 / INTERNAL_VALIDATION`；活动库为全新空库，仅含用户指定管理员**。下一步由用户在线审阅，再由俊杰、博研从基础资料开始按真实炉次试填 G1—G12；不得把内部验证状态写成正式 release candidate。
 - 两份标准交付物的状态：
   - 香港生产与仓库均使用 v4.0-alpha.2（93 个实验字段，其中 77 个进入发布前端/JSON 契约、16 个旧扁平结果与 PVD 字段标为未发布；3 张一等实体表共 66 字段；29 个字段标记为 R0）。
   - `字段草案-v3.xlsx` 已按 v4.0-alpha.2 重生成并通过 YAML 逐格校验。
@@ -154,7 +154,7 @@
 | 07-29    | **最新科学数据闭环复核整改**：新增 revision-scoped `SampleRevisionState`，拆分生长与身份状态并按当前 revision 聚合；`characterization_profiles`、属性、气体词表和二维/范围条件进入字段单一源并生成前端，后端强制方法—属性/结论对应、组成总和与层数唯一表示；过程通道改按物理实例唯一，气体使用机器码并可引用气瓶批次版本，SourceLoad 引用装置温区；CSV 时间序列在锁定时冻结 canonical 点、统计、升降速率、排除时段、解析器版本与 SHA-256，并进入数据集特征；顶部步骤仅在有修改时保存，避免空白步骤阻塞返回。新增迁移 `20260729_0006`，删除已被替代的旧过程列。**后端 334 passed、4 skipped；前端 366/366（52 files）；字段源/生成物、SQLite 与含旧通道行的 PostgreSQL 前滚、隔离 Browser 均通过，console 0 warning/error**。生产未改动；G1—G12、双人盲测与真实试填仍按用户要求后置。 | `afde1e3` 后本地工作树，未提交/未发布 |
 | 07-29    | **v4 深度复核与 subagent 修复收口**：新增 additive `20260729_0007`，将生产 `0002` 的 locked/reviewed 炉次回填为带 SHA-256 的不可变 revision，并补贡献者、样品关联/状态和历史表征科学身份；既有 v4 缺失的样品关联/状态一并保守补齐，旧 `MeasuredProduct` 同时恢复到关系 CSV 与权威 `records.json`，且不泄漏到后续纠错 revision。文件软删收紧为 admin、炉次 owner 或 uploader，表征附件补传/软删实时刷新 provenance，原始文件禁止跨测量重绑；CSV 拒绝 NaN/Inf 和越界时间，排除范围仅作用于显式 `process_channel`，草稿清理保留不可变 revision 证据。前端串行上传并只清理确认未绑定的临时文件，空证据禁保存，表征工作区按需加载。**后端 339 passed、4 skipped；前端 370/370（52 files）；字段源、Alembic 单 head、SQLite 填充迁移及本地 PostgreSQL `0002→0007` 填充前滚均通过**。香港生产与真实数据未改动。 | 本地工作树，未提交/未发布 |
 | 07-29    | **全库代码卫生收口**：三个 subagent 分别审计后端、前端和仓库依赖，删除退休结果写服务与二级死辅助、运行时不可达及仅测试可达的旧表单编辑器/测试/专属文案、TanStack 默认资源和未使用的 `shadcn` CLI；`AGENTS.md`、`CLAUDE.md` 收敛为 `STATUS.md` 动态现状指针。保留九条 410 兼容边界、历史读取与 CLI R0 检查；未改公共发布契约、字段源、迁移或生产数据。**净删约 1.0 万行；后端 338 passed、4 skipped；前端 300/300（46 files）；全量静态检查、构建、字段校验与双端生成物无漂移**。香港生产未改动。 | 本提交，未发布 |
-| 07-30    | **v4 内部验证版全新部署香港生产**：按用户明确要求不迁移活动库旧数据；生产机精确切换到 `codex/scientific-v4-audit-remediation@89e427e`，Compose 配置与 backend/frontend 镜像先行构建通过，随后停止服务、仅重建活动库 `cvd` 的 `public` schema，并清空专用附件卷。后端从 initial 前滚到 `20260729_0007`，新建临时管理员并通过公网真实登录；backend/frontend healthy，公网首页、健康、运行配置和匿名 401 全绿，最终 `users=1 / runs=0 / files=0 / storage files=0`。独立 `cvd_v1_archive_20260724` 与既有备份未触碰。 | `89e427e`，香港生产 |
+| 07-30    | **v4 内部验证版全新部署香港生产**：按用户明确要求不迁移活动库旧数据；生产机精确切换到 `codex/scientific-v4-audit-remediation@89e427e`，Compose 配置与 backend/frontend 镜像先行构建通过，随后停止服务、仅重建活动库 `cvd` 的 `public` schema，并清空专用附件卷。后端从 initial 前滚到 `20260729_0007`，恢复用户指定管理员并通过公网真实登录，初始化临时管理员随后删除；backend/frontend healthy，公网首页、健康、运行配置和匿名 401 全绿，最终 `users=1 / runs=0 / files=0 / storage files=0`。独立 `cvd_v1_archive_20260724` 与既有备份未触碰。 | `89e427e`，香港生产 |
 
 ## 6. 下一步
 
@@ -170,7 +170,7 @@
 8. **M/A/F 整改、验收与生产发布已完成**：执行矩阵见 `docs/product/2026-07-24-meeting-remediation-plan.md`，逐项汇报和历史本地主线证据见 `docs/reviews/2026-07-24-teacher-meeting-remediation.md`；当前生产提交与发布证据见 `docs/operations/production-deployment-report-2026-07-24.md`。
 9. **U-01—U-32 历史本地终验已完成**：其证据保留为 497/392 与 88/49/30，不覆盖 2026-07-27 新批次。
 10. **2026-07-30 v4 内部验证版已部署**：香港生产当前提交为 `89e427e`，活动库和附件按用户要求从空状态初始化。
-11. **下一步**：用户先在线审阅并轮换临时管理员密码，再请俊杰、博研从基础资料开始按真实炉次补齐 G1—G12，完成导出、R0 和双人盲测。
+11. **下一步**：用户先用已恢复的管理员在线审阅，再请俊杰、博研从基础资料开始按真实炉次补齐 G1—G12，完成导出、R0 和双人盲测。
 12. **正式发布前**：仍须完成真实案例、双人盲测和用户确认，再决定是否从 `INTERNAL_VALIDATION` 进入 release candidate。
 
 **线 B：标准冻结（外部线，不阻塞线 A 的非语义 UI 与工作流实现）**

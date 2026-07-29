@@ -6,7 +6,7 @@
 - 初始切换的 GitHub Actions 运行 `30076866424` 与 v3.18 发布运行 `30352259683` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；v4 目标分支没有对应 Actions 运行，按用户明确部署指令，在本地全门禁和生产机双镜像预构建通过后部署。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 2026-07-30 按用户要求清空活动库 `cvd` 与活动附件卷后重新初始化；旧离线归档库 `cvd_v1_archive_20260724` 和既有备份不属于活动部署边界，未触碰。
-- 新临时管理员已创建，公网 API 登录通过；凭据未写入仓库或本报告。
+- 用户指定管理员已恢复，公网 API 登录通过；凭据未写入仓库或本报告，初始化临时管理员已删除。
 
 ## 切换前证据
 
@@ -104,7 +104,7 @@
 - 破坏性操作前核对共享 PostgreSQL 目标为容器 `1Panel-postgresql-4ljp`、用户 `user_GztwJM`、活动库 `cvd`，附件目标为专用卷 `cvd-experiment-data-system_storage_data`；先通过 Compose 配置校验及 backend/frontend 双镜像构建，再停止应用。
 - 仅删除并重建活动库 `cvd` 的 `public` schema，专用附件卷清空后验证为空。没有迁移活动库旧行，也没有为本次活动数据创建新备份；独立归档库 `cvd_v1_archive_20260724`、共享 PostgreSQL 的其他数据库、服务器既有备份和 preserved 目录均未触碰。
 - 空库验证命令第一次因 shell 引号错误在启动容器前中止；修正为简化只读查询并再次确认 schema 和附件卷为空后，使用已预构建镜像强制重建两项应用容器，没有出现半迁移或旧新容器混跑。
-- 后端从 initial 前滚到 `20260729_0007 (head)`；最终业务计数为 `users=1 / experiment_runs=0 / file_assets=0`，附件文件数为 0。唯一用户是本次新建的临时管理员，公网登录返回 200，凭据仅交付到用户本机剪贴板。
+- 后端从 initial 前滚到 `20260729_0007 (head)`；最终业务计数为 `users=1 / experiment_runs=0 / file_assets=0`，附件文件数为 0。唯一用户是用户指定管理员，公网登录返回 200；初始化临时管理员在验证替代账号后删除。
 - backend/frontend 均为 `running + healthy`；服务器内与公网首页、`/health`、`runtime-config.js` 均为 200，匿名 `/api/v1/auth/me` 为 401。部署前本地门禁为后端 `338 passed / 4 skipped`、前端 `300 passed / 46 files`，生产镜像构建再次通过。
 
 ## 尚待真实数据验收
