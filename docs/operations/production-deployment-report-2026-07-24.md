@@ -2,11 +2,11 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `07eccde2607d7fd8bc61cc55f13e0daa89a627ee`。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与最新发布运行 `30352259683` 的 Backend、PostgreSQL smoke、Frontend、Field source、Generated artifacts 五项均通过；`main` 已设置同名 required checks，并禁止强推和删除。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `d3ce6b9f18bcf48240290315f0ec1bf040c6ebb0`。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-08-07 发布前本地后端 350 passed、4 skipped，前端 401/401（58 files），格式、类型、构建、字段源与生成物检查全绿。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
-- 旧版数据没有删除。旧数据库已离线归档为 `cvd_v1_archive_20260724`，新 v2 使用全新的 `cvd` 数据库。
-- 用户指定的管理员账号已创建，API 与真实浏览器登录均通过。
+- 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
+- 用户指定的管理员账号已创建，API 登录与身份读取通过；真实浏览器留给用户在线逐项复核。
 
 ## 切换前证据
 
@@ -97,6 +97,9 @@
 - 实验装置 v3.17 与前驱体 v3.18 经 `main` Actions `30352259683` 五项全绿后，按普通 `./deploy.sh` 从 `f0dfe93` 前滚到 `07eccde`；没有新增迁移，也没有使用批8能力或 schema guard 旁路。
 - 发布前自动备份写入 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260728_185046`；`database.sql` SHA-256 为 `b43411151e7c825dc06d56b1d4c9fddf946bcf39d7dcee94e78c0bfb174850cc`，`storage.tar.gz` SHA-256 为 `3ee1e34946f254970cedf0b85546d8e6cd05352e508af2593c75cc8c2d6894c9`，目录权限为 `0700`、文件权限为 `0600`。
 - 部署后服务器仓库为干净 `main`，backend/frontend 均为 `running + healthy`，Alembic 保持 `20260728_0002 (head)`；公网 `/health`、首页和匿名 401 边界通过。浏览器只读验收因用户侧域名禁用策略未执行，未写入生产验收数据。
+
+- 2026-08-07 14:15 CST，经用户明确授权不保留现有生产测试数据，发布 `d3ce6b9` / v4.0-alpha.15。操作前精确核对目标为 `cvd` 数据库（2 个用户、6 个炉次）及本项目专用附件卷；停止应用后清空 public schema，并通过 `docker compose down -v` 删除、重建附件卷。此次按用户指示未为被清理的测试数据创建新备份；历史 v1 离线归档库未连接、未修改。
+- 空库由后端启动迁移到 `20260730_0009 (head)`，仅重新创建用户指定的管理员 `admin@rustypiano.com`；密码未写入仓库或部署记录。最终用户 1、炉次 0、样品 0、物料批次 0、附件 0。管理员登录及 `/api/v1/auth/me` 返回 200，backend/frontend healthy，公网 `/health`、首页、`runtime-config.js` 与匿名 401 边界通过；生产静态产物中旧反应计时文案 0 命中、新“过程压力”文案存在。
 
 ## 尚待真实数据验收
 
