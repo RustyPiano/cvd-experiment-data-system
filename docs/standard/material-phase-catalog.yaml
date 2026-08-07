@@ -1,0 +1,23 @@
+# 目标材料常见体相目录的单一权威源。
+# 只列候选，不做自动判相；未收录材料仍可使用自定义体相。
+materials:
+  MoS2:
+    phases:
+      - code: 2H
+        bulk_space_group_number: 194
+      - code: 3R
+        bulk_space_group_number: 160
+  WS2:
+    phases:
+      - code: 2H
+        bulk_space_group_number: 194
+  MoSe2:
+    phases:
+      - code: 2H
+        bulk_space_group_number: 194
+      - code: 3R
+        bulk_space_group_number: 160
+  WSe2:
+    phases:
+      - code: 2H
+        bulk_space_group_number: 194

@@ -22,6 +22,7 @@ import {
 } from '@/shared/generated/field-metadata'
 import type { CharacterizationConditionField } from '@/shared/generated/field-metadata'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { RequiredMark } from '@/shared/ui/required-mark'
 import {
   deleteExperimentFile,
   getExperimentFile,
@@ -53,6 +54,24 @@ type ResultDefinition = {
   assertionType?: 'phase_identity' | 'stacking_order'
   unit?: string
   required?: boolean
+}
+
+function characterizationResultIssue(
+  field: ResultDefinition,
+  rawValue: string | undefined,
+): string | null {
+  const value = rawValue?.trim() ?? ''
+  if (field.required && !value) return `${field.label}为必填项`
+  if (!value || field.kind === 'text' || field.kind === 'growth') return null
+  const number = Number(value)
+  if (!Number.isFinite(number)) return `${field.label}不是有效数值`
+  if (
+    field.kind === 'layer_count' &&
+    (!Number.isInteger(number) || number < 1)
+  ) {
+    return `${field.label}必须是不小于 1 的整数`
+  }
+  return null
 }
 
 export const SIMPLE_RESULTS: Record<string, ResultDefinition[]> = {
@@ -243,15 +262,43 @@ function conditionHasValue(
     : Boolean(conditions[field.key]?.trim())
 }
 
-function conditionPartiallyFilled(
+export function characterizationConditionIssue(
   field: CharacterizationConditionField,
   conditions: Record<string, string>,
-) {
-  if (!field.components) return false
-  const values = field.components.map(
-    (component) => conditions[`${field.key}.${component.key}`]?.trim() ?? '',
-  )
-  return values.some(Boolean) && !values.every(Boolean)
+  required = false,
+): string | null {
+  const values = field.components
+    ? field.components.map(
+        (component) =>
+          conditions[`${field.key}.${component.key}`]?.trim() ?? '',
+      )
+    : [conditions[field.key]?.trim() ?? '']
+  if (values.every((value) => !value)) {
+    return required ? '此项为必填。' : null
+  }
+  if (values.some((value) => !value)) return '请补齐全部数值。'
+  if (field.value_type === 'text') return null
+
+  const numbers = values.map(Number)
+  if (numbers.some((value) => !Number.isFinite(value))) {
+    return '请输入有效数值。'
+  }
+  if (field.value_type === 'resolution') {
+    return numbers.every((value) => Number.isInteger(value) && value >= 1)
+      ? null
+      : '请输入不小于 1 的整数。'
+  }
+  if (field.value_type === 'range') {
+    return numbers[0] >= 0 && numbers[1] > numbers[0]
+      ? null
+      : '终点必须大于起点，且数值不能小于 0。'
+  }
+  if (field.value_type === 'integer') {
+    return Number.isInteger(numbers[0]) && numbers[0] >= 1
+      ? null
+      : '请输入不小于 1 的整数。'
+  }
+  return numbers.every((value) => value > 0) ? null : '请输入大于 0 的数值。'
 }
 
 function typedConditions(
@@ -293,17 +340,25 @@ function sampleResultLabel(state: string, material: string | null | undefined) {
 function ConditionInput({
   field,
   conditions,
+  required,
+  issue,
   onChange,
 }: {
   field: CharacterizationConditionField
   conditions: Record<string, string>
+  required?: boolean
+  issue?: string | null
   onChange: (key: string, value: string) => void
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className="flex flex-col gap-2"
+      data-invalid={Boolean(issue) || undefined}
+    >
       <Label>
         {field.label_zh}
         {field.unit ? `（${field.unit}）` : ''}
+        {required ? <RequiredMark /> : null}
       </Label>
       {field.components ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -316,9 +371,11 @@ function ConditionInput({
                 </Label>
                 <Input
                   type="number"
-                  min="0"
+                  min={field.value_type === 'resolution' ? '1' : '0'}
                   step={field.value_type === 'resolution' ? '1' : 'any'}
                   value={conditions[key] ?? ''}
+                  required={required}
+                  aria-invalid={Boolean(issue) || undefined}
                   onChange={(event) => onChange(key, event.target.value)}
                 />
               </div>
@@ -331,9 +388,12 @@ function ConditionInput({
           min={field.value_type === 'text' ? undefined : '0'}
           step={field.value_type === 'integer' ? '1' : 'any'}
           value={conditions[field.key] ?? ''}
+          required={required}
+          aria-invalid={Boolean(issue) || undefined}
           onChange={(event) => onChange(field.key, event.target.value)}
         />
       )}
+      {issue ? <p className="text-destructive text-sm">{issue}</p> : null}
     </div>
   )
 }
@@ -384,22 +444,22 @@ export function SimpleCharacterizationWorkspace({
   const evidencePresent =
     rawFiles.length > 0 ||
     resultDefinitions.some((field) => results[field.key]?.trim())
-  const conditionsValid =
-    requiredConditions.every((field) => conditionHasValue(field, conditions)) &&
-    optionalConditions.every(
-      (field) => !conditionPartiallyFilled(field, conditions),
-    )
-  const resultsValid = resultDefinitions.every((field) => {
-    const value = results[field.key]?.trim() ?? ''
-    if (field.required && !value) return false
-    if (!value || field.kind === 'text' || field.kind === 'growth') return true
-    const number = Number(value)
-    return (
-      Number.isFinite(number) &&
-      (field.kind !== 'layer_count' ||
-        (Number.isInteger(number) && number >= 1))
-    )
+  const conditionIssues = [
+    ...requiredConditions.map((field) => ({
+      field,
+      issue: characterizationConditionIssue(field, conditions, true),
+    })),
+    ...optionalConditions.map((field) => ({
+      field,
+      issue: characterizationConditionIssue(field, conditions),
+    })),
+  ]
+  const conditionsValid = conditionIssues.every(({ issue }) => issue === null)
+  const resultIssues = resultDefinitions.flatMap((field) => {
+    const issue = characterizationResultIssue(field, results[field.key])
+    return issue ? [issue] : []
   })
+  const resultsValid = resultIssues.length === 0
   const canSubmit = Boolean(
     !readOnly &&
     sampleId &&
@@ -413,6 +473,24 @@ export function SimpleCharacterizationWorkspace({
       (instrumentId && instrumentVersion !== null)) &&
     (!profile?.raw_files_required || rawFiles.length > 0),
   )
+  const missingRequirements = [
+    !sampleId ? '请选择样品' : null,
+    !method ? '请选择表征方法' : null,
+    !measuredAt ? '请选择测量时间' : null,
+    location === 'custom' && !customLocation.trim() ? '请填写位置说明' : null,
+    profile?.instrument_required &&
+    (!instrumentId || instrumentVersion === null)
+      ? '请选择表征仪器'
+      : null,
+    ...conditionIssues
+      .filter(({ issue }) => issue)
+      .map(({ field, issue }) => `${field.label_zh}：${issue}`),
+    ...resultIssues,
+    profile?.raw_files_required && rawFiles.length === 0
+      ? '请上传原始文件'
+      : null,
+    method && !evidencePresent ? '请上传原始文件或填写至少一项关键结果' : null,
+  ].filter(Boolean) as string[]
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -549,7 +627,9 @@ export function SimpleCharacterizationWorkspace({
           <h3 className="font-medium">1. 选择样品与表征方法</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label>样品</Label>
+              <Label>
+                样品 <RequiredMark />
+              </Label>
               <Select value={sampleId} onValueChange={setSampleId}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="请选择样品" />
@@ -570,7 +650,9 @@ export function SimpleCharacterizationWorkspace({
               </Select>
             </div>
             <div className="flex flex-col gap-2">
-              <Label>表征方法</Label>
+              <Label>
+                表征方法 <RequiredMark />
+              </Label>
               <Select
                 value={method}
                 onValueChange={(value) => {
@@ -604,7 +686,9 @@ export function SimpleCharacterizationWorkspace({
           <h3 className="font-medium">2. 仪器与测量信息</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="characterization-measured-at">测量时间</Label>
+              <Label htmlFor="characterization-measured-at">
+                测量时间 <RequiredMark />
+              </Label>
               <Input
                 id="characterization-measured-at"
                 type="datetime-local"
@@ -614,7 +698,9 @@ export function SimpleCharacterizationWorkspace({
             </div>
             {profile?.instrument_required ? (
               <div className="flex flex-col gap-2">
-                <Label>表征仪器</Label>
+                <Label>
+                  表征仪器 <RequiredMark />
+                </Label>
                 <EntityReferenceSelect
                   kind="instrument"
                   productLabel
@@ -655,7 +741,9 @@ export function SimpleCharacterizationWorkspace({
             </div>
             {location === 'custom' ? (
               <div className="flex flex-col gap-2">
-                <Label htmlFor="characterization-location-note">位置说明</Label>
+                <Label htmlFor="characterization-location-note">
+                  位置说明 <RequiredMark />
+                </Label>
                 <Input
                   id="characterization-location-note"
                   value={customLocation}
@@ -672,6 +760,12 @@ export function SimpleCharacterizationWorkspace({
                   key={field.key}
                   field={field}
                   conditions={conditions}
+                  required
+                  issue={characterizationConditionIssue(
+                    field,
+                    conditions,
+                    true,
+                  )}
                   onChange={(key, value) =>
                     setConditions((current) => ({
                       ...current,
@@ -693,6 +787,7 @@ export function SimpleCharacterizationWorkspace({
                     key={field.key}
                     field={field}
                     conditions={conditions}
+                    issue={characterizationConditionIssue(field, conditions)}
                     onChange={(key, value) =>
                       setConditions((current) => ({
                         ...current,
@@ -709,12 +804,14 @@ export function SimpleCharacterizationWorkspace({
         <section className="flex flex-col gap-3 rounded-lg border p-4">
           <h3 className="font-medium">3. 上传原始数据</h3>
           <Label htmlFor="characterization-raw-files">
-            原始文件{profile?.raw_files_required ? '' : '（选填）'}
+            原始文件
+            {profile?.raw_files_required ? <RequiredMark /> : '（选填）'}
           </Label>
           <Input
             id="characterization-raw-files"
             type="file"
             multiple
+            required={profile?.raw_files_required}
             onChange={(event) =>
               setRawFiles(Array.from(event.target.files ?? []))
             }
@@ -734,68 +831,92 @@ export function SimpleCharacterizationWorkspace({
             </p>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            {resultDefinitions.map((field) => (
-              <div key={field.key} className="flex flex-col gap-2">
-                <Label>
-                  {field.label}
-                  {field.unit ? `（${field.unit}）` : ''}
-                </Label>
-                {field.kind === 'growth' ? (
-                  <Select
-                    value={results[field.key] ?? ''}
-                    onValueChange={(value) =>
-                      setResults((current) => ({
-                        ...current,
-                        [field.key]: value,
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="请选择" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="present">观察到生长</SelectItem>
-                        <SelectItem value="absent">未观察到生长</SelectItem>
-                        <SelectItem value="uncertain">不确定</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                ) : field.kind === 'text' ? (
-                  <Textarea
-                    value={results[field.key] ?? ''}
-                    onChange={(event) =>
-                      setResults((current) => ({
-                        ...current,
-                        [field.key]: event.target.value,
-                      }))
-                    }
-                  />
-                ) : (
-                  <Input
-                    type="number"
-                    min={field.kind === 'layer_count' ? '1' : undefined}
-                    step={field.kind === 'layer_count' ? '1' : 'any'}
-                    value={results[field.key] ?? ''}
-                    onChange={(event) =>
-                      setResults((current) => ({
-                        ...current,
-                        [field.key]: event.target.value,
-                      }))
-                    }
-                  />
-                )}
-              </div>
-            ))}
+            {resultDefinitions.map((field) => {
+              const issue = characterizationResultIssue(
+                field,
+                results[field.key],
+              )
+              return (
+                <div
+                  key={field.key}
+                  className="flex flex-col gap-2"
+                  data-invalid={Boolean(issue) || undefined}
+                >
+                  <Label>
+                    {field.label}
+                    {field.unit ? `（${field.unit}）` : ''}
+                    {field.required ? <RequiredMark /> : null}
+                  </Label>
+                  {field.kind === 'growth' ? (
+                    <Select
+                      value={results[field.key] ?? ''}
+                      onValueChange={(value) =>
+                        setResults((current) => ({
+                          ...current,
+                          [field.key]: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger
+                        className="w-full"
+                        aria-invalid={Boolean(issue) || undefined}
+                      >
+                        <SelectValue placeholder="请选择" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="present">观察到生长</SelectItem>
+                          <SelectItem value="absent">未观察到生长</SelectItem>
+                          <SelectItem value="uncertain">不确定</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : field.kind === 'text' ? (
+                    <Textarea
+                      value={results[field.key] ?? ''}
+                      aria-invalid={Boolean(issue) || undefined}
+                      onChange={(event) =>
+                        setResults((current) => ({
+                          ...current,
+                          [field.key]: event.target.value,
+                        }))
+                      }
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      min={field.kind === 'layer_count' ? '1' : undefined}
+                      step={field.kind === 'layer_count' ? '1' : 'any'}
+                      value={results[field.key] ?? ''}
+                      aria-invalid={Boolean(issue) || undefined}
+                      onChange={(event) =>
+                        setResults((current) => ({
+                          ...current,
+                          [field.key]: event.target.value,
+                        }))
+                      }
+                    />
+                  )}
+                  {issue ? (
+                    <p className="text-destructive text-sm">{issue}</p>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
         </section>
 
         <section className="flex flex-col items-end gap-3 rounded-lg border p-4">
           <h3 className="w-full font-medium">5. 保存表征记录</h3>
-          {!canSubmit && method ? (
-            <p className="w-full text-sm text-muted-foreground">
-              请补齐本方法的必填测量信息，并上传原始文件或填写至少一项关键结果。
-            </p>
+          {!canSubmit && !readOnly && missingRequirements.length ? (
+            <div className="w-full text-sm text-muted-foreground">
+              <p>尚未完成：</p>
+              <ul className="mt-1 list-disc pl-5">
+                {missingRequirements.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
           <Button
             type="button"

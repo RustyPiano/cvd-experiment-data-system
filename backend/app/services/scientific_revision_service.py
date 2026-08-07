@@ -335,6 +335,23 @@ class ScientificRevisionService:
             if isinstance(zone_count, int)
             else set()
         )
+        raw_field_capabilities = (run.setup_ref_snapshot_json or {}).get("field_devices") or []
+        field_capabilities = set(
+            raw_field_capabilities
+            if isinstance(raw_field_capabilities, list)
+            else [raw_field_capabilities]
+        )
+        for field in timeline.get("field_params") or []:
+            if field["field_type"] not in field_capabilities:
+                self._invalid_process_reference(
+                    "process_steps.field_params",
+                    "setup_capability",
+                )
+            if field["end_min"] * 60 > process_end:
+                self._invalid_process_reference(
+                    "process_steps.field_params",
+                    "outside_process_timeline",
+                )
         for channel in timeline["channels"]:
             if (
                 channel["channel_type"] == "temperature"
@@ -454,6 +471,7 @@ class ScientificRevisionService:
                 lateral_region=item.get("lateral_region"),
                 target_layer_count=item.get("target_layer_count"),
                 target_bulk_phase=item.get("target_bulk_phase"),
+                target_bulk_space_group_number=item.get("target_bulk_space_group_number"),
                 attrs=item.get("attrs") or {},
             )
             self.db.add(region)
@@ -803,15 +821,16 @@ class ScientificRevisionService:
         growth_duration = sum(
             item["end_s"] - item["start_s"]
             for item in timeline["segments"]
-            if item["segment_type"] in {"nucleation", "growth"}
+            if item["segment_type"] in {"reaction", "nucleation", "growth"}
         )
-        self._feature(
-            revision,
-            "growth_duration_s",
-            numeric=growth_duration,
-            unit="s",
-            source="process_steps.segments",
-        )
+        if growth_duration > 0:
+            self._feature(
+                revision,
+                "growth_duration_s",
+                numeric=growth_duration,
+                unit="s",
+                source="process_steps.segments",
+            )
         self._feature(
             revision,
             "has_process_event",

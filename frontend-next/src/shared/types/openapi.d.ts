@@ -1546,40 +1546,18 @@ export interface components {
             chemical_formula: string;
             /** Cas Number */
             cas_number?: string | null;
-            /** Substance Synonyms */
-            substance_synonyms?: string[] | null;
-            /** Identifiers */
-            identifiers?: {
-                [key: string]: unknown;
-            }[] | null;
             /** Supplier */
             supplier?: string | null;
             /** Catalog Number */
             catalog_number?: string | null;
             /** Declared Grade */
             declared_grade?: string | null;
-            /** Product Specification */
-            product_specification?: {
-                [key: string]: unknown;
-            } | null;
             /** Batch Number */
             batch_number: string;
             /** Purity */
             purity?: number | null;
-            /** Purity Basis */
-            purity_basis?: ("atomic_fraction" | "mass_fraction" | "volume_fraction") | null;
-            /** Purity Source */
-            purity_source?: ("coa_measured" | "supplier_declared") | null;
             /** Form Appearance */
             form_appearance?: string | null;
-            /** Particle Size D50 Um */
-            particle_size_d50_um?: number | null;
-            /** Particle Size D50 Method */
-            particle_size_d50_method?: string | null;
-            /** Particle Size D50 Basis */
-            particle_size_d50_basis?: ("mass_basis" | "number_basis" | "volume_fraction") | null;
-            /** Particle Size D50 Source */
-            particle_size_d50_source?: ("coa_measured" | "supplier_declared") | null;
             /** Opened Date */
             opened_date?: string | null;
             /** Storage Method */

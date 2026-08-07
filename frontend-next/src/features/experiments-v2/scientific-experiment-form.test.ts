@@ -6,14 +6,19 @@ import {
   processChannelTitle,
   saveBeforeStepChange,
   targetSummary,
+  targetValidationIssue,
   timelineValidationIssue,
   tubeUsageParts,
+  tubeUsagePartsValidity,
   withProcessChannelSubject,
 } from './scientific-form-workflow'
 
 describe('scientific experiment workflow helpers', () => {
   it('keeps the two tube-usage fields deterministic', () => {
     expect(tubeUsageParts(' 2, 7 ')).toEqual(['2', '7'])
+    expect(tubeUsagePartsValidity('0,1')).toEqual([true, true])
+    expect(tubeUsagePartsValidity(',')).toEqual([false, false])
+    expect(tubeUsagePartsValidity('1.5,0')).toEqual([false, false])
   })
 
   it('does not treat an empty scientific timeline as completed', () => {
@@ -35,7 +40,7 @@ describe('scientific experiment workflow helpers', () => {
     expect(processChannelTitle(channel)).toBe('Ar 流量')
     expect(
       timelineValidationIssue(
-        [{ segment_type: 'growth', start_s: 0, end_s: 1800 }],
+        [{ segment_type: 'reaction', start_s: 0, end_s: 1800 }],
         [channel],
       ),
     ).toBeNull()
@@ -145,11 +150,45 @@ describe('scientific experiment workflow helpers', () => {
     ).toBe(750)
   })
 
-  it('keeps dopant and alloy semantics in the target summary', () => {
+  it('renders canonical single, doped, and alloy target summaries', () => {
     expect(
       targetSummary({
         architecture_type: 'single_region',
-        material_regions: [{ region_key: 'film', formula: 'MoS2' }],
+        material_regions: [
+          {
+            region_key: 'film',
+            formula: 'MoS2',
+            target_bulk_phase: '2H',
+            target_bulk_space_group_number: 194,
+          },
+        ],
+        composition_relations: [],
+      }),
+    ).toBe('2H-MoS₂')
+    expect(
+      targetSummary({
+        architecture_type: 'single_region',
+        material_regions: [
+          { region_key: 'film', formula: 'MoS2', target_bulk_phase: '2H' },
+        ],
+        composition_relations: [
+          {
+            relation_type: 'doped_by',
+            host_region_key: 'film',
+            species: 'Pt',
+            nominal_value: 1,
+            value_basis: 'at_percent',
+            site_or_location: 'Mo_site',
+          },
+        ],
+      }),
+    ).toBe('Pt 掺杂 2H-MoS₂（1 at.%；Mo 位点）')
+    expect(
+      targetSummary({
+        architecture_type: 'single_region',
+        material_regions: [
+          { region_key: 'film', formula: 'MoS2', target_bulk_phase: '2H' },
+        ],
         composition_relations: [
           {
             relation_type: 'doped_by',
@@ -160,48 +199,141 @@ describe('scientific experiment workflow helpers', () => {
           },
         ],
       }),
-    ).toBe('MoS2；MoS2：Pt 掺杂 1 at%')
+    ).toBe('Pt 掺杂 2H-MoS₂（1 at.%）')
     expect(
       targetSummary({
         architecture_type: 'single_region',
-        material_regions: [{ region_key: 'film', formula: 'MoS2' }],
-        composition_relations: [
-          {
-            relation_type: 'substitutional_alloy',
-            host_region_key: 'film',
-            species: 'W',
-            nominal_value: 0.5,
-            value_basis: 'site_fraction',
-          },
-        ],
-      }),
-    ).toContain('W 取代合金')
-  })
-
-  it('lists every composition relation with its host region', () => {
-    expect(
-      targetSummary({
-        architecture_type: 'vertical_stack',
         material_regions: [
-          { region_key: 'bottom', formula: 'MoS2' },
-          { region_key: 'top', formula: 'WS2' },
+          { region_key: 'film', formula: 'MoS2', target_bulk_phase: '2H' },
         ],
         composition_relations: [
           {
             relation_type: 'doped_by',
-            host_region_key: 'bottom',
-            species: 'Nb',
-            value_basis: 'at_percent',
-          },
-          {
-            relation_type: 'decorated_by',
-            host_region_key: 'top',
-            species: 'Au',
+            host_region_key: 'film',
+            species: 'Pt',
             value_basis: 'unspecified',
+            site_or_location: 'Mo_site',
           },
         ],
       }),
-    ).toBe('MoS2 / WS2；MoS2：Nb 掺杂；WS2：Au 表面修饰')
+    ).toBe('Pt 掺杂 2H-MoS₂（Mo 位点）')
+    expect(
+      targetSummary({
+        architecture_type: 'single_region',
+        material_regions: [
+          {
+            region_key: 'film',
+            formula: 'Mo0.5W0.5S2',
+            target_bulk_phase: '2H',
+          },
+        ],
+        composition_relations: [
+          {
+            relation_type: 'solid_solution_component',
+            host_region_key: 'film',
+            species: 'MoS2',
+            nominal_value: 0.5,
+            value_basis: 'mol_fraction',
+          },
+          {
+            relation_type: 'solid_solution_component',
+            host_region_key: 'film',
+            species: 'WS2',
+            nominal_value: 0.5,
+            value_basis: 'mol_fraction',
+          },
+        ],
+      }),
+    ).toBe('2H-Mo₀.₅W₀.₅S₂')
+  })
+
+  it('renders vertical and lateral regions without empty punctuation', () => {
+    expect(
+      targetSummary({
+        architecture_type: 'vertical_stack',
+        material_regions: [
+          {
+            region_key: 'bottom',
+            formula: 'MoS2',
+            layer_index: 1,
+            target_layer_count: 1,
+            target_bulk_phase: '2H',
+          },
+          {
+            region_key: 'top',
+            formula: 'WS2',
+            layer_index: 2,
+            target_layer_count: 2,
+            target_bulk_phase: '3R',
+          },
+        ],
+        composition_relations: [],
+      }),
+    ).toBe('2H-MoS₂（1层） / 3R-WS₂（2层）')
+    expect(
+      targetSummary({
+        architecture_type: 'lateral_junction',
+        material_regions: [
+          { region_key: 'a', formula: 'MoS2', target_bulk_phase: '2H' },
+          { region_key: 'b', formula: 'WS2', target_bulk_phase: '2H' },
+        ],
+        composition_relations: [],
+      }),
+    ).toBe('2H-MoS₂–2H-WS₂ 横向异质结构')
+  })
+
+  it('validates formulas, alloy fractions, layer order, and phase matches', () => {
+    const single = {
+      architecture_type: 'single_region',
+      material_regions: [
+        {
+          region_key: 'film',
+          formula: 'MoS2',
+          target_bulk_phase: '2H',
+          target_bulk_space_group_number: 194,
+        },
+      ],
+      composition_relations: [],
+    }
+    expect(targetValidationIssue(single)).toBeNull()
+    expect(
+      targetValidationIssue({
+        ...single,
+        material_regions: [
+          {
+            ...single.material_regions[0],
+            target_bulk_space_group_number: 160,
+          },
+        ],
+      }),
+    ).toContain('必须使用 No. 194')
+    expect(
+      targetValidationIssue({
+        ...single,
+        material_regions: [
+          {
+            ...single.material_regions[0],
+            formula: 'Mo0.5W0.5S2',
+          },
+        ],
+        composition_relations: [
+          {
+            relation_type: 'solid_solution_component',
+            host_region_key: 'film',
+            species: 'MoS2',
+            nominal_value: 0.6,
+            value_basis: 'mol_fraction',
+          },
+          {
+            relation_type: 'solid_solution_component',
+            host_region_key: 'film',
+            species: 'WS2',
+            nominal_value: 0.5,
+            value_basis: 'mol_fraction',
+          },
+        ],
+      }),
+    ).toContain('总和为 1')
   })
 
   it('saves the current step before top navigation', async () => {

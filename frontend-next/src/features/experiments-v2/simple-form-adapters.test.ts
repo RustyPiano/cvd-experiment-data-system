@@ -8,7 +8,11 @@ import {
   compositionValueForPayload,
   simpleGrowthIssue,
   simpleCreateIssue,
+  simpleProcessEventsIssue,
   splitEventDescription,
+  temperatureStepOperation,
+  updateTemperatureStepDuration,
+  wholeProcessInterval,
 } from './simple-form-adapters'
 
 const valid = {
@@ -17,6 +21,11 @@ const valid = {
   ambientTemperature: '25',
   ambientHumidity: '45',
 }
+
+const validProcessSettings = {
+  pressure_regime: 'atmospheric',
+  cooling_method: 'furnace_cooling',
+} as const
 
 describe('simple product form adapters', () => {
   it('maps manual environment values to the experiment start time', () => {
@@ -56,6 +65,25 @@ describe('simple product form adapters', () => {
     })
   })
 
+  it('requires an explicit process deviation and occurrence time', () => {
+    expect(simpleProcessEventsIssue([])).toBeNull()
+    expect(
+      simpleProcessEventsIssue([
+        { start_s: Number.NaN, observed_deviations: [] },
+      ]),
+    ).toBe('请选择异常类型。')
+    expect(
+      simpleProcessEventsIssue([
+        { start_s: Number.NaN, observed_deviations: ['gas_interruption'] },
+      ]),
+    ).toBe('请填写异常发生时间。')
+    expect(
+      simpleProcessEventsIssue([
+        { start_s: 120, observed_deviations: ['gas_interruption'] },
+      ]),
+    ).toBeNull()
+  })
+
   it('keeps display snapshots out of the precursor write payload', () => {
     expect(
       buildSimpleSourceLoadsPayload([
@@ -79,27 +107,35 @@ describe('simple product form adapters', () => {
     })
   })
 
-  it('requires a zero-based increasing temperature program and no fake atmospheric pressure', () => {
-    const segments = [{ segment_type: 'growth', start_s: 0, end_s: 3600 }]
+  it('requires a zero-based increasing temperature program without a separate reaction segment', () => {
+    const segments: Array<{
+      segment_type: string
+      start_s: number
+      end_s: number
+    }> = []
     const temperature = {
       channel_type: 'temperature',
       source_type: 'setpoint',
       zone_index: 1,
       series: [{ start_s: 0, value: 700 }],
     }
+    const gas = {
+      channel_type: 'flow',
+      source_type: 'setpoint',
+      gas_species_code: 'Ar',
+      gas_lot_id: 'lot-1',
+      gas_lot_version: 1,
+      measurement_source: 'mfc',
+      series: [{ start_s: 0, end_s: 3600, value: 100 }],
+    }
     expect(
-      simpleGrowthIssue(
-        segments,
-        [temperature],
-        { pressure_regime: 'atmospheric', cooling_method: 'natural' },
-        1,
-      ),
+      simpleGrowthIssue(segments, [temperature, gas], validProcessSettings, 1),
     ).toBeNull()
     expect(
       simpleGrowthIssue(
         segments,
-        [{ ...temperature, series: [{ start_s: 60, value: 700 }] }],
-        { pressure_regime: 'atmospheric', cooling_method: 'natural' },
+        [{ ...temperature, series: [{ start_s: 60, value: 700 }] }, gas],
+        validProcessSettings,
         1,
       ),
     ).toContain('0 分钟')
@@ -114,12 +150,7 @@ describe('simple product form adapters', () => {
       series: [{ start_s: 0, value: '' }],
     }
     expect(
-      simpleGrowthIssue(
-        segments,
-        [temperature],
-        { pressure_regime: 'atmospheric', cooling_method: 'natural' },
-        1,
-      ),
+      simpleGrowthIssue(segments, [temperature], validProcessSettings, 1),
     ).toContain('温度程序')
     expect(
       simpleGrowthIssue(
@@ -133,9 +164,159 @@ describe('simple product form adapters', () => {
             series: [],
           },
         ],
-        { pressure_regime: 'atmospheric', cooling_method: 'natural' },
+        validProcessSettings,
         1,
       ),
     ).toBe('请选择气体种类。')
+  })
+
+  it('rejects missing and non-positive working pressure', () => {
+    const segments = [{ segment_type: 'growth', start_s: 0, end_s: 3600 }]
+    const temperature = {
+      channel_type: 'temperature',
+      source_type: 'setpoint',
+      zone_index: 1,
+      series: [{ start_s: 0, value: 700 }],
+    }
+    const settings = {
+      pressure_regime: 'low_pressure',
+      cooling_method: 'furnace_cooling',
+    }
+    const gas = {
+      channel_type: 'flow',
+      source_type: 'setpoint',
+      gas_species_code: 'Ar',
+      gas_lot_id: 'lot-1',
+      gas_lot_version: 1,
+      measurement_source: 'mfc',
+      series: [{ start_s: 0, end_s: 3600, value: 100 }],
+    }
+
+    for (const scalar_value of [undefined, 0, -1]) {
+      expect(
+        simpleGrowthIssue(
+          segments,
+          [
+            temperature,
+            gas,
+            {
+              channel_type: 'pressure',
+              source_type: 'setpoint',
+              scalar_value,
+              pressure_type: 'absolute',
+              unit: 'Pa',
+            },
+          ],
+          settings,
+          1,
+        ),
+      ).toBe('请填写大于 0 的工作压力。')
+    }
+
+    expect(
+      simpleGrowthIssue(
+        segments,
+        [
+          temperature,
+          gas,
+          {
+            channel_type: 'pressure',
+            source_type: 'setpoint',
+            scalar_value: 100,
+            pressure_type: 'absolute',
+            unit: 'Pa',
+          },
+        ],
+        settings,
+        1,
+      ),
+    ).toBeNull()
+  })
+
+  it('rejects non-positive or overlapping gas intervals and incomplete controlled cooling', () => {
+    const segments = [{ segment_type: 'growth', start_s: 60, end_s: 600 }]
+    const temperature = {
+      channel_type: 'temperature',
+      source_type: 'setpoint',
+      zone_index: 1,
+      series: [{ start_s: 0, value: 700 }],
+    }
+    const gas = {
+      channel_type: 'flow',
+      source_type: 'setpoint',
+      gas_species_code: 'Ar',
+      gas_lot_id: 'lot-1',
+      gas_lot_version: 1,
+      measurement_source: 'mfc',
+      series: [{ start_s: 0, end_s: 300, value: 0 }],
+    }
+    const settings = validProcessSettings
+    expect(simpleGrowthIssue(segments, [temperature, gas], settings, 1)).toBe(
+      '请填写有效的供气时间和大于 0 的流量。',
+    )
+    expect(
+      simpleGrowthIssue(
+        segments,
+        [
+          temperature,
+          {
+            ...gas,
+            series: [
+              { start_s: 0, end_s: 300, value: 100 },
+              { start_s: 240, end_s: 480, value: 100 },
+            ],
+          },
+        ],
+        settings,
+        1,
+      ),
+    ).toBe('同一种气体的供气区间不能重叠。')
+    expect(
+      simpleGrowthIssue(
+        segments,
+        [temperature, { ...gas, series: [{ ...gas.series[0], value: 100 }] }],
+        {
+          pressure_regime: 'atmospheric',
+          cooling_method: 'controlled_cooling',
+        },
+        1,
+      ),
+    ).toBe('请填写大于 0 的受控降温速率。')
+  })
+
+  it('keeps duration-based temperature steps and whole-process gas timing stable', () => {
+    const points = [
+      { start_s: 0, value: 25 },
+      { start_s: 1800, value: 750 },
+      { start_s: 2400, value: 750 },
+    ]
+    expect(updateTemperatureStepDuration(points, 1, 40)).toEqual([
+      { start_s: 0, value: 25 },
+      { start_s: 2400, value: 750 },
+      { start_s: 3000, value: 750 },
+    ])
+    expect(
+      updateTemperatureStepDuration(
+        [
+          { start_s: 0, value: 25 },
+          { start_s: Number.NaN, value: '' },
+        ],
+        1,
+        30,
+      ),
+    ).toEqual([
+      { start_s: 0, value: 25 },
+      { start_s: 1800, value: '' },
+    ])
+
+    expect(wholeProcessInterval(4200)).toEqual({ start_s: 0, end_s: 4200 })
+    expect(wholeProcessInterval(0)).toBeNull()
+  })
+
+  it('derives the temperature operation from adjacent steps', () => {
+    expect(temperatureStepOperation(25, 750)).toBe('升温')
+    expect(temperatureStepOperation(750, 750)).toBe('保温')
+    expect(temperatureStepOperation(750, 100)).toBe('降温')
+    expect(temperatureStepOperation(25, '')).toBeNull()
   })
 })

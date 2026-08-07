@@ -34,8 +34,8 @@ KNOWN_LEVELS = {
     "conditional_recommended",
 }
 EXPECTED_FIELDS = 95
-EXPECTED_ENTITY_FIELDS = 66
-EXPECTED_R0 = 29
+EXPECTED_ENTITY_FIELDS = 57
+EXPECTED_R0 = 27
 
 errors: list[str] = []
 
@@ -66,14 +66,18 @@ if n_fields != EXPECTED_FIELDS:
 if n_entity != EXPECTED_ENTITY_FIELDS:
     err(f"一等实体字段数 {n_entity} ≠ 预期 {EXPECTED_ENTITY_FIELDS}（同上）")
 if n_r0 != EXPECTED_R0:
-    err(f"R0 标记数 {n_r0} ≠ 预期 {EXPECTED_R0}（R0 集合改动须导师/组会确认，见实现方案 §5）")
+    err(
+        f"R0 标记数 {n_r0} ≠ 预期 {EXPECTED_R0}（R0 集合改动须导师/组会确认，见实现方案 §5）"
+    )
 
 for profile_key, profile in (doc.get("characterization_profiles") or {}).items():
     fields = {item["key"] for item in profile.get("condition_fields") or []}
     required = set(profile.get("required_condition_keys") or [])
     optional = set(profile.get("optional_condition_keys") or [])
     if required & optional or required | optional != fields:
-        err(f"characterization_profiles.{profile_key} 的必填/选填测量条件未完整且互斥地覆盖 condition_fields")
+        err(
+            f"characterization_profiles.{profile_key} 的必填/选填测量条件未完整且互斥地覆盖 condition_fields"
+        )
 
 KEY_RE = re.compile(r"^[a-z][a-zA-Z0-9_]*$")  # 单位后缀允许大写（_C 等，沿 v1 风格）
 modules_map = doc.get("modules", {})
@@ -136,8 +140,12 @@ for part, scope_of in (
             err(f"{where}: 条件级别缺少 condition 表达式")
         condition = req.get("condition")
         otherwise = req.get("otherwise")
-        if otherwise is not None and (otherwise != "optional" or level != "conditional_required"):
-            err(f"{where}: requirement.otherwise 仅支持 conditional_required + optional")
+        if otherwise is not None and (
+            otherwise != "optional" or level != "conditional_required"
+        ):
+            err(
+                f"{where}: requirement.otherwise 仅支持 conditional_required + optional"
+            )
         if condition and not {"field", "op", "value"} <= set(condition):
             err(f"{where}: condition 缺少 field/op/value")
         elif condition:
@@ -176,11 +184,18 @@ for part, scope_of in (
                         if isinstance(condition["value"], list)
                         else [condition["value"]]
                     )
-                    values = [doc.get("option_codes", {}).get(value, value) for value in raw_values]
+                    values = [
+                        doc.get("option_codes", {}).get(value, value)
+                        for value in raw_values
+                    ]
                     unknown = [value for value in values if value not in options]
                     if unknown:
-                        err(f"{where}: condition 值 {unknown!r} 不在驱动字段 options 词表内")
-        if "下拉" in str(f.get("input") or "") and str(f.get("options") or "").strip() in {"", "—"}:
+                        err(
+                            f"{where}: condition 值 {unknown!r} 不在驱动字段 options 词表内"
+                        )
+        if "下拉" in str(f.get("input") or "") and str(
+            f.get("options") or ""
+        ).strip() in {"", "—"}:
             err(f"{where}: 下拉字段 options 必须非空且不能为 '—'")
         if f.get("status") == "pending-alignment" and not f.get("pending"):
             err(f"{where}: pending-alignment 缺少 pending 说明")
@@ -193,6 +208,7 @@ for part, scope_of in (
                 "le",
                 "lt",
                 "require_value",
+                "require_value_options",
                 "require_option",
                 "item_required",
                 "finite_value",
@@ -206,13 +222,26 @@ for part, scope_of in (
             for flag in ("require_value", "require_option", "finite_value"):
                 if flag in validation and not isinstance(validation[flag], bool):
                     err(f"{where}: validation.{flag} 必须为布尔值")
+            require_value_options = validation.get("require_value_options")
+            if require_value_options is not None and (
+                not isinstance(require_value_options, list)
+                or not require_value_options
+                or not all(
+                    isinstance(item, str) and item for item in require_value_options
+                )
+            ):
+                err(f"{where}: validation.require_value_options 必须为非空字符串数组")
             for bound in ("ge", "gt", "le", "lt"):
                 if bound in validation and (
                     isinstance(validation[bound], bool)
                     or not isinstance(validation[bound], (int, float))
                 ):
                     err(f"{where}: validation.{bound} 必须为数值")
-            if "ge" in validation and "le" in validation and validation["ge"] > validation["le"]:
+            if (
+                "ge" in validation
+                and "le" in validation
+                and validation["ge"] > validation["le"]
+            ):
                 err(f"{where}: validation.ge 不得大于 validation.le")
             option_ranges = validation.get("option_ranges")
             if option_ranges is not None:
@@ -231,9 +260,19 @@ for part, scope_of in (
                             f"{where}: validation.option_ranges 含未声明选项 "
                             f"{sorted(unknown_options)}"
                         )
+                    unknown_required_options = (
+                        set(require_value_options or []) - declared
+                    )
+                    if unknown_required_options:
+                        err(
+                            f"{where}: validation.require_value_options 含未声明选项 "
+                            f"{sorted(unknown_required_options)}"
+                        )
                     for option, bounds in option_ranges.items():
                         if not isinstance(bounds, dict) or not bounds:
-                            err(f"{where}: validation.option_ranges.{option} 必须为非空边界对象")
+                            err(
+                                f"{where}: validation.option_ranges.{option} 必须为非空边界对象"
+                            )
                             continue
                         unknown_bounds = set(bounds) - {"ge", "gt", "le", "lt"}
                         if unknown_bounds:
@@ -242,7 +281,9 @@ for part, scope_of in (
                                 f"含未知边界 {sorted(unknown_bounds)}"
                             )
                         for bound, value in bounds.items():
-                            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                            if isinstance(value, bool) or not isinstance(
+                                value, (int, float)
+                            ):
                                 err(
                                     f"{where}: validation.option_ranges.{option}.{bound} 必须为数值"
                                 )
@@ -260,7 +301,9 @@ for part, scope_of in (
             str(f.get("placeholder_en") or "").strip()
         ):
             err(f"{where}: placeholder / placeholder_en 必须成对填写")
-        if bool(str(f.get("help") or "").strip()) != bool(str(f.get("help_en") or "").strip()):
+        if bool(str(f.get("help") or "").strip()) != bool(
+            str(f.get("help_en") or "").strip()
+        ):
             err(f"{where}: help / help_en 必须成对填写")
         if scope:
             if key in seen_keys.setdefault(scope, set()):
@@ -269,7 +312,9 @@ for part, scope_of in (
         # D11: §5 字段必须有参数组
         if part == "experiment_record" and scope == "process_steps":
             if f.get("group") not in group_names:
-                err(f"{where}: process_steps 字段缺少合法 group（现值 {f.get('group')!r}）")
+                err(
+                    f"{where}: process_steps 字段缺少合法 group（现值 {f.get('group')!r}）"
+                )
 
 # D11: stage_types 自洽——shows ⊆ 组名；required_extra ⊆ §5 字段键
 ps_keys = {
@@ -283,7 +328,9 @@ for t in stage_types.get("types", []):
         err(f"stage_types[{t.get('name')}]: 未知参数组 {sorted(bad)}")
     bad = set(t.get("required_extra", [])) - ps_keys
     if bad:
-        err(f"stage_types[{t.get('name')}]: required_extra 引用不存在的字段键 {sorted(bad)}")
+        err(
+            f"stage_types[{t.get('name')}]: required_extra 引用不存在的字段键 {sorted(bad)}"
+        )
 if not stage_types.get("types"):
     err("缺少 stage_types.types（§5 动态表单权威映射，D11）")
 
@@ -319,12 +366,18 @@ for profile_code, profile in (doc.get("characterization_profiles") or {}).items(
     allowed_properties = set(profile.get("allowed_property_codes") or [])
     unknown_properties = allowed_properties - set(properties)
     if unknown_properties:
-        err(f"characterization_profiles.{profile_code}: 未知属性 {sorted(unknown_properties)}")
+        err(
+            f"characterization_profiles.{profile_code}: 未知属性 {sorted(unknown_properties)}"
+        )
     if not set(profile.get("default_property_codes") or []) <= allowed_properties:
         err(f"characterization_profiles.{profile_code}: 默认属性不属于允许属性")
-    unknown_assertions = set(profile.get("allowed_assertion_types") or []) - known_assertions
+    unknown_assertions = (
+        set(profile.get("allowed_assertion_types") or []) - known_assertions
+    )
     if unknown_assertions:
-        err(f"characterization_profiles.{profile_code}: 未知材料结论 {sorted(unknown_assertions)}")
+        err(
+            f"characterization_profiles.{profile_code}: 未知材料结论 {sorted(unknown_assertions)}"
+        )
     for field in condition_fields:
         value_type = field.get("value_type")
         components = field.get("components") or []
@@ -360,7 +413,9 @@ if not os.path.exists(COMMITTED):
 else:
     with tempfile.TemporaryDirectory() as td:
         regen = os.path.join(td, "regen.xlsx")
-        proc = subprocess.run([sys.executable, RENDERER, regen], capture_output=True, text=True)
+        proc = subprocess.run(
+            [sys.executable, RENDERER, regen], capture_output=True, text=True
+        )
         if proc.returncode != 0:
             err(f"渲染器运行失败：{proc.stderr.strip()[:500]}")
         else:

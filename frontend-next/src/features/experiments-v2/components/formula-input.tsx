@@ -1,5 +1,5 @@
 // 化学式输入：文本 + 元素校验（待明确#2）。解析元素符号并对非法符号给出提示，
-// 非阻断（提交拦截由必填规则负责）。周期表点选不在本步范围。
+// 提交拦截由各表单层负责。周期表点选不在本步范围。
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
@@ -13,6 +13,9 @@ export function FormulaInput({
   disabled,
   placeholder,
   ariaDescribedBy,
+  required,
+  showErrors,
+  validator = validateChemicalFormula,
 }: {
   id?: string
   value: string
@@ -20,13 +23,17 @@ export function FormulaInput({
   disabled?: boolean
   placeholder?: string
   ariaDescribedBy?: string
+  required?: boolean
+  showErrors?: boolean
+  validator?: typeof validateChemicalFormula
 }) {
   const { t } = useTranslation()
   const generatedId = useId()
   const controlId = id ?? generatedId
-  const messageId = `${controlId}-message`
-  const result = validateChemicalFormula(value)
-  const invalid = !result.empty && !result.valid
+  const messageId = `${controlId}-formula-message`
+  const result = validator(value)
+  const missing = Boolean(required && showErrors && result.empty)
+  const invalid = missing || (!result.empty && !result.valid)
   const describedBy =
     [invalid || result.elements.length > 0 ? messageId : null, ariaDescribedBy]
       .filter(Boolean)
@@ -47,13 +54,15 @@ export function FormulaInput({
       />
       {invalid ? (
         <p id={messageId} className="text-xs text-destructive">
-          {result.unknownSymbols.length > 0
-            ? t('experimentsV2.formula.unknownSymbols', {
-                symbols: result.unknownSymbols.join('、'),
-              })
-            : !result.syntaxValid
-              ? t('experimentsV2.formula.invalidSyntax')
-              : t('experimentsV2.formula.noElement')}
+          {missing
+            ? t('validation.required')
+            : result.unknownSymbols.length > 0
+              ? t('experimentsV2.formula.unknownSymbols', {
+                  symbols: result.unknownSymbols.join('、'),
+                })
+              : !result.syntaxValid
+                ? t('experimentsV2.formula.invalidSyntax')
+                : t('experimentsV2.formula.noElement')}
         </p>
       ) : result.elements.length > 0 ? (
         <p id={messageId} className="text-xs text-muted-foreground">

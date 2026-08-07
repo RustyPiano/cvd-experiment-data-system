@@ -28,6 +28,7 @@ const labels: TemperatureSensorsEditorLabels = {
   otherSensorTypePlaceholder: 'Enter sensor type',
   nominalAccuracyCelsius: 'Nominal temperature accuracy (±°C)',
   selectZoneCountFirst: 'Set the zone count first',
+  requiredMessage: 'This field is required',
 }
 
 function Wrapper({
@@ -78,7 +79,7 @@ describe('TemperatureSensorsEditor', () => {
     expect(screen.queryByRole('button', { name: /add|remove/i })).toBeNull()
 
     await user.click(
-      screen.getAllByRole('combobox', { name: 'Sensor category' })[0],
+      screen.getAllByRole('combobox', { name: /^Sensor category/ })[0],
     )
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),

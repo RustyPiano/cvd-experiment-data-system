@@ -28,12 +28,24 @@ const labels: TreatmentStepsEditorLabels = {
   parameterValue: 'Parameter value',
   parameterUnit: 'Parameter unit',
   removeParameter: 'Remove parameter',
+  selectAtmosphere: 'Select atmosphere',
+  noAtmosphere: 'Not provided',
+  otherAtmosphereName: 'Other atmosphere name',
+  requiredMessage: 'This field is required',
+  invalidMessage: 'Enter a valid value',
+  atmosphereOptions: {
+    air: 'Air',
+    vacuum: 'Vacuum',
+    other: 'Other',
+  },
   types: {
     direct_load: 'Direct load',
     melt_solidify: 'Melt and solidify',
+    mix: 'Mix',
     pelletize: 'Pelletize',
     spin_coat: 'Spin coat',
     anneal: 'Anneal',
+    pre_anneal: 'Pre-anneal',
     grind: 'Grind',
     other: 'Other',
     acetone_clean: 'Acetone clean',
@@ -95,17 +107,17 @@ describe('TreatmentStepsEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Add step' }))
     await user.click(screen.getByRole('button', { name: 'Add step' }))
     const selectors = screen.getAllByRole('combobox', {
-      name: 'Treatment type',
+      name: /^Treatment type/,
     })
     await user.click(selectors[0])
     await user.click(screen.getByRole('option', { name: 'Spin coat' }))
     await user.click(selectors[1])
     await user.click(screen.getByRole('option', { name: 'Anneal' }))
 
-    await user.type(screen.getByLabelText('Speed (rpm)'), '3000')
-    await user.type(screen.getByLabelText('Duration (s)'), '60')
-    await user.type(screen.getByLabelText('Temperature (°C)'), '750')
-    await user.type(screen.getByLabelText('Duration (min)'), '30')
+    await user.type(screen.getByLabelText(/^Speed \(rpm\)/), '3000')
+    await user.type(screen.getByLabelText(/^Duration \(s\)/), '60')
+    await user.type(screen.getByLabelText(/^Temperature \(°C\)/), '750')
+    await user.type(screen.getByLabelText(/^Duration \(min\)/), '30')
 
     const before = topRows(container).map((row) => row.dataset.rowId)
     await user.click(
@@ -135,13 +147,13 @@ describe('TreatmentStepsEditor', () => {
     render(<Wrapper kind="substrate" />)
 
     await user.click(screen.getByRole('button', { name: 'Add step' }))
-    await user.click(screen.getByRole('combobox', { name: 'Treatment type' }))
+    await user.click(screen.getByRole('combobox', { name: /^Treatment type/ }))
     await user.click(screen.getByRole('option', { name: 'Other' }))
-    await user.type(screen.getByLabelText('Other treatment name'), 'UV ozone')
+    await user.type(screen.getByLabelText(/^Other treatment name/), 'UV ozone')
     await user.click(screen.getByRole('button', { name: 'Add parameter' }))
-    await user.type(screen.getByLabelText('Parameter name'), 'duration')
-    await user.type(screen.getByLabelText('Parameter value'), '10')
-    await user.type(screen.getByLabelText('Parameter unit'), 'min')
+    await user.type(screen.getByLabelText(/^Parameter name/), 'duration')
+    await user.type(screen.getByLabelText(/^Parameter value/), '10')
+    await user.type(screen.getByLabelText(/^Parameter unit/), 'min')
 
     const value = JSON.parse(
       screen.getByTestId('value').textContent ?? '',
@@ -156,6 +168,47 @@ describe('TreatmentStepsEditor', () => {
       },
     ])
     expect(treatmentStepsAreValid('substrate', value)).toBe(true)
+  })
+
+  it('uses canonical atmosphere options and a named fallback', async () => {
+    const user = userEvent.setup()
+    render(<Wrapper kind="source_load" />)
+
+    await user.click(screen.getByRole('button', { name: 'Add step' }))
+    await user.click(screen.getByRole('combobox', { name: /^Treatment type/ }))
+    await user.click(screen.getByRole('option', { name: 'Pre-anneal' }))
+    await user.type(screen.getByLabelText(/^Temperature \(°C\)/), '500')
+    await user.type(screen.getByLabelText(/^Duration \(min\)/), '20')
+
+    await user.click(screen.getByRole('combobox', { name: /^Atmosphere/ }))
+    await user.click(screen.getByRole('option', { name: 'Ar' }))
+    expect(JSON.parse(screen.getByTestId('value').textContent ?? '')).toEqual([
+      {
+        type: 'pre_anneal',
+        parameters: {
+          temperature_C: 500,
+          duration_min: 20,
+          atmosphere: 'Ar',
+        },
+      },
+    ])
+
+    await user.click(screen.getByRole('combobox', { name: /^Atmosphere/ }))
+    await user.click(screen.getByRole('option', { name: 'Other' }))
+    await user.type(
+      screen.getByLabelText(/^Other atmosphere name/),
+      'forming gas',
+    )
+    const custom = JSON.parse(
+      screen.getByTestId('value').textContent ?? '',
+    ) as TreatmentStep[]
+    expect(custom[0].parameters).toEqual({
+      temperature_C: 500,
+      duration_min: 20,
+      atmosphere: 'other',
+      atmosphere_other: 'forming gas',
+    })
+    expect(treatmentStepsAreValid('source_load', custom)).toBe(true)
   })
 
   it('validates the required plasma parameters without free-text guessing', () => {
@@ -173,5 +226,22 @@ describe('TreatmentStepsEditor', () => {
         { ...step, parameters: { ...step.parameters, power_W: 0 } },
       ]),
     ).toBe(false)
+  })
+
+  it('distinguishes an invalid number from a missing required value', () => {
+    render(
+      <Wrapper
+        kind="precursor"
+        initial={[
+          {
+            type: 'spin_coat',
+            parameters: { speed_rpm: 0, duration_s: 60 },
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('Enter a valid value')).toBeInTheDocument()
+    expect(screen.queryByText('This field is required')).not.toBeInTheDocument()
   })
 })

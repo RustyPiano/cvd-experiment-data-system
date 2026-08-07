@@ -64,6 +64,7 @@ type StructuredLabelKey =
   | 'placement'
   | 'faceUp'
   | 'faceDown'
+  | 'faceToFace'
   | 'tilted'
   | 'upright'
   | 'otherPlacement'
@@ -359,6 +360,7 @@ export function StructuredObjectControl({
                     options: [
                       { value: 'face_up', label: label('faceUp') },
                       { value: 'face_down', label: label('faceDown') },
+                      { value: 'face_to_face', label: label('faceToFace') },
                       { value: 'tilted', label: label('tilted') },
                       { value: 'upright', label: label('upright') },
                       { value: 'other', label: label('otherPlacement') },

@@ -9,7 +9,10 @@ import {
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import { SimpleCharacterizationWorkspace } from './simple-characterization-workspace'
+import {
+  characterizationConditionIssue,
+  SimpleCharacterizationWorkspace,
+} from './simple-characterization-workspace'
 
 const api = vi.hoisted(() => ({
   createMeasurement: vi.fn(),
@@ -81,7 +84,7 @@ async function fillSharedMeasurementInfo(
   user: ReturnType<typeof userEvent.setup>,
   withLocation = true,
 ) {
-  await user.type(screen.getByLabelText('测量时间'), '2026-07-30T14:30')
+  await user.type(screen.getByLabelText(/^测量时间/), '2026-07-30T14:30')
   if (!withLocation) return
   const secondSection = screen
     .getByRole('heading', { name: '2. 仪器与测量信息' })
@@ -122,7 +125,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     renderWorkspace()
     await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
 
-    expect(screen.getByText('请选择样品')).toBeInTheDocument()
+    expect(screen.getAllByText('请选择样品')).not.toHaveLength(0)
     expect(screen.getByRole('button', { name: '保存表征记录' })).toBeDisabled()
     expect(screen.queryByText('分析软件信息')).not.toBeInTheDocument()
     expect(screen.queryByText('添加材料结论')).not.toBeInTheDocument()
@@ -135,7 +138,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
     await chooseSampleAndMethod(user, 'Raman')
 
-    expect(screen.getByText('激光波长（nm）')).toBeInTheDocument()
+    expect(screen.getByText(/激光波长（nm）/)).toBeInTheDocument()
     expect(screen.getByText('更多测量参数')).toBeInTheDocument()
     expect(screen.getByText('E₂g 峰位（cm⁻¹）')).toBeInTheDocument()
     expect(screen.getByText('A₁g 峰位（cm⁻¹）')).toBeInTheDocument()
@@ -198,7 +201,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.click(screen.getByRole('button', { name: '选择表征仪器' }))
 
     const laser = screen
-      .getByText('激光波长（nm）')
+      .getByText(/激光波长（nm）/)
       .parentElement!.querySelector('input')!
     await user.type(laser, '532')
     const fileInput = container.querySelector<HTMLInputElement>(
@@ -216,5 +219,52 @@ describe('SimpleCharacterizationWorkspace', () => {
         'file-1',
       ),
     )
+  })
+
+  it('rejects zero, incomplete sizes, and reversed ranges before saving', () => {
+    expect(
+      characterizationConditionIssue(
+        {
+          key: 'laser_wavelength_nm',
+          label_zh: '激光波长',
+          label_en: 'Laser wavelength',
+          value_type: 'number',
+        },
+        { laser_wavelength_nm: '0' },
+        true,
+      ),
+    ).toBe('请输入大于 0 的数值。')
+    expect(
+      characterizationConditionIssue(
+        {
+          key: 'scan_size_um',
+          label_zh: '扫描尺寸',
+          label_en: 'Scan size',
+          value_type: 'size',
+          components: [
+            { key: 'x', label_zh: 'X', label_en: 'X' },
+            { key: 'y', label_zh: 'Y', label_en: 'Y' },
+          ],
+        },
+        { 'scan_size_um.x': '10', 'scan_size_um.y': '' },
+        true,
+      ),
+    ).toBe('请补齐全部数值。')
+    expect(
+      characterizationConditionIssue(
+        {
+          key: 'scan_range',
+          label_zh: '扫描范围',
+          label_en: 'Scan range',
+          value_type: 'range',
+          components: [
+            { key: 'start', label_zh: '起点', label_en: 'Start' },
+            { key: 'end', label_zh: '终点', label_en: 'End' },
+          ],
+        },
+        { 'scan_range.start': '20', 'scan_range.end': '10' },
+        true,
+      ),
+    ).toContain('终点必须大于起点')
   })
 })

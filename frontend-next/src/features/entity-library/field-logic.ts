@@ -1,6 +1,6 @@
 // 一等实体表单的「元数据驱动」纯逻辑：可选项解析、条件显隐、有效必填、默认值。
 // 全部只读消费 field-metadata（生成物），不含 React/网络，便于 vitest 单测。
-import { entities } from '@/shared/generated/field-metadata'
+import { entities, optionLabelsZh } from '@/shared/generated/field-metadata'
 import {
   formatCompositeValue,
   isCompositeInput,
@@ -40,7 +40,26 @@ const SUBSTRATE_FORMULAS: Record<string, readonly string[]> = {
   au_foil: ['Au'],
   'h-BN': ['BN'],
 }
+const SUBSTRATE_SURFACE_FORMULAS: Record<string, string> = {
+  sio2_si: 'SiO2',
+  sapphire_al2o3: 'Al2O3',
+  quartz: 'SiO2',
+  cu_foil: 'Cu',
+  au_foil: 'Au',
+  'h-BN': 'BN',
+}
 const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉'
+
+function substrateMaterial(values: EntityFormValues): string {
+  return canonicalFieldOption(
+    'substrate_material',
+    String(values['substrate_material'] ?? ''),
+  )
+}
+
+function substrateSurfaceFormula(values: EntityFormValues): string {
+  return SUBSTRATE_SURFACE_FORMULAS[substrateMaterial(values)] ?? ''
+}
 
 export function materialLotFormulaIsCompatible(
   values: EntityFormValues,
@@ -48,23 +67,26 @@ export function materialLotFormulaIsCompatible(
   if (canonicalOption(String(values['lot_category'] ?? '')) !== 'substrate') {
     return true
   }
-  const material = canonicalFieldOption(
-    'substrate_material',
-    String(values['substrate_material'] ?? ''),
-  )
+  const material = substrateMaterial(values)
   const expected = SUBSTRATE_FORMULAS[material]
   if (!expected) return true
-  const formula = String(values['chemical_formula'] ?? '')
+  const formula = (
+    substrateSurfaceFormula(values) || String(values['chemical_formula'] ?? '')
+  )
     .replace(/\s+/g, '')
     .replace(/[₀-₉]/g, (digit) => String(SUBSCRIPT_DIGITS.indexOf(digit)))
   return expected.includes(formula)
 }
 
 /**
- * 版本号由后端版本表自增分配（V2EntityVersionRead.version），不是用户录入项，
- * 故从可编辑表单字段中剔除；列表/详情改用后端返回的 version 展示。
+ * 版本号和坐标系由系统管理；部件绑定尚无可用的前端维护流程。
+ * 这些字段不进入普通实体表单或详情。
  */
-export const SYSTEM_FIELD_KEYS = new Set(['version', 'coordinate_system'])
+export const SYSTEM_FIELD_KEYS = new Set([
+  'version',
+  'coordinate_system',
+  'component_bindings',
+])
 const JSON_ARRAY_FIELD_KEYS = new Set(['temperature_sensors'])
 
 export function isEntityJsonArrayField(fieldKey: string): boolean {
@@ -248,9 +270,16 @@ export function isFieldVisible(
     const refKey = resolveConditionKey(kind, condition.field)
     if (!refKey || !matchesCondition(condition, values[refKey])) return false
   }
-  if (kind === 'material_lot' && field.key === 'substrate_miscut_direction') {
-    const angle = values['substrate_miscut_angle_deg']
-    if (Array.isArray(angle) || Number(angle) <= 0) return false
+  if (
+    kind === 'material_lot' &&
+    canonicalOption(String(values['lot_category'] ?? '')) === 'substrate'
+  ) {
+    if (field.key === 'substance_name') return false
+    if (field.key === 'chemical_formula') {
+      return Boolean(
+        substrateMaterial(values) && !substrateSurfaceFormula(values),
+      )
+    }
   }
   if (kind === 'setup' && field.key === 'temperature_sensors') {
     const zoneCount = values['zone_count']
@@ -286,10 +315,6 @@ export function isEffectivelyRequired(
       typeof shape === 'string' &&
       String(parseStructuredValue(shape).shape ?? '').trim() !== ''
     )
-  }
-  if (kind === 'material_lot' && field.key === 'substrate_miscut_direction') {
-    const value = values['substrate_miscut_angle_deg']
-    return !Array.isArray(value) && Number(value) > 0
   }
   const level = field.requirement.level
   if (level === 'required') return true
@@ -432,6 +457,15 @@ export function buildSubmitPayload(
               : normalized
       }
     }
+  }
+  if (
+    kind === 'material_lot' &&
+    canonicalOption(String(values['lot_category'] ?? '')) === 'substrate'
+  ) {
+    const material = substrateMaterial(values)
+    if (material) payload.substance_name = optionLabelsZh[material] ?? material
+    const formula = substrateSurfaceFormula(values)
+    if (formula) payload.chemical_formula = formula
   }
   return payload
 }

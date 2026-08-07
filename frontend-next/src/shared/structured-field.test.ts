@@ -263,10 +263,10 @@ describe('structured scientific fields', () => {
           length_mm: 10,
           width_mm: 10,
           placement: 'tilted',
-          tilt_angle_deg: 91,
+          tilt_angle_deg: 90,
         }),
       ),
-    ).toThrow(/exceed 90/)
+    ).toThrow(/less than 90/)
   })
 
   it('round-trips the conditional substrate placement fields', () => {
@@ -292,6 +292,16 @@ describe('structured scientific fields', () => {
       tilt_angle_deg: 15,
       placement_other: null,
     })
+    expect(
+      structuredPayload(
+        'size_placement',
+        encodeStructuredValue({
+          length_mm: 10,
+          width_mm: 12,
+          placement: 'face_to_face',
+        }),
+      ),
+    ).toMatchObject({ placement: 'face_to_face' })
   })
 
   it.each([

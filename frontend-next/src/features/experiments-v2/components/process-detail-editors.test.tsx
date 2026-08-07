@@ -191,6 +191,7 @@ const coolingLabels: CoolingParamsEditorLabels = {
     furnace_cooling: 'Furnace cooling',
     open_lid_cooling: 'Open lid cooling',
     rapid_furnace_move_cooling: 'Rapid furnace move',
+    controlled_cooling: 'Controlled cooling',
     other: 'Other cooling',
   },
   lidOpenTemperatureC: 'Lid-open temperature (°C)',

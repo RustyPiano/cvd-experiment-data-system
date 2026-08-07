@@ -67,6 +67,7 @@ function substrateRows(
 ) {
   if (!substrate) return []
   const size = asRecord(substrate.size_placement)
+  const zonePosition = asRecord(substrate.zone_thermocouple_distance_mm)
   const lot = asRecord(substrate.lot_ref)
   const snapshot = asRecord(lot?.snapshot)
   const attrs = asRecord(snapshot?.attrs)
@@ -85,13 +86,15 @@ function substrateRows(
     ['批次', snapshot?.batch_number ?? attrs?.batch_number ?? '—'],
     ['尺寸', dimensions ? `${dimensions} mm` : '—'],
     [
-      '轴向位置',
-      substrate.axial_position_mm != null
-        ? `${String(substrate.axial_position_mm)} mm`
-        : '—',
+      '所在温区与位置',
+      zonePosition?.zone_index != null && zonePosition.distance_mm != null
+        ? `温区 ${String(zonePosition.zone_index)}；相对热电偶 ${Number(zonePosition.distance_mm) > 0 ? '+' : ''}${String(zonePosition.distance_mm)} mm`
+        : substrate.axial_position_mm != null
+          ? `旧装置原点 ${String(substrate.axial_position_mm)} mm`
+          : '—',
     ],
     [
-      '朝向',
+      '放置方式',
       (() => {
         const face = String(substrate.face_orientation ?? size?.placement ?? '')
         return face

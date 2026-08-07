@@ -39,6 +39,12 @@ function entityLabel(
   data: Record<string, unknown>,
   version: number | null | undefined,
   productLabel = false,
+  language = 'zh',
+  productLabels?: {
+    supplier: string
+    catalogNumber: string
+    lotNumber: string
+  },
 ): string {
   const config = entityConfigs[kind]
   const name =
@@ -51,15 +57,18 @@ function entityLabel(
     name == null || name === '' ? entityId.slice(0, 8) : String(name)
   const codeText = code == null || code === '' ? '' : ` · ${String(code)}`
   if (productLabel) {
-    const maker = snapshotValue(data, 'manufacturer_brand')
-    const vendor = snapshotValue(data, 'vendor')
-    const model = snapshotValue(data, 'model')
     const supplier = snapshotValue(data, 'supplier')
+    const catalogNumber = snapshotValue(data, 'catalog_number')
+    const english = language.startsWith('en')
+    const separator = english ? ': ' : '：'
     return [
       nameText,
-      [maker || vendor, model].filter(Boolean).join(' '),
-      supplier,
-      code,
+      supplier &&
+        `${productLabels?.supplier ?? 'Supplier'}${separator}${String(supplier)}`,
+      catalogNumber &&
+        `${productLabels?.catalogNumber ?? 'Cat. No.'}${separator}${String(catalogNumber)}`,
+      code &&
+        `${productLabels?.lotNumber ?? 'Lot No.'}${separator}${String(code)}`,
     ]
       .filter(Boolean)
       .map(String)
@@ -91,7 +100,7 @@ export function EntityReferenceSelect({
   allowedLotCategories?: readonly string[]
   productLabel?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { session } = useAuth()
   const token = session.accessToken || ''
   const viewerKey = session.currentUser?.id ?? 'anonymous'
@@ -100,6 +109,11 @@ export function EntityReferenceSelect({
   const [createOpen, setCreateOpen] = useState(false)
   const [createDirty, setCreateDirty] = useState(false)
   const config = entityConfigs[kind]
+  const productLabels = {
+    supplier: t('experimentsV2.reference.productSupplier'),
+    catalogNumber: t('experimentsV2.reference.productCatalogNumber'),
+    lotNumber: t('experimentsV2.reference.productLotNumber'),
+  }
   const entityName = t(`entityLibrary.${config.i18nKey}.name`)
   const queryKey = ['v2-entity', kind]
   const { data, isLoading, isError, refetch } = useQuery({
@@ -188,6 +202,8 @@ export function EntityReferenceSelect({
                     selectedSnapshot,
                     selectedVersion,
                     productLabel,
+                    i18n.language,
+                    productLabels,
                   )}
                 </SelectItem>
               ) : null}
@@ -203,6 +219,8 @@ export function EntityReferenceSelect({
                       ? selectedVersion
                       : entity.latest_version?.version,
                     productLabel,
+                    i18n.language,
+                    productLabels,
                   )}
                 </SelectItem>
               ))}

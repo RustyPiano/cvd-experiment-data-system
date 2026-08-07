@@ -382,26 +382,6 @@ class V2EntityService:
 
     def _validate_normalized_children(self, kind: str, data: dict[str, Any]) -> None:
         if kind == "material_lot":
-            synonyms = data.get("substance_synonyms") or []
-            if len(synonyms) != len(set(synonyms)):
-                self._raise_invalid("substance_synonyms", "duplicate")
-            identifiers = data.get("identifiers") or []
-            if any(
-                set(item) != {"type", "value"}
-                or not all(isinstance(value, str) and value.strip() for value in item.values())
-                for item in identifiers
-            ):
-                self._raise_invalid("identifiers", "value")
-            d50_fields = (
-                data.get("particle_size_d50_um"),
-                data.get("particle_size_d50_method"),
-                data.get("particle_size_d50_basis"),
-                data.get("particle_size_d50_source"),
-            )
-            if any(value is not None for value in d50_fields) and not all(
-                value is not None for value in d50_fields
-            ):
-                self._raise_invalid("particle_size_d50_um", "provenance")
             layers = data.get("substrate_stack_layers") or []
             if layers and not data.get("substrate_top_surface"):
                 self._raise_invalid("substrate_top_surface", "required")
@@ -478,8 +458,6 @@ class V2EntityService:
             substance = Substance(
                 canonical_name=name,
                 chemical_formula=formula,
-                synonyms=data.get("substance_synonyms") or [],
-                identifiers=data.get("identifiers") or [],
             )
             self.db.add(substance)
             self.db.flush()
@@ -510,7 +488,6 @@ class V2EntityService:
                 supplier=supplier,
                 catalog_number=catalog_number,
                 declared_grade=data.get("declared_grade"),
-                specification_json=data.get("product_specification") or {},
             )
             self.db.add(product)
             self.db.flush()

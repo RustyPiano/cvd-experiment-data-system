@@ -12,10 +12,300 @@ from app.models.scientific import (
     SampleRevisionAssociation,
     SampleRevisionState,
     SourceLoad,
+    TargetMaterialRegion,
+    TargetSpec,
 )
-from tests.helpers.v2_payloads import setup_payload, substrate_item, substrate_lot_payload
+from app.schemas.scientific import (
+    ProcessTimelinePayload,
+    SourceLoadsPayload,
+    TargetSpecPayload,
+)
+from tests.helpers.v2_payloads import (
+    gas_lot_payload,
+    setup_payload,
+    substrate_item,
+    substrate_lot_payload,
+)
 
 client = TestClient(app)
+
+
+def test_process_timeline_does_not_require_a_declared_reaction_phase() -> None:
+    payload = {
+        "segments": [
+            {
+                "segment_key": "system_preparation",
+                "segment_type": "system_preparation",
+                "sequence": 1,
+                "start_s": 0,
+                "end_s": 300,
+            },
+            {
+                "segment_key": "pre_reaction",
+                "segment_type": "pre_reaction",
+                "sequence": 2,
+                "start_s": 300,
+                "end_s": 600,
+            },
+            {
+                "segment_key": "reaction",
+                "segment_type": "reaction",
+                "sequence": 3,
+                "start_s": 600,
+                "end_s": 1200,
+            },
+            {
+                "segment_key": "post_reaction",
+                "segment_type": "post_reaction",
+                "sequence": 4,
+                "start_s": 1200,
+                "end_s": 1500,
+            },
+        ],
+        "channels": [
+            {
+                "channel_key": "channel_11111111_1111_4111_8111_111111111111",
+                "channel_type": "temperature",
+                "source_type": "setpoint",
+                "subject_type": "temperature_zone",
+                "subject_ref": "zone_1",
+                "subject_instance_ref": "setup:one:zone:1",
+                "zone_index": 1,
+                "unit": "°C",
+                "data_kind": "interval_series",
+                "series": [{"start_s": 0, "value": 25}, {"start_s": 600, "value": 750}],
+            },
+            {
+                "channel_key": "channel_22222222_2222_4222_8222_222222222222",
+                "channel_type": "flow",
+                "source_type": "setpoint",
+                "subject_type": "gas_species",
+                "subject_ref": "Ar",
+                "subject_instance_ref": "setup:one:gas:Ar:1",
+                "gas_species_code": "Ar",
+                "gas_lot_id": "11111111-1111-4111-8111-111111111111",
+                "gas_lot_version": 1,
+                "measurement_source": "mfc",
+                "unit": "sccm",
+                "data_kind": "interval_series",
+                "series": [
+                    {
+                        "start_s": 0,
+                        "end_s": 1500,
+                        "value": 100,
+                        "timing_preset": "whole_process",
+                    }
+                ],
+            },
+        ],
+        "pressure_regime": "atmospheric",
+        "cooling_method": "furnace_cooling",
+        "preparation_operations": [{"operation_type": "pump_down", "duration_min": 5}],
+    }
+
+    validated = ProcessTimelinePayload.model_validate(payload)
+    assert validated.segments[2].segment_type == "reaction"
+    assert validated.channels[1].series
+    assert validated.channels[1].series[0].timing_preset == "whole_process"
+
+    payload["segments"] = []
+    assert ProcessTimelinePayload.model_validate(payload).segments == []
+
+
+def test_target_phase_catalog_accepts_known_and_custom_phases() -> None:
+    base = {
+        "architecture_type": "single_region",
+        "material_regions": [
+            {
+                "region_key": "film",
+                "formula": "MoS2",
+                "spatial_role": "single_region",
+                "target_bulk_phase": "3R",
+                "target_bulk_space_group_number": 160,
+            }
+        ],
+        "composition_relations": [],
+    }
+    assert (
+        TargetSpecPayload.model_validate(base).material_regions[0].target_bulk_space_group_number
+        == 160
+    )
+    custom = {
+        **base,
+        "material_regions": [
+            {
+                **base["material_regions"][0],
+                "target_bulk_phase": "2Ha",
+                "target_bulk_space_group_number": None,
+            }
+        ],
+    }
+    assert TargetSpecPayload.model_validate(custom).material_regions[0].target_bulk_phase == "2Ha"
+    invalid = {
+        **base,
+        "material_regions": [
+            {
+                **base["material_regions"][0],
+                "target_bulk_phase": "2H",
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="catalog phase and space group"):
+        TargetSpecPayload.model_validate(invalid)
+
+
+def test_source_position_uses_selected_zone_thermocouple() -> None:
+    payload = {
+        "items": [
+            {
+                "load_key": "sulfur_source",
+                "loading_method": "boat",
+                "heating_zone_ref": "zone_1",
+                "initial_position": {
+                    "axial_mm": -20,
+                    "reference": "zone_thermocouple",
+                },
+                "ingredients": [
+                    {
+                        "material_lot_id": "11111111-1111-4111-8111-111111111111",
+                        "material_lot_version": 1,
+                        "function_role": "chalcogen_source",
+                    }
+                ],
+            }
+        ]
+    }
+
+    validated = SourceLoadsPayload.model_validate(payload)
+    assert validated.items[0].initial_position
+    assert validated.items[0].initial_position.reference == "zone_thermocouple"
+    assert validated.items[0].initial_position.axial_mm == -20
+
+    del payload["items"][0]["heating_zone_ref"]
+    with pytest.raises(ValueError, match="heating_zone_ref"):
+        SourceLoadsPayload.model_validate(payload)
+
+    payload["items"][0]["initial_position"]["reference"] = "setup_origin"
+    legacy = SourceLoadsPayload.model_validate(payload)
+    assert legacy.items[0].initial_position
+    assert legacy.items[0].initial_position.reference == "setup_origin"
+
+
+def test_source_preparation_parameters_are_typed_and_atmosphere_is_canonical() -> None:
+    def payload(step: dict[str, object]) -> dict[str, object]:
+        return {
+            "items": [
+                {
+                    "load_key": "sulfur_source",
+                    "loading_method": "substrate_surface",
+                    "preparation_steps": [step],
+                    "ingredients": [
+                        {
+                            "material_lot_id": "11111111-1111-4111-8111-111111111111",
+                            "material_lot_version": 1,
+                            "function_role": "chalcogen_source",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    anneal = SourceLoadsPayload.model_validate(
+        payload(
+            {
+                "step_type": "pre_anneal",
+                "sequence": 1,
+                "parameters": {
+                    "temperature_C": 500,
+                    "duration_min": 20,
+                    "atmosphere": "氩气",
+                },
+            }
+        )
+    ).model_dump(exclude_none=True)
+    assert anneal["items"][0]["preparation_steps"][0]["parameters"] == {
+        "temperature_C": 500.0,
+        "duration_min": 20.0,
+        "atmosphere": "Ar",
+    }
+
+    custom = SourceLoadsPayload.model_validate(
+        payload(
+            {
+                "step_type": "pre_anneal",
+                "sequence": 1,
+                "parameters": {
+                    "temperature_C": 500,
+                    "duration_min": 20,
+                    "atmosphere": "forming gas",
+                },
+            }
+        )
+    ).model_dump(exclude_none=True)
+    assert custom["items"][0]["preparation_steps"][0]["parameters"] == {
+        "temperature_C": 500.0,
+        "duration_min": 20.0,
+        "atmosphere": "other",
+        "atmosphere_other": "forming gas",
+    }
+
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        SourceLoadsPayload.model_validate(
+            payload(
+                {
+                    "step_type": "direct_load",
+                    "sequence": 1,
+                    "parameters": {"unexpected": "value"},
+                }
+            )
+        )
+
+    with pytest.raises(ValueError, match="pressure_MPa"):
+        SourceLoadsPayload.model_validate(
+            payload(
+                {
+                    "step_type": "pelletize",
+                    "sequence": 1,
+                    "parameters": {"duration_s": 30},
+                }
+            )
+        )
+
+
+def test_solid_solution_components_generate_and_validate_target_formula() -> None:
+    target = {
+        "architecture_type": "single_region",
+        "material_regions": [
+            {
+                "region_key": "film",
+                "formula": "Mo0.5W0.5S2",
+                "spatial_role": "single_region",
+                "target_bulk_phase": "2H",
+                "target_bulk_space_group_number": 194,
+            }
+        ],
+        "composition_relations": [
+            {
+                "relation_type": "solid_solution_component",
+                "host_region_key": "film",
+                "species": formula,
+                "nominal_value": 0.5,
+                "value_basis": "mol_fraction",
+            }
+            for formula in ("MoS2", "WS2")
+        ],
+    }
+    assert TargetSpecPayload.model_validate(target).material_regions[0].formula == "Mo0.5W0.5S2"
+
+    invalid = {
+        **target,
+        "composition_relations": [
+            {**target["composition_relations"][0], "nominal_value": 0.6},
+            target["composition_relations"][1],
+        ],
+    }
+    with pytest.raises(ValueError, match="invalid solid-solution components"):
+        TargetSpecPayload.model_validate(invalid)
 
 
 def _headers(email: str) -> dict[str, str]:
@@ -153,13 +443,18 @@ def test_scientific_revision_measurement_and_query_chain(
             "cas_number": "1313-27-5",
             "batch_number": "MO-V4-01",
             "purity": 99.99,
-            "purity_basis": "mass_fraction",
-            "purity_source": "supplier_declared",
         },
         headers=admin_headers,
     )
     assert source_response.status_code == 201, source_response.text
     source_lot = source_response.json()
+    gas_response = client.post(
+        "/api/v1/material-lots",
+        json=gas_lot_payload(batch_number="AR-V4-01"),
+        headers=admin_headers,
+    )
+    assert gas_response.status_code == 201, gas_response.text
+    gas_lot = gas_response.json()
     container_response = client.post(
         "/api/v1/container-instances",
         json={
@@ -196,6 +491,8 @@ def test_scientific_revision_measurement_and_query_chain(
                     "formula": "MoS2",
                     "spatial_role": "single_region",
                     "target_layer_count": 1,
+                    "target_bulk_phase": "2H",
+                    "target_bulk_space_group_number": 194,
                 }
             ],
             "composition_relations": [],
@@ -341,18 +638,36 @@ def test_scientific_revision_measurement_and_query_chain(
                     "file_asset_id": pressure_upload.json()["id"],
                 },
                 {
+                    "channel_key": "channel_55555555_5555_4555_8555_555555555555",
+                    "channel_type": "pressure",
+                    "subject_type": "pressure_location",
+                    "subject_ref": "reactor",
+                    "subject_instance_ref": "pressure_setpoint_reactor",
+                    "pressure_location": "reactor",
+                    "pressure_type": "absolute",
+                    "source_type": "setpoint",
+                    "unit": "Torr",
+                    "data_kind": "scalar",
+                    "scalar_value": 1,
+                },
+                {
                     "channel_key": "channel_44444444_4444_4444_8444_444444444444",
                     "channel_type": "flow",
                     "subject_type": "gas_species",
                     "subject_ref": "氩气",
                     "subject_instance_ref": "mfc_ar_1",
                     "gas_species_code": "氩气",
+                    "gas_lot_id": gas_lot["id"],
+                    "gas_lot_version": 1,
+                    "measurement_source": "mfc",
                     "source_type": "setpoint",
                     "unit": "sccm",
                     "data_kind": "scalar",
                     "scalar_value": 100,
                 },
             ],
+            "pressure_regime": "low_pressure",
+            "cooling_method": "furnace_cooling",
         },
     )
     db_session.expire_all()
@@ -619,6 +934,25 @@ def test_scientific_revision_measurement_and_query_chain(
     assert export_json["citation_status"] == "CITABLE"
     assert export_json["run"]["revision_id"] == revision_1
     assert export_json["modules"]["target_product"]["material_regions"][0]["formula"] == "MoS2"
+    assert (
+        export_json["modules"]["target_product"]["material_regions"][0][
+            "target_bulk_space_group_number"
+        ]
+        == 194
+    )
+    projected_target = (
+        db_session.query(TargetSpec).filter_by(run_revision_id=UUID(revision_1)).one()
+    )
+    projected_region = (
+        db_session.query(TargetMaterialRegion).filter_by(target_spec_id=projected_target.id).one()
+    )
+    assert (
+        projected_region.target_bulk_phase,
+        projected_region.target_bulk_space_group_number,
+    ) == (
+        "2H",
+        194,
+    )
     assert export_json["modules"]["basic_info"]["ambient_temperature"]["source_type"] == (
         "room_sensor"
     )
@@ -836,8 +1170,6 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
             "cas_number": "1313-27-5",
             "batch_number": "DEMO-MOO3",
             "purity": 99.9,
-            "purity_basis": "mass_fraction",
-            "purity_source": "supplier_declared",
         },
         headers=admin_headers,
     )
@@ -848,6 +1180,12 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
         headers=admin_headers,
     )
     assert substrate.status_code == 201, substrate.text
+    gas = client.post(
+        "/api/v1/material-lots",
+        json=gas_lot_payload(batch_number="DEMO-AR"),
+        headers=admin_headers,
+    )
+    assert gas.status_code == 201, gas.text
 
     single = {
         "architecture_type": "single_region",
@@ -856,6 +1194,8 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
                 "region_key": "film",
                 "formula": "MoS2",
                 "spatial_role": "single_region",
+                "target_bulk_phase": "2H",
+                "target_bulk_space_group_number": 194,
             }
         ],
         "composition_relations": [],
@@ -873,6 +1213,7 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
                         "species": "Pt",
                         "nominal_value": 1,
                         "value_basis": "at_percent",
+                        "site_or_location": "Mo_site",
                     }
                 ],
             },
@@ -882,15 +1223,27 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
             "G3",
             {
                 **single,
+                "material_regions": [
+                    {
+                        **single["material_regions"][0],
+                        "formula": "Mo0.5W0.5S2",
+                    }
+                ],
                 "composition_relations": [
                     {
-                        "relation_type": "substitutional_alloy",
+                        "relation_type": "solid_solution_component",
                         "host_region_key": "film",
-                        "species": "W",
+                        "species": "MoS2",
                         "nominal_value": 0.5,
-                        "value_basis": "site_fraction",
-                        "site_or_location": "Mo site",
-                    }
+                        "value_basis": "mol_fraction",
+                    },
+                    {
+                        "relation_type": "solid_solution_component",
+                        "host_region_key": "film",
+                        "species": "WS2",
+                        "nominal_value": 0.5,
+                        "value_basis": "mol_fraction",
+                    },
                 ],
             },
             "growth_present",
@@ -905,12 +1258,16 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
                         "formula": "MoS2",
                         "spatial_role": "layer",
                         "layer_index": 1,
+                        "target_bulk_phase": "2H",
+                        "target_bulk_space_group_number": 194,
                     },
                     {
                         "region_key": "layer_2",
                         "formula": "WS2",
                         "spatial_role": "layer",
                         "layer_index": 2,
+                        "target_bulk_phase": "2H",
+                        "target_bulk_space_group_number": 194,
                     },
                 ],
                 "composition_relations": [],
@@ -1019,10 +1376,27 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
                         "unit": "°C",
                         "data_kind": "interval_series",
                         "series": [{"start_s": 0, "value": 750}],
-                    }
+                    },
+                    {
+                        "channel_key": (
+                            f"channel_1000000{index}_0000_4000_8000_00000000000{index}"
+                        ),
+                        "channel_type": "flow",
+                        "source_type": "setpoint",
+                        "subject_type": "gas_species",
+                        "subject_ref": "Ar",
+                        "subject_instance_ref": (f"setup:{setup.json()['id']}:gas:Ar:1"),
+                        "gas_species_code": "Ar",
+                        "gas_lot_id": gas.json()["id"],
+                        "gas_lot_version": 1,
+                        "measurement_source": "mfc",
+                        "unit": "sccm",
+                        "data_kind": "interval_series",
+                        "series": [{"start_s": 0, "end_s": 3600, "value": 100}],
+                    },
                 ],
                 "pressure_regime": "atmospheric",
-                "cooling_method": "natural",
+                "cooling_method": "furnace_cooling",
             },
         )
         locked = client.post(

@@ -5,12 +5,12 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.2
+  version: v4.0-alpha.15
   status: INTERNAL_VALIDATION
-  updated: '2026-07-29'
+  updated: '2026-08-07'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
-  keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA/D50）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
+  keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
   i18n: 国际化（D12）：字段 label/placeholder/help 与可选词表均提供中英文展示；受控词表提交和存储稳定 ASCII 机器码，中文与英文仅用于显示；自由文本允许任意语言；xlsx 人读视图保持中文。
 scientific_contract:
   lifecycle: draft → release_candidate → released → deprecated
@@ -63,6 +63,31 @@ scientific_contract:
     - spin_coat
     - pre_anneal
     - other
+    preparation_step_parameters:
+      direct_load: {}
+      grind:
+        duration_min: {type: number, required: false, unit: min, gt: 0}
+      mix:
+        items: {type: named_parameter_list, required: false}
+      pelletize:
+        pressure_MPa: {type: number, required: true, unit: MPa, gt: 0}
+        duration_s: {type: number, required: false, unit: s, gt: 0}
+        die_diameter_mm: {type: number, required: false, unit: mm, gt: 0}
+      spin_coat:
+        speed_rpm: {type: number, required: true, unit: rpm, gt: 0}
+        duration_s: {type: number, required: true, unit: s, gt: 0}
+      pre_anneal:
+        temperature_C: {type: number, required: true, unit: °C, gt: -273.15}
+        duration_min: {type: number, required: true, unit: min, gt: 0}
+        atmosphere:
+          type: controlled_or_other
+          required: false
+          options: [air, vacuum, gas_species, other]
+          other_name_key: atmosphere_other
+      other:
+        other_name: {type: text, required: true}
+        items: {type: named_parameter_list, required: true}
+    parameter_template_status: internal_validation; pelletize and other minimum templates remain pending real-run trial confirmation
     owns:
     - container_instance
     - container_snapshot_at_lock
@@ -71,6 +96,28 @@ scientific_contract:
     - heating_zone_ref
   process_timeline:
     time_origin: basic_info.started_at
+    entry_model:
+      phase_order: [system_preparation, temperature_program, gas_program, cooling]
+      user_enters: actual_operations_and_durations
+      system_derives: channel_absolute_times
+      manual_absolute_time: custom_gas_interval_only
+    segment_types:
+      canonical: []
+      legacy_read_only: [system_preparation, pre_reaction, reaction, post_reaction, cooling, other, purge, ramp, nucleation, growth, anneal, transfer]
+    preparation_operations:
+      optional: true
+      types: [pump_down, gas_exchange, leak_check, other]
+      required_fields: [operation_type, duration_min]
+      conditional_fields:
+        gas_exchange: [gases, cycle_count]
+        other: [other_name]
+    temperature_program:
+      entry: initial_setpoint_then_step_duration_and_target_setpoint
+      per_zone: true
+      absolute_times: derived
+    gas_timing_presets:
+    - whole_process
+    - custom
     channel_identity: channel_type + subject_instance_ref + source_type
     timeseries_file:
       required_columns: [time_s, value]
@@ -529,6 +576,7 @@ option_labels_en:
   Au箔: Au foil
   正放: Face up
   倒扣: Face down
+  两片生长面相对: Growth faces opposed
   倾角: Tilted
   竖放: Vertical
   清洗: Clean
@@ -548,6 +596,7 @@ option_labels_en:
   随炉冷却: Furnace cooling
   开盖冷却: Open-lid cooling
   移炉快速冷却: Rapid cooling by moving furnace
+  受控降温: Controlled cooling
   常压(APCVD): Atmospheric pressure (APCVD)
   低压(LPCVD): Low pressure (LPCVD)
   超高真空: Ultra-high vacuum
@@ -617,16 +666,6 @@ option_labels_en:
   商业设备: Commercial equipment
   实验室自制: Lab-built
   改造设备: Modified equipment
-  质量分数: Mass fraction
-  原子分数: Atomic fraction
-  体积分数: Volume fraction
-  供应商声明: Supplier declaration
-  CoA实测: CoA measurement
-  激光衍射: Laser diffraction
-  筛分: Sieving
-  图像分析: Image analysis
-  数目基准: Number basis
-  质量基准: Mass basis
 option_codes:
   盐辅助CVD: salt_assisted_cvd
   PVD-磁控溅射: pvd_magnetron_sputtering
@@ -693,6 +732,7 @@ option_codes:
   Au箔: au_foil
   正放: face_up
   倒扣: face_down
+  两片生长面相对: face_to_face
   倾角: tilted
   竖放: upright
   清洗: clean
@@ -712,6 +752,7 @@ option_codes:
   随炉冷却: furnace_cooling
   开盖冷却: open_lid_cooling
   移炉快速冷却: rapid_furnace_move_cooling
+  受控降温: controlled_cooling
   常压(APCVD): atmospheric_pressure
   常压: atmospheric_pressure
   低压(LPCVD): low_pressure
@@ -790,16 +831,6 @@ option_codes:
   商业设备: commercial
   实验室自制: lab_built
   改造设备: modified
-  质量分数: mass_fraction
-  原子分数: atomic_fraction
-  体积分数: volume_fraction
-  供应商声明: supplier_declared
-  CoA实测: coa_measured
-  激光衍射: laser_diffraction
-  筛分: sieving
-  图像分析: image_analysis
-  数目基准: number_basis
-  质量基准: mass_basis
 field_option_codes:
   field_devices:
     等离子: plasma
@@ -842,7 +873,7 @@ unit_labels_en:
   按参数: per parameter
   按指标: per metric
 stage_types:
-  note: §5 动态表单的权威映射：仅保留预处理、反应条件和具名其他记录。Pydantic 判别联合与前端显隐均从这里生成，未知阶段必须拒绝，禁止静默丢弃。
+  note: 旧过程步编辑器的兼容映射；当前新建表单以 scientific_contract.process_timeline 的操作与持续时间模型为准。历史类型继续可读，禁止静默丢弃。
   groups:
     common: 所有记录共用（记录类型）
     preparation: 预处理操作（抽气、气路置换）
@@ -1672,8 +1703,6 @@ experiment_record:
       example: Al₂O₃
       source: 2026-07-24导师走查
       note: 与晶向和偏转角分开保存；允许常见圆括号与结晶水点号
-      help: 使用普通数字填写；支持常见圆括号与结晶水点号（·）。
-      help_en: Use regular digits; common parentheses and the hydrate dot (·) are supported.
       r0: true
     - module: 衬底
       label: 取向与抛光信息（来自批次）
@@ -1684,14 +1713,13 @@ experiment_record:
       options: 有规格数值·供应商未提供·不适用
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 未发布
+        level: none
       example: 有规格数值
       source: 2026-07-25用户复核
       note: Cu/Au箔等不适用时明确选择不适用；未知不得用虚构晶向代替
       help: 这是物料批次中的供应商规格状态；本次实验只读带出。
       help_en: This status comes from the material-lot specification and is read-only in the run.
-      r0: true
     - module: 衬底
       label: 晶面取向与抛光（来自批次）
       label_en: Crystal orientation
@@ -1703,12 +1731,8 @@ experiment_record:
       options: 例如 (100)、c面、a面
       unit: —
       requirement:
-        raw: 条件必填(批次有规格数值)
-        level: conditional_required
-        condition:
-          field: 衬底.取向与抛光信息（来自批次）
-          op: eq
-          value: 有规格数值
+        raw: 选填（批次有明确规格时只读带出）
+        level: optional
       example: c面；单面抛
       source: 2026-07-24导师走查
       note: 不与化学式或偏转角合并
@@ -1721,8 +1745,8 @@ experiment_record:
       options: 有规格数值·供应商未提供·不适用
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 未发布
+        level: none
       example: 供应商未提供
       source: 2026-07-25用户复核
       note: 只有明确有规格数值时才填写角度；0表示已报告无偏切，不表示未知
@@ -1742,8 +1766,8 @@ experiment_record:
         ge: 0
         lt: 90
       requirement:
-        raw: 条件必填(批次有规格数值)
-        level: conditional_required
+        raw: 未发布
+        level: none
         condition:
           field: 衬底.偏切信息（来自批次）
           op: eq
@@ -1764,8 +1788,8 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 条件必填(偏切角>0)
-        level: optional
+        raw: 未发布
+        level: none
         condition:
           field: 衬底.偏切信息（来自批次）
           op: eq
@@ -1806,30 +1830,29 @@ experiment_record:
       options: '{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}'
       unit: nm
       requirement:
-        raw: 必填
-        level: required
+        raw: 未发布
+        level: none
       example: '{availability: reported, metric: RMS, value_nm: 0.5}'
       source: 2026-07-24导师走查
       note: reported时value_nm必须大于等于0且Ra/RMS不可省略；not_provided不得伪填数值；历史无availability对象按reported兼容；引用批次后只读
       help: 选择“有规格数值”并填批次 Ra/RMS；供应商没给就选“供应商未提供”。本片 AFM 实测值填在表征结果。
       help_en: Choose “Specification reported” and enter the lot Ra/RMS, or “Supplier did not provide”. Record AFM measurements as characterization results.
-      r0: true
     - module: 衬底
       label: 本片实际尺寸与放置方式
       label_en: Actual piece size and placement
       key: size_placement
-      meaning: 本次实验实际放入炉内的这一片衬底尺寸、放置方式及条件角度；批次来料规格另存于MaterialLot
+      meaning: 本次实验实际放入炉内的这一片衬底尺寸、放置方式及条件角度；长度为沿气流方向的边长，宽度为垂直气流方向的边长
       input: 衬底尺寸放置对象
-      options: '{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|倾角|竖放|其他, tilt_angle_deg?, placement_other?}'
+      options: '{length_mm, width_mm, thickness_mm?, placement: 正放|倒扣|两片生长面相对|倾角|竖放|其他, tilt_angle_deg?, placement_other?}'
       unit: mm
       requirement:
         raw: 必填
         level: required
       example: '{length_mm: 10, width_mm: 10, thickness_mm: 0.5, placement: 倾角, tilt_angle_deg: 15}'
       source: 2026-07-24导师走查
-      note: 每片可能经过切割，故不得用批次来料尺寸替代；placement=倾角时tilt_angle_deg条件必填；placement=其他时placement_other条件必填
-      help: 填这次真正放进炉内的单片尺寸和摆放方式；整片晶圆或来料标称尺寸填在物料批次。
-      help_en: Enter the dimensions and placement of the actual piece loaded for this run; record wafer or supplied-lot dimensions in the material lot.
+      note: 每片可能经过切割，故不得用批次来料尺寸替代；placement=倾角时tilt_angle_deg条件必填且相对水平放置平面大于0°、小于90°；placement=其他时placement_other条件必填
+      help: 填本次实际放入炉内的单片尺寸和放置方式；长度沿气流方向、宽度垂直气流方向，未对齐时在备注说明；倾角相对水平放置平面。
+      help_en: Enter the actual piece dimensions and placement for this run. Length follows the gas-flow direction and width is perpendicular; note any misalignment. Measure tilt from the horizontal support plane.
       r0: true
     - module: 衬底
       label: 预处理（有序步骤）
@@ -1884,8 +1907,8 @@ experiment_record:
       options: '{zone_index, distance_mm}'
       unit: mm
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 必填
+        level: required
       example: 温区2，+15
       source: 会议
       note: 上游为负、下游为正
@@ -1900,11 +1923,11 @@ experiment_record:
       options: —
       unit: mm
       requirement:
-        raw: 必填
-        level: required
+        raw: 未发布
+        level: none
       example: '120'
       source: 2026-07-30产品简化
-      note: 普通用户只填写装置轴向位置；不暴露三维坐标
+      note: 仅兼容旧记录；新记录统一填写所在温区与热电偶距离，不再使用未定义物理原点的全局轴向位置
     - module: 衬底
       label: 备注
       label_en: Notes
@@ -2010,11 +2033,11 @@ experiment_record:
           value: 反应条件
       example: '[{species: Ar, lot_ref: Ar-B01, intervals: [{start_min: 0, end_min: 30, flow_sccm: 80}, {start_min: 45, end_min: 50, flow_sccm: 80}]}]'
       source: 2026-07-24导师走查
-      note: purity从lot_ref.snapshot带出；区间end_min必须大于start_min；同时间段体积流量占比由各气体流量派生
+      note: lot_ref与measurement_source必填，purity从lot_ref.snapshot带出；end_min必须大于start_min且flow_sccm>0；同一气体的区间不得重叠；同时间段体积流量占比由各气体流量派生
       r0: true
     - module: 步·压力
-      label: 压力体系与工作绝对压力
-      label_en: Pressure regime and working absolute pressure
+      label: 反应压力条件与工作绝对压力
+      label_en: Reaction pressure conditions and working absolute pressure
       key: pressure_system
       group: reaction
       meaning: 常压、低压或超高真空类别及工作绝对压力
@@ -2023,7 +2046,10 @@ experiment_record:
       unit: Pa
       validation:
         gt: 0
-        require_value: true
+        require_value: false
+        require_value_options:
+        - low_pressure
+        - ultra_high_vacuum
         require_option: true
         option_ranges:
           atmospheric_pressure:
@@ -2042,9 +2068,9 @@ experiment_record:
           field: 过程步.记录类型
           op: eq
           value: 反应条件
-      example: 常压；1.01325×10⁵ Pa
+      example: 常压；或低压 500 Pa
       source: 2026-07-24导师走查
-      note: 填绝对压力，不填相对大气压的表压
+      note: 常压可只记录反应压力条件；低压与超高真空必须填写绝对压力，不填相对大气压的表压
       help: 填写相对于绝对真空的工作压力；不要填写相对于大气压的表压
       help_en: Enter working pressure relative to absolute vacuum, not gauge pressure relative to atmosphere
       r0: true
@@ -2075,14 +2101,18 @@ experiment_record:
       group: reaction
       meaning: 降温方式以及适用的开盖温度、降温速率
       input: 降温参数对象
-      options: '{method: 随炉冷却|开盖冷却|移炉快速冷却|其他, lid_open_temperature_C?, cooling_rate_C_per_min?, method_other?}'
+      options: '{method: 随炉冷却|开盖冷却|移炉快速冷却|受控降温|其他, lid_open_temperature_C?, cooling_rate_C_per_min?, method_other?}'
       unit: ℃·℃/min
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 条件必填(反应条件记录)
+        level: conditional_required
+        condition:
+          field: 过程步.记录类型
+          op: eq
+          value: 反应条件
       example: '{method: 开盖冷却, lid_open_temperature_C: 580, cooling_rate_C_per_min: 20}'
       source: 2026-07-24导师走查
-      note: method=开盖冷却时开盖温度必填；method=其他时method_other必填
+      note: method=开盖冷却时开盖温度必填；method=受控降温时降温速率必填；method=其他时method_other必填
     - module: 步·外场
       label: 实际外场程序
       label_en: Applied external-field program
@@ -2097,7 +2127,7 @@ experiment_record:
         level: optional
       example: '[{field_type: 等离子体, start_min: 10, end_min: 40, parameters: [{name: power_W, value: 50, unit: W}, {name: gas_species, value: Ar, unit: —}, {name: pressure_Pa, value: 50, unit: Pa}]}]'
       source: 2026-07-24导师走查
-      note: field_type必须属于Setup能力；界面按类型显示明确字段，其他参数仍使用具名值和单位
+      note: 未添加表示本炉未使用外场；添加后field_type必须属于Setup能力，并填写时间区间及对应类型的必要参数
     - module: 过程步
       label: 其他记录名称
       label_en: Other record name
@@ -2536,7 +2566,7 @@ entities:
   sections:
   - title: ※ 本表定义『实验只引用、不重复录入』的一等实体；『必填(登记)』指登记该实体时必填，与实验记录的 R0 不同。实验引用时对当时版本快照冻结。
     fields: []
-  - title: 实体① 物料批次库 MaterialLot（统一维护前驱体、衬底与气瓶批次；实验中只引用批次，纯度和粒径自动带出并锁版）
+  - title: 实体① 物料批次库 MaterialLot（统一维护前驱体、衬底与气瓶批次；实验中只引用批次并冻结所引用版本）
     fields:
     - module: MaterialLot
       label: 批次类别
@@ -2567,8 +2597,8 @@ entities:
       source: ★锁版使能(Fable三轮B2)
       note: 改则新版本，旧引用不受影响
     - module: MaterialLot
-      label: 物料名称（按标签）
-      label_en: Substance name
+      label: 物料名称
+      label_en: Material name
       key: substance_name
       meaning: 物料标签或CoA上的名称，允许中文或英文；与化学式、CAS号分别记录
       input: 文本
@@ -2579,9 +2609,9 @@ entities:
         level: required
       example: 三氧化钼
       source: review§4.1A
-      note: 按标签记录，不要求用户自行翻译；不用化学式代替名称
-      help: 按物料标签或CoA填写，例如“三氧化钼”或“Molybdenum trioxide”。
-      help_en: Enter the name shown on the material label or CoA, in Chinese or English.
+      note: 按标签记录，不要求用户自行翻译；不用化学式代替名称；已知类型的衬底由系统根据“衬底材料”生成
+      placeholder: 按包装标签原文填写
+      placeholder_en: Enter the name shown on the package label
     - module: MaterialLot
       label: 化学式
       label_en: Chemical formula
@@ -2593,57 +2623,31 @@ entities:
       requirement:
         raw: 必填
         level: required
-      example: MoO₃
-      source: review
-      note: ''
+      example: MoO3
+      source: 2026-08-06用户界面复核
+      note: 复用目标产物的化学式输入与即时校验；已知类型的衬底由系统生成生长表面化学式，仅云母或其他衬底需人工填写
+      placeholder: 例如 MoO3
+      placeholder_en: e.g. MoO3
     - module: MaterialLot
-      label: CAS号
+      label: CAS 号
       label_en: CAS number
       key: cas_number
-      meaning: 唯一化学标识
+      meaning: 标签或CoA明确提供时抄录的CAS登记号
       input: 文本
       options: CAS
       unit: —
       requirement:
-        raw: 条件必填(化学品或气瓶)
-        level: conditional_required
+        raw: 选填
+        level: optional
         condition:
           field: MaterialLot.批次类别
-          op: in
-          value:
-          - 化学品
-          - 气瓶
+          op: ne
+          value: 衬底
       example: 1313-27-5
-      source: review
-      note: ''
-    - module: MaterialLot
-      label: 物质同义名
-      label_en: Substance synonyms
-      key: substance_synonyms
-      meaning: 用于检索的稳定同义名，不替代标签名称
-      input: 文本数组
-      options: JSON字符串数组
-      unit: —
-      requirement:
-        raw: 选填
-        level: optional
-      example: '["Molybdenum trioxide"]'
-      source: 2026-07-28深度审查
-      note: 归一化到Substance实体
-    - module: MaterialLot
-      label: 物质标识符
-      label_en: Substance identifiers
-      key: identifiers
-      meaning: CAS、InChIKey等标识符及其类型
-      input: JSON数组
-      options: '[{type,value}]'
-      unit: —
-      requirement:
-        raw: 选填
-        level: optional
-      example: '[{"type":"CAS","value":"1313-27-5"}]'
-      source: 2026-07-28深度审查
-      note: 归一化到Substance实体
+      source: 2026-08-02供应商标签/CoA公开资料复核
+      note: 自研、复配或供应商资料未提供时留空
+      placeholder: 例如 1313-27-5
+      placeholder_en: e.g. 1313-27-5
     - module: MaterialLot
       label: 供应商
       label_en: Supplier
@@ -2656,13 +2660,13 @@ entities:
         raw: 推荐
         level: recommended
       example: 阿拉丁
-      source: review
-      note: ''
+      source: 2026-08-06用户界面复核
+      note: 历史供应商可复用；新增时按包装标签原文填写名称
     - module: MaterialLot
-      label: 供应商货号
-      label_en: Supplier catalog number
+      label: 货号（Cat. No. / Product No.）
+      label_en: Catalog number (Cat. No. / Product No.)
       key: catalog_number
-      meaning: 商业批次：产品号
+      meaning: 供应商用于识别产品与规格的编号
       input: 文本
       options: —
       unit: —
@@ -2670,43 +2674,39 @@ entities:
         raw: 选填
         level: optional
       example: M112056
-      source: review
-      note: 供应商产品规格编号，标签上常写作 Cat. No.；同一货号可有多个生产批号
-      help: 供应商用于标识产品和规格的编号，标签上常写作 Cat. No.；它不是生产批号。
-      help_en: The supplier product/specification code, often labeled Cat. No.; it is not the production batch number.
+      source: 2026-08-06用户界面复核
+      note: 同一货号可对应多个批号
+      placeholder: 例如 M112056
+      placeholder_en: e.g. M112056
+      help: 用于识别产品和规格；按包装标签、产品页或 CoA 原文填写。同一货号可对应多个批号。
+      help_en: Identifies the product and specification. Copy it from the package label, product page, or CoA; one catalog number may have multiple lot numbers.
     - module: MaterialLot
-      label: 供应商等级
-      label_en: Supplier-declared grade
+      label: 产品等级（标签原文）
+      label_en: Product grade (as labeled)
       key: declared_grade
-      meaning: 供应商给出的产品等级或规格名称
+      meaning: 包装标签、产品页或CoA给出的产品等级原文
       input: 文本
       options: —
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: ACS reagent
-      source: 2026-07-28深度审查
-      note: 与实测纯度分开
+        condition:
+          field: MaterialLot.批次类别
+          op: ne
+          value: 衬底
+      example: 99.98% trace metals basis
+      source: 2026-08-02供应商标签/CoA公开资料复核
+      note: 按供应商资料原文记录；未提供时留空
+      placeholder: 例如 ACS reagent、分析纯、电子级或 5.0
+      placeholder_en: e.g. ACS reagent, analytical grade, electronic grade, or 5.0
+      help: 照录包装标签、产品页或 CoA 上的等级名称；未标注时留空。
+      help_en: Copy the grade shown on the package label, product page, or CoA; leave blank if none is stated.
     - module: MaterialLot
-      label: 商业产品规格
-      label_en: Commercial product specification
-      key: product_specification
-      meaning: 随货号稳定的商业产品规格
-      input: JSON对象
-      options: 具名规格键值
-      unit: —
-      requirement:
-        raw: 选填
-        level: optional
-      example: '{"mesh":"100"}'
-      source: 2026-07-28深度审查
-      note: 归一化到CommercialProduct实体
-    - module: MaterialLot
-      label: 生产批号
-      label_en: Production batch number
+      label: 批号（Lot No. / Batch No.）
+      label_en: Lot/Batch number
       key: batch_number
-      meaning: 商业批次：生产批号（同名不同批的区分键）
+      meaning: 识别当前这批实物的批次编号
       input: 文本
       options: —
       unit: —
@@ -2714,76 +2714,40 @@ entities:
         raw: 必填
         level: required
       example: B202405
-      source: review
-      note: GMP法定术语『批号』；标签上常写作 Lot No. 或 Batch No.
-      help: 用于区分同一供应商货号下的不同生产批次，标签上常写作 Lot No. 或 Batch No.。
-      help_en: Distinguishes production batches under the same catalog number; often labeled Lot No. or Batch No.
+      source: 2026-08-06用户界面复核
+      note: 同一货号下用于区分不同生产批次
+      placeholder: 例如 B202405
+      placeholder_en: e.g. B202405
+      help: 用于识别当前这批实物；填写包装标签或 CoA 中 Lot/Batch 后的编号。
+      help_en: Identifies this physical lot. Enter the number shown after Lot or Batch on the package label or CoA.
     - module: MaterialLot
       label: 纯度
       label_en: Purity
       key: purity
-      meaning: 仅存质量百分数；N值由质量百分数派生显示，不作为独立存储值
+      meaning: 标签或CoA明确给出的数值纯度百分比
       input: 数值
-      options: 质量百分数（N值仅派生显示）
+      options: 百分数
       unit: '%'
       validation:
         gt: 0
         le: 100
       requirement:
-        raw: 条件必填(化学品或气瓶)
-        level: conditional_required
+        raw: 选填
+        level: optional
         condition:
           field: MaterialLot.批次类别
-          op: in
-          value:
-          - 化学品
-          - 气瓶
-      example: 99.995（派生显示4N5）
-      source: review
-      note: 原始证书中的N值或其他纯度表述保留在CoA/附件说明中
+          op: ne
+          value: 衬底
+      example: '99.995'
+      source: 2026-08-02供应商标签/CoA公开资料复核
+      note: 未明确标示百分数时留空；等级原文记录于“产品等级（标签原文）”，原始依据由标签或CoA附件保留
+      placeholder: 例如 99.995
+      placeholder_en: e.g. 99.995
+      help: 仅填写标签或 CoA 明确标示的百分数；等级或 N 值不作换算。
+      help_en: Enter only an explicitly stated percentage from the label or CoA; do not convert grades or N-values.
     - module: MaterialLot
-      label: 纯度基准
-      label_en: Purity basis
-      key: purity_basis
-      meaning: 纯度数值所采用的组成基准
-      input: 下拉
-      options: 质量分数/原子分数/体积分数
-      unit: —
-      requirement:
-        raw: 条件必填(填写纯度时)
-        level: conditional_required
-        condition:
-          field: MaterialLot.批次类别
-          op: in
-          value:
-          - 化学品
-          - 气瓶
-      example: 质量分数
-      source: 2026-07-28深度审查
-      note: 禁止只存没有基准的百分数
-    - module: MaterialLot
-      label: 纯度来源
-      label_en: Purity source
-      key: purity_source
-      meaning: 纯度数值来自供应商声明还是CoA实测
-      input: 下拉
-      options: 供应商声明/CoA实测
-      unit: —
-      requirement:
-        raw: 条件必填(填写纯度时)
-        level: conditional_required
-        condition:
-          field: MaterialLot.批次类别
-          op: in
-          value:
-          - 化学品
-          - 气瓶
-      example: CoA实测
-      source: 2026-07-28深度审查
-      note: 来源文件仍由CoA附件保存
-    - module: MaterialLot
-      label: 形态与性状
-      label_en: Form and appearance
+      label: 物料形态
+      label_en: Material form
       key: form_appearance
       meaning: 试剂外观
       input: 下拉+其他
@@ -2794,79 +2758,11 @@ entities:
         level: optional
         condition:
           field: MaterialLot.批次类别
-          op: ne
-          value: 气瓶
+          op: eq
+          value: 化学品
       example: 粉末
       source: review
       note: 外观=性状；气瓶不使用粉末/箔/靶等物料形态
-    - module: MaterialLot
-      label: 粒径D50
-      label_en: Particle size D50
-      key: particle_size_d50_um
-      ui:
-        visibility_gated: true
-      meaning: 供应商或CoA报告的来料中位粒径；影响挥发和成核
-      input: 数值
-      options: 供应商或CoA报告的D50
-      unit: µm
-      validation:
-        gt: 0
-      requirement:
-        raw: 条件选填(粉末或颗粒)
-        level: conditional_recommended
-        condition:
-          field: MaterialLot.形态与性状
-          op: in
-          value:
-          - 粉末
-          - 颗粒
-      example: '10'
-      source: review
-      note: 仅在来料形态为粉末或颗粒且供应商/CoA有报告时填写；无报告留空，不用目数或猜测值代替
-      help: 只抄供应商标签或CoA上的D50；没有D50报告就留空。
-      help_en: Copy D50 only from the supplier label or CoA; leave blank when no D50 is reported.
-    - module: MaterialLot
-      label: D50测量方法
-      label_en: D50 measurement method
-      key: particle_size_d50_method
-      meaning: 得到D50数值所用的方法
-      input: 下拉+其他
-      options: 激光衍射/筛分/图像分析/其他
-      unit: —
-      requirement:
-        raw: 条件选填(填写D50时)
-        level: optional
-      example: 激光衍射
-      source: 2026-07-28深度审查
-      note: 未报告时留空，不猜测
-    - module: MaterialLot
-      label: D50统计基准
-      label_en: D50 distribution basis
-      key: particle_size_d50_basis
-      meaning: 粒径分布按体积、数目或质量统计
-      input: 下拉
-      options: 体积分数/数目基准/质量基准
-      unit: —
-      requirement:
-        raw: 条件选填(填写D50时)
-        level: optional
-      example: 体积分数
-      source: 2026-07-28深度审查
-      note: 与测量方法共同决定可比性
-    - module: MaterialLot
-      label: D50来源
-      label_en: D50 source
-      key: particle_size_d50_source
-      meaning: D50数值的来源
-      input: 下拉
-      options: 供应商声明/CoA实测
-      unit: —
-      requirement:
-        raw: 条件选填(填写D50时)
-        level: optional
-      example: CoA实测
-      source: 2026-07-28深度审查
-      note: 来源文件仍由CoA附件保存
     - module: MaterialLot
       label: 开封日期
       label_en: Date opened
@@ -2878,9 +2774,15 @@ entities:
       requirement:
         raw: 选填
         level: optional
+        condition:
+          field: MaterialLot.批次类别
+          op: ne
+          value: 衬底
       example: '2026-05-01'
       source: review
       note: ''
+      placeholder: YYYY-MM-DD
+      placeholder_en: YYYY-MM-DD
     - module: MaterialLot
       label: 存储方式
       label_en: Storage method
@@ -2892,12 +2794,16 @@ entities:
       requirement:
         raw: 选填
         level: optional
+        condition:
+          field: MaterialLot.批次类别
+          op: ne
+          value: 衬底
       example: 干燥器
       source: review
       note: desiccator=干燥器
     - module: MaterialLot
-      label: 证书附件(CoA)
-      label_en: Certificate of analysis (CoA)
+      label: 分析证书（CoA）
+      label_en: Certificate of Analysis (CoA)
       key: coa_attachment
       meaning: 质检证书
       input: FileAsset引用
@@ -2906,12 +2812,16 @@ entities:
       requirement:
         raw: 选填
         level: optional
+        condition:
+          field: MaterialLot.批次类别
+          op: ne
+          value: 衬底
       example: coa.pdf
       source: review
       note: ''
     - module: MaterialLot
-      label: 瓶身或包装标签附件
-      label_en: Bottle or package label attachment
+      label: 包装标签附件
+      label_en: Package label attachment
       key: label_attachment
       meaning: 试剂瓶身、气瓶或衬底包装标签的原始照片，用于追溯批号与规格
       input: FileAsset引用
@@ -2920,6 +2830,10 @@ entities:
       requirement:
         raw: 推荐
         level: recommended
+        condition:
+          field: MaterialLot.批次类别
+          op: ne
+          value: 衬底
       example: bottle-label.jpg
       source: 2026-07-24导师走查
       note: 与CoA分开；同一物料版本至少上传一次并可预览、下载
@@ -2970,8 +2884,8 @@ entities:
       options: 有规格数值·供应商未提供·不适用
       unit: —
       requirement:
-        raw: 条件必填(衬底)
-        level: conditional_required
+        raw: 未发布
+        level: none
         condition:
           field: MaterialLot.批次类别
           op: eq
@@ -2979,8 +2893,8 @@ entities:
       example: 有规格数值
       source: 2026-07-25用户复核
       note: Cu/Au箔等不适用时明确选择不适用；禁止伪填晶向或抛光面
-      help: 单晶片且供应商给了晶面和抛光规格时选“有规格数值”；未给或不适用请明确选择。
-      help_en: Choose “Specification reported” only when orientation and polish are supplied; otherwise select not provided or not applicable.
+      help: 按供应商资料选择；金属箔等不适用晶向与抛光规格的衬底选择“不适用”。
+      help_en: Select according to supplier documentation; choose “Not applicable” for substrates such as metal foils.
     - module: MaterialLot
       label: ▸衬底·晶向与抛光
       label_en: Substrate · orientation and polish
@@ -2993,17 +2907,17 @@ entities:
         require_value: true
         require_option: true
       requirement:
-        raw: 条件必填(有规格数值)
-        level: conditional_required
+        raw: 选填(仅供应商明确提供时)
+        level: optional
         condition:
-          field: MaterialLot.▸衬底·晶向与抛光信息
+          field: MaterialLot.批次类别
           op: eq
-          value: 有规格数值
+          value: 衬底
       example: Si(100)；单面抛
       source: review
-      note: 实验引用批次后只读带出
-      help: 例：c 面；单面抛。晶面和抛光面都写清楚。
-      help_en: 'Example: c-plane; single-side polished. State both orientation and polished side.'
+      note: 供应商资料明确给出且实验需要区分时填写；实验引用批次后只读带出
+      placeholder: 例如 c 面
+      placeholder_en: e.g. c-plane
     - module: MaterialLot
       label: ▸衬底·偏切信息
       label_en: Substrate · miscut availability
@@ -3013,8 +2927,8 @@ entities:
       options: 有规格数值·供应商未提供·不适用
       unit: —
       requirement:
-        raw: 条件必填(衬底)
-        level: conditional_required
+        raw: 未发布
+        level: none
         condition:
           field: MaterialLot.批次类别
           op: eq
@@ -3022,8 +2936,8 @@ entities:
       example: 供应商未提供
       source: 2026-07-25用户复核
       note: 0仅表示供应商明确报告无偏切，不能表示未知或不适用
-      help: 有偏切规格才选“有规格数值”；供应商没给或该材料不适用时请选择对应状态。
-      help_en: Choose “Specification reported” only when a miscut specification exists; zero never represents unknown.
+      help: 按供应商资料选择；“供应商未提供”与“不适用”应分别记录。
+      help_en: Select according to supplier documentation; distinguish “Supplier did not provide” from “Not applicable”.
     - module: MaterialLot
       label: ▸衬底·偏切角
       label_en: Substrate · miscut angle
@@ -3036,8 +2950,8 @@ entities:
         ge: 0
         lt: 90
       requirement:
-        raw: 条件必填(有规格数值)
-        level: conditional_required
+        raw: 未发布
+        level: none
         condition:
           field: MaterialLot.▸衬底·偏切信息
           op: eq
@@ -3045,8 +2959,8 @@ entities:
       example: '0.2'
       source: 2026-07-24用户走查
       note: 大于0时必须同时填写substrate_miscut_direction
-      help: 无偏切填 0；有偏切时还要填写偏向哪个晶轴或方向。
-      help_en: Enter 0 for no miscut; otherwise also state the crystallographic direction.
+      help: 仅在供应商资料明确提供时填写；0°表示供应商明确标示无偏切。
+      help_en: Enter only when specified by the supplier; 0° indicates an explicit no-miscut specification.
     - module: MaterialLot
       label: ▸衬底·偏切方向
       label_en: Substrate · miscut direction
@@ -3056,8 +2970,8 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 条件必填(偏切角>0)
-        level: optional
+        raw: 未发布
+        level: none
         condition:
           field: MaterialLot.▸衬底·偏切信息
           op: eq
@@ -3065,8 +2979,8 @@ entities:
       example: c面向a轴
       source: 2026-07-24用户走查
       note: substrate_miscut_angle_deg大于0时由跨字段校验强制填写
-      help: 例：c 面向 a 轴；角度填在上一项。
-      help_en: 'Example: c-plane toward the a-axis; enter the angle above.'
+      placeholder: 例如 c 面向 a 轴
+      placeholder_en: e.g. c-plane toward the a-axis
     - module: MaterialLot
       label: ▸衬底·标称表面粗糙度
       label_en: Substrate · nominal surface roughness
@@ -3076,8 +2990,8 @@ entities:
       options: '{availability: 有规格数值|供应商未提供；有规格数值时 metric: Ra|RMS, value_nm}'
       unit: nm
       requirement:
-        raw: 条件必填(衬底)
-        level: conditional_required
+        raw: 未发布
+        level: none
         condition:
           field: MaterialLot.批次类别
           op: eq
@@ -3085,8 +2999,8 @@ entities:
       example: '{availability: not_provided}'
       source: 2026-07-25用户复核
       note: reported时metric与value_nm必填；not_provided时二者禁止填写；历史无availability对象按reported兼容；本片AFM实测值属于表征结果
-      help: 有供应商或批次规格就选“有规格数值”并填 Ra/RMS；没有就明确选“供应商未提供”，不要填 0 或猜测值。
-      help_en: Enter a reported supplier or lot Ra/RMS value, or explicitly choose “Supplier did not provide”; never use zero as an unknown value.
+      help: 记录供应商标称的 Ra 或 RMS；本片 AFM 实测值应录入表征记录。
+      help_en: Record the supplier-specified Ra or RMS; enter AFM measurements for the actual piece in characterization records.
     - module: MaterialLot
       label: ▸衬底·来料尺寸规格
       label_en: Substrate · supplied-lot size
@@ -3096,8 +3010,8 @@ entities:
       options: 长×宽×厚
       unit: mm
       requirement:
-        raw: 选填
-        level: optional
+        raw: 未发布
+        level: none
         condition:
           field: MaterialLot.批次类别
           op: eq
@@ -3105,8 +3019,10 @@ entities:
       example: 10×10×0.5
       source: review
       note: 不替代每次实验的本片实际尺寸
-      help: 填供应商标签或该批次来料的标称尺寸；切割后放进炉内的实际尺寸在每次实验中填写。
-      help_en: Enter the supplier-labelled or incoming lot size; record the actual cut piece loaded into each run in the experiment.
+      placeholder: 例如 10×10×0.5
+      placeholder_en: e.g. 10×10×0.5
+      help: 记录来料标称尺寸；实验中实际使用尺寸另行记录。
+      help_en: Record the nominal supplied size; record the actual piece dimensions separately in each run.
     - module: MaterialLot
       label: ▸衬底·层堆栈
       label_en: Substrate layer stack
@@ -3116,8 +3032,8 @@ entities:
       options: '[{material_name,chemical_formula?,thickness_nm?,orientation?,supplier_lot_id?}]'
       unit: nm
       requirement:
-        raw: 条件选填(多层衬底)
-        level: optional
+        raw: 未发布
+        level: none
       example: '[{"material_name":"Si"},{"material_name":"SiO2","thickness_nm":285}]'
       source: 2026-07-28深度审查
       note: 按数组顺序生成SubstrateStack；不得用单个字符串拼层
@@ -3130,8 +3046,8 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 条件选填(多层衬底)
-        level: optional
+        raw: 未发布
+        level: none
       example: SiO2
       source: 2026-07-28深度审查
       note: 与层堆栈配套
@@ -3152,9 +3068,9 @@ entities:
           value: 气瓶
       example: 5N
       source: review
-      note: base纯度的数值百分比为权威值；这里只保留供应商标签
-      help: 有供应商等级标签可填；数值纯度以“纯度（质量%）”为准。
-      help_en: Enter the supplier grade if present; the numeric purity percentage is authoritative.
+      note: 有供应商等级标签可照录；没有则留空
+      help: 仅选择标签明确标示的 N 级；其他等级填写在“产品等级（标签原文）”。
+      help_en: Select an N-grade only when explicitly shown on the label; enter other grades under “Product grade (as labeled)”.
     - module: MaterialLot
       label: ▸气瓶·气瓶编号
       label_en: Gas cylinder · cylinder number
@@ -3173,6 +3089,8 @@ entities:
       example: GC-Ar-07
       source: review
       note: ''
+      placeholder: 例如 GC-Ar-07
+      placeholder_en: e.g. GC-Ar-07
   - title: 实体② 装置库 Setup（一台炉登记一次，实验 §2 引用；坐标系随引用冻结）
     fields:
     - module: 装置Setup
@@ -3754,7 +3672,7 @@ changelog:
     - 实体补齐
   - - v3.3
     - §5/§8.1
-    - AP/LP 冗余二选一敲定：保留合成方法 AP/LP，以校验规则强制与压力体系一致（不再悬置）
+    - AP/LP 冗余二选一敲定：保留合成方法 AP/LP，以校验规则强制与反应压力条件一致（不再悬置）
     - 实体补齐
   - - v3.3b
     - 冻结前收尾
@@ -3900,6 +3818,42 @@ changelog:
     - §7 表征
     - 表征方法拆分最小必填与更多测量参数，固定各方法常用结果项，并增加“其他”方法说明；科学对象仍由后端统一落库
     - 2026-07-30产品简化
+  - - v4.0-alpha.5
+    - 实体/物料批次
+    - CAS号与数值纯度改为有来源才选填；删除同义名、标识符、商业规格JSON、纯度基准/来源及D50四字段；供应商规格或等级按标签原文照录
+    - 2026-08-02供应商资料复核与减负
+  - - v4.0-alpha.6
+    - 实体/物料批次
+    - 物料表单文案正式化：常规字段说明改为简短占位示例，仅为纯度及衬底规格等易误录字段保留必要说明；统一字段名称、中文标点和中英文术语
+    - 2026-08-02用户界面复核
+  - - v4.0-alpha.7
+    - 实体/物料批次
+    - 化学式复用目标产物输入控件并提示元素与语法；货号与批号直接对应包装上的 Cat./Product No. 和 Lot/Batch No.，说明两者的产品与实物批次分工
+    - 2026-08-06用户界面复核
+  - - v4.0-alpha.8
+    - 实体/物料批次
+    - 删除化学式格式说明，只保留示例与即时元素/语法反馈
+    - 2026-08-06用户界面复核
+  - - v4.0-alpha.9
+    - 实体/物料批次
+    - 供应商“其他”改为明确的新增供应商与名称输入；供应商规格或等级改为产品等级（标签原文），说明资料未标注时留空
+    - 2026-08-06用户界面复核
+  - - v4.0-alpha.12
+    - §5 生长条件
+    - 统一实验时间零点与有效生长窗口；补齐气体批次、流量来源、绝对压力、受控降温速率、实际外场参数和多条异常事件，并自动覆盖生长后的实验过程
+    - 2026-08-06用户界面复核
+  - - v4.0-alpha.13
+    - §5 生长条件
+    - 将容易误解为管理制度的“压力制度/压力体系”统一改为“反应压力条件”，数据字段与校验规则不变
+    - 2026-08-07用户界面复核
+  - - v4.0-alpha.14
+    - §5 生长条件
+    - 改为按实际操作和持续时间录入，系统自动生成系统准备、升温与预处理、反应、反应后处理和降温时间轴；气体优先选择使用阶段，仅自定义时填写起止时间
+    - 2026-08-07用户界面复核
+  - - v4.0-alpha.15
+    - §5 生长条件
+    - 删除缺乏统一文献定义且无法直接观测的反应计时起点、反应开始前用时、反应时长及重复的反应后处理；实际过程由温度步骤、气体时段、系统准备、压力与降温记录
+    - 2026-08-07用户界面复核与原始论文核对
   - - R0
     - 硬必填核心(29项，含条件必填)
     - v3.18删除炉次内重复的前驱体化学式R0；物料身份仍由必填的批次版本快照冻结；其余R0定义不变

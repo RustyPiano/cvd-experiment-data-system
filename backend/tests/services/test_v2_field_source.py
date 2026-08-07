@@ -83,10 +83,31 @@ def test_material_lot_evidence_and_setup_structures_are_unambiguous() -> None:
     purity = fields["purity"]
     assert purity["input"] == "数值"
     assert purity["unit"] == "%"
-    assert "仅存质量百分数" in purity["meaning"]
-    assert "派生显示" in purity["meaning"]
-    assert "原始证书" in purity["note"]
-    assert purity["example"] == "99.995（派生显示4N5）"
+    assert purity["requirement"]["level"] == "optional"
+    assert "明确给出的" in purity["meaning"]
+    assert "不作换算" in purity["help"]
+    assert fields["cas_number"]["requirement"]["level"] == "optional"
+    assert fields["substance_name"]["label"] == "物料名称"
+    assert fields["substance_name"]["placeholder"] == "按包装标签原文填写"
+    assert "help" not in fields["substance_name"]
+    assert fields["cas_number"]["label"] == "CAS 号"
+    assert fields["cas_number"]["placeholder"] == "例如 1313-27-5"
+    assert "help" not in fields["cas_number"]
+    assert fields["declared_grade"]["label"] == "产品等级（标签原文）"
+    assert (
+        not {
+            "substance_synonyms",
+            "identifiers",
+            "product_specification",
+            "purity_basis",
+            "purity_source",
+            "particle_size_d50_um",
+            "particle_size_d50_method",
+            "particle_size_d50_basis",
+            "particle_size_d50_source",
+        }
+        & fields.keys()
+    )
 
     label_attachment = fields["label_attachment"]
     assert label_attachment["input"] == "FileAsset引用"

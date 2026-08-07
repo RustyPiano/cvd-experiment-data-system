@@ -29,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { RequiredMark } from '@/shared/ui/required-mark'
 
 import { createRun, listContributors } from './api'
 import {
@@ -124,7 +125,7 @@ export function SimpleExperimentCreateForm() {
         >
           <div className="flex flex-col gap-2">
             <Label htmlFor="new-experiment-started-at">
-              {t('experimentsV2.new.startedAt')}
+              {t('experimentsV2.new.startedAt')} <RequiredMark />
             </Label>
             <Input
               id="new-experiment-started-at"
@@ -137,7 +138,7 @@ export function SimpleExperimentCreateForm() {
 
           <div className="flex flex-col gap-2">
             <Label id="new-experiment-performers-label">
-              {t('experimentsV2.new.performers')}
+              {t('experimentsV2.new.performers')} <RequiredMark />
             </Label>
             <div
               className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
@@ -200,7 +201,7 @@ export function SimpleExperimentCreateForm() {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="new-experiment-temperature">
-              {t('experimentsV2.new.temperature')}
+              {t('experimentsV2.new.temperature')} <RequiredMark />
             </Label>
             <Input
               id="new-experiment-temperature"
@@ -214,7 +215,7 @@ export function SimpleExperimentCreateForm() {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="new-experiment-humidity">
-              {t('experimentsV2.new.humidity')}
+              {t('experimentsV2.new.humidity')} <RequiredMark />
             </Label>
             <Input
               id="new-experiment-humidity"

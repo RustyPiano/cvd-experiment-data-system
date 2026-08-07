@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-alpha.2",
+  "version": "v4.0-alpha.15",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
@@ -68,6 +68,93 @@
         "pre_anneal",
         "other"
       ],
+      "preparation_step_parameters": {
+        "direct_load": {},
+        "grind": {
+          "duration_min": {
+            "type": "number",
+            "required": false,
+            "unit": "min",
+            "gt": 0
+          }
+        },
+        "mix": {
+          "items": {
+            "type": "named_parameter_list",
+            "required": false
+          }
+        },
+        "pelletize": {
+          "pressure_MPa": {
+            "type": "number",
+            "required": true,
+            "unit": "MPa",
+            "gt": 0
+          },
+          "duration_s": {
+            "type": "number",
+            "required": false,
+            "unit": "s",
+            "gt": 0
+          },
+          "die_diameter_mm": {
+            "type": "number",
+            "required": false,
+            "unit": "mm",
+            "gt": 0
+          }
+        },
+        "spin_coat": {
+          "speed_rpm": {
+            "type": "number",
+            "required": true,
+            "unit": "rpm",
+            "gt": 0
+          },
+          "duration_s": {
+            "type": "number",
+            "required": true,
+            "unit": "s",
+            "gt": 0
+          }
+        },
+        "pre_anneal": {
+          "temperature_C": {
+            "type": "number",
+            "required": true,
+            "unit": "°C",
+            "gt": -273.15
+          },
+          "duration_min": {
+            "type": "number",
+            "required": true,
+            "unit": "min",
+            "gt": 0
+          },
+          "atmosphere": {
+            "type": "controlled_or_other",
+            "required": false,
+            "options": [
+              "air",
+              "vacuum",
+              "gas_species",
+              "other"
+            ],
+            "other_name_key": "atmosphere_other"
+          }
+        },
+        "other": {
+          "other_name": {
+            "type": "text",
+            "required": true
+          },
+          "items": {
+            "type": "named_parameter_list",
+            "required": true
+          }
+        }
+      },
+      "parameter_template_status": "internal_validation; pelletize and other minimum templates remain pending real-run trial confirmation",
       "owns": [
         "container_instance",
         "container_snapshot_at_lock",
@@ -78,6 +165,65 @@
     },
     "process_timeline": {
       "time_origin": "basic_info.started_at",
+      "entry_model": {
+        "phase_order": [
+          "system_preparation",
+          "temperature_program",
+          "gas_program",
+          "cooling"
+        ],
+        "user_enters": "actual_operations_and_durations",
+        "system_derives": "channel_absolute_times",
+        "manual_absolute_time": "custom_gas_interval_only"
+      },
+      "segment_types": {
+        "canonical": [],
+        "legacy_read_only": [
+          "system_preparation",
+          "pre_reaction",
+          "reaction",
+          "post_reaction",
+          "cooling",
+          "other",
+          "purge",
+          "ramp",
+          "nucleation",
+          "growth",
+          "anneal",
+          "transfer"
+        ]
+      },
+      "preparation_operations": {
+        "optional": true,
+        "types": [
+          "pump_down",
+          "gas_exchange",
+          "leak_check",
+          "other"
+        ],
+        "required_fields": [
+          "operation_type",
+          "duration_min"
+        ],
+        "conditional_fields": {
+          "gas_exchange": [
+            "gases",
+            "cycle_count"
+          ],
+          "other": [
+            "other_name"
+          ]
+        }
+      },
+      "temperature_program": {
+        "entry": "initial_setpoint_then_step_duration_and_target_setpoint",
+        "per_zone": true,
+        "absolute_times": "derived"
+      },
+      "gas_timing_presets": [
+        "whole_process",
+        "custom"
+      ],
       "channel_identity": "channel_type + subject_instance_ref + source_type",
       "timeseries_file": {
         "required_columns": [
@@ -357,7 +503,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.15/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -368,6 +514,7 @@
               "enum": [
                 "doped_by",
                 "substitutional_alloy",
+                "solid_solution_component",
                 "intercalated_by",
                 "decorated_by"
               ],
@@ -511,6 +658,20 @@
               "default": null,
               "title": "Target Bulk Phase"
             },
+            "target_bulk_space_group_number": {
+              "anyOf": [
+                {
+                  "maximum": 230,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Target Bulk Space Group Number"
+            },
             "attrs": {
               "additionalProperties": true,
               "title": "Attrs",
@@ -642,7 +803,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.15/target_product.schema.json"
     },
     "equipment": {
       "$defs": {
@@ -1090,42 +1251,346 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.15/equipment.schema.json"
     },
     "precursors": {
       "$defs": {
-        "PreparationStepPayload": {
+        "DirectLoadPreparationStepPayload": {
           "additionalProperties": false,
           "properties": {
-            "step_type": {
-              "enum": [
-                "direct_load",
-                "grind",
-                "mix",
-                "pelletize",
-                "spin_coat",
-                "pre_anneal",
-                "other"
-              ],
-              "title": "Step Type",
-              "type": "string"
-            },
             "sequence": {
               "minimum": 1,
               "title": "Sequence",
               "type": "integer"
             },
+            "step_type": {
+              "const": "direct_load",
+              "title": "Step Type",
+              "type": "string"
+            },
             "parameters": {
-              "additionalProperties": true,
-              "title": "Parameters",
-              "type": "object"
+              "$ref": "#/$defs/EmptyPreparationParametersPayload"
             }
           },
           "required": [
-            "step_type",
-            "sequence"
+            "sequence",
+            "step_type"
           ],
-          "title": "PreparationStepPayload",
+          "title": "DirectLoadPreparationStepPayload",
+          "type": "object"
+        },
+        "EmptyPreparationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {},
+          "title": "EmptyPreparationParametersPayload",
+          "type": "object"
+        },
+        "GrindPreparationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sequence": {
+              "minimum": 1,
+              "title": "Sequence",
+              "type": "integer"
+            },
+            "step_type": {
+              "const": "grind",
+              "title": "Step Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/OptionalDurationPreparationParametersPayload"
+            }
+          },
+          "required": [
+            "sequence",
+            "step_type"
+          ],
+          "title": "GrindPreparationStepPayload",
+          "type": "object"
+        },
+        "MixPreparationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/$defs/NamedPreparationParameterPayload"
+              },
+              "title": "Items",
+              "type": "array"
+            }
+          },
+          "title": "MixPreparationParametersPayload",
+          "type": "object"
+        },
+        "MixPreparationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sequence": {
+              "minimum": 1,
+              "title": "Sequence",
+              "type": "integer"
+            },
+            "step_type": {
+              "const": "mix",
+              "title": "Step Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/MixPreparationParametersPayload"
+            }
+          },
+          "required": [
+            "sequence",
+            "step_type"
+          ],
+          "title": "MixPreparationStepPayload",
+          "type": "object"
+        },
+        "NamedPreparationParameterPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Name",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Value"
+            },
+            "unit": {
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value",
+            "unit"
+          ],
+          "title": "NamedPreparationParameterPayload",
+          "type": "object"
+        },
+        "OptionalDurationPreparationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "duration_min": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Duration Min"
+            }
+          },
+          "title": "OptionalDurationPreparationParametersPayload",
+          "type": "object"
+        },
+        "OtherPreparationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "other_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Other Name",
+              "type": "string"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/NamedPreparationParameterPayload"
+              },
+              "minItems": 1,
+              "title": "Items",
+              "type": "array"
+            }
+          },
+          "required": [
+            "other_name",
+            "items"
+          ],
+          "title": "OtherPreparationParametersPayload",
+          "type": "object"
+        },
+        "OtherPreparationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sequence": {
+              "minimum": 1,
+              "title": "Sequence",
+              "type": "integer"
+            },
+            "step_type": {
+              "const": "other",
+              "title": "Step Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/OtherPreparationParametersPayload"
+            }
+          },
+          "required": [
+            "sequence",
+            "step_type",
+            "parameters"
+          ],
+          "title": "OtherPreparationStepPayload",
+          "type": "object"
+        },
+        "PelletizePreparationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "pressure_MPa": {
+              "exclusiveMinimum": 0,
+              "title": "Pressure Mpa",
+              "type": "number"
+            },
+            "duration_s": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Duration S"
+            },
+            "die_diameter_mm": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Die Diameter Mm"
+            }
+          },
+          "required": [
+            "pressure_MPa"
+          ],
+          "title": "PelletizePreparationParametersPayload",
+          "type": "object"
+        },
+        "PelletizePreparationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sequence": {
+              "minimum": 1,
+              "title": "Sequence",
+              "type": "integer"
+            },
+            "step_type": {
+              "const": "pelletize",
+              "title": "Step Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/PelletizePreparationParametersPayload"
+            }
+          },
+          "required": [
+            "sequence",
+            "step_type",
+            "parameters"
+          ],
+          "title": "PelletizePreparationStepPayload",
+          "type": "object"
+        },
+        "PreAnnealPreparationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "temperature_C": {
+              "exclusiveMinimum": -273.15,
+              "title": "Temperature C",
+              "type": "number"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "atmosphere": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Atmosphere"
+            },
+            "atmosphere_other": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Atmosphere Other"
+            }
+          },
+          "required": [
+            "temperature_C",
+            "duration_min"
+          ],
+          "title": "PreAnnealPreparationParametersPayload",
+          "type": "object"
+        },
+        "PreAnnealPreparationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sequence": {
+              "minimum": 1,
+              "title": "Sequence",
+              "type": "integer"
+            },
+            "step_type": {
+              "const": "pre_anneal",
+              "title": "Step Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/PreAnnealPreparationParametersPayload"
+            }
+          },
+          "required": [
+            "sequence",
+            "step_type",
+            "parameters"
+          ],
+          "title": "PreAnnealPreparationStepPayload",
           "type": "object"
         },
         "SourceIngredientPayload": {
@@ -1261,7 +1726,41 @@
             },
             "preparation_steps": {
               "items": {
-                "$ref": "#/$defs/PreparationStepPayload"
+                "discriminator": {
+                  "mapping": {
+                    "direct_load": "#/$defs/DirectLoadPreparationStepPayload",
+                    "grind": "#/$defs/GrindPreparationStepPayload",
+                    "mix": "#/$defs/MixPreparationStepPayload",
+                    "other": "#/$defs/OtherPreparationStepPayload",
+                    "pelletize": "#/$defs/PelletizePreparationStepPayload",
+                    "pre_anneal": "#/$defs/PreAnnealPreparationStepPayload",
+                    "spin_coat": "#/$defs/SpinCoatPreparationStepPayload"
+                  },
+                  "propertyName": "step_type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/DirectLoadPreparationStepPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/GrindPreparationStepPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/MixPreparationStepPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/PelletizePreparationStepPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/SpinCoatPreparationStepPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/PreAnnealPreparationStepPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/OtherPreparationStepPayload"
+                  }
+                ]
               },
               "title": "Preparation Steps",
               "type": "array"
@@ -1354,7 +1853,10 @@
               "title": "Azimuth Deg"
             },
             "reference": {
-              "const": "setup_origin",
+              "enum": [
+                "setup_origin",
+                "zone_thermocouple"
+              ],
               "title": "Reference",
               "type": "string"
             }
@@ -1400,7 +1902,10 @@
               "title": "Azimuth Deg"
             },
             "reference": {
-              "const": "setup_origin",
+              "enum": [
+                "setup_origin",
+                "zone_thermocouple"
+              ],
               "title": "Reference",
               "type": "string"
             },
@@ -1416,6 +1921,52 @@
             "t_s"
           ],
           "title": "SourcePositionPoint",
+          "type": "object"
+        },
+        "SpinCoatPreparationParametersPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "speed_rpm": {
+              "exclusiveMinimum": 0,
+              "title": "Speed Rpm",
+              "type": "number"
+            },
+            "duration_s": {
+              "exclusiveMinimum": 0,
+              "title": "Duration S",
+              "type": "number"
+            }
+          },
+          "required": [
+            "speed_rpm",
+            "duration_s"
+          ],
+          "title": "SpinCoatPreparationParametersPayload",
+          "type": "object"
+        },
+        "SpinCoatPreparationStepPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "sequence": {
+              "minimum": 1,
+              "title": "Sequence",
+              "type": "integer"
+            },
+            "step_type": {
+              "const": "spin_coat",
+              "title": "Step Type",
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "#/$defs/SpinCoatPreparationParametersPayload"
+            }
+          },
+          "required": [
+            "sequence",
+            "step_type",
+            "parameters"
+          ],
+          "title": "SpinCoatPreparationStepPayload",
           "type": "object"
         }
       },
@@ -1435,7 +1986,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.15/precursors.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -1454,6 +2005,7 @@
             "atmosphere": {
               "anyOf": [
                 {
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -1462,6 +2014,19 @@
               ],
               "default": null,
               "title": "Atmosphere"
+            },
+            "atmosphere_other": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Atmosphere Other"
             }
           },
           "required": [
@@ -1784,13 +2349,21 @@
               "type": "string"
             },
             "orientation_polish_availability": {
-              "enum": [
-                "not_applicable",
-                "not_provided",
-                "reported"
+              "anyOf": [
+                {
+                  "enum": [
+                    "not_applicable",
+                    "not_provided",
+                    "reported"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ],
-              "title": "Orientation Polish Availability",
-              "type": "string"
+              "default": null,
+              "title": "Orientation Polish Availability"
             },
             "crystal_orientation": {
               "anyOf": [
@@ -1805,13 +2378,21 @@
               "title": "Crystal Orientation"
             },
             "miscut_availability": {
-              "enum": [
-                "not_applicable",
-                "not_provided",
-                "reported"
+              "anyOf": [
+                {
+                  "enum": [
+                    "not_applicable",
+                    "not_provided",
+                    "reported"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ],
-              "title": "Miscut Availability",
-              "type": "string"
+              "default": null,
+              "title": "Miscut Availability"
             },
             "miscut_angle_deg": {
               "anyOf": [
@@ -1853,7 +2434,15 @@
               "title": "Oxide Thickness Nm"
             },
             "surface_roughness": {
-              "$ref": "#/$defs/SurfaceRoughnessPayload"
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SurfaceRoughnessPayload"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "size_placement": {
               "$ref": "#/$defs/SubstrateSizePlacementPayload"
@@ -1927,19 +2516,19 @@
               "title": "Exposure Environment"
             },
             "zone_thermocouple_distance_mm": {
+              "$ref": "#/$defs/ZoneThermocoupleDistancePayload"
+            },
+            "axial_position_mm": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/ZoneThermocoupleDistancePayload"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null
-            },
-            "axial_position_mm": {
-              "title": "Axial Position Mm",
-              "type": "number"
+              "default": null,
+              "title": "Axial Position Mm"
             },
             "note": {
               "anyOf": [
@@ -1959,11 +2548,8 @@
             "lot_ref",
             "piece_label",
             "chemical_formula",
-            "orientation_polish_availability",
-            "miscut_availability",
-            "surface_roughness",
             "size_placement",
-            "axial_position_mm"
+            "zone_thermocouple_distance_mm"
           ],
           "title": "SubstrateItemPayload",
           "type": "object"
@@ -1998,6 +2584,7 @@
               "enum": [
                 "face_up",
                 "face_down",
+                "face_to_face",
                 "tilted",
                 "upright",
                 "other"
@@ -2008,8 +2595,8 @@
             "tilt_angle_deg": {
               "anyOf": [
                 {
+                  "exclusiveMaximum": 90,
                   "exclusiveMinimum": 0,
-                  "maximum": 90,
                   "type": "number"
                 },
                 {
@@ -2118,10 +2705,186 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.15/substrates.schema.json"
     },
     "process_steps": {
       "$defs": {
+        "ActualFieldPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "field_type": {
+              "enum": [
+                "plasma",
+                "light",
+                "electric_field"
+              ],
+              "title": "Field Type",
+              "type": "string"
+            },
+            "start_min": {
+              "minimum": 0,
+              "title": "Start Min",
+              "type": "number"
+            },
+            "end_min": {
+              "exclusiveMinimum": 0,
+              "title": "End Min",
+              "type": "number"
+            },
+            "parameters": {
+              "items": {
+                "$ref": "#/$defs/NamedParameterPayload"
+              },
+              "minItems": 1,
+              "title": "Parameters",
+              "type": "array"
+            }
+          },
+          "required": [
+            "field_type",
+            "start_min",
+            "end_min",
+            "parameters"
+          ],
+          "title": "ActualFieldPayload",
+          "type": "object"
+        },
+        "NamedParameterPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Name",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                }
+              ],
+              "title": "Value"
+            },
+            "unit": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value",
+            "unit"
+          ],
+          "title": "NamedParameterPayload",
+          "type": "object"
+        },
+        "PostReactionOperationPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "operation_type": {
+              "enum": [
+                "continued_chalcogen",
+                "post_anneal",
+                "gas_switch",
+                "stop_precursor",
+                "other"
+              ],
+              "title": "Operation Type",
+              "type": "string"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "other_name": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Name"
+            }
+          },
+          "required": [
+            "operation_type",
+            "duration_min"
+          ],
+          "title": "PostReactionOperationPayload",
+          "type": "object"
+        },
+        "PreparationOperationPayload": {
+          "additionalProperties": false,
+          "properties": {
+            "operation_type": {
+              "enum": [
+                "pump_down",
+                "gas_exchange",
+                "leak_check",
+                "other"
+              ],
+              "title": "Operation Type",
+              "type": "string"
+            },
+            "duration_min": {
+              "exclusiveMinimum": 0,
+              "title": "Duration Min",
+              "type": "number"
+            },
+            "cycle_count": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Cycle Count"
+            },
+            "gases": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Gases",
+              "type": "array"
+            },
+            "other_name": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Other Name"
+            }
+          },
+          "required": [
+            "operation_type",
+            "duration_min"
+          ],
+          "title": "PreparationOperationPayload",
+          "type": "object"
+        },
         "ProcessChannelPayload": {
           "additionalProperties": false,
           "properties": {
@@ -2226,6 +2989,36 @@
               ],
               "default": null,
               "title": "Gas Lot Version"
+            },
+            "measurement_source": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "mfc",
+                    "rotameter",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Measurement Source"
+            },
+            "measurement_source_other": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Measurement Source Other"
             },
             "zone_index": {
               "anyOf": [
@@ -2374,6 +3167,27 @@
                 }
               ],
               "title": "Value"
+            },
+            "timing_preset": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "whole_process",
+                    "system_preparation",
+                    "pre_reaction",
+                    "reaction",
+                    "post_reaction",
+                    "reaction_to_process_end",
+                    "custom"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Timing Preset"
             }
           },
           "required": [
@@ -2395,6 +3209,10 @@
             },
             "segment_type": {
               "enum": [
+                "system_preparation",
+                "pre_reaction",
+                "reaction",
+                "post_reaction",
                 "purge",
                 "ramp",
                 "nucleation",
@@ -2466,7 +3284,6 @@
           "items": {
             "$ref": "#/$defs/ProcessSegmentPayload"
           },
-          "minItems": 1,
           "title": "Segments",
           "type": "array"
         },
@@ -2479,39 +3296,25 @@
           "type": "array"
         },
         "pressure_regime": {
-          "anyOf": [
-            {
-              "enum": [
-                "atmospheric",
-                "low_pressure",
-                "other"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "enum": [
+            "atmospheric",
+            "low_pressure",
+            "ultra_high_vacuum",
+            "other"
           ],
-          "default": null,
-          "title": "Pressure Regime"
+          "title": "Pressure Regime",
+          "type": "string"
         },
         "cooling_method": {
-          "anyOf": [
-            {
-              "enum": [
-                "natural",
-                "rapid_furnace_move",
-                "controlled",
-                "other"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "enum": [
+            "furnace_cooling",
+            "open_lid_cooling",
+            "rapid_furnace_move_cooling",
+            "controlled_cooling",
+            "other"
           ],
-          "default": null,
-          "title": "Cooling Method"
+          "title": "Cooling Method",
+          "type": "string"
         },
         "cooling_other": {
           "anyOf": [
@@ -2525,6 +3328,82 @@
           ],
           "default": null,
           "title": "Cooling Other"
+        },
+        "cooling_rate_C_per_min": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cooling Rate C Per Min"
+        },
+        "lid_open_temperature_C": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lid Open Temperature C"
+        },
+        "reaction_timer_origin": {
+          "anyOf": [
+            {
+              "enum": [
+                "main_zone_target",
+                "precursor_supply",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reaction Timer Origin"
+        },
+        "reaction_timer_origin_other": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reaction Timer Origin Other"
+        },
+        "preparation_operations": {
+          "items": {
+            "$ref": "#/$defs/PreparationOperationPayload"
+          },
+          "title": "Preparation Operations",
+          "type": "array"
+        },
+        "post_reaction_operations": {
+          "items": {
+            "$ref": "#/$defs/PostReactionOperationPayload"
+          },
+          "title": "Post Reaction Operations",
+          "type": "array"
+        },
+        "field_params": {
+          "items": {
+            "$ref": "#/$defs/ActualFieldPayload"
+          },
+          "title": "Field Params",
+          "type": "array"
         },
         "external_fields": {
           "items": {
@@ -2541,12 +3420,13 @@
         }
       },
       "required": [
-        "segments",
-        "channels"
+        "channels",
+        "pressure_regime",
+        "cooling_method"
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.15/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -2607,7 +3487,8 @@
                   "power_interruption",
                   "water_interruption",
                   "gas_interruption",
-                  "plan_changed"
+                  "plan_changed",
+                  "other"
                 ],
                 "type": "string"
               },
@@ -2754,7 +3635,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.2/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.15/process_events.schema.json"
     }
   },
   "entities": {
@@ -2909,39 +3790,6 @@
           "default": null,
           "title": "Cas Number"
         },
-        "substance_synonyms": {
-          "anyOf": [
-            {
-              "items": {
-                "minLength": 1,
-                "pattern": "\\S",
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Substance Synonyms"
-        },
-        "identifiers": {
-          "anyOf": [
-            {
-              "items": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Identifiers"
-        },
         "supplier": {
           "anyOf": [
             {
@@ -2978,19 +3826,6 @@
           "default": null,
           "title": "Declared Grade"
         },
-        "product_specification": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Product Specification"
-        },
         "batch_number": {
           "minLength": 1,
           "pattern": "\\S",
@@ -3011,39 +3846,6 @@
           "default": null,
           "title": "Purity"
         },
-        "purity_basis": {
-          "anyOf": [
-            {
-              "enum": [
-                "atomic_fraction",
-                "mass_fraction",
-                "volume_fraction"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Purity Basis"
-        },
-        "purity_source": {
-          "anyOf": [
-            {
-              "enum": [
-                "coa_measured",
-                "supplier_declared"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Purity Source"
-        },
         "form_appearance": {
           "anyOf": [
             {
@@ -3055,64 +3857,6 @@
           ],
           "default": null,
           "title": "Form Appearance"
-        },
-        "particle_size_d50_um": {
-          "anyOf": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Particle Size D50 Um"
-        },
-        "particle_size_d50_method": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Particle Size D50 Method"
-        },
-        "particle_size_d50_basis": {
-          "anyOf": [
-            {
-              "enum": [
-                "mass_basis",
-                "number_basis",
-                "volume_fraction"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Particle Size D50 Basis"
-        },
-        "particle_size_d50_source": {
-          "anyOf": [
-            {
-              "enum": [
-                "coa_measured",
-                "supplier_declared"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Particle Size D50 Source"
         },
         "opened_date": {
           "anyOf": [

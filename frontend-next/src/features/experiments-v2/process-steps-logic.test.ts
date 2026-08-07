@@ -121,18 +121,18 @@ describe('§5 外场组跨实体条件（§2 Setup 快照 field_devices≠无）
 })
 
 describe('§5 组内条件必填（反应条件记录）', () => {
-  it('降温参数仅在反应条件记录出现且为推荐', () => {
+  it('降温参数仅在反应条件记录出现且必填', () => {
     const cooling = stepField('cooling_params')
     expect(
       isProcessStepFieldVisible(cooling, 'reaction_conditions', null),
     ).toBe(true)
     expect(
       isProcessStepFieldRequired(cooling, 'reaction_conditions', null),
-    ).toBe(false)
+    ).toBe(true)
     expect(isProcessStepFieldVisible(cooling, 'preparation', null)).toBe(false)
   })
 
-  it('压力体系仅在反应条件记录可见且必填', () => {
+  it('反应压力条件仅在反应条件记录可见且必填', () => {
     const pressure = stepField('pressure_system')
     expect(
       isProcessStepFieldRequired(pressure, 'reaction_conditions', null),

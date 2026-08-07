@@ -88,12 +88,26 @@ export function buildTreatmentStepsEditorLabels(
     parameterValue: t('structuredEditors.treatmentSteps.parameterValue'),
     parameterUnit: t('structuredEditors.treatmentSteps.parameterUnit'),
     removeParameter: t('structuredEditors.treatmentSteps.removeParameter'),
+    selectAtmosphere: t('structuredEditors.treatmentSteps.selectAtmosphere'),
+    noAtmosphere: t('structuredEditors.treatmentSteps.noAtmosphere'),
+    otherAtmosphereName: t(
+      'structuredEditors.treatmentSteps.otherAtmosphereName',
+    ),
+    requiredMessage: t('validation.required'),
+    invalidMessage: t('validation.structuredField'),
+    atmosphereOptions: {
+      air: t('structuredEditors.treatmentSteps.atmosphereOptions.air'),
+      vacuum: t('structuredEditors.treatmentSteps.atmosphereOptions.vacuum'),
+      other: t('structuredEditors.treatmentSteps.atmosphereOptions.other'),
+    },
     types: {
       direct_load: t('structuredEditors.treatmentSteps.types.direct_load'),
       melt_solidify: t('structuredEditors.treatmentSteps.types.melt_solidify'),
+      mix: t('structuredEditors.treatmentSteps.types.mix'),
       pelletize: t('structuredEditors.treatmentSteps.types.pelletize'),
       spin_coat: t('structuredEditors.treatmentSteps.types.spin_coat'),
       anneal: t('structuredEditors.treatmentSteps.types.anneal'),
+      pre_anneal: t('structuredEditors.treatmentSteps.types.pre_anneal'),
       grind: t('structuredEditors.treatmentSteps.types.grind'),
       other: t('structuredEditors.treatmentSteps.types.other'),
       acetone_clean: t('structuredEditors.treatmentSteps.types.acetone_clean'),
@@ -275,6 +289,9 @@ export function buildCoolingParamsEditorLabels(
       rapid_furnace_move_cooling: t(
         'structuredEditors.coolingParams.methods.rapid_furnace_move_cooling',
       ),
+      controlled_cooling: t(
+        'structuredEditors.coolingParams.methods.controlled_cooling',
+      ),
       other: t('structuredEditors.coolingParams.methods.other'),
     },
     lidOpenTemperatureC: t(
@@ -404,5 +421,6 @@ export function buildTemperatureSensorsEditorLabels(
     selectZoneCountFirst: t(
       'structuredEditors.temperatureSensors.selectZoneCountFirst',
     ),
+    requiredMessage: t('validation.required'),
   }
 }

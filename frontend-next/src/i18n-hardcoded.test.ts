@@ -23,6 +23,7 @@ const EXCLUDED_FILES = new Set([
   'features/experiments-v2/experiment-v2-edit-page.tsx',
   'features/experiments-v2/scientific-experiment-form.tsx',
   'features/experiments-v2/scientific-form-workflow.ts',
+  'features/experiments-v2/components/target-bulk-phase-select.tsx',
   'features/experiments-v2/simple-characterization-workspace.tsx',
   'features/experiments-v2/simple-form-adapters.ts',
   'features/experiments-v2/simple-preparation-editors.tsx',

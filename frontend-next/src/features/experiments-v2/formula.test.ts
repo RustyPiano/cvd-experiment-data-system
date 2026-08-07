@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractElementSymbols,
+  formatChemicalFormula,
+  generateSolidSolutionFormula,
   normalizeChemicalFormula,
   renderFormulaDisplay,
   validateChemicalFormula,
+  validateMaterialFormula,
 } from './formula'
 
 describe('extractElementSymbols', () => {
@@ -20,6 +23,30 @@ describe('normalizeChemicalFormula', () => {
     expect(normalizeChemicalFormula(' Mo S₂ ')).toBe('MoS2')
     expect(normalizeChemicalFormula('SiO₂ / Si')).toBe('SiO2/Si')
     expect(normalizeChemicalFormula('Na₂WO₄∙2H₂O')).toBe('Na2WO4·2H2O')
+  })
+})
+
+describe('target formula display', () => {
+  it('uses subscripts and generates solid-solution formulas from equal components', () => {
+    expect(formatChemicalFormula('MoS2')).toBe('MoS₂')
+    expect(
+      generateSolidSolutionFormula([
+        { formula: 'MoS2', fraction: 0.5 },
+        { formula: 'WS2', fraction: 0.5 },
+      ]),
+    ).toBe('Mo0.5W0.5S2')
+    expect(
+      generateSolidSolutionFormula([
+        { formula: 'MoS2', fraction: 0.5 },
+        { formula: 'MoSe2', fraction: 0.5 },
+      ]),
+    ).toBe('MoSSe')
+    expect(
+      generateSolidSolutionFormula([
+        { formula: 'MoS2', fraction: 0.4 },
+        { formula: 'WS2', fraction: 0.5 },
+      ]),
+    ).toBeNull()
   })
 })
 
@@ -68,6 +95,14 @@ describe('validateChemicalFormula (元素校验)', () => {
     expect(validateChemicalFormula('(NH4)6Mo7O24·4H2O').valid).toBe(true)
     expect(validateChemicalFormula('Na2WO4⋅2H2O').valid).toBe(true)
     expect(validateChemicalFormula('Mo((S))2').valid).toBe(false)
+  })
+})
+
+describe('validateMaterialFormula', () => {
+  it('支持单一物料的括号与水合物，不接受体系分隔符', () => {
+    expect(validateMaterialFormula('Al2(SO4)3').valid).toBe(true)
+    expect(validateMaterialFormula('CuSO4·5H2O').valid).toBe(true)
+    expect(validateMaterialFormula('MoS2/WS2').valid).toBe(false)
   })
 })
 

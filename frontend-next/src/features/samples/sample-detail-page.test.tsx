@@ -64,7 +64,10 @@ vi.mock('@tanstack/react-query', () => ({
         actual_material_summary: '2H-MoS₂',
         source_substrate_snapshot_json: {
           material: 'sio2_si',
-          axial_position_mm: 12,
+          zone_thermocouple_distance_mm: {
+            zone_index: 1,
+            distance_mm: 12,
+          },
           face_orientation: 'face_up',
           note: '边缘有少量沉积',
           size_placement: {
@@ -103,6 +106,7 @@ describe('sample detail product view', () => {
     expect(screen.getByText('2H-MoS₂')).toBeInTheDocument()
     expect(screen.getByText('SUB-DEMO-01')).toBeInTheDocument()
     expect(screen.getByText('10 × 10 × 0.5 mm')).toBeInTheDocument()
+    expect(screen.getByText('温区 1；相对热电偶 +12 mm')).toBeInTheDocument()
     expect(screen.getByText('朝上')).toBeInTheDocument()
     expect(screen.getByText('丙酮与异丙醇清洗')).toBeInTheDocument()
     expect(screen.getByText('已有表征记录')).toBeInTheDocument()

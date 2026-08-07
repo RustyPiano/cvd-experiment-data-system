@@ -227,23 +227,8 @@ export function materialLotMissingStableFields(
 ): string[] {
   if (moduleKey !== 'substrates') return []
   const projection = materialLotProjection(moduleKey, snapshot)
-  const required = [
-    'material',
-    'chemical_formula',
-    'orientation_polish_availability',
-    'miscut_availability',
-    'surface_roughness',
-  ]
-  if (projection.orientation_polish_availability === 'reported') {
-    required.push('crystal_orientation')
-  }
-  if (projection.miscut_availability === 'reported') {
-    required.push('miscut_angle_deg')
-  }
+  const required = ['material', 'chemical_formula']
   if (projection.material === 'sio2_si') required.push('oxide_thickness_nm')
-  if (Number(projection.miscut_angle_deg ?? 0) > 0) {
-    required.push('miscut_direction')
-  }
   return required.filter(
     (key) => moduleValueAsString(projection[key]).trim() === '',
   )

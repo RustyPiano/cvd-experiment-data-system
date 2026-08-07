@@ -18,6 +18,7 @@ const TUBE_SHAPE_CODES = new Set(['round', 'square', 'rectangular', 'other'])
 const PLACEMENT_CODES = new Set([
   'face_up',
   'face_down',
+  'face_to_face',
   'tilted',
   'upright',
   'other',
@@ -346,8 +347,8 @@ export function structuredPayload(
       placement === 'tilted'
         ? finite(object.tilt_angle_deg, 'tilt_angle_deg', { positive: true })
         : null
-    if (tiltAngle != null && tiltAngle > 90) {
-      throw new RangeError('tilt_angle_deg must not exceed 90')
+    if (tiltAngle != null && tiltAngle >= 90) {
+      throw new RangeError('tilt_angle_deg must be less than 90')
     }
     const placementOther =
       placement === 'other' ? String(object.placement_other ?? '').trim() : ''

@@ -127,8 +127,6 @@ def chemical_lot_payload(
         "cas_number": "TEST-CAS",
         "batch_number": batch_number,
         "purity": 99.9,
-        "purity_basis": "mass_fraction",
-        "purity_source": "supplier_declared",
     }
     payload.update(overrides)
     return payload
@@ -148,8 +146,6 @@ def gas_lot_payload(
         "cas_number": "TEST-CAS",
         "batch_number": batch_number,
         "purity": 99.999,
-        "purity_basis": "volume_fraction",
-        "purity_source": "supplier_declared",
         "gas_purity_grade": "industrial_grade",
     }
     payload.update(overrides)
@@ -185,7 +181,7 @@ def substrate_item(
             "width_mm": 10.0,
             "placement": "face_up",
         },
-        "axial_position_mm": 0.0,
+        "zone_thermocouple_distance_mm": {"zone_index": 1, "distance_mm": 0.0},
     }
     if material == "sio2_si":
         payload["oxide_thickness_nm"] = 285.0

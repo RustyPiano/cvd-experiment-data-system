@@ -231,7 +231,16 @@ class TargetMaterialRegion(Base):
             "target_layer_count IS NULL OR target_layer_count >= 1",
             name="ck_target_regions_layer_count_positive",
         ),
+        CheckConstraint(
+            "target_bulk_space_group_number IS NULL OR "
+            "target_bulk_space_group_number BETWEEN 1 AND 230",
+            name="ck_target_regions_space_group_range",
+        ),
         Index("ix_target_regions_formula", "formula"),
+        Index(
+            "ix_target_regions_bulk_space_group_number",
+            "target_bulk_space_group_number",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -248,6 +257,7 @@ class TargetMaterialRegion(Base):
     lateral_region: Mapped[str | None] = mapped_column(String(128), nullable=True)
     target_layer_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_bulk_phase: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    target_bulk_space_group_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
 
 
@@ -256,7 +266,8 @@ class TargetCompositionRelation(Base):
     __table_args__ = (
         CheckConstraint(
             "relation_type IN "
-            "('doped_by', 'substitutional_alloy', 'intercalated_by', 'decorated_by')",
+            "('doped_by', 'substitutional_alloy', 'solid_solution_component', "
+            "'intercalated_by', 'decorated_by')",
             name="ck_target_composition_relation_type",
         ),
         CheckConstraint(

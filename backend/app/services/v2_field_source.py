@@ -88,11 +88,41 @@ def characterization_property_units(
 
 
 def canonical_gas_species(value: str, doc: dict[str, Any] | None = None) -> str:
-    normalized = value.strip().casefold()
-    for code, definition in (doc or load_field_source())["gas_species"].items():
+    source = doc or load_field_source()
+    normalized = str(canonical_option_value(value.strip(), source)).casefold()
+    for code, definition in source["gas_species"].items():
         if normalized in {str(alias).strip().casefold() for alias in definition["aliases"]}:
             return str(code)
     raise ValueError("unsupported gas species")
+
+
+def normalize_atmosphere(
+    value: Any,
+    other_name: Any = None,
+    doc: dict[str, Any] | None = None,
+) -> tuple[str | None, str | None]:
+    source = doc or load_field_source()
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if isinstance(other_name, str) and other_name.strip():
+            raise ValueError("atmosphere_other requires atmosphere")
+        return None, None
+    if not isinstance(value, str):
+        raise ValueError("atmosphere must be a string")
+    custom = other_name.strip() if isinstance(other_name, str) else ""
+    raw = value.strip()
+    canonical = str(canonical_option_value(raw, source))
+    if canonical not in {"air", "vacuum", "other"}:
+        try:
+            canonical = canonical_gas_species(canonical, source)
+        except ValueError:
+            canonical, custom = "other", custom or raw
+    if canonical == "other":
+        if not custom:
+            raise ValueError("other atmosphere requires atmosphere_other")
+        return canonical, custom
+    if custom:
+        raise ValueError("atmosphere_other is allowed only for other atmosphere")
+    return canonical, None
 
 
 def experiment_fields(doc: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -153,6 +183,42 @@ def validate_material_formula(value: str) -> str:
 
 def formula_element_symbols(value: str) -> set[str]:
     return set(re.findall(r"[A-Z][a-z]?", normalize_chemical_formula(value)))
+
+
+def solid_solution_formula(components: list[tuple[str, float]]) -> str:
+    parsed: list[tuple[list[tuple[str, float]], float]] = []
+    for formula, fraction in components:
+        normalized = validate_chemical_formula(formula)
+        matches = re.findall(r"([A-Z][a-z]?)(\d*(?:\.\d+)?)", normalized)
+        if "".join(f"{element}{count}" for element, count in matches) != normalized:
+            raise ValueError("solid-solution components must use simple formulas")
+        parsed.append(
+            (
+                [(element, float(count) if count else 1.0) for element, count in matches],
+                fraction,
+            )
+        )
+    if (
+        len(parsed) < 2
+        or any(not 0 < fraction < 1 for _, fraction in parsed)
+        or abs(sum(fraction for _, fraction in parsed) - 1) > 1e-6
+        or len({len(parts) for parts, _ in parsed}) != 1
+    ):
+        raise ValueError("invalid solid-solution components")
+
+    slots: list[str] = []
+    for index in range(len(parsed[0][0])):
+        totals: dict[str, float] = {}
+        for parts, fraction in parsed:
+            element, count = parts[index]
+            totals[element] = totals.get(element, 0) + count * fraction
+        slots.append(
+            "".join(
+                element if abs(count - 1) < 1e-6 else f"{element}{round(count, 6):g}"
+                for element, count in totals.items()
+            )
+        )
+    return "".join(slots)
 
 
 def normalize_offset_datetime(value: object) -> datetime:

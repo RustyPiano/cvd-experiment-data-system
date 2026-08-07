@@ -77,6 +77,9 @@ describe('getEntityFields', () => {
     expect(keys).not.toContain('version')
     expect(keys).toContain('lot_category')
     expect(keys).toContain('substance_name')
+
+    const setupKeys = getEntityFields('setup').map((f) => f.key)
+    expect(setupKeys).not.toContain('component_bindings')
   })
 
   it('allows a real custom substrate material name instead of literal other', () => {
@@ -158,16 +161,6 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
         field('material_lot', 'substrate_orientation_polish'),
         values,
       ),
-    ).toBe(false)
-    expect(
-      isFieldVisible(
-        'material_lot',
-        field('material_lot', 'substrate_orientation_polish'),
-        {
-          ...values,
-          substrate_orientation_polish_availability: 'reported',
-        },
-      ),
     ).toBe(true)
     // ▸气瓶 group hidden
     expect(
@@ -234,31 +227,15 @@ describe('material_lot conditional visibility (▸衬底 / ▸气瓶 by lot_cate
     ).toBe(false)
   })
 
-  it('shows particle/form fields only for applicable lot categories', () => {
-    const particle = field('material_lot', 'particle_size_d50_um')
+  it('shows form only for applicable lot categories', () => {
     const form = field('material_lot', 'form_appearance')
 
     expect(
-      isFieldVisible('material_lot', particle, { lot_category: '化学品' }),
-    ).toBe(false)
-    expect(
-      isFieldVisible('material_lot', particle, {
-        lot_category: '化学品',
-        form_appearance: '粉末',
-      }),
-    ).toBe(true)
-    expect(
       isFieldVisible('material_lot', form, { lot_category: '化学品' }),
     ).toBe(true)
-    expect(
-      isFieldVisible('material_lot', particle, { lot_category: '衬底' }),
-    ).toBe(false)
     expect(isFieldVisible('material_lot', form, { lot_category: '衬底' })).toBe(
-      true,
+      false,
     )
-    expect(
-      isFieldVisible('material_lot', particle, { lot_category: '气瓶' }),
-    ).toBe(false)
     expect(isFieldVisible('material_lot', form, { lot_category: '气瓶' })).toBe(
       false,
     )
@@ -311,56 +288,41 @@ describe('effective required-ness', () => {
       }),
     ).toBe(true)
   })
-
-  it('requires substrate miscut direction only when the angle is positive', () => {
-    const direction = field('material_lot', 'substrate_miscut_direction')
-
-    expect(
-      isFieldVisible('material_lot', direction, {
-        lot_category: '衬底',
-        substrate_miscut_availability: 'reported',
-        substrate_miscut_angle_deg: '0.2',
-      }),
-    ).toBe(true)
-    expect(
-      isFieldVisible('material_lot', direction, {
-        lot_category: '衬底',
-        substrate_miscut_availability: 'reported',
-        substrate_miscut_angle_deg: '0',
-      }),
-    ).toBe(false)
-    expect(
-      isEffectivelyRequired('material_lot', direction, {
-        lot_category: '衬底',
-        substrate_miscut_angle_deg: '0.2',
-      }),
-    ).toBe(true)
-    expect(
-      isEffectivelyRequired('material_lot', direction, {
-        lot_category: '衬底',
-        substrate_miscut_angle_deg: '0',
-      }),
-    ).toBe(false)
-    expect(
-      buildSubmitPayload('material_lot', {
-        lot_category: '衬底',
-        substrate_miscut_availability: 'reported',
-        substrate_miscut_angle_deg: '0',
-        substrate_miscut_direction: 'toward a-axis',
-      }),
-    ).not.toHaveProperty('substrate_miscut_direction')
-  })
 })
 
 describe('material lot substrate formula', () => {
-  it('rejects known material/formula mismatches and keeps custom materials open', () => {
+  it('hides generated identity fields and asks only when the formula is unknown', () => {
+    const formula = field('material_lot', 'chemical_formula')
+    const name = field('material_lot', 'substance_name')
+
+    expect(
+      isFieldVisible('material_lot', name, {
+        lot_category: 'substrate',
+        substrate_material: 'sio2_si',
+      }),
+    ).toBe(false)
+    expect(
+      isFieldVisible('material_lot', formula, {
+        lot_category: 'substrate',
+        substrate_material: 'sio2_si',
+      }),
+    ).toBe(false)
+    expect(
+      isFieldVisible('material_lot', formula, {
+        lot_category: 'substrate',
+        substrate_material: 'mica',
+      }),
+    ).toBe(true)
+  })
+
+  it('uses the derived formula for known materials and keeps custom materials open', () => {
     expect(
       materialLotFormulaIsCompatible({
         lot_category: '衬底',
         substrate_material: '蓝宝石',
         chemical_formula: 'MoS2',
       }),
-    ).toBe(false)
+    ).toBe(true)
     expect(
       materialLotFormulaIsCompatible({
         lot_category: 'substrate',
@@ -406,7 +368,8 @@ describe('buildSubmitPayload', () => {
     }
     const payload = buildSubmitPayload('material_lot', values)
     expect(payload.lot_category).toBe('substrate')
-    expect(payload.substance_name).toBe('MoO₃')
+    expect(payload.substance_name).toBe('SiO₂/Si')
+    expect(payload.chemical_formula).toBe('SiO2')
     expect(payload.substrate_material).toBe('sio2_si')
     expect(payload).not.toHaveProperty('gas_purity_grade')
   })
@@ -502,9 +465,11 @@ describe('buildSubmitPayload', () => {
 
     expect(
       buildSubmitPayload('material_lot', {
+        lot_category: 'chemical',
         coa_attachment: defaults.coa_attachment,
       }),
     ).toEqual({
+      lot_category: 'chemical',
       coa_attachment: {
         file_asset_id: 'file-1',
         sha256: 'abc123',

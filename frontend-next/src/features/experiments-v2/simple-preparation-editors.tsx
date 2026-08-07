@@ -1,9 +1,9 @@
-import { Fragment } from 'react'
-import { Copy, Plus, Trash2 } from 'lucide-react'
+import { Fragment, useState } from 'react'
+import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -11,6 +11,8 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -19,19 +21,60 @@ import { Textarea } from '@/components/ui/textarea'
 import { gasSpecies } from '@/shared/generated/field-metadata'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { localizedOption } from '@/shared/field-i18n'
+import {
+  buildFieldParamsEditorLabels,
+  buildTreatmentStepsEditorLabels,
+} from '@/shared/structured-editor-labels'
+import { RequiredMark } from '@/shared/ui/required-mark'
 import { uploadExperimentFile } from '@/features/samples/api'
 
 import type { ModuleValues } from './field-logic'
 import { emptyModuleValues, moduleValueAsString } from './field-logic'
 import { EntityReferenceSelect } from './components/entity-reference-select'
+import { ExperimentAttachments } from './components/experiment-attachments'
+import { FormulaInput } from './components/formula-input'
+import {
+  actualFieldTypes,
+  FieldParamsEditor,
+} from './components/process-detail-editors'
+import type { ActualField } from './components/process-detail-editors'
 import { materialLotProjection } from './components/repeatable-items-section'
 import { ModuleCard } from './components/module-card'
+import { TargetBulkPhaseSelect } from './components/target-bulk-phase-select'
+import {
+  TreatmentStepsEditor,
+  treatmentStepsAreValid,
+} from './components/treatment-steps-editor'
+import type {
+  TreatmentStep,
+  TreatmentType,
+} from './components/treatment-steps-editor'
+import {
+  ELEMENT_SYMBOLS,
+  formatChemicalFormula,
+  generateSolidSolutionFormula,
+  validateChemicalFormula,
+} from './formula'
+import {
+  targetSummary,
+  targetValidationIssue,
+} from './scientific-form-workflow'
+import {
+  commonSuggestedBulkSpaceGroups,
+  couldMatchMaterialPhaseCatalog,
+  suggestedBulkSpaceGroups,
+} from './space-groups'
 import {
   buildEventDescription,
   compositionValueForDisplay,
   compositionValueForPayload,
+  simpleProcessEndSeconds,
   splitEventDescription,
+  temperatureStepOperation,
+  updateTemperatureStepDuration,
+  wholeProcessInterval,
 } from './simple-form-adapters'
+import type { GasTimingPreset } from './simple-form-adapters'
 
 export type SimpleRegion = {
   region_key: string
@@ -40,10 +83,15 @@ export type SimpleRegion = {
   layer_index?: number
   lateral_region?: string
   target_layer_count?: number
+  target_bulk_phase?: string
+  target_bulk_space_group_number?: number
 }
 
 export type SimpleCompositionRelation = {
-  relation_type: 'doped_by' | 'substitutional_alloy'
+  relation_type:
+    | 'doped_by'
+    | 'substitutional_alloy'
+    | 'solid_solution_component'
   host_region_key: string
   species: string
   nominal_value?: number
@@ -74,6 +122,7 @@ export type SimpleTarget = {
     | 'other'
   coverage_state?: 'isolated' | 'discontinuous' | 'percolated' | 'continuous'
   optimization_objective?: string
+  note?: string
 }
 
 export type SimpleIngredient = {
@@ -97,17 +146,41 @@ export type SimpleSourceLoad = {
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin'
+    reference: 'setup_origin' | 'zone_thermocouple'
   }
   position_program: Array<{
     t_s: number
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin'
+    reference: 'setup_origin' | 'zone_thermocouple'
   }>
   heating_zone_ref?: string
   ingredients: SimpleIngredient[]
+}
+
+export function sourceLoadIngredientsAreValid(
+  ingredients: SimpleIngredient[],
+): boolean {
+  const lotIds = new Set<string>()
+  return (
+    ingredients.length > 0 &&
+    ingredients.every((ingredient) => {
+      if (
+        !ingredient.material_lot_id ||
+        !ingredient.function_role ||
+        lotIds.has(ingredient.material_lot_id)
+      ) {
+        return false
+      }
+      lotIds.add(ingredient.material_lot_id)
+      return ingredient.amount === undefined
+        ? !ingredient.unit?.trim()
+        : Number.isFinite(ingredient.amount) &&
+            ingredient.amount >= 0 &&
+            Boolean(ingredient.unit?.trim())
+    })
+  )
 }
 
 export type SimpleSegment = {
@@ -116,6 +189,8 @@ export type SimpleSegment = {
   sequence: number
   start_s: number
   end_s: number
+  label?: string
+  note?: string
 }
 
 export type SimpleChannel = {
@@ -129,20 +204,47 @@ export type SimpleChannel = {
   gas_species_code?: string
   gas_lot_id?: string
   gas_lot_version?: number
+  measurement_source?: 'mfc' | 'rotameter' | 'other'
+  measurement_source_other?: string
   zone_index?: number
   pressure_location?: string
   pressure_type?: string
   unit: string
   data_kind: 'scalar' | 'interval_series' | 'timeseries_file'
   scalar_value?: number
-  series?: Array<{ start_s: number; end_s?: number; value: number | string }>
+  series?: Array<{
+    start_s: number
+    end_s?: number
+    value: number | string
+    timing_preset?: GasTimingPreset
+  }>
   file_asset_id?: string
 }
 
 export type SimpleProcessSettings = {
-  pressure_regime?: 'atmospheric' | 'low_pressure' | 'other'
-  cooling_method?: 'natural' | 'rapid_furnace_move' | 'controlled' | 'other'
+  pressure_regime?:
+    | 'atmospheric'
+    | 'low_pressure'
+    | 'ultra_high_vacuum'
+    | 'other'
+  cooling_method?:
+    | 'furnace_cooling'
+    | 'open_lid_cooling'
+    | 'rapid_furnace_move_cooling'
+    | 'controlled_cooling'
+    | 'other'
   cooling_other?: string
+  cooling_rate_C_per_min?: number
+  lid_open_temperature_C?: number
+  preparation_operations?: Array<{
+    operation_type: 'pump_down' | 'gas_exchange' | 'leak_check' | 'other'
+    duration_min: number
+    cycle_count?: number
+    gases?: string[]
+    other_name?: string
+  }>
+  field_params?: ActualField[]
+  /** 旧草稿兼容；新记录使用 field_params。 */
   external_fields?: string[]
 }
 
@@ -161,21 +263,56 @@ export type SimpleProcessEvent = {
   attachment_file_ids: string[]
 }
 
+const PROCESS_DEVIATION_OPTIONS = [
+  ['line_blockage', '管路堵塞'],
+  ['pressure_excursion', '压力突变'],
+  ['signal_anomaly', '信号异常'],
+  ['manual_intervention', '人工干预'],
+  ['equipment_alarm', '设备报警'],
+  ['manual_stop', '人工停止'],
+  ['power_interruption', '供电中断'],
+  ['water_interruption', '供水中断'],
+  ['gas_interruption', '供气中断'],
+  ['plan_changed', '计划变更'],
+  ['other', '其他异常'],
+] as const
+
 function key(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replaceAll('-', '_')}`
+}
+
+function newProcessEvent(): SimpleProcessEvent {
+  return {
+    event_key: key('event'),
+    start_s: Number.NaN,
+    observed_deviations: [],
+    intervention_actions: [],
+    affected_objects: [],
+    suspected_causes: [],
+    data_validity_impact: 'unknown',
+    outcome: 'unknown',
+    excluded_time_ranges: [],
+    attachment_file_ids: [],
+  }
 }
 
 function number(value: string): number | undefined {
   return value.trim() === '' ? undefined : Number(value)
 }
 
-type TargetKind = 'single' | 'doped' | 'alloy' | 'vertical' | 'lateral'
+export type TargetKind = 'single' | 'doped' | 'alloy' | 'vertical' | 'lateral'
 
-function targetKind(target: SimpleTarget): TargetKind {
+export type TargetDrafts = Partial<Record<TargetKind, SimpleTarget>>
+
+export function targetKind(target: SimpleTarget): TargetKind {
   if (target.architecture_type === 'vertical_stack') return 'vertical'
   if (target.architecture_type === 'lateral_junction') return 'lateral'
   if (
-    target.composition_relations[0]?.relation_type === 'substitutional_alloy'
+    target.composition_relations.some((relation) =>
+      ['substitutional_alloy', 'solid_solution_component'].includes(
+        relation.relation_type,
+      ),
+    )
   ) {
     return 'alloy'
   }
@@ -184,7 +321,7 @@ function targetKind(target: SimpleTarget): TargetKind {
     : 'single'
 }
 
-function changeTargetKind(
+export function changeTargetKind(
   target: SimpleTarget,
   kindValue: TargetKind,
 ): SimpleTarget {
@@ -202,20 +339,32 @@ function changeTargetKind(
       composition_relations: [],
     }
   }
-  if (kindValue === 'doped' || kindValue === 'alloy') {
+  if (kindValue === 'doped') {
     return {
       ...target,
       architecture_type: 'single_region',
       material_regions: [singleRegion],
       composition_relations: [
         {
-          relation_type:
-            kindValue === 'doped' ? 'doped_by' : 'substitutional_alloy',
+          relation_type: 'doped_by',
           host_region_key: 'film',
           species: '',
-          value_basis: kindValue === 'alloy' ? 'site_fraction' : 'unspecified',
+          value_basis: 'unspecified',
         },
       ],
+    }
+  }
+  if (kindValue === 'alloy') {
+    return {
+      ...target,
+      architecture_type: 'single_region',
+      material_regions: [{ ...singleRegion, formula: '' }],
+      composition_relations: [firstFormula, ''].map((species) => ({
+        relation_type: 'solid_solution_component',
+        host_region_key: 'film',
+        species,
+        value_basis: 'mol_fraction',
+      })),
     }
   }
   const vertical = kindValue === 'vertical'
@@ -234,19 +383,34 @@ function changeTargetKind(
   }
 }
 
+export function switchTargetDraft(
+  target: SimpleTarget,
+  nextKind: TargetKind,
+  drafts: TargetDrafts,
+): [SimpleTarget, TargetDrafts] {
+  const saved = { ...drafts, [targetKind(target)]: target }
+  const next = saved[nextKind] ?? changeTargetKind(target, nextKind)
+  return [next, { ...saved, [nextKind]: next }]
+}
+
 export function SimpleTargetEditor({
   target,
-  selected = true,
   onChange,
+  onKindChange,
   disabled,
+  showErrors,
 }: {
   target: SimpleTarget
-  selected?: boolean
   onChange: (target: SimpleTarget) => void
+  onKindChange?: (kind: TargetKind) => void
   disabled: boolean
+  showErrors?: boolean
 }) {
   const kindValue = targetKind(target)
   const relation = target.composition_relations[0]
+  const [phaseWarnings, setPhaseWarnings] = useState<Record<string, boolean>>(
+    {},
+  )
   const setRegion = (index: number, patch: Partial<SimpleRegion>) =>
     onChange({
       ...target,
@@ -259,28 +423,311 @@ export function SimpleTargetEditor({
       ...target,
       composition_relations: relation ? [{ ...relation, ...patch }] : [],
     })
+  const alloyRelations = target.composition_relations.filter(
+    (item) => item.relation_type === 'solid_solution_component',
+  )
+  const setAlloyRelations = (relations: SimpleCompositionRelation[]) => {
+    const formula =
+      generateSolidSolutionFormula(
+        relations.map((item) => ({
+          formula: item.species,
+          fraction: item.nominal_value,
+        })),
+      ) ?? ''
+    const currentRegion = target.material_regions[0]
+    const candidates = commonSuggestedBulkSpaceGroups(
+      relations.map((item) => item.species),
+    )
+    const previousCandidates = commonSuggestedBulkSpaceGroups(
+      alloyRelations.map((item) => item.species),
+    )
+    const clearPhase =
+      previousCandidates.some(
+        (candidate) =>
+          candidate.phase === currentRegion?.target_bulk_phase &&
+          candidate.number === currentRegion.target_bulk_space_group_number,
+      ) &&
+      !candidates.some(
+        (candidate) =>
+          candidate.phase === currentRegion.target_bulk_phase &&
+          candidate.number === currentRegion.target_bulk_space_group_number,
+      )
+    onChange({
+      ...target,
+      material_regions: target.material_regions.map((item, index) =>
+        index === 0
+          ? {
+              ...item,
+              formula,
+              ...(clearPhase
+                ? {
+                    target_bulk_phase: undefined,
+                    target_bulk_space_group_number: undefined,
+                  }
+                : {}),
+            }
+          : item,
+      ),
+      composition_relations: relations,
+    })
+    if (clearPhase) {
+      setPhaseWarnings((current) => ({
+        ...current,
+        [currentRegion.region_key]: true,
+      }))
+    }
+  }
+  const updateAlloyRelation = (
+    index: number,
+    patch: Partial<SimpleCompositionRelation>,
+  ) =>
+    setAlloyRelations(
+      alloyRelations.map((item, current) =>
+        current === index ? { ...item, ...patch } : item,
+      ),
+    )
+  const switchKind = (kind: TargetKind) => {
+    if (onKindChange) onKindChange(kind)
+    else onChange(changeTargetKind(target, kind))
+  }
+  const updateFormula = (index: number, formula: string) => {
+    const region = target.material_regions[index]
+    const matchingPhase = suggestedBulkSpaceGroups(formula).some(
+      (candidate) =>
+        candidate.phase === region.target_bulk_phase &&
+        candidate.number === region.target_bulk_space_group_number,
+    )
+    const clearPhase =
+      Boolean(region.target_bulk_phase) &&
+      !matchingPhase &&
+      !couldMatchMaterialPhaseCatalog(formula)
+    const elements = validateChemicalFormula(formula).elements
+    const currentSite = relation?.site_or_location
+    const clearSite =
+      kindValue === 'doped' &&
+      currentSite?.endsWith('_site') &&
+      !elements.includes(currentSite.slice(0, -5))
+    onChange({
+      ...target,
+      material_regions: target.material_regions.map((item, current) =>
+        current === index
+          ? {
+              ...item,
+              formula,
+              ...(clearPhase
+                ? {
+                    target_bulk_phase: undefined,
+                    target_bulk_space_group_number: undefined,
+                  }
+                : {}),
+            }
+          : item,
+      ),
+      composition_relations:
+        clearSite && relation
+          ? [{ ...relation, site_or_location: undefined }]
+          : target.composition_relations,
+    })
+    if (clearPhase) {
+      setPhaseWarnings((current) => ({
+        ...current,
+        [region.region_key]: true,
+      }))
+    }
+  }
+  const phaseSelect = (
+    region: SimpleRegion,
+    index: number,
+    label?: string,
+    candidateFormulas?: string[],
+  ) => (
+    <div className="flex flex-col gap-1">
+      <TargetBulkPhaseSelect
+        formula={region.formula}
+        candidateFormulas={candidateFormulas}
+        phase={region.target_bulk_phase}
+        spaceGroupNumber={region.target_bulk_space_group_number}
+        disabled={disabled}
+        label={label}
+        onChange={(phase, spaceGroupNumber) => {
+          setPhaseWarnings((current) => ({
+            ...current,
+            [region.region_key]: false,
+          }))
+          setRegion(index, {
+            target_bulk_phase: phase,
+            target_bulk_space_group_number: spaceGroupNumber,
+          })
+        }}
+      />
+      {phaseWarnings[region.region_key] ? (
+        <p className="text-xs text-amber-700">
+          原体相与新化学式不匹配，已清除，请重新选择。
+        </p>
+      ) : null}
+    </div>
+  )
+  const region = target.material_regions[0] ?? {
+    region_key: 'film',
+    formula: '',
+    spatial_role: 'single_region' as const,
+  }
+  const targetIssue = showErrors ? targetValidationIssue(target) : null
+  const formulaInvalid = (formula: string) =>
+    Boolean(
+      showErrors &&
+      (!formula.trim() || !validateChemicalFormula(formula).valid),
+    )
+  const dopantInvalid = Boolean(
+    showErrors &&
+    (!relation?.species ||
+      !ELEMENT_SYMBOLS.includes(relation.species as never)),
+  )
+  const alloyFractionInvalid = (value: number | undefined) =>
+    Boolean(showErrors && (value === undefined || value <= 0 || value >= 1))
+  const dopantAmountInvalid = Boolean(
+    showErrors &&
+    relation?.nominal_value !== undefined &&
+    (!(relation.nominal_value > 0) ||
+      (relation.value_basis === 'at_percent'
+        ? relation.nominal_value >= 100
+        : relation.nominal_value >= 1)),
+  )
+  const elements = validateChemicalFormula(region?.formula ?? '').elements
+  const moveRegion = (index: number, offset: number) => {
+    const next = [...target.material_regions]
+    const destination = index + offset
+    if (destination < 0 || destination >= next.length) return
+    ;[next[index], next[destination]] = [next[destination], next[index]]
+    onChange({
+      ...target,
+      material_regions: next.map((item, current) => ({
+        ...item,
+        layer_index: current + 1,
+      })),
+    })
+  }
+  const moreInformation = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {kindValue === 'single' ? (
+        <div className="flex flex-col gap-2">
+          <Label>目标原子层数</Label>
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={region?.target_layer_count ?? ''}
+            disabled={disabled}
+            onChange={(event) =>
+              setRegion(0, {
+                target_layer_count: number(event.target.value),
+              })
+            }
+          />
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-2">
+        <Label>目标几何形态</Label>
+        <Select
+          value={target.dimensional_form ?? ''}
+          disabled={disabled}
+          onValueChange={(value) =>
+            onChange({
+              ...target,
+              dimensional_form: value as SimpleTarget['dimensional_form'],
+              coverage_state:
+                value === 'sheet' ? target.coverage_state : undefined,
+            })
+          }
+        >
+          <SelectTrigger className="w-full" aria-label="目标几何形态">
+            <SelectValue placeholder="请选择" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="sheet">片状/晶畴</SelectItem>
+              <SelectItem value="ribbon">纳米带</SelectItem>
+              <SelectItem value="wire">纳米线</SelectItem>
+              <SelectItem value="tube">纳米管</SelectItem>
+              <SelectItem value="rod">纳米棒</SelectItem>
+              <SelectItem value="particle">颗粒</SelectItem>
+              <SelectItem value="other">其他</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+      {target.dimensional_form === 'sheet' ? (
+        <div className="flex flex-col gap-2">
+          <Label>目标覆盖状态</Label>
+          <Select
+            value={target.coverage_state ?? ''}
+            disabled={disabled}
+            onValueChange={(value) =>
+              onChange({
+                ...target,
+                coverage_state: value as SimpleTarget['coverage_state'],
+              })
+            }
+          >
+            <SelectTrigger className="w-full" aria-label="目标覆盖状态">
+              <SelectValue placeholder="请选择" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="isolated">离散晶畴</SelectItem>
+                <SelectItem value="discontinuous">不连续覆盖</SelectItem>
+                <SelectItem value="percolated">贯通覆盖</SelectItem>
+                <SelectItem value="continuous">连续膜</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-2 sm:col-span-2">
+        <Label>目标性能或研究目的</Label>
+        <Textarea
+          value={target.optimization_objective ?? ''}
+          disabled={disabled}
+          onChange={(event) =>
+            onChange({
+              ...target,
+              optimization_objective: event.target.value,
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-col gap-2 sm:col-span-2">
+        <Label>补充说明</Label>
+        <Textarea
+          value={target.note ?? ''}
+          disabled={disabled}
+          onChange={(event) =>
+            onChange({ ...target, note: event.target.value })
+          }
+        />
+      </div>
+    </div>
+  )
 
   return (
     <ModuleCard id="module-target_product" title="目标材料">
+      {targetIssue ? (
+        <p className="text-destructive text-sm">{targetIssue}</p>
+      ) : null}
       <div className="flex flex-col gap-2">
-        <Label>目标材料类型</Label>
+        <Label>
+          目标材料类型 <RequiredMark />
+        </Label>
         <Select
           value={
-            !selected
-              ? ''
-              : kindValue === 'vertical' || kindValue === 'lateral'
-                ? 'heterostructure'
-                : kindValue
+            kindValue === 'vertical' || kindValue === 'lateral'
+              ? 'heterostructure'
+              : kindValue
           }
           disabled={disabled}
           onValueChange={(value) =>
-            onChange(
-              changeTargetKind(
-                target,
-                value === 'heterostructure'
-                  ? 'vertical'
-                  : (value as TargetKind),
-              ),
+            switchKind(
+              value === 'heterostructure' ? 'vertical' : (value as TargetKind),
             )
           }
         >
@@ -298,15 +745,15 @@ export function SimpleTargetEditor({
         </Select>
       </div>
 
-      {selected && (kindValue === 'vertical' || kindValue === 'lateral') ? (
+      {kindValue === 'vertical' || kindValue === 'lateral' ? (
         <div className="flex flex-col gap-2">
-          <Label>结构方式</Label>
+          <Label>
+            结构方式 <RequiredMark />
+          </Label>
           <Select
             value={kindValue}
             disabled={disabled}
-            onValueChange={(value) =>
-              onChange(changeTargetKind(target, value as TargetKind))
-            }
+            onValueChange={(value) => switchKind(value as TargetKind)}
           >
             <SelectTrigger className="w-full">
               <SelectValue />
@@ -321,112 +768,99 @@ export function SimpleTargetEditor({
         </div>
       ) : null}
 
-      {selected ? (
-        kindValue === 'single' ||
-        kindValue === 'doped' ||
-        kindValue === 'alloy' ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label>
-                {kindValue === 'single'
-                  ? '目标材料化学式'
-                  : kindValue === 'doped'
-                    ? '基体材料化学式'
-                    : '基础材料化学式'}
-              </Label>
-              <Input
-                value={target.material_regions[0]?.formula ?? ''}
-                disabled={disabled}
-                placeholder="例如 MoS2"
-                onChange={(event) =>
-                  setRegion(0, { formula: event.target.value })
-                }
-              />
-            </div>
-            {kindValue === 'single' ? (
-              <div className="flex flex-col gap-2">
-                <Label>目标形态</Label>
-                <Select
-                  value={
-                    target.coverage_state === 'continuous'
-                      ? 'continuous'
-                      : (target.dimensional_form ?? '')
-                  }
+      {kindValue === 'single' || kindValue === 'doped' ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div
+            className="flex flex-col gap-2"
+            data-invalid={formulaInvalid(region?.formula ?? '') || undefined}
+          >
+            <Label>
+              {kindValue === 'single' ? '目标材料化学式' : '基体材料化学式'}{' '}
+              <RequiredMark />
+            </Label>
+            <FormulaInput
+              value={region?.formula ?? ''}
+              disabled={disabled}
+              placeholder="例如 MoS2"
+              required
+              showErrors={showErrors}
+              onChange={(value) => updateFormula(0, value)}
+            />
+          </div>
+          <div>
+            {phaseSelect(
+              region,
+              0,
+              kindValue === 'doped' ? '基体目标体相/多型' : undefined,
+            )}
+          </div>
+          {kindValue === 'doped' ? (
+            <>
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={dopantInvalid || undefined}
+              >
+                <Label>
+                  掺杂元素 <RequiredMark />
+                </Label>
+                <Input
+                  list="target-element-symbols"
+                  value={relation?.species ?? ''}
                   disabled={disabled}
-                  onValueChange={(value) =>
-                    onChange({
-                      ...target,
-                      dimensional_form:
-                        value === 'continuous'
-                          ? undefined
-                          : (value as SimpleTarget['dimensional_form']),
-                      coverage_state:
-                        value === 'continuous' ? 'continuous' : undefined,
-                    })
+                  placeholder="搜索元素符号，例如 Pt"
+                  aria-invalid={dopantInvalid || undefined}
+                  onChange={(event) =>
+                    setRelation({ species: event.target.value })
                   }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="请选择" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="sheet">纳米片</SelectItem>
-                      <SelectItem value="ribbon">纳米带</SelectItem>
-                      <SelectItem value="wire">纳米线</SelectItem>
-                      <SelectItem value="tube">纳米管</SelectItem>
-                      <SelectItem value="rod">纳米棒</SelectItem>
-                      <SelectItem value="particle">颗粒</SelectItem>
-                      <SelectItem value="continuous">连续膜</SelectItem>
-                      <SelectItem value="other">其他</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                />
+                {dopantInvalid ? (
+                  <p className="text-destructive text-sm">
+                    请选择合法的掺杂元素。
+                  </p>
+                ) : null}
               </div>
-            ) : null}
-            {kindValue === 'doped' ? (
-              <>
-                <div className="flex flex-col gap-2">
-                  <Label>掺杂元素</Label>
-                  <Input
-                    value={relation?.species ?? ''}
-                    disabled={disabled}
-                    placeholder="例如 Pt"
-                    onChange={(event) =>
-                      setRelation({ species: event.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>目标含量</Label>
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={dopantAmountInvalid || undefined}
+              >
+                <Label>目标含量</Label>
+                <div className="grid grid-cols-[1fr_8rem] gap-2">
                   <Input
                     type="number"
+                    min="0"
+                    max="100"
+                    step="any"
                     value={compositionValueForDisplay(
                       relation?.nominal_value,
-                      relation?.value_basis ?? 'unspecified',
+                      relation?.value_basis ?? 'at_percent',
                     )}
                     disabled={disabled}
                     placeholder="例如 1"
+                    aria-invalid={dopantAmountInvalid || undefined}
                     onChange={(event) =>
                       setRelation({
                         nominal_value: compositionValueForPayload(
                           event.target.value,
-                          relation?.value_basis ?? 'at_percent',
+                          relation?.value_basis === 'mol_fraction'
+                            ? 'mol_fraction'
+                            : 'at_percent',
                         ),
                         value_basis:
                           event.target.value.trim() === ''
                             ? 'unspecified'
-                            : relation?.value_basis === 'unspecified'
-                              ? 'at_percent'
-                              : relation?.value_basis,
+                            : relation?.value_basis === 'mol_fraction'
+                              ? 'mol_fraction'
+                              : 'at_percent',
                       })
                     }
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>含量单位</Label>
                   <Select
-                    value={relation?.value_basis ?? 'unspecified'}
-                    disabled={disabled || relation?.nominal_value === undefined}
+                    value={
+                      relation?.value_basis === 'mol_fraction'
+                        ? 'mol_fraction'
+                        : 'at_percent'
+                    }
+                    disabled={disabled}
                     onValueChange={(value) =>
                       setRelation({
                         value_basis:
@@ -434,7 +868,7 @@ export function SimpleTargetEditor({
                         nominal_value: compositionValueForPayload(
                           compositionValueForDisplay(
                             relation?.nominal_value,
-                            relation?.value_basis ?? 'unspecified',
+                            relation?.value_basis ?? 'at_percent',
                           ),
                           value,
                         ),
@@ -446,107 +880,252 @@ export function SimpleTargetEditor({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="at_percent">at%</SelectItem>
-                        <SelectItem value="mol_fraction">mol%</SelectItem>
-                        <SelectItem value="site_fraction">位点分数</SelectItem>
-                        <SelectItem value="ratio">质量分数</SelectItem>
+                        <SelectItem value="at_percent">at.%</SelectItem>
+                        <SelectItem value="mol_fraction">mol.%</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>掺杂位点</Label>
+                {dopantAmountInvalid ? (
+                  <p className="text-destructive text-sm">
+                    目标含量必须大于 0 且小于 100%。
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>目标位点</Label>
+                <Select
+                  value={
+                    relation?.site_or_location?.startsWith('other:')
+                      ? 'other'
+                      : (relation?.site_or_location ?? 'unspecified')
+                  }
+                  disabled={disabled}
+                  onValueChange={(value) =>
+                    setRelation({
+                      site_or_location: value === 'other' ? 'other:' : value,
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full" aria-label="目标位点">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {elements.length > 0 ? (
+                      <>
+                        <SelectGroup>
+                          <SelectLabel>取代位点</SelectLabel>
+                          {elements.map((element) => (
+                            <SelectItem key={element} value={`${element}_site`}>
+                              {element} 位点
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        <SelectSeparator />
+                      </>
+                    ) : null}
+                    <SelectGroup>
+                      <SelectLabel>非取代位点</SelectLabel>
+                      <SelectItem value="interstitial">间隙位点</SelectItem>
+                      <SelectItem value="interlayer">层间位置</SelectItem>
+                      <SelectItem value="surface">表面位置</SelectItem>
+                    </SelectGroup>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectItem value="unspecified">未指定</SelectItem>
+                      <SelectItem value="other">其他</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                {relation?.site_or_location?.startsWith('other:') ? (
                   <Input
-                    value={relation?.site_or_location ?? ''}
+                    value={relation.site_or_location.slice(6)}
                     disabled={disabled}
-                    placeholder="例如 Mo 位点"
-                    onChange={(event) =>
-                      setRelation({ site_or_location: event.target.value })
-                    }
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground sm:col-span-2">
-                  填写示例：{relation?.species || 'Pt'} 掺杂{' '}
-                  {target.material_regions[0]?.formula || 'MoS₂'}
-                  {relation?.nominal_value === undefined
-                    ? ''
-                    : `，目标含量 ${compositionValueForDisplay(
-                        relation.nominal_value,
-                        relation.value_basis,
-                      )} ${
-                        {
-                          at_percent: 'at%',
-                          mol_fraction: 'mol%',
-                          site_fraction: '位点分数',
-                          ratio: '质量分数',
-                          unspecified: '',
-                        }[relation.value_basis]
-                      }`}
-                </p>
-              </>
-            ) : null}
-            {kindValue === 'alloy' ? (
-              <>
-                <div className="flex flex-col gap-2">
-                  <Label>取代元素</Label>
-                  <Input
-                    value={relation?.species ?? ''}
-                    disabled={disabled}
-                    placeholder="例如 W"
-                    onChange={(event) =>
-                      setRelation({ species: event.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>被取代位点</Label>
-                  <Input
-                    value={relation?.site_or_location ?? ''}
-                    disabled={disabled}
-                    placeholder="例如 Mo 位点"
-                    onChange={(event) =>
-                      setRelation({ site_or_location: event.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>目标位点分数</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="any"
-                    value={relation?.nominal_value ?? ''}
-                    disabled={disabled}
-                    placeholder="例如 0.5"
+                    placeholder="请输入目标位点"
                     onChange={(event) =>
                       setRelation({
-                        nominal_value: number(event.target.value),
-                        value_basis: 'site_fraction',
+                        site_or_location: `other:${event.target.value}`,
                       })
                     }
                   />
-                </div>
-                <p className="self-end text-sm text-muted-foreground">
-                  示例：MoS₂ 中 W 取代 Mo，目标位点分数 0.5，对应常见写法
-                  Mo₀.₅W₀.₅S₂。
-                </p>
-              </>
-            ) : null}
+                ) : null}
+              </div>
+            </>
+          ) : null}
+          <div className="rounded-lg bg-muted/50 p-3 sm:col-span-2">
+            <p className="text-xs text-muted-foreground">目标材料预览</p>
+            <p className="mt-1 font-medium">
+              {targetSummary(target) || '请填写目标材料'}
+            </p>
           </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {target.material_regions.map((region, index) => (
+        </div>
+      ) : kindValue === 'alloy' ? (
+        <div className="flex flex-col gap-4">
+          <div>
+            <Label>
+              合金组分 <RequiredMark />
+            </Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              至少填写两个对等组分；目标摩尔分数总和必须为 1。
+            </p>
+          </div>
+          {alloyRelations.map((component, index) => (
+            <div
+              key={`${index}-${component.host_region_key}`}
+              className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
+            >
+              <div className="flex items-center justify-between gap-3 sm:col-span-2">
+                <p className="font-medium">
+                  组分 {String.fromCharCode(65 + index)}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled || alloyRelations.length <= 2}
+                  onClick={() =>
+                    setAlloyRelations(
+                      alloyRelations.filter((_, current) => current !== index),
+                    )
+                  }
+                >
+                  <Trash2 data-icon="inline-start" />
+                  删除
+                </Button>
+              </div>
               <div
-                key={region.region_key}
-                className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
+                className="flex flex-col gap-2"
+                data-invalid={formulaInvalid(component.species) || undefined}
               >
-                <div className="flex items-center justify-between gap-3 sm:col-span-2">
-                  <p className="font-medium">
-                    {kindValue === 'vertical'
-                      ? `第 ${index + 1} 层${index === 0 ? '（靠近衬底）' : ''}`
-                      : `区域 ${String.fromCharCode(65 + index)}`}
+                <Label>
+                  端元材料化学式 <RequiredMark />
+                </Label>
+                <FormulaInput
+                  value={component.species}
+                  disabled={disabled}
+                  placeholder={index === 0 ? '例如 MoS2' : '例如 WS2'}
+                  required
+                  showErrors={showErrors}
+                  onChange={(species) =>
+                    updateAlloyRelation(index, { species })
+                  }
+                />
+              </div>
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={
+                  alloyFractionInvalid(component.nominal_value) || undefined
+                }
+              >
+                <Label>
+                  目标摩尔分数 <RequiredMark />
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="any"
+                  value={component.nominal_value ?? ''}
+                  disabled={disabled}
+                  placeholder="例如 0.5"
+                  aria-invalid={
+                    alloyFractionInvalid(component.nominal_value) || undefined
+                  }
+                  onChange={(event) =>
+                    updateAlloyRelation(index, {
+                      nominal_value: number(event.target.value),
+                      value_basis: 'mol_fraction',
+                    })
+                  }
+                />
+                {alloyFractionInvalid(component.nominal_value) ? (
+                  <p className="text-destructive text-sm">
+                    请填写大于 0 且小于 1 的目标摩尔分数。
                   </p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() =>
+              setAlloyRelations([
+                ...alloyRelations,
+                {
+                  relation_type: 'solid_solution_component',
+                  host_region_key: 'film',
+                  species: '',
+                  value_basis: 'mol_fraction',
+                },
+              ])
+            }
+          >
+            <Plus data-icon="inline-start" />
+            添加组分
+          </Button>
+          {phaseSelect(
+            region,
+            0,
+            undefined,
+            alloyRelations.map((component) => component.species),
+          )}
+          <div className="rounded-lg bg-muted/50 p-3">
+            <p className="text-xs text-muted-foreground">目标材料预览</p>
+            <p className="mt-1 font-medium">
+              {region.formula
+                ? [
+                    region.target_bulk_phase,
+                    formatChemicalFormula(region.formula),
+                  ]
+                    .filter(Boolean)
+                    .join('-')
+                : '请填写有效组分并使摩尔分数总和为 1'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {target.material_regions.map((materialRegion, index) => (
+            <div
+              key={materialRegion.region_key}
+              className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
+            >
+              <div className="flex items-center justify-between gap-3 sm:col-span-2">
+                <p className="font-medium">
+                  {kindValue === 'vertical'
+                    ? `第 ${index + 1} 层${index === 0 ? '（靠近衬底）' : ''}`
+                    : `区域 ${String.fromCharCode(65 + index)}`}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {kindValue === 'vertical' ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={disabled || index === 0}
+                        onClick={() => moveRegion(index, -1)}
+                      >
+                        <ArrowUp />
+                        上移
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={
+                          disabled ||
+                          index === target.material_regions.length - 1
+                        }
+                        onClick={() => moveRegion(index, 1)}
+                      >
+                        <ArrowDown />
+                        下移
+                      </Button>
+                    </>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
@@ -574,84 +1153,113 @@ export function SimpleTargetEditor({
                     删除
                   </Button>
                 </div>
+              </div>
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={
+                  formulaInvalid(materialRegion.formula) || undefined
+                }
+              >
+                <Label>
+                  材料化学式 <RequiredMark />
+                </Label>
+                <FormulaInput
+                  value={materialRegion.formula}
+                  disabled={disabled}
+                  placeholder="例如 MoS2"
+                  required
+                  showErrors={showErrors}
+                  onChange={(value) => updateFormula(index, value)}
+                />
+              </div>
+              <div>{phaseSelect(materialRegion, index)}</div>
+              {kindValue === 'vertical' ? (
                 <div className="flex flex-col gap-2">
-                  <Label>材料化学式</Label>
+                  <Label>目标层数</Label>
                   <Input
-                    value={region.formula}
+                    type="number"
+                    min="1"
+                    value={materialRegion.target_layer_count ?? ''}
                     disabled={disabled}
-                    placeholder="例如 MoS2"
                     onChange={(event) =>
-                      setRegion(index, { formula: event.target.value })
+                      setRegion(index, {
+                        target_layer_count: number(event.target.value),
+                      })
                     }
                   />
                 </div>
-                {kindValue === 'vertical' ? (
-                  <div className="flex flex-col gap-2">
-                    <Label>目标层数</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={region.target_layer_count ?? ''}
-                      disabled={disabled}
-                      onChange={(event) =>
-                        setRegion(index, {
-                          target_layer_count: number(event.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                ) : null}
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={disabled}
-              onClick={() => {
-                const index = target.material_regions.length
-                onChange({
-                  ...target,
-                  material_regions: [
-                    ...target.material_regions,
-                    {
-                      region_key: key(
-                        kindValue === 'vertical' ? 'layer' : 'region',
-                      ),
-                      formula: '',
-                      spatial_role:
-                        kindValue === 'vertical' ? 'layer' : 'lateral_region',
-                      ...(kindValue === 'vertical'
-                        ? { layer_index: index + 1 }
-                        : {
-                            lateral_region: String.fromCharCode(65 + index),
-                          }),
-                    },
-                  ],
-                })
-              }}
-            >
-              <Plus data-icon="inline-start" />
-              {kindValue === 'vertical' ? '添加一层' : '添加区域'}
-            </Button>
-          </div>
-        )
-      ) : null}
-
-      {selected ? (
-        <div className="flex flex-col gap-2">
-          <Label>目标性能或研究目的</Label>
-          <Textarea
-            value={target.optimization_objective ?? ''}
+              ) : null}
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
             disabled={disabled}
-            onChange={(event) =>
+            onClick={() => {
+              const index = target.material_regions.length
               onChange({
                 ...target,
-                optimization_objective: event.target.value,
+                material_regions: [
+                  ...target.material_regions,
+                  {
+                    region_key: key(
+                      kindValue === 'vertical' ? 'layer' : 'region',
+                    ),
+                    formula: '',
+                    spatial_role:
+                      kindValue === 'vertical' ? 'layer' : 'lateral_region',
+                    ...(kindValue === 'vertical'
+                      ? { layer_index: index + 1 }
+                      : {
+                          lateral_region: String.fromCharCode(65 + index),
+                          target_layer_count:
+                            target.material_regions[0]?.target_layer_count,
+                        }),
+                  },
+                ],
               })
-            }
-          />
+            }}
+          >
+            <Plus data-icon="inline-start" />
+            {kindValue === 'vertical' ? '添加一层' : '添加区域'}
+          </Button>
+          {kindValue === 'lateral' ? (
+            <div className="flex flex-col gap-2">
+              <Label>整体目标层数</Label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={target.material_regions[0]?.target_layer_count ?? ''}
+                disabled={disabled}
+                onChange={(event) => {
+                  const targetLayerCount = number(event.target.value)
+                  onChange({
+                    ...target,
+                    material_regions: target.material_regions.map((item) => ({
+                      ...item,
+                      target_layer_count: targetLayerCount,
+                    })),
+                  })
+                }}
+              />
+            </div>
+          ) : null}
+          <div className="rounded-lg bg-muted/50 p-3">
+            <p className="text-xs text-muted-foreground">目标材料预览</p>
+            <p className="mt-1 font-medium">
+              {targetSummary(target) || '请填写目标材料'}
+            </p>
+          </div>
         </div>
-      ) : null}
+      )}
+
+      <datalist id="target-element-symbols">
+        {ELEMENT_SYMBOLS.map((element) => (
+          <option key={element} value={element} />
+        ))}
+      </datalist>
+      {moreInformation}
     </ModuleCard>
   )
 }
@@ -674,311 +1282,513 @@ function newLoad(): SimpleSourceLoad {
   }
 }
 
+const positionedLoadingMethods = new Set(['boat', 'crucible', 'other'])
+
+export function requiresPrecursorPosition(loadingMethod: string) {
+  return positionedLoadingMethods.has(loadingMethod)
+}
+
+function treatmentStepsForEditor(
+  steps: SimpleSourceLoad['preparation_steps'],
+): TreatmentStep[] {
+  return steps.map((step) => ({
+    type: step.step_type as TreatmentType,
+    other_name:
+      typeof step.parameters.other_name === 'string'
+        ? step.parameters.other_name
+        : undefined,
+    parameters: step.parameters as TreatmentStep['parameters'],
+  }))
+}
+
+function treatmentStepsForPayload(
+  steps: TreatmentStep[],
+): SimpleSourceLoad['preparation_steps'] {
+  return steps.map((step, index) => ({
+    step_type: step.type,
+    sequence: index + 1,
+    parameters:
+      step.type === 'other' && step.other_name?.trim()
+        ? { ...step.parameters, other_name: step.other_name.trim() }
+        : step.parameters,
+  }))
+}
+
+export function sourcePreparationStepsAreValid(
+  steps: SimpleSourceLoad['preparation_steps'],
+) {
+  return treatmentStepsAreValid('source_load', treatmentStepsForEditor(steps))
+}
+
 export function SimpleSourceLoadsEditor({
   loads,
   zoneCount,
   disabled,
+  showErrors,
   onChange,
 }: {
   loads: SimpleSourceLoad[]
   zoneCount: number | null
   disabled: boolean
+  showErrors?: boolean
   onChange: (loads: SimpleSourceLoad[]) => void
 }) {
+  const { t } = useTranslation()
   const update = (index: number, load: SimpleSourceLoad) =>
     onChange(loads.map((item, current) => (current === index ? load : item)))
 
   return (
     <ModuleCard id="module-precursors" title="前驱体">
       <div className="flex flex-col gap-5">
-        {loads.map((load, loadIndex) => (
-          <div
-            key={load.load_key}
-            className="flex flex-col gap-4 rounded-lg border p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-medium">前驱体容器 {loadIndex + 1}</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={disabled}
-                onClick={() =>
-                  onChange(loads.filter((_, current) => current !== loadIndex))
-                }
-              >
-                <Trash2 data-icon="inline-start" />
-                删除容器
-              </Button>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label>装载容器</Label>
-                <Select
-                  value={load.loading_method}
+        {loads.map((load, loadIndex) => {
+          const requiresPosition = requiresPrecursorPosition(
+            load.loading_method,
+          )
+          const loadingInvalid = Boolean(showErrors && !load.loading_method)
+          const zoneInvalid = Boolean(
+            showErrors && requiresPosition && !load.heating_zone_ref,
+          )
+          const positionInvalid = Boolean(
+            showErrors &&
+            requiresPosition &&
+            (!Number.isFinite(load.initial_position?.axial_mm) ||
+              load.initial_position?.reference !== 'zone_thermocouple'),
+          )
+          const positionHelpId = `precursor-position-help-${load.load_key}`
+          return (
+            <div
+              key={load.load_key}
+              className="flex flex-col gap-4 rounded-lg border p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-medium">前驱体容器 {loadIndex + 1}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
                   disabled={disabled}
-                  onValueChange={(value) =>
-                    update(loadIndex, { ...load, loading_method: value })
+                  onClick={() =>
+                    onChange(
+                      loads.filter((_, current) => current !== loadIndex),
+                    )
                   }
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="请选择" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="boat">舟</SelectItem>
-                      <SelectItem value="crucible">坩埚</SelectItem>
-                      <SelectItem value="substrate_surface">
-                        衬底表面
-                      </SelectItem>
-                      <SelectItem value="other">其他</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  <Trash2 data-icon="inline-start" />
+                  删除容器
+                </Button>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label>对应加热温区</Label>
-                <Select
-                  value={load.heating_zone_ref ?? 'none'}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    update(loadIndex, {
-                      ...load,
-                      heating_zone_ref: value === 'none' ? undefined : value,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="none">未填写</SelectItem>
-                      {Array.from({ length: zoneCount ?? 0 }, (_, index) => (
-                        <SelectItem key={index} value={`zone_${index + 1}`}>
-                          温区 {index + 1}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>轴向位置（mm）</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={load.initial_position?.axial_mm ?? ''}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    update(loadIndex, {
-                      ...load,
-                      initial_position:
-                        event.target.value.trim() === ''
-                          ? undefined
-                          : {
-                              axial_mm: Number(event.target.value),
-                              reference: 'setup_origin',
-                            },
-                    })
-                  }
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>处理方式</Label>
-                <Select
-                  value={load.preparation_steps[0]?.step_type ?? 'none'}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    update(loadIndex, {
-                      ...load,
-                      preparation_steps:
-                        value === 'none'
-                          ? []
-                          : [
-                              {
-                                step_type: value,
-                                sequence: 1,
-                                parameters: {},
-                              },
-                            ],
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="none">未填写</SelectItem>
-                      <SelectItem value="direct_load">直接装载</SelectItem>
-                      <SelectItem value="grind">研磨</SelectItem>
-                      <SelectItem value="mix">混合</SelectItem>
-                      <SelectItem value="spin_coat">旋涂</SelectItem>
-                      <SelectItem value="pre_anneal">预退火</SelectItem>
-                      <SelectItem value="other">其他</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Separator />
-            <div className="flex flex-col gap-4">
-              {load.ingredients.map((ingredient, ingredientIndex) => (
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div
-                  key={ingredientIndex}
-                  className="grid gap-4 sm:grid-cols-2"
+                  className="flex flex-col gap-2"
+                  data-invalid={loadingInvalid || undefined}
                 >
-                  <div className="flex flex-col gap-2 sm:col-span-2">
-                    <Label>物料批次</Label>
-                    <EntityReferenceSelect
-                      kind="material_lot"
-                      productLabel
-                      value={ingredient.material_lot_id}
-                      selectedVersion={ingredient.material_lot_version}
-                      selectedSnapshot={ingredient.snapshot}
-                      disabled={disabled}
-                      allowedLotCategories={['chemical']}
-                      onChange={(id, entity) =>
-                        update(loadIndex, {
-                          ...load,
-                          ingredients: load.ingredients.map((item, current) =>
-                            current === ingredientIndex
-                              ? {
-                                  ...item,
-                                  material_lot_id: id,
-                                  material_lot_version:
-                                    entity?.latest_version?.version ?? 0,
-                                  snapshot:
-                                    entity?.latest_version?.data ?? undefined,
-                                }
-                              : item,
-                          ),
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label>作用</Label>
-                    <Select
-                      value={ingredient.function_role}
-                      disabled={disabled}
-                      onValueChange={(value) =>
-                        update(loadIndex, {
-                          ...load,
-                          ingredients: load.ingredients.map((item, current) =>
-                            current === ingredientIndex
-                              ? { ...item, function_role: value }
-                              : item,
-                          ),
-                        })
-                      }
+                  <Label>
+                    装载方式 <RequiredMark />
+                  </Label>
+                  <Select
+                    value={load.loading_method}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      update(loadIndex, {
+                        ...load,
+                        loading_method: value,
+                        heating_zone_ref: requiresPrecursorPosition(value)
+                          ? load.heating_zone_ref
+                          : undefined,
+                        initial_position: requiresPrecursorPosition(value)
+                          ? load.initial_position
+                          : undefined,
+                        position_program: requiresPrecursorPosition(value)
+                          ? load.position_program
+                          : [],
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      className="w-full"
+                      aria-invalid={loadingInvalid || undefined}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="请选择" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="metal_source">金属源</SelectItem>
-                          <SelectItem value="chalcogen_source">
-                            硫族元素源
-                          </SelectItem>
-                          <SelectItem value="dopant_source">掺杂源</SelectItem>
-                          <SelectItem value="promoter">促进剂/盐</SelectItem>
-                          <SelectItem value="other">其他</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-2">
-                      <Label>用量</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={ingredient.amount ?? ''}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          const amount = number(event.target.value)
+                      <SelectValue placeholder="请选择" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="boat">舟</SelectItem>
+                        <SelectItem value="crucible">坩埚</SelectItem>
+                        <SelectItem value="substrate_surface">
+                          衬底表面
+                        </SelectItem>
+                        <SelectItem value="other">其他</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {loadingInvalid ? (
+                    <p className="text-destructive text-sm">请选择装载方式。</p>
+                  ) : null}
+                </div>
+                {requiresPosition ? (
+                  <>
+                    <div
+                      className="flex flex-col gap-2"
+                      data-invalid={zoneInvalid || undefined}
+                    >
+                      <Label>
+                        对应加热温区 <RequiredMark />
+                      </Label>
+                      <Select
+                        value={load.heating_zone_ref ?? ''}
+                        disabled={disabled || !zoneCount}
+                        onValueChange={(value) =>
                           update(loadIndex, {
                             ...load,
-                            ingredients: load.ingredients.map(
-                              (item, current) =>
-                                current === ingredientIndex
-                                  ? {
-                                      ...item,
-                                      amount,
-                                      unit:
-                                        amount === undefined
-                                          ? undefined
-                                          : item.unit,
-                                    }
-                                  : item,
-                            ),
+                            heating_zone_ref: value,
                           })
-                        }}
-                      />
+                        }
+                      >
+                        <SelectTrigger
+                          className="w-full"
+                          aria-invalid={zoneInvalid || undefined}
+                        >
+                          <SelectValue
+                            placeholder={
+                              zoneCount ? '请选择温区' : '请先选择实验装置'
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {Array.from(
+                              { length: zoneCount ?? 0 },
+                              (_, index) => (
+                                <SelectItem
+                                  key={index}
+                                  value={`zone_${index + 1}`}
+                                >
+                                  温区 {index + 1}
+                                </SelectItem>
+                              ),
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {zoneInvalid ? (
+                        <p className="text-destructive text-sm">
+                          请选择对应加热温区。
+                        </p>
+                      ) : null}
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>单位</Label>
+                    <div
+                      className="flex flex-col gap-2"
+                      data-invalid={positionInvalid || undefined}
+                    >
+                      <Label>
+                        相对该温区热电偶的位置（mm） <RequiredMark />
+                      </Label>
                       <Input
-                        value={ingredient.unit ?? ''}
-                        disabled={disabled || ingredient.amount === undefined}
-                        placeholder="mg"
+                        type="number"
+                        step="any"
+                        placeholder="例如 -20"
+                        aria-describedby={positionHelpId}
+                        aria-invalid={positionInvalid || undefined}
+                        value={load.initial_position?.axial_mm ?? ''}
+                        disabled={disabled || !load.heating_zone_ref}
                         onChange={(event) =>
                           update(loadIndex, {
                             ...load,
-                            ingredients: load.ingredients.map(
-                              (item, current) =>
-                                current === ingredientIndex
-                                  ? { ...item, unit: event.target.value }
-                                  : item,
-                            ),
+                            initial_position:
+                              event.target.value.trim() === ''
+                                ? undefined
+                                : {
+                                    axial_mm: Number(event.target.value),
+                                    reference: 'zone_thermocouple',
+                                  },
                           })
                         }
                       />
+                      {positionInvalid ? (
+                        <p className="text-destructive text-sm">
+                          请填写相对所选温区热电偶的位置。
+                        </p>
+                      ) : null}
                     </div>
-                  </div>
-                  {load.ingredients.length > 1 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="sm:col-span-2 sm:justify-self-end"
-                      disabled={disabled}
-                      onClick={() =>
-                        update(loadIndex, {
-                          ...load,
-                          ingredients: load.ingredients.filter(
-                            (_, current) => current !== ingredientIndex,
-                          ),
-                        })
-                      }
+                    <p
+                      id={positionHelpId}
+                      className="text-muted-foreground text-sm sm:col-span-2"
                     >
-                      <Trash2 data-icon="inline-start" />
-                      删除材料
-                    </Button>
-                  ) : null}
+                      {
+                        '以所选温区热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。'
+                      }
+                    </p>
+                    {load.initial_position?.reference === 'setup_origin' ? (
+                      <p className="text-destructive text-sm sm:col-span-2">
+                        此记录使用旧装置原点参照；请按当前规则重新确认温区和相对热电偶位置。
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <Label>处理方式</Label>
+                  <TreatmentStepsEditor
+                    kind="source_load"
+                    value={treatmentStepsForEditor(load.preparation_steps)}
+                    disabled={disabled}
+                    showErrors={showErrors}
+                    labels={buildTreatmentStepsEditorLabels(t)}
+                    onChange={(steps) =>
+                      update(loadIndex, {
+                        ...load,
+                        preparation_steps: treatmentStepsForPayload(steps),
+                      })
+                    }
+                  />
                 </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                disabled={disabled}
-                onClick={() =>
-                  update(loadIndex, {
-                    ...load,
-                    ingredients: [...load.ingredients, newIngredient()],
-                  })
-                }
-              >
-                <Plus data-icon="inline-start" />
-                添加同一容器中的材料
-              </Button>
+              </div>
+
+              <Separator />
+              <div className="flex flex-col gap-4">
+                {load.ingredients.map((ingredient, ingredientIndex) => {
+                  const unitRequired = ingredient.amount !== undefined
+                  const duplicateLot = load.ingredients.some(
+                    (item, current) =>
+                      current !== ingredientIndex &&
+                      Boolean(ingredient.material_lot_id) &&
+                      item.material_lot_id === ingredient.material_lot_id,
+                  )
+                  const lotInvalid = Boolean(
+                    showErrors && (!ingredient.material_lot_id || duplicateLot),
+                  )
+                  const roleInvalid = Boolean(
+                    showErrors && !ingredient.function_role,
+                  )
+                  const amountInvalid = Boolean(
+                    showErrors &&
+                    ingredient.amount !== undefined &&
+                    (!Number.isFinite(ingredient.amount) ||
+                      ingredient.amount < 0),
+                  )
+                  const unitInvalid = Boolean(
+                    showErrors && unitRequired && !ingredient.unit?.trim(),
+                  )
+                  const unitInputId = `${load.load_key}-ingredient-${ingredientIndex}-unit`
+                  return (
+                    <div
+                      key={ingredientIndex}
+                      className="grid gap-4 sm:grid-cols-2"
+                    >
+                      <div
+                        className="flex flex-col gap-2 sm:col-span-2"
+                        data-invalid={lotInvalid || undefined}
+                      >
+                        <Label>
+                          物料批次 <RequiredMark />
+                        </Label>
+                        <EntityReferenceSelect
+                          kind="material_lot"
+                          productLabel
+                          value={ingredient.material_lot_id}
+                          selectedVersion={ingredient.material_lot_version}
+                          selectedSnapshot={ingredient.snapshot}
+                          disabled={disabled}
+                          allowedLotCategories={['chemical']}
+                          filter={(entity) =>
+                            !load.ingredients.some(
+                              (item, current) =>
+                                current !== ingredientIndex &&
+                                item.material_lot_id === entity.id,
+                            )
+                          }
+                          onChange={(id, entity) =>
+                            update(loadIndex, {
+                              ...load,
+                              ingredients: load.ingredients.map(
+                                (item, current) =>
+                                  current === ingredientIndex
+                                    ? {
+                                        ...item,
+                                        material_lot_id: id,
+                                        material_lot_version:
+                                          entity?.latest_version?.version ?? 0,
+                                        snapshot:
+                                          entity?.latest_version?.data ??
+                                          undefined,
+                                      }
+                                    : item,
+                              ),
+                            })
+                          }
+                        />
+                        {lotInvalid ? (
+                          <p className="text-destructive text-sm">
+                            {duplicateLot
+                              ? '同一容器中不能重复添加同一物料批次。'
+                              : '请选择物料批次。'}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div
+                        className="flex flex-col gap-2"
+                        data-invalid={roleInvalid || undefined}
+                      >
+                        <Label>
+                          作用 <RequiredMark />
+                        </Label>
+                        <Select
+                          value={ingredient.function_role}
+                          disabled={disabled}
+                          onValueChange={(value) =>
+                            update(loadIndex, {
+                              ...load,
+                              ingredients: load.ingredients.map(
+                                (item, current) =>
+                                  current === ingredientIndex
+                                    ? { ...item, function_role: value }
+                                    : item,
+                              ),
+                            })
+                          }
+                        >
+                          <SelectTrigger
+                            className="w-full"
+                            aria-invalid={roleInvalid || undefined}
+                          >
+                            <SelectValue placeholder="请选择" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectItem value="metal_source">
+                                金属源
+                              </SelectItem>
+                              <SelectItem value="chalcogen_source">
+                                硫族元素源
+                              </SelectItem>
+                              <SelectItem value="dopant_source">
+                                掺杂源
+                              </SelectItem>
+                              <SelectItem value="promoter">
+                                促进剂/盐
+                              </SelectItem>
+                              <SelectItem value="other">其他</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        {roleInvalid ? (
+                          <p className="text-destructive text-sm">
+                            请选择物料作用。
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div
+                          className="flex flex-col gap-2"
+                          data-invalid={amountInvalid || undefined}
+                        >
+                          <Label>用量</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={ingredient.amount ?? ''}
+                            disabled={disabled}
+                            aria-invalid={amountInvalid || undefined}
+                            onChange={(event) => {
+                              const amount = number(event.target.value)
+                              update(loadIndex, {
+                                ...load,
+                                ingredients: load.ingredients.map(
+                                  (item, current) =>
+                                    current === ingredientIndex
+                                      ? {
+                                          ...item,
+                                          amount,
+                                          unit:
+                                            amount === undefined
+                                              ? undefined
+                                              : item.unit,
+                                        }
+                                      : item,
+                                ),
+                              })
+                            }}
+                          />
+                          {amountInvalid ? (
+                            <p className="text-destructive text-sm">
+                              用量不能小于 0。
+                            </p>
+                          ) : null}
+                        </div>
+                        <div
+                          className="flex flex-col gap-2"
+                          data-invalid={unitInvalid || undefined}
+                        >
+                          <Label htmlFor={unitInputId}>
+                            单位 {unitRequired ? <RequiredMark /> : null}
+                          </Label>
+                          <Input
+                            id={unitInputId}
+                            value={ingredient.unit ?? ''}
+                            disabled={
+                              disabled || ingredient.amount === undefined
+                            }
+                            placeholder="例如 mg、g、μL 或 mL"
+                            aria-invalid={unitInvalid || undefined}
+                            onChange={(event) =>
+                              update(loadIndex, {
+                                ...load,
+                                ingredients: load.ingredients.map(
+                                  (item, current) =>
+                                    current === ingredientIndex
+                                      ? { ...item, unit: event.target.value }
+                                      : item,
+                                ),
+                              })
+                            }
+                          />
+                          {unitInvalid ? (
+                            <p className="text-destructive text-sm">
+                              填写用量后，请填写单位。
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                      {load.ingredients.length > 1 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="sm:col-span-2 sm:justify-self-end"
+                          disabled={disabled}
+                          onClick={() =>
+                            update(loadIndex, {
+                              ...load,
+                              ingredients: load.ingredients.filter(
+                                (_, current) => current !== ingredientIndex,
+                              ),
+                            })
+                          }
+                        >
+                          <Trash2 data-icon="inline-start" />
+                          删除材料
+                        </Button>
+                      ) : null}
+                    </div>
+                  )
+                })}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() =>
+                    update(loadIndex, {
+                      ...load,
+                      ingredients: [...load.ingredients, newIngredient()],
+                    })
+                  }
+                >
+                  <Plus data-icon="inline-start" />
+                  添加同一容器中的材料
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         <Button
           type="button"
           variant="outline"
@@ -1032,6 +1842,61 @@ function parsedObject(value: ModuleValues[string]) {
   }
 }
 
+function substrateTreatmentSteps(item: ModuleValues): TreatmentStep[] | null {
+  try {
+    const parsed: unknown = JSON.parse(
+      moduleValueAsString(item['pretreatment_steps']) || '[]',
+    )
+    return Array.isArray(parsed) ? (parsed as TreatmentStep[]) : null
+  } catch {
+    return null
+  }
+}
+
+const substratePlacementTypes = new Set([
+  'face_up',
+  'face_down',
+  'face_to_face',
+  'tilted',
+  'upright',
+  'other',
+])
+
+export function simpleSubstrateIsValid(
+  item: ModuleValues,
+  zoneCount: number | null,
+): boolean {
+  const placement = parsedObject(item['size_placement'])
+  const position = parsedObject(item['zone_thermocouple_distance_mm'])
+  const treatmentSteps = substrateTreatmentSteps(item)
+  const thickness = placement.thickness_mm
+  const placementType = String(placement.placement ?? '')
+  const zoneIndex = Number(position.zone_index)
+  return Boolean(
+    moduleValueAsString(item['lot_ref']) &&
+    Number(placement.length_mm) > 0 &&
+    Number(placement.width_mm) > 0 &&
+    (thickness === undefined ||
+      thickness === null ||
+      (Number.isFinite(Number(thickness)) && Number(thickness) > 0)) &&
+    zoneCount &&
+    Number.isInteger(zoneIndex) &&
+    zoneIndex >= 1 &&
+    zoneIndex <= zoneCount &&
+    position.distance_mm !== undefined &&
+    position.distance_mm !== null &&
+    Number.isFinite(Number(position.distance_mm)) &&
+    substratePlacementTypes.has(placementType) &&
+    (placementType !== 'tilted' ||
+      (Number(placement.tilt_angle_deg) > 0 &&
+        Number(placement.tilt_angle_deg) < 90)) &&
+    (placementType !== 'other' ||
+      String(placement.placement_other ?? '').trim()) &&
+    treatmentSteps &&
+    treatmentStepsAreValid('substrate', treatmentSteps),
+  )
+}
+
 function substrateStackSummary(value: unknown) {
   if (!Array.isArray(value)) return String(value ?? '')
   return value
@@ -1058,13 +1923,18 @@ function substrateOrientationSummary(value: string) {
 
 export function SimpleSubstratesEditor({
   substrates,
+  zoneCount,
   disabled,
+  showErrors,
   onChange,
 }: {
   substrates: ModuleValues[]
+  zoneCount: number | null
   disabled: boolean
+  showErrors?: boolean
   onChange: (substrates: ModuleValues[]) => void
 }) {
+  const { t } = useTranslation()
   const update = (index: number, patch: ModuleValues) =>
     onChange(
       substrates.map((item, current) =>
@@ -1078,28 +1948,68 @@ export function SimpleSubstratesEditor({
         {substrates.map((item, index) => {
           const reference = substrateReference(item)
           const placement = parsedObject(item['size_placement'])
-          const pretreatment = (() => {
-            try {
-              const steps = JSON.parse(
-                moduleValueAsString(item['pretreatment_steps']) || '[]',
-              ) as Array<{ other_name?: string }>
-              return steps[0]?.other_name ?? ''
-            } catch {
-              return ''
-            }
-          })()
-          const face =
+          const position = parsedObject(item['zone_thermocouple_distance_mm'])
+          const treatmentSteps = substrateTreatmentSteps(item)
+          const placementMode =
             placement.placement === 'other' &&
             placement.placement_other === '面对另一片衬底'
               ? 'face_to_face'
               : String(placement.placement ?? '')
+          const pieceLabel =
+            moduleValueAsString(item['piece_label']) || `S${index + 1}`
+          const lengthInvalid = Boolean(
+            showErrors && !(Number(placement.length_mm) > 0),
+          )
+          const widthInvalid = Boolean(
+            showErrors && !(Number(placement.width_mm) > 0),
+          )
+          const thicknessInvalid = Boolean(
+            showErrors &&
+            placement.thickness_mm != null &&
+            (!Number.isFinite(Number(placement.thickness_mm)) ||
+              Number(placement.thickness_mm) <= 0),
+          )
+          const zoneIndex = Number(position.zone_index)
+          const zoneInvalid = Boolean(
+            showErrors &&
+            (!zoneCount ||
+              !Number.isInteger(zoneIndex) ||
+              zoneIndex < 1 ||
+              zoneIndex > zoneCount),
+          )
+          const positionValue =
+            position.distance_mm === undefined || position.distance_mm === null
+              ? ''
+              : String(position.distance_mm)
+          const positionInvalid = Boolean(
+            showErrors &&
+            (positionValue === '' ||
+              !Number.isFinite(Number(position.distance_mm))),
+          )
+          const tiltInvalid = Boolean(
+            showErrors &&
+            placementMode === 'tilted' &&
+            (!(Number(placement.tilt_angle_deg) > 0) ||
+              Number(placement.tilt_angle_deg) >= 90),
+          )
+          const otherPlacementInvalid = Boolean(
+            showErrors &&
+            placementMode === 'other' &&
+            !String(placement.placement_other ?? '').trim(),
+          )
+          const placementInvalid = Boolean(
+            showErrors && !substratePlacementTypes.has(placementMode),
+          )
+          const positionHelpId = `substrate-position-help-${pieceLabel}`
           return (
             <div
               key={moduleValueAsString(item['piece_label']) || index}
               className="flex flex-col gap-4 rounded-lg border p-4"
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="font-medium">衬底片 {index + 1}</p>
+                <p className="font-medium">
+                  衬底片 {index + 1}（{pieceLabel}）
+                </p>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -1113,6 +2023,8 @@ export function SimpleSubstratesEditor({
                           ...item,
                           piece_label: `S${substrates.length + 1}`,
                           source_id: '',
+                          axial_position_mm: '',
+                          zone_thermocouple_distance_mm: '',
                         },
                       ])
                     }
@@ -1141,8 +2053,15 @@ export function SimpleSubstratesEditor({
                   </Button>
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label>衬底批次</Label>
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={
+                  (showErrors && !reference?.entity_id) || undefined
+                }
+              >
+                <Label>
+                  衬底批次 <RequiredMark />
+                </Label>
                 <EntityReferenceSelect
                   kind="material_lot"
                   productLabel
@@ -1166,6 +2085,9 @@ export function SimpleSubstratesEditor({
                     })
                   }}
                 />
+                {showErrors && !reference?.entity_id ? (
+                  <p className="text-destructive text-sm">请选择衬底批次。</p>
+                ) : null}
                 {reference?.snapshot.substrate_stack_layers ? (
                   <p className="text-sm text-muted-foreground">
                     衬底结构：
@@ -1176,14 +2098,20 @@ export function SimpleSubstratesEditor({
                 ) : null}
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="flex flex-col gap-2">
-                  <Label>长度（mm）</Label>
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={lengthInvalid || undefined}
+                >
+                  <Label>
+                    长度（mm） <RequiredMark />
+                  </Label>
                   <Input
                     type="number"
                     min="0"
                     step="any"
                     value={String(placement.length_mm ?? '')}
                     disabled={disabled}
+                    aria-invalid={lengthInvalid || undefined}
                     onChange={(event) =>
                       update(index, {
                         size_placement: jsonValue({
@@ -1193,15 +2121,26 @@ export function SimpleSubstratesEditor({
                       })
                     }
                   />
+                  {lengthInvalid ? (
+                    <p className="text-destructive text-sm">
+                      请填写大于 0 的长度。
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>宽度（mm）</Label>
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={widthInvalid || undefined}
+                >
+                  <Label>
+                    宽度（mm） <RequiredMark />
+                  </Label>
                   <Input
                     type="number"
                     min="0"
                     step="any"
                     value={String(placement.width_mm ?? '')}
                     disabled={disabled}
+                    aria-invalid={widthInvalid || undefined}
                     onChange={(event) =>
                       update(index, {
                         size_placement: jsonValue({
@@ -1211,8 +2150,16 @@ export function SimpleSubstratesEditor({
                       })
                     }
                   />
+                  {widthInvalid ? (
+                    <p className="text-destructive text-sm">
+                      请填写大于 0 的宽度。
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-col gap-2">
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={thicknessInvalid || undefined}
+                >
                   <Label>厚度（mm）</Label>
                   <Input
                     type="number"
@@ -1220,6 +2167,7 @@ export function SimpleSubstratesEditor({
                     step="any"
                     value={String(placement.thickness_mm ?? '')}
                     disabled={disabled}
+                    aria-invalid={thicknessInvalid || undefined}
                     onChange={(event) =>
                       update(index, {
                         size_placement: jsonValue({
@@ -1229,90 +2177,259 @@ export function SimpleSubstratesEditor({
                       })
                     }
                   />
+                  {thicknessInvalid ? (
+                    <p className="text-destructive text-sm">
+                      厚度如填写，必须大于 0。
+                    </p>
+                  ) : null}
                 </div>
+                <p className="text-muted-foreground text-sm sm:col-span-3">
+                  长度按沿气流方向的边长填写，宽度按垂直气流方向的边长填写；若边未与气流方向对齐，请在备注说明。
+                </p>
                 <div className="flex flex-col gap-2">
-                  <Label>晶向</Label>
-                  <Input
-                    value={substrateOrientationSummary(
+                  <Label>晶向与抛光</Label>
+                  <p className="min-h-9 rounded-md border bg-muted px-3 py-2 text-sm">
+                    {substrateOrientationSummary(
                       moduleValueAsString(item['crystal_orientation']),
-                    )}
-                    readOnly
-                    placeholder="由衬底批次带入"
-                  />
+                    ) || '批次未标注'}
+                  </p>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>表面预处理</Label>
-                  <Input
-                    value={pretreatment}
-                    disabled={disabled}
-                    onChange={(event) =>
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={zoneInvalid || undefined}
+                >
+                  <Label>
+                    对应加热温区 <RequiredMark />
+                  </Label>
+                  <Select
+                    value={position.zone_index ? String(zoneIndex) : ''}
+                    disabled={disabled || !zoneCount}
+                    onValueChange={(value) =>
                       update(index, {
-                        pretreatment_steps: event.target.value.trim()
-                          ? JSON.stringify([
-                              {
-                                type: 'other',
-                                other_name: event.target.value,
-                                parameters: {
-                                  items: [
-                                    {
-                                      name: '说明',
-                                      value: event.target.value,
-                                      unit: '—',
-                                    },
-                                  ],
-                                },
-                              },
-                            ])
-                          : '',
+                        axial_position_mm: '',
+                        zone_thermocouple_distance_mm: jsonValue({
+                          ...position,
+                          zone_index: Number(value),
+                        }),
                       })
                     }
-                  />
+                  >
+                    <SelectTrigger
+                      className="w-full"
+                      aria-invalid={zoneInvalid || undefined}
+                    >
+                      <SelectValue
+                        placeholder={
+                          zoneCount ? '请选择温区' : '请先选择实验装置'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {Array.from(
+                          { length: zoneCount ?? 0 },
+                          (_, zonePosition) => (
+                            <SelectItem
+                              key={zonePosition}
+                              value={String(zonePosition + 1)}
+                            >
+                              温区 {zonePosition + 1}
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {zoneInvalid ? (
+                    <p className="text-destructive text-sm">
+                      请选择对应加热温区。
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>轴向位置（mm）</Label>
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={positionInvalid || undefined}
+                >
+                  <Label>
+                    相对该温区热电偶的位置（mm） <RequiredMark />
+                  </Label>
                   <Input
                     type="number"
                     step="any"
-                    value={moduleValueAsString(item['axial_position_mm'])}
-                    disabled={disabled}
+                    placeholder="例如 -20"
+                    aria-describedby={positionHelpId}
+                    value={positionValue}
+                    disabled={disabled || !position.zone_index}
+                    aria-invalid={positionInvalid || undefined}
                     onChange={(event) =>
                       update(index, {
-                        axial_position_mm: event.target.value,
+                        axial_position_mm: '',
+                        zone_thermocouple_distance_mm: jsonValue({
+                          ...position,
+                          distance_mm: number(event.target.value),
+                        }),
                       })
                     }
                   />
+                  {positionInvalid ? (
+                    <p className="text-destructive text-sm">
+                      请填写相对所选温区热电偶的位置。
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-col gap-2 sm:col-span-2">
-                  <Label>生长面朝向</Label>
+                <p
+                  id={positionHelpId}
+                  className="text-muted-foreground text-sm sm:col-span-3"
+                >
+                  以所选温区热电偶为 0 mm；沿气流方向，上游填负值，下游填正值。
+                </p>
+                {moduleValueAsString(item['axial_position_mm']).trim() &&
+                !position.zone_index ? (
+                  <p className="text-destructive text-sm sm:col-span-3">
+                    此记录使用旧装置原点位置；请按当前规则重新确认温区和相对热电偶位置。
+                  </p>
+                ) : null}
+                <div
+                  className="flex flex-col gap-2 sm:col-span-2"
+                  data-invalid={placementInvalid || undefined}
+                >
+                  <Label>
+                    放置方式 <RequiredMark />
+                  </Label>
                   <Select
-                    value={face}
+                    value={placementMode}
                     disabled={disabled}
                     onValueChange={(value) =>
                       update(index, {
                         size_placement: jsonValue({
                           ...placement,
-                          placement: value === 'face_to_face' ? 'other' : value,
-                          ...(value === 'face_to_face'
-                            ? { placement_other: '面对另一片衬底' }
+                          placement: value,
+                          tilt_angle_deg:
+                            value === 'tilted'
+                              ? placement.tilt_angle_deg
+                              : undefined,
+                          ...(value === 'other'
+                            ? {
+                                placement_other:
+                                  placement.placement === 'other' &&
+                                  placement.placement_other !== '面对另一片衬底'
+                                    ? placement.placement_other
+                                    : '',
+                              }
                             : { placement_other: undefined }),
                         }),
                       })
                     }
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger
+                      className="w-full"
+                      aria-invalid={placementInvalid || undefined}
+                    >
                       <SelectValue placeholder="请选择" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="face_up">朝上</SelectItem>
-                        <SelectItem value="face_down">朝下</SelectItem>
-                        <SelectItem value="face_to_face">
-                          面对另一片衬底
+                        <SelectItem value="face_up">
+                          生长面朝上（平放）
                         </SelectItem>
-                        <SelectItem value="upright">其他</SelectItem>
+                        <SelectItem value="face_down">
+                          生长面朝下（倒扣）
+                        </SelectItem>
+                        <SelectItem value="face_to_face">
+                          两片生长面相对
+                        </SelectItem>
+                        <SelectItem value="tilted">倾斜</SelectItem>
+                        <SelectItem value="upright">竖放</SelectItem>
+                        <SelectItem value="other">其他</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  {placementInvalid ? (
+                    <p className="text-destructive text-sm">请选择放置方式。</p>
+                  ) : null}
+                </div>
+                {placementMode === 'tilted' ? (
+                  <div
+                    className="flex flex-col gap-2"
+                    data-invalid={tiltInvalid || undefined}
+                  >
+                    <Label>
+                      倾角（°） <RequiredMark />
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="90"
+                      step="any"
+                      value={String(placement.tilt_angle_deg ?? '')}
+                      disabled={disabled}
+                      aria-invalid={tiltInvalid || undefined}
+                      onChange={(event) =>
+                        update(index, {
+                          size_placement: jsonValue({
+                            ...placement,
+                            tilt_angle_deg: number(event.target.value),
+                          }),
+                        })
+                      }
+                    />
+                    {tiltInvalid ? (
+                      <p className="text-destructive text-sm">
+                        请填写大于 0° 且小于 90° 的倾角。
+                      </p>
+                    ) : null}
+                    <p className="text-muted-foreground text-sm">
+                      相对水平放置平面；90° 请直接选择“竖放”。
+                    </p>
+                  </div>
+                ) : null}
+                {placementMode === 'other' ? (
+                  <div
+                    className="flex flex-col gap-2"
+                    data-invalid={otherPlacementInvalid || undefined}
+                  >
+                    <Label>
+                      其他放置方式 <RequiredMark />
+                    </Label>
+                    <Input
+                      value={String(placement.placement_other ?? '')}
+                      disabled={disabled}
+                      aria-invalid={otherPlacementInvalid || undefined}
+                      onChange={(event) =>
+                        update(index, {
+                          size_placement: jsonValue({
+                            ...placement,
+                            placement_other: event.target.value,
+                          }),
+                        })
+                      }
+                    />
+                    {otherPlacementInvalid ? (
+                      <p className="text-destructive text-sm">
+                        请说明其他放置方式。
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="flex flex-col gap-2 sm:col-span-3">
+                  <Label>预处理步骤</Label>
+                  <TreatmentStepsEditor
+                    kind="substrate"
+                    value={treatmentSteps ?? []}
+                    disabled={disabled}
+                    showErrors={showErrors}
+                    labels={buildTreatmentStepsEditorLabels(t)}
+                    onChange={(steps) =>
+                      update(index, {
+                        pretreatment_steps: JSON.stringify(steps),
+                      })
+                    }
+                  />
+                  {showErrors && treatmentSteps === null ? (
+                    <p className="text-destructive text-sm">
+                      预处理步骤数据无法读取，请重新填写。
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>备注</Label>
@@ -1361,7 +2478,7 @@ function newTemperatureChannel(zone: number, setupId: string): SimpleChannel {
     zone_index: zone,
     unit: '°C',
     data_kind: 'interval_series',
-    series: [],
+    series: [{ start_s: 0, value: '' }],
   }
 }
 
@@ -1391,6 +2508,8 @@ export function SimpleGrowthEditor({
   setupSnapshot,
   zoneCount,
   disabled,
+  showErrors,
+  validationIssue,
   onTimelineChange,
   onSettingsChange,
   onEventsChange,
@@ -1405,6 +2524,8 @@ export function SimpleGrowthEditor({
   setupSnapshot: Record<string, unknown> | null
   zoneCount: number | null
   disabled: boolean
+  showErrors?: boolean
+  validationIssue?: string | null
   onTimelineChange: (
     segments: SimpleSegment[],
     channels: SimpleChannel[],
@@ -1412,26 +2533,52 @@ export function SimpleGrowthEditor({
   onSettingsChange: (settings: SimpleProcessSettings) => void
   onEventsChange: (events: SimpleProcessEvent[]) => void
 }) {
-  const growth = segments.find((item) => item.segment_type === 'growth')
-  const setGrowth = (patch: Partial<SimpleSegment>) =>
-    onTimelineChange(
-      [
-        {
-          segment_key: growth?.segment_key ?? key('segment'),
-          segment_type: 'growth',
-          sequence: 1,
-          start_s: growth?.start_s ?? 0,
-          end_s: growth?.end_s ?? 0,
-          ...patch,
-        },
-      ],
-      channels,
+  const { t } = useTranslation()
+  const preparationOperations = settings.preparation_operations ?? []
+
+  const syncPresetIntervals = (
+    nextSegments: SimpleSegment[],
+    nextChannels: SimpleChannel[],
+    nextSettings: SimpleProcessSettings,
+  ) => {
+    const processEnd = simpleProcessEndSeconds(
+      nextSegments,
+      nextChannels,
+      nextSettings.field_params,
+      events,
     )
-  const updateChannel = (channelKey: string, next: SimpleChannel) =>
+    const wholeProcess = wholeProcessInterval(processEnd)
+    return nextChannels.map((channel) =>
+      channel.channel_type !== 'flow'
+        ? channel
+        : {
+            ...channel,
+            series: (channel.series ?? []).map((point) => {
+              return point.timing_preset === 'whole_process' && wholeProcess
+                ? { ...point, ...wholeProcess }
+                : point
+            }),
+          },
+    )
+  }
+
+  const setProcessSettings = (nextSettings: SimpleProcessSettings) => {
+    onSettingsChange(nextSettings)
     onTimelineChange(
       segments,
-      channels.map((item) => (item.channel_key === channelKey ? next : item)),
+      syncPresetIntervals(segments, channels, nextSettings),
     )
+  }
+  const updateChannel = (channelKey: string, next: SimpleChannel) => {
+    const exists = channels.some((item) => item.channel_key === channelKey)
+    const nextChannels = exists
+      ? channels.map((item) => (item.channel_key === channelKey ? next : item))
+      : [...channels, next]
+    onTimelineChange(
+      segments,
+      syncPresetIntervals(segments, nextChannels, settings),
+    )
+  }
   const temperatureChannels = Array.from(
     { length: zoneCount ?? 0 },
     (_, index) =>
@@ -1443,15 +2590,49 @@ export function SimpleGrowthEditor({
       ) ?? newTemperatureChannel(index + 1, setupId),
   )
   const gasChannels = channels.filter((item) => item.channel_type === 'flow')
-  const pressure = channels.find((item) => item.channel_type === 'pressure')
-  const processEvent = events[0]
-  const eventText = splitEventDescription(processEvent?.description)
+  const pressure = channels.find(
+    (item) =>
+      item.channel_type === 'pressure' && item.source_type === 'setpoint',
+  )
+  const preparationInvalid = Boolean(
+    showErrors &&
+    preparationOperations.some(
+      (operation) =>
+        !Number.isFinite(operation.duration_min) ||
+        operation.duration_min <= 0 ||
+        (operation.operation_type === 'gas_exchange' &&
+          (!operation.cycle_count ||
+            operation.cycle_count < 1 ||
+            !operation.gases?.length)) ||
+        (operation.operation_type === 'other' && !operation.other_name?.trim()),
+    ),
+  )
+  const pressureInvalid = Boolean(
+    showErrors &&
+    settings.pressure_regime &&
+    settings.pressure_regime !== 'atmospheric' &&
+    (!Number.isFinite(pressure?.scalar_value) ||
+      (pressure?.scalar_value ?? 0) <= 0),
+  )
   const capabilities = Array.isArray(setupSnapshot?.field_devices)
     ? (setupSnapshot.field_devices as string[]).filter(
         (item) => item !== 'none',
       )
     : []
+  const allowedFieldTypes = capabilities.filter((item) =>
+    actualFieldTypes.includes(item as (typeof actualFieldTypes)[number]),
+  ) as (typeof actualFieldTypes)[number][]
+  const processEnd = simpleProcessEndSeconds(
+    segments,
+    channels,
+    settings.field_params,
+    events,
+  )
   const uploadMeasuredTemperature = async (zone: number, file: File) => {
+    if (!file.name.toLocaleLowerCase().endsWith('.csv')) {
+      toast.error('实测温度曲线必须使用 CSV 文件。')
+      return
+    }
     const existing = channels.find(
       (item) =>
         item.channel_type === 'temperature' &&
@@ -1495,77 +2676,281 @@ export function SimpleGrowthEditor({
   return (
     <ModuleCard id="module-process_steps" title="生长条件">
       <div className="flex flex-col gap-6">
+        {showErrors && validationIssue ? (
+          <p className="text-destructive text-sm">{validationIssue}</p>
+        ) : null}
         <section className="flex flex-col gap-4">
-          <h3 className="font-medium">生长阶段</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label>生长开始时间（min）</Label>
-              <Input
-                type="number"
-                min="0"
-                step="any"
-                value={minuteValue(growth?.start_s)}
-                disabled={disabled}
-                onChange={(event) =>
-                  setGrowth({
-                    start_s: Number(event.target.value) * 60,
-                  })
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label>生长结束时间（min）</Label>
-              <Input
-                type="number"
-                min="0"
-                step="any"
-                value={minuteValue(growth?.end_s)}
-                disabled={disabled}
-                onChange={(event) =>
-                  setGrowth({ end_s: Number(event.target.value) * 60 })
-                }
-              />
-            </div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h3 className="font-medium">系统准备（选填）</h3>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              onClick={() =>
+                setProcessSettings({
+                  ...settings,
+                  preparation_operations: [
+                    ...preparationOperations,
+                    {
+                      operation_type: 'pump_down',
+                      duration_min: Number.NaN,
+                    },
+                  ],
+                })
+              }
+            >
+              <Plus data-icon="inline-start" />
+              添加系统准备操作
+            </Button>
           </div>
+          {preparationOperations.map((operation, operationIndex) => {
+            const patchOperation = (
+              patch: Partial<(typeof preparationOperations)[number]>,
+            ) =>
+              setProcessSettings({
+                ...settings,
+                preparation_operations: preparationOperations.map(
+                  (item, current) =>
+                    current === operationIndex ? { ...item, ...patch } : item,
+                ),
+              })
+            return (
+              <div
+                key={operationIndex}
+                className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
+                data-invalid={preparationInvalid || undefined}
+              >
+                <div className="flex items-center justify-between gap-3 sm:col-span-2">
+                  <p className="font-medium">准备操作 {operationIndex + 1}</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={disabled}
+                    onClick={() =>
+                      setProcessSettings({
+                        ...settings,
+                        preparation_operations: preparationOperations.filter(
+                          (_, current) => current !== operationIndex,
+                        ),
+                      })
+                    }
+                  >
+                    <Trash2 data-icon="inline-start" />
+                    删除
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>操作</Label>
+                  <Select
+                    value={operation.operation_type}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      patchOperation({
+                        operation_type:
+                          value as (typeof operation)['operation_type'],
+                        cycle_count: undefined,
+                        gases: undefined,
+                        other_name: undefined,
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label={`准备操作 ${operationIndex + 1} 类型`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="pump_down">抽真空</SelectItem>
+                        <SelectItem value="gas_exchange">气路置换</SelectItem>
+                        <SelectItem value="leak_check">检漏</SelectItem>
+                        <SelectItem value="other">其他操作</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>
+                    持续时间（min） <RequiredMark />
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    aria-label={`准备操作 ${operationIndex + 1} 持续时间（min）`}
+                    value={minuteValue(operation.duration_min * 60)}
+                    disabled={disabled}
+                    aria-invalid={
+                      (showErrors &&
+                        (!Number.isFinite(operation.duration_min) ||
+                          operation.duration_min <= 0)) ||
+                      undefined
+                    }
+                    onChange={(event) =>
+                      patchOperation({
+                        duration_min:
+                          event.target.value === ''
+                            ? Number.NaN
+                            : Number(event.target.value),
+                      })
+                    }
+                  />
+                </div>
+                {operation.operation_type === 'gas_exchange' ? (
+                  <>
+                    <div className="flex flex-col gap-2">
+                      <Label>
+                        置换气体 <RequiredMark />
+                      </Label>
+                      <Select
+                        value={operation.gases?.[0] ?? ''}
+                        disabled={disabled}
+                        onValueChange={(value) =>
+                          patchOperation({ gases: [value] })
+                        }
+                      >
+                        <SelectTrigger
+                          className="w-full"
+                          aria-label={`准备操作 ${operationIndex + 1} 置换气体`}
+                        >
+                          <SelectValue placeholder="请选择" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {Object.keys(gasSpecies).map((species) => (
+                              <SelectItem key={species} value={species}>
+                                {species}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>
+                        置换次数 <RequiredMark />
+                      </Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        aria-label={`准备操作 ${operationIndex + 1} 置换次数`}
+                        value={operation.cycle_count ?? ''}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          patchOperation({
+                            cycle_count:
+                              event.target.value === ''
+                                ? undefined
+                                : Number(event.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                  </>
+                ) : null}
+                {operation.operation_type === 'other' ? (
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <Label>
+                      具体操作 <RequiredMark />
+                    </Label>
+                    <Input
+                      value={operation.other_name ?? ''}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        patchOperation({ other_name: event.target.value })
+                      }
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
         </section>
         <Separator />
 
         <section className="flex flex-col gap-4">
-          <h3 className="font-medium">温度程序</h3>
+          <h3 className="font-medium">升温与预处理</h3>
           {temperatureChannels.map((channel, zoneIndex) => (
             <div key={zoneIndex} className="flex flex-col gap-3">
               <p className="text-sm font-medium">温区 {zoneIndex + 1}</p>
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 text-sm">
-                <span>时间（min）</span>
-                <span>设定温度（℃）</span>
+              <div className="grid grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 text-sm">
+                <span>操作</span>
+                <span>
+                  持续时间（min） <RequiredMark />
+                </span>
+                <span>
+                  步骤结束温度（℃） <RequiredMark />
+                </span>
                 <span aria-hidden="true" />
                 {(channel.series ?? []).map((point, pointIndex) => (
                   <Fragment key={`${channel.channel_key}-${pointIndex}`}>
+                    <span className="font-medium text-muted-foreground">
+                      {pointIndex === 0
+                        ? '初始温度'
+                        : (temperatureStepOperation(
+                            channel.series?.[pointIndex - 1]?.value ?? '',
+                            point.value,
+                          ) ?? '待判断')}
+                    </span>
+                    {pointIndex === 0 ? (
+                      <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-muted-foreground">
+                        —
+                      </div>
+                    ) : (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="例如 30"
+                        aria-label={`温区 ${zoneIndex + 1} 第 ${pointIndex} 步持续时间（min）`}
+                        value={minuteValue(
+                          point.start_s -
+                            (channel.series?.[pointIndex - 1]?.start_s ?? 0),
+                        )}
+                        disabled={disabled}
+                        aria-invalid={
+                          (showErrors &&
+                            (!Number.isFinite(point.start_s) ||
+                              point.start_s <=
+                                (channel.series?.[pointIndex - 1]?.start_s ??
+                                  -1))) ||
+                          undefined
+                        }
+                        onChange={(event) =>
+                          updateChannel(channel.channel_key, {
+                            ...channel,
+                            series: updateTemperatureStepDuration(
+                              channel.series ?? [],
+                              pointIndex,
+                              event.target.value === ''
+                                ? Number.NaN
+                                : Number(event.target.value),
+                            ),
+                          })
+                        }
+                      />
+                    )}
                     <Input
                       type="number"
-                      min="0"
                       step="any"
-                      value={minuteValue(point.start_s)}
-                      disabled={disabled || pointIndex === 0}
-                      onChange={(event) =>
-                        updateChannel(channel.channel_key, {
-                          ...channel,
-                          series: (channel.series ?? []).map((item, current) =>
-                            current === pointIndex
-                              ? {
-                                  ...item,
-                                  start_s: Number(event.target.value) * 60,
-                                }
-                              : item,
-                          ),
-                        })
+                      placeholder={pointIndex === 0 ? '例如 25' : '例如 750'}
+                      aria-label={
+                        pointIndex === 0
+                          ? `温区 ${zoneIndex + 1} 初始温度（℃）`
+                          : `温区 ${zoneIndex + 1} 第 ${pointIndex} 步目标温度（℃）`
                       }
-                    />
-                    <Input
-                      type="number"
-                      step="any"
                       value={String(point.value)}
                       disabled={disabled}
+                      aria-invalid={
+                        (showErrors &&
+                          (point.value === '' ||
+                            !Number.isFinite(Number(point.value)))) ||
+                        undefined
+                      }
                       onChange={(event) =>
                         updateChannel(channel.channel_key, {
                           ...channel,
@@ -1583,23 +2968,27 @@ export function SimpleGrowthEditor({
                         })
                       }
                     />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      aria-label="删除时间点"
-                      disabled={disabled}
-                      onClick={() =>
-                        updateChannel(channel.channel_key, {
-                          ...channel,
-                          series: (channel.series ?? []).filter(
-                            (_, current) => current !== pointIndex,
-                          ),
-                        })
-                      }
-                    >
-                      <Trash2 />
-                    </Button>
+                    {pointIndex === 0 ? (
+                      <span aria-hidden="true" />
+                    ) : (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`删除温区 ${zoneIndex + 1} 第 ${pointIndex} 步`}
+                        disabled={disabled}
+                        onClick={() =>
+                          updateChannel(channel.channel_key, {
+                            ...channel,
+                            series: (channel.series ?? []).filter(
+                              (_, current) => current !== pointIndex,
+                            ),
+                          })
+                        }
+                      >
+                        <Trash2 />
+                      </Button>
+                    )}
                   </Fragment>
                 ))}
               </div>
@@ -1616,9 +3005,7 @@ export function SimpleGrowthEditor({
                     series: [
                       ...(channel.series ?? []),
                       {
-                        start_s: channel.series?.length
-                          ? (channel.series.at(-1)?.start_s ?? 0) + 60
-                          : 0,
+                        start_s: channel.series?.length ? Number.NaN : 0,
                         value: '',
                       },
                     ],
@@ -1636,7 +3023,7 @@ export function SimpleGrowthEditor({
                 }}
               >
                 <Plus data-icon="inline-start" />
-                添加时间点
+                添加温度步骤
               </Button>
               <details className="text-sm text-muted-foreground">
                 <summary className="cursor-pointer">
@@ -1645,7 +3032,7 @@ export function SimpleGrowthEditor({
                 <Input
                   className="mt-3"
                   type="file"
-                  accept=".csv,.tsv,.txt,.xlsx"
+                  accept=".csv"
                   disabled={disabled}
                   onChange={(event) => {
                     const file = event.target.files?.[0]
@@ -1655,6 +3042,40 @@ export function SimpleGrowthEditor({
                     event.target.value = ''
                   }}
                 />
+                <p className="mt-2 text-sm">
+                  每个温区分别上传 CSV；文件必须包含 time_s 和 value 两列。
+                </p>
+                {channels.some(
+                  (item) =>
+                    item.channel_type === 'temperature' &&
+                    item.source_type === 'measured' &&
+                    item.zone_index === zoneIndex + 1,
+                ) ? (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span>已关联实测温度曲线</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={disabled}
+                      onClick={() =>
+                        onTimelineChange(
+                          segments,
+                          channels.filter(
+                            (item) =>
+                              !(
+                                item.channel_type === 'temperature' &&
+                                item.source_type === 'measured' &&
+                                item.zone_index === zoneIndex + 1
+                              ),
+                          ),
+                        )
+                      }
+                    >
+                      移除引用
+                    </Button>
+                  </div>
+                ) : null}
               </details>
             </div>
           ))}
@@ -1662,17 +3083,27 @@ export function SimpleGrowthEditor({
         <Separator />
 
         <section className="flex flex-col gap-4">
-          <h3 className="font-medium">气体程序</h3>
+          <h3 className="font-medium">
+            气体程序 <RequiredMark />
+          </h3>
           {gasChannels.map((channel) => (
             <div
               key={channel.channel_key}
               className="flex flex-col gap-4 rounded-lg border p-4"
             >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label>气体种类</Label>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={
+                    (showErrors && !channel.gas_species_code?.trim()) ||
+                    undefined
+                  }
+                >
+                  <Label>
+                    气体种类 <RequiredMark />
+                  </Label>
                   <Select
-                    value={channel.gas_species_code}
+                    value={channel.gas_species_code ?? ''}
                     disabled={disabled}
                     onValueChange={(value) =>
                       updateChannel(channel.channel_key, {
@@ -1683,7 +3114,14 @@ export function SimpleGrowthEditor({
                       })
                     }
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label="气体种类"
+                      aria-invalid={
+                        (showErrors && !channel.gas_species_code?.trim()) ||
+                        undefined
+                      }
+                    >
                       <SelectValue placeholder="请选择" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1697,8 +3135,17 @@ export function SimpleGrowthEditor({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>气瓶批次</Label>
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={
+                    (showErrors &&
+                      (!channel.gas_lot_id || !channel.gas_lot_version)) ||
+                    undefined
+                  }
+                >
+                  <Label>
+                    气瓶批次 <RequiredMark />
+                  </Label>
                   <EntityReferenceSelect
                     kind="material_lot"
                     productLabel
@@ -1716,89 +3163,243 @@ export function SimpleGrowthEditor({
                     }
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 text-sm">
-                <span>开始时间（min）</span>
-                <span>结束时间（min）</span>
-                <span>流量（sccm）</span>
-                <span aria-hidden="true" />
-                {(channel.series ?? []).map((interval, intervalIndex) => (
-                  <Fragment key={`${channel.channel_key}-${intervalIndex}`}>
-                    {(
-                      [
-                        ['start_s', minuteValue(interval.start_s)],
-                        ['end_s', minuteValue(interval.end_s)],
-                        ['value', interval.value],
-                      ] as const
-                    ).map(([field, value]) => (
-                      <Input
-                        key={`${intervalIndex}-${field}`}
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={String(value)}
-                        disabled={disabled}
-                        onChange={(event) =>
-                          updateChannel(channel.channel_key, {
-                            ...channel,
-                            series: (channel.series ?? []).map(
-                              (item, current) =>
-                                current === intervalIndex
-                                  ? {
-                                      ...item,
-                                      [field]:
-                                        event.target.value === ''
-                                          ? field === 'value'
-                                            ? ''
-                                            : Number.NaN
-                                          : field === 'value'
-                                            ? Number(event.target.value)
-                                            : Number(event.target.value) * 60,
-                                    }
-                                  : item,
-                            ),
-                          })
-                        }
-                      />
-                    ))}
-                    <Button
-                      key={`${intervalIndex}-delete`}
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      aria-label="删除供气区间"
-                      disabled={disabled}
-                      onClick={() =>
-                        updateChannel(channel.channel_key, {
-                          ...channel,
-                          series: (channel.series ?? []).filter(
-                            (_, current) => current !== intervalIndex,
-                          ),
-                        })
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={
+                    (showErrors && !channel.measurement_source) || undefined
+                  }
+                >
+                  <Label>
+                    流量测量来源 <RequiredMark />
+                  </Label>
+                  <Select
+                    value={channel.measurement_source ?? ''}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      updateChannel(channel.channel_key, {
+                        ...channel,
+                        measurement_source:
+                          value as SimpleChannel['measurement_source'],
+                        measurement_source_other:
+                          value === 'other'
+                            ? channel.measurement_source_other
+                            : undefined,
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label="流量测量来源"
+                      aria-invalid={
+                        (showErrors && !channel.measurement_source) || undefined
                       }
                     >
-                      <Trash2 />
-                    </Button>
-                  </Fragment>
-                ))}
+                      <SelectValue placeholder="请选择" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="mfc">
+                          质量流量控制器（MFC）
+                        </SelectItem>
+                        <SelectItem value="rotameter">转子流量计</SelectItem>
+                        <SelectItem value="other">其他测量方式</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {channel.measurement_source === 'other' ? (
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={
+                    (showErrors && !channel.measurement_source_other?.trim()) ||
+                    undefined
+                  }
+                >
+                  <Label>
+                    其他流量测量来源 <RequiredMark />
+                  </Label>
+                  <Input
+                    value={channel.measurement_source_other ?? ''}
+                    disabled={disabled}
+                    aria-invalid={
+                      (showErrors &&
+                        !channel.measurement_source_other?.trim()) ||
+                      undefined
+                    }
+                    onChange={(event) =>
+                      updateChannel(channel.channel_key, {
+                        ...channel,
+                        measurement_source_other: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-3">
+                {(channel.series ?? []).map((interval, intervalIndex) => {
+                  const timingPreset =
+                    interval.timing_preset === 'whole_process'
+                      ? 'whole_process'
+                      : 'custom'
+                  const patchInterval = (patch: Partial<typeof interval>) =>
+                    updateChannel(channel.channel_key, {
+                      ...channel,
+                      series: (channel.series ?? []).map((item, current) =>
+                        current === intervalIndex
+                          ? { ...item, ...patch }
+                          : item,
+                      ),
+                    })
+                  return (
+                    <div
+                      key={`${channel.channel_key}-${intervalIndex}`}
+                      className="grid gap-4 rounded-md border p-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]"
+                    >
+                      <div className="flex flex-col gap-2">
+                        <Label>
+                          使用时段 <RequiredMark />
+                        </Label>
+                        <Select
+                          value={timingPreset}
+                          disabled={disabled}
+                          onValueChange={(value) => {
+                            const preset = value as GasTimingPreset
+                            const nextInterval =
+                              preset === 'whole_process'
+                                ? wholeProcessInterval(processEnd)
+                                : null
+                            patchInterval({
+                              timing_preset: preset,
+                              ...(nextInterval ?? {}),
+                            })
+                          }}
+                        >
+                          <SelectTrigger
+                            className="w-full"
+                            aria-label="供气使用时段"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {([['whole_process', '全程']] as const).map(
+                                ([value, label]) => (
+                                  <SelectItem
+                                    key={value}
+                                    value={value}
+                                    disabled={!wholeProcessInterval(processEnd)}
+                                  >
+                                    {label}
+                                  </SelectItem>
+                                ),
+                              )}
+                              <SelectItem value="custom">自定义时间</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label>
+                          流量（sccm） <RequiredMark />
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="any"
+                          aria-label="流量（sccm）"
+                          value={String(interval.value)}
+                          disabled={disabled}
+                          aria-invalid={
+                            (showErrors &&
+                              (interval.value === '' ||
+                                !Number.isFinite(Number(interval.value)) ||
+                                Number(interval.value) <= 0)) ||
+                            undefined
+                          }
+                          onChange={(event) =>
+                            patchInterval({
+                              value:
+                                event.target.value === ''
+                                  ? ''
+                                  : Number(event.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label="删除供气区间"
+                          disabled={disabled}
+                          onClick={() =>
+                            updateChannel(channel.channel_key, {
+                              ...channel,
+                              series: (channel.series ?? []).filter(
+                                (_, current) => current !== intervalIndex,
+                              ),
+                            })
+                          }
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                      {timingPreset === 'custom' ? (
+                        <div className="grid gap-3 sm:col-span-3 sm:grid-cols-2">
+                          {(
+                            [
+                              ['start_s', '从实验开始后（min）'],
+                              ['end_s', '至实验开始后（min）'],
+                            ] as const
+                          ).map(([field, label]) => (
+                            <div key={field} className="flex flex-col gap-2">
+                              <Label>{label}</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="any"
+                                aria-label={label}
+                                value={minuteValue(interval[field])}
+                                disabled={disabled}
+                                onChange={(event) =>
+                                  patchInterval({
+                                    [field]:
+                                      event.target.value === ''
+                                        ? Number.NaN
+                                        : Number(event.target.value) * 60,
+                                  })
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   disabled={disabled}
-                  onClick={() =>
+                  onClick={() => {
+                    const wholeProcess = wholeProcessInterval(processEnd)
                     updateChannel(channel.channel_key, {
                       ...channel,
                       series: [
                         ...(channel.series ?? []),
                         {
-                          start_s: Number.NaN,
+                          start_s: wholeProcess?.start_s ?? Number.NaN,
+                          end_s: wholeProcess?.end_s,
                           value: '',
+                          timing_preset: 'whole_process',
                         },
                       ],
                     })
-                  }
+                  }}
                 >
                   <Plus data-icon="inline-start" />
                   添加供气区间
@@ -1840,10 +3441,18 @@ export function SimpleGrowthEditor({
         <Separator />
 
         <section className="grid gap-5 sm:grid-cols-2">
-          <div className="flex flex-col gap-3">
-            <Label>压力制度</Label>
+          <div
+            className="flex flex-col gap-3"
+            data-invalid={
+              (showErrors && !settings.pressure_regime) || undefined
+            }
+          >
+            <h3 className="font-medium">过程压力</h3>
+            <Label>
+              压力条件 <RequiredMark />
+            </Label>
             <Select
-              value={settings.pressure_regime}
+              value={settings.pressure_regime ?? ''}
               disabled={disabled}
               onValueChange={(value) => {
                 const regime = value as SimpleProcessSettings['pressure_regime']
@@ -1851,34 +3460,70 @@ export function SimpleGrowthEditor({
                 if (regime === 'atmospheric') {
                   onTimelineChange(
                     segments,
-                    channels.filter((item) => item.channel_type !== 'pressure'),
+                    channels.filter(
+                      (item) =>
+                        item.channel_type !== 'pressure' ||
+                        item.source_type !== 'setpoint',
+                    ),
                   )
+                } else if (pressure) {
+                  updateChannel(pressure.channel_key, {
+                    ...pressure,
+                    pressure_type: 'absolute',
+                  })
                 }
               }}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger
+                className="w-full"
+                aria-label="反应压力条件"
+                aria-invalid={
+                  (showErrors && !settings.pressure_regime) || undefined
+                }
+              >
                 <SelectValue placeholder="请选择" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="atmospheric">常压</SelectItem>
-                  <SelectItem value="low_pressure">低压</SelectItem>
-                  <SelectItem value="other">其他</SelectItem>
+                  <SelectItem value="atmospheric">常压（APCVD）</SelectItem>
+                  <SelectItem value="low_pressure">低压（LPCVD）</SelectItem>
+                  <SelectItem value="ultra_high_vacuum">超高真空</SelectItem>
+                  {settings.pressure_regime === 'other' ? (
+                    <SelectItem value="other">其他（历史记录）</SelectItem>
+                  ) : null}
                 </SelectGroup>
               </SelectContent>
             </Select>
             {settings.pressure_regime &&
             settings.pressure_regime !== 'atmospheric' ? (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="flex flex-col gap-2">
-                  <Label>工作压力</Label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={pressureInvalid || undefined}
+                >
+                  <Label>
+                    工作绝对压力 <RequiredMark />
+                  </Label>
                   <Input
                     type="number"
                     min="0"
                     step="any"
+                    aria-label="工作绝对压力"
                     value={pressure?.scalar_value ?? ''}
                     disabled={disabled}
+                    aria-invalid={pressureInvalid || undefined}
                     onChange={(event) => {
+                      if (event.target.value.trim() === '') {
+                        onTimelineChange(
+                          segments,
+                          channels.filter(
+                            (item) =>
+                              item.channel_type !== 'pressure' ||
+                              item.source_type !== 'setpoint',
+                          ),
+                        )
+                        return
+                      }
                       const next: SimpleChannel = {
                         channel_key: pressure?.channel_key ?? key('channel'),
                         channel_type: 'pressure',
@@ -1887,7 +3532,7 @@ export function SimpleGrowthEditor({
                         subject_ref: 'reactor',
                         subject_instance_ref: `setup:${setupId}:pressure:1`,
                         pressure_location: 'reactor',
-                        pressure_type: pressure?.pressure_type ?? 'unspecified',
+                        pressure_type: 'absolute',
                         unit: pressure?.unit ?? 'Pa',
                         data_kind: 'scalar',
                         scalar_value: Number(event.target.value),
@@ -1918,7 +3563,7 @@ export function SimpleGrowthEditor({
                       })
                     }
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full" aria-label="压力单位">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1932,38 +3577,22 @@ export function SimpleGrowthEditor({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>压力类型</Label>
-                  <Select
-                    value={pressure?.pressure_type ?? 'unspecified'}
-                    disabled={disabled}
-                    onValueChange={(value) =>
-                      pressure &&
-                      updateChannel(pressure.channel_key, {
-                        ...pressure,
-                        pressure_type: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="absolute">绝对压力</SelectItem>
-                        <SelectItem value="gauge">表压</SelectItem>
-                        <SelectItem value="unspecified">不清楚</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <p className="text-sm text-muted-foreground sm:col-span-2">
+                  填写相对于绝对真空的压力，不填写相对于大气压的表压。
+                </p>
               </div>
             ) : null}
           </div>
-          <div className="flex flex-col gap-3">
-            <Label>降温方式</Label>
+          <div
+            className="flex flex-col gap-3"
+            data-invalid={(showErrors && !settings.cooling_method) || undefined}
+          >
+            <h3 className="font-medium">降温</h3>
+            <Label>
+              降温方式 <RequiredMark />
+            </Label>
             <Select
-              value={settings.cooling_method}
+              value={settings.cooling_method ?? ''}
               disabled={disabled}
               onValueChange={(value) =>
                 onSettingsChange({
@@ -1972,76 +3601,161 @@ export function SimpleGrowthEditor({
                     value as SimpleProcessSettings['cooling_method'],
                   cooling_other:
                     value === 'other' ? settings.cooling_other : undefined,
+                  cooling_rate_C_per_min:
+                    value === 'controlled_cooling'
+                      ? settings.cooling_rate_C_per_min
+                      : undefined,
+                  lid_open_temperature_C:
+                    value === 'open_lid_cooling'
+                      ? settings.lid_open_temperature_C
+                      : undefined,
                 })
               }
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger
+                className="w-full"
+                aria-label="降温方式"
+                aria-invalid={
+                  (showErrors && !settings.cooling_method) || undefined
+                }
+              >
                 <SelectValue placeholder="请选择" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="natural">自然冷却</SelectItem>
-                  <SelectItem value="rapid_furnace_move">快速移炉</SelectItem>
-                  <SelectItem value="controlled">受控降温</SelectItem>
-                  <SelectItem value="other">其他</SelectItem>
+                  <SelectItem value="furnace_cooling">随炉冷却</SelectItem>
+                  <SelectItem value="open_lid_cooling">开盖冷却</SelectItem>
+                  <SelectItem value="rapid_furnace_move_cooling">
+                    移炉快速冷却
+                  </SelectItem>
+                  <SelectItem value="controlled_cooling">受控降温</SelectItem>
+                  <SelectItem value="other">其他降温方式</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
-            {settings.cooling_method === 'other' ? (
-              <Input
-                value={settings.cooling_other ?? ''}
-                disabled={disabled}
-                placeholder="请说明降温方式"
-                onChange={(event) =>
-                  onSettingsChange({
-                    ...settings,
-                    cooling_other: event.target.value,
-                  })
+            {settings.cooling_method === 'controlled_cooling' ? (
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={
+                  (showErrors &&
+                    (!Number.isFinite(settings.cooling_rate_C_per_min) ||
+                      (settings.cooling_rate_C_per_min ?? 0) <= 0)) ||
+                  undefined
                 }
-              />
+              >
+                <Label>
+                  降温速率（℃/min） <RequiredMark />
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={settings.cooling_rate_C_per_min ?? ''}
+                  disabled={disabled}
+                  aria-invalid={
+                    (showErrors &&
+                      (!Number.isFinite(settings.cooling_rate_C_per_min) ||
+                        (settings.cooling_rate_C_per_min ?? 0) <= 0)) ||
+                    undefined
+                  }
+                  onChange={(event) =>
+                    onSettingsChange({
+                      ...settings,
+                      cooling_rate_C_per_min:
+                        event.target.value === ''
+                          ? undefined
+                          : Number(event.target.value),
+                    })
+                  }
+                />
+              </div>
+            ) : null}
+            {settings.cooling_method === 'open_lid_cooling' ? (
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={
+                  (showErrors &&
+                    !Number.isFinite(settings.lid_open_temperature_C)) ||
+                  undefined
+                }
+              >
+                <Label>
+                  开盖温度（℃） <RequiredMark />
+                </Label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={settings.lid_open_temperature_C ?? ''}
+                  disabled={disabled}
+                  aria-invalid={
+                    (showErrors &&
+                      !Number.isFinite(settings.lid_open_temperature_C)) ||
+                    undefined
+                  }
+                  onChange={(event) =>
+                    onSettingsChange({
+                      ...settings,
+                      lid_open_temperature_C:
+                        event.target.value === ''
+                          ? undefined
+                          : Number(event.target.value),
+                    })
+                  }
+                />
+              </div>
+            ) : null}
+            {settings.cooling_method === 'other' ? (
+              <div
+                className="flex flex-col gap-2"
+                data-invalid={
+                  (showErrors && !settings.cooling_other?.trim()) || undefined
+                }
+              >
+                <Label>
+                  其他降温方式 <RequiredMark />
+                </Label>
+                <Input
+                  value={settings.cooling_other ?? ''}
+                  disabled={disabled}
+                  aria-invalid={
+                    (showErrors && !settings.cooling_other?.trim()) || undefined
+                  }
+                  onChange={(event) =>
+                    onSettingsChange({
+                      ...settings,
+                      cooling_other: event.target.value,
+                    })
+                  }
+                />
+              </div>
             ) : null}
           </div>
         </section>
 
-        {capabilities.length > 0 ? (
+        {allowedFieldTypes.length > 0 ? (
           <>
             <Separator />
-            <section className="flex flex-col gap-3">
-              <h3 className="font-medium">外场或等离子体</h3>
-              <div className="flex flex-wrap gap-4">
-                {capabilities.map((capability) => (
-                  <Label key={capability} className="flex items-center gap-2">
-                    <Checkbox
-                      checked={(settings.external_fields ?? []).includes(
-                        capability,
-                      )}
-                      disabled={disabled}
-                      onCheckedChange={(checked) =>
-                        onSettingsChange({
-                          ...settings,
-                          external_fields:
-                            checked === true
-                              ? [
-                                  ...(settings.external_fields ?? []),
-                                  capability,
-                                ]
-                              : (settings.external_fields ?? []).filter(
-                                  (item) => item !== capability,
-                                ),
-                        })
-                      }
-                    />
-                    {
-                      {
-                        plasma: '使用等离子体',
-                        electric_field: '使用电场',
-                        magnetic_field: '使用磁场',
-                        light: '使用光照',
-                      }[capability]
-                    }
-                  </Label>
-                ))}
+            <section className="flex flex-col gap-4">
+              <div>
+                <h3 className="font-medium">实际外场或等离子体</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  仅记录本炉实际启用的程序；未添加即表示本炉未使用。可选类型来自所选实验装置的能力。
+                </p>
               </div>
+              <FieldParamsEditor
+                value={settings.field_params ?? []}
+                allowedTypes={allowedFieldTypes}
+                disabled={disabled}
+                showErrors={showErrors}
+                labels={buildFieldParamsEditorLabels(t)}
+                onChange={(field_params) =>
+                  onSettingsChange({
+                    ...settings,
+                    field_params,
+                    external_fields: undefined,
+                  })
+                }
+              />
             </section>
           </>
         ) : null}
@@ -2055,19 +3769,9 @@ export function SimpleGrowthEditor({
             onValueChange={(value) =>
               onEventsChange(
                 value === 'yes'
-                  ? [
-                      processEvent ?? {
-                        event_key: key('event'),
-                        start_s: 0,
-                        observed_deviations: ['manual_intervention'],
-                        intervention_actions: [],
-                        affected_objects: [],
-                        suspected_causes: [],
-                        data_validity_impact: 'unknown',
-                        excluded_time_ranges: [],
-                        attachment_file_ids: [],
-                      },
-                    ]
+                  ? events.length > 0
+                    ? events
+                    : [newProcessEvent()]
                   : [],
               )
             }
@@ -2082,77 +3786,190 @@ export function SimpleGrowthEditor({
               </SelectGroup>
             </SelectContent>
           </Select>
-          {processEvent ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <Label>发生时间（min）</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={minuteValue(processEvent.start_s)}
-                  disabled={disabled}
-                  onChange={(inputEvent) =>
-                    onEventsChange([
-                      {
-                        ...processEvent,
-                        start_s: Number(inputEvent.target.value) * 60,
-                      },
-                    ])
-                  }
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>是否影响本炉数据</Label>
-                <Select
-                  value={processEvent.data_validity_impact ?? 'unknown'}
-                  disabled={disabled}
-                  onValueChange={(value) =>
-                    onEventsChange([
-                      { ...processEvent, data_validity_impact: value },
-                    ])
-                  }
+          {events.map((processEvent, eventIndex) => {
+            const eventText = splitEventDescription(processEvent.description)
+            const eventTypeInvalid = Boolean(
+              showErrors &&
+              (processEvent.observed_deviations.length === 0 ||
+                processEvent.observed_deviations.some(
+                  (code) =>
+                    !PROCESS_DEVIATION_OPTIONS.some(
+                      ([value]) => value === code,
+                    ),
+                )),
+            )
+            const eventTimeInvalid = Boolean(
+              showErrors &&
+              (!Number.isFinite(processEvent.start_s) ||
+                processEvent.start_s < 0),
+            )
+            const otherDescriptionInvalid = Boolean(
+              showErrors &&
+              processEvent.observed_deviations.includes('other') &&
+              !eventText.description.trim(),
+            )
+            const patchEvent = (patch: Partial<SimpleProcessEvent>) =>
+              onEventsChange(
+                events.map((item, current) =>
+                  current === eventIndex ? { ...item, ...patch } : item,
+                ),
+              )
+            return (
+              <fieldset
+                key={processEvent.event_key}
+                className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2"
+              >
+                <legend className="px-1 font-medium">
+                  异常事件 {eventIndex + 1}
+                </legend>
+                <div className="flex justify-end sm:col-span-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={disabled}
+                    onClick={() =>
+                      onEventsChange(
+                        events.filter((_, current) => current !== eventIndex),
+                      )
+                    }
+                  >
+                    <Trash2 data-icon="inline-start" />
+                    删除异常事件
+                  </Button>
+                </div>
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={eventTypeInvalid || undefined}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="none">不影响</SelectItem>
-                      <SelectItem value="partial">部分影响</SelectItem>
-                      <SelectItem value="invalid">本炉数据不应使用</SelectItem>
-                      <SelectItem value="unknown">不确定</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>异常情况</Label>
-                <Textarea
-                  value={eventText.description}
-                  disabled={disabled}
-                  onChange={(inputEvent) =>
-                    onEventsChange([
-                      {
-                        ...processEvent,
+                  <Label>
+                    异常类型 <RequiredMark />
+                  </Label>
+                  <Select
+                    value={processEvent.observed_deviations[0] ?? ''}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      patchEvent({ observed_deviations: [value] })
+                    }
+                  >
+                    <SelectTrigger
+                      className="w-full"
+                      aria-invalid={eventTypeInvalid || undefined}
+                    >
+                      <SelectValue placeholder="请选择异常类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {PROCESS_DEVIATION_OPTIONS.map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div
+                  className="flex flex-col gap-2"
+                  data-invalid={eventTimeInvalid || undefined}
+                >
+                  <Label>
+                    发生时间（min） <RequiredMark />
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={minuteValue(processEvent.start_s)}
+                    disabled={disabled}
+                    aria-invalid={eventTimeInvalid || undefined}
+                    onChange={(inputEvent) =>
+                      patchEvent({
+                        start_s:
+                          inputEvent.target.value === ''
+                            ? Number.NaN
+                            : Number(inputEvent.target.value) * 60,
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>是否影响本炉数据</Label>
+                  <Select
+                    value={processEvent.data_validity_impact ?? 'unknown'}
+                    disabled={disabled}
+                    onValueChange={(value) =>
+                      patchEvent({ data_validity_impact: value })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="none">不影响</SelectItem>
+                        <SelectItem value="partial">部分影响</SelectItem>
+                        <SelectItem value="invalid">
+                          本炉数据不应使用
+                        </SelectItem>
+                        <SelectItem value="unknown">不确定</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>处理结果</Label>
+                  <Select
+                    value={processEvent.outcome ?? 'unknown'}
+                    disabled={disabled}
+                    onValueChange={(value) => patchEvent({ outcome: value })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="recovered">已恢复</SelectItem>
+                        <SelectItem value="partially_recovered">
+                          部分恢复
+                        </SelectItem>
+                        <SelectItem value="terminated">实验终止</SelectItem>
+                        <SelectItem value="unknown">不确定</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div
+                  className="flex flex-col gap-2 sm:col-span-2"
+                  data-invalid={otherDescriptionInvalid || undefined}
+                >
+                  <Label>
+                    异常情况
+                    {processEvent.observed_deviations.includes('other') ? (
+                      <RequiredMark />
+                    ) : null}
+                  </Label>
+                  <Textarea
+                    value={eventText.description}
+                    disabled={disabled}
+                    aria-invalid={otherDescriptionInvalid || undefined}
+                    onChange={(inputEvent) =>
+                      patchEvent({
                         description: buildEventDescription(
                           inputEvent.target.value,
                           eventText.action,
                         ),
-                      },
-                    ])
-                  }
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>采取的处理</Label>
-                <Textarea
-                  value={eventText.action}
-                  disabled={disabled}
-                  onChange={(inputEvent) =>
-                    onEventsChange([
-                      {
-                        ...processEvent,
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <Label>采取的处理</Label>
+                  <Textarea
+                    value={eventText.action}
+                    disabled={disabled}
+                    onChange={(inputEvent) =>
+                      patchEvent({
                         intervention_actions: inputEvent.target.value.trim()
                           ? ['other']
                           : [],
@@ -2160,11 +3977,40 @@ export function SimpleGrowthEditor({
                           eventText.description,
                           inputEvent.target.value,
                         ),
-                      },
-                    ])
-                  }
-                />
-              </div>
+                      })
+                    }
+                  />
+                </div>
+                {runId ? (
+                  <div className="sm:col-span-2">
+                    <ExperimentAttachments
+                      runId={runId}
+                      role="process_event_attachment"
+                      bindingType="process_event"
+                      bindingId={processEvent.event_key}
+                      readOnly={disabled}
+                      onFilesChange={(files) =>
+                        patchEvent({
+                          attachment_file_ids: files.map((file) => file.id),
+                        })
+                      }
+                    />
+                  </div>
+                ) : null}
+              </fieldset>
+            )
+          })}
+          {events.length > 0 ? (
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onEventsChange([...events, newProcessEvent()])}
+              >
+                <Plus data-icon="inline-start" />
+                添加另一条异常事件
+              </Button>
             </div>
           ) : null}
         </section>

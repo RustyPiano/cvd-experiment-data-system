@@ -8,12 +8,12 @@ import {
 } from './field-metadata'
 
 describe('generated field-metadata', () => {
-  it('exports only the 79 released experiment fields', () => {
+  it('exports only the 73 released experiment fields', () => {
     const total = Object.values(experimentModules).reduce(
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(79)
+    expect(total).toBe(73)
     expect(Object.keys(experimentModules)).toEqual([
       'basic_info',
       'target_product',
@@ -33,17 +33,13 @@ describe('generated field-metadata', () => {
     expect(appearance?.labelEn).toBe('Condition before use')
   })
 
-  it('conditions substrate specs on explicit availability and keeps Chinese labels free of machine-key glosses', () => {
-    const miscut = experimentModules.substrates.find(
-      (field) => field.key === 'miscut_angle_deg',
-    )
-    expect(miscut?.requirement.level).toBe('conditional_required')
-    expect(miscut?.validation).toEqual({ ge: 0, lt: 90 })
-    expect(
-      experimentModules.substrates.find(
-        (field) => field.key === 'orientation_polish_availability',
-      )?.r0,
-    ).toBe(true)
+  it('publishes only substrate specifications that affect the current run', () => {
+    const substrateKeys = experimentModules.substrates.map((field) => field.key)
+    expect(substrateKeys).toContain('oxide_thickness_nm')
+    expect(substrateKeys).toContain('crystal_orientation')
+    expect(substrateKeys).not.toContain('orientation_polish_availability')
+    expect(substrateKeys).not.toContain('miscut_angle_deg')
+    expect(substrateKeys).not.toContain('surface_roughness')
 
     const instrument = entities.instrument
     expect(
@@ -111,11 +107,11 @@ describe('generated field-metadata', () => {
     expect(unitLabelsEn['按指标']).toBe('per metric')
   })
 
-  it('keeps the R0 minimal-reproducible set at 29 fields', () => {
+  it('keeps the R0 minimal-reproducible set at 27 fields', () => {
     const r0 = Object.values(experimentModules)
       .flat()
       .filter((f) => f.r0)
-    expect(r0).toHaveLength(29)
+    expect(r0).toHaveLength(27)
   })
 
   it('tags every process_steps field with a valid stage param group', () => {
@@ -161,7 +157,7 @@ describe('generated field-metadata', () => {
       (n, list) => n + list.length,
       0,
     )
-    expect(total).toBe(66)
+    expect(total).toBe(49)
   })
 
   it('carries input types for every remaining scalar-plus-option field', () => {

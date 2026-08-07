@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { RequiredMark } from '@/shared/ui/required-mark'
 
 const commonSensorTypes = [
   { value: 'thermocouple', label: 'thermocouple' },
@@ -42,6 +43,7 @@ export interface TemperatureSensorsEditorLabels {
   otherSensorTypePlaceholder: string
   nominalAccuracyCelsius: string
   selectZoneCountFirst: string
+  requiredMessage: string
 }
 
 export interface TemperatureSensorsEditorProps {
@@ -198,7 +200,7 @@ export function TemperatureSensorsEditor({
             </legend>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${zoneIndex}-type`}>
-                {labels.sensorType}
+                {labels.sensorType} <RequiredMark />
               </Label>
               <Select
                 value={sensor.sensor_type}
@@ -243,20 +245,37 @@ export function TemperatureSensorsEditor({
                 </SelectContent>
               </Select>
               {sensor.sensor_type === 'other' ? (
-                <Input
-                  aria-label={labels.otherSensorType}
-                  value={sensor.sensor_type_other ?? ''}
-                  placeholder={labels.otherSensorTypePlaceholder}
-                  aria-invalid={
-                    (showErrors && !sensor.sensor_type_other?.trim()) ||
-                    undefined
-                  }
-                  disabled={disabled}
-                  onChange={(event) =>
-                    update(index, { sensor_type_other: event.target.value })
-                  }
-                />
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`${baseId}-${zoneIndex}-other-type`}>
+                    {labels.otherSensorType} <RequiredMark />
+                  </Label>
+                  <Input
+                    id={`${baseId}-${zoneIndex}-other-type`}
+                    value={sensor.sensor_type_other ?? ''}
+                    placeholder={labels.otherSensorTypePlaceholder}
+                    aria-invalid={
+                      (showErrors && !sensor.sensor_type_other?.trim()) ||
+                      undefined
+                    }
+                    disabled={disabled}
+                    onChange={(event) =>
+                      update(index, { sensor_type_other: event.target.value })
+                    }
+                  />
+                </div>
               ) : null}
+              {showErrors &&
+                (!commonSensorTypeValues.has(sensor.sensor_type) &&
+                sensor.sensor_type !== 'other' ? (
+                  <p className="text-destructive text-sm">
+                    {labels.requiredMessage}
+                  </p>
+                ) : sensor.sensor_type === 'other' &&
+                  !sensor.sensor_type_other?.trim() ? (
+                  <p className="text-destructive text-sm">
+                    {labels.requiredMessage}
+                  </p>
+                ) : null)}
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${zoneIndex}-accuracy`}>

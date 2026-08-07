@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { RequiredMark } from '@/shared/ui/required-mark'
 import {
   characterizationProfiles,
   characterizationProperties,
@@ -52,33 +53,50 @@ import {
 } from './api'
 import type { V2ModulePayloadRead } from './api'
 import type { ExperimentV2FormState } from './form-types'
-import { buildItemsModulePayload, moduleValueAsString } from './field-logic'
+import { buildItemsModulePayload } from './field-logic'
 import {
   materialAssertionValue,
   peakTemperatureC,
   processChannelTitle,
   saveBeforeStepChange,
   targetSummary,
+  targetValidationIssue,
   timelineValidationIssue,
   tubeUsageParts,
+  tubeUsagePartsValidity,
   withProcessChannelSubject,
 } from './scientific-form-workflow'
 import { ModuleCard } from './components/module-card'
 import { EntityReferenceSelect } from './components/entity-reference-select'
+import {
+  actualFieldTypes,
+  fieldParamsAreValid,
+} from './components/process-detail-editors'
+import type { ActualField } from './components/process-detail-editors'
 import { materialLotProjectedItem } from './components/repeatable-items-section'
 import {
   SimpleGrowthEditor,
   SimpleSourceLoadsEditor,
   SimpleSubstratesEditor,
   SimpleTargetEditor,
+  requiresPrecursorPosition,
+  simpleSubstrateIsValid,
+  sourceLoadIngredientsAreValid,
+  sourcePreparationStepsAreValid,
+  switchTargetDraft,
+  targetKind,
 } from './simple-preparation-editors'
 import type {
   SimpleProcessSettings,
   SimpleTarget,
+  TargetDrafts,
+  TargetKind,
 } from './simple-preparation-editors'
 import {
   buildSimpleSourceLoadsPayload,
+  simpleProcessEndSeconds,
   simpleGrowthIssue,
+  simpleProcessEventsIssue,
 } from './simple-form-adapters'
 
 type Region = {
@@ -89,12 +107,14 @@ type Region = {
   lateral_region?: string
   target_layer_count?: number
   target_bulk_phase?: string
+  target_bulk_space_group_number?: number
 }
 
 type CompositionRelation = {
   relation_type:
     | 'doped_by'
     | 'substitutional_alloy'
+    | 'solid_solution_component'
     | 'intercalated_by'
     | 'decorated_by'
   host_region_key: string
@@ -153,14 +173,14 @@ type SourceLoad = {
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin'
+    reference: 'setup_origin' | 'zone_thermocouple'
   }
   position_program: Array<{
     t_s: number
     axial_mm: number
     radial_mm?: number
     azimuth_deg?: number
-    reference: 'setup_origin'
+    reference: 'setup_origin' | 'zone_thermocouple'
   }>
   heating_zone_ref?: string
   ingredients: Ingredient[]
@@ -313,14 +333,18 @@ const CHANNEL_LABELS: Record<string, string> = {
   shutter_state: '挡板状态',
 }
 const SEGMENT_LABELS: Record<string, string> = {
-  purge: '吹扫',
-  ramp: '升降温',
-  nucleation: '成核',
-  growth: '生长',
-  anneal: '退火',
-  cooling: '冷却',
-  transfer: '转移',
-  other: '其他',
+  system_preparation: '系统准备',
+  pre_reaction: '升温与预处理',
+  reaction: '反应',
+  post_reaction: '反应后处理',
+  cooling: '降温',
+  other: '其他阶段',
+  purge: '系统准备（历史记录）',
+  ramp: '升降温（历史记录）',
+  nucleation: '成核（历史记录）',
+  growth: '生长（历史记录）',
+  anneal: '退火（历史记录）',
+  transfer: '转移（历史记录）',
 }
 const LOADING_METHOD_LABELS: Record<string, string> = {
   boat: '舟',
@@ -444,7 +468,18 @@ const STEP_MODULES = [
 const PRESSURE_REGIME_LABELS: Record<string, string> = {
   atmospheric: '常压',
   low_pressure: '低压',
+  ultra_high_vacuum: '超高真空',
   other: '其他',
+}
+
+function normalizedCoolingMethod(
+  value: unknown,
+): SimpleProcessSettings['cooling_method'] {
+  return ({
+    natural: 'furnace_cooling',
+    rapid_furnace_move: 'rapid_furnace_move_cooling',
+    controlled: 'controlled_cooling',
+  }[String(value)] ?? value) as SimpleProcessSettings['cooling_method']
 }
 
 function stepForModule(module: string): number {
@@ -582,16 +617,18 @@ function targetExample(target: TargetSpec): {
     }
   }
   if (
-    target.composition_relations.some(
-      (relation) => relation.relation_type === 'substitutional_alloy',
+    target.composition_relations.some((relation) =>
+      ['substitutional_alloy', 'solid_solution_component'].includes(
+        relation.relation_type,
+      ),
     )
   ) {
     return {
-      title: 'Mo–W–S 合金',
+      title: 'Mo₀.₅W₀.₅S₂ 合金',
       rows: [
-        ['主体材料', 'MoS₂'],
-        ['取代设置', 'W · 0.5 · Mo 位点'],
-        ['含量表示方式', '位点分数'],
+        ['组分 A', 'MoS₂ · 0.5'],
+        ['组分 B', 'WS₂ · 0.5'],
+        ['组成方式', '均匀固溶体'],
       ],
       value: {
         ...target,
@@ -599,18 +636,24 @@ function targetExample(target: TargetSpec): {
         material_regions: [
           {
             region_key: 'film',
-            formula: 'MoS2',
+            formula: 'Mo0.5W0.5S2',
             spatial_role: 'single_region',
           },
         ],
         composition_relations: [
           {
-            relation_type: 'substitutional_alloy',
+            relation_type: 'solid_solution_component',
             host_region_key: 'film',
-            species: 'W',
+            species: 'MoS2',
             nominal_value: 0.5,
-            value_basis: 'site_fraction',
-            site_or_location: 'Mo 位点',
+            value_basis: 'mol_fraction',
+          },
+          {
+            relation_type: 'solid_solution_component',
+            host_region_key: 'film',
+            species: 'WS2',
+            nominal_value: 0.5,
+            value_basis: 'mol_fraction',
           },
         ],
       },
@@ -874,18 +917,16 @@ export function ScientificExperimentForm({
       composition_relations: loaded.composition_relations ?? [],
     }
   })
-  const [targetSelected, setTargetSelected] = useState(
-    Boolean(modules?.['target_product']),
-  )
+  const targetDrafts = useRef<TargetDrafts>({
+    [targetKind(target as SimpleTarget)]: target as SimpleTarget,
+  })
   const [loads, setLoads] = useState<SourceLoad[]>(
     () =>
       modulePayload<{ items: SourceLoad[] }>(modules, 'precursors', {
         items: [],
       }).items,
   )
-  const [segments, setSegments] = useState<Segment[]>(
-    () => modulePayload(modules, 'process_steps', EMPTY_TIMELINE).segments,
-  )
+  const [segments, setSegments] = useState<Segment[]>([])
   const [channels, setChannels] = useState<Channel[]>(
     () => modulePayload(modules, 'process_steps', EMPTY_TIMELINE).channels,
   )
@@ -896,15 +937,42 @@ export function ScientificExperimentForm({
         'process_steps',
         {},
       )
+      const legacyExternalFields = Array.isArray(payload['external_fields'])
+        ? (payload['external_fields'] as string[])
+        : []
+      const fieldParams = Array.isArray(payload['field_params'])
+        ? (payload['field_params'] as ActualField[])
+        : legacyExternalFields
+            .filter((item) =>
+              actualFieldTypes.includes(
+                item as (typeof actualFieldTypes)[number],
+              ),
+            )
+            .map((field_type) => ({
+              field_type: field_type as ActualField['field_type'],
+              start_min: null,
+              end_min: null,
+              parameters: [],
+            }))
       return {
         pressure_regime: payload[
           'pressure_regime'
         ] as SimpleProcessSettings['pressure_regime'],
-        cooling_method: payload[
-          'cooling_method'
-        ] as SimpleProcessSettings['cooling_method'],
+        cooling_method: normalizedCoolingMethod(payload['cooling_method']),
         cooling_other: payload['cooling_other'] as string | undefined,
-        external_fields: payload['external_fields'] as string[] | undefined,
+        cooling_rate_C_per_min: payload['cooling_rate_C_per_min'] as
+          | number
+          | undefined,
+        lid_open_temperature_C: payload['lid_open_temperature_C'] as
+          | number
+          | undefined,
+        preparation_operations: Array.isArray(payload['preparation_operations'])
+          ? (payload[
+              'preparation_operations'
+            ] as SimpleProcessSettings['preparation_operations'])
+          : [],
+        field_params: fieldParams,
+        external_fields: legacyExternalFields,
       }
     },
   )
@@ -1112,6 +1180,12 @@ export function ScientificExperimentForm({
   const [tubeResetCount, tubeUseNumber] = tubeUsageParts(
     equipment.tubeUsageHistory,
   )
+  const [tubeResetCountValid, tubeUseNumberValid] = tubeUsagePartsValidity(
+    equipment.tubeUsageHistory,
+  )
+  const tubeUsageComplete = tubeResetCountValid && tubeUseNumberValid
+  const showBasicErrors = Boolean(errors.basic_info)
+  const showEquipmentErrors = Boolean(errors.equipment)
   const targetDisplay = targetSummary(target)
   const setupName = String(
     equipment.snapshot?.['setup_name'] ??
@@ -1119,7 +1193,22 @@ export function ScientificExperimentForm({
       equipment.snapshot?.['setup_code'] ??
       '',
   )
-  const totalDuration = Math.max(0, ...segments.map((segment) => segment.end_s))
+  const setupFieldDevices = Array.isArray(equipment.snapshot?.['field_devices'])
+    ? (equipment.snapshot?.['field_devices'] as string[])
+    : []
+  const setupFieldTypes = setupFieldDevices.filter((item) =>
+    actualFieldTypes.includes(item as (typeof actualFieldTypes)[number]),
+  ) as (typeof actualFieldTypes)[number][]
+  const processFieldParamsValid = fieldParamsAreValid(
+    processSettings.field_params ?? [],
+    setupFieldTypes,
+  )
+  const totalDuration = simpleProcessEndSeconds(
+    segments,
+    channels,
+    processSettings.field_params,
+    events,
+  )
   const peakTemperature = peakTemperatureC(channels)
   const hasTemperatureFile = channels.some(
     (channel) =>
@@ -1127,63 +1216,55 @@ export function ScientificExperimentForm({
       channel.data_kind === 'timeseries_file',
   )
   const processTimelineIssue =
-    simpleGrowthIssue(segments, channels, processSettings, setupZoneCount) ??
-    timelineValidationIssue(segments, channels)
-  const basicComplete = Boolean(
+    simpleGrowthIssue(
+      segments,
+      channels,
+      processSettings,
+      setupZoneCount,
+      processFieldParamsValid,
+    ) ??
+    timelineValidationIssue(segments, channels) ??
+    simpleProcessEventsIssue(events)
+  const targetIssue = targetValidationIssue(target)
+  const startedAtValid = Boolean(
     basicInfo.started_at &&
-    !Number.isNaN(new Date(basicInfo.started_at).getTime()) &&
-    basicInfo.performed_by_user_ids.length &&
-    Number.isFinite(basicInfo.ambient_temperature?.value) &&
+    !Number.isNaN(new Date(basicInfo.started_at).getTime()),
+  )
+  const roomTemperatureValid = Number.isFinite(
+    basicInfo.ambient_temperature?.value,
+  )
+  const roomHumidityValid = Boolean(
     Number.isFinite(basicInfo.ambient_humidity?.value) &&
     (basicInfo.ambient_humidity?.value ?? -1) >= 0 &&
     (basicInfo.ambient_humidity?.value ?? 101) <= 100,
   )
-  const targetComplete = Boolean(
-    targetSelected &&
-    target.material_regions.length &&
-    target.material_regions.every((region) => region.formula.trim()) &&
-    target.composition_relations.every((relation) => relation.species.trim()),
+  const basicComplete = Boolean(
+    startedAtValid &&
+    basicInfo.performed_by_user_ids.length &&
+    roomTemperatureValid &&
+    roomHumidityValid,
   )
+  const targetComplete = targetIssue === null
   const preparationComplete = Boolean(
     equipment.setupId &&
+    tubeUsageComplete &&
     loads.length &&
     loads.every(
       (load) =>
         load.loading_method &&
-        load.ingredients.length &&
-        load.ingredients.every(
-          (ingredient) =>
-            ingredient.material_lot_id &&
-            ingredient.function_role &&
-            ((ingredient.amount === undefined && !ingredient.unit?.trim()) ||
-              (ingredient.amount !== undefined &&
-                Boolean(ingredient.unit?.trim()))),
-        ),
+        sourcePreparationStepsAreValid(load.preparation_steps) &&
+        (!requiresPrecursorPosition(load.loading_method) ||
+          (Boolean(load.heating_zone_ref) &&
+            Number.isFinite(load.initial_position?.axial_mm) &&
+            load.initial_position?.reference === 'zone_thermocouple')) &&
+        sourceLoadIngredientsAreValid(load.ingredients),
     ),
   )
   const substratesComplete = Boolean(
     substrates.length &&
-    substrates.every((item) => {
-      let placement: Record<string, unknown> = {}
-      try {
-        placement = JSON.parse(
-          moduleValueAsString(item['size_placement']) || '{}',
-        ) as Record<string, unknown>
-      } catch {
-        return false
-      }
-      const axialPosition = moduleValueAsString(
-        item['axial_position_mm'],
-      ).trim()
-      return Boolean(
-        moduleValueAsString(item['lot_ref']) &&
-        Number(placement.length_mm) > 0 &&
-        Number(placement.width_mm) > 0 &&
-        placement.placement &&
-        axialPosition &&
-        Number.isFinite(Number(axialPosition)),
-      )
-    }),
+    substrates.every((substrate) =>
+      simpleSubstrateIsValid(substrate, setupZoneCount),
+    ),
   )
   const completedSteps = [
     basicComplete,
@@ -1192,6 +1273,13 @@ export function ScientificExperimentForm({
     substratesComplete,
     processTimelineIssue === null,
   ].filter(Boolean).length
+  const stepCompleteness = [
+    basicComplete,
+    targetComplete,
+    preparationComplete,
+    substratesComplete,
+    processTimelineIssue === null,
+  ]
 
   const payloadFor = (key: string): Record<string, unknown> => {
     if (key === 'basic_info') return basicInfo
@@ -1204,7 +1292,11 @@ export function ScientificExperimentForm({
       )
     }
     if (key === 'process_steps') {
-      return { segments, channels, ...processSettings }
+      return {
+        segments,
+        channels,
+        ...processSettings,
+      }
     }
     if (key === 'process_events') return { items: events }
     return {}
@@ -1221,14 +1313,15 @@ export function ScientificExperimentForm({
     if (activeStep === 1 && !targetComplete) {
       setErrors((current) => ({
         ...current,
-        target_product: '请补齐目标材料类型和材料化学式。',
+        target_product: targetIssue ?? '请补齐目标材料。',
       }))
       return false
     }
     if (activeStep === 2 && !preparationComplete) {
       setErrors((current) => ({
         ...current,
-        equipment: '请选择实验装置，并补齐每个前驱体容器中的必填信息。',
+        equipment:
+          '请选择实验装置，填写炉管使用履历，并补齐每个前驱体容器中的必填信息。',
       }))
       return false
     }
@@ -1261,6 +1354,9 @@ export function ScientificExperimentForm({
   )
   const currentStepSaved =
     !currentStepDirty && STEP_MODULES[activeStep].some((key) => saved.has(key))
+  const dirtyStepLabels = WORKFLOW_STEPS.slice(0, -1).filter((_, index) =>
+    STEP_MODULES[index].some((key) => dirty.has(key)),
+  )
   const precheckConfirmed = basicInfo.precheck?.['confirmed'] === true
 
   const showNextStep = async () => {
@@ -1321,46 +1417,47 @@ export function ScientificExperimentForm({
     <div className="grid gap-6">
       <Card size="sm">
         <CardHeader className="border-b">
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle>
-              当前：第 {activeStep + 1}/{WORKFLOW_STEPS.length} 步
-            </CardTitle>
-            <span className="text-xs text-muted-foreground">
-              已开始填写 {completedSteps}/5 项核心内容
-            </span>
-          </div>
-          <div
-            role="progressbar"
-            aria-label="实验填写进度"
-            aria-valuemin={0}
-            aria-valuemax={WORKFLOW_STEPS.length}
-            aria-valuenow={activeStep + 1}
-            className="h-1.5 overflow-hidden rounded-full bg-muted"
-          >
-            <div
-              className="h-full rounded-full bg-primary transition-[width]"
-              style={{
-                width: `${((activeStep + 1) / WORKFLOW_STEPS.length) * 100}%`,
-              }}
-            />
-          </div>
+          <CardTitle>
+            第 {activeStep + 1}/{WORKFLOW_STEPS.length} 步 ·{' '}
+            {WORKFLOW_STEPS[activeStep]}
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-1 sm:grid-cols-3 xl:grid-cols-6">
-          {WORKFLOW_STEPS.map((step, index) => (
-            <Button
-              key={step}
-              type="button"
-              variant={index === activeStep ? 'secondary' : 'ghost'}
-              className="h-auto justify-start py-2 text-left whitespace-normal"
-              aria-current={index === activeStep ? 'step' : undefined}
-              onClick={() => void showStep(index)}
-            >
-              <span className="tabular-nums">{index + 1}.</span>
-              {step}
-            </Button>
-          ))}
+          {WORKFLOW_STEPS.map((step, index) => {
+            const complete =
+              (index < stepCompleteness.length
+                ? stepCompleteness[index]
+                : completedSteps === stepCompleteness.length) &&
+              !STEP_MODULES[index].some((key) => dirty.has(key))
+            return (
+              <Button
+                key={step}
+                type="button"
+                variant={index === activeStep ? 'secondary' : 'ghost'}
+                className="h-auto justify-start py-2 text-left whitespace-normal"
+                aria-current={index === activeStep ? 'step' : undefined}
+                onClick={() => void showStep(index)}
+              >
+                {complete && index !== activeStep ? (
+                  <Check data-icon="inline-start" />
+                ) : (
+                  <span className="tabular-nums">{index + 1}.</span>
+                )}
+                {step}
+              </Button>
+            )
+          })}
         </CardContent>
       </Card>
+
+      {dirtyStepLabels.length ? (
+        <Alert>
+          <AlertDescription>
+            {dirtyStepLabels.join('、')}
+            有未保存的修改；页面预览显示的是尚未写入数据库的内容。
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div id={`experiment-step-${activeStep + 1}`} className="grid gap-6">
@@ -1371,14 +1468,24 @@ export function ScientificExperimentForm({
                   <Label>实验编号</Label>
                   <Input value={runCode ?? ''} readOnly />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="experiment-started-at">开始时间</Label>
+                <div
+                  className="grid gap-2"
+                  data-invalid={
+                    (showBasicErrors && !startedAtValid) || undefined
+                  }
+                >
+                  <Label htmlFor="experiment-started-at">
+                    开始时间 <RequiredMark />
+                  </Label>
                   <Input
                     id="experiment-started-at"
                     type="datetime-local"
                     required
                     value={toLocalDateTime(basicInfo.started_at)}
                     disabled={processReadOnly}
+                    aria-invalid={
+                      (showBasicErrors && !startedAtValid) || undefined
+                    }
                     onChange={(event) => {
                       const started = event.target.value
                         ? new Date(event.target.value).toISOString()
@@ -1406,9 +1513,23 @@ export function ScientificExperimentForm({
                       markDirty('basic_info')
                     }}
                   />
+                  {showBasicErrors && !startedAtValid ? (
+                    <p className="text-destructive text-sm">
+                      请选择有效的开始时间。
+                    </p>
+                  ) : null}
                 </div>
-                <fieldset className="grid gap-2 rounded-lg border p-3 sm:col-span-2">
-                  <legend className="px-1 text-sm font-medium">实验人员</legend>
+                <fieldset
+                  className="grid gap-2 rounded-lg border p-3 sm:col-span-2"
+                  data-invalid={
+                    (showBasicErrors &&
+                      basicInfo.performed_by_user_ids.length === 0) ||
+                    undefined
+                  }
+                >
+                  <legend className="px-1 text-sm font-medium">
+                    实验人员 <RequiredMark />
+                  </legend>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {(contributors.data ?? []).map((contributor) => {
                       const checked = basicInfo.performed_by_user_ids.includes(
@@ -1443,10 +1564,21 @@ export function ScientificExperimentForm({
                       )
                     })}
                   </div>
+                  {showBasicErrors &&
+                  basicInfo.performed_by_user_ids.length === 0 ? (
+                    <p className="text-destructive text-sm">
+                      请至少选择一名实验人员。
+                    </p>
+                  ) : null}
                 </fieldset>
-                <div className="grid gap-2">
+                <div
+                  className="grid gap-2"
+                  data-invalid={
+                    (showBasicErrors && !roomTemperatureValid) || undefined
+                  }
+                >
                   <Label htmlFor="experiment-room-temperature">
-                    实验室温度（℃）
+                    实验室温度（℃） <RequiredMark />
                   </Label>
                   <Input
                     id="experiment-room-temperature"
@@ -1455,6 +1587,9 @@ export function ScientificExperimentForm({
                     required
                     value={basicInfo.ambient_temperature?.value ?? ''}
                     disabled={processReadOnly}
+                    aria-invalid={
+                      (showBasicErrors && !roomTemperatureValid) || undefined
+                    }
                     onChange={(event) => {
                       const value = numberOrUndefined(event.target.value)
                       const started = basicInfo.started_at
@@ -1472,10 +1607,20 @@ export function ScientificExperimentForm({
                       markDirty('basic_info')
                     }}
                   />
+                  {showBasicErrors && !roomTemperatureValid ? (
+                    <p className="text-destructive text-sm">
+                      请填写有效的实验室温度。
+                    </p>
+                  ) : null}
                 </div>
-                <div className="grid gap-2">
+                <div
+                  className="grid gap-2"
+                  data-invalid={
+                    (showBasicErrors && !roomHumidityValid) || undefined
+                  }
+                >
                   <Label htmlFor="experiment-room-humidity">
-                    实验室相对湿度（%RH）
+                    实验室相对湿度（%RH） <RequiredMark />
                   </Label>
                   <Input
                     id="experiment-room-humidity"
@@ -1486,6 +1631,9 @@ export function ScientificExperimentForm({
                     required
                     value={basicInfo.ambient_humidity?.value ?? ''}
                     disabled={processReadOnly}
+                    aria-invalid={
+                      (showBasicErrors && !roomHumidityValid) || undefined
+                    }
                     onChange={(event) => {
                       const value = numberOrUndefined(event.target.value)
                       const started = basicInfo.started_at
@@ -1503,6 +1651,11 @@ export function ScientificExperimentForm({
                       markDirty('basic_info')
                     }}
                   />
+                  {showBasicErrors && !roomHumidityValid ? (
+                    <p className="text-destructive text-sm">
+                      请填写 0–100 之间的相对湿度。
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-2 sm:col-span-2">
                   <Label htmlFor="experiment-note">补充说明</Label>
@@ -1544,11 +1697,21 @@ export function ScientificExperimentForm({
           {activeStep === 1 ? (
             <SimpleTargetEditor
               target={target as SimpleTarget}
-              selected={targetSelected}
               disabled={processReadOnly}
+              showErrors={Boolean(errors.target_product)}
               onChange={(value) => {
-                setTargetSelected(true)
+                targetDrafts.current[targetKind(value)] = value
                 setTarget({ ...target, ...value })
+                markDirty('target_product')
+              }}
+              onKindChange={(kind: TargetKind) => {
+                const [next, drafts] = switchTargetDraft(
+                  target as SimpleTarget,
+                  kind,
+                  targetDrafts.current,
+                )
+                targetDrafts.current = drafts
+                setTarget(next)
                 markDirty('target_product')
               }}
             />
@@ -1558,8 +1721,15 @@ export function ScientificExperimentForm({
             <>
               <ModuleCard id="module-equipment" title="实验装置">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-2 sm:col-span-2">
-                    <Label>实验装置</Label>
+                  <div
+                    className="grid gap-2 sm:col-span-2"
+                    data-invalid={
+                      (showEquipmentErrors && !equipment.setupId) || undefined
+                    }
+                  >
+                    <Label>
+                      实验装置 <span className="text-destructive">*</span>
+                    </Label>
                     <EntityReferenceSelect
                       kind="setup"
                       productLabel
@@ -1577,10 +1747,21 @@ export function ScientificExperimentForm({
                         markDirty('equipment')
                       }}
                     />
+                    {showEquipmentErrors && !equipment.setupId ? (
+                      <p className="text-destructive text-sm">
+                        请选择实验装置。
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="grid gap-2">
+                  <div
+                    className="grid gap-2"
+                    data-invalid={
+                      (showEquipmentErrors && !tubeResetCountValid) || undefined
+                    }
+                  >
                     <Label htmlFor="tube-reset-count">
-                      最近一次清洗或更换后已使用
+                      累计清洗或更换次数{' '}
+                      <span className="text-destructive">*</span>
                     </Label>
                     <div className="flex items-center gap-2">
                       <Input
@@ -1589,6 +1770,10 @@ export function ScientificExperimentForm({
                         min="0"
                         value={tubeResetCount}
                         disabled={processReadOnly}
+                        aria-invalid={
+                          (showEquipmentErrors && !tubeResetCountValid) ||
+                          undefined
+                        }
                         onChange={(event) => {
                           setEquipment({
                             ...equipment,
@@ -1597,12 +1782,23 @@ export function ScientificExperimentForm({
                           markDirty('equipment')
                         }}
                       />
-                      <span className="text-sm">炉</span>
+                      <span className="text-sm">次</span>
                     </div>
+                    {showEquipmentErrors && !tubeResetCountValid ? (
+                      <p className="text-destructive text-sm">
+                        请填写累计次数；从未清洗或更换过填 0。
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="grid gap-2">
+                  <div
+                    className="grid gap-2"
+                    data-invalid={
+                      (showEquipmentErrors && !tubeUseNumberValid) || undefined
+                    }
+                  >
                     <Label htmlFor="tube-use-number">
-                      本次为清洗或更换后的
+                      本次是最近一次清洗或更换后的第几炉{' '}
+                      <span className="text-destructive">*</span>
                     </Label>
                     <div className="flex items-center gap-2">
                       <span className="text-sm">第</span>
@@ -1612,6 +1808,10 @@ export function ScientificExperimentForm({
                         min="1"
                         value={tubeUseNumber}
                         disabled={processReadOnly}
+                        aria-invalid={
+                          (showEquipmentErrors && !tubeUseNumberValid) ||
+                          undefined
+                        }
                         onChange={(event) => {
                           setEquipment({
                             ...equipment,
@@ -1622,6 +1822,11 @@ export function ScientificExperimentForm({
                       />
                       <span className="text-sm">炉</span>
                     </div>
+                    {showEquipmentErrors && !tubeUseNumberValid ? (
+                      <p className="text-destructive text-sm">
+                        请填写本次使用序号，从 1 开始。
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </ModuleCard>
@@ -1629,6 +1834,7 @@ export function ScientificExperimentForm({
                 loads={loads}
                 zoneCount={setupZoneCount}
                 disabled={processReadOnly}
+                showErrors={Boolean(errors.equipment || errors.precursors)}
                 onChange={(value) => {
                   setLoads(value)
                   markDirty('precursors')
@@ -1640,7 +1846,9 @@ export function ScientificExperimentForm({
           {activeStep === 3 ? (
             <SimpleSubstratesEditor
               substrates={substrates}
+              zoneCount={setupZoneCount}
               disabled={processReadOnly}
+              showErrors={Boolean(errors.substrates)}
               onChange={(value) => {
                 setSubstrates(value)
                 markDirty('substrates')
@@ -1660,6 +1868,10 @@ export function ScientificExperimentForm({
               setupSnapshot={equipment.snapshot}
               zoneCount={setupZoneCount}
               disabled={processReadOnly}
+              showErrors={Boolean(
+                errors.process_steps || errors.process_events,
+              )}
+              validationIssue={processTimelineIssue}
               onTimelineChange={(nextSegments, nextChannels) => {
                 setSegments(nextSegments)
                 setChannels(nextChannels)
@@ -1672,6 +1884,7 @@ export function ScientificExperimentForm({
               onEventsChange={(value) => {
                 setEvents(value)
                 markDirty('process_events')
+                markDirty('process_steps')
               }}
             />
           ) : null}
@@ -1829,16 +2042,22 @@ export function ScientificExperimentForm({
           ) : null}
         </div>
 
-        <Card size="sm" className="xl:sticky xl:top-20">
+        <Card size="sm" className="hidden xl:sticky xl:top-20 xl:block">
           <CardHeader className="border-b">
-            <CardTitle>本炉摘要</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>当前炉次预览</CardTitle>
+              {dirty.size ? <Badge variant="outline">未保存</Badge> : null}
+            </div>
           </CardHeader>
           <CardContent className="grid gap-3">
             {[
-              ['实验编号', runCode || '未生成'],
-              ['目标材料', targetDisplay || '未填写'],
-              ['实验装置', setupName || '未选择'],
-              ['衬底', `${substrates.length} 片`],
+              ['实验编号', runCode || '尚未生成'],
+              ['目标材料', targetDisplay || '尚未填写'],
+              ['实验装置', setupName || '尚未选择'],
+              [
+                '衬底',
+                substrates.length ? `${substrates.length} 片` : '尚未添加',
+              ],
               [
                 '生长条件',
                 [
@@ -1849,7 +2068,7 @@ export function ScientificExperimentForm({
                   totalDuration ? `${Math.round(totalDuration / 60)} min` : '',
                 ]
                   .filter(Boolean)
-                  .join(' · ') || '未填写',
+                  .join(' · ') || '尚未填写',
               ],
             ].map(([label, value]) => (
               <div key={label} className="grid gap-1">
@@ -1892,14 +2111,14 @@ export function ScientificExperimentForm({
                   }
                   onClick={() => void saveCurrentStep()}
                 >
-                  {savingKey ? '保存中…' : '保存草稿'}
+                  {savingKey ? '保存中…' : '仅保存'}
                 </Button>
                 <Button
                   type="button"
                   disabled={savingKey !== null}
                   onClick={() => void showNextStep()}
                 >
-                  下一步
+                  {currentStepDirty ? '保存并下一步' : '下一步'}
                   <ArrowRight data-icon="inline-end" />
                 </Button>
               </>
@@ -2309,6 +2528,9 @@ export function TargetEditor({
                     <SelectItem value="doped_by">掺杂</SelectItem>
                     <SelectItem value="substitutional_alloy">
                       取代合金
+                    </SelectItem>
+                    <SelectItem value="solid_solution_component">
+                      固溶体组分
                     </SelectItem>
                     <SelectItem value="intercalated_by">插层</SelectItem>
                     <SelectItem value="decorated_by">表面修饰</SelectItem>
@@ -3115,7 +3337,7 @@ export function TimelineEditor({
           <div>
             <p className="font-medium">实验阶段</p>
             <p className="text-xs text-muted-foreground">
-              按实际先后填写吹扫、升温、生长、冷却等阶段。
+              按实际操作填写系统准备、预处理、反应、反应后处理和降温。
             </p>
           </div>
           <Button
@@ -3129,7 +3351,7 @@ export function TimelineEditor({
                   ...segments,
                   {
                     segment_key: machineKey('segment'),
-                    segment_type: segments.length === 0 ? 'growth' : 'other',
+                    segment_type: segments.length === 0 ? 'reaction' : 'other',
                     sequence: segments.length + 1,
                     start_s: segments.at(-1)?.end_s ?? 0,
                     end_s: (segments.at(-1)?.end_s ?? 0) + 60,
@@ -3187,13 +3409,11 @@ export function TimelineEditor({
                   <SelectContent>
                     <SelectGroup>
                       {[
-                        'purge',
-                        'ramp',
-                        'nucleation',
-                        'growth',
-                        'anneal',
+                        'system_preparation',
+                        'pre_reaction',
+                        'reaction',
+                        'post_reaction',
                         'cooling',
-                        'transfer',
                         'other',
                       ].map((value) => (
                         <SelectItem key={value} value={value}>
@@ -4485,6 +4705,10 @@ function MaterialAssertionEditor({
   )
 }
 
+/**
+ * @deprecated 当前路由仅使用 SimpleCharacterizationWorkspace；保留此组件只为旧代码追溯，
+ * 不得重新接入页面或作为新表征表单复用。
+ */
 export function ScientificMeasurementWorkspace({
   runId,
   token,

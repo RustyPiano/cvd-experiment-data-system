@@ -134,6 +134,7 @@ export const coolingMethods = [
   'furnace_cooling',
   'open_lid_cooling',
   'rapid_furnace_move_cooling',
+  'controlled_cooling',
   'other',
 ] as const
 
@@ -1295,7 +1296,7 @@ export function coolingParamsAreValid(value: CoolingParams | null): boolean {
     return false
   }
   return (
-    value.cooling_rate_C_per_min == null ||
+    (value.method === 'controlled_cooling') ===
     isPositive(value.cooling_rate_C_per_min)
   )
 }
@@ -1322,7 +1323,10 @@ export function CoolingParamsEditor({
                 method === 'open_lid_cooling'
                   ? (value?.lid_open_temperature_C ?? null)
                   : null,
-              cooling_rate_C_per_min: value?.cooling_rate_C_per_min ?? null,
+              cooling_rate_C_per_min:
+                method === 'controlled_cooling'
+                  ? (value?.cooling_rate_C_per_min ?? null)
+                  : null,
               method_other:
                 method === 'other' ? (value?.method_other ?? '') : null,
             })
@@ -1387,9 +1391,11 @@ export function CoolingParamsEditor({
           />
         </div>
       ) : null}
-      {value ? (
+      {value?.method === 'controlled_cooling' ? (
         <div className="flex flex-col gap-1">
-          <Label htmlFor={`${baseId}-rate`}>{labels.coolingRateCPerMin}</Label>
+          <Label htmlFor={`${baseId}-rate`}>
+            {labels.coolingRateCPerMin} <RequiredMark />
+          </Label>
           <Input
             id={`${baseId}-rate`}
             type="number"

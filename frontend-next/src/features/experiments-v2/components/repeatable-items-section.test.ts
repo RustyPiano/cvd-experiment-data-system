@@ -153,11 +153,7 @@ describe('materialLotAutofill', () => {
         'substrates',
         withReference.lot_ref ? JSON.parse(withReference.lot_ref).snapshot : {},
       ),
-    ).toEqual([
-      'orientation_polish_availability',
-      'miscut_availability',
-      'surface_roughness',
-    ])
+    ).toEqual([])
   })
 
   it('projects explicit not-applicable crystal specifications without fake values', () => {

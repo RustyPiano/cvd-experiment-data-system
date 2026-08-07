@@ -1,6 +1,6 @@
 // §5 过程步（D11 数据驱动核心）：可重复过程步，每步先选『阶段类型』，随后只显示该阶段
 // stageTypes.shows 对应参数组字段（common 恒显）。降温组仅『降温』出现且条件必填、反应生长
-// 压力体系必填、外场组仅当 §2 已选 Setup 且快照 field_devices≠无 时出现（跨实体条件）。
+// 反应压力条件必填、外场组仅当 §2 已选 Setup 且快照 field_devices≠无 时出现（跨实体条件）。
 // 步序可上下移动；payload 形状对齐后端 discriminated union（stage_type + 该阶段允许键）。
 import { Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

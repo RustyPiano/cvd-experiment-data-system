@@ -162,6 +162,54 @@ describe('EntityForm — required markers (导师 B93 明显标识)', () => {
   })
 })
 
+describe('EntityForm — material identity guidance', () => {
+  it('即时校验物料化学式，并直接对应包装上的货号与批号', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    renderForm({
+      onSubmit,
+      defaultData: {
+        lot_category: 'chemical',
+        substance_name: '三氧化钼',
+        chemical_formula: 'MoO3',
+        batch_number: 'B202405',
+      },
+    })
+
+    const formula = screen.getByRole('textbox', { name: /^化学式/ })
+    expect(formula).toHaveAttribute('placeholder', '例如 MoO3')
+    expect(screen.queryByText(/普通数字/)).not.toBeInTheDocument()
+    expect(screen.getByText('识别元素：Mo · O')).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', {
+        name: '货号（Cat. No. / Product No.）',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', {
+        name: /^批号（Lot No. \/ Batch No.）/,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Lot\/Batch 后的编号/)).toBeInTheDocument()
+    const supplier = screen.getByRole('combobox', { name: '供应商' })
+    await user.click(supplier)
+    await user.click(screen.getByRole('option', { name: '新增供应商' }))
+    expect(screen.getByRole('textbox', { name: '供应商名称' })).toHaveAttribute(
+      'placeholder',
+      '按包装标签填写供应商名称',
+    )
+    expect(
+      screen.getByRole('textbox', { name: '产品等级（标签原文）' }),
+    ).toHaveAttribute('placeholder', '例如 ACS reagent、分析纯、电子级或 5.0')
+    expect(screen.getByText(/未标注时留空/)).toBeInTheDocument()
+
+    fireEvent.change(formula, { target: { value: 'Xz2' } })
+    expect(screen.getByText('非法元素符号：Xz')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+})
+
 describe('EntityForm — setup identity inputs', () => {
   it('shows only the identity fields for the selected setup source', async () => {
     const user = userEvent.setup()
@@ -345,6 +393,31 @@ describe('EntityForm — generated numeric validation', () => {
     )
   })
 
+  it('saves a known substrate without duplicate name or formula input', async () => {
+    const onSubmit = vi.fn()
+    renderForm({
+      onSubmit,
+      defaultData: {
+        lot_category: 'substrate',
+        batch_number: 'SUB-1',
+        substrate_material: 'sapphire_al2o3',
+      },
+    })
+
+    expect(screen.queryByRole('textbox', { name: /物料名称/ })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: /化学式/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      lot_category: 'substrate',
+      substance_name: '蓝宝石(Al₂O₃)',
+      chemical_formula: 'Al2O3',
+      batch_number: 'SUB-1',
+      substrate_material: 'sapphire_al2o3',
+    })
+  })
+
   it('explains the missing dimensions before submitting a selected tube shape', async () => {
     const onSubmit = vi.fn()
     renderForm({
@@ -370,6 +443,28 @@ describe('EntityForm — generated numeric validation', () => {
     ).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
+
+  it('explains an impossible round-tube wall thickness', async () => {
+    const onSubmit = vi.fn()
+    renderForm({
+      kind: 'setup',
+      onSubmit,
+      defaultData: {
+        ...oneZoneSetupData,
+        tube_outer_diameter_wall_mm: {
+          outer_diameter_mm: 20,
+          wall_thickness_mm: 10,
+        },
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    expect(
+      await screen.findByText('壁厚必须小于外径的一半'),
+    ).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
 })
 
 describe('EntityForm — first-class entity attachments', () => {
@@ -383,11 +478,14 @@ describe('EntityForm — first-class entity attachments', () => {
         }),
     )
     const onUploadPendingChange = vi.fn()
-    renderForm({ onUploadPendingChange })
+    renderForm({
+      onUploadPendingChange,
+      defaultData: { lot_category: 'chemical' },
+    })
 
     const file = new File(['certificate'], 'coa.pdf')
     fireEvent.change(
-      screen.getByLabelText('Upload Certificate of analysis (CoA)'),
+      screen.getByLabelText('Upload Certificate of Analysis (CoA)'),
       { target: { files: [file] } },
     )
 
@@ -420,13 +518,11 @@ describe('EntityForm — first-class entity attachments', () => {
         batch_number: 'LOT-1',
         cas_number: '1313-27-5',
         purity: '99.9',
-        purity_basis: 'mass_fraction',
-        purity_source: 'supplier_declared',
       },
     })
     expect(
       screen.queryByRole('textbox', {
-        name: /Certificate of analysis/,
+        name: /Certificate of Analysis/,
       }),
     ).not.toBeInTheDocument()
 
@@ -434,7 +530,7 @@ describe('EntityForm — first-class entity attachments', () => {
       type: 'application/pdf',
     })
     fireEvent.change(
-      screen.getByLabelText('Upload Certificate of analysis (CoA)'),
+      screen.getByLabelText('Upload Certificate of Analysis (CoA)'),
       { target: { files: [file] } },
     )
 
@@ -511,10 +607,13 @@ describe('EntityForm — first-class entity attachments', () => {
   it('deletes an unbound upload and clears its pending cleanup record', async () => {
     await i18n.changeLanguage('en')
     const onPendingFilesChange = vi.fn()
-    renderForm({ onPendingFilesChange })
+    renderForm({
+      onPendingFilesChange,
+      defaultData: { lot_category: 'chemical' },
+    })
     const file = new File(['certificate'], 'coa.pdf')
     fireEvent.change(
-      screen.getByLabelText('Upload Certificate of analysis (CoA)'),
+      screen.getByLabelText('Upload Certificate of Analysis (CoA)'),
       { target: { files: [file] } },
     )
     expect(await screen.findByText('coa.pdf')).toBeInTheDocument()

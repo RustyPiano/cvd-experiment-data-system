@@ -3,7 +3,7 @@
 // 显示串仅帮助录入者核对组成关系，不写入后端，也不承担权威校验。
 
 /** 周期表 118 元素符号集合（用于元素合法性校验）。 */
-const ELEMENT_SYMBOLS = new Set([
+export const ELEMENT_SYMBOLS = [
   'H',
   'He',
   'Li',
@@ -122,7 +122,8 @@ const ELEMENT_SYMBOLS = new Set([
   'Lv',
   'Ts',
   'Og',
-])
+] as const
+const ELEMENT_SYMBOL_SET = new Set<string>(ELEMENT_SYMBOLS)
 
 // 下标数字（MoS₂）→ 普通数字，供解析时剥离。
 const SUBSCRIPT_MAP: Record<string, string> = {
@@ -151,6 +152,9 @@ const HYDRATED_FORMULA_COMPONENT = `${FORMULA_COMPONENT}(?:·(?:\\d+)?${FORMULA_
 const FORMULA_PATTERN = new RegExp(
   `^${HYDRATED_FORMULA_COMPONENT}(?:[-:/]${HYDRATED_FORMULA_COMPONENT})*$`,
 )
+const MATERIAL_FORMULA_PATTERN = new RegExp(
+  `^(?:\\d+)?${HYDRATED_FORMULA_COMPONENT}$`,
+)
 
 /**
  * 从化学式抽取元素符号 token：把非字母字符（数字/下标/分隔符 / - : · ( ) 空格 等）视作断点，
@@ -170,15 +174,11 @@ export interface FormulaValidation {
   elements: string[]
   /** 非法（非周期表）符号 token。 */
   unknownSymbols: string[]
-  /** 是否符合元素+化学计量+体系分隔符语法。 */
+  /** 是否符合当前字段允许的元素与化学计量语法。 */
   syntaxValid: boolean
 }
 
-/**
- * 校验化学式的元素符号合法性。空串通过（empty=true）；非空但解析不出任何元素、
- * 或存在非周期表符号，则不通过并给出 unknownSymbols。
- */
-export function validateChemicalFormula(input: string): FormulaValidation {
+function validateFormula(input: string, pattern: RegExp): FormulaValidation {
   const trimmed = input.trim()
   if (trimmed === '') {
     return {
@@ -195,7 +195,7 @@ export function validateChemicalFormula(input: string): FormulaValidation {
   const elements: string[] = []
   const unknownSymbols: string[] = []
   for (const token of tokens) {
-    if (ELEMENT_SYMBOLS.has(token)) {
+    if (ELEMENT_SYMBOL_SET.has(token)) {
       if (!seen.has(token)) {
         seen.add(token)
         elements.push(token)
@@ -204,7 +204,7 @@ export function validateChemicalFormula(input: string): FormulaValidation {
       unknownSymbols.push(token)
     }
   }
-  const syntaxValid = FORMULA_PATTERN.test(normalized)
+  const syntaxValid = pattern.test(normalized)
   const valid = syntaxValid && tokens.length > 0 && unknownSymbols.length === 0
   return {
     valid,
@@ -213,6 +213,108 @@ export function validateChemicalFormula(input: string): FormulaValidation {
     unknownSymbols,
     syntaxValid,
   }
+}
+
+/** 目标体系化学式：允许 - : / 表达多材料显示串。 */
+export function validateChemicalFormula(input: string): FormulaValidation {
+  return validateFormula(input, FORMULA_PATTERN)
+}
+
+/** 单一物料化学式：与后端物料批次校验一致，不接受体系分隔符。 */
+export function validateMaterialFormula(input: string): FormulaValidation {
+  return validateFormula(input, MATERIAL_FORMULA_PATTERN)
+}
+
+const SUBSCRIPT_OUTPUT: Record<string, string> = {
+  '0': '₀',
+  '1': '₁',
+  '2': '₂',
+  '3': '₃',
+  '4': '₄',
+  '5': '₅',
+  '6': '₆',
+  '7': '₇',
+  '8': '₈',
+  '9': '₉',
+  '.': '.',
+  '-': '₋',
+  x: 'ₓ',
+}
+
+export function formatChemicalFormula(formula: string): string {
+  return normalizeChemicalFormula(formula).replace(
+    /(?<=[A-Za-z)])(?:\d+(?:\.\d+)?)/g,
+    (value) =>
+      value
+        .split('')
+        .map((character) => SUBSCRIPT_OUTPUT[character] ?? character)
+        .join(''),
+  )
+}
+
+type FormulaPart = { element: string; count: number }
+
+function simpleFormulaParts(formula: string): FormulaPart[] | null {
+  const normalized = normalizeChemicalFormula(formula)
+  const matches = [...normalized.matchAll(/([A-Z][a-z]?)(\d*(?:\.\d+)?)/g)]
+  if (
+    matches.length === 0 ||
+    matches.map((match) => match[0]).join('') !== normalized
+  ) {
+    return null
+  }
+  return matches.map((match) => ({
+    element: match[1],
+    count: match[2] ? Number(match[2]) : 1,
+  }))
+}
+
+function countText(value: number): string {
+  return Number(value.toFixed(6)).toString()
+}
+
+export function generateSolidSolutionFormula(
+  components: ReadonlyArray<{ formula: string; fraction?: number }>,
+): string | null {
+  const parsed = components.map(({ formula, fraction }) => ({
+    parts: simpleFormulaParts(formula),
+    fraction,
+  }))
+  const slotCount = parsed[0]?.parts?.length
+  if (
+    components.length < 2 ||
+    !slotCount ||
+    parsed.some(
+      ({ parts, fraction }) =>
+        !parts ||
+        parts.length !== slotCount ||
+        parts.some((part) => !ELEMENT_SYMBOL_SET.has(part.element)) ||
+        fraction === undefined ||
+        !(fraction > 0 && fraction < 1),
+    ) ||
+    Math.abs(
+      parsed.reduce((sum, component) => sum + (component.fraction ?? 0), 0) - 1,
+    ) > 1e-6
+  ) {
+    return null
+  }
+
+  return Array.from({ length: slotCount }, (_, index) => {
+    const totals = new Map<string, number>()
+    for (const component of parsed) {
+      const part = component.parts![index]
+      totals.set(
+        part.element,
+        (totals.get(part.element) ?? 0) + part.count * component.fraction!,
+      )
+    }
+    return [...totals]
+      .map(
+        ([element, count]) =>
+          `${element}${Math.abs(count - 1) < 1e-6 ? '' : countText(count)}`,
+      )
+      .join('')
+  }).join('')
 }
 
 // ── 前端显示串预览 ──

@@ -36,6 +36,10 @@ vi.mock('@/features/auth/use-auth', () => ({
 vi.mock('./components/run-audit-section', () => ({
   RunAuditSection: () => null,
 }))
+vi.mock('@/shared/ui/route-leave-guard', () => ({
+  RouteLeaveGuard: ({ when }: { when: boolean }) =>
+    when ? <span>Unsaved changes are protected</span> : null,
+}))
 vi.mock('./scientific-experiment-form', () => ({
   ScientificExperimentForm: ({
     onRequestLock,
@@ -193,9 +197,5 @@ it('disables export while process sections are unsaved', async () => {
       name: 'Export current experiment record',
     }),
   ).toHaveAttribute('data-disabled')
-  expect(
-    screen.getByText(
-      /Save the affected sections before submitting or exporting/,
-    ),
-  ).toBeInTheDocument()
+  expect(screen.getByText('Unsaved changes are protected')).toBeInTheDocument()
 })

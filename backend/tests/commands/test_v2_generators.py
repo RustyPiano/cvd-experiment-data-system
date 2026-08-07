@@ -9,7 +9,11 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from app.commands.export_v2_schema import export_v2_schema
-from app.commands.generate_v2_models import generate_v2_models, render_v2_models
+from app.commands.generate_v2_models import (
+    generate_material_phase_catalog,
+    generate_v2_models,
+    render_v2_models,
+)
 from app.schemas.generated.v2_module_payload import (
     MaterialLotVersionPayload,
     SurfaceRoughnessPayload,
@@ -20,6 +24,7 @@ from app.services.v2_field_source import load_field_source, missing
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GENERATED_SCHEMA_DIR = REPO_ROOT / "docs" / "standard" / "generated"
 GENERATED_MODEL = REPO_ROOT / "backend" / "app" / "schemas" / "generated" / "v2_module_payload.py"
+GENERATED_PHASE_CATALOG = REPO_ROOT / "backend" / "app" / "generated" / "material_phase_catalog.py"
 LOT_REF = {
     "entity_id": "7d9e7787-e5ef-4f34-818f-454a10263a3b",
     "version": 2,
@@ -74,6 +79,7 @@ def _reaction_step(**changes) -> dict:
         ],
         "pressure_system": {"value": 101325.0, "option": "atmospheric_pressure"},
         "duration_cycles": {"duration_min": 30.0},
+        "cooling_params": {"method": "furnace_cooling"},
     }
     step.update(changes)
     return step
@@ -89,7 +95,7 @@ def _substrate_item(**changes) -> dict:
         "crystal_orientation": "c-plane",
         "miscut_availability": "reported",
         "miscut_angle_deg": 0.0,
-        "axial_position_mm": 0.0,
+        "zone_thermocouple_distance_mm": {"zone_index": 1, "distance_mm": 0.0},
         "surface_roughness": {"metric": "RMS", "value_nm": 0.5},
         "size_placement": {
             "length_mm": 10.0,
@@ -141,6 +147,12 @@ def test_generate_v2_models_matches_committed_file(tmp_path: Path) -> None:
     assert Path(generated).read_bytes() == GENERATED_MODEL.read_bytes()
 
 
+def test_generate_material_phase_catalog_matches_committed_file(tmp_path: Path) -> None:
+    generated = generate_material_phase_catalog(output_path=tmp_path / "material_phase_catalog.py")
+
+    assert Path(generated).read_bytes() == GENERATED_PHASE_CATALOG.read_bytes()
+
+
 def test_substrate_lot_miscut_requires_direction() -> None:
     with pytest.raises(ValueError, match="substrate_miscut_direction"):
         MaterialLotVersionPayload.model_validate(
@@ -163,6 +175,23 @@ def test_substrate_lot_miscut_requires_direction() -> None:
                 },
             }
         )
+
+
+def test_minimal_substrate_lot_does_not_require_unavailable_supplier_specs() -> None:
+    payload = MaterialLotVersionPayload.model_validate(
+        {
+            "lot_category": "substrate",
+            "substance_name": "Sapphire",
+            "chemical_formula": "Al2O3",
+            "batch_number": "S-1",
+            "substrate_material": "sapphire_al2o3",
+        }
+    )
+
+    assert payload.substrate_material == "sapphire_al2o3"
+    assert payload.substrate_orientation_polish_availability is None
+    assert payload.substrate_miscut_availability is None
+    assert payload.substrate_surface_roughness is None
 
 
 @pytest.mark.parametrize(
@@ -326,7 +355,7 @@ def test_standard_schema_exports_structured_result_models_and_validation() -> No
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.2"
+    assert schema["version"] == "v4.0-alpha.15"
     assert schema["status"] == "INTERNAL_VALIDATION"
     assert "pvd" not in schema["modules"]
     assert schema["scientific_contract"]["result_chain"].startswith("Sample")
@@ -397,6 +426,8 @@ def test_process_step_schema_discriminates_stage_type_and_forbids_hidden_groups(
                     "scalar_value": 750,
                 }
             ],
+            "pressure_regime": "atmospheric",
+            "cooling_method": "furnace_cooling",
         }
     )
     assert not validator.is_valid(
@@ -479,6 +510,16 @@ def test_composite_and_component_vocabularies_are_field_specific() -> None:
         "value": 101325.0,
         "option": "atmospheric_pressure",
     }
+    atmospheric = validate_v2_module_payload(
+        "process_steps",
+        {"items": [_reaction_step(pressure_system={"option": "atmospheric_pressure"})]},
+    )
+    assert atmospheric["items"][0]["pressure_system"]["value"] is None
+    with pytest.raises(ValueError, match="value"):
+        validate_v2_module_payload(
+            "process_steps",
+            {"items": [_reaction_step(pressure_system={"option": "low_pressure"})]},
+        )
 
     for bad_pressure in (
         {"value": "101325", "option": "atmospheric_pressure"},
@@ -1142,6 +1183,22 @@ def test_tilt_angle_is_required_only_for_tilted_substrate() -> None:
                 ]
             },
         )
+    with pytest.raises(ValueError, match="less than 90"):
+        validate_v2_module_payload(
+            "substrates",
+            {
+                "items": [
+                    _substrate_item(
+                        size_placement={
+                            "length_mm": 10.0,
+                            "width_mm": 10.0,
+                            "placement": "tilted",
+                            "tilt_angle_deg": 90.0,
+                        }
+                    )
+                ]
+            },
+        )
     with pytest.raises(ValueError, match="tilt_angle_deg"):
         validate_v2_module_payload(
             "substrates",
@@ -1175,6 +1232,22 @@ def test_tilt_angle_is_required_only_for_tilted_substrate() -> None:
         },
     )
     assert validated["items"][0]["size_placement"]["tilt_angle_deg"] == 15.0
+
+    face_to_face = validate_v2_module_payload(
+        "substrates",
+        {
+            "items": [
+                _substrate_item(
+                    size_placement={
+                        "length_mm": 10.0,
+                        "width_mm": 10.0,
+                        "placement": "face_to_face",
+                    }
+                )
+            ]
+        },
+    )
+    assert face_to_face["items"][0]["size_placement"]["placement"] == "face_to_face"
 
 
 def test_named_other_stage_round_trips_and_requires_name_and_notes() -> None:
@@ -1355,8 +1428,6 @@ def test_rendered_precursor_and_local_condition_contracts(
                 "cas_number": "1313-27-5",
                 "batch_number": "M-1",
                 "purity": 99.9,
-                "purity_basis": "mass_fraction",
-                "purity_source": "supplier_declared",
                 "gas_purity_grade": "5N",
             }
         )
@@ -1365,11 +1436,7 @@ def test_rendered_precursor_and_local_condition_contracts(
             "lot_category": "gas_cylinder",
             "substance_name": "Argon",
             "chemical_formula": "Ar",
-            "cas_number": "7440-37-1",
             "batch_number": "AR-1",
-            "purity": 99.999,
-            "purity_basis": "volume_fraction",
-            "purity_source": "supplier_declared",
         }
     )
 
@@ -1386,6 +1453,14 @@ def test_treatment_and_pretreatment_steps_use_discriminated_parameter_objects() 
                             "parameters": {"speed_rpm": 3000.0, "duration_s": 60.0},
                         },
                         {
+                            "type": "退火",
+                            "parameters": {
+                                "temperature_C": 500.0,
+                                "duration_min": 20.0,
+                                "atmosphere": "N₂",
+                            },
+                        },
+                        {
                             "type": "其他",
                             "other_name": "Sieving",
                             "parameters": {},
@@ -1397,8 +1472,10 @@ def test_treatment_and_pretreatment_steps_use_discriminated_parameter_objects() 
     )
     assert [step["type"] for step in precursors["items"][0]["treatment_steps"]] == [
         "spin_coat",
+        "anneal",
         "other",
     ]
+    assert precursors["items"][0]["treatment_steps"][1]["parameters"]["atmosphere"] == "N2"
 
     with pytest.raises(ValueError, match="direct_load cannot be combined"):
         validate_v2_module_payload(
@@ -1489,7 +1566,6 @@ def test_process_structures_preserve_preparation_measurement_cooling_and_fields(
         cooling_params={
             "method": "开盖冷却",
             "lid_open_temperature_C": 580.0,
-            "cooling_rate_C_per_min": 20.0,
         },
         field_params=[
             {
@@ -1554,6 +1630,25 @@ def test_process_structures_preserve_preparation_measurement_cooling_and_fields(
             "process_steps",
             {"items": [_reaction_step(cooling_params={"method": "open_lid_cooling"})]},
         )
+    with pytest.raises(ValueError, match="cooling_rate_C_per_min"):
+        validate_v2_module_payload(
+            "process_steps",
+            {"items": [_reaction_step(cooling_params={"method": "controlled_cooling"})]},
+        )
+    controlled = validate_v2_module_payload(
+        "process_steps",
+        {
+            "items": [
+                _reaction_step(
+                    cooling_params={
+                        "method": "controlled_cooling",
+                        "cooling_rate_C_per_min": 20.0,
+                    }
+                )
+            ]
+        },
+    )
+    assert controlled["items"][0]["cooling_params"]["cooling_rate_C_per_min"] == 20.0
     gas_with_copied_purity = deepcopy(_reaction_step()["gas_feeds"])
     gas_with_copied_purity[0]["purity"] = 99.999
     with pytest.raises(ValueError, match="purity"):

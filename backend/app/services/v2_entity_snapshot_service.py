@@ -92,25 +92,9 @@ def missing_material_lot_projection_fields(module_key: str, snapshot: dict) -> l
     if module_key != "substrates":
         return []
     projection = material_lot_item_projection(module_key, snapshot)
-    required = [
-        "material",
-        "chemical_formula",
-        "orientation_polish_availability",
-        "miscut_availability",
-        "surface_roughness",
-    ]
-    if projection.get("orientation_polish_availability") == "reported":
-        required.append("crystal_orientation")
-    if projection.get("miscut_availability") == "reported":
-        required.append("miscut_angle_deg")
+    required = ["material", "chemical_formula"]
     if projection.get("material") == "sio2_si":
         required.append("oxide_thickness_nm")
-    try:
-        has_miscut = float(projection.get("miscut_angle_deg", 0)) > 0
-    except (TypeError, ValueError):
-        has_miscut = False
-    if has_miscut:
-        required.append("miscut_direction")
     return [key for key in required if not _present_snapshot_value(projection.get(key))]
 
 

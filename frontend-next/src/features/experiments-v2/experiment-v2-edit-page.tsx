@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { HttpError, resolveErrorMessage } from '@/shared/api/http-error'
 import { LoadingState } from '@/shared/ui/loading-state'
 import { PageHeader } from '@/shared/ui/page-header'
+import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
 import { triggerBlobDownload } from '@/shared/lib/download'
 import { useAuth } from '@/features/auth/use-auth'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -251,6 +252,10 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <RouteLeaveGuard
+        when={formDirty}
+        message="当前实验记录有未保存的修改，确定离开吗？"
+      />
       <PageHeader
         title={data?.run.run_code ?? t('experimentsV2.edit.title')}
         subtitle={
@@ -369,13 +374,6 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
         <LoadingState />
       ) : (
         <>
-          {formDirty ? (
-            <Alert>
-              <AlertDescription>
-                {t('experimentsV2.actions.saveBeforeLock')}
-              </AlertDescription>
-            </Alert>
-          ) : null}
           {data.run.status === 'locked' || data.run.status === 'invalid' ? (
             <Alert>
               <AlertDescription>

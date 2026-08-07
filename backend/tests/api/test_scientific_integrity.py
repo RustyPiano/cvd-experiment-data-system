@@ -115,6 +115,9 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
                         "subject_ref": alias,
                         "subject_instance_ref": instance,
                         "gas_species_code": alias,
+                        "gas_lot_id": str(uuid4()),
+                        "gas_lot_version": 1,
+                        "measurement_source": "mfc",
                         "unit": "sccm",
                         "data_kind": "scalar",
                         "scalar_value": 50,
@@ -136,12 +139,29 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
                     for instance in ("valve-1", "valve-2")
                 ],
             ],
+            "pressure_regime": "atmospheric",
+            "cooling_method": "furnace_cooling",
         }
     )
     assert [item.gas_species_code for item in timeline.channels[2:4]] == ["Ar", "Ar"]
 
 
 def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
+    gas_channel = {
+        "channel_key": f"channel_{uuid4()}".replace("-", "_"),
+        "channel_type": "flow",
+        "source_type": "setpoint",
+        "subject_type": "gas_species",
+        "subject_ref": "Ar",
+        "subject_instance_ref": "setup:demo:gas:Ar:1",
+        "gas_species_code": "Ar",
+        "gas_lot_id": str(uuid4()),
+        "gas_lot_version": 1,
+        "measurement_source": "mfc",
+        "unit": "sccm",
+        "data_kind": "interval_series",
+        "series": [{"start_s": 0, "end_s": 3600, "value": 100}],
+    }
     payload = {
         "segments": [
             {
@@ -167,10 +187,11 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
                     {"start_s": 0, "value": 25},
                     {"start_s": 1800, "value": 750},
                 ],
-            }
+            },
+            gas_channel,
         ],
         "pressure_regime": "atmospheric",
-        "cooling_method": "natural",
+        "cooling_method": "furnace_cooling",
     }
     assert ProcessTimelinePayload.model_validate(payload).pressure_regime == "atmospheric"
 
@@ -182,7 +203,7 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
         "subject_ref": "reactor",
         "subject_instance_ref": "setup:demo:pressure:1",
         "pressure_location": "reactor",
-        "pressure_type": "unspecified",
+        "pressure_type": "absolute",
         "unit": "Pa",
         "data_kind": "scalar",
         "scalar_value": 1000,
@@ -199,7 +220,28 @@ def test_simple_growth_contract_keeps_atmospheric_pressure_imprecise() -> None:
             "pressure_regime": "low_pressure",
         }
     )
-    assert low_pressure.channels[-1].pressure_type == "unspecified"
+    assert low_pressure.channels[-1].pressure_type == "absolute"
+
+    for invalid_pressure in (0, -1):
+        with pytest.raises(ValueError, match="greater than zero"):
+            ProcessTimelinePayload.model_validate(
+                {
+                    **payload,
+                    "channels": [
+                        *payload["channels"],
+                        {**pressure, "scalar_value": invalid_pressure},
+                    ],
+                    "pressure_regime": "low_pressure",
+                }
+            )
+
+    with pytest.raises(ValueError, match="gas flow channel"):
+        ProcessTimelinePayload.model_validate(
+            {
+                **payload,
+                "channels": payload["channels"][:-1],
+            }
+        )
 
 
 def test_measurement_contract_rejects_cross_method_properties_and_bad_composition() -> None:

@@ -104,6 +104,6 @@ def test_structure_discriminator_and_conditional_components_are_part_of_r0() -> 
     r0_fields = [field for field in fields if field.get("r0")]
     r0_by_key = {field["key"]: field for field in r0_fields}
 
-    assert len(r0_fields) == 29
+    assert len(r0_fields) == 27
     assert r0_by_key["structure_type"]["requirement"]["level"] == "required"
     assert r0_by_key["components"]["requirement"]["level"] == "conditional_required"

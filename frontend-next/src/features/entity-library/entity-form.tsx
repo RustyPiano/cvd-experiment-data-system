@@ -87,6 +87,8 @@ import {
 } from './temperature-sensors-editor'
 import type { TemperatureSensor } from './temperature-sensors-editor'
 import { buildTemperatureSensorsEditorLabels } from '@/shared/structured-editor-labels'
+import { FormulaInput } from '@/features/experiments-v2/components/formula-input'
+import { validateMaterialFormula } from '@/features/experiments-v2/formula'
 
 // 长文本字段用多行输入并跨两列（示意图/配置/坐标系描述）。
 const TEXTAREA_KEYS = new Set([
@@ -97,6 +99,7 @@ const TEXTAREA_KEYS = new Set([
   'modification_details',
 ])
 const NUMERIC_INPUT = '\u6570\u503c'
+const MATERIAL_FORMULA_INPUT = '\u7269\u6599\u5316\u5b66\u5f0f'
 
 export type EntityFormMode = 'create' | 'newVersion'
 
@@ -223,6 +226,13 @@ export function EntityForm({
               ? t('validation.tubeDimensionsRequired')
               : t('validation.required'),
         }
+      } else if (
+        !empty &&
+        field.input === MATERIAL_FORMULA_INPUT &&
+        !Array.isArray(value) &&
+        !validateMaterialFormula(value).valid
+      ) {
+        errors[field.key] = { type: 'validate', message: '' }
       } else if (!empty && field.key === 'temperature_sensors') {
         if (
           !temperatureSensorsAreValid(
@@ -259,10 +269,22 @@ export function EntityForm({
             Array.isArray(value) ? '' : (value ?? ''),
             { tubeShape },
           )
-        } catch {
+        } catch (error) {
+          const wallThicknessMessage =
+            field.key === 'tube_outer_diameter_wall_mm' &&
+            error instanceof RangeError &&
+            error.message.startsWith('wall thickness')
+              ? tubeShape === 'round'
+                ? t('validation.tubeRoundWallThickness')
+                : tubeShape === 'square'
+                  ? t('validation.tubeSquareWallThickness')
+                  : tubeShape === 'rectangular'
+                    ? t('validation.tubeRectangularWallThickness')
+                    : null
+              : null
           errors[field.key] = {
             type: 'validate',
-            message: t('validation.structuredField'),
+            message: wallThicknessMessage ?? t('validation.structuredField'),
           }
         }
       } else if (!empty && !Array.isArray(value)) {
@@ -534,7 +556,9 @@ function EntityFieldControl({
   const useTextarea = TEXTAREA_KEYS.has(field.key)
   const placeholder = localizedFieldPlaceholder(field, i18n.language)
   const fieldHelp = localizedFieldHelp(field, i18n.language)
+  const materialFormulaInput = field.input === MATERIAL_FORMULA_INPUT
   const customControl = Boolean(
+    materialFormulaInput ||
     entityFileInput ||
     isEntityJsonArrayField(field.key) ||
     structuredInput ||
@@ -569,7 +593,24 @@ function EntityFieldControl({
             ) : null}
             {required ? <RequiredMark /> : null}
           </FormLabel>
-          {field.key === 'temperature_sensors' ? (
+          {materialFormulaInput ? (
+            <FormulaInput
+              id={controlId}
+              value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
+              onChange={rhf.onChange}
+              disabled={disabled}
+              placeholder={placeholder}
+              validator={validateMaterialFormula}
+              ariaDescribedBy={
+                [
+                  fieldHelp ? helpId : null,
+                  fieldState.error?.message ? messageId : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+            />
+          ) : field.key === 'temperature_sensors' ? (
             <div
               id={controlId}
               role="group"
@@ -718,11 +759,21 @@ function EntityFieldControl({
                   .join(' ') || undefined
               }
               placeholder={placeholder}
-              otherLabel={t('entityLibrary.form.otherOption')}
-              otherInputLabel={t('entityLibrary.form.otherInputLabel', {
-                label,
-              })}
-              otherPlaceholder={t('entityLibrary.form.otherPlaceholder')}
+              otherLabel={t(
+                field.key === 'supplier'
+                  ? 'entityLibrary.form.addSupplier'
+                  : 'entityLibrary.form.otherOption',
+              )}
+              otherInputLabel={
+                field.key === 'supplier'
+                  ? t('entityLibrary.form.supplierName')
+                  : t('entityLibrary.form.otherInputLabel', { label })
+              }
+              otherPlaceholder={t(
+                field.key === 'supplier'
+                  ? 'entityLibrary.form.supplierNamePlaceholder'
+                  : 'entityLibrary.form.otherPlaceholder',
+              )}
               optionLabel={(option) => localizedOption(option, i18n.language)}
             />
           ) : enumOptions ? (

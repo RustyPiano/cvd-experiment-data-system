@@ -171,42 +171,6 @@ describe('衬底材料 = SiO₂/Si → 氧化层厚度 (oxide thickness)', () =>
   })
 })
 
-describe('衬底偏转角 → 偏转方向 (miscut direction)', () => {
-  const direction = field('substrates', 'miscut_direction')
-
-  it('requires the direction only when the angle is positive', () => {
-    expect(
-      isFieldVisible('substrates', direction, {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0.2',
-      }),
-    ).toBe(true)
-    expect(
-      isFieldVisible('substrates', direction, {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0',
-      }),
-    ).toBe(false)
-    expect(
-      isEffectivelyRequired('substrates', direction, {
-        miscut_angle_deg: '0.2',
-      }),
-    ).toBe(true)
-    expect(
-      isEffectivelyRequired('substrates', direction, {
-        miscut_angle_deg: '0',
-      }),
-    ).toBe(false)
-    expect(
-      buildItemPayload('substrates', {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0',
-        miscut_direction: 'toward a-axis',
-      }).miscut_direction,
-    ).toBeNull()
-  })
-})
-
 describe('visibility metadata', () => {
   it.each([
     ['target_product', 'components'],
@@ -534,22 +498,6 @@ describe('payload builders align with backend module contract', () => {
     ).toEqual(reference)
   })
 
-  it('round-trips structured substrate surface roughness', () => {
-    const restored = moduleValuesFromPayload('substrates', {
-      surface_roughness: { metric: 'RMS', value_nm: 0.25 },
-    })
-    expect(JSON.parse(restored.surface_roughness as string)).toEqual({
-      availability: 'reported',
-      metric: 'RMS',
-      value_nm: 0.25,
-    })
-    expect(buildItemPayload('substrates', restored).surface_roughness).toEqual({
-      availability: 'reported',
-      metric: 'RMS',
-      value_nm: 0.25,
-    })
-  })
-
   it('restores the legacy 等离子 pretreatment as plasma_treatment', () => {
     const restored = moduleValuesFromPayload('substrates', {
       pretreatment_steps: [
@@ -630,27 +578,5 @@ describe('missingRequiredKeys', () => {
     ).not.toEqual(
       expect.arrayContaining(['source_container', 'source_position']),
     )
-  })
-
-  it('flags miscut direction when the substrate angle is positive', () => {
-    expect(
-      missingRequiredKeys('substrates', {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0.2',
-      }),
-    ).toContain('miscut_direction')
-    expect(
-      missingRequiredKeys('substrates', {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0',
-      }),
-    ).not.toContain('miscut_direction')
-    expect(
-      missingRequiredKeys('substrates', {
-        miscut_availability: 'reported',
-        miscut_angle_deg: '0.2',
-        miscut_direction: 'x面向x轴偏2°',
-      }),
-    ).not.toContain('miscut_direction')
   })
 })

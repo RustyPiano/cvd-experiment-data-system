@@ -1,3 +1,5 @@
+import { materialPhaseCatalog } from '@/shared/generated/material-phase-catalog'
+
 // ponytail: IT number alone cannot distinguish alternate settings; use
 // spglib 2.7.0's first/default Hall setting until the schema records a setting.
 const HERMANN_MAUGUIN_SYMBOLS = `
@@ -84,23 +86,6 @@ export const spaceGroupOptions: readonly SpaceGroupOption[] =
     }
   })
 
-// 只收录本项目当前示例中的常见层状 TMD 体相，不做自动判定。
-// 来源：NIST JARVIS bulk entries JVASP-51/55/57/72/75/231。
-const COMMON_BULK_PHASES: Readonly<
-  Record<string, readonly Omit<BulkSpaceGroupSuggestion, 'symbol'>[]>
-> = {
-  MoS2: [
-    { phase: '2H', number: 194 },
-    { phase: '3R', number: 160 },
-  ],
-  WS2: [{ phase: '2H', number: 194 }],
-  MoSe2: [
-    { phase: '2H', number: 194 },
-    { phase: '3R', number: 160 },
-  ],
-  WSe2: [{ phase: '2H', number: 194 }],
-}
-
 const SPACE_GROUP_BY_SYMBOL = new Map(
   spaceGroupOptions.map((option) => [
     normalizedSymbol(option.symbol),
@@ -146,8 +131,40 @@ export function suggestedBulkSpaceGroups(
     .trim()
     .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => ASCII_DIGITS[digit])
     .replace(/\s+/g, '')
-  return (COMMON_BULK_PHASES[normalized] ?? []).map((suggestion) => ({
-    ...suggestion,
-    symbol: spaceGroupOptions[suggestion.number - 1].symbol,
+  return (materialPhaseCatalog[normalized] ?? []).map((suggestion) => ({
+    phase: suggestion.code,
+    number: suggestion.bulk_space_group_number,
+    symbol:
+      spaceGroupOptions[suggestion.bulk_space_group_number - 1]?.symbol ?? '',
   }))
+}
+
+export function commonSuggestedBulkSpaceGroups(
+  formulas: readonly string[],
+): readonly BulkSpaceGroupSuggestion[] {
+  const candidates = formulas
+    .filter((formula) => formula.trim())
+    .map(suggestedBulkSpaceGroups)
+  if (candidates.length !== formulas.length || candidates.length === 0)
+    return []
+  return candidates[0].filter((candidate) =>
+    candidates
+      .slice(1)
+      .every((items) =>
+        items.some(
+          (item) =>
+            item.phase === candidate.phase && item.number === candidate.number,
+        ),
+      ),
+  )
+}
+
+export function couldMatchMaterialPhaseCatalog(formula: unknown): boolean {
+  const normalized = String(formula ?? '')
+    .trim()
+    .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (digit) => ASCII_DIGITS[digit])
+    .replace(/\s+/g, '')
+  return Object.keys(materialPhaseCatalog).some((candidate) =>
+    candidate.startsWith(normalized),
+  )
 }

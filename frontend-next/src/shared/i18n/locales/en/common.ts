@@ -35,6 +35,12 @@ export const common = {
     structuredField: 'Complete the named values with valid numbers',
     tubeDimensionsRequired:
       'Complete the tube dimensions for the selected cross-section',
+    tubeRoundWallThickness:
+      'Wall thickness must be less than half the outer diameter',
+    tubeSquareWallThickness:
+      'Wall thickness must be less than half the outer side length',
+    tubeRectangularWallThickness:
+      'Wall thickness must be less than half the smaller outer dimension',
     temperatureSensorsCoverage:
       'Select a sensor category for each zone 1–{{count}}. Any entered nominal accuracy must be non-negative.',
     substrateFormulaMismatch:
@@ -79,6 +85,7 @@ export const common = {
     placement: 'Placement',
     faceUp: 'Face up',
     faceDown: 'Face down',
+    faceToFace: 'Growth faces opposed',
     tilted: 'Tilted',
     upright: 'Upright',
     otherPlacement: 'Other',
@@ -112,12 +119,22 @@ export const common = {
       parameterValue: 'Value',
       parameterUnit: 'Unit',
       removeParameter: 'Remove parameter',
+      selectAtmosphere: 'Select an atmosphere',
+      noAtmosphere: 'Not provided',
+      otherAtmosphereName: 'Other atmosphere name',
+      atmosphereOptions: {
+        air: 'Air',
+        vacuum: 'Vacuum',
+        other: 'Other',
+      },
       types: {
         direct_load: 'Direct load',
         melt_solidify: 'Melt and solidify',
+        mix: 'Mix',
         pelletize: 'Pelletize',
         spin_coat: 'Spin coat',
         anneal: 'Anneal',
+        pre_anneal: 'Pre-anneal',
         grind: 'Grind',
         other: 'Other',
         acetone_clean: 'Acetone clean',
@@ -240,6 +257,7 @@ export const common = {
         furnace_cooling: 'Furnace cooling',
         open_lid_cooling: 'Open-lid cooling',
         rapid_furnace_move_cooling: 'Rapid cooling by moving the furnace',
+        controlled_cooling: 'Controlled cooling',
         other: 'Other cooling method',
       },
       lidOpenTemperatureC: 'Lid-open temperature (°C)',
@@ -557,6 +575,9 @@ export const common = {
       otherOption: 'Other',
       otherInputLabel: 'Other {{label}} value',
       otherPlaceholder: 'Enter another value',
+      addSupplier: 'Add supplier',
+      supplierName: 'Supplier name',
+      supplierNamePlaceholder: 'Enter the supplier name shown on the package',
       originalManufacturerBrand: 'Original manufacturer or brand',
       originalEquipmentModel: 'Original equipment model',
       createSuccess: 'Created (v1)',
@@ -933,6 +954,9 @@ export const common = {
       goToLibrary: 'Add one in reference data',
       create: 'Add {{name}}',
       useLatest: 'Use latest version v{{version}}',
+      productSupplier: 'Supplier',
+      productCatalogNumber: 'Cat. No.',
+      productLotNumber: 'Lot No.',
     },
     sections: {
       basicInfo: {

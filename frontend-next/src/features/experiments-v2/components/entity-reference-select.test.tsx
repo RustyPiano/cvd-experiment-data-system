@@ -193,6 +193,49 @@ it('renders the frozen snapshot and version for an existing reference', async ()
   ).toBeNull()
 })
 
+it('labels supplier, catalogue number, and lot number in product references', async () => {
+  entityApi.listEntities.mockResolvedValue({
+    items: [
+      {
+        id: 'lot-1',
+        latest_version: {
+          version: 1,
+          data: {
+            lot_category: 'substrate',
+            substance_name: 'SiO2/Si',
+            supplier: 'Supplier A',
+            catalog_number: 'CAT-1',
+            batch_number: 'LOT-2',
+          },
+        },
+      },
+    ],
+    total: 1,
+  })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect
+          kind="material_lot"
+          value="lot-1"
+          allowedLotCategories={['substrate']}
+          productLabel
+          onChange={vi.fn()}
+        />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  expect(
+    await screen.findByText(
+      'SiO2/Si · Supplier: Supplier A · Cat. No.: CAT-1 · Lot No.: LOT-2',
+    ),
+  ).toBeVisible()
+})
+
 it('lets an old frozen reference explicitly switch to the latest version', async () => {
   const entity = {
     id: 'setup-1',

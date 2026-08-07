@@ -12,6 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { canonicalOption } from '@/shared/field-i18n'
+import { gasSpecies } from '@/shared/generated/field-metadata'
+import { RequiredMark } from '@/shared/ui/required-mark'
 
 export const precursorTreatmentTypes = [
   'direct_load',
@@ -33,10 +36,25 @@ export const substrateTreatmentTypes = [
   'other',
 ] as const
 
+export const sourceLoadTreatmentTypes = [
+  'direct_load',
+  'grind',
+  'mix',
+  'pelletize',
+  'spin_coat',
+  'pre_anneal',
+  'other',
+] as const
+
 export type PrecursorTreatmentType = (typeof precursorTreatmentTypes)[number]
 export type SubstrateTreatmentType = (typeof substrateTreatmentTypes)[number]
-export type TreatmentType = PrecursorTreatmentType | SubstrateTreatmentType | ''
-export type TreatmentKind = 'precursor' | 'substrate'
+export type SourceLoadTreatmentType = (typeof sourceLoadTreatmentTypes)[number]
+export type TreatmentType =
+  | PrecursorTreatmentType
+  | SubstrateTreatmentType
+  | SourceLoadTreatmentType
+  | ''
+export type TreatmentKind = 'precursor' | 'substrate' | 'source_load'
 
 export interface NamedTreatmentParameter {
   name: string
@@ -87,6 +105,12 @@ export interface TreatmentStepsEditorLabels {
   parameterValue: string
   parameterUnit: string
   removeParameter: string
+  selectAtmosphere: string
+  noAtmosphere: string
+  otherAtmosphereName: string
+  requiredMessage: string
+  invalidMessage: string
+  atmosphereOptions: Record<string, string>
   types: Record<Exclude<TreatmentType, ''>, string>
   fields: Record<TreatmentFieldKey, string>
 }
@@ -102,7 +126,7 @@ export interface TreatmentStepsEditorProps {
 
 type ParameterDefinition = {
   key: TreatmentFieldKey
-  kind: 'number' | 'text'
+  kind: 'number' | 'text' | 'atmosphere'
   required?: boolean
   positive?: boolean
   min?: number
@@ -154,7 +178,7 @@ const precursorDefinitions: Partial<
       positive: true,
       unit: 'min',
     },
-    { key: 'atmosphere', kind: 'text' },
+    { key: 'atmosphere', kind: 'atmosphere' },
   ],
   grind: [{ key: 'duration_min', kind: 'number', positive: true, unit: 'min' }],
   pelletize: [
@@ -222,6 +246,18 @@ const substrateDefinitions: Partial<
   ],
 }
 
+const sourceLoadDefinitions: Partial<
+  Record<SourceLoadTreatmentType, ParameterDefinition[]>
+> = {
+  direct_load: [],
+  grind: precursorDefinitions.grind,
+  mix: [],
+  pelletize: precursorDefinitions.pelletize,
+  spin_coat: precursorDefinitions.spin_coat,
+  pre_anneal: precursorDefinitions.anneal,
+  other: [],
+}
+
 function definitionsFor(
   kind: TreatmentKind,
   type: TreatmentType,
@@ -230,25 +266,70 @@ function definitionsFor(
   const definitions =
     kind === 'precursor'
       ? precursorDefinitions[type as PrecursorTreatmentType]
-      : substrateDefinitions[type as SubstrateTreatmentType]
+      : kind === 'substrate'
+        ? substrateDefinitions[type as SubstrateTreatmentType]
+        : sourceLoadDefinitions[type as SourceLoadTreatmentType]
   return definitions ?? []
 }
 
 function typesFor(kind: TreatmentKind): readonly Exclude<TreatmentType, ''>[] {
   return kind === 'precursor'
     ? precursorTreatmentTypes
-    : substrateTreatmentTypes
+    : kind === 'substrate'
+      ? substrateTreatmentTypes
+      : sourceLoadTreatmentTypes
+}
+
+function namedParametersMode(
+  kind: TreatmentKind,
+  type: TreatmentType,
+): 'optional' | 'required' | null {
+  if (type === 'other' && kind !== 'precursor') return 'required'
+  return kind === 'source_load' && type === 'mix' ? 'optional' : null
 }
 
 function emptyParameters(
   kind: TreatmentKind,
   type: TreatmentType,
 ): TreatmentParameters {
-  return kind === 'substrate' && type === 'other' ? { items: [] } : {}
+  return namedParametersMode(kind, type) ? { items: [] } : {}
 }
 
 function numberFromInput(value: string): number | null {
   return value === '' ? null : Number(value)
+}
+
+const noAtmosphereValue = '__none__'
+const atmosphereCodes = ['air', 'vacuum', ...Object.keys(gasSpecies), 'other']
+const atmosphereCodeSet = new Set(atmosphereCodes)
+
+function canonicalAtmosphere(value: TreatmentParameterValue): string {
+  if (typeof value !== 'string' || !value.trim()) return ''
+  const canonical = canonicalOption(value.trim())
+  if (atmosphereCodeSet.has(canonical)) return canonical
+  const normalized = canonical.toLowerCase()
+  for (const [code, definition] of Object.entries(gasSpecies)) {
+    if (
+      code.toLowerCase() === normalized ||
+      definition.aliases.some(
+        (alias) => alias.trim().toLowerCase() === normalized,
+      )
+    ) {
+      return code
+    }
+  }
+  return 'other'
+}
+
+function atmosphereOtherName(parameters: TreatmentParameters): string {
+  const explicit = parameters.atmosphere_other
+  if (typeof explicit === 'string' && explicit.trim()) return explicit
+  const raw = parameters.atmosphere
+  return typeof raw === 'string' && canonicalAtmosphere(raw) === 'other'
+    ? raw === 'other'
+      ? ''
+      : raw
+    : ''
 }
 
 function parameterInvalid(
@@ -256,6 +337,12 @@ function parameterInvalid(
   value: TreatmentParameterValue,
   showErrors: boolean,
 ): boolean {
+  if (definition.kind === 'atmosphere') {
+    return (
+      Boolean(definition.required && showErrors) &&
+      canonicalAtmosphere(value) === ''
+    )
+  }
   if (definition.kind === 'text') {
     return (
       Boolean(definition.required && showErrors) &&
@@ -271,13 +358,17 @@ function parameterInvalid(
   return definition.min != null && numeric <= definition.min
 }
 
+function parameterMissing(value: TreatmentParameterValue): boolean {
+  return value == null || (typeof value === 'string' && value.trim() === '')
+}
+
 export function treatmentStepsAreValid(
   kind: TreatmentKind,
   steps: TreatmentStep[],
 ): boolean {
   const allowed = new Set(typesFor(kind))
   if (
-    kind === 'precursor' &&
+    kind !== 'substrate' &&
     steps.length > 1 &&
     steps.some((step) => step.type === 'direct_load')
   ) {
@@ -286,13 +377,36 @@ export function treatmentStepsAreValid(
   return steps.every((step) => {
     if (!step.type || !allowed.has(step.type)) return false
     if (step.type === 'other' && !step.other_name?.trim()) return false
-    const definitionsValid = definitionsFor(kind, step.type).every(
+    const definitions = definitionsFor(kind, step.type)
+    const definitionsValid = definitions.every(
       (definition) =>
         !parameterInvalid(definition, step.parameters[definition.key], true),
     )
     if (!definitionsValid) return false
-    if (kind !== 'substrate' || step.type !== 'other') return true
+    const allowedParameterKeys = new Set<string>(
+      definitions.map((definition) => definition.key),
+    )
+    if (definitions.some((definition) => definition.kind === 'atmosphere')) {
+      allowedParameterKeys.add('atmosphere_other')
+      if (
+        canonicalAtmosphere(step.parameters.atmosphere) === 'other' &&
+        !atmosphereOtherName(step.parameters).trim()
+      ) {
+        return false
+      }
+    }
+    const namedMode = namedParametersMode(kind, step.type)
+    if (namedMode) allowedParameterKeys.add('items')
+    if (
+      Object.keys(step.parameters).some((key) => !allowedParameterKeys.has(key))
+    ) {
+      return false
+    }
+    if (!namedMode) return true
     const items = step.parameters.items
+    if (namedMode === 'optional' && (!Array.isArray(items) || !items.length)) {
+      return true
+    }
     return (
       Array.isArray(items) &&
       items.length > 0 &&
@@ -379,7 +493,7 @@ function NamedParametersEditor({
           >
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${stable.ids[index]}-name`}>
-                {labels.parameterName}
+                {labels.parameterName} <RequiredMark />
               </Label>
               <Input
                 id={`${baseId}-${stable.ids[index]}-name`}
@@ -393,7 +507,7 @@ function NamedParametersEditor({
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${stable.ids[index]}-value`}>
-                {labels.parameterValue}
+                {labels.parameterValue} <RequiredMark />
               </Label>
               <Input
                 id={`${baseId}-${stable.ids[index]}-value`}
@@ -409,7 +523,7 @@ function NamedParametersEditor({
             </div>
             <div className="flex flex-col gap-1">
               <Label htmlFor={`${baseId}-${stable.ids[index]}-unit`}>
-                {labels.parameterUnit}
+                {labels.parameterUnit} <RequiredMark />
               </Label>
               <Input
                 id={`${baseId}-${stable.ids[index]}-unit`}
@@ -456,6 +570,11 @@ function NamedParametersEditor({
                 <Trash2 />
               </Button>
             </div>
+            {invalid ? (
+              <p className="text-destructive text-sm sm:col-span-4">
+                {labels.requiredMessage}
+              </p>
+            ) : null}
           </div>
         )
       })}
@@ -551,7 +670,9 @@ function TreatmentStepRow({
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor={`${baseId}-type`}>{labels.type}</Label>
+        <Label htmlFor={`${baseId}-type`}>
+          {labels.type} <RequiredMark />
+        </Label>
         <Select
           value={step.type}
           disabled={disabled}
@@ -579,11 +700,16 @@ function TreatmentStepRow({
             </SelectGroup>
           </SelectContent>
         </Select>
+        {showErrors && !step.type ? (
+          <p className="text-destructive text-sm">{labels.requiredMessage}</p>
+        ) : null}
       </div>
 
       {step.type === 'other' ? (
         <div className="flex flex-col gap-1">
-          <Label htmlFor={`${baseId}-other-name`}>{labels.otherName}</Label>
+          <Label htmlFor={`${baseId}-other-name`}>
+            {labels.otherName} <RequiredMark />
+          </Label>
           <Input
             id={`${baseId}-other-name`}
             value={step.other_name ?? ''}
@@ -593,6 +719,9 @@ function TreatmentStepRow({
               onChange({ ...step, other_name: event.target.value })
             }
           />
+          {showErrors && !step.other_name?.trim() ? (
+            <p className="text-destructive text-sm">{labels.requiredMessage}</p>
+          ) : null}
         </div>
       ) : null}
 
@@ -606,6 +735,7 @@ function TreatmentStepRow({
               current,
               Boolean(showErrors),
             )
+            const selectedAtmosphere = canonicalAtmosphere(current)
             return (
               <div
                 key={definition.key}
@@ -615,44 +745,131 @@ function TreatmentStepRow({
                 <Label htmlFor={id}>
                   {labels.fields[definition.key]}
                   {definition.unit ? ` (${definition.unit})` : ''}
+                  {definition.required ? <RequiredMark /> : null}
                 </Label>
-                <Input
-                  id={id}
-                  type={definition.kind === 'number' ? 'number' : 'text'}
-                  inputMode={
-                    definition.kind === 'number' ? 'decimal' : undefined
-                  }
-                  step={definition.kind === 'number' ? 'any' : undefined}
-                  min={
-                    definition.kind === 'number'
-                      ? definition.positive
-                        ? 0
-                        : definition.min
-                      : undefined
-                  }
-                  value={current == null ? '' : String(current)}
-                  aria-invalid={invalid || undefined}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    onChange({
-                      ...step,
-                      parameters: {
-                        ...step.parameters,
-                        [definition.key]:
-                          definition.kind === 'number'
-                            ? numberFromInput(event.target.value)
-                            : event.target.value,
-                      },
-                    })
-                  }
-                />
+                {definition.kind === 'atmosphere' ? (
+                  <>
+                    <Select
+                      value={selectedAtmosphere || noAtmosphereValue}
+                      disabled={disabled}
+                      onValueChange={(value) => {
+                        const parameters = { ...step.parameters }
+                        if (value === noAtmosphereValue) {
+                          delete parameters.atmosphere
+                          delete parameters.atmosphere_other
+                        } else {
+                          parameters.atmosphere = value
+                          if (value === 'other') {
+                            parameters.atmosphere_other = atmosphereOtherName(
+                              step.parameters,
+                            )
+                          } else {
+                            delete parameters.atmosphere_other
+                          }
+                        }
+                        onChange({ ...step, parameters })
+                      }}
+                    >
+                      <SelectTrigger
+                        id={id}
+                        className="w-full"
+                        aria-invalid={invalid || undefined}
+                      >
+                        <SelectValue placeholder={labels.selectAtmosphere} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value={noAtmosphereValue}>
+                            {labels.noAtmosphere}
+                          </SelectItem>
+                          {atmosphereCodes.map((code) => (
+                            <SelectItem key={code} value={code}>
+                              {labels.atmosphereOptions[code] ?? code}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {selectedAtmosphere === 'other' ? (
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor={`${id}-other`}>
+                          {labels.otherAtmosphereName} <RequiredMark />
+                        </Label>
+                        <Input
+                          id={`${id}-other`}
+                          value={atmosphereOtherName(step.parameters)}
+                          aria-invalid={
+                            (showErrors &&
+                              !atmosphereOtherName(step.parameters).trim()) ||
+                            undefined
+                          }
+                          disabled={disabled}
+                          onChange={(event) =>
+                            onChange({
+                              ...step,
+                              parameters: {
+                                ...step.parameters,
+                                atmosphere: 'other',
+                                atmosphere_other: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                        {showErrors &&
+                        !atmosphereOtherName(step.parameters).trim() ? (
+                          <p className="text-destructive text-sm">
+                            {labels.requiredMessage}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <Input
+                    id={id}
+                    type={definition.kind === 'number' ? 'number' : 'text'}
+                    inputMode={
+                      definition.kind === 'number' ? 'decimal' : undefined
+                    }
+                    step={definition.kind === 'number' ? 'any' : undefined}
+                    min={
+                      definition.kind === 'number'
+                        ? definition.positive
+                          ? 0
+                          : definition.min
+                        : undefined
+                    }
+                    value={current == null ? '' : String(current)}
+                    aria-invalid={invalid || undefined}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onChange({
+                        ...step,
+                        parameters: {
+                          ...step.parameters,
+                          [definition.key]:
+                            definition.kind === 'number'
+                              ? numberFromInput(event.target.value)
+                              : event.target.value,
+                        },
+                      })
+                    }
+                  />
+                )}
+                {invalid ? (
+                  <p className="text-destructive text-sm">
+                    {definition.required && parameterMissing(current)
+                      ? labels.requiredMessage
+                      : labels.invalidMessage}
+                  </p>
+                ) : null}
               </div>
             )
           })}
         </div>
       ) : null}
 
-      {kind === 'substrate' && step.type === 'other' ? (
+      {namedParametersMode(kind, step.type) ? (
         <NamedParametersEditor
           items={namedItems}
           onChange={(items) =>
@@ -698,13 +915,13 @@ export function TreatmentStepsEditor({
           count={value.length}
           onChange={(next) =>
             onChange(
-              kind === 'precursor' && next.type === 'direct_load'
+              kind !== 'substrate' && next.type === 'direct_load'
                 ? [next]
                 : value
                     .map((item, position) => (position === index ? next : item))
                     .filter(
                       (item) =>
-                        kind !== 'precursor' ||
+                        kind === 'substrate' ||
                         next.type === '' ||
                         item.type !== 'direct_load',
                     ),
@@ -715,11 +932,7 @@ export function TreatmentStepsEditor({
             stable.remove(index)
             onChange(value.filter((_, position) => position !== index))
           }}
-          disabled={
-            disabled ||
-            (kind === 'precursor' &&
-              value.some((item) => item.type === 'direct_load'))
-          }
+          disabled={disabled}
           showErrors={showErrors}
           labels={labels}
         />
@@ -731,7 +944,7 @@ export function TreatmentStepsEditor({
           size="sm"
           disabled={
             disabled ||
-            (kind === 'precursor' &&
+            (kind !== 'substrate' &&
               value.some((item) => item.type === 'direct_load'))
           }
           onClick={() => {

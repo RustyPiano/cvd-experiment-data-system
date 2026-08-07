@@ -57,10 +57,10 @@ describe('SimpleExperimentCreateForm', () => {
   it('shows only the four experiment-start fields', async () => {
     renderForm()
 
-    expect(screen.getByLabelText('开始时间')).toBeInTheDocument()
-    expect(screen.getByText('实验人员')).toBeInTheDocument()
-    expect(screen.getByLabelText('实验室温度（℃）')).toBeInTheDocument()
-    expect(screen.getByLabelText('实验室相对湿度（%RH）')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^开始时间/)).toBeInTheDocument()
+    expect(screen.getByText(/^实验人员/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^实验室温度（℃）/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^实验室相对湿度（%RH）/)).toBeInTheDocument()
     expect(await screen.findByText('张俊杰')).toBeInTheDocument()
 
     for (const removed of [

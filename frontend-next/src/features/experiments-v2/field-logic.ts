@@ -161,13 +161,6 @@ export function isFieldVisible(
   ) {
     return false
   }
-  if (
-    moduleKey === 'substrates' &&
-    field.key === 'miscut_direction' &&
-    Number(moduleValueAsString(values['miscut_angle_deg'])) <= 0
-  ) {
-    return false
-  }
   if (!field.visibilityGated) return true
   const condition = field.requirement.condition
   if (!condition) return true
@@ -185,9 +178,6 @@ export function isEffectivelyRequired(
   field: FieldMetadata,
   values: ModuleValues,
 ): boolean {
-  if (moduleKey === 'substrates' && field.key === 'miscut_direction') {
-    return Number(moduleValueAsString(values['miscut_angle_deg'])) > 0
-  }
   const level = field.requirement.level
   if (level === 'required') return true
   if (level === 'conditional_required') {
@@ -631,6 +621,12 @@ export function itemsFromPayload(
     if (moduleKey === 'substrates' && payloadItem['source_id'] != null) {
       values['source_id'] = String(payloadItem['source_id'])
     }
+    if (
+      moduleKey === 'substrates' &&
+      payloadItem['axial_position_mm'] != null
+    ) {
+      values['axial_position_mm'] = String(payloadItem['axial_position_mm'])
+    }
     return values
   })
 }
@@ -711,7 +707,7 @@ export function isProcessStepFieldVisible(
 /**
  * 过程步字段在当前阶段下是否有效必填（驱动红星）：
  *  - required 恒必填；
- *  - conditional_required：阶段 requiredExtra 命中（如反应生长的压力体系）或字段自身条件成立
+ *  - conditional_required：阶段 requiredExtra 命中（如反应生长的反应压力条件）或字段自身条件成立
  *    （降温组=降温段、外场组=Setup有外场）。
  * 全部数据驱动：requiredExtra 来自 stageTypes，条件来自字段元数据。
  */

@@ -18,6 +18,22 @@ import { join } from 'node:path'
 const HERE = import.meta.dir
 const SRC = join(HERE, '..', '..', 'docs', 'standard', 'field-source.yaml')
 const OUT = join(HERE, '..', 'src', 'shared', 'generated', 'field-metadata.ts')
+const PHASE_SRC = join(
+  HERE,
+  '..',
+  '..',
+  'docs',
+  'standard',
+  'material-phase-catalog.yaml',
+)
+const PHASE_OUT = join(
+  HERE,
+  '..',
+  'src',
+  'shared',
+  'generated',
+  'material-phase-catalog.ts',
+)
 
 interface RawCondition {
   field: string
@@ -448,6 +464,35 @@ const content =
   ].join('\n\n') + '\n'
 
 await Bun.write(OUT, content)
+
+const phaseDoc = Bun.YAML.parse(await Bun.file(PHASE_SRC).text()) as {
+  materials: Record<
+    string,
+    {
+      phases: Array<{ code: string; bulk_space_group_number: number }>
+    }
+  >
+}
+const phaseCatalog = Object.fromEntries(
+  Object.entries(phaseDoc.materials).map(([formula, value]) => [
+    formula,
+    value.phases,
+  ]),
+)
+await Bun.write(
+  PHASE_OUT,
+  `// AUTO-GENERATED — 请勿手改。
+// 生成器: frontend-next/scripts/generate-field-metadata.ts
+// 数据权威源: docs/standard/material-phase-catalog.yaml
+
+export interface MaterialPhaseCatalogItem {
+  code: string
+  bulk_space_group_number: number
+}
+
+export const materialPhaseCatalog: Readonly<Record<string, readonly MaterialPhaseCatalogItem[]>> = ${JSON.stringify(phaseCatalog, null, 2)}
+`,
+)
 
 const fieldCount = Object.values(experimentModules).reduce(
   (n, list) => n + list.length,
