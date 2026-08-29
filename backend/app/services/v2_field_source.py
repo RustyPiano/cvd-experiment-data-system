@@ -256,9 +256,14 @@ def _option_tokens(field: dict[str, Any]) -> list[str]:
     return [value.strip() for value in options.split(separator) if value.strip()]
 
 
-def field_option_values(field_key: str, doc: dict[str, Any] | None = None) -> set[str]:
+def field_option_values(
+    field_key: str,
+    doc: dict[str, Any] | None = None,
+    *,
+    field: dict[str, Any] | None = None,
+) -> set[str]:
     source = doc or load_field_source()
-    field = next(
+    field = field or next(
         (
             item
             for item in [*experiment_fields(source), *entity_fields(source)]
@@ -323,6 +328,8 @@ def payload_fields_by_module(doc: dict[str, Any] | None = None) -> dict[str, lis
     grouped: dict[str, list[dict[str, Any]]] = {key: [] for key in PAYLOAD_MODULE_KEYS}
     source = doc or load_field_source()
     for field in experiment_fields(source):
+        if field["requirement"]["level"] == "none":
+            continue
         module_key = module_key_for_field(field, source)
         if module_key in grouped:
             grouped[module_key].append(field)

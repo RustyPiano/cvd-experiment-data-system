@@ -133,7 +133,7 @@ class MaterialLotVersion(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     lot_category: Mapped[str] = mapped_column(String(64), nullable=False)
     substance_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    chemical_formula: Mapped[str] = mapped_column(String(128), nullable=False)
+    chemical_formula: Mapped[str | None] = mapped_column(String(128), nullable=True)
     batch_number: Mapped[str] = mapped_column(String(128), nullable=False)
     attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

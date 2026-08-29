@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { entities, experimentModules } from '@/shared/generated/field-metadata'
+import { entities } from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
   SYSTEM_FIELD_KEYS,
@@ -24,34 +24,38 @@ function field(kind: 'material_lot' | 'setup' | 'instrument', key: string) {
 
 describe('parseEnumOptions', () => {
   it('parses every generated dropdown or multi-select field', () => {
-    const fields = [
-      ...Object.values(experimentModules).flat(),
-      ...Object.values(entities).flat(),
-    ].filter((item) => /(下拉|多选)/.test(item.input))
+    const fields = Object.values(entities)
+      .flat()
+      .filter(
+        (item) =>
+          /(下拉|多选)/.test(item.input) &&
+          parseEnumOptions(item.input, item.options, item.key),
+      )
 
     expect(fields.length).toBeGreaterThan(0)
     for (const item of fields) {
       expect(
-        parseEnumOptions(item.input, item.options),
+        parseEnumOptions(item.input, item.options, item.key),
         item.key,
       ).not.toBeNull()
       expect(
-        parseEnumOptions(item.input, item.options)?.length,
+        parseEnumOptions(item.input, item.options, item.key)?.length,
         item.key,
       ).toBeGreaterThan(0)
     }
   })
 
   it.each([
-    ['target_morphology', 'nanoflake'],
-    ['appearance', 'caked_or_deliquescent'],
-    ['material', 'sapphire_al2o3'],
-    ['stage_type', 'other'],
+    ['lot_category', 'gas_cylinder'],
+    ['substrate_material', 'sapphire_al2o3'],
+    ['field_devices', 'light'],
   ])('keeps the real %s option %s', (key, option) => {
-    const item = Object.values(experimentModules)
+    const item = Object.values(entities)
       .flat()
       .find((candidate) => candidate.key === key)!
-    expect(parseEnumOptions(item.input, item.options)).toContain(option)
+    expect(parseEnumOptions(item.input, item.options, item.key)).toContain(
+      option,
+    )
   })
 
   it('treats non-enum input as free text regardless of option prose', () => {

@@ -341,6 +341,11 @@ class SourceLoad(Base):
         default=list,
     )
     heating_zone_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    substrate_source_ids: Mapped[list[str]] = mapped_column(
+        json_payload_type,
+        nullable=False,
+        default=list,
+    )
     attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)
 
 
@@ -373,9 +378,18 @@ class SourceLoadIngredient(Base):
         json_payload_type,
         nullable=False,
     )
-    function_role: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    function_role: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    process_roles: Mapped[list[str]] = mapped_column(
+        json_payload_type,
+        nullable=False,
+        default=list,
+    )
+    process_role_other: Mapped[str | None] = mapped_column(String(128), nullable=True)
     amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    concentration_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    concentration_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    concentration_unit_other: Mapped[str | None] = mapped_column(String(32), nullable=True)
     composition_basis: Mapped[str | None] = mapped_column(String(64), nullable=True)
     uncertainty: Mapped[float | None] = mapped_column(Float, nullable=True)
     attrs: Mapped[dict[str, Any]] = mapped_column(json_payload_type, nullable=False, default=dict)

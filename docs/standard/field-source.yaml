@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.15
+  version: v4.0-alpha.18
   status: INTERNAL_VALIDATION
-  updated: '2026-08-07'
+  updated: '2026-08-13'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -50,11 +50,33 @@ scientific_contract:
     composition_relations:
     - doped_by
     - substitutional_alloy
+    - solid_solution_component
     - intercalated_by
     - decorated_by
   source_load:
     identity: physical loading instance
     ingredients: one or more MaterialLot version references
+    ingredient_process_roles:
+    - reaction_or_nucleation_promoter
+    - flux_or_salt_assistant
+    - transport_agent
+    - solvent_or_dispersion_medium
+    - reducing_agent
+    - oxidizing_agent
+    - etchant
+    - other
+    concentration_units:
+    - mol_per_L
+    - mmol_per_L
+    - g_per_L
+    - mg_per_mL
+    - wt_percent
+    - vol_percent
+    - other
+    ingredient_concentration:
+      applicable_when: preparation_steps contains spin_coat
+      optional_pair: [concentration_value, concentration_unit]
+      other_name_pair: [concentration_unit, concentration_unit_other]
     preparation_step_types:
     - direct_load
     - grind
@@ -74,8 +96,13 @@ scientific_contract:
         duration_s: {type: number, required: false, unit: s, gt: 0}
         die_diameter_mm: {type: number, required: false, unit: mm, gt: 0}
       spin_coat:
-        speed_rpm: {type: number, required: true, unit: rpm, gt: 0}
-        duration_s: {type: number, required: true, unit: s, gt: 0}
+        stages:
+          type: ordered_list
+          required: true
+          min_items: 1
+          item:
+            speed_rpm: {type: number, required: true, unit: rpm, gt: 0}
+            duration_s: {type: number, required: true, unit: s, gt: 0}
       pre_anneal:
         temperature_C: {type: number, required: true, unit: °C, gt: -273.15}
         duration_min: {type: number, required: true, unit: min, gt: 0}
@@ -94,6 +121,7 @@ scientific_contract:
     - preparation_steps
     - position_program
     - heating_zone_ref
+    - substrate_source_ids
   process_timeline:
     time_origin: basic_info.started_at
     entry_model:
@@ -109,8 +137,9 @@ scientific_contract:
       types: [pump_down, gas_exchange, leak_check, other]
       required_fields: [operation_type, duration_min]
       conditional_fields:
-        gas_exchange: [gases, cycle_count]
+        gas_exchange: [gas_sources, cycle_count]
         other: [other_name]
+      gas_source_identity: frozen MaterialLot gas-cylinder version; one premixed cylinder is one source, while on-site mixing references each physical cylinder
     temperature_program:
       entry: initial_setpoint_then_step_duration_and_target_setpoint
       per_zone: true
@@ -231,6 +260,10 @@ gas_species:
     label_zh: 氨气
     label_en: Ammonia
     aliases: [NH3, nh3, ammonia, 氨气]
+  CO2:
+    label_zh: 二氧化碳
+    label_en: Carbon dioxide
+    aliases: [CO2, co2, CO₂, carbon dioxide, 二氧化碳]
 characterization_properties:
   coverage_percent:
     label_zh: 覆盖率
@@ -497,6 +530,7 @@ modules:
   前驱体: precursors
   衬底: substrates
   过程步: process_steps
+  过程通道: process_steps
   步·温度: process_steps
   步·降温: process_steps
   步·气体: process_steps
@@ -566,6 +600,7 @@ option_labels_en:
   舟: Boat
   坩埚: Crucible
   衬底表面: Substrate surface
+  涂覆在衬底表面: Coated on substrate surface
   其他容器: Other container
   石英舟: Quartz boat
   陶瓷(刚玉)舟: Alumina boat
@@ -666,6 +701,19 @@ option_labels_en:
   商业设备: Commercial equipment
   实验室自制: Lab-built
   改造设备: Modified equipment
+  促进反应或成核: Promote reaction or nucleation
+  助熔或盐辅助: Flux or salt assistance
+  输运: Transport
+  溶剂或分散介质: Solvent or dispersion medium
+  还原: Reduction
+  氧化: Oxidation
+  刻蚀: Etching
+  mol/L: mol/L
+  mmol/L (mM): mmol/L (mM)
+  g/L: g/L
+  mg/mL: mg/mL
+  wt%: wt%
+  vol%: vol%
 option_codes:
   盐辅助CVD: salt_assisted_cvd
   PVD-磁控溅射: pvd_magnetron_sputtering
@@ -722,6 +770,7 @@ option_codes:
   舟: boat
   坩埚: crucible
   衬底表面: substrate_surface
+  涂覆在衬底表面: substrate_surface
   其他容器: other_container
   石英舟: quartz_boat
   陶瓷(刚玉)舟: alumina_boat
@@ -823,6 +872,7 @@ option_codes:
   H₂: H2
   O₂: O2
   CH₄: CH4
+  CO₂: CO2
   热电偶: thermocouple
   热电阻（RTD）: rtd
   红外测温仪: infrared_thermometer
@@ -831,7 +881,24 @@ option_codes:
   商业设备: commercial
   实验室自制: lab_built
   改造设备: modified
+  促进反应或成核: reaction_or_nucleation_promoter
+  助熔或盐辅助: flux_or_salt_assistant
+  输运: transport_agent
+  溶剂或分散介质: solvent_or_dispersion_medium
+  还原: reducing_agent
+  氧化: oxidizing_agent
+  刻蚀: etchant
+  mol/L: mol_per_L
+  mmol/L (mM): mmol_per_L
+  g/L: g_per_L
+  mg/mL: mg_per_mL
+  wt%: wt_percent
+  vol%: vol_percent
 field_option_codes:
+  loading_method:
+    气路供给: gas_line
+    鼓泡器: bubbler
+    其他容器: other
   field_devices:
     等离子: plasma
     等离子体: plasma
@@ -880,6 +947,7 @@ stage_types:
     reaction: 反应条件（温度、实测温度、逐气体供气、压力、时长、降温）
     external_field: 装置具备对应能力时才显示的本炉实际外场
     other: 具名其他记录
+    current: 现行科学过程契约的顶层字段
   types:
   - name: 预处理
     shows:
@@ -948,22 +1016,48 @@ experiment_record:
       note: 新记录固定为CVD；压力、等离子体、金属有机源和盐辅助均在正交事实字段中表达；PVD未发布
       r0: true
     - module: 基本信息
-      label: 实验人
-      label_en: Operator
-      key: operator
-      meaning: 创建本条制备记录的当前登录用户
-      input: 文本
+      label: 创建人
+      label_en: Created by
+      key: created_by_user_id
+      meaning: 创建本条制备记录的用户标识
+      input: 系统生成
+      options: User UUID
+      unit: —
+      requirement:
+        raw: 必填（系统填入）
+        level: required
+      example: 550e8400-e29b-41d4-a716-446655440000
+      source: 科学修订契约
+      note: 服务端强制等于炉次owner，用户不能伪造
+    - module: 基本信息
+      label: 实验人员
+      label_en: Experiment performers
+      key: performed_by_user_ids
+      meaning: 实际参与本次制备实验的一名或多名成员
+      input: 用户多选
       options: —
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: 李俊杰
-      source: 会议·产品决策2026-07-22
-      note: 由系统根据当前登录账号自动填入，不可修改
-      help: 由当前登录账号自动填入，不可修改
-      help_en: Automatically filled from the signed-in account and cannot be changed
+      example: 李俊杰·王博研
+      source: 会议·科学修订契约
+      note: 创建人与记录人由系统分别留存；本字段只表示实际操作实验的成员
       r0: true
+    - module: 基本信息
+      label: 记录人
+      label_en: Recorded by
+      key: recorded_by_user_id
+      meaning: 最后保存当前科学记录内容的用户标识
+      input: 系统生成
+      options: User UUID
+      unit: —
+      requirement:
+        raw: 必填（系统填入）
+        level: required
+      example: 550e8400-e29b-41d4-a716-446655440000
+      source: 科学修订契约
+      note: 每次保存由服务端写入当前登录用户
     - module: 基本信息
       label: 制备记录编号
       label_en: Preparation record code
@@ -986,109 +1080,111 @@ experiment_record:
     - module: 基本信息
       label: 环境温度
       label_en: Ambient temperature
-      key: ambient_temperature_C
-      meaning: 实验间环境温度
-      input: 数值
-      options: —
+      key: ambient_temperature
+      meaning: 实验间环境温度及其测量来源；未测量时显式记为not_measured
+      input: 测量证据对象
+      options: '{source_type: not_measured|manual_entry|manual_estimate|room_sensor|setup_sensor, value?, measured_at?, sensor_ref?}'
       unit: ℃
       requirement:
-        raw: 必填
+        raw: 必填测量状态（允许未测量）
         level: required
       example: '25'
       source: 2026-07-24导师走查
-      note: 每条制备记录重新录入，不沿用上次值
+      note: 实测时保存数值与时刻；未测量不伪造数值
       r0: true
     - module: 基本信息
       label: 环境湿度
       label_en: Ambient relative humidity
-      key: ambient_humidity_percent
-      meaning: 实验间相对湿度（影响生长时较重要）
-      input: 数值
-      options: —
+      key: ambient_humidity
+      meaning: 实验间相对湿度及其测量来源；未测量时显式记为not_measured
+      input: 测量证据对象
+      options: '{source_type: not_measured|manual_entry|manual_estimate|room_sensor|setup_sensor, value?, measured_at?, sensor_ref?}'
       unit: '%RH'
       validation:
         ge: 0
         le: 100
       requirement:
-        raw: 必填
+        raw: 必填测量状态（允许未测量）
         level: required
       example: '45'
       source: 2026-07-24导师走查
-      note: 每条制备记录重新录入，不沿用上次值
+      note: 实测值限定为0–100 %RH；未测量不伪造数值
       r0: true
     - module: 基本信息
       label: 实验前检查确认
       label_en: Pre-run check confirmed
-      key: precheck_confirmed
-      meaning: 确认开始实验前已检查气路、水路与装置状态
-      input: 复选确认
-      options: 已完成实验前检查
+      key: precheck
+      meaning: 确认开始实验前已按当前检查表核对气路、水路与装置状态
+      input: 检查记录对象
+      options: '{checklist_version, confirmed, confirmed_at, exception_note?}'
       unit: —
       requirement:
         raw: 必填
         level: required
       example: 已勾选
       source: 2026-07-24导师走查
-      note: 保存明确布尔值；只有 true 才通过锁定门
+      note: 保存检查表版本和明确布尔值；只有confirmed=true才通过锁定门
       r0: true
+    - module: 基本信息
+      label: 基本信息备注
+      label_en: Basic information note
+      key: note
+      meaning: 与整炉基本背景直接相关、且无更合适结构化字段的补充说明
+      input: 多行文本
+      options: —
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 实验开始前实验室空调刚恢复
+      source: 科学修订契约
+      note: 不用备注替代已有结构化字段
   - title: §1b 目标产物（你想做出什么——按你关心的维度选填，不强制全填，每项可选『其他』）
     fields:
     - module: 目标产物
-      label: 目标材料化学式
-      label_en: Target material formula
-      key: chemical_formula
-      placeholder: 例如 MoS2
-      placeholder_en: e.g. MoS2
-      meaning: 本征、掺杂和合金体系的目标化学式；异质结构由材料层或区域自动生成显示式
-      input: 文本
-      options: 标准写法（渲染规则）
+      label: 目标材料区域
+      label_en: Target material regions
+      key: material_regions
+      meaning: 按单一区域、逐层或横向区域记录目标化学式和其空间角色
+      input: 有序区域数组
+      options: '{region_key, formula, spatial_role, layer_index?, lateral_region?, target_layer_count?, target_bulk_phase?, target_bulk_space_group_number?}'
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: MoS2
-      source: 2026-07-24导师走查
-      note: ★R0；复合体系权威在『组成明细』；系统静默归一化粘贴的下标数字；允许常见圆括号、组成分组与结晶水点号
-      help: 选择结构类型后显示对应示例；垂直或横向异质结构由下方材料层或区域自动生成。
-      help_en: The example follows the selected structure type. Vertical and lateral heterostructure formulas are generated from the material layers or regions below.
+      example: '[{region_key: main, formula: MoS2, spatial_role: single_region}]'
+      source: 科学修订契约
+      note: 化学式在每个材料区域中保存；复合结构不再伪造一个合并化学式
       r0: true
     - module: 目标产物
-      label: 结构类型
-      label_en: Structure type
-      key: structure_type
-      meaning: 材料结构类别（是否掺杂/合金/异质结，供机器检索）
+      label: 结构架构
+      label_en: Architecture type
+      key: architecture_type
+      meaning: 目标材料区域的空间组织方式
       input: 下拉
-      options: 本征/掺杂/合金/垂直异质结/横向异质结/其他
+      options: 单一区域/垂直堆叠/横向结/混合架构
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: 本征
-      source: 复审
-      note: 判别器；决定组成明细是否必填
-      help: 选择后页面会显示该类型的化学式和组成明细填写规则
-      help_en: The page shows formula and composition rules for the selected type
+      example: 单一区域
+      source: 科学修订契约
+      note: 掺杂和合金不是空间架构，另由组成关系表达
       r0: true
     - module: 目标产物
-      label: 组成明细
-      label_en: Composition details
-      key: components
-      ui:
-        visibility_gated: true
-      meaning: 按结构类型记录掺杂元素、合金混合位点，或异质结构的材料层与区域；掺杂主体直接取上方主体材料化学式
-      input: 数组items[]
-      options: 掺杂=掺杂元素+名义含量；合金=混合占位元素+占位比例；垂直异质结=材料层+层序+体相空间群；横向异质结=材料区域+体相空间群；其他=组成材料+适用属性；机器角色(主体材料·掺杂剂·合金组分·材料层·上层·下层·横向域)
+      label: 组成关系
+      label_en: Composition relations
+      key: composition_relations
+      meaning: 记录掺杂、取代合金、固溶体、层间插入或表面修饰与主体区域的关系
+      input: 组成关系数组
+      options: '{relation_type, host_region_key, species, nominal_value?, value_basis, site_or_location?}'
       unit: —
       requirement:
-        raw: 条件必填(结构类型≠本征)
-        level: conditional_required
-        condition:
-          field: 目标产物.结构类型
-          op: ne
-          value: 本征
-      example: '{MoS2,材料层,层序1,空间群194};{WS2,材料层,层序2,空间群194}'
-      source: 复审·2026-07-27终版整改
-      note: 掺杂界面只填一个或多个掺杂元素，保存时由主体材料化学式自动加入主体记录；合金组分只表示混合占位元素及比例；垂直结构按从衬底向上顺序记录材料层，横向结构逐区域记录；上层/下层只用于历史兼容
+        raw: 选填（掺杂、合金等组成体系按模型条件必填）
+        level: optional
+      example: '{relation_type: doped_by, host_region_key: main, species: Nb, value_basis: unspecified}'
+      source: 科学修订契约
+      note: 成分关系与空间架构正交；不再将掺杂或合金写成结构类型
       r0: true
     - module: 目标产物
       label: 目标原子层数
@@ -1112,7 +1208,7 @@ experiment_record:
     - module: 目标产物
       label: 目标体相空间群
       label_en: Target bulk space group
-      key: bulk_space_group
+      key: target_bulk_space_group_number
       meaning: 非异质结构目标材料的晶体对称性：International Tables 空间群号（1–230）；异质结构改在每层或区域填写
       ui:
         visibility_gated: true
@@ -1132,22 +1228,49 @@ experiment_record:
     - module: 目标产物
       label: 目标形态
       label_en: Target morphology
-      key: target_morphology
-      meaning: 目标形态
-      input: 下拉+其他
-      options: 连续膜/纳米片(flake)/纳米带/纳米管/纳米棒/纳米颗粒/其他
+      key: dimensional_form
+      meaning: 目标材料的几何维度形态
+      input: 下拉
+      options: 片状/带状/线状/管状/棒状/颗粒/其他
       unit: —
       requirement:
-        raw: 必填
-        level: required
-      example: 单层连续膜
-      source: 2026-07-24导师走查
-      note: 目标形态影响合成路线与后续结果解释
-      r0: true
+        raw: 选填
+        level: optional
+      example: 片状
+      source: 科学修订契约
+      note: 与覆盖状态分开；不作R0必填
+    - module: 目标产物
+      label: 目标覆盖状态
+      label_en: Target coverage state
+      key: coverage_state
+      meaning: 片状或晶畴在衬底表面的空间连通与覆盖状态
+      input: 下拉
+      options: 孤立/不连续/贯通/连续
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 不连续
+      source: 科学修订契约
+      note: 与几何维度形态分开；不将“连续膜”继续当作一个混合类别
+    - module: 目标产物
+      label: 目标生长取向
+      label_en: Target growth orientation
+      key: orientation
+      meaning: 目标材料相对衬底的主要生长取向
+      input: 下拉
+      options: 面内/垂直/混合
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 面内
+      source: 科学修订契约
+      note: 未设定明确取向目标时留空
     - module: 目标产物
       label: 目标性能
       label_en: Target performance
-      key: target_performance
+      key: optimization_objective
       meaning: 应用导向的目标性能（写清想要什么性能 + 打算用什么方法/判据衡量）
       input: 自由
       options: 示例：希望获得高迁移率，计划通过FET测试评价
@@ -1443,8 +1566,22 @@ experiment_record:
       example: '{reset_count: 1, use_number_since_reset: 7}'
       source: 6/24决定·用户复核2026-07-24
       note: 每炉手填；清洗或更换炉管后累计次数加1，本次使用序号从1重新累计
-  - title: §3 前驱体（用了哪些原料：主要前驱体、辅助剂等，可多个；每个一组）
+  - title: §3 前驱体装载（独立放置或涂覆在具体衬底片上，可多组）
     fields:
+    - module: 前驱体
+      label: 装载标识
+      label_en: Source load key
+      key: load_key
+      meaning: 每组前驱体装载在本炉内稳定且唯一的机器标识
+      input: 系统生成
+      options: load_*
+      unit: —
+      requirement:
+        raw: 必填（系统生成）
+        level: required
+      example: load_1
+      source: 科学修订契约
+      note: 排序或编辑不得改变，供关联、导出和修订对比使用
     - module: 前驱体
       label: 本次使用形态
       label_en: Form used in this run
@@ -1454,58 +1591,76 @@ experiment_record:
       options: 固/气/液
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 未发布（旧表单兼容）
+        level: none
       example: 固
       source: 复审
-      note: 位于批次选择之前；固态和液态只允许引用化学品批次，气态只允许引用气瓶批次
+      note: 新记录不再单独保存相态；气路供给引用气瓶批次，其他装载引用化学品批次
     - module: 前驱体
       label: 物料批次
       label_en: Material lot
-      key: lot_ref
-      meaning: 引用与本次使用形态匹配的物料批次并冻结当时版本
-      input: 实体版本引用
-      options: '{entity_id, version, snapshot}'
+      key: material_lot_id
+      meaning: 所引用物料批次的稳定实体标识
+      input: 实体引用
+      options: MaterialLot UUID
       unit: —
       requirement:
         raw: 必填
         level: required
       example: MoO₃-B202（锁 v1）
       source: 2026-07-24导师走查
-      note: 批次摘要直接展示名称、化学式、CAS、供应商、生产批号、纯度和适用的D50，不再渲染重复只读输入框
+      note: 与物料批次版本成对保存，锁定时由服务端冻结权威快照
       r0: true
     - module: 前驱体
-      label: 本次用途
-      label_en: Use in this run
-      key: role
-      meaning: 本前驱体在本次反应中的用途
-      input: 下拉
-      options: 主要前驱体/辅助剂/掺杂源/其他
+      label: 物料批次版本
+      label_en: Material lot version
+      key: material_lot_version
+      meaning: 本次实验引用的物料批次版本
+      input: 系统锁定
+      options: 正整数
       unit: —
+      validation:
+        type: integer
+        ge: 1
       requirement:
         raw: 必填
         level: required
-      example: 主要前驱体
-      source: 会议·导师复核2026-07-28
-      note: 使用完整名称，避免“主源”“角色”等需要解释的内部术语
+      example: '1'
+      source: 科学修订契约
+      note: 用户选择批次时由系统自动带入
+      r0: true
     - module: 前驱体
-      label: 其他用途
-      label_en: Other use
-      key: role_other
-      meaning: 本次用途选择其他时填写
+      label: 工艺作用
+      label_en: Process roles
+      key: process_roles
+      meaning: 本物料在本炉次中承担、且不能仅由物料和目标化学式确定的工艺功能
+      input: 多选
+      options: 促进反应或成核·助熔或盐辅助·输运·溶剂或分散介质·还原·氧化·刻蚀·其他
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 助熔或盐辅助·促进反应或成核
+      source: 2026-08-12师兄试填复核
+      note: 可多选或留空；不再要求选择金属源、硫族元素源或掺杂源等与成分交叉的单一分类
+    - module: 前驱体
+      label: 其他工艺作用
+      label_en: Other process role
+      key: process_role_other
+      meaning: 选择其他工艺作用时填写的具体名称
       input: 文本
       options: —
       unit: —
       requirement:
-        raw: 条件必填(本次用途=其他)
+        raw: 条件必填(工艺作用包含其他)
         level: conditional_required
         condition:
-          field: 前驱体.本次用途
+          field: 前驱体.工艺作用
           op: eq
           value: 其他
-      example: 成核促进剂
-      source: 2026-07-28前驱体复核
-      note: 仅在选择其他用途时显示
+      example: 晶面选择剂
+      source: 2026-08-12师兄试填复核
+      note: 仅在工艺作用包含其他时显示
     - module: 前驱体
       label: 使用量
       label_en: Amount used
@@ -1519,16 +1674,82 @@ experiment_record:
       validation:
         gt: 0
       requirement:
-        raw: 条件必填(非气态)
+        raw: 条件必填(装载方式≠气路供给)
         level: conditional_required
         condition:
-          field: 前驱体.本次使用形态
+          field: 前驱体.装载方式
           op: ne
-          value: 气
+          value: 气路供给
       example: '20'
       source: 会议/复审
       note: 相态≠气时必填；固态按mg、液态按µL；气体流量归实验过程
       r0: true
+    - module: 前驱体
+      label: 使用量单位
+      label_en: Amount unit
+      key: unit
+      meaning: 与使用量成对保存的实际计量单位
+      input: 文本
+      options: mg·g·μL·mL等
+      unit: —
+      requirement:
+        raw: 条件必填(装载方式≠气路供给)
+        level: conditional_required
+        condition:
+          field: 前驱体.装载方式
+          op: ne
+          value: 气路供给
+      example: mg
+      source: 科学修订契约
+      note: 数值和单位必须同时填写；气路供给的量由过程流量通道表达
+    - module: 前驱体
+      label: 溶液浓度
+      label_en: Solution concentration
+      key: concentration_value
+      meaning: 本次旋涂使用的该物料在溶液中的浓度数值
+      input: 数值
+      options: —
+      unit: —
+      validation:
+        gt: 0
+      requirement:
+        raw: 选填（该装载包含旋涂时显示；填写后单位必填）
+        level: optional
+      example: '0.5'
+      source: 2026-08-12师兄试填复核
+      note: 浓度属于本次使用的物料，不属于旋涂转速阶段；不替代本次使用量
+    - module: 前驱体
+      label: 浓度单位
+      label_en: Concentration unit
+      key: concentration_unit
+      meaning: 溶液浓度的计量单位
+      input: 下拉
+      options: mol/L·mmol/L (mM)·g/L·mg/mL·wt%·vol%·其他
+      unit: —
+      requirement:
+        raw: 条件必填（已填溶液浓度）
+        level: optional
+      example: mol/L
+      source: 2026-08-12师兄试填复核
+      note: 数值和单位必须同时填写或同时留空
+    - module: 前驱体
+      label: 其他浓度单位
+      label_en: Other concentration unit
+      key: concentration_unit_other
+      meaning: 选择其他浓度单位时填写的具体单位
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(浓度单位=其他)
+        level: conditional_required
+        condition:
+          field: 前驱体.浓度单位
+          op: eq
+          value: 其他
+      example: mg metal/mL
+      source: 2026-08-12师兄试填复核
+      note: 仅在选择其他单位时显示
     - module: 前驱体
       label: 使用前状态
       label_en: Condition before use
@@ -1540,21 +1761,17 @@ experiment_record:
       options: 正常/结块或潮解/变色/其他
       unit: —
       requirement:
-        raw: 推荐(固态源)
-        level: conditional_recommended
-        condition:
-          field: 前驱体.本次使用形态
-          op: eq
-          value: 固
+        raw: 未发布（旧载荷兼容）
+        level: none
       example: 正常
       source: 导师·2026-07-28前驱体复核
-      note: 粉末、晶粒等稳定物理形态归物料批次；本字段只记每次使用时的状态变化
+      note: 当前科学载荷不接受本旧字段；如后续确认会影响复现，再以强类型观察重新立项
       status: pending-alignment
       pending: 待与俊杰确认组内常见异常状态词表
     - module: 前驱体
       label: 处理方式
       label_en: Pre-loading treatment
-      key: treatment_steps
+      key: preparation_steps
       meaning: 投料前处理（可多步，选了再展开参数）
       input: 前驱体处理步骤数组
       options: '{type: 直接加载|熔融凝固|压片|旋涂|退火|研磨|其他, other_name?, parameters: 固定参数对象}'
@@ -1562,44 +1779,70 @@ experiment_record:
       ui:
         visibility_gated: true
       requirement:
-        raw: 推荐(非气态)
-        level: conditional_recommended
-        condition:
-          field: 前驱体.本次使用形态
-          op: ne
-          value: 气
-      example: '[{type: 旋涂, parameters: {speed_rpm: 3000, duration_s: 60}}]'
+        raw: 选填
+        level: optional
+      example: '[{type: 旋涂, parameters: {stages: [{speed_rpm: 1000, duration_s: 10}, {speed_rpm: 6000, duration_s: 30}]}}]'
       source: 2026-07-24导师走查·2026-07-28前驱体复核
-      note: 有序可重复；直接加载与其他处理互斥；压片暂用压力、保压时间、模具直径三个固定参数，待俊杰和博研试填确认
+      note: 有序可重复；直接加载与其他处理互斥；一次旋涂内按顺序记录多个转速阶段；压片暂用压力、保压时间、模具直径三个固定参数
     - module: 前驱体
       label: 装载方式
       label_en: Loading arrangement
       key: loading_method
       ui:
         visibility_gated: true
-      meaning: 非气态前驱体实际进入反应器的方式，决定是否展开源容器与炉内位置
+      meaning: 前驱体实际进入反应器的方式，决定物料类别、用量和位置的适用规则
       input: 下拉
-      options: 舟/坩埚/衬底表面/其他容器
+      options: 舟/坩埚/涂覆在衬底表面/气路供给/鼓泡器/其他容器
       unit: —
       requirement:
-        raw: 条件必填(非气态)
-        level: conditional_required
-        condition:
-          field: 前驱体.本次使用形态
-          op: ne
-          value: 气
+        raw: 必填
+        level: required
       example: 舟
       source: 2026-07-28前驱体复核
-      note: 选择衬底表面表示该前驱体涂覆在衬底上，不再填写源容器和独立源区位置
+      note: 气路供给只引用气瓶批次且不重复填用量；涂覆在衬底表面时必须关联本炉具体衬底片
+    - module: 前驱体
+      label: 涂覆衬底片
+      label_en: Coated substrate pieces
+      key: substrate_source_ids
+      meaning: 本装载涂覆的具体衬底片，使用本炉衬底的稳定来源标识关联
+      input: 衬底稳定引用数组
+      options: 本炉已填写的衬底片
+      unit: —
+      requirement:
+        raw: 条件必填(装载方式=涂覆在衬底表面)
+        level: conditional_required
+        condition:
+          field: 前驱体.装载方式
+          op: eq
+          value: 涂覆在衬底表面
+      example: 衬底片 S1
+      source: 2026-08-12师兄试填复核
+      note: 使用 source_id 关联，界面显示样片标记、温区和位置；删除或重排衬底时关联不得暗中转向其他片
     - module: 前驱体
       label: 源容器
       label_en: Source container
-      key: source_container
+      key: container_instance_id
       ui:
         visibility_gated: true
-      meaning: 舟、坩埚或其他源容器的材质、条件化尺寸与每炉使用履历
-      input: 前驱体源容器对象
-      options: '{material: 石英|刚玉|其他, material_other?, length_mm?, width_mm?, height_mm?, diameter_mm?, description?, reset_count, use_number_since_reset}'
+      meaning: 需要追溯具体舟、坩埚或其他源容器时，引用已登记容器实例
+      input: 容器实例引用
+      options: ContainerInstance UUID
+      unit: mm
+      requirement:
+        raw: 选填
+        level: optional
+      example: 550e8400-e29b-41d4-a716-446655440000
+      source: 科学修订契约
+      note: 不为普通试填增加容器尺寸和履历负担；仅在课题组确实管理具体容器时引用
+    - module: 前驱体
+      label: 前驱体放置位置
+      label_en: Precursor source position
+      key: initial_position
+      ui:
+        visibility_gated: true
+      meaning: 独立前驱体源相对所选温区热电偶的有符号轴向距离
+      input: 源位置对象
+      options: '{reference: zone_thermocouple, axial_mm}'
       unit: mm
       requirement:
         raw: 条件必填(装载方式=舟/坩埚/其他容器)
@@ -1611,20 +1854,18 @@ experiment_record:
           - 舟
           - 坩埚
           - 其他容器
-      example: 舟；石英；90×15×10 mm；重置1次；本次为重置后第7次使用
-      source: 复审·用户复核2026-07-24·2026-07-28前驱体复核
-      note: 舟显示长宽高；坩埚显示直径和高度；其他容器填写简短尺寸说明；每个前驱体分别记录
-      help: 重置指清洗或更换容器；本次使用序号从1开始累计。
-      help_en: A reset means cleaning or replacing the container; count the current use from 1 after each reset.
+      example: '{reference: zone_thermocouple, axial_mm: -20}'
+      source: 会议·科学修订契约
+      note: 温区由heating_zone_ref单独保存；不在此对象重复保存温区或估计温度
+      help: 以所选温区热电偶为0 mm；沿气流方向，上游填负值，下游填正值。
+      help_en: Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
     - module: 前驱体
-      label: 前驱体放置位置
-      label_en: Precursor source position
-      key: source_position
-      ui:
-        visibility_gated: true
-      meaning: 源容器所在温区、相对该区热电偶的有符号距离，以及可选的独立位置温度
-      input: 前驱体位置对象
-      options: '{zone_index, distance_mm, temperature_C?, temperature_basis?: 实测值|估计}'
+      label: 前驱体加热温区
+      label_en: Precursor heating zone
+      key: heating_zone_ref
+      meaning: 独立前驱体源所属的加热温区，同时是轴向位置的热电偶参照
+      input: 温区选择
+      options: zone_1·zone_2·…
       unit: —
       requirement:
         raw: 条件必填(装载方式=舟/坩埚/其他容器)
@@ -1636,11 +1877,9 @@ experiment_record:
           - 舟
           - 坩埚
           - 其他容器
-      example: 温区1；相对热电偶-20 mm；该位置温度620 ℃；依据=估计
-      source: 会议·用户复核2026-07-24·2026-07-28前驱体复核
-      note: 温区按装置定义；相对热电偶沿气流上游为负、下游为正；位置温度仅在实测或估计时填写
-      help: 以所选温区热电偶为0 mm；沿气流方向，上游填负值，下游填正值。
-      help_en: Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
+      example: zone_2
+      source: 科学修订契约
+      note: 选择涂覆在衬底表面时继承关联衬底的温区与位置
   - title: §4 衬底（长在什么基底上，可多片）
     fields:
     - module: 衬底
@@ -1945,6 +2184,131 @@ experiment_record:
   - title: §5 实验过程（有序记录预处理、反应条件；具名其他记录仅作不丢信息的兜底）
     fields:
     - module: 过程步
+      label: 过程阶段
+      label_en: Process segments
+      key: segments
+      group: current
+      meaning: 兼容已有具名过程阶段；新记录可留空，实际时间由过程通道和操作派生
+      input: 过程阶段数组
+      options: '{segment_key, segment_type, sequence, start_s, end_s, label?, note?}'
+      unit: s
+      requirement:
+        raw: 未发布（历史修订只读兼容）
+        level: none
+      example: '[]'
+      source: 2026-08-07用户复核
+      note: 不要求用户划分反应开始或手算阶段起止时间
+    - module: 过程通道
+      label: 温度、气体与压力程序
+      label_en: Temperature, gas-flow, and pressure channels
+      key: channels
+      group: current
+      meaning: 以统一实验时间零点记录每温区设定温度、每个实际气瓶供气区间及需要时的工作绝对压力
+      input: 强类型过程通道数组
+      options: '{channel_key, channel_type: temperature|flow|pressure|…, source_type, subject_type, subject_ref, subject_instance_ref, unit, data_kind, scalar_value?|series?|file_asset_id?, gas_lot_id?, gas_lot_version?, measurement_source?}'
+      unit: 按通道
+      requirement:
+        raw: 必填
+        level: required
+      example: '[{channel_type: temperature, subject_ref: zone_1, unit: ℃, data_kind: interval_series, series: [{start_s: 0, value: 25}, {start_s: 1800, value: 750}]}]'
+      source: 2026-08-13现行科学契约校对
+      note: 每个Setup温区必须有且仅有一条设定温度通道；至少一条正流量气体通道
+      r0: true
+    - module: 步·压力
+      label: 反应压力类别
+      label_en: Reaction pressure regime
+      key: pressure_regime
+      group: current
+      meaning: 本炉是常压、低压、超高真空或其他压力条件
+      input: 下拉
+      options: atmospheric/low_pressure/ultra_high_vacuum/other
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: low_pressure
+      source: 2026-08-13现行科学契约校对
+      note: 常压不保存精确压力通道；非常压必须在channels中保存一个正的绝对压力设定值
+      r0: true
+    - module: 步·降温
+      label: 降温方式
+      label_en: Cooling method
+      key: cooling_method
+      group: current
+      meaning: 本炉实际采用的降温方式
+      input: 下拉
+      options: furnace_cooling/open_lid_cooling/rapid_furnace_move_cooling/controlled_cooling/other
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: furnace_cooling
+      source: 2026-08-13现行科学契约校对
+      note: 随炉冷却和移炉快速冷却不额外要求虚构参数
+      r0: true
+    - module: 步·降温
+      label: 其他降温方式
+      label_en: Other cooling method
+      key: cooling_other
+      group: current
+      meaning: 降温方式选择其他时的具体操作
+      input: 文本
+      options: —
+      unit: —
+      requirement:
+        raw: 条件必填(降温方式=other)
+        level: conditional_required
+        condition:
+          field: 步·降温.降温方式
+          op: eq
+          value: other
+      example: 打开保温层自然冷却
+      source: 2026-08-13现行科学契约校对
+      note: 仅选择其他时保存
+      r0: true
+    - module: 步·降温
+      label: 受控降温速率
+      label_en: Controlled cooling rate
+      key: cooling_rate_C_per_min
+      group: current
+      meaning: 受控降温时的设定降温速率
+      input: 数值
+      options: —
+      unit: ℃/min
+      validation:
+        gt: 0
+      requirement:
+        raw: 条件必填(降温方式=controlled_cooling)
+        level: conditional_required
+        condition:
+          field: 步·降温.降温方式
+          op: eq
+          value: controlled_cooling
+      example: '10'
+      source: 2026-08-13现行科学契约校对
+      note: 仅受控降温时保存
+      r0: true
+    - module: 步·降温
+      label: 开盖温度
+      label_en: Lid-opening temperature
+      key: lid_open_temperature_C
+      group: current
+      meaning: 开盖冷却时实际开盖的温度
+      input: 数值
+      options: —
+      unit: ℃
+      requirement:
+        raw: 条件必填(降温方式=open_lid_cooling)
+        level: conditional_required
+        condition:
+          field: 步·降温.降温方式
+          op: eq
+          value: open_lid_cooling
+      example: '580'
+      source: 2026-08-13现行科学契约校对
+      note: 仅开盖冷却时保存
+      r0: true
+    - module: 过程步
       label: 记录类型
       label_en: Record type
       key: stage_type
@@ -1954,32 +2318,28 @@ experiment_record:
       options: 预处理/反应条件/其他记录
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 未发布（旧过程步兼容）
+        level: none
       example: 反应条件
       source: 2026-07-24导师走查
       note: 数组顺序即过程顺序；不再重复拆成升温、稳定、生长、退火、降温和卸样
-      r0: true
+      r0: false
     - module: 过程步
       label: 预处理操作
       label_en: Preparation operations
       key: preparation_operations
-      group: preparation
-      meaning: 抽气、气路置换等有序可重复的实验前操作
+      group: current
+      meaning: 选填的实验前操作；每项记录实际持续时间，气路置换引用实际气瓶版本
       input: 预处理操作数组
-      options: '{operation_type: 抽气|气路置换|其他, target_absolute_pressure_Pa?, duration_min, cycle_count?, gases?, other_name?, parameters?}'
+      options: '{operation_type: pump_down|gas_exchange|leak_check|other, duration_min, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, snapshot?}], other_name?}'
       unit: —
       requirement:
-        raw: 条件必填(预处理记录)
-        level: conditional_required
-        condition:
-          field: 过程步.记录类型
-          op: eq
-          value: 预处理
-      example: '[{operation_type: 抽气, target_absolute_pressure_Pa: 100, duration_min: 15}]'
-      source: 2026-07-24导师走查
-      note: 漏率是否逐炉记录待组内确认，本轮不混入抽气字段
-      r0: true
+        raw: 选填
+        level: optional
+      example: '[{operation_type: gas_exchange, duration_min: 10, cycle_count: 3, gas_sources: [{material_lot_id: UUID, material_lot_version: 2}]}]'
+      source: 2026-08-13师兄试填复核
+      note: 置换可引用一瓶预混气或多瓶现场混合气；固定组成仅在气瓶版本登记
+      r0: false
     - module: 步·温度
       label: 设定温度程序
       label_en: Temperature setpoint program
@@ -1990,8 +2350,8 @@ experiment_record:
       options: '{zones: [{zone_index, points: [{elapsed_min, setpoint_C}]}]}'
       unit: min·℃
       requirement:
-        raw: 条件必填(反应条件记录)
-        level: conditional_required
+        raw: 未发布（旧过程步兼容）
+        level: none
         condition:
           field: 过程步.记录类型
           op: eq
@@ -1999,7 +2359,7 @@ experiment_record:
       example: '{zones: [{zone_index: 1, points: [{elapsed_min: 0, setpoint_C: 25}, {elapsed_min: 30, setpoint_C: 750}, {elapsed_min: 45, setpoint_C: 750}]}]}'
       source: 2026-07-24导师走查
       note: 每温区时间严格递增且不得超过Setup温区数；相邻同温点表示保温；拒绝任意字符串
-      r0: true
+      r0: false
     - module: 步·温度
       label: 实测温度文件与通道
       label_en: Measured-temperature file and channels
@@ -2010,8 +2370,8 @@ experiment_record:
       options: '{file_asset_id, time_column, channels: [{zone_index, column_name}]}'
       unit: ℃ 随时间
       requirement:
-        raw: 推荐
-        level: recommended
+        raw: 未发布（旧过程步兼容）
+        level: none
       example: '{file_asset_id: UUID, time_column: elapsed_min, channels: [{zone_index: 1, column_name: zone1_C}]}'
       source: 2026-07-24导师走查
       note: 文件使用现有FileAsset保存SHA与炉次关联；传感器和不确定度从Setup快照只读带出
@@ -2025,8 +2385,8 @@ experiment_record:
       options: '{species, other_name?, lot_ref, measurement_source: MFC|转子|其他, measurement_source_other?, intervals: [{start_min, end_min, flow_sccm}]}'
       unit: min·sccm
       requirement:
-        raw: 条件必填(反应条件记录)
-        level: conditional_required
+        raw: 未发布（旧过程步兼容）
+        level: none
         condition:
           field: 过程步.记录类型
           op: eq
@@ -2034,7 +2394,7 @@ experiment_record:
       example: '[{species: Ar, lot_ref: Ar-B01, intervals: [{start_min: 0, end_min: 30, flow_sccm: 80}, {start_min: 45, end_min: 50, flow_sccm: 80}]}]'
       source: 2026-07-24导师走查
       note: lot_ref与measurement_source必填，purity从lot_ref.snapshot带出；end_min必须大于start_min且flow_sccm>0；同一气体的区间不得重叠；同时间段体积流量占比由各气体流量派生
-      r0: true
+      r0: false
     - module: 步·压力
       label: 反应压力条件与工作绝对压力
       label_en: Reaction pressure conditions and working absolute pressure
@@ -2062,8 +2422,8 @@ experiment_record:
             gt: 0
             le: 1.0e-06
       requirement:
-        raw: 条件必填(反应条件记录)
-        level: conditional_required
+        raw: 未发布（旧过程步兼容）
+        level: none
         condition:
           field: 过程步.记录类型
           op: eq
@@ -2073,7 +2433,7 @@ experiment_record:
       note: 常压可只记录反应压力条件；低压与超高真空必须填写绝对压力，不填相对大气压的表压
       help: 填写相对于绝对真空的工作压力；不要填写相对于大气压的表压
       help_en: Enter working pressure relative to absolute vacuum, not gauge pressure relative to atmosphere
-      r0: true
+      r0: false
     - module: 过程步
       label: 反应持续时间
       label_en: Reaction duration
@@ -2084,8 +2444,8 @@ experiment_record:
       options: '{duration_min；旧记录可含cycle_count}'
       unit: min
       requirement:
-        raw: 条件必填(反应条件记录)
-        level: conditional_required
+        raw: 未发布（旧过程步兼容）
+        level: none
         condition:
           field: 过程步.记录类型
           op: eq
@@ -2093,7 +2453,7 @@ experiment_record:
       example: '{duration_min: 45}'
       source: 2026-07-24导师走查·2026-07-27终版整改
       note: duration_min>0；历史cycle_count只读兼容，新记录不再把供气区间数解释为反应循环次数
-      r0: true
+      r0: false
     - module: 步·降温
       label: 降温参数
       label_en: Cooling parameters
@@ -2104,8 +2464,8 @@ experiment_record:
       options: '{method: 随炉冷却|开盖冷却|移炉快速冷却|受控降温|其他, lid_open_temperature_C?, cooling_rate_C_per_min?, method_other?}'
       unit: ℃·℃/min
       requirement:
-        raw: 条件必填(反应条件记录)
-        level: conditional_required
+        raw: 未发布（旧过程步兼容）
+        level: none
         condition:
           field: 过程步.记录类型
           op: eq
@@ -2117,7 +2477,7 @@ experiment_record:
       label: 实际外场程序
       label_en: Applied external-field program
       key: field_params
-      group: external_field
+      group: current
       meaning: 本炉实际启用的外场、时间区间与按类型展开的参数
       input: 实际外场数组
       options: '{field_type: 等离子体|光|电, start_min, end_min, parameters: 等离子体[power_W, gas_species, pressure_Pa]；光[wavelength_nm, power_mW或irradiance_mW_cm2, source_distance_mm]；电[voltage_V或field_strength_V_cm, electrode_gap_mm, direction]；other_parameters?}'
@@ -2138,8 +2498,8 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 条件必填(其他记录)
-        level: conditional_required
+        raw: 未发布（旧过程步兼容）
+        level: none
         condition:
           field: 过程步.记录类型
           op: eq
@@ -2157,8 +2517,8 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 条件必填(其他记录)
-        level: conditional_required
+        raw: 未发布（旧过程步兼容）
+        level: none
         condition:
           field: 过程步.记录类型
           op: eq
@@ -2169,81 +2529,117 @@ experiment_record:
   - title: §6 过程事件 Process Events（记录异常、中断与人工干预等客观事件；只记客观事实，不判成败）
     fields:
     - module: 过程事件
-      label: 事件编号
-      label_en: Event ID
-      key: event_id
+      label: 事件标识
+      label_en: Event key
+      key: event_key
       meaning: 每条事件稳定且不可重复的标识，用于关联附件
-      input: UUID
+      input: 系统生成键
       options: 系统生成
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: 550e8400-e29b-41d4-a716-446655440000
+      example: event_1
       source: 2026-07-24整改
       note: 创建事件时生成，排序和编辑不得改变
     - module: 过程事件
-      label: 事件
-      label_en: Event
-      key: event_type
-      meaning: 过程中发生的客观事件类型
-      input: 下拉+其他
-      options: 供电中断/供水中断/供气中断/管路堵塞/压力突变/信号异常/人工干预/设备报警/其他
+      label: 观察到的偏差
+      label_en: Observed deviations
+      key: observed_deviations
+      meaning: 过程中直接观察到的异常或人工干预，可同时选择多项
+      input: 多选+其他
+      options: 管路堵塞/压力超限/信号异常/人工干预/设备报警/人工停止/供电中断/供水中断/供气中断/计划改变/其他
       unit: —
       requirement:
         raw: 必填
         level: required
       example: 供气中断
-      source: 2026-07-24导师走查
-      note: 选择其他时必须填写明确事件名称；不再把事件与部位揉成一个值
+      source: 科学修订契约
+      note: 异常现象、怀疑原因、干预动作和受影响对象分开表达
     - module: 过程事件
-      label: 发生时刻
-      label_en: Time of occurrence
-      key: occurred_at
-      meaning: 何时发生（带 UTC offset 的绝对日期时间，可跨午夜）
-      input: 日期时间
+      label: 受影响对象
+      label_en: Affected objects
+      key: affected_objects
+      meaning: 观察到的偏差涉及的实验对象
+      input: 多选
+      options: 前驱体装载/气路/炉体/衬底/样品/过程通道/仪器/其他
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 气路
+      source: 科学修订契约
+      note: 对象与异常类型分开，支持一个事件涉及多个对象
+    - module: 过程事件
+      label: 开始时间
+      label_en: Start time
+      key: start_s
+      meaning: 相对本炉实验开始时刻的事件开始时间
+      input: 数值
       options: —
-      unit: —
+      unit: s
       requirement:
         raw: 必填
         level: required
-      example: '2026-07-24T10:28:00+08:00'
-      source: 2026-07-24导师走查
-      note: 相对时间可由t0算
+      example: '1680'
+      source: 科学修订契约
+      note: t0取basic_info.started_at；时间轴内统一使用秒
     - module: 过程事件
-      label: 是否导致实验终止
-      label_en: Terminated the run
-      key: terminated_run
-      meaning: 该事件是否导致本炉实验提前终止
-      input: 复选
-      options: 是/否
-      unit: —
+      label: 结束时间
+      label_en: End time
+      key: end_s
+      meaning: 相对本炉实验开始时刻的事件结束时间
+      input: 数值
+      options: —
+      unit: s
       requirement:
-        raw: 必填
-        level: required
-      example: 否
-      source: 2026-07-24导师走查
-      note: 客观记录，不等同于成败判断
+        raw: 选填
+        level: optional
+      example: '1800'
+      source: 科学修订契约
+      note: 填写时不得早于开始时间
     - module: 过程事件
-      label: 终止原因
-      label_en: Termination reason
-      key: termination_reason
-      meaning: 事件导致实验终止时的客观原因
+      label: 处理结果
+      label_en: Outcome
+      key: outcome
+      meaning: 异常发生后过程是否恢复或终止
       input: 下拉
-      ui:
-        visibility_gated: true
-      options: 设备报警/人工停止/计划变更/其他
+      options: 已恢复/部分恢复/实验终止/未知
       unit: —
       requirement:
-        raw: 条件必填(导致实验终止)
-        level: conditional_required
-        condition:
-          field: 过程事件.是否导致实验终止
-          op: eq
-          value: true
-      example: 设备报警
-      source: 2026-07-24导师走查
-      note: 正常计划结束不是异常终止原因
+        raw: 选填
+        level: optional
+      example: 已恢复
+      source: 科学修订契约
+      note: 未知可显式记录，不等同于对产物成败的判定
+    - module: 过程事件
+      label: 对数据有效性的影响
+      label_en: Data validity impact
+      key: data_validity_impact
+      meaning: 该事件是否影响本炉部分或全部过程数据的可用性
+      input: 下拉
+      options: 不影响/部分影响/数据无效/未知
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 部分影响
+      source: 科学修订契约
+      note: 只判断过程数据有效性，不判定产物成败
+    - module: 过程事件
+      label: 怀疑原因
+      label_en: Suspected causes
+      key: suspected_causes
+      meaning: 对已观察偏差的当时原因判断，可多选或保持未知
+      input: 多选
+      options: 管路堵塞/设备故障/公用工程中断/操作员动作/过程不稳定/未知/其他
+      unit: —
+      requirement:
+        raw: 选填
+        level: optional
+      example: 设备故障
+      source: 科学修订契约
+      note: 怀疑原因与观察到的偏差分开，避免将推断写成事实
     - module: 过程事件
       label: 事件具体说明
       label_en: Event description
@@ -2253,30 +2649,44 @@ experiment_record:
       options: —
       unit: —
       requirement:
-        raw: 选填；终止原因=其他时必填
+        raw: 选填；观察到的偏差包含其他时必填
         level: conditional_required
         otherwise: optional
         condition:
-          field: 过程事件.终止原因
+          field: 过程事件.观察到的偏差
           op: eq
           value: 其他
       example: Ar气瓶压力不足，供气中断约2分钟
       source: 2026-07-24导师走查
-      note: 始终可选填写事件上下文，不与处理措施或附件拼接；终止原因选择“其他”时必须具名说明
+      note: 始终可选填写事件上下文，不与干预动作或附件拼接；选择“其他”偏差时必须具体说明
     - module: 过程事件
-      label: 处理措施
-      label_en: Action taken
-      key: action_taken
-      meaning: 事件发生后采取的操作
-      input: 自由
-      options: —
+      label: 干预动作
+      label_en: Intervention actions
+      key: intervention_actions
+      meaning: 事件发生后实际采取的操作
+      input: 多选
+      options: 调整流量/调整压力/调整温度/恢复供应/检查设备/停止实验/其他
       unit: —
       requirement:
         raw: 选填
         level: optional
-      example: 更换气瓶后恢复供气
-      source: 2026-07-24导师走查
+      example: 恢复供应
+      source: 科学修订契约
       note: 与事件说明独立保存
+    - module: 过程事件
+      label: 排除的数据时间范围
+      label_en: Excluded data ranges
+      key: excluded_time_ranges
+      meaning: 因该事件不应参与后续分析的时间区间
+      input: 时间区间数组
+      options: '[{start_s, end_s}]'
+      unit: s
+      requirement:
+        raw: 选填
+        level: optional
+      example: '[{start_s: 1680, end_s: 1800}]'
+      source: 科学修订契约
+      note: 只在有明确排除范围时填写，不自动扩大到整炉
     - module: 过程事件
       label: 事件附件
       label_en: Event attachments
@@ -2591,8 +3001,8 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 定义项（实体版本外层元数据）
+        level: none
       example: '1'
       source: ★锁版使能(Fable三轮B2)
       note: 改则新版本，旧引用不受影响
@@ -2621,11 +3031,15 @@ entities:
       options: 支持括号、化学计量数与水合点
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 条件必填(非气瓶)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: ne
+          value: 气瓶
       example: MoO3
       source: 2026-08-06用户界面复核
-      note: 复用目标产物的化学式输入与即时校验；已知类型的衬底由系统生成生长表面化学式，仅云母或其他衬底需人工填写
+      note: 复用目标产物的化学式输入与即时校验；已知类型的衬底由系统生成生长表面化学式，仅云母或其他衬底需人工填写；气瓶改为记录结构化气体组成，不伪造混合物单一化学式
       placeholder: 例如 MoO3
       placeholder_en: e.g. MoO3
     - module: MaterialLot
@@ -2641,8 +3055,8 @@ entities:
         level: optional
         condition:
           field: MaterialLot.批次类别
-          op: ne
-          value: 衬底
+          op: eq
+          value: 化学品
       example: 1313-27-5
       source: 2026-08-02供应商标签/CoA公开资料复核
       note: 自研、复配或供应商资料未提供时留空
@@ -2736,8 +3150,8 @@ entities:
         level: optional
         condition:
           field: MaterialLot.批次类别
-          op: ne
-          value: 衬底
+          op: eq
+          value: 化学品
       example: '99.995'
       source: 2026-08-02供应商标签/CoA公开资料复核
       note: 未明确标示百分数时留空；等级原文记录于“产品等级（标签原文）”，原始依据由标签或CoA附件保留
@@ -3052,6 +3466,31 @@ entities:
       source: 2026-07-28深度审查
       note: 与层堆栈配套
     - module: MaterialLot
+      label: ▸气瓶·气体组成
+      label_en: Gas cylinder · composition
+      key: gas_components
+      meaning: 气瓶标签或CoA声明的固定组成；单组分100%表示纯气，多组分表示供应商预混气
+      input: JSON数组
+      options: '[{species: 气体词表|other, other_name?, volume_percent}]'
+      unit: vol%
+      validation:
+        item_required: [species, volume_percent]
+        unique_by: [species, other_name]
+        sum: 100
+        tolerance: 0.01
+      requirement:
+        raw: 条件必填(气瓶)
+        level: conditional_required
+        condition:
+          field: MaterialLot.批次类别
+          op: eq
+          value: 气瓶
+      example: '[{"species":"H2","volume_percent":5},{"species":"Ar","volume_percent":95}]'
+      source: 2026-08-13真实试填反馈
+      note: 依标签或CoA登记一次；实验只引用该气瓶版本，不重复填配比
+      help: 按气瓶标签或 CoA 填写各组分的标称体积分数，合计必须为 100 vol%。
+      help_en: Enter each nominal component from the cylinder label or CoA; the total must equal 100 vol%.
+    - module: MaterialLot
       label: ▸气瓶·纯度等级
       label_en: Gas cylinder · purity grade
       key: gas_purity_grade
@@ -3118,8 +3557,8 @@ entities:
       options: —
       unit: —
       requirement:
-        raw: 必填
-        level: required
+        raw: 定义项（实体版本外层元数据）
+        level: none
       example: '1'
       source: ★锁版使能(Fable三轮B2)
       note: 对标 v1 setup_version_snapshot
@@ -3356,7 +3795,7 @@ entities:
       unit: —
       requirement:
         raw: 定义项
-        level: definition
+        level: none
       example: 上游(-)←原点→下游(+)
       source: 2026-07-24导师走查
       note: 服务端写入固定机器码，管理员和成员均不可编辑
@@ -3854,9 +4293,21 @@ changelog:
     - §5 生长条件
     - 删除缺乏统一文献定义且无法直接观测的反应计时起点、反应开始前用时、反应时长及重复的反应后处理；实际过程由温度步骤、气体时段、系统准备、压力与降温记录
     - 2026-08-07用户界面复核与原始论文核对
+  - - v4.0-alpha.16
+    - §3 前驱体装载
+    - 删除偏TMDC的必填单选作用，改为选填多选工艺作用；一次旋涂支持多段转速；衬底表面装载关联稳定衬底片；旋涂物料可成对记录溶液浓度与受控单位
+    - 2026-08-12师兄真实试填反馈
+  - - v4.0-alpha.17
+    - §5 生长条件
+    - 气体词表增加二氧化碳，启动混合气与置换气源契约收口
+    - 2026-08-12师兄真实试填反馈
+  - - v4.0-alpha.18
+    - §1–§6科学修订契约·MaterialLot气瓶
+    - 气瓶版本结构化登记纯气或预混组成；置换引用实际气瓶版本；基本信息、目标材料、前驱体、过程事件与生长条件的发布字段改用当前不可变修订payload真实key和schema_path，旧扁平字段仅历史兼容
+    - 2026-08-13全链路契约复核
   - - R0
-    - 硬必填核心(29项，含条件必填)
-    - v3.18删除炉次内重复的前驱体化学式R0；物料身份仍由必填的批次版本快照冻结；其余R0定义不变
+    - 最小可复现核心(27项，含条件必填)
+    - 过程R0以温度/气体/压力通道和降温条件为准；不再要求人工划分反应阶段或反应时长
     - 必填集
 open_items:
   headers:

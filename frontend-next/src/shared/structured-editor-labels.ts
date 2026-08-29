@@ -88,6 +88,10 @@ export function buildTreatmentStepsEditorLabels(
     parameterValue: t('structuredEditors.treatmentSteps.parameterValue'),
     parameterUnit: t('structuredEditors.treatmentSteps.parameterUnit'),
     removeParameter: t('structuredEditors.treatmentSteps.removeParameter'),
+    addSpinStage: t('structuredEditors.treatmentSteps.addSpinStage'),
+    spinStage: (position) =>
+      t('structuredEditors.treatmentSteps.spinStage', { position }),
+    removeSpinStage: t('structuredEditors.treatmentSteps.removeSpinStage'),
     selectAtmosphere: t('structuredEditors.treatmentSteps.selectAtmosphere'),
     noAtmosphere: t('structuredEditors.treatmentSteps.noAtmosphere'),
     otherAtmosphereName: t(
@@ -171,7 +175,11 @@ export function buildGasFeedsEditorLabels(t: TFunction): GasFeedsEditorLabels {
       N2: t('structuredEditors.gasFeeds.speciesOptions.N2'),
       H2: t('structuredEditors.gasFeeds.speciesOptions.H2'),
       O2: t('structuredEditors.gasFeeds.speciesOptions.O2'),
+      He: t('structuredEditors.gasFeeds.speciesOptions.He'),
       CH4: t('structuredEditors.gasFeeds.speciesOptions.CH4'),
+      H2S: t('structuredEditors.gasFeeds.speciesOptions.H2S'),
+      NH3: t('structuredEditors.gasFeeds.speciesOptions.NH3'),
+      CO2: t('structuredEditors.gasFeeds.speciesOptions.CO2'),
       other: t('structuredEditors.gasFeeds.speciesOptions.other'),
     },
     otherGasName: t('structuredEditors.gasFeeds.otherGasName'),

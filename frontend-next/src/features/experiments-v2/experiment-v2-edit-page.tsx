@@ -74,6 +74,7 @@ import type { StatusAction } from './status-logic'
 const LOADED_MODULE_KEYS = [
   'basic_info',
   'target_product',
+  'equipment',
   'precursors',
   'substrates',
   'process_steps',
@@ -119,13 +120,23 @@ export function ExperimentV2EditPage({ runId }: { runId: string }) {
     queryKey: ['v2-experiment', runId, token],
     enabled: session.isAuthenticated && !!token,
     queryFn: async () => {
-      const run = await getRun(runId, token)
-      const entries = await Promise.all(
-        LOADED_MODULE_KEYS.map(
-          async (key) =>
-            [key, await getModuleOrNull(runId, key, token)] as const,
-        ),
-      )
+      let run = await getRun(runId, token)
+      const loadModules = () =>
+        Promise.all(
+          LOADED_MODULE_KEYS.map(
+            async (key) =>
+              [key, await getModuleOrNull(runId, key, token)] as const,
+          ),
+        )
+      let entries = await loadModules()
+      const refreshedRun = await getRun(runId, token)
+      if (
+        refreshedRun.status !== run.status ||
+        refreshedRun.current_revision_id !== run.current_revision_id
+      ) {
+        entries = await loadModules()
+      }
+      run = refreshedRun
       const modules: Record<string, V2ModulePayloadRead | null> = {}
       for (const [key, payload] of entries) modules[key] = payload
       return { run, modules }

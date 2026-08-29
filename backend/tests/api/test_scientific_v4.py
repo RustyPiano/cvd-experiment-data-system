@@ -100,13 +100,34 @@ def test_process_timeline_does_not_require_a_declared_reaction_phase() -> None:
         ],
         "pressure_regime": "atmospheric",
         "cooling_method": "furnace_cooling",
-        "preparation_operations": [{"operation_type": "pump_down", "duration_min": 5}],
+        "preparation_operations": [
+            {
+                "operation_type": "gas_exchange",
+                "duration_min": 5,
+                "cycle_count": 3,
+                "gas_sources": [
+                    {
+                        "material_lot_id": "33333333-3333-4333-8333-333333333333",
+                        "material_lot_version": 1,
+                        "snapshot": {
+                            "attrs": {
+                                "gas_components": [
+                                    {"species": "CO2", "volume_percent": 20},
+                                    {"species": "Ar", "volume_percent": 80},
+                                ]
+                            }
+                        },
+                    }
+                ],
+            }
+        ],
     }
 
     validated = ProcessTimelinePayload.model_validate(payload)
     assert validated.segments[2].segment_type == "reaction"
     assert validated.channels[1].series
     assert validated.channels[1].series[0].timing_preset == "whole_process"
+    assert validated.preparation_operations[0].gas_sources[0].material_lot_version == 1
 
     payload["segments"] = []
     assert ProcessTimelinePayload.model_validate(payload).segments == []
@@ -322,13 +343,14 @@ def _put_module(
     run_id: str,
     module: str,
     payload: dict,
-) -> None:
+) -> dict:
     response = client.put(
         f"/api/v1/experiments/{run_id}/modules/{module}",
         json={"payload_json": payload},
         headers=headers,
     )
     assert response.status_code == 200, response.text
+    return response.json()
 
 
 def test_simple_product_create_keeps_manual_environment_and_performers(
@@ -511,15 +533,16 @@ def test_scientific_revision_measurement_and_query_chain(
                     "load_key": "metal_source",
                     "container_instance_id": container["id"],
                     "loading_method": "boat",
+                    "heating_zone_ref": "zone_1",
                     "initial_position": {
                         "axial_mm": 0,
-                        "reference": "setup_origin",
+                        "reference": "zone_thermocouple",
                     },
                     "ingredients": [
                         {
                             "material_lot_id": source_lot["id"],
                             "material_lot_version": 1,
-                            "function_role": "metal_source",
+                            "process_roles": [],
                             "amount": 10,
                             "unit": "mg",
                         }
@@ -585,7 +608,7 @@ def test_scientific_revision_measurement_and_query_chain(
         },
     )
     assert orphan_timeseries.status_code == 201, orphan_timeseries.text
-    _put_module(
+    saved_process = _put_module(
         headers,
         run_id,
         "process_steps",
@@ -611,6 +634,18 @@ def test_scientific_revision_measurement_and_query_chain(
                     "unit": "K",
                     "data_kind": "interval_series",
                     "series": [{"start_s": 0, "end_s": 1800, "value": 1023}],
+                },
+                {
+                    "channel_key": "channel_66666666_6666_4666_8666_666666666666",
+                    "channel_type": "temperature",
+                    "subject_type": "temperature_zone",
+                    "subject_ref": "zone_2",
+                    "subject_instance_ref": "zone_2_controller",
+                    "zone_index": 2,
+                    "source_type": "setpoint",
+                    "unit": "K",
+                    "data_kind": "interval_series",
+                    "series": [{"start_s": 0, "end_s": 1800, "value": 973}],
                 },
                 {
                     "channel_key": "channel_22222222_2222_4222_8222_222222222222",
@@ -668,8 +703,24 @@ def test_scientific_revision_measurement_and_query_chain(
             ],
             "pressure_regime": "low_pressure",
             "cooling_method": "furnace_cooling",
+            "preparation_operations": [
+                {
+                    "operation_type": "gas_exchange",
+                    "duration_min": 10,
+                    "cycle_count": 3,
+                    "gas_sources": [
+                        {
+                            "material_lot_id": gas_lot["id"],
+                            "material_lot_version": 1,
+                        }
+                    ],
+                }
+            ],
         },
     )
+    assert saved_process["payload_json"]["preparation_operations"][0]["gas_sources"][0]["snapshot"][
+        "attrs"
+    ]["gas_components"] == [{"species": "Ar", "volume_percent": 100.0}]
     db_session.expire_all()
     assert db_session.get(FileAsset, UUID(temperature_upload.json()["id"])).deleted_at is None
     assert db_session.get(FileAsset, UUID(pressure_upload.json()["id"])).deleted_at is None
@@ -743,6 +794,15 @@ def test_scientific_revision_measurement_and_query_chain(
     assert locked.status_code == 200, locked.text
     revision_1 = locked.json()["current_revision_id"]
     assert locked.json()["status"] == "locked"
+    revision_row = db_session.get(RunRevision, UUID(revision_1))
+    assert revision_row is not None
+    frozen_gas_source = revision_row.content_json["modules"]["process_steps"][
+        "preparation_operations"
+    ][0]["gas_sources"][0]
+    assert frozen_gas_source["snapshot"]["attrs"]["gas_components"] == [
+        {"species": "Ar", "volume_percent": 100.0}
+    ]
+    assert "tampered" not in frozen_gas_source["snapshot"]
     projected_load = db_session.query(SourceLoad).filter_by(load_key="metal_source").one()
     assert projected_load.container_state_at_loading == "available"
     assert projected_load.container_snapshot_json["remaining_amount"] == 40
@@ -959,6 +1019,12 @@ def test_scientific_revision_measurement_and_query_chain(
     assert export_json["modules"]["basic_info"]["ambient_humidity"]["source_type"] == (
         "manual_estimate"
     )
+    exported_operation = export_json["modules"]["process_steps"]["preparation_operations"][0]
+    assert "gases" not in exported_operation
+    assert exported_operation["gas_sources"][0]["snapshot"]["attrs"]["gas_components"] == [
+        {"species": "Ar", "volume_percent": 100.0}
+    ]
+    ProcessTimelinePayload.model_validate(export_json["modules"]["process_steps"])
     assert "samples" not in export_json
     assert export_json["scientific_record"]["revisions"][0]["content_sha256"]
     assert export_json["scientific_record"]["source_loads"][0]["container_snapshot"][
@@ -1150,7 +1216,7 @@ def test_scientific_revision_measurement_and_query_chain(
     db_session.rollback()
 
 
-def test_product_golden_workflows(active_user, admin_user) -> None:
+def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
     """G1–G5: create, fill, submit, generate a sample, characterize, and verify."""
     headers = _headers(active_user.email)
     admin_headers = _headers(admin_user.email)
@@ -1316,52 +1382,51 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
         )
         assert setup_ref.status_code == 200, setup_ref.text
         _put_module(headers, run_id, "target_product", target)
-        _put_module(
-            headers,
-            run_id,
-            "precursors",
-            {
-                "items": [
-                    {
-                        "load_key": "metal_source",
-                        "loading_method": "boat",
-                        "initial_position": {
-                            "axial_mm": 0,
-                            "reference": "setup_origin",
-                        },
-                        "ingredients": [
-                            {
-                                "material_lot_id": source.json()["id"],
-                                "material_lot_version": 1,
-                                "function_role": "metal_source",
-                                "amount": 10,
-                                "unit": "mg",
-                            }
-                        ],
-                    }
-                ]
-            },
-        )
-        _put_module(
+        saved_substrates = _put_module(
             headers,
             run_id,
             "substrates",
             {"items": [substrate_item(substrate.json())]},
+        )
+        substrate_source_id = saved_substrates["payload_json"]["items"][0]["source_id"]
+        source_load = {
+            "load_key": "metal_source",
+            "loading_method": "boat",
+            "heating_zone_ref": "zone_1",
+            "initial_position": {
+                "axial_mm": 0,
+                "reference": "zone_thermocouple",
+            },
+            "ingredients": [
+                {
+                    "material_lot_id": source.json()["id"],
+                    "material_lot_version": 1,
+                    "process_roles": [],
+                    "amount": 10,
+                    "unit": "mg",
+                }
+            ],
+        }
+        if index == 1:
+            source_load = {
+                **source_load,
+                "loading_method": "substrate_surface",
+                "substrate_source_ids": [substrate_source_id],
+            }
+            source_load.pop("heating_zone_ref")
+            source_load.pop("initial_position")
+        _put_module(
+            headers,
+            run_id,
+            "precursors",
+            {"items": [source_load]},
         )
         _put_module(
             headers,
             run_id,
             "process_steps",
             {
-                "segments": [
-                    {
-                        "segment_key": "growth",
-                        "segment_type": "growth",
-                        "sequence": 1,
-                        "start_s": 0,
-                        "end_s": 3600,
-                    }
-                ],
+                "segments": [],
                 "channels": [
                     {
                         "channel_key": (
@@ -1399,11 +1464,33 @@ def test_product_golden_workflows(active_user, admin_user) -> None:
                 "cooling_method": "furnace_cooling",
             },
         )
+        _put_module(
+            headers,
+            run_id,
+            "process_events",
+            {
+                "items": [
+                    {
+                        "event_key": f"manual_intervention_{index}",
+                        "start_s": 3600,
+                        "end_s": 3660,
+                        "observed_deviations": ["manual_intervention"],
+                    }
+                ]
+            },
+        )
         locked = client.post(
             f"/api/v1/experiments/{run_id}/lock",
             headers=headers,
         )
         assert locked.status_code == 200, locked.text
+        revision = db_session.get(RunRevision, UUID(locked.json()["current_revision_id"]))
+        assert revision is not None
+        if index == 1:
+            assert (
+                revision.content_json["modules"]["substrates"]["items"][0]["source_id"]
+                == substrate_source_id
+            )
         samples = client.get(
             f"/api/v1/samples?experiment_id={run_id}",
             headers=headers,

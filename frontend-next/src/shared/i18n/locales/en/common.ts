@@ -1,6 +1,9 @@
 // en locale. Mirrors the key shape of zh/common.ts (the authoritative default).
 // English UI polish is a post-v2.0 task (D12); keep keys in sync as文案 lands.
 export const common = {
+  units: {
+    按通道: 'per channel',
+  },
   datasets: {
     nav: 'Scientific datasets',
   },
@@ -43,6 +46,8 @@ export const common = {
       'Wall thickness must be less than half the smaller outer dimension',
     temperatureSensorsCoverage:
       'Select a sensor category for each zone 1–{{count}}. Any entered nominal accuracy must be non-negative.',
+    gasComposition:
+      'Enter unique gas components whose volume fractions total 100 vol%.',
     substrateFormulaMismatch:
       'The formula does not match the selected substrate material. Check the lot label.',
     usageHistory:
@@ -119,6 +124,9 @@ export const common = {
       parameterValue: 'Value',
       parameterUnit: 'Unit',
       removeParameter: 'Remove parameter',
+      addSpinStage: 'Add spin-coating stage',
+      spinStage: 'Spin-coating stage {{position}}',
+      removeSpinStage: 'Remove spin-coating stage',
       selectAtmosphere: 'Select an atmosphere',
       noAtmosphere: 'Not provided',
       otherAtmosphereName: 'Other atmosphere name',
@@ -182,7 +190,11 @@ export const common = {
         N2: 'Nitrogen (N₂)',
         H2: 'Hydrogen (H₂)',
         O2: 'Oxygen (O₂)',
+        He: 'Helium (He)',
         CH4: 'Methane (CH₄)',
+        H2S: 'Hydrogen sulfide (H₂S)',
+        NH3: 'Ammonia (NH₃)',
+        CO2: 'Carbon dioxide (CO₂)',
         other: 'Other gas',
       },
       otherGasName: 'Other gas name',
@@ -606,6 +618,19 @@ export const common = {
       invalidFileReference: 'Select and upload a valid file',
       discardFileCleanupError:
         'The unsaved upload could not be deleted. The form remains open so you can retry.',
+    },
+    gasComposition: {
+      component: 'Component {{position}}',
+      gas: 'Gas',
+      selectGas: 'Select gas',
+      other: 'Other',
+      gasNamePlaceholder: 'Enter gas name',
+      volumeFraction: 'Volume fraction (vol%)',
+      deleteComponent: 'Delete component {{position}}',
+      addComponent: 'Add component',
+      total: 'Total: {{total}} vol%',
+      totalRequired: ' (must equal 100 vol%)',
+      legacyDerived: '(derived from legacy record)',
     },
   },
   samples: {

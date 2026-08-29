@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import type { V2EntityRead } from '@/features/entity-library/api'
 import { useAuth } from '@/features/auth/use-auth'
 import {
   deleteExperimentFile,
@@ -44,7 +43,6 @@ import {
 import {
   createMeasurement,
   createRun,
-  listContainerInstances,
   listContributors,
   listMeasurements,
   listSamples,
@@ -53,8 +51,9 @@ import {
 } from './api'
 import type { V2ModulePayloadRead } from './api'
 import type { ExperimentV2FormState } from './form-types'
-import { buildItemsModulePayload } from './field-logic'
+import { buildSubstratesPayload } from './field-logic'
 import {
+  channelsForSetupZoneCount,
   materialAssertionValue,
   peakTemperatureC,
   processChannelTitle,
@@ -73,7 +72,7 @@ import {
   fieldParamsAreValid,
 } from './components/process-detail-editors'
 import type { ActualField } from './components/process-detail-editors'
-import { materialLotProjectedItem } from './components/repeatable-items-section'
+import { materialLotProjectedItem } from './material-lot-projection'
 import {
   SimpleGrowthEditor,
   SimpleSourceLoadsEditor,
@@ -154,9 +153,14 @@ type TargetSpec = {
 type Ingredient = {
   material_lot_id: string
   material_lot_version: number
-  function_role: string
+  function_role?: string
+  process_roles?: string[]
+  process_role_other?: string
   amount?: number
   unit?: string
+  concentration_value?: number
+  concentration_unit?: string
+  concentration_unit_other?: string
   snapshot?: Record<string, unknown>
 }
 
@@ -183,6 +187,7 @@ type SourceLoad = {
     reference: 'setup_origin' | 'zone_thermocouple'
   }>
   heating_zone_ref?: string
+  substrate_source_ids?: string[]
   ingredients: Ingredient[]
 }
 
@@ -273,6 +278,12 @@ const EMPTY_TIMELINE = {
   channels: [] satisfies Channel[],
 }
 
+const PRESERVED_PROCESS_FIELDS = [
+  'reaction_timer_origin',
+  'reaction_timer_origin_other',
+  'post_reaction_operations',
+] as const
+
 const PROPERTY_UNITS = Object.fromEntries(
   Object.entries(characterizationProperties).map(([code, item]) => [
     code,
@@ -346,43 +357,6 @@ const SEGMENT_LABELS: Record<string, string> = {
   anneal: '退火（历史记录）',
   transfer: '转移（历史记录）',
 }
-const LOADING_METHOD_LABELS: Record<string, string> = {
-  boat: '舟',
-  crucible: '坩埚',
-  substrate_surface: '衬底表面',
-  gas_line: '气路',
-  bubbler: '鼓泡瓶',
-  other: '其他',
-}
-const PREPARATION_STEP_LABELS: Record<string, string> = {
-  direct_load: '直接装载',
-  grind: '研磨',
-  mix: '混合',
-  pelletize: '压片',
-  spin_coat: '旋涂',
-  pre_anneal: '预退火',
-  other: '其他',
-}
-const INGREDIENT_ROLE_LABELS: Record<string, string> = {
-  metal_source: '金属源',
-  chalcogen_source: '硫族元素源',
-  carbon_source: '碳源',
-  dopant_source: '掺杂源',
-  promoter: '促进剂',
-  transport_agent: '输运剂',
-  etchant: '刻蚀剂',
-  reducing_agent: '还原剂',
-  oxidizing_agent: '氧化剂',
-  carrier_gas: '载气',
-  other: '其他',
-}
-const CONTAINER_STATUS_LABELS: Record<string, string> = {
-  available: '可用',
-  in_use: '使用中',
-  empty: '已空',
-  quarantined: '隔离',
-  disposed: '已处置',
-}
 const SAMPLE_ACTUAL_STATE_LABELS: Record<string, string> = {
   unknown: '尚无实际结论',
   growth_present: '观察到生长',
@@ -447,11 +421,11 @@ const REGION_LABELS: Record<string, string> = {
   unit: '坐标单位',
 }
 
-const WORKFLOW_STEPS = [
+export const WORKFLOW_STEPS = [
   '基本信息',
   '目标材料',
-  '装置与前驱体',
-  '衬底与摆放',
+  '装置与衬底',
+  '前驱体装载',
   '生长条件',
   '检查并提交',
 ] as const
@@ -459,8 +433,8 @@ const WORKFLOW_STEPS = [
 const STEP_MODULES = [
   ['basic_info'],
   ['target_product'],
-  ['equipment', 'precursors'],
-  ['substrates'],
+  ['equipment', 'substrates'],
+  ['precursors'],
   ['process_steps', 'process_events'],
   [],
 ] as const
@@ -715,11 +689,16 @@ function machineKey(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replaceAll('-', '_')}`
 }
 
-function ambientComplete(value: AmbientFormValue | undefined): boolean {
+function ambientComplete(
+  value: AmbientFormValue | undefined,
+  humidity = false,
+): boolean {
   return (
     value === undefined ||
     value.source_type === 'not_measured' ||
-    (value.value !== undefined &&
+    (Number.isFinite(value.value) &&
+      (!humidity ||
+        ((value.value ?? -1) >= 0 && (value.value ?? 101) <= 100)) &&
       Boolean(value.measured_at) &&
       (['manual_entry', 'manual_estimate'].includes(value.source_type) ||
         Boolean(value.sensor_ref?.trim())))
@@ -739,6 +718,12 @@ function ambientPayload(value: AmbientFormValue | undefined) {
       ? { sensor_ref: value.sensor_ref.trim() }
       : {}),
   }
+}
+
+function ambientSummary(value: AmbientFormValue | undefined, unit: string) {
+  return value?.source_type === 'not_measured' || value?.value === undefined
+    ? '未测量'
+    : `${value.value} ${unit}`
 }
 
 function toLocalDateTime(value: string | undefined): string {
@@ -920,23 +905,50 @@ export function ScientificExperimentForm({
   const targetDrafts = useRef<TargetDrafts>({
     [targetKind(target as SimpleTarget)]: target as SimpleTarget,
   })
-  const [loads, setLoads] = useState<SourceLoad[]>(
-    () =>
-      modulePayload<{ items: SourceLoad[] }>(modules, 'precursors', {
+  const [loads, setLoads] = useState<SourceLoad[]>(() => {
+    const items = modulePayload<{ items: SourceLoad[] }>(
+      modules,
+      'precursors',
+      {
         items: [],
-      }).items,
+      },
+    ).items
+    return items.map((load) => ({
+      ...load,
+      substrate_source_ids: load.substrate_source_ids ?? [],
+      ingredients: load.ingredients.map((ingredient) => ({
+        ...ingredient,
+        process_roles: ingredient.process_roles ?? [],
+      })),
+    }))
+  })
+  const [initialProcessPayload] = useState(() =>
+    modulePayload<Record<string, unknown>>(
+      modules,
+      'process_steps',
+      EMPTY_TIMELINE,
+    ),
   )
-  const [segments, setSegments] = useState<Segment[]>([])
-  const [channels, setChannels] = useState<Channel[]>(
-    () => modulePayload(modules, 'process_steps', EMPTY_TIMELINE).channels,
+  const [segments, setSegments] = useState<Segment[]>(() =>
+    Array.isArray(initialProcessPayload['segments'])
+      ? (initialProcessPayload['segments'] as Segment[])
+      : [],
+  )
+  const [channels, setChannels] = useState<Channel[]>(() =>
+    Array.isArray(initialProcessPayload['channels'])
+      ? (initialProcessPayload['channels'] as Channel[])
+      : [],
+  )
+  const [preservedProcessFields] = useState<Record<string, unknown>>(() =>
+    Object.fromEntries(
+      PRESERVED_PROCESS_FIELDS.filter(
+        (key) => key in initialProcessPayload,
+      ).map((key) => [key, initialProcessPayload[key]]),
+    ),
   )
   const [processSettings, setProcessSettings] = useState<SimpleProcessSettings>(
     () => {
-      const payload = modulePayload<Record<string, unknown>>(
-        modules,
-        'process_steps',
-        {},
-      )
+      const payload = initialProcessPayload
       const legacyExternalFields = Array.isArray(payload['external_fields'])
         ? (payload['external_fields'] as string[])
         : []
@@ -1163,7 +1175,7 @@ export function ScientificExperimentForm({
                 !startedAt ||
                 !precheck ||
                 !ambientComplete(temperatureAmbient) ||
-                !ambientComplete(humidityAmbient) ||
+                !ambientComplete(humidityAmbient, true) ||
                 createMutation.isPending
               }
               onClick={() => createMutation.mutate()}
@@ -1177,6 +1189,14 @@ export function ScientificExperimentForm({
   }
 
   const setupZoneCount = Number(equipment.snapshot?.['zone_count']) || null
+  const initialSetupZoneCount =
+    Number(initialState.equipment.snapshot?.['zone_count']) || null
+  const shrinkingSetup = Boolean(
+    equipment.setupId !== initialState.equipment.setupId &&
+    setupZoneCount &&
+    initialSetupZoneCount &&
+    setupZoneCount < initialSetupZoneCount,
+  )
   const [tubeResetCount, tubeUseNumber] = tubeUsageParts(
     equipment.tubeUsageHistory,
   )
@@ -1230,14 +1250,8 @@ export function ScientificExperimentForm({
     basicInfo.started_at &&
     !Number.isNaN(new Date(basicInfo.started_at).getTime()),
   )
-  const roomTemperatureValid = Number.isFinite(
-    basicInfo.ambient_temperature?.value,
-  )
-  const roomHumidityValid = Boolean(
-    Number.isFinite(basicInfo.ambient_humidity?.value) &&
-    (basicInfo.ambient_humidity?.value ?? -1) >= 0 &&
-    (basicInfo.ambient_humidity?.value ?? 101) <= 100,
-  )
+  const roomTemperatureValid = ambientComplete(basicInfo.ambient_temperature)
+  const roomHumidityValid = ambientComplete(basicInfo.ambient_humidity, true)
   const basicComplete = Boolean(
     startedAtValid &&
     basicInfo.performed_by_user_ids.length &&
@@ -1245,9 +1259,19 @@ export function ScientificExperimentForm({
     roomHumidityValid,
   )
   const targetComplete = targetIssue === null
-  const preparationComplete = Boolean(
-    equipment.setupId &&
-    tubeUsageComplete &&
+  const equipmentComplete = Boolean(equipment.setupId && tubeUsageComplete)
+  const substratesComplete = Boolean(
+    substrates.length &&
+    substrates.every((substrate) =>
+      simpleSubstrateIsValid(substrate, setupZoneCount),
+    ),
+  )
+  const substrateSourceIds = new Set(
+    substrates
+      .map((substrate) => String(substrate['source_id'] ?? ''))
+      .filter(Boolean),
+  )
+  const precursorsComplete = Boolean(
     loads.length &&
     loads.every(
       (load) =>
@@ -1255,29 +1279,35 @@ export function ScientificExperimentForm({
         sourcePreparationStepsAreValid(load.preparation_steps) &&
         (!requiresPrecursorPosition(load.loading_method) ||
           (Boolean(load.heating_zone_ref) &&
+            Number(load.heating_zone_ref?.replace('zone_', '')) >= 1 &&
+            Number(load.heating_zone_ref?.replace('zone_', '')) <=
+              (setupZoneCount ?? 0) &&
             Number.isFinite(load.initial_position?.axial_mm) &&
             load.initial_position?.reference === 'zone_thermocouple')) &&
-        sourceLoadIngredientsAreValid(load.ingredients),
-    ),
-  )
-  const substratesComplete = Boolean(
-    substrates.length &&
-    substrates.every((substrate) =>
-      simpleSubstrateIsValid(substrate, setupZoneCount),
+        (load.loading_method !== 'substrate_surface' ||
+          ((load.substrate_source_ids ?? []).length > 0 &&
+            (load.substrate_source_ids ?? []).every((sourceId) =>
+              substrateSourceIds.has(sourceId),
+            ))) &&
+        sourceLoadIngredientsAreValid(
+          load.ingredients,
+          load.preparation_steps.some((step) => step.step_type === 'spin_coat'),
+          load.loading_method !== 'gas_line',
+        ),
     ),
   )
   const completedSteps = [
     basicComplete,
     targetComplete,
-    preparationComplete,
-    substratesComplete,
+    equipmentComplete && substratesComplete,
+    precursorsComplete,
     processTimelineIssue === null,
   ].filter(Boolean).length
   const stepCompleteness = [
     basicComplete,
     targetComplete,
-    preparationComplete,
-    substratesComplete,
+    equipmentComplete && substratesComplete,
+    precursorsComplete,
     processTimelineIssue === null,
   ]
 
@@ -1286,9 +1316,8 @@ export function ScientificExperimentForm({
     if (key === 'target_product') return target
     if (key === 'precursors') return buildSimpleSourceLoadsPayload(loads)
     if (key === 'substrates') {
-      return buildItemsModulePayload(
-        'substrates',
-        substrates.map((item) => materialLotProjectedItem('substrates', item)),
+      return buildSubstratesPayload(
+        substrates.map((item) => materialLotProjectedItem(item)),
       )
     }
     if (key === 'process_steps') {
@@ -1296,6 +1325,7 @@ export function ScientificExperimentForm({
         segments,
         channels,
         ...processSettings,
+        ...preservedProcessFields,
       }
     }
     if (key === 'process_events') return { items: events }
@@ -1317,18 +1347,20 @@ export function ScientificExperimentForm({
       }))
       return false
     }
-    if (activeStep === 2 && !preparationComplete) {
+    if (activeStep === 2 && !(equipmentComplete && substratesComplete)) {
       setErrors((current) => ({
         ...current,
         equipment:
-          '请选择实验装置，填写炉管使用履历，并补齐每个前驱体容器中的必填信息。',
+          '请选择实验装置，填写炉管使用履历，并补齐每片衬底的必填信息。',
+        substrates: '请补齐每片衬底的批次、尺寸、轴向位置和生长面朝向。',
       }))
       return false
     }
-    if (activeStep === 3 && !substratesComplete) {
+    if (activeStep === 3 && !precursorsComplete) {
       setErrors((current) => ({
         ...current,
-        substrates: '请补齐每片衬底的批次、尺寸、轴向位置和生长面朝向。',
+        precursors:
+          '请补齐每处前驱体装载的必填信息；衬底表面装载请关联至少一片衬底。',
       }))
       return false
     }
@@ -1339,7 +1371,9 @@ export function ScientificExperimentForm({
       }))
       return false
     }
-    const keys = STEP_MODULES[activeStep].filter((key) => dirty.has(key))
+    const keys = STEP_MODULES[activeStep].filter(
+      (key) => dirty.has(key) && !(key === 'equipment' && shrinkingSetup),
+    )
     for (const key of keys) {
       if (!(await save(key, payloadFor(key)))) return false
     }
@@ -1390,8 +1424,8 @@ export function ScientificExperimentForm({
     const incompleteStep = [
       basicComplete,
       targetComplete,
-      preparationComplete,
-      substratesComplete,
+      equipmentComplete && substratesComplete,
+      precursorsComplete,
       processTimelineIssue === null,
     ].findIndex((complete) => !complete)
     if (incompleteStep >= 0) {
@@ -1402,11 +1436,11 @@ export function ScientificExperimentForm({
     for (const key of [
       'basic_info',
       'target_product',
-      'equipment',
-      'precursors',
       'substrates',
+      'precursors',
       'process_steps',
       'process_events',
+      'equipment',
     ]) {
       if (dirty.has(key) && !(await save(key, payloadFor(key)))) return
     }
@@ -1578,13 +1612,12 @@ export function ScientificExperimentForm({
                   }
                 >
                   <Label htmlFor="experiment-room-temperature">
-                    实验室温度（℃） <RequiredMark />
+                    实验室温度（℃）
                   </Label>
                   <Input
                     id="experiment-room-temperature"
                     type="number"
                     step="any"
-                    required
                     value={basicInfo.ambient_temperature?.value ?? ''}
                     disabled={processReadOnly}
                     aria-invalid={
@@ -1620,7 +1653,7 @@ export function ScientificExperimentForm({
                   }
                 >
                   <Label htmlFor="experiment-room-humidity">
-                    实验室相对湿度（%RH） <RequiredMark />
+                    实验室相对湿度（%RH）
                   </Label>
                   <Input
                     id="experiment-room-humidity"
@@ -1628,7 +1661,6 @@ export function ScientificExperimentForm({
                     min="0"
                     max="100"
                     step="any"
-                    required
                     value={basicInfo.ambient_humidity?.value ?? ''}
                     disabled={processReadOnly}
                     aria-invalid={
@@ -1738,12 +1770,32 @@ export function ScientificExperimentForm({
                       selectedSnapshot={equipment.snapshot}
                       disabled={processReadOnly}
                       onChange={(id, entity) => {
+                        const snapshot = entity?.latest_version?.data ?? null
+                        const nextZoneCount = Number(snapshot?.zone_count) || 0
+                        const retainedChannels = channelsForSetupZoneCount(
+                          channels,
+                          nextZoneCount,
+                        )
+                        const removesTemperatureChannels =
+                          retainedChannels.length !== channels.length
+                        if (
+                          removesTemperatureChannels &&
+                          !window.confirm(
+                            '新装置的温区更少，超出范围的温度程序将被移除；请继续检查衬底和前驱体的温区位置。是否继续？',
+                          )
+                        ) {
+                          return
+                        }
                         setEquipment({
                           ...equipment,
                           setupId: id,
                           version: entity?.latest_version?.version ?? null,
-                          snapshot: entity?.latest_version?.data ?? null,
+                          snapshot,
                         })
+                        if (removesTemperatureChannels) {
+                          setChannels(retainedChannels)
+                          markDirty('process_steps')
+                        }
                         markDirty('equipment')
                       }}
                     />
@@ -1830,28 +1882,29 @@ export function ScientificExperimentForm({
                   </div>
                 </div>
               </ModuleCard>
-              <SimpleSourceLoadsEditor
-                loads={loads}
+              <SimpleSubstratesEditor
+                substrates={substrates}
                 zoneCount={setupZoneCount}
                 disabled={processReadOnly}
-                showErrors={Boolean(errors.equipment || errors.precursors)}
+                showErrors={Boolean(errors.substrates)}
                 onChange={(value) => {
-                  setLoads(value)
-                  markDirty('precursors')
+                  setSubstrates(value)
+                  markDirty('substrates')
                 }}
               />
             </>
           ) : null}
 
           {activeStep === 3 ? (
-            <SimpleSubstratesEditor
+            <SimpleSourceLoadsEditor
+              loads={loads}
               substrates={substrates}
               zoneCount={setupZoneCount}
               disabled={processReadOnly}
-              showErrors={Boolean(errors.substrates)}
+              showErrors={Boolean(errors.precursors)}
               onChange={(value) => {
-                setSubstrates(value)
-                markDirty('substrates')
+                setLoads(value)
+                markDirty('precursors')
               }}
             />
           ) : null}
@@ -1896,14 +1949,14 @@ export function ScientificExperimentForm({
                   [
                     '基本信息',
                     basicComplete
-                      ? `${basicInfo.performed_by_user_ids.length} 名实验人员 · ${basicInfo.ambient_temperature?.value} ℃ · ${basicInfo.ambient_humidity?.value} %RH`
+                      ? `${basicInfo.performed_by_user_ids.length} 名实验人员 · 温度${ambientSummary(basicInfo.ambient_temperature, '℃')} · 湿度${ambientSummary(basicInfo.ambient_humidity, '%RH')}`
                       : '待填写',
                   ],
                   ['目标材料', targetComplete ? targetDisplay : '待填写'],
                   ['实验装置', setupName || '待选择'],
                   [
-                    '前驱体',
-                    loads.length ? `${loads.length} 个容器` : '待填写',
+                    '前驱体装载',
+                    loads.length ? `${loads.length} 处装载` : '待填写',
                   ],
                   [
                     '衬底',
@@ -1952,8 +2005,8 @@ export function ScientificExperimentForm({
               {[
                 basicComplete,
                 targetComplete,
-                preparationComplete,
-                substratesComplete,
+                equipmentComplete && substratesComplete,
+                precursorsComplete,
                 processTimelineIssue === null,
               ].some((complete) => !complete) ? (
                 <Alert variant="destructive">
@@ -1968,8 +2021,8 @@ export function ScientificExperimentForm({
                           [
                             basicComplete,
                             targetComplete,
-                            preparationComplete,
-                            substratesComplete,
+                            equipmentComplete && substratesComplete,
+                            precursorsComplete,
                             processTimelineIssue === null,
                           ].findIndex((complete) => !complete),
                         )
@@ -2018,15 +2071,17 @@ export function ScientificExperimentForm({
                   <Checkbox
                     checked={precheckConfirmed}
                     onCheckedChange={(checked) => {
-                      setBasicInfo({
+                      const nextBasicInfo = {
                         ...basicInfo,
                         precheck: {
                           checklist_version: 'cvd-precheck-v1',
                           confirmed: checked === true,
                           confirmed_at: new Date().toISOString(),
                         },
-                      })
+                      }
+                      setBasicInfo(nextBasicInfo)
                       markDirty('basic_info')
+                      void save('basic_info', nextBasicInfo)
                     }}
                   />
                   <span>已完成实验前检查，确认以上内容与本炉实际情况一致</span>
@@ -2692,537 +2747,6 @@ export function TargetEditor({
           </div>
         ))}
       </div>
-    </ModuleCard>
-  )
-}
-
-export function SourceLoadsEditor({
-  loads,
-  zoneCount,
-  onChange,
-  disabled,
-  token,
-}: {
-  loads: SourceLoad[]
-  zoneCount: number | null
-  onChange: (value: SourceLoad[]) => void
-  disabled: boolean
-  token: string
-}) {
-  const containers = useQuery({
-    queryKey: ['container-instances'],
-    queryFn: () => listContainerInstances(token),
-    enabled: Boolean(token),
-  })
-  const patchLoad = (index: number, patch: Partial<SourceLoad>) =>
-    onChange(
-      loads.map((item, current) =>
-        current === index ? { ...item, ...patch } : item,
-      ),
-    )
-  return (
-    <ModuleCard id="module-precursors" title="前驱体与装料">
-      <p className="text-sm text-muted-foreground">
-        同一舟中共同研磨或混合的物料放在一个装料内；同一批次放在两个舟中则建两个装料。
-      </p>
-      {loads.map((load, loadIndex) => (
-        <div key={loadIndex} className="grid gap-4 rounded-lg border p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-medium">装料 {loadIndex + 1}</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={disabled}
-              onClick={() =>
-                onChange(loads.filter((_, current) => current !== loadIndex))
-              }
-            >
-              <Trash2 /> 删除装料
-            </Button>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>装载方式</Label>
-              <Select
-                value={load.loading_method}
-                disabled={disabled}
-                onValueChange={(value) =>
-                  patchLoad(loadIndex, { loading_method: value })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {[
-                      'boat',
-                      'crucible',
-                      'substrate_surface',
-                      'gas_line',
-                      'bubbler',
-                      'other',
-                    ].map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {LOADING_METHOD_LABELS[value]}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>对应加热温区（选填）</Label>
-              <Select
-                value={load.heating_zone_ref ?? 'none'}
-                disabled={disabled || zoneCount === null}
-                onValueChange={(value) =>
-                  patchLoad(loadIndex, {
-                    heating_zone_ref: value === 'none' ? undefined : value,
-                  })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={
-                      zoneCount === null ? '请先选择实验装置' : '选择温区'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="none">未指定</SelectItem>
-                    {Array.from(
-                      { length: zoneCount ?? 0 },
-                      (_, index) => index + 1,
-                    ).map((index) => (
-                      <SelectItem key={index} value={`zone_${index}`}>
-                        温区 {index}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>本次使用的具体容器（选填）</Label>
-              <Select
-                value={load.container_instance_id ?? 'none'}
-                disabled={disabled || containers.isLoading}
-                onValueChange={(value) =>
-                  patchLoad(loadIndex, {
-                    container_instance_id: value === 'none' ? undefined : value,
-                  })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="none">未登记具体容器</SelectItem>
-                    {(containers.data ?? [])
-                      .filter((container) =>
-                        load.ingredients.some(
-                          (item) =>
-                            item.material_lot_id === container.material_lot_id,
-                        ),
-                      )
-                      .map((container) => (
-                        <SelectItem key={container.id} value={container.id}>
-                          {container.container_code} ·{' '}
-                          {CONTAINER_STATUS_LABELS[container.status] ??
-                            container.status}
-                        </SelectItem>
-                      ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>初始轴向位置（mm）</Label>
-              <Input
-                type="number"
-                value={load.initial_position?.axial_mm ?? ''}
-                disabled={disabled}
-                onChange={(event) =>
-                  patchLoad(loadIndex, {
-                    initial_position:
-                      event.target.value === ''
-                        ? undefined
-                        : {
-                            axial_mm: Number(event.target.value),
-                            reference: 'setup_origin',
-                          },
-                  })
-                }
-              />
-            </div>
-            <p className="text-sm text-muted-foreground sm:col-span-2">
-              温区引用来自当前装置；轴向位置用于记录装料在炉管中的实际位置。
-            </p>
-          </div>
-
-          <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer font-medium">
-              更多装料参数
-            </summary>
-            <div className="mt-4 grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label>实验过程中移动前驱体源</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={disabled}
-                  onClick={() =>
-                    patchLoad(loadIndex, {
-                      position_program: [
-                        ...load.position_program,
-                        {
-                          t_s:
-                            load.position_program.at(-1)?.t_s === undefined
-                              ? 0
-                              : load.position_program.at(-1)!.t_s + 60,
-                          axial_mm:
-                            load.position_program.at(-1)?.axial_mm ??
-                            load.initial_position?.axial_mm ??
-                            0,
-                          reference: 'setup_origin',
-                        },
-                      ],
-                    })
-                  }
-                >
-                  <Plus /> 添加位置点
-                </Button>
-              </div>
-              {load.position_program.map((point, pointIndex) => (
-                <div
-                  key={pointIndex}
-                  className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
-                >
-                  <div className="grid gap-2">
-                    <Label>时间（s）</Label>
-                    <Input
-                      type="number"
-                      value={point.t_s}
-                      disabled={disabled}
-                      onChange={(event) =>
-                        patchLoad(loadIndex, {
-                          position_program: load.position_program.map(
-                            (item, current) =>
-                              current === pointIndex
-                                ? { ...item, t_s: Number(event.target.value) }
-                                : item,
-                          ),
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>轴向位置（mm）</Label>
-                    <Input
-                      type="number"
-                      value={point.axial_mm}
-                      disabled={disabled}
-                      onChange={(event) =>
-                        patchLoad(loadIndex, {
-                          position_program: load.position_program.map(
-                            (item, current) =>
-                              current === pointIndex
-                                ? {
-                                    ...item,
-                                    axial_mm: Number(event.target.value),
-                                  }
-                                : item,
-                          ),
-                        })
-                      }
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="sm:col-span-2 sm:justify-self-end"
-                    disabled={disabled}
-                    onClick={() =>
-                      patchLoad(loadIndex, {
-                        position_program: load.position_program.filter(
-                          (_, current) => current !== pointIndex,
-                        ),
-                      })
-                    }
-                  >
-                    <Trash2 /> 删除位置点
-                  </Button>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label>共同制备步骤</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={disabled}
-                  onClick={() =>
-                    patchLoad(loadIndex, {
-                      preparation_steps: [
-                        ...load.preparation_steps,
-                        {
-                          step_type: 'grind',
-                          sequence: load.preparation_steps.length + 1,
-                          parameters: {},
-                        },
-                      ],
-                    })
-                  }
-                >
-                  <Plus /> 添加步骤
-                </Button>
-              </div>
-              {load.preparation_steps.map((step, stepIndex) => (
-                <div key={stepIndex} className="flex gap-2">
-                  <Select
-                    value={step.step_type}
-                    disabled={disabled}
-                    onValueChange={(value) =>
-                      patchLoad(loadIndex, {
-                        preparation_steps: load.preparation_steps.map(
-                          (item, current) =>
-                            current === stepIndex
-                              ? { ...item, step_type: value }
-                              : item,
-                        ),
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(PREPARATION_STEP_LABELS).map(
-                        ([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ),
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    disabled={disabled}
-                    onClick={() =>
-                      patchLoad(loadIndex, {
-                        preparation_steps: load.preparation_steps
-                          .filter((_, current) => current !== stepIndex)
-                          .map((item, current) => ({
-                            ...item,
-                            sequence: current + 1,
-                          })),
-                      })
-                    }
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </details>
-
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <Label>装料成分</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={disabled}
-                onClick={() =>
-                  patchLoad(loadIndex, {
-                    ingredients: [
-                      ...load.ingredients,
-                      {
-                        material_lot_id: '',
-                        material_lot_version: 1,
-                        function_role: 'metal_source',
-                      },
-                    ],
-                  })
-                }
-              >
-                <Plus /> 添加成分
-              </Button>
-            </div>
-            {load.ingredients.map((ingredient, ingredientIndex) => (
-              <div
-                key={ingredientIndex}
-                className="grid gap-4 rounded-lg border p-3 sm:grid-cols-2"
-              >
-                <div className="grid gap-2 sm:col-span-2">
-                  <Label>物料批次</Label>
-                  <EntityReferenceSelect
-                    kind="material_lot"
-                    value={ingredient.material_lot_id}
-                    selectedVersion={ingredient.material_lot_version}
-                    selectedSnapshot={ingredient.snapshot}
-                    disabled={disabled}
-                    filter={(entity) =>
-                      ['chemical', 'gas_cylinder'].includes(
-                        String(entity.latest_version?.data['lot_category']),
-                      )
-                    }
-                    onChange={(id, entity: V2EntityRead | null) =>
-                      patchLoad(loadIndex, {
-                        ingredients: load.ingredients.map((item, current) =>
-                          current === ingredientIndex
-                            ? {
-                                ...item,
-                                material_lot_id: id,
-                                material_lot_version:
-                                  entity?.latest_version?.version ?? 1,
-                                snapshot:
-                                  entity?.latest_version?.data ?? undefined,
-                              }
-                            : item,
-                        ),
-                      })
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>在本次实验中的作用</Label>
-                  <Select
-                    value={ingredient.function_role}
-                    disabled={disabled}
-                    onValueChange={(value) =>
-                      patchLoad(loadIndex, {
-                        ingredients: load.ingredients.map((item, current) =>
-                          current === ingredientIndex
-                            ? { ...item, function_role: value }
-                            : item,
-                        ),
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {[
-                          'metal_source',
-                          'chalcogen_source',
-                          'carbon_source',
-                          'dopant_source',
-                          'promoter',
-                          'transport_agent',
-                          'etchant',
-                          'reducing_agent',
-                          'oxidizing_agent',
-                          'carrier_gas',
-                          'other',
-                        ].map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {INGREDIENT_ROLE_LABELS[value]}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-[1fr_8rem] gap-3">
-                  <div className="grid gap-2">
-                    <Label>用量（选填）</Label>
-                    <Input
-                      type="number"
-                      value={ingredient.amount ?? ''}
-                      disabled={disabled}
-                      onChange={(event) =>
-                        patchLoad(loadIndex, {
-                          ingredients: load.ingredients.map((item, current) =>
-                            current === ingredientIndex
-                              ? {
-                                  ...item,
-                                  amount: numberOrUndefined(event.target.value),
-                                }
-                              : item,
-                          ),
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>单位</Label>
-                    <Input
-                      value={ingredient.unit ?? ''}
-                      disabled={disabled}
-                      placeholder="mg"
-                      onChange={(event) =>
-                        patchLoad(loadIndex, {
-                          ingredients: load.ingredients.map((item, current) =>
-                            current === ingredientIndex
-                              ? { ...item, unit: event.target.value }
-                              : item,
-                          ),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="sm:col-span-2 sm:justify-self-end"
-                  disabled={disabled || load.ingredients.length === 1}
-                  onClick={() =>
-                    patchLoad(loadIndex, {
-                      ingredients: load.ingredients.filter(
-                        (_, current) => current !== ingredientIndex,
-                      ),
-                    })
-                  }
-                >
-                  <Trash2 /> 删除
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="outline"
-        disabled={disabled}
-        onClick={() =>
-          onChange([
-            ...loads,
-            {
-              load_key: machineKey('source'),
-              loading_method: 'boat',
-              preparation_steps: [],
-              position_program: [],
-              ingredients: [
-                {
-                  material_lot_id: '',
-                  material_lot_version: 1,
-                  function_role: 'metal_source',
-                },
-              ],
-            },
-          ])
-        }
-      >
-        <Plus /> 添加一组装料
-      </Button>
     </ModuleCard>
   )
 }

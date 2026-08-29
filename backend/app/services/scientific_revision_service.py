@@ -46,6 +46,7 @@ from app.services.process_timeseries import (
 from app.services.v2_entity_service import V2EntityService
 from app.services.v2_entity_snapshot_service import material_lot_version_snapshot
 from app.services.v2_field_source import load_field_source
+from app.services.v2_process_semantics import valid_frozen_gas_reference
 
 
 def validate_scientific_module_payload(module_key: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -79,8 +80,12 @@ class ScientificRevisionService:
             key: validate_scientific_module_payload(key, value)
             for key, value in sorted(modules.items())
         }
+        normalized["process_steps"] = self.normalize_process_references(
+            run,
+            normalized["process_steps"],
+        )
         self._validate_basic(run, normalized["basic_info"])
-        self._validate_source_references(normalized["precursors"])
+        self.validate_source_references(normalized["precursors"])
         process_end = self._validate_process_references(run, normalized)
         content = {
             "run": {
@@ -281,8 +286,26 @@ class ScientificRevisionService:
                 },
             )
 
-    def _validate_source_references(self, payload: dict[str, Any]) -> None:
+    def validate_source_references(self, payload: dict[str, Any]) -> None:
         for source_load in payload["items"]:
+            expected_category = (
+                "gas_cylinder" if source_load["loading_method"] == "gas_line" else "chemical"
+            )
+            for ingredient in source_load["ingredients"]:
+                try:
+                    version = self.entities.get_version(
+                        "material_lot",
+                        UUID(ingredient["material_lot_id"]),
+                        ingredient["material_lot_version"],
+                    )
+                except (HTTPException, KeyError, TypeError, ValueError):
+                    self._invalid_source_reference("material_lot_id", "reference")
+                if version.lot_category != expected_category:
+                    self._invalid_source_reference(
+                        "material_lot_id",
+                        "category",
+                        expected_category=expected_category,
+                    )
             container_id = source_load.get("container_instance_id")
             if not container_id:
                 continue
@@ -307,13 +330,46 @@ class ScientificRevisionService:
                     },
                 )
 
+    @staticmethod
+    def _invalid_source_reference(
+        key: str,
+        reason: str,
+        *,
+        expected_category: str | None = None,
+    ) -> None:
+        invalid = {"key": key, "reason": reason}
+        if expected_category is not None:
+            invalid["expected_category"] = expected_category
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"invalid": [invalid]},
+        )
+
     def _validate_process_references(
         self,
         run: ExperimentRun,
         modules: dict[str, dict[str, Any]],
     ) -> float:
         timeline = modules["process_steps"]
-        process_end = max(item["end_s"] for item in timeline["segments"])
+        process_end = max(
+            0,
+            *(item["end_s"] for item in timeline["segments"]),
+            *(
+                point.get("end_s", point["start_s"])
+                for channel in timeline["channels"]
+                for point in channel.get("series") or []
+            ),
+            *(field["end_min"] * 60 for field in timeline.get("field_params") or []),
+            *(
+                point["t_s"]
+                for source_load in modules["precursors"]["items"]
+                for point in source_load.get("position_program") or []
+            ),
+            *(
+                event.get("end_s") or event["start_s"]
+                for event in (modules.get("process_events") or {}).get("items") or []
+            ),
+        )
         referenced: dict[UUID, tuple[str, str]] = {}
         for channel in timeline["channels"]:
             if channel.get("file_asset_id"):
@@ -335,6 +391,20 @@ class ScientificRevisionService:
             if isinstance(zone_count, int)
             else set()
         )
+        setpoint_temperatures = [
+            channel
+            for channel in timeline["channels"]
+            if channel["channel_type"] == "temperature" and channel["source_type"] == "setpoint"
+        ]
+        if (
+            len(setpoint_temperatures) != len(valid_zones)
+            or {channel["subject_ref"] for channel in setpoint_temperatures} != valid_zones
+            or any(channel["data_kind"] != "interval_series" for channel in setpoint_temperatures)
+        ):
+            self._invalid_process_reference(
+                "process_steps.temperature_program",
+                "setup_zone_coverage",
+            )
         raw_field_capabilities = (run.setup_ref_snapshot_json or {}).get("field_devices") or []
         field_capabilities = set(
             raw_field_capabilities
@@ -360,11 +430,25 @@ class ScientificRevisionService:
                 self._invalid_process_reference("process_steps.zone_index", "setup_zone")
             gas_lot_id = channel.get("gas_lot_id")
             if gas_lot_id:
-                self.entities.get_version(
+                version = self.entities.get_version(
                     "material_lot",
                     UUID(gas_lot_id),
                     channel["gas_lot_version"],
                 )
+                if not valid_frozen_gas_reference(
+                    {
+                        "species": channel["gas_species_code"],
+                        "lot_ref": {
+                            "entity_id": str(version.entity_id),
+                            "version": version.version,
+                            "snapshot": material_lot_version_snapshot(version),
+                        },
+                    }
+                ):
+                    self._invalid_process_reference(
+                        "process_steps.channels.gas_lot_id",
+                        "gas_identity",
+                    )
         for source_load in modules["precursors"]["items"]:
             if (
                 source_load.get("heating_zone_ref")
@@ -414,6 +498,97 @@ class ScientificRevisionService:
                     "missing_run_or_role",
                 )
         return process_end
+
+    def freeze_process_gas_references(self, payload: dict[str, Any]) -> None:
+        for operation in payload.get("preparation_operations") or []:
+            if operation.get("operation_type") != "gas_exchange":
+                continue
+            sources = operation.get("gas_sources") or []
+            if not sources:
+                self._invalid_process_reference(
+                    "process_steps.preparation_operations.gas_sources",
+                    "required",
+                )
+            operation.pop("gases", None)
+            for source in sources:
+                try:
+                    version = self.entities.get_version(
+                        "material_lot",
+                        UUID(source["material_lot_id"]),
+                        source["material_lot_version"],
+                    )
+                except (HTTPException, KeyError, TypeError, ValueError):
+                    self._invalid_process_reference(
+                        "process_steps.preparation_operations.gas_sources",
+                        "reference",
+                    )
+                if version.lot_category != "gas_cylinder":
+                    self._invalid_process_reference(
+                        "process_steps.preparation_operations.gas_sources",
+                        "category",
+                    )
+                source["snapshot"] = material_lot_version_snapshot(version)
+                if not valid_frozen_gas_reference(source):
+                    self._invalid_process_reference(
+                        "process_steps.preparation_operations.gas_sources",
+                        "gas_identity",
+                    )
+        for channel in payload.get("channels") or []:
+            if channel.get("channel_type") != "flow":
+                continue
+            try:
+                version = self.entities.get_version(
+                    "material_lot",
+                    UUID(channel["gas_lot_id"]),
+                    channel["gas_lot_version"],
+                )
+            except (HTTPException, KeyError, TypeError, ValueError):
+                self._invalid_process_reference(
+                    "process_steps.channels.gas_lot_id",
+                    "reference",
+                )
+            snapshot = material_lot_version_snapshot(version)
+            if not valid_frozen_gas_reference(
+                {
+                    "species": channel.get("gas_species_code"),
+                    "lot_ref": {
+                        "entity_id": str(version.entity_id),
+                        "version": version.version,
+                        "snapshot": snapshot,
+                    },
+                }
+            ):
+                self._invalid_process_reference(
+                    "process_steps.channels.gas_lot_id",
+                    "gas_identity",
+                )
+            channel["subject_snapshot"] = snapshot
+
+    def normalize_process_references(
+        self,
+        run: ExperimentRun,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        if run.setup_ref is None:
+            self._invalid_process_reference(
+                "process_steps.channels.subject_instance_ref",
+                "setup_required",
+            )
+        setup_id = str(run.setup_ref)
+        self.freeze_process_gas_references(payload)
+        for channel in payload.get("channels") or []:
+            channel_type = channel.get("channel_type")
+            if channel_type == "temperature":
+                channel["subject_instance_ref"] = f"setup:{setup_id}:zone:{channel['zone_index']}"
+            elif channel_type == "flow":
+                channel["subject_instance_ref"] = (
+                    f"setup:{setup_id}:gas:{channel['gas_species_code']}:1"
+                )
+            elif channel_type == "pressure":
+                channel["subject_instance_ref"] = (
+                    f"setup:{setup_id}:pressure:{channel['pressure_location']}"
+                )
+        return validate_scientific_module_payload("process_steps", payload)
 
     @staticmethod
     def _invalid_process_reference(key: str, reason: str) -> None:
@@ -525,6 +700,7 @@ class ScientificRevisionService:
                 initial_position=item.get("initial_position"),
                 position_program=item.get("position_program") or [],
                 heating_zone_ref=item.get("heating_zone_ref"),
+                substrate_source_ids=item.get("substrate_source_ids") or [],
                 attrs=item.get("attrs") or {},
             )
             self.db.add(load)
@@ -539,9 +715,14 @@ class ScientificRevisionService:
                         material_lot_id=lot_id,
                         material_lot_version=version_number,
                         material_snapshot_json=material_lot_version_snapshot(version),
-                        function_role=ingredient["function_role"],
+                        function_role=ingredient.get("function_role"),
+                        process_roles=ingredient.get("process_roles") or [],
+                        process_role_other=ingredient.get("process_role_other"),
                         amount=ingredient.get("amount"),
                         unit=ingredient.get("unit"),
+                        concentration_value=ingredient.get("concentration_value"),
+                        concentration_unit=ingredient.get("concentration_unit"),
+                        concentration_unit_other=ingredient.get("concentration_unit_other"),
                         composition_basis=ingredient.get("composition_basis"),
                         uncertainty=ingredient.get("uncertainty"),
                         attrs=ingredient.get("attrs") or {},

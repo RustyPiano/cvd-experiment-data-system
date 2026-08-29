@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -29,8 +30,9 @@ import { RequiredMark } from '@/shared/ui/required-mark'
 import { uploadExperimentFile } from '@/features/samples/api'
 
 import type { ModuleValues } from './field-logic'
-import { emptyModuleValues, moduleValueAsString } from './field-logic'
+import { emptySubstrateValues, moduleValueAsString } from './field-logic'
 import { EntityReferenceSelect } from './components/entity-reference-select'
+import { gasCylinderMatchesSpecies } from './components/reference-snapshot'
 import { ExperimentAttachments } from './components/experiment-attachments'
 import { FormulaInput } from './components/formula-input'
 import {
@@ -38,11 +40,12 @@ import {
   FieldParamsEditor,
 } from './components/process-detail-editors'
 import type { ActualField } from './components/process-detail-editors'
-import { materialLotProjection } from './components/repeatable-items-section'
+import { materialLotProjection } from './material-lot-projection'
 import { ModuleCard } from './components/module-card'
 import { TargetBulkPhaseSelect } from './components/target-bulk-phase-select'
 import {
   TreatmentStepsEditor,
+  normalizeTreatmentSteps,
   treatmentStepsAreValid,
 } from './components/treatment-steps-editor'
 import type {
@@ -128,9 +131,15 @@ export type SimpleTarget = {
 export type SimpleIngredient = {
   material_lot_id: string
   material_lot_version: number
-  function_role: string
+  /** 旧记录只读兼容；新保存不再写入。 */
+  function_role?: string
+  process_roles?: string[]
+  process_role_other?: string
   amount?: number
   unit?: string
+  concentration_value?: number
+  concentration_unit?: string
+  concentration_unit_other?: string
   snapshot?: Record<string, unknown>
 }
 
@@ -156,11 +165,51 @@ export type SimpleSourceLoad = {
     reference: 'setup_origin' | 'zone_thermocouple'
   }>
   heating_zone_ref?: string
+  substrate_source_ids?: string[]
   ingredients: SimpleIngredient[]
 }
 
+const PROCESS_ROLE_OPTIONS = [
+  ['reaction_or_nucleation_promoter', '促进反应或成核'],
+  ['flux_or_salt_assistant', '助熔或盐辅助'],
+  ['transport_agent', '输运'],
+  ['solvent_or_dispersion_medium', '溶剂或分散介质'],
+  ['reducing_agent', '还原'],
+  ['oxidizing_agent', '氧化'],
+  ['etchant', '刻蚀'],
+  ['other', '其他'],
+] as const
+const LEGACY_FUNCTION_ROLE_LABELS: Record<string, string> = {
+  metal_source: '金属源',
+  chalcogen_source: '硫族元素源',
+  carbon_source: '碳源',
+  dopant_source: '掺杂源',
+  promoter: '促进剂',
+  transport_agent: '输运剂',
+  etchant: '刻蚀剂',
+  reducing_agent: '还原剂',
+  oxidizing_agent: '氧化剂',
+  carrier_gas: '载气',
+  other: '其他',
+}
+
+const CONCENTRATION_UNITS = [
+  ['mol_per_L', 'mol/L'],
+  ['mmol_per_L', 'mmol/L (mM)'],
+  ['g_per_L', 'g/L'],
+  ['mg_per_mL', 'mg/mL'],
+  ['wt_percent', 'wt%'],
+  ['vol_percent', 'vol%'],
+  ['other', '其他'],
+] as const
+const CONCENTRATION_UNIT_CODES = new Set<string>(
+  CONCENTRATION_UNITS.map(([value]) => value),
+)
+
 export function sourceLoadIngredientsAreValid(
   ingredients: SimpleIngredient[],
+  hasSpinCoating = false,
+  amountRequired = true,
 ): boolean {
   const lotIds = new Set<string>()
   return (
@@ -168,17 +217,32 @@ export function sourceLoadIngredientsAreValid(
     ingredients.every((ingredient) => {
       if (
         !ingredient.material_lot_id ||
-        !ingredient.function_role ||
-        lotIds.has(ingredient.material_lot_id)
+        lotIds.has(ingredient.material_lot_id) ||
+        ((ingredient.process_roles ?? []).includes('other') &&
+          !ingredient.process_role_other?.trim())
       ) {
         return false
       }
       lotIds.add(ingredient.material_lot_id)
-      return ingredient.amount === undefined
-        ? !ingredient.unit?.trim()
-        : Number.isFinite(ingredient.amount) &&
-            ingredient.amount >= 0 &&
-            Boolean(ingredient.unit?.trim())
+      const amountValid =
+        !amountRequired ||
+        (Number.isFinite(ingredient.amount) &&
+          Number(ingredient.amount) > 0 &&
+          Boolean(ingredient.unit?.trim()))
+      if (!amountValid || !hasSpinCoating) return amountValid
+      const hasConcentration =
+        ingredient.concentration_value !== undefined ||
+        Boolean(ingredient.concentration_unit) ||
+        Boolean(ingredient.concentration_unit_other?.trim())
+      if (!hasConcentration) return true
+      return Boolean(
+        Number.isFinite(ingredient.concentration_value) &&
+        Number(ingredient.concentration_value) > 0 &&
+        ingredient.concentration_unit &&
+        CONCENTRATION_UNIT_CODES.has(ingredient.concentration_unit) &&
+        (ingredient.concentration_unit !== 'other' ||
+          ingredient.concentration_unit_other?.trim()),
+      )
     })
   )
 }
@@ -240,6 +304,12 @@ export type SimpleProcessSettings = {
     operation_type: 'pump_down' | 'gas_exchange' | 'leak_check' | 'other'
     duration_min: number
     cycle_count?: number
+    gas_sources?: Array<{
+      material_lot_id: string
+      material_lot_version?: number
+      snapshot?: Record<string, unknown>
+    }>
+    /** 旧修订只读兼容；新保存改为引用 gas_sources。 */
     gases?: string[]
     other_name?: string
   }>
@@ -1268,7 +1338,7 @@ function newIngredient(): SimpleIngredient {
   return {
     material_lot_id: '',
     material_lot_version: 0,
-    function_role: '',
+    process_roles: [],
   }
 }
 
@@ -1278,6 +1348,7 @@ function newLoad(): SimpleSourceLoad {
     loading_method: '',
     preparation_steps: [],
     position_program: [],
+    substrate_source_ids: [],
     ingredients: [newIngredient()],
   }
 }
@@ -1291,14 +1362,16 @@ export function requiresPrecursorPosition(loadingMethod: string) {
 function treatmentStepsForEditor(
   steps: SimpleSourceLoad['preparation_steps'],
 ): TreatmentStep[] {
-  return steps.map((step) => ({
-    type: step.step_type as TreatmentType,
-    other_name:
-      typeof step.parameters.other_name === 'string'
-        ? step.parameters.other_name
-        : undefined,
-    parameters: step.parameters as TreatmentStep['parameters'],
-  }))
+  return normalizeTreatmentSteps(
+    steps.map((step) => ({
+      type: step.step_type as TreatmentType,
+      other_name:
+        typeof step.parameters.other_name === 'string'
+          ? step.parameters.other_name
+          : undefined,
+      parameters: step.parameters as TreatmentStep['parameters'],
+    })),
+  )
 }
 
 function treatmentStepsForPayload(
@@ -1322,23 +1395,30 @@ export function sourcePreparationStepsAreValid(
 
 export function SimpleSourceLoadsEditor({
   loads,
+  substrates = [],
   zoneCount,
   disabled,
   showErrors,
   onChange,
 }: {
   loads: SimpleSourceLoad[]
+  substrates?: ModuleValues[]
   zoneCount: number | null
   disabled: boolean
   showErrors?: boolean
   onChange: (loads: SimpleSourceLoad[]) => void
 }) {
   const { t } = useTranslation()
+  const substrateSourceIds = new Set(
+    substrates
+      .map((substrate) => moduleValueAsString(substrate['source_id']))
+      .filter(Boolean),
+  )
   const update = (index: number, load: SimpleSourceLoad) =>
     onChange(loads.map((item, current) => (current === index ? load : item)))
 
   return (
-    <ModuleCard id="module-precursors" title="前驱体">
+    <ModuleCard id="module-precursors" title="前驱体装载">
       <div className="flex flex-col gap-5">
         {loads.map((load, loadIndex) => {
           const requiresPosition = requiresPrecursorPosition(
@@ -1346,7 +1426,12 @@ export function SimpleSourceLoadsEditor({
           )
           const loadingInvalid = Boolean(showErrors && !load.loading_method)
           const zoneInvalid = Boolean(
-            showErrors && requiresPosition && !load.heating_zone_ref,
+            showErrors &&
+            requiresPosition &&
+            (!load.heating_zone_ref ||
+              Number(load.heating_zone_ref.replace('zone_', '')) < 1 ||
+              Number(load.heating_zone_ref.replace('zone_', '')) >
+                (zoneCount ?? 0)),
           )
           const positionInvalid = Boolean(
             showErrors &&
@@ -1355,13 +1440,28 @@ export function SimpleSourceLoadsEditor({
               load.initial_position?.reference !== 'zone_thermocouple'),
           )
           const positionHelpId = `precursor-position-help-${load.load_key}`
+          const isSubstrateSurface = load.loading_method === 'substrate_surface'
+          const substrateInvalid = Boolean(
+            showErrors &&
+            isSubstrateSurface &&
+            ((load.substrate_source_ids ?? []).length === 0 ||
+              (load.substrate_source_ids ?? []).some(
+                (sourceId) => !substrateSourceIds.has(sourceId),
+              )),
+          )
+          const isGasLine = load.loading_method === 'gas_line'
+          const hasSpinCoating =
+            !isGasLine &&
+            load.preparation_steps.some(
+              (step) => step.step_type === 'spin_coat',
+            )
           return (
             <div
               key={load.load_key}
               className="flex flex-col gap-4 rounded-lg border p-4"
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="font-medium">前驱体容器 {loadIndex + 1}</p>
+                <p className="font-medium">前驱体装载 {loadIndex + 1}</p>
                 <Button
                   type="button"
                   size="sm"
@@ -1374,7 +1474,7 @@ export function SimpleSourceLoadsEditor({
                   }
                 >
                   <Trash2 data-icon="inline-start" />
-                  删除容器
+                  删除装载
                 </Button>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
@@ -1388,10 +1488,14 @@ export function SimpleSourceLoadsEditor({
                   <Select
                     value={load.loading_method}
                     disabled={disabled}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
+                      const changesGasMode =
+                        isGasLine !== (value === 'gas_line')
                       update(loadIndex, {
                         ...load,
                         loading_method: value,
+                        preparation_steps:
+                          value === 'gas_line' ? [] : load.preparation_steps,
                         heating_zone_ref: requiresPrecursorPosition(value)
                           ? load.heating_zone_ref
                           : undefined,
@@ -1401,8 +1505,15 @@ export function SimpleSourceLoadsEditor({
                         position_program: requiresPrecursorPosition(value)
                           ? load.position_program
                           : [],
+                        substrate_source_ids:
+                          value === 'substrate_surface'
+                            ? (load.substrate_source_ids ?? [])
+                            : [],
+                        ingredients: changesGasMode
+                          ? [newIngredient()]
+                          : load.ingredients,
                       })
-                    }
+                    }}
                   >
                     <SelectTrigger
                       className="w-full"
@@ -1415,8 +1526,9 @@ export function SimpleSourceLoadsEditor({
                         <SelectItem value="boat">舟</SelectItem>
                         <SelectItem value="crucible">坩埚</SelectItem>
                         <SelectItem value="substrate_surface">
-                          衬底表面
+                          涂覆在衬底表面
                         </SelectItem>
+                        <SelectItem value="gas_line">气路供给</SelectItem>
                         <SelectItem value="other">其他</SelectItem>
                       </SelectGroup>
                     </SelectContent>
@@ -1525,28 +1637,113 @@ export function SimpleSourceLoadsEditor({
                     ) : null}
                   </>
                 ) : null}
-                <div className="flex flex-col gap-2 sm:col-span-2">
-                  <Label>处理方式</Label>
-                  <TreatmentStepsEditor
-                    kind="source_load"
-                    value={treatmentStepsForEditor(load.preparation_steps)}
-                    disabled={disabled}
-                    showErrors={showErrors}
-                    labels={buildTreatmentStepsEditorLabels(t)}
-                    onChange={(steps) =>
-                      update(loadIndex, {
-                        ...load,
-                        preparation_steps: treatmentStepsForPayload(steps),
+                {isSubstrateSurface ? (
+                  <fieldset
+                    className="flex flex-col gap-3 rounded-md border p-3 sm:col-span-3"
+                    data-invalid={substrateInvalid || undefined}
+                  >
+                    <legend className="px-1 text-sm font-medium">
+                      关联衬底片 <RequiredMark />
+                    </legend>
+                    {substrates.length ? (
+                      substrates.map((substrate, index) => {
+                        const sourceId = moduleValueAsString(
+                          substrate['source_id'],
+                        )
+                        const position = parsedObject(
+                          substrate['zone_thermocouple_distance_mm'],
+                        )
+                        const checked = (
+                          load.substrate_source_ids ?? []
+                        ).includes(sourceId)
+                        return (
+                          <Label
+                            key={sourceId || index}
+                            className="flex items-start gap-3 rounded-md border p-3"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              disabled={disabled || !sourceId}
+                              aria-invalid={substrateInvalid || undefined}
+                              onCheckedChange={(value) =>
+                                update(loadIndex, {
+                                  ...load,
+                                  substrate_source_ids:
+                                    value === true
+                                      ? [
+                                          ...(load.substrate_source_ids ?? []),
+                                          sourceId,
+                                        ]
+                                      : (
+                                          load.substrate_source_ids ?? []
+                                        ).filter((id) => id !== sourceId),
+                                })
+                              }
+                            />
+                            <span className="flex flex-col gap-1">
+                              <span>
+                                衬底片 {index + 1}（
+                                {moduleValueAsString(
+                                  substrate['piece_label'],
+                                ) || `S${index + 1}`}
+                                ）
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {position.zone_index
+                                  ? `温区 ${position.zone_index}，相对热电偶 ${position.distance_mm ?? '—'} mm`
+                                  : '请先补齐该衬底片的温区与位置'}
+                              </span>
+                            </span>
+                          </Label>
+                        )
                       })
-                    }
-                  />
-                </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        请先在上一步添加衬底片。
+                      </p>
+                    )}
+                    {substrateInvalid ? (
+                      <p className="text-destructive text-sm">
+                        请至少选择一片当前衬底；如关联的衬底已删除，请重新选择。
+                      </p>
+                    ) : null}
+                  </fieldset>
+                ) : null}
+                {!isGasLine ? (
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <Label>处理方式</Label>
+                    <TreatmentStepsEditor
+                      kind="source_load"
+                      value={treatmentStepsForEditor(load.preparation_steps)}
+                      disabled={disabled}
+                      showErrors={showErrors}
+                      labels={buildTreatmentStepsEditorLabels(t)}
+                      onChange={(steps) => {
+                        const preparationSteps = treatmentStepsForPayload(steps)
+                        const keepConcentration = steps.some(
+                          (step) => step.type === 'spin_coat',
+                        )
+                        update(loadIndex, {
+                          ...load,
+                          preparation_steps: preparationSteps,
+                          ingredients: keepConcentration
+                            ? load.ingredients
+                            : load.ingredients.map((ingredient) => ({
+                                ...ingredient,
+                                concentration_value: undefined,
+                                concentration_unit: undefined,
+                                concentration_unit_other: undefined,
+                              })),
+                        })
+                      }}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <Separator />
               <div className="flex flex-col gap-4">
                 {load.ingredients.map((ingredient, ingredientIndex) => {
-                  const unitRequired = ingredient.amount !== undefined
                   const duplicateLot = load.ingredients.some(
                     (item, current) =>
                       current !== ingredientIndex &&
@@ -1556,19 +1753,51 @@ export function SimpleSourceLoadsEditor({
                   const lotInvalid = Boolean(
                     showErrors && (!ingredient.material_lot_id || duplicateLot),
                   )
+                  const processRoles = ingredient.process_roles ?? []
                   const roleInvalid = Boolean(
-                    showErrors && !ingredient.function_role,
+                    showErrors &&
+                    processRoles.includes('other') &&
+                    !ingredient.process_role_other?.trim(),
                   )
                   const amountInvalid = Boolean(
                     showErrors &&
-                    ingredient.amount !== undefined &&
+                    !isGasLine &&
                     (!Number.isFinite(ingredient.amount) ||
-                      ingredient.amount < 0),
+                      Number(ingredient.amount) <= 0),
                   )
                   const unitInvalid = Boolean(
-                    showErrors && unitRequired && !ingredient.unit?.trim(),
+                    showErrors && !isGasLine && !ingredient.unit?.trim(),
+                  )
+                  const hasConcentration =
+                    ingredient.concentration_value !== undefined ||
+                    Boolean(ingredient.concentration_unit) ||
+                    Boolean(ingredient.concentration_unit_other?.trim())
+                  const concentrationValueInvalid = Boolean(
+                    showErrors &&
+                    hasSpinCoating &&
+                    hasConcentration &&
+                    !(Number(ingredient.concentration_value) > 0),
+                  )
+                  const concentrationUnitInvalid = Boolean(
+                    showErrors &&
+                    hasSpinCoating &&
+                    hasConcentration &&
+                    (!ingredient.concentration_unit ||
+                      !CONCENTRATION_UNIT_CODES.has(
+                        ingredient.concentration_unit,
+                      )),
+                  )
+                  const concentrationOtherInvalid = Boolean(
+                    showErrors &&
+                    hasSpinCoating &&
+                    ingredient.concentration_unit === 'other' &&
+                    !ingredient.concentration_unit_other?.trim(),
                   )
                   const unitInputId = `${load.load_key}-ingredient-${ingredientIndex}-unit`
+                  const concentrationValueId = `${load.load_key}-ingredient-${ingredientIndex}-concentration`
+                  const concentrationUnitId = `${load.load_key}-ingredient-${ingredientIndex}-concentration-unit`
+                  const processRoleOtherId = `${load.load_key}-ingredient-${ingredientIndex}-process-role-other`
+                  const concentrationUnitOtherId = `${load.load_key}-ingredient-${ingredientIndex}-concentration-unit-other`
                   return (
                     <div
                       key={ingredientIndex}
@@ -1588,7 +1817,9 @@ export function SimpleSourceLoadsEditor({
                           selectedVersion={ingredient.material_lot_version}
                           selectedSnapshot={ingredient.snapshot}
                           disabled={disabled}
-                          allowedLotCategories={['chemical']}
+                          allowedLotCategories={[
+                            isGasLine ? 'gas_cylinder' : 'chemical',
+                          ]}
                           filter={(entity) =>
                             !load.ingredients.some(
                               (item, current) =>
@@ -1624,131 +1855,319 @@ export function SimpleSourceLoadsEditor({
                           </p>
                         ) : null}
                       </div>
-                      <div
-                        className="flex flex-col gap-2"
+                      {ingredient.function_role ? (
+                        <p className="text-sm text-muted-foreground sm:col-span-2">
+                          历史作用分类：
+                          {LEGACY_FUNCTION_ROLE_LABELS[
+                            ingredient.function_role
+                          ] ?? ingredient.function_role}
+                        </p>
+                      ) : null}
+                      <fieldset
+                        className="flex flex-col gap-3 rounded-md border p-3 sm:col-span-2"
                         data-invalid={roleInvalid || undefined}
                       >
-                        <Label>
-                          作用 <RequiredMark />
-                        </Label>
-                        <Select
-                          value={ingredient.function_role}
-                          disabled={disabled}
-                          onValueChange={(value) =>
-                            update(loadIndex, {
-                              ...load,
-                              ingredients: load.ingredients.map(
-                                (item, current) =>
-                                  current === ingredientIndex
-                                    ? { ...item, function_role: value }
-                                    : item,
-                              ),
-                            })
-                          }
-                        >
-                          <SelectTrigger
-                            className="w-full"
-                            aria-invalid={roleInvalid || undefined}
-                          >
-                            <SelectValue placeholder="请选择" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              <SelectItem value="metal_source">
-                                金属源
-                              </SelectItem>
-                              <SelectItem value="chalcogen_source">
-                                硫族元素源
-                              </SelectItem>
-                              <SelectItem value="dopant_source">
-                                掺杂源
-                              </SelectItem>
-                              <SelectItem value="promoter">
-                                促进剂/盐
-                              </SelectItem>
-                              <SelectItem value="other">其他</SelectItem>
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+                        <legend className="px-1 text-sm font-medium">
+                          工艺作用（选填，可多选）
+                        </legend>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {PROCESS_ROLE_OPTIONS.map(([value, label]) => (
+                            <Label
+                              key={value}
+                              className="flex items-center gap-2"
+                            >
+                              <Checkbox
+                                checked={processRoles.includes(value)}
+                                disabled={disabled}
+                                onCheckedChange={(checked) =>
+                                  update(loadIndex, {
+                                    ...load,
+                                    ingredients: load.ingredients.map(
+                                      (item, current) =>
+                                        current === ingredientIndex
+                                          ? {
+                                              ...item,
+                                              process_roles:
+                                                checked === true
+                                                  ? [...processRoles, value]
+                                                  : processRoles.filter(
+                                                      (role) => role !== value,
+                                                    ),
+                                              process_role_other:
+                                                value === 'other' &&
+                                                checked !== true
+                                                  ? undefined
+                                                  : item.process_role_other,
+                                            }
+                                          : item,
+                                    ),
+                                  })
+                                }
+                              />
+                              {label}
+                            </Label>
+                          ))}
+                        </div>
+                        {processRoles.includes('other') ? (
+                          <div className="flex flex-col gap-2">
+                            <Label htmlFor={processRoleOtherId}>
+                              其他工艺作用 <RequiredMark />
+                            </Label>
+                            <Input
+                              id={processRoleOtherId}
+                              value={ingredient.process_role_other ?? ''}
+                              disabled={disabled}
+                              aria-invalid={roleInvalid || undefined}
+                              onChange={(event) =>
+                                update(loadIndex, {
+                                  ...load,
+                                  ingredients: load.ingredients.map(
+                                    (item, current) =>
+                                      current === ingredientIndex
+                                        ? {
+                                            ...item,
+                                            process_role_other:
+                                              event.target.value,
+                                          }
+                                        : item,
+                                  ),
+                                })
+                              }
+                            />
+                          </div>
+                        ) : null}
                         {roleInvalid ? (
                           <p className="text-destructive text-sm">
-                            请选择物料作用。
+                            请说明其他工艺作用。
                           </p>
                         ) : null}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div
-                          className="flex flex-col gap-2"
-                          data-invalid={amountInvalid || undefined}
-                        >
-                          <Label>用量</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="any"
-                            value={ingredient.amount ?? ''}
-                            disabled={disabled}
-                            aria-invalid={amountInvalid || undefined}
-                            onChange={(event) => {
-                              const amount = number(event.target.value)
-                              update(loadIndex, {
-                                ...load,
-                                ingredients: load.ingredients.map(
-                                  (item, current) =>
-                                    current === ingredientIndex
-                                      ? {
-                                          ...item,
-                                          amount,
-                                          unit:
-                                            amount === undefined
-                                              ? undefined
-                                              : item.unit,
-                                        }
-                                      : item,
-                                ),
-                              })
-                            }}
-                          />
-                          {amountInvalid ? (
-                            <p className="text-destructive text-sm">
-                              用量不能小于 0。
-                            </p>
+                      </fieldset>
+                      {!isGasLine ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div
+                            className="flex flex-col gap-2"
+                            data-invalid={amountInvalid || undefined}
+                          >
+                            <Label>
+                              用量 <RequiredMark />
+                            </Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={ingredient.amount ?? ''}
+                              disabled={disabled}
+                              aria-invalid={amountInvalid || undefined}
+                              onChange={(event) => {
+                                const amount = number(event.target.value)
+                                update(loadIndex, {
+                                  ...load,
+                                  ingredients: load.ingredients.map(
+                                    (item, current) =>
+                                      current === ingredientIndex
+                                        ? {
+                                            ...item,
+                                            amount,
+                                            unit:
+                                              amount === undefined
+                                                ? undefined
+                                                : item.unit,
+                                          }
+                                        : item,
+                                  ),
+                                })
+                              }}
+                            />
+                            {amountInvalid ? (
+                              <p className="text-destructive text-sm">
+                                请填写大于 0 的用量。
+                              </p>
+                            ) : null}
+                          </div>
+                          <div
+                            className="flex flex-col gap-2"
+                            data-invalid={unitInvalid || undefined}
+                          >
+                            <Label htmlFor={unitInputId}>
+                              单位 <RequiredMark />
+                            </Label>
+                            <Input
+                              id={unitInputId}
+                              value={ingredient.unit ?? ''}
+                              disabled={disabled}
+                              placeholder="例如 mg、g、μL 或 mL"
+                              aria-invalid={unitInvalid || undefined}
+                              onChange={(event) =>
+                                update(loadIndex, {
+                                  ...load,
+                                  ingredients: load.ingredients.map(
+                                    (item, current) =>
+                                      current === ingredientIndex
+                                        ? { ...item, unit: event.target.value }
+                                        : item,
+                                  ),
+                                })
+                              }
+                            />
+                            {unitInvalid ? (
+                              <p className="text-destructive text-sm">
+                                请填写用量单位。
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                      {hasSpinCoating ? (
+                        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                          <div
+                            className="flex flex-col gap-2"
+                            data-invalid={
+                              concentrationValueInvalid || undefined
+                            }
+                          >
+                            <Label htmlFor={concentrationValueId}>
+                              溶液浓度{' '}
+                              {hasConcentration ? <RequiredMark /> : null}
+                            </Label>
+                            <Input
+                              id={concentrationValueId}
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={ingredient.concentration_value ?? ''}
+                              disabled={disabled}
+                              aria-invalid={
+                                concentrationValueInvalid || undefined
+                              }
+                              onChange={(event) => {
+                                const value = number(event.target.value)
+                                update(loadIndex, {
+                                  ...load,
+                                  ingredients: load.ingredients.map(
+                                    (item, current) =>
+                                      current === ingredientIndex
+                                        ? {
+                                            ...item,
+                                            concentration_value: value,
+                                            concentration_unit:
+                                              value === undefined
+                                                ? undefined
+                                                : item.concentration_unit,
+                                            concentration_unit_other:
+                                              value === undefined
+                                                ? undefined
+                                                : item.concentration_unit_other,
+                                          }
+                                        : item,
+                                  ),
+                                })
+                              }}
+                            />
+                            {concentrationValueInvalid ? (
+                              <p className="text-destructive text-sm">
+                                浓度数值必须大于 0。
+                              </p>
+                            ) : null}
+                          </div>
+                          <div
+                            className="flex flex-col gap-2"
+                            data-invalid={concentrationUnitInvalid || undefined}
+                          >
+                            <Label htmlFor={concentrationUnitId}>
+                              浓度单位{' '}
+                              {hasConcentration ? <RequiredMark /> : null}
+                            </Label>
+                            <Select
+                              value={ingredient.concentration_unit ?? ''}
+                              disabled={disabled}
+                              onValueChange={(value) =>
+                                update(loadIndex, {
+                                  ...load,
+                                  ingredients: load.ingredients.map(
+                                    (item, current) =>
+                                      current === ingredientIndex
+                                        ? {
+                                            ...item,
+                                            concentration_unit: value,
+                                            concentration_unit_other:
+                                              value === 'other'
+                                                ? item.concentration_unit_other
+                                                : undefined,
+                                          }
+                                        : item,
+                                  ),
+                                })
+                              }
+                            >
+                              <SelectTrigger
+                                id={concentrationUnitId}
+                                className="w-full"
+                                aria-invalid={
+                                  concentrationUnitInvalid || undefined
+                                }
+                              >
+                                <SelectValue placeholder="请选择单位" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  {CONCENTRATION_UNITS.map(([value, label]) => (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            {concentrationUnitInvalid ? (
+                              <p className="text-destructive text-sm">
+                                填写浓度后，请选择单位。
+                              </p>
+                            ) : null}
+                          </div>
+                          {ingredient.concentration_unit === 'other' ? (
+                            <div
+                              className="flex flex-col gap-2 sm:col-span-2"
+                              data-invalid={
+                                concentrationOtherInvalid || undefined
+                              }
+                            >
+                              <Label htmlFor={concentrationUnitOtherId}>
+                                其他浓度单位 <RequiredMark />
+                              </Label>
+                              <Input
+                                id={concentrationUnitOtherId}
+                                value={
+                                  ingredient.concentration_unit_other ?? ''
+                                }
+                                disabled={disabled}
+                                aria-invalid={
+                                  concentrationOtherInvalid || undefined
+                                }
+                                onChange={(event) =>
+                                  update(loadIndex, {
+                                    ...load,
+                                    ingredients: load.ingredients.map(
+                                      (item, current) =>
+                                        current === ingredientIndex
+                                          ? {
+                                              ...item,
+                                              concentration_unit_other:
+                                                event.target.value,
+                                            }
+                                          : item,
+                                    ),
+                                  })
+                                }
+                              />
+                              {concentrationOtherInvalid ? (
+                                <p className="text-destructive text-sm">
+                                  请说明其他浓度单位。
+                                </p>
+                              ) : null}
+                            </div>
                           ) : null}
                         </div>
-                        <div
-                          className="flex flex-col gap-2"
-                          data-invalid={unitInvalid || undefined}
-                        >
-                          <Label htmlFor={unitInputId}>
-                            单位 {unitRequired ? <RequiredMark /> : null}
-                          </Label>
-                          <Input
-                            id={unitInputId}
-                            value={ingredient.unit ?? ''}
-                            disabled={
-                              disabled || ingredient.amount === undefined
-                            }
-                            placeholder="例如 mg、g、μL 或 mL"
-                            aria-invalid={unitInvalid || undefined}
-                            onChange={(event) =>
-                              update(loadIndex, {
-                                ...load,
-                                ingredients: load.ingredients.map(
-                                  (item, current) =>
-                                    current === ingredientIndex
-                                      ? { ...item, unit: event.target.value }
-                                      : item,
-                                ),
-                              })
-                            }
-                          />
-                          {unitInvalid ? (
-                            <p className="text-destructive text-sm">
-                              填写用量后，请填写单位。
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
+                      ) : null}
                       {load.ingredients.length > 1 ? (
                         <Button
                           type="button"
@@ -1783,7 +2202,7 @@ export function SimpleSourceLoadsEditor({
                   }
                 >
                   <Plus data-icon="inline-start" />
-                  添加同一容器中的材料
+                  添加同一装载中的材料
                 </Button>
               </div>
             </div>
@@ -1796,7 +2215,7 @@ export function SimpleSourceLoadsEditor({
           onClick={() => onChange([...loads, newLoad()])}
         >
           <Plus data-icon="inline-start" />
-          添加另一个前驱体容器
+          添加另一处前驱体装载
         </Button>
       </div>
     </ModuleCard>
@@ -1822,7 +2241,8 @@ function substrateReference(item: ModuleValues): FrozenReference | null {
 
 function newSubstrate(index: number): ModuleValues {
   return {
-    ...emptyModuleValues('substrates'),
+    ...emptySubstrateValues(),
+    source_id: crypto.randomUUID(),
     piece_label: `S${index + 1}`,
   }
 }
@@ -2022,7 +2442,7 @@ export function SimpleSubstratesEditor({
                         {
                           ...item,
                           piece_label: `S${substrates.length + 1}`,
-                          source_id: '',
+                          source_id: crypto.randomUUID(),
                           axial_position_mm: '',
                           zone_thermocouple_distance_mm: '',
                         },
@@ -2081,7 +2501,7 @@ export function SimpleSubstratesEditor({
                             snapshot,
                           })
                         : '',
-                      ...materialLotProjection('substrates', snapshot),
+                      ...materialLotProjection(snapshot),
                     })
                   }}
                 />
@@ -2603,7 +3023,15 @@ export function SimpleGrowthEditor({
         (operation.operation_type === 'gas_exchange' &&
           (!operation.cycle_count ||
             operation.cycle_count < 1 ||
-            !operation.gases?.length)) ||
+            !Number.isInteger(operation.cycle_count) ||
+            !operation.gas_sources?.length ||
+            operation.gas_sources.some(
+              (source) =>
+                !source.material_lot_id || !source.material_lot_version,
+            ) ||
+            new Set(
+              operation.gas_sources.map((source) => source.material_lot_id),
+            ).size !== operation.gas_sources.length)) ||
         (operation.operation_type === 'other' && !operation.other_name?.trim()),
     ),
   )
@@ -2751,6 +3179,10 @@ export function SimpleGrowthEditor({
                         operation_type:
                           value as (typeof operation)['operation_type'],
                         cycle_count: undefined,
+                        gas_sources:
+                          value === 'gas_exchange'
+                            ? [{ material_lot_id: '' }]
+                            : undefined,
                         gases: undefined,
                         other_name: undefined,
                       })
@@ -2801,34 +3233,99 @@ export function SimpleGrowthEditor({
                 </div>
                 {operation.operation_type === 'gas_exchange' ? (
                   <>
-                    <div className="flex flex-col gap-2">
-                      <Label>
-                        置换气体 <RequiredMark />
-                      </Label>
-                      <Select
-                        value={operation.gases?.[0] ?? ''}
+                    <fieldset
+                      className="flex flex-col gap-3 rounded-md border p-3 sm:col-span-2"
+                      data-invalid={
+                        (showErrors && !operation.gas_sources?.length) ||
+                        undefined
+                      }
+                    >
+                      <legend className="px-1 text-sm font-medium">
+                        置换气源（气瓶批次） <RequiredMark />
+                      </legend>
+                      {(operation.gas_sources ?? []).map(
+                        (source, sourceIndex) => (
+                          <div
+                            key={sourceIndex}
+                            className="flex items-center gap-2"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <EntityReferenceSelect
+                                kind="material_lot"
+                                productLabel
+                                value={source.material_lot_id}
+                                selectedVersion={source.material_lot_version}
+                                selectedSnapshot={source.snapshot}
+                                disabled={disabled}
+                                allowedLotCategories={['gas_cylinder']}
+                                onChange={(id, entity) =>
+                                  patchOperation({
+                                    gases: undefined,
+                                    gas_sources: (
+                                      operation.gas_sources ?? []
+                                    ).map((item, current) =>
+                                      current === sourceIndex
+                                        ? {
+                                            material_lot_id: id,
+                                            material_lot_version:
+                                              entity?.latest_version?.version,
+                                            snapshot:
+                                              entity?.latest_version?.data,
+                                          }
+                                        : item,
+                                    ),
+                                  })
+                                }
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`删除置换气源 ${sourceIndex + 1}`}
+                              disabled={disabled}
+                              onClick={() =>
+                                patchOperation({
+                                  gas_sources: (
+                                    operation.gas_sources ?? []
+                                  ).filter(
+                                    (_, current) => current !== sourceIndex,
+                                  ),
+                                })
+                              }
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                        ),
+                      )}
+                      {operation.gases?.length &&
+                      !operation.gas_sources?.length ? (
+                        <p className="text-sm text-muted-foreground">
+                          历史记录：{operation.gases.join(' + ')}
+                          。请选择实际使用的气瓶批次后再保存。
+                        </p>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="self-start"
                         disabled={disabled}
-                        onValueChange={(value) =>
-                          patchOperation({ gases: [value] })
+                        onClick={() =>
+                          patchOperation({
+                            gases: undefined,
+                            gas_sources: [
+                              ...(operation.gas_sources ?? []),
+                              { material_lot_id: '' },
+                            ],
+                          })
                         }
                       >
-                        <SelectTrigger
-                          className="w-full"
-                          aria-label={`准备操作 ${operationIndex + 1} 置换气体`}
-                        >
-                          <SelectValue placeholder="请选择" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {Object.keys(gasSpecies).map((species) => (
-                              <SelectItem key={species} value={species}>
-                                {species}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <Plus data-icon="inline-start" />
+                        添加气瓶批次
+                      </Button>
+                    </fieldset>
                     <div className="flex flex-col gap-2">
                       <Label>
                         置换次数 <RequiredMark />
@@ -2840,6 +3337,13 @@ export function SimpleGrowthEditor({
                         aria-label={`准备操作 ${operationIndex + 1} 置换次数`}
                         value={operation.cycle_count ?? ''}
                         disabled={disabled}
+                        aria-invalid={
+                          (showErrors &&
+                            (!operation.cycle_count ||
+                              operation.cycle_count < 1 ||
+                              !Number.isInteger(operation.cycle_count))) ||
+                          undefined
+                        }
                         onChange={(event) =>
                           patchOperation({
                             cycle_count:
@@ -3111,6 +3615,9 @@ export function SimpleGrowthEditor({
                         subject_ref: value,
                         gas_species_code: value,
                         subject_instance_ref: `setup:${setupId}:gas:${value}:1`,
+                        gas_lot_id: undefined,
+                        gas_lot_version: undefined,
+                        subject_snapshot: undefined,
                       })
                     }
                   >
@@ -3151,14 +3658,22 @@ export function SimpleGrowthEditor({
                     productLabel
                     value={channel.gas_lot_id ?? ''}
                     selectedVersion={channel.gas_lot_version}
+                    selectedSnapshot={channel.subject_snapshot}
                     disabled={disabled}
                     allowedLotCategories={['gas_cylinder']}
+                    filter={(entity) =>
+                      gasCylinderMatchesSpecies(
+                        entity.latest_version?.data,
+                        channel.gas_species_code ?? '',
+                      )
+                    }
                     onChange={(id, entity) =>
                       updateChannel(channel.channel_key, {
                         ...channel,
                         gas_lot_id: id || undefined,
                         gas_lot_version:
                           entity?.latest_version?.version ?? undefined,
+                        subject_snapshot: entity?.latest_version?.data,
                       })
                     }
                   />

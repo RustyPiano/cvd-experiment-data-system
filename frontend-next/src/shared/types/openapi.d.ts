@@ -1380,6 +1380,18 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /** GasCompositionComponentPayload */
+        GasCompositionComponentPayload: {
+            /**
+             * Species
+             * @enum {string}
+             */
+            species: "Ar" | "N2" | "H2" | "O2" | "He" | "CH4" | "H2S" | "NH3" | "CO2" | "other";
+            /** Other Name */
+            other_name?: string | null;
+            /** Volume Percent */
+            volume_percent: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1543,7 +1555,7 @@ export interface components {
             /** Substance Name */
             substance_name: string;
             /** Chemical Formula */
-            chemical_formula: string;
+            chemical_formula?: string | null;
             /** Cas Number */
             cas_number?: string | null;
             /** Supplier */
@@ -1586,6 +1598,8 @@ export interface components {
             }[] | null;
             /** Substrate Top Surface */
             substrate_top_surface?: string | null;
+            /** Gas Components */
+            gas_components?: components["schemas"]["GasCompositionComponentPayload"][] | null;
             /** Gas Purity Grade */
             gas_purity_grade?: ("4N" | "5N" | "6N" | "industrial_grade") | null;
             /** Gas Cylinder Number */

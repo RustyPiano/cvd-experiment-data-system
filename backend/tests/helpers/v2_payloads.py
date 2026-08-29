@@ -136,16 +136,14 @@ def gas_lot_payload(
     *,
     batch_number: str = "GAS-B01",
     substance_name: str = "Ar",
-    chemical_formula: str = "Ar",
+    chemical_formula: str | None = None,
     **overrides: Any,
 ) -> dict[str, Any]:
     payload = {
         "lot_category": "gas_cylinder",
         "substance_name": substance_name,
-        "chemical_formula": chemical_formula,
-        "cas_number": "TEST-CAS",
         "batch_number": batch_number,
-        "purity": 99.999,
+        "gas_components": [{"species": chemical_formula or substance_name, "volume_percent": 100}],
         "gas_purity_grade": "industrial_grade",
     }
     payload.update(overrides)
@@ -171,11 +169,7 @@ def substrate_item(
         "material": material,
         "lot_ref": lot_reference(lot),
         "chemical_formula": chemical_formula,
-        "orientation_polish_availability": "reported",
         "crystal_orientation": "c-plane",
-        "miscut_availability": "reported",
-        "miscut_angle_deg": 0.0,
-        "surface_roughness": {"metric": "RMS", "value_nm": 0.5},
         "size_placement": {
             "length_mm": 10.0,
             "width_mm": 10.0,

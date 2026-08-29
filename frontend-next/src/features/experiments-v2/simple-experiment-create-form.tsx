@@ -201,13 +201,12 @@ export function SimpleExperimentCreateForm() {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="new-experiment-temperature">
-              {t('experimentsV2.new.temperature')} <RequiredMark />
+              {t('experimentsV2.new.temperature')}
             </Label>
             <Input
               id="new-experiment-temperature"
               type="number"
               step="any"
-              required
               value={ambientTemperature}
               onChange={(event) => setAmbientTemperature(event.target.value)}
             />
@@ -215,7 +214,7 @@ export function SimpleExperimentCreateForm() {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="new-experiment-humidity">
-              {t('experimentsV2.new.humidity')} <RequiredMark />
+              {t('experimentsV2.new.humidity')}
             </Label>
             <Input
               id="new-experiment-humidity"
@@ -223,7 +222,6 @@ export function SimpleExperimentCreateForm() {
               min="0"
               max="100"
               step="any"
-              required
               value={ambientHumidity}
               onChange={(event) => setAmbientHumidity(event.target.value)}
             />

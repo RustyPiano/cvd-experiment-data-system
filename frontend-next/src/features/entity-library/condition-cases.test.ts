@@ -5,7 +5,6 @@ import type {
   FieldCondition,
   FieldMetadata,
 } from '@/shared/generated/field-metadata'
-import { isConditionSatisfied } from '@/features/experiments-v2/field-logic'
 import { isFieldVisible, matchesCondition } from './field-logic'
 
 interface ConditionCase {
@@ -49,9 +48,6 @@ describe('shared condition cases', () => {
           helpZh: null,
           helpEn: null,
         } satisfies FieldMetadata
-        expect(
-          isConditionSatisfied(testCase.condition, {}, 'target_product'),
-        ).toBe(false)
         expect(isFieldVisible('material_lot', field, {})).toBe(false)
         return
       }

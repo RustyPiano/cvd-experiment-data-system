@@ -2,43 +2,120 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from math import isfinite
 from typing import Any
 
-from app.services.v2_field_source import missing
+from app.services.v2_field_source import (
+    canonical_gas_species,
+    canonical_option_value,
+    load_field_source,
+    missing,
+)
 
-_GAS_NAMES = {
-    "Ar": ("ar", "argon", "氩", "氩气"),
-    "N2": ("n2", "nitrogen", "氮", "氮气"),
-    "H2": ("h2", "hydrogen", "氢", "氢气"),
-    "O2": ("o2", "oxygen", "氧", "氧气"),
-    "CH4": ("ch4", "methane", "甲烷", "甲烷气"),
-}
+
+def normalize_gas_components(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        raise ValueError("gas components must be a non-empty list")
+    normalized: list[dict[str, Any]] = []
+    identities: set[tuple[str, str]] = set()
+    total = 0.0
+    for item in value:
+        if not isinstance(item, dict) or set(item) - {
+            "species",
+            "other_name",
+            "volume_percent",
+        }:
+            raise ValueError("invalid gas component")
+        raw_species = str(canonical_option_value(item.get("species"))).strip()
+        species = "other" if raw_species == "other" else canonical_gas_species(raw_species)
+        other_name = str(item.get("other_name") or "").strip()
+        if (species == "other") != bool(other_name):
+            raise ValueError("other gas components require other_name")
+        volume_percent = item.get("volume_percent")
+        if (
+            isinstance(volume_percent, bool)
+            or not isinstance(volume_percent, int | float)
+            or not isfinite(volume_percent)
+            or not 0 < volume_percent <= 100
+        ):
+            raise ValueError("invalid gas component volume percent")
+        identity = (species, other_name.casefold() if species == "other" else "")
+        if identity in identities:
+            raise ValueError("gas components must be unique")
+        identities.add(identity)
+        component: dict[str, Any] = {
+            "species": species,
+            "volume_percent": float(volume_percent),
+        }
+        if other_name:
+            component["other_name"] = other_name
+        normalized.append(component)
+        total += float(volume_percent)
+    if abs(total - 100.0) > 0.010000001:
+        raise ValueError("gas component volume percents must sum to 100")
+    return normalized
+
+
+def frozen_gas_components(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_components = _snapshot_value(snapshot, "gas_components")
+    if raw_components is not None:
+        try:
+            return normalize_gas_components(raw_components)
+        except ValueError:
+            return []
+    for species in load_field_source()["gas_species"]:
+        if gas_identity_matches(species, None, snapshot):
+            return [{"species": species, "volume_percent": 100.0}]
+    other_name = str(
+        _snapshot_value(snapshot, "substance_name")
+        or _snapshot_value(snapshot, "chemical_formula")
+        or ""
+    ).strip()
+    return (
+        [{"species": "other", "other_name": other_name, "volume_percent": 100.0}]
+        if other_name
+        else []
+    )
 
 
 def valid_frozen_gas_reference(item: dict[str, Any]) -> bool:
-    reference = item.get("lot_ref")
+    reference = item.get("lot_ref") if isinstance(item.get("lot_ref"), dict) else item
     if not isinstance(reference, dict):
         return False
     snapshot = reference.get("snapshot")
     if not isinstance(snapshot, dict):
         return False
-    return (
-        _snapshot_value(snapshot, "lot_category") == "gas_cylinder"
-        and str(_snapshot_value(snapshot, "entity_id") or "")
-        == str(reference.get("entity_id") or "")
-        and _snapshot_value(snapshot, "version") == reference.get("version")
-        and all(
-            not missing(_snapshot_value(snapshot, key))
-            for key in ("substance_name", "chemical_formula", "batch_number")
+    entity_id = reference.get("entity_id", reference.get("material_lot_id"))
+    version = reference.get("version", reference.get("material_lot_version"))
+    if (
+        _snapshot_value(snapshot, "lot_category") != "gas_cylinder"
+        or str(_snapshot_value(snapshot, "entity_id") or "") != str(entity_id or "")
+        or _snapshot_value(snapshot, "version") != version
+        or any(
+            missing(_snapshot_value(snapshot, key)) for key in ("substance_name", "batch_number")
         )
-        and not missing(
-            _snapshot_value(snapshot, "gas_purity_grade") or _snapshot_value(snapshot, "purity")
+    ):
+        return False
+    components = frozen_gas_components(snapshot)
+    if not components:
+        return False
+    if missing(item.get("species")):
+        return True
+    if _snapshot_value(snapshot, "gas_components") is None:
+        return gas_identity_matches(item.get("species"), item.get("other_name"), snapshot)
+    if len(components) != 1:
+        return False
+    component = components[0]
+    requested_species = str(canonical_option_value(item.get("species"))).strip()
+    try:
+        requested_species = (
+            "other" if requested_species == "other" else canonical_gas_species(requested_species)
         )
-        and gas_identity_matches(
-            item.get("species"),
-            item.get("other_name"),
-            snapshot,
-        )
+    except ValueError:
+        return False
+    return requested_species == component["species"] and (
+        requested_species != "other"
+        or _identity(item.get("other_name")) == _identity(component.get("other_name"))
     )
 
 
@@ -46,12 +123,17 @@ def gas_identity_matches(species: Any, other_name: Any, snapshot: dict[str, Any]
     species_text = str(species or "").strip()
     formula = _identity(_snapshot_value(snapshot, "chemical_formula"))
     substance_name = _identity(_snapshot_value(snapshot, "substance_name"))
-    if species_text in _GAS_NAMES:
-        accepted = tuple(_identity(value) for value in _GAS_NAMES[species_text])
-        return formula == _identity(species_text) and _matches_name(substance_name, accepted)
-    if species_text != "other" or not (other_identity := _identity(other_name)):
+    if species_text == "other":
+        if not (other_identity := _identity(other_name)):
+            return False
+        return formula == other_identity or _matches_name(substance_name, (other_identity,))
+    try:
+        canonical = canonical_gas_species(species_text)
+    except ValueError:
         return False
-    return formula == other_identity or _matches_name(substance_name, (other_identity,))
+    aliases = load_field_source()["gas_species"][canonical]["aliases"]
+    accepted = tuple(_identity(value) for value in aliases)
+    return formula == _identity(canonical) or _matches_name(substance_name, accepted)
 
 
 def process_duration_violations(payload_json: dict[str, Any]) -> list[str]:

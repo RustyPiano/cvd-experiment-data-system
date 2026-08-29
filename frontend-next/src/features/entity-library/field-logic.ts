@@ -87,7 +87,7 @@ export const SYSTEM_FIELD_KEYS = new Set([
   'coordinate_system',
   'component_bindings',
 ])
-const JSON_ARRAY_FIELD_KEYS = new Set(['temperature_sensors'])
+const JSON_ARRAY_FIELD_KEYS = new Set(['temperature_sensors', 'gas_components'])
 
 export function isEntityJsonArrayField(fieldKey: string): boolean {
   return JSON_ARRAY_FIELD_KEYS.has(fieldKey)
@@ -269,6 +269,13 @@ export function isFieldVisible(
   if (condition) {
     const refKey = resolveConditionKey(kind, condition.field)
     if (!refKey || !matchesCondition(condition, values[refKey])) return false
+  }
+  if (
+    kind === 'material_lot' &&
+    canonicalOption(String(values['lot_category'] ?? '')) === 'gas_cylinder' &&
+    field.key === 'chemical_formula'
+  ) {
+    return false
   }
   if (
     kind === 'material_lot' &&

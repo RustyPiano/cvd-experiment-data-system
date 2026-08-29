@@ -19,7 +19,7 @@ def test_condition_cases(case: dict) -> None:
             field
             for section in doc["experiment_record"]["sections"]
             for field in section["fields"]
-            if field["key"] == "components"
+            if field.get("requirement", {}).get("condition")
         )
         local_key = condition_local_key(field, condition, doc)
         assert local_key is None

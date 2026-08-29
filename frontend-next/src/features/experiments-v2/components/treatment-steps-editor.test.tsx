@@ -28,6 +28,9 @@ const labels: TreatmentStepsEditorLabels = {
   parameterValue: 'Parameter value',
   parameterUnit: 'Parameter unit',
   removeParameter: 'Remove parameter',
+  addSpinStage: 'Add spin stage',
+  spinStage: (position) => `Spin stage ${position}`,
+  removeSpinStage: 'Remove spin stage',
   selectAtmosphere: 'Select atmosphere',
   noAtmosphere: 'Not provided',
   otherAtmosphereName: 'Other atmosphere name',
@@ -133,7 +136,9 @@ describe('TreatmentStepsEditor', () => {
       },
       {
         type: 'spin_coat',
-        parameters: { speed_rpm: 3000, duration_s: 60 },
+        parameters: {
+          stages: [{ speed_rpm: 3000, duration_s: 60 }],
+        },
       },
     ])
     expect(topRows(container).map((row) => row.dataset.rowId)).toEqual([
@@ -243,5 +248,38 @@ describe('TreatmentStepsEditor', () => {
 
     expect(screen.getByText('Enter a valid value')).toBeInTheDocument()
     expect(screen.queryByText('This field is required')).not.toBeInTheDocument()
+  })
+
+  it('normalizes a legacy spin coat and stores ordered stages', async () => {
+    const user = userEvent.setup()
+    render(
+      <Wrapper
+        kind="source_load"
+        initial={[
+          {
+            type: 'spin_coat',
+            parameters: { speed_rpm: 1000, duration_s: 10 },
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByLabelText(/^Speed \(rpm\)/)).toHaveValue(1000)
+    await user.click(screen.getByRole('button', { name: 'Add spin stage' }))
+    const speeds = screen.getAllByLabelText(/^Speed \(rpm\)/)
+    const durations = screen.getAllByLabelText(/^Duration \(s\)/)
+    await user.type(speeds[1], '6000')
+    await user.type(durations[1], '30')
+
+    const value = JSON.parse(
+      screen.getByTestId('value').textContent ?? '',
+    ) as TreatmentStep[]
+    expect(value[0].parameters).toEqual({
+      stages: [
+        { speed_rpm: 1000, duration_s: 10 },
+        { speed_rpm: 6000, duration_s: 30 },
+      ],
+    })
+    expect(treatmentStepsAreValid('source_load', value)).toBe(true)
   })
 })

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { WORKFLOW_STEPS } from './scientific-experiment-form'
+
 import {
+  channelsForSetupZoneCount,
   materialAssertionValue,
   peakTemperatureC,
   processChannelTitle,
@@ -14,15 +17,35 @@ import {
 } from './scientific-form-workflow'
 
 describe('scientific experiment workflow helpers', () => {
+  it('drops only temperature channels outside a replacement setup', () => {
+    expect(
+      channelsForSetupZoneCount(
+        [
+          { channel_type: 'temperature', zone_index: 1, key: 'zone-1' },
+          { channel_type: 'temperature', zone_index: 2, key: 'zone-2' },
+          { channel_type: 'flow', key: 'gas' },
+        ],
+        1,
+      ).map((channel) => channel.key),
+    ).toEqual(['zone-1', 'gas'])
+  })
+
   it('keeps the two tube-usage fields deterministic', () => {
     expect(tubeUsageParts(' 2, 7 ')).toEqual(['2', '7'])
+    expect(
+      tubeUsageParts(
+        JSON.stringify({ reset_count: 0, use_number_since_reset: 1 }),
+      ),
+    ).toEqual(['0', '1'])
     expect(tubeUsagePartsValidity('0,1')).toEqual([true, true])
     expect(tubeUsagePartsValidity(',')).toEqual([false, false])
     expect(tubeUsagePartsValidity('1.5,0')).toEqual([false, false])
   })
 
   it('does not treat an empty scientific timeline as completed', () => {
-    expect(timelineValidationIssue([], [])).toBe('请至少添加一个实验阶段。')
+    expect(timelineValidationIssue([], [])).toBe(
+      '请至少添加一项温度、气体、压力或设备条件。',
+    )
   })
 
   it('validates a user-entered gas-flow condition without machine wording', () => {
@@ -38,12 +61,7 @@ describe('scientific experiment workflow helpers', () => {
       scalar_value: 100,
     }
     expect(processChannelTitle(channel)).toBe('Ar 流量')
-    expect(
-      timelineValidationIssue(
-        [{ segment_type: 'reaction', start_s: 0, end_s: 1800 }],
-        [channel],
-      ),
-    ).toBeNull()
+    expect(timelineValidationIssue([], [channel])).toBeNull()
   })
 
   it('allows setpoint and measured values for the same temperature zone', () => {
@@ -353,5 +371,18 @@ describe('scientific experiment workflow helpers', () => {
     expect(materialAssertionValue('layer_count', '1', [], '')).toEqual({
       count: 1,
     })
+  })
+})
+
+describe('scientific experiment form steps', () => {
+  it('collects substrates before precursor surface bindings', () => {
+    expect(WORKFLOW_STEPS).toEqual([
+      '基本信息',
+      '目标材料',
+      '装置与衬底',
+      '前驱体装载',
+      '生长条件',
+      '检查并提交',
+    ])
   })
 })

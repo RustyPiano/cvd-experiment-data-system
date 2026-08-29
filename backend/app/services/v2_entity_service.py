@@ -54,6 +54,7 @@ from app.services.v2_field_source import (
     validate_chemical_formula,
     validate_material_formula,
 )
+from app.services.v2_process_semantics import normalize_gas_components
 
 
 @dataclass(frozen=True)
@@ -270,7 +271,7 @@ class V2EntityService:
                 data[key] = canonical_option_value(value, self.doc, field_key=key)
                 value = data[key]
                 if "其他" not in input_type:
-                    allowed_values = field_option_values(key, self.doc)
+                    allowed_values = field_option_values(key, self.doc, field=field)
                     candidates = value if isinstance(value, list) else [value]
                     if any(candidate not in allowed_values for candidate in candidates):
                         raise HTTPException(
@@ -371,7 +372,7 @@ class V2EntityService:
         self._validate_normalized_children(kind, data)
         if kind == "material_lot":
             self._bind_material_identity(entity_id, data)
-        column_values = {key: data[key] for key in config.columns}
+        column_values = {key: data.get(key) for key in config.columns}
         attrs = {key: value for key, value in data.items() if key not in config.columns}
         return config.version_model(
             entity_id=entity_id,
@@ -382,6 +383,14 @@ class V2EntityService:
 
     def _validate_normalized_children(self, kind: str, data: dict[str, Any]) -> None:
         if kind == "material_lot":
+            if data.get("lot_category") == "gas_cylinder":
+                try:
+                    data["gas_components"] = normalize_gas_components(data.get("gas_components"))
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        detail={"invalid": [{"key": "gas_components", "reason": "value"}]},
+                    ) from exc
             layers = data.get("substrate_stack_layers") or []
             if layers and not data.get("substrate_top_surface"):
                 self._raise_invalid("substrate_top_surface", "required")
@@ -447,11 +456,19 @@ class V2EntityService:
         if entity is None:
             raise RuntimeError("material lot root missing")
         name = str(data["substance_name"]).strip()
-        formula = str(data["chemical_formula"]).strip()
-        substance = self.db.scalar(
-            select(Substance).where(
-                Substance.canonical_name == name,
-                Substance.chemical_formula == formula,
+        raw_formula = data.get("chemical_formula")
+        formula = str(raw_formula).strip() if raw_formula is not None else None
+        formula = formula or None
+        substance = (
+            self.db.get(Substance, entity.substance_id)
+            if data.get("lot_category") == "gas_cylinder"
+            and formula is None
+            and entity.substance_id is not None
+            else self.db.scalar(
+                select(Substance).where(
+                    Substance.canonical_name == name,
+                    Substance.chemical_formula == formula,
+                )
             )
         )
         if substance is None:
@@ -553,7 +570,9 @@ class V2EntityService:
         field: dict[str, Any],
     ) -> dict[str, Any]:
         free_text_option = input_type == "文本+数值"
-        allowed_options = set() if free_text_option else field_option_values(key, self.doc)
+        allowed_options = (
+            set() if free_text_option else field_option_values(key, self.doc, field=field)
+        )
         if isinstance(raw, dict):
             if set(raw) - {"value", "option"}:
                 self._raise_invalid(key, "value")
@@ -713,22 +732,38 @@ class V2EntityService:
                 detail={"invalid": [{"key": key, "reason": "value"}]},
             ) from exc
         asset = self.files.get_by_id_for_update(file_id)
+        unbound = (
+            all(
+                value is None
+                for value in (asset.entity_type, asset.entity_id, asset.entity_version)
+            )
+            if asset is not None
+            else False
+        )
+        same_entity = (
+            asset is not None
+            and asset.entity_type == kind
+            and asset.entity_id == entity_id
+            and asset.entity_version is not None
+        )
         if (
             asset is None
             or asset.deleted_at is not None
             or str(raw.get("sha256") or "") != asset.sha256
             or asset.experiment_run_id is not None
             or asset.asset_role != ENTITY_ASSET_ROLE
-            or any(
-                value is not None
-                for value in (asset.entity_type, asset.entity_id, asset.entity_version)
+            or not (unbound or same_entity)
+            or (
+                unbound
+                and current_user.role != UserRole.ADMIN
+                and asset.uploaded_by_id != current_user.id
             )
-            or (current_user.role != UserRole.ADMIN and asset.uploaded_by_id != current_user.id)
         ):
             self._raise_invalid(key, "reference")
-        asset.entity_type = kind
-        asset.entity_id = entity_id
-        asset.entity_version = version_number
+        if unbound:
+            asset.entity_type = kind
+            asset.entity_id = entity_id
+            asset.entity_version = version_number
         snapshot: dict[str, Any] = {
             "file_asset_id": str(asset.id),
             "sha256": asset.sha256,

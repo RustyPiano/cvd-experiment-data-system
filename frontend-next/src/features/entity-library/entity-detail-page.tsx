@@ -45,6 +45,10 @@ import { isEntityFileInput } from '@/shared/entity-file-reference'
 import { EntityFileDisplay } from './entity-file-control'
 import { isStructuredInput } from '@/shared/structured-field'
 import { buildStructuredValueLabels } from '@/shared/structured-editor-labels'
+import { gasCompositionSummary } from './gas-composition-editor'
+import type { GasCompositionComponent } from './gas-composition-editor'
+import { gasSpecies } from '@/shared/generated/field-metadata'
+import { gasCylinderMatchesSpecies } from '@/features/experiments-v2/components/reference-snapshot'
 
 export function EntityDetailPage({
   kind,
@@ -242,9 +246,24 @@ export function EntityDetailPage({
                 )
                 .map((field) => {
                   const raw = activeData[field.key]
-                  const value = isStructuredInput(field.input)
-                    ? localizedNamedValue(raw, i18n.language, structuredLabels)
-                    : localizedValue(raw, i18n.language)
+                  const legacyGasSpecies =
+                    field.key === 'gas_components' && !Array.isArray(raw)
+                      ? Object.keys(gasSpecies).find((species) =>
+                          gasCylinderMatchesSpecies(activeData, species),
+                        )
+                      : undefined
+                  const value =
+                    field.key === 'gas_components' && Array.isArray(raw)
+                      ? gasCompositionSummary(raw as GasCompositionComponent[])
+                      : legacyGasSpecies
+                        ? `${gasCompositionSummary([{ species: legacyGasSpecies, volume_percent: 100 }])} ${t('entityLibrary.gasComposition.legacyDerived')}`
+                        : isStructuredInput(field.input)
+                          ? localizedNamedValue(
+                              raw,
+                              i18n.language,
+                              structuredLabels,
+                            )
+                          : localizedValue(raw, i18n.language)
                   const label =
                     kind === 'setup'
                       ? localizedSetupFieldLabel(

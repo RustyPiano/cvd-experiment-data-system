@@ -70,7 +70,11 @@ const labels: GasFeedsEditorLabels = {
     N2: 'Nitrogen',
     H2: 'Hydrogen',
     O2: 'Oxygen',
+    He: 'Helium',
     CH4: 'Methane',
+    H2S: 'Hydrogen sulfide',
+    NH3: 'Ammonia',
+    CO2: 'Carbon dioxide',
     other: 'Other gas',
   },
   otherGasName: 'Other gas name',
@@ -129,6 +133,7 @@ const argon: GasFeed = {
     version: 1,
     snapshot: {
       lot_category: 'gas_cylinder',
+      substance_name: 'Argon',
       chemical_formula: 'Ar',
       purity: 99.999,
     },
@@ -144,6 +149,7 @@ const hydrogen: GasFeed = {
     version: 2,
     snapshot: {
       lot_category: 'gas_cylinder',
+      substance_name: 'Hydrogen',
       chemical_formula: 'H2',
       gas_purity_grade: '5N',
     },
@@ -153,6 +159,30 @@ const hydrogen: GasFeed = {
 }
 
 describe('GasFeedsEditor', () => {
+  it('accepts one-component cylinders and rejects premixed cylinders for a single-gas flow', () => {
+    expect(
+      materialLotMatchesGas(
+        {
+          lot_category: 'gas_cylinder',
+          gas_components: [{ species: 'CO2', volume_percent: 100 }],
+        },
+        'CO2',
+      ),
+    ).toBe(true)
+    expect(
+      materialLotMatchesGas(
+        {
+          lot_category: 'gas_cylinder',
+          gas_components: [
+            { species: 'H2', volume_percent: 5 },
+            { species: 'Ar', volume_percent: 95 },
+          ],
+        },
+        'H2',
+      ),
+    ).toBe(false)
+  })
+
   it('captures a gas, frozen lot snapshot and one or more typed intervals', async () => {
     const user = userEvent.setup()
     render(<Wrapper />)

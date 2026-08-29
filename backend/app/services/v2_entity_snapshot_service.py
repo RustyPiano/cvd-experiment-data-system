@@ -10,13 +10,8 @@ MATERIAL_LOT_PROJECTED_FIELDS = {
     "substrates": (
         "material",
         "chemical_formula",
-        "orientation_polish_availability",
         "crystal_orientation",
         "oxide_thickness_nm",
-        "miscut_availability",
-        "miscut_angle_deg",
-        "miscut_direction",
-        "surface_roughness",
     ),
 }
 
@@ -39,35 +34,19 @@ def material_lot_item_projection(module_key: str, snapshot: dict) -> dict:
         return {}
 
     orientation = _material_lot_snapshot_value(snapshot, "substrate_orientation_polish")
-    orientation_availability = _material_lot_snapshot_value(
-        snapshot, "substrate_orientation_polish_availability"
-    )
-    if not _present_snapshot_value(orientation_availability) and _present_snapshot_value(
-        orientation
-    ):
-        orientation_availability = "reported"
     if isinstance(orientation, dict):
         orientation = "；".join(
             str(value).strip()
             for key in ("value", "option")
             if _present_snapshot_value(value := orientation.get(key))
         )
-    miscut_angle = _material_lot_snapshot_value(snapshot, "substrate_miscut_angle_deg")
-    miscut_availability = _material_lot_snapshot_value(snapshot, "substrate_miscut_availability")
-    if not _present_snapshot_value(miscut_availability) and _present_snapshot_value(miscut_angle):
-        miscut_availability = "reported"
     candidates = {
         "material": _material_lot_snapshot_value(snapshot, "substrate_material"),
         "chemical_formula": _material_lot_snapshot_value(snapshot, "chemical_formula"),
-        "orientation_polish_availability": orientation_availability,
         "crystal_orientation": orientation,
         "oxide_thickness_nm": _material_lot_snapshot_value(
             snapshot, "substrate_oxide_thickness_nm"
         ),
-        "miscut_availability": miscut_availability,
-        "miscut_angle_deg": miscut_angle,
-        "miscut_direction": _material_lot_snapshot_value(snapshot, "substrate_miscut_direction"),
-        "surface_roughness": _material_lot_snapshot_value(snapshot, "substrate_surface_roughness"),
     }
     return {key: value for key, value in candidates.items() if _present_snapshot_value(value)}
 

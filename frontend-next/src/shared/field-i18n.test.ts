@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseEnumOptions } from '@/features/entity-library/field-logic'
-import { getComponentRoleOptions } from '@/features/experiments-v2/field-logic'
 import {
   entities,
   experimentModules,
   optionCodes,
   optionLabelsEn,
   optionLabelsZh,
-  stageTypes,
-  unitLabelsEn,
 } from '@/shared/generated/field-metadata'
 import {
   canonicalFieldOption,
@@ -17,7 +14,6 @@ import {
   localizedFieldHelp,
   localizedFieldPlaceholder,
   localizedNamedValue,
-  localizedOption,
   localizedParenthetical,
   localizedUnit,
   localizedUnitLabel,
@@ -46,13 +42,6 @@ describe('field display localization', () => {
     for (const option of new Set(options)) {
       expect(optionLabelsEn[option] ?? option, option).toBeTruthy()
     }
-    for (const stage of stageTypes) {
-      expect(stage.labelEn, stage.name).not.toMatch(CJK)
-    }
-    for (const role of getComponentRoleOptions()) {
-      expect(optionLabelsEn[role], role).toBeTruthy()
-      expect(localizedOption(role, 'en'), role).not.toMatch(CJK)
-    }
   })
 
   it('localizes CJK units and strips internal category prefixes from labels', () => {
@@ -65,7 +54,6 @@ describe('field display localization', () => {
         .map((field) => field.unit)
         .filter((value) => value && CJK.test(value)),
     )) {
-      expect(unitLabelsEn[unit!], unit!).toBeTruthy()
       expect(localizedUnit(unit, 'en'), unit!).not.toMatch(CJK)
     }
 

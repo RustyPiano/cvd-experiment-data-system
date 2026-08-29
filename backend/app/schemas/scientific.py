@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
@@ -348,9 +349,31 @@ class OptionalDurationPreparationParametersPayload(PreparationParametersPayload)
     duration_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
 
-class SpinCoatPreparationParametersPayload(PreparationParametersPayload):
+class SpinCoatStagePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     speed_rpm: float = Field(gt=0, allow_inf_nan=False)
     duration_s: float = Field(gt=0, allow_inf_nan=False)
+
+
+class SpinCoatPreparationParametersPayload(PreparationParametersPayload):
+    stages: list[SpinCoatStagePayload] = Field(min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_scalar_stage(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "stages" in value:
+            return value
+        if "speed_rpm" not in value and "duration_s" not in value:
+            return value
+        normalized = dict(value)
+        normalized["stages"] = [
+            {
+                "speed_rpm": normalized.pop("speed_rpm", None),
+                "duration_s": normalized.pop("duration_s", None),
+            }
+        ]
+        return normalized
 
 
 class PelletizePreparationParametersPayload(PreparationParametersPayload):
@@ -469,21 +492,58 @@ class SourceIngredientPayload(BaseModel):
 
     material_lot_id: UUID
     material_lot_version: int = Field(ge=1)
-    function_role: Literal[
-        "metal_source",
-        "chalcogen_source",
-        "carbon_source",
-        "dopant_source",
-        "promoter",
-        "transport_agent",
-        "etchant",
-        "reducing_agent",
-        "oxidizing_agent",
-        "carrier_gas",
-        "other",
-    ]
-    amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    unit: str | None = Field(default=None, max_length=32)
+    function_role: (
+        Literal[
+            "metal_source",
+            "chalcogen_source",
+            "carbon_source",
+            "dopant_source",
+            "promoter",
+            "transport_agent",
+            "etchant",
+            "reducing_agent",
+            "oxidizing_agent",
+            "carrier_gas",
+            "other",
+        ]
+        | None
+    ) = None
+    process_roles: list[
+        Literal[
+            "reaction_or_nucleation_promoter",
+            "flux_or_salt_assistant",
+            "transport_agent",
+            "solvent_or_dispersion_medium",
+            "reducing_agent",
+            "oxidizing_agent",
+            "etchant",
+            "other",
+        ]
+    ] = Field(default_factory=list)
+    process_role_other: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=r"\S"
+    )
+    amount: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    unit: str | None = Field(default=None, min_length=1, max_length=32, pattern=r"\S")
+    concentration_value: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    concentration_unit: (
+        Literal[
+            "mol_per_L",
+            "mmol_per_L",
+            "g_per_L",
+            "mg_per_mL",
+            "wt_percent",
+            "vol_percent",
+            "other",
+        ]
+        | None
+    ) = None
+    concentration_unit_other: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=32,
+        pattern=r"\S",
+    )
     composition_basis: str | None = Field(default=None, max_length=64)
     uncertainty: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     attrs: dict[str, Any] = Field(default_factory=dict)
@@ -492,6 +552,14 @@ class SourceIngredientPayload(BaseModel):
     def validate_quantity(self) -> Self:
         if (self.amount is None) != (self.unit is None):
             raise ValueError("amount and unit must be provided together")
+        if len(self.process_roles) != len(set(self.process_roles)):
+            raise ValueError("process_roles must be unique")
+        if ("other" in self.process_roles) != (self.process_role_other is not None):
+            raise ValueError("process_role_other is required only for the other process role")
+        if (self.concentration_value is None) != (self.concentration_unit is None):
+            raise ValueError("concentration value and unit must be provided together")
+        if (self.concentration_unit == "other") != (self.concentration_unit_other is not None):
+            raise ValueError("concentration_unit_other is required only for the other unit")
         return self
 
 
@@ -516,6 +584,7 @@ class SourceLoadPayload(BaseModel):
         max_length=64,
         pattern=r"^zone_[1-9][0-9]*$",
     )
+    substrate_source_ids: list[UUID] = Field(default_factory=list)
     ingredients: list[SourceIngredientPayload] = Field(min_length=1)
     attrs: dict[str, Any] = Field(default_factory=dict)
 
@@ -524,6 +593,36 @@ class SourceLoadPayload(BaseModel):
         if len({item.material_lot_id for item in self.ingredients}) != len(self.ingredients):
             raise ValueError("a material lot may appear only once in one source load")
         positions = [self.initial_position, *self.position_program]
+        legacy = any(ingredient.function_role is not None for ingredient in self.ingredients)
+        if self.loading_method != "gas_line" and any(
+            ingredient.amount is None and ingredient.function_role is None
+            for ingredient in self.ingredients
+        ):
+            raise ValueError("non-gas source loads require ingredient amount and unit")
+        if self.loading_method == "substrate_surface" and not legacy:
+            if not self.substrate_source_ids:
+                raise ValueError("substrate surface loads require substrate_source_ids")
+            if self.initial_position or self.position_program or self.heating_zone_ref:
+                raise ValueError("substrate surface loads inherit the substrate position")
+        elif self.substrate_source_ids:
+            raise ValueError("substrate_source_ids apply only to substrate surface loads")
+        if len(self.substrate_source_ids) != len(set(self.substrate_source_ids)):
+            raise ValueError("substrate_source_ids must be unique")
+        if (
+            not legacy
+            and self.loading_method in {"boat", "crucible", "other"}
+            and (
+                self.initial_position is None
+                or self.initial_position.reference != "zone_thermocouple"
+                or not self.heating_zone_ref
+            )
+        ):
+            raise ValueError("independent source loads require a heating zone position")
+        has_spin_coat = any(step.step_type == "spin_coat" for step in self.preparation_steps)
+        if not has_spin_coat and any(
+            ingredient.concentration_value is not None for ingredient in self.ingredients
+        ):
+            raise ValueError("concentration applies only to source loads with spin coating")
         if (
             any(
                 position is not None and position.reference == "zone_thermocouple"
@@ -552,6 +651,28 @@ class SourceLoadsPayload(BaseModel):
         if len(keys) != len(set(keys)):
             raise ValueError("source load keys must be unique")
         return self
+
+
+def normalize_source_loads_for_read(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize legacy spin scalars without revalidating immutable historical payloads."""
+    normalized = deepcopy(payload)
+    for item in normalized.get("items") or []:
+        for step in item.get("preparation_steps") or []:
+            if step.get("step_type") != "spin_coat":
+                continue
+            parameters = step.get("parameters")
+            if not isinstance(parameters, dict) or "stages" in parameters:
+                continue
+            if "speed_rpm" in parameters or "duration_s" in parameters:
+                step["parameters"] = {
+                    "stages": [
+                        {
+                            "speed_rpm": parameters.get("speed_rpm"),
+                            "duration_s": parameters.get("duration_s"),
+                        }
+                    ]
+                }
+    return normalized
 
 
 class ProcessSegmentPayload(BaseModel):
@@ -736,22 +857,36 @@ class ProcessChannelPayload(BaseModel):
         return self
 
 
+class PreparationGasSourcePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    material_lot_id: UUID
+    material_lot_version: int = Field(ge=1)
+    snapshot: dict[str, Any] | None = None
+
+
 class PreparationOperationPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     operation_type: Literal["pump_down", "gas_exchange", "leak_check", "other"]
     duration_min: float = Field(gt=0, allow_inf_nan=False)
     cycle_count: int | None = Field(default=None, ge=1)
-    gases: list[str] = Field(default_factory=list)
+    gas_sources: list[PreparationGasSourcePayload] = Field(default_factory=list)
+    gases: list[str] | None = None
     other_name: str | None = Field(default=None, max_length=255)
 
     @model_validator(mode="after")
     def validate_operation(self) -> Self:
         if self.operation_type == "gas_exchange":
-            if self.cycle_count is None or not self.gases:
-                raise ValueError("gas exchange requires cycle_count and gases")
-        elif self.cycle_count is not None or self.gases:
-            raise ValueError("cycle_count and gases are only valid for gas exchange")
+            if self.cycle_count is None or not (self.gas_sources or self.gases):
+                raise ValueError("gas exchange requires cycle_count and a gas source")
+            if self.gas_sources and self.gases:
+                raise ValueError("gas_sources and legacy gases are mutually exclusive")
+            source_ids = [item.material_lot_id for item in self.gas_sources]
+            if len(source_ids) != len(set(source_ids)):
+                raise ValueError("gas exchange sources must be unique")
+        elif self.cycle_count is not None or self.gas_sources or self.gases:
+            raise ValueError("cycle_count and gas sources are only valid for gas exchange")
         if (self.operation_type == "other") != bool((self.other_name or "").strip()):
             raise ValueError("other preparation operation requires other_name")
         return self

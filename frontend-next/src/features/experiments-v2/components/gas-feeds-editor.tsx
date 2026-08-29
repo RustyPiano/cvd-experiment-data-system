@@ -21,14 +21,17 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { V2EntityRead } from '@/features/entity-library/api'
-import { canonicalOption } from '@/shared/field-i18n'
+import { gasSpecies as generatedGasSpecies } from '@/shared/generated/field-metadata'
 import { EntityReferenceSelect } from './entity-reference-select'
-import { snapshotValue } from './reference-snapshot'
+import { gasCylinderMatchesSpecies, snapshotValue } from './reference-snapshot'
 
-export const gasSpecies = ['Ar', 'N2', 'H2', 'O2', 'CH4', 'other'] as const
+export type GasSpecies = keyof typeof generatedGasSpecies | 'other'
+export const gasSpecies: GasSpecies[] = [
+  ...Object.keys(generatedGasSpecies),
+  'other',
+]
 export const gasMeasurementSources = ['mfc', 'rotameter', 'other'] as const
 
-export type GasSpecies = (typeof gasSpecies)[number]
 export type GasMeasurementSource = (typeof gasMeasurementSources)[number]
 
 export interface MaterialLotReference {
@@ -260,14 +263,6 @@ export function snapshotPurity(
   return values.length > 0 ? values.join(' · ') : null
 }
 
-const gasAliases: Record<Exclude<GasSpecies, 'other'>, readonly string[]> = {
-  Ar: ['ar', 'argon', '氩', '氩气'],
-  N2: ['n2', 'nitrogen', '氮', '氮气'],
-  H2: ['h2', 'hydrogen', '氢', '氢气'],
-  O2: ['o2', 'oxygen', '氧', '氧气'],
-  CH4: ['ch4', 'methane', '甲烷'],
-}
-
 function normalizedGasIdentity(value: unknown): string {
   return String(value ?? '')
     .trim()
@@ -281,24 +276,7 @@ export function materialLotMatchesGas(
   species: GasSpecies | '',
   otherName?: string | null,
 ): boolean {
-  if (
-    canonicalOption(String(snapshotValue(snapshot, 'lot_category') ?? '')) !==
-    'gas_cylinder'
-  ) {
-    return false
-  }
-  if (!species) return true
-  const identities = ['chemical_formula', 'substance_name']
-    .map((key) => normalizedGasIdentity(snapshotValue(snapshot, key)))
-    .filter(Boolean)
-  const expected =
-    species === 'other'
-      ? [normalizedGasIdentity(otherName)]
-      : gasAliases[species]
-  return (
-    expected.some(Boolean) &&
-    identities.some((identity) => expected.includes(identity))
-  )
+  return gasCylinderMatchesSpecies(snapshot, species, otherName)
 }
 
 export function entityMatchesGas(
@@ -396,7 +374,7 @@ function GasFeedRow({
             value={feed.species}
             disabled={disabled}
             onValueChange={(species) => {
-              const nextSpecies = species as GasSpecies
+              const nextSpecies = species
               const nextOtherName =
                 species === 'other' ? (feed.other_name ?? '') : null
               onChange({
@@ -776,9 +754,8 @@ export function GasFeedsEditor({
                         const gas =
                           share.species === 'other'
                             ? share.other_name || labels.speciesOptions.other
-                            : labels.speciesOptions[
-                                share.species as GasSpecies
-                              ] || labels.feed(share.feed_index)
+                            : labels.speciesOptions[share.species] ||
+                              labels.feed(share.feed_index)
                         return `${gas}: ${formatGasNumber(share.flow_sccm)} sccm · ${formatGasNumber(share.percent)}%`
                       })
                       .join('; ')}

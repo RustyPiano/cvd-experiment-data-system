@@ -1,4 +1,5 @@
 import type { V2ExperimentCreate } from './api'
+import { gasCylinderMatchesSpecies } from './components/reference-snapshot'
 import { toIsoDateTime } from './datetime'
 
 export type SimpleExperimentCreateValues = {
@@ -19,9 +20,19 @@ export function simpleCreateIssue(
 ): 'startedAt' | 'performers' | 'temperature' | 'humidity' | null {
   if (Number.isNaN(new Date(values.startedAt).getTime())) return 'startedAt'
   if (values.performerIds.length === 0) return 'performers'
-  if (requiredNumber(values.ambientTemperature) === null) return 'temperature'
+  if (
+    values.ambientTemperature.trim() &&
+    requiredNumber(values.ambientTemperature) === null
+  ) {
+    return 'temperature'
+  }
   const humidity = requiredNumber(values.ambientHumidity)
-  if (humidity === null || humidity < 0 || humidity > 100) return 'humidity'
+  if (
+    values.ambientHumidity.trim() &&
+    (humidity === null || humidity < 0 || humidity > 100)
+  ) {
+    return 'humidity'
+  }
   return null
 }
 
@@ -29,20 +40,20 @@ export function buildSimpleCreatePayload(
   values: SimpleExperimentCreateValues,
 ): V2ExperimentCreate {
   const measuredAt = toIsoDateTime(values.startedAt)
+  const ambient = (value: string) =>
+    value.trim()
+      ? {
+          value: Number(value),
+          measured_at: measuredAt,
+          source_type: 'manual_entry' as const,
+        }
+      : { source_type: 'not_measured' as const }
   return {
     started_at: measuredAt,
     synthesis_method: 'CVD',
     performed_by_user_ids: values.performerIds,
-    ambient_temperature: {
-      value: Number(values.ambientTemperature),
-      measured_at: measuredAt,
-      source_type: 'manual_entry',
-    },
-    ambient_humidity: {
-      value: Number(values.ambientHumidity),
-      measured_at: measuredAt,
-      source_type: 'manual_entry',
-    },
+    ambient_temperature: ambient(values.ambientTemperature),
+    ambient_humidity: ambient(values.ambientHumidity),
     precheck_confirmed: false,
   }
 }
@@ -221,17 +232,47 @@ export function simpleProcessEndSeconds(
 }
 
 export function buildSimpleSourceLoadsPayload<
-  T extends { ingredients: Array<{ snapshot?: unknown }> },
+  T extends {
+    preparation_steps?: Array<{
+      step_type: string
+      parameters: Record<string, unknown>
+    }>
+    ingredients: Array<{
+      snapshot?: unknown
+      function_role?: unknown
+      process_roles?: string[]
+    }>
+  },
 >(loads: T[]) {
   return {
-    items: loads.map((load) => ({
-      ...load,
-      ingredients: load.ingredients.map((ingredient) => {
-        const payload = { ...ingredient }
-        delete payload.snapshot
-        return payload
-      }),
-    })),
+    items: loads.map((load) => {
+      const preparationSteps = load.preparation_steps?.map((step) =>
+        step.step_type === 'spin_coat' && !Array.isArray(step.parameters.stages)
+          ? {
+              ...step,
+              parameters: {
+                stages: [
+                  {
+                    speed_rpm: step.parameters.speed_rpm,
+                    duration_s: step.parameters.duration_s,
+                  },
+                ],
+              },
+            }
+          : step,
+      )
+      return {
+        ...load,
+        ...(preparationSteps ? { preparation_steps: preparationSteps } : {}),
+        ingredients: load.ingredients.map((ingredient) => {
+          const payload = { ...ingredient }
+          delete payload.snapshot
+          delete payload.function_role
+          payload.process_roles ??= []
+          return payload
+        }),
+      }
+    }),
   }
 }
 
@@ -243,6 +284,7 @@ export function simpleGrowthIssue(
     gas_species_code?: string
     gas_lot_id?: string
     gas_lot_version?: number
+    subject_snapshot?: Record<string, unknown>
     measurement_source?: string
     measurement_source_other?: string
     zone_index?: number
@@ -261,6 +303,10 @@ export function simpleGrowthIssue(
       operation_type: string
       duration_min: number
       cycle_count?: number
+      gas_sources?: Array<{
+        material_lot_id: string
+        material_lot_version?: number
+      }>
       gases?: string[]
       other_name?: string
     }>
@@ -280,9 +326,15 @@ export function simpleGrowthIssue(
       operation.operation_type === 'gas_exchange' &&
       (!operation.cycle_count ||
         operation.cycle_count < 1 ||
-        !operation.gases?.length)
+        !Number.isInteger(operation.cycle_count) ||
+        !operation.gas_sources?.length ||
+        operation.gas_sources.some(
+          (source) => !source.material_lot_id || !source.material_lot_version,
+        ) ||
+        new Set(operation.gas_sources.map((source) => source.material_lot_id))
+          .size !== operation.gas_sources.length)
     ) {
-      return '请填写置换气体和置换次数。'
+      return '请选择实际使用且不重复的气瓶批次，并填写置换次数。'
     }
     if (operation.operation_type === 'other' && !operation.other_name?.trim()) {
       return '请说明其他系统准备操作。'
@@ -315,6 +367,15 @@ export function simpleGrowthIssue(
       return '请选择实际使用的气瓶批次。'
     }
     if (
+      channel.subject_snapshot &&
+      !gasCylinderMatchesSpecies(
+        channel.subject_snapshot,
+        channel.gas_species_code,
+      )
+    ) {
+      return '所选气瓶批次与气体种类不匹配。'
+    }
+    if (
       !['mfc', 'rotameter', 'other'].includes(channel.measurement_source ?? '')
     ) {
       return '请选择气体流量的测量来源。'
@@ -340,6 +401,14 @@ export function simpleGrowthIssue(
       )
     ) {
       return '请填写有效的供气时间和大于 0 的流量。'
+    }
+    if (
+      channel.series.some(
+        (item, index) =>
+          index > 0 && item.start_s < channel.series![index - 1].start_s,
+      )
+    ) {
+      return '请按开始时间顺序填写供气区间。'
     }
     const ordered = [...channel.series].sort(
       (left, right) => left.start_s - right.start_s,

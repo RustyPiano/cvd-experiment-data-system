@@ -33,8 +33,8 @@ KNOWN_LEVELS = {
     "conditional_required",
     "conditional_recommended",
 }
-EXPECTED_FIELDS = 95
-EXPECTED_ENTITY_FIELDS = 57
+EXPECTED_FIELDS = 119
+EXPECTED_ENTITY_FIELDS = 58
 EXPECTED_R0 = 27
 
 errors: list[str] = []
@@ -213,6 +213,9 @@ for part, scope_of in (
                 "item_required",
                 "finite_value",
                 "option_ranges",
+                "sum",
+                "tolerance",
+                "unique_by",
             }
             unknown_validation = set(validation) - allowed_validation_keys
             if unknown_validation:
@@ -237,6 +240,20 @@ for part, scope_of in (
                     or not isinstance(validation[bound], (int, float))
                 ):
                     err(f"{where}: validation.{bound} 必须为数值")
+            for list_key in ("item_required", "unique_by"):
+                items = validation.get(list_key)
+                if items is not None and (
+                    not isinstance(items, list)
+                    or not items
+                    or not all(isinstance(item, str) and item for item in items)
+                ):
+                    err(f"{where}: validation.{list_key} 必须为非空字符串数组")
+            for numeric_key in ("sum", "tolerance"):
+                value = validation.get(numeric_key)
+                if value is not None and (
+                    isinstance(value, bool) or not isinstance(value, (int, float))
+                ):
+                    err(f"{where}: validation.{numeric_key} 必须为数值")
             if (
                 "ge" in validation
                 and "le" in validation

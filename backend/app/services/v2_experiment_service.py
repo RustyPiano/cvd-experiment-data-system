@@ -20,7 +20,11 @@ from app.models.user import User
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.module_payload_repository import ModulePayloadRepository
 from app.schemas.generated.v2_module_payload import validate_v2_module_payload
-from app.schemas.scientific import RunRevisionListResponse, RunRevisionRead
+from app.schemas.scientific import (
+    RunRevisionListResponse,
+    RunRevisionRead,
+    normalize_source_loads_for_read,
+)
 from app.schemas.v2 import (
     V2ExperimentCreate,
     V2ExperimentListResponse,
@@ -408,6 +412,7 @@ class V2ExperimentService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"invalid": [{"key": "equipment", "reason": "value"}]},
             ) from exc
+        self._validate_setup_zone_compatibility(run.id, version.zone_count)
         apply_setup_reference(run, version)
         self._save_v2_payload(run.id, "equipment", equipment)
         self.audit.record_event(
@@ -459,6 +464,8 @@ class V2ExperimentService:
             if module_key == "substrates":
                 payload_json = self._prefill_material_lot_fields(module_key, payload_json)
                 payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)
+            if module_key == "precursors":
+                payload_json = self._restore_legacy_precursor_roles(run, payload_json)
             if module_key in {
                 "basic_info",
                 "target_product",
@@ -498,6 +505,16 @@ class V2ExperimentService:
             validated = self._freeze_material_lot_references(module_key, validated)
             self._validate_zone_indices(run, module_key, validated)
             self._validate_substrate_piece_labels(validated)
+        if module_key == "process_steps":
+            validated = self.revisions.normalize_process_references(run, validated)
+            self._validate_process_zone_indices(run, validated)
+        if module_key == "precursors":
+            self._validate_precursor_substrate_references(
+                run.id,
+                validated,
+                legacy_roles=self._legacy_precursor_roles(run),
+            )
+            self.revisions.validate_source_references(validated)
         if module_key == "target_product":
             run.material_system = " / ".join(
                 region["formula"] for region in validated["material_regions"]
@@ -627,6 +644,7 @@ class V2ExperimentService:
         validated_modules: dict[str, dict[str, Any]] = {}
         for payload in self.module_payloads.list_by_run(run.id):
             payload_json = deepcopy(payload.payload_json)
+            substrate_source_ids: list[object | None] = []
             if payload.module_key == "equipment":
                 payload_json.pop("setup_code", None)
                 payload_json.pop("setup_name", None)
@@ -634,7 +652,9 @@ class V2ExperimentService:
                     key: value for key, value in payload_json.items() if value is not None
                 }
             elif payload.module_key == "substrates":
-                payload_json, _ = self._strip_substrate_source_ids(payload_json)
+                payload_json, substrate_source_ids = self._strip_substrate_source_ids(payload_json)
+            elif payload.module_key == "precursors":
+                payload_json = self._restore_legacy_precursor_roles(run, payload_json)
             try:
                 if payload.module_key in {
                     "basic_info",
@@ -661,6 +681,11 @@ class V2ExperimentService:
                         )
                         self._validate_zone_indices(run, payload.module_key, validated)
                         self._validate_substrate_piece_labels(validated)
+                        validated = self._attach_substrate_source_ids(
+                            run.id,
+                            validated,
+                            substrate_source_ids,
+                        )
                 validated_modules[payload.module_key] = validated
             except ValidationError as exc:
                 raise HTTPException(
@@ -696,7 +721,119 @@ class V2ExperimentService:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"missing": [{"key": "setup_ref", "requirement": "required"}]},
             )
+        self._validate_precursor_substrate_references(
+            run.id,
+            validated_modules["precursors"],
+            legacy_roles=self._legacy_precursor_roles(run),
+        )
         return validated_modules
+
+    def _validate_precursor_substrate_references(
+        self,
+        run_id: UUID,
+        precursor_payload: dict[str, Any],
+        *,
+        legacy_roles: dict[tuple[str, str, str], tuple[str, str]] | None = None,
+    ) -> None:
+        allowed = legacy_roles or {}
+        for item in precursor_payload.get("items") or []:
+            for ingredient in item.get("ingredients") or []:
+                role = ingredient.get("function_role")
+                if not role:
+                    continue
+                key = self._precursor_ingredient_key(item, ingredient)
+                if allowed.get(key) != (item.get("loading_method"), role):
+                    self._raise_legacy_role_invalid()
+        valid_ids = {
+            str(item["source_id"])
+            for item in self._substrate_items(run_id)
+            if item.get("source_id")
+        }
+        for item in precursor_payload.get("items") or []:
+            if item.get("loading_method") != "substrate_surface":
+                continue
+            references = item.get("substrate_source_ids") or []
+            if not references or any(str(reference) not in valid_ids for reference in references):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail={
+                        "invalid": [
+                            {
+                                "key": "substrate_source_ids",
+                                "reason": "substrate_reference",
+                            }
+                        ]
+                    },
+                )
+
+    def _restore_legacy_precursor_roles(
+        self,
+        run: ExperimentRun,
+        precursor_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        allowed = self._legacy_precursor_roles(run)
+        for item in precursor_payload.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            for ingredient in item.get("ingredients") or []:
+                if not isinstance(ingredient, dict):
+                    continue
+                key = self._precursor_ingredient_key(item, ingredient)
+                legacy = allowed.get(key)
+                supplied = ingredient.get("function_role")
+                if legacy and legacy[0] == item.get("loading_method"):
+                    if supplied not in {None, legacy[1]}:
+                        self._raise_legacy_role_invalid()
+                    ingredient["function_role"] = legacy[1]
+                elif supplied is not None:
+                    self._raise_legacy_role_invalid()
+        return precursor_payload
+
+    def _legacy_precursor_roles(
+        self,
+        run: ExperimentRun,
+    ) -> dict[tuple[str, str, str], tuple[str, str]]:
+        if run.draft_supersedes_revision_id is None:
+            return {}
+        revision = self.db.get(RunRevision, run.draft_supersedes_revision_id)
+        if revision is None or revision.schema_version != "v4.0-alpha.15":
+            return {}
+        roles: dict[tuple[str, str, str], tuple[str, str]] = {}
+        precursors = (revision.content_json.get("modules") or {}).get("precursors") or {}
+        for item in precursors.get("items") or []:
+            for ingredient in item.get("ingredients") or []:
+                role = ingredient.get("function_role")
+                if role:
+                    roles[self._precursor_ingredient_key(item, ingredient)] = (
+                        item.get("loading_method"),
+                        role,
+                    )
+        return roles
+
+    @staticmethod
+    def _precursor_ingredient_key(
+        item: dict[str, Any],
+        ingredient: dict[str, Any],
+    ) -> tuple[str, str, str]:
+        return (
+            str(item.get("load_key") or ""),
+            str(ingredient.get("material_lot_id") or ""),
+            str(ingredient.get("material_lot_version") or ""),
+        )
+
+    @staticmethod
+    def _raise_legacy_role_invalid() -> None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "invalid": [
+                    {
+                        "key": "function_role",
+                        "reason": "legacy_read_only",
+                    }
+                ]
+            },
+        )
 
     @staticmethod
     def _strip_substrate_source_ids(
@@ -858,21 +995,29 @@ class V2ExperimentService:
             indexed_groups.append(("temperature_program", temperature_program.get("zones") or []))
             measured = step.get("measured_temperature") or {}
             indexed_groups.append(("measured_temperature", measured.get("channels") or []))
+        channels = [
+            channel
+            for channel in payload_json.get("channels") or []
+            if isinstance(channel, dict) and channel.get("channel_type") == "temperature"
+        ]
+        if channels and zone_count is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "process_steps.channels", "reason": "setup_required"}]},
+            )
+        if zone_count is not None and any(
+            isinstance(channel.get("zone_index"), int) and channel["zone_index"] > zone_count
+            for channel in channels
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"invalid": [{"key": "process_steps.channels", "reason": "zone_count"}]},
+            )
         for key, items in indexed_groups:
             if items and zone_count is None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail={"invalid": [{"key": key, "reason": "setup_required"}]},
-                )
-            zone_indices = [item.get("zone_index") for item in items if isinstance(item, dict)]
-            if (
-                key == "temperature_program"
-                and zone_count is not None
-                and set(zone_indices) != set(range(1, zone_count + 1))
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"invalid": [{"key": key, "reason": "zone_count"}]},
                 )
             for item in items:
                 zone_index = item.get("zone_index") if isinstance(item, dict) else None
@@ -883,6 +1028,51 @@ class V2ExperimentService:
                         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                         detail={"invalid": [{"key": key, "reason": "zone_count"}]},
                     )
+
+    def _validate_setup_zone_compatibility(self, run_id: UUID, zone_count: int) -> None:
+        conflicts: list[tuple[str, int]] = []
+        labels = {
+            "substrates": "衬底",
+            "precursors": "前驱体",
+            "process_steps": "生长条件",
+        }
+        for module_key in labels:
+            saved = self.module_payloads.get_by_run_and_key(run_id, module_key)
+            if saved is None:
+                continue
+            payload = saved.payload_json
+            if module_key == "substrates":
+                indices = [
+                    (item.get("zone_thermocouple_distance_mm") or {}).get("zone_index")
+                    for item in payload.get("items") or []
+                    if isinstance(item, dict)
+                ]
+            elif module_key == "precursors":
+                indices = [
+                    int(ref.removeprefix("zone_"))
+                    for item in payload.get("items") or []
+                    if isinstance(item, dict)
+                    and isinstance((ref := item.get("heating_zone_ref")), str)
+                    and ref.removeprefix("zone_").isdigit()
+                ]
+            else:
+                indices = [
+                    channel.get("zone_index")
+                    for channel in payload.get("channels") or []
+                    if isinstance(channel, dict) and channel.get("channel_type") == "temperature"
+                ]
+            maximum = max((index for index in indices if isinstance(index, int)), default=0)
+            if maximum > zone_count:
+                conflicts.append((labels[module_key], maximum))
+        if conflicts:
+            details = "、".join(f"{label}（温区 {maximum}）" for label, maximum in conflicts)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    f"当前{details}超出新装置的 {zone_count} 个温区；"
+                    "请先调整这些记录，再更换实验装置。"
+                ),
+            )
 
     @staticmethod
     def _validate_process_duration_bounds(payload_json: dict[str, Any]) -> None:
@@ -1392,12 +1582,15 @@ class V2ExperimentService:
         )
 
     def _module_read(self, payload: ExperimentModulePayload) -> V2ModulePayloadRead:
+        payload_json = payload.payload_json
+        if payload.module_key == "precursors":
+            payload_json = normalize_source_loads_for_read(payload_json)
         return V2ModulePayloadRead(
             id=payload.id,
             experiment_run_id=payload.experiment_run_id,
             module_key=payload.module_key,
             schema_version=payload.schema_version,
-            payload_json=payload.payload_json,
+            payload_json=payload_json,
             created_at=payload.created_at,
             updated_at=payload.updated_at,
         )

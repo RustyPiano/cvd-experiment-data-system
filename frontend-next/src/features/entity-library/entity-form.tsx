@@ -89,6 +89,11 @@ import type { TemperatureSensor } from './temperature-sensors-editor'
 import { buildTemperatureSensorsEditorLabels } from '@/shared/structured-editor-labels'
 import { FormulaInput } from '@/features/experiments-v2/components/formula-input'
 import { validateMaterialFormula } from '@/features/experiments-v2/formula'
+import {
+  GasCompositionEditor,
+  gasCompositionIssue,
+} from './gas-composition-editor'
+import type { GasCompositionComponent } from './gas-composition-editor'
 
 // 长文本字段用多行输入并跨两列（示意图/配置/坐标系描述）。
 const TEXTAREA_KEYS = new Set([
@@ -248,6 +253,17 @@ export function EntityForm({
                 : t('validation.temperatureSensorsCoverage', {
                     count: zoneCount,
                   }),
+          }
+        }
+      } else if (!empty && field.key === 'gas_components') {
+        if (
+          gasCompositionIssue(
+            parseEntityJsonArray<GasCompositionComponent>(value),
+          )
+        ) {
+          errors[field.key] = {
+            type: 'validate',
+            message: t('validation.gasComposition'),
           }
         }
       } else if (!empty && isEntityFileInput(field.input)) {
@@ -579,7 +595,7 @@ function EntityFieldControl({
       render={({ field: rhf, fieldState }) => (
         <FormItem className={wideControl ? 'sm:col-span-2' : undefined}>
           <FormLabel
-            {...(multiSelect || field.key === 'temperature_sensors'
+            {...(multiSelect || isEntityJsonArrayField(field.key)
               ? { id: labelId }
               : customControl
                 ? { htmlFor: controlId }
@@ -628,6 +644,20 @@ function EntityFieldControl({
                 disabled={disabled}
                 showErrors={fieldState.invalid}
                 labels={buildTemperatureSensorsEditorLabels(t)}
+              />
+            </div>
+          ) : field.key === 'gas_components' ? (
+            <div
+              id={controlId}
+              role="group"
+              aria-labelledby={labelId}
+              aria-invalid={fieldState.invalid || undefined}
+            >
+              <GasCompositionEditor
+                value={parseEntityJsonArray<GasCompositionComponent>(rhf.value)}
+                onChange={(value) => rhf.onChange(JSON.stringify(value))}
+                disabled={disabled}
+                showErrors={fieldState.invalid}
               />
             </div>
           ) : entityFileInput ? (

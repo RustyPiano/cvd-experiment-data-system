@@ -32,6 +32,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { snapshotValue } from './reference-snapshot'
+import { gasCompositionSummary } from '@/features/entity-library/gas-composition-editor'
+import type { GasCompositionComponent } from '@/features/entity-library/gas-composition-editor'
 
 function entityLabel(
   entityId: string,
@@ -61,8 +63,12 @@ function entityLabel(
     const catalogNumber = snapshotValue(data, 'catalog_number')
     const english = language.startsWith('en')
     const separator = english ? ': ' : '：'
+    const gasComponents = snapshotValue(data, 'gas_components')
     return [
       nameText,
+      Array.isArray(gasComponents)
+        ? gasCompositionSummary(gasComponents as GasCompositionComponent[])
+        : '',
       supplier &&
         `${productLabels?.supplier ?? 'Supplier'}${separator}${String(supplier)}`,
       catalogNumber &&

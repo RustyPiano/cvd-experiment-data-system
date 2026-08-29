@@ -2,6 +2,9 @@
 // 字段标签（labelZh/labelEn）不放这里——它们由生成器⑤从 field-source.yaml 产出，
 // 见 src/shared/generated/field-metadata.ts。
 export const common = {
+  units: {
+    按通道: '按通道',
+  },
   datasets: {
     nav: '科学数据集',
   },
@@ -41,6 +44,7 @@ export const common = {
     tubeRectangularWallThickness: '壁厚必须小于外宽和外高中较小值的一半',
     temperatureSensorsCoverage:
       '请为温区 1–{{count}} 分别选择传感器类别；已填写的标称测温精度须为非负数。',
+    gasComposition: '请填写不重复的气体组分，且体积分数合计为 100 vol%。',
     substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
     usageHistory:
       '请填写累计清洗或更换次数（可为 0）和本次为最近一次清洗或更换后的第几炉（从 1 开始）。',
@@ -116,6 +120,9 @@ export const common = {
       parameterValue: '数值',
       parameterUnit: '单位',
       removeParameter: '删除参数',
+      addSpinStage: '添加旋涂阶段',
+      spinStage: '旋涂阶段 {{position}}',
+      removeSpinStage: '删除旋涂阶段',
       selectAtmosphere: '请选择气氛',
       noAtmosphere: '未填写',
       otherAtmosphereName: '其他气氛名称',
@@ -178,7 +185,11 @@ export const common = {
         N2: '氮气（N₂）',
         H2: '氢气（H₂）',
         O2: '氧气（O₂）',
+        He: '氦气（He）',
         CH4: '甲烷（CH₄）',
+        H2S: '硫化氢（H₂S）',
+        NH3: '氨气（NH₃）',
+        CO2: '二氧化碳（CO₂）',
         other: '其他气体',
       },
       otherGasName: '其他气体名称',
@@ -573,6 +584,19 @@ export const common = {
       invalidFileReference: '请选择并上传有效文件',
       discardFileCleanupError:
         '未能删除尚未保存的上传文件；表单将保持打开，请重试。',
+    },
+    gasComposition: {
+      component: '组分 {{position}}',
+      gas: '气体',
+      selectGas: '请选择气体',
+      other: '其他',
+      gasNamePlaceholder: '请输入气体名称',
+      volumeFraction: '体积分数（vol%）',
+      deleteComponent: '删除组分 {{position}}',
+      addComponent: '添加组分',
+      total: '合计：{{total}} vol%',
+      totalRequired: '（必须等于 100 vol%）',
+      legacyDerived: '（由历史记录推导）',
     },
   },
   samples: {

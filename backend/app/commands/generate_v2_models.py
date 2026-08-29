@@ -17,7 +17,6 @@ from app.services.v2_field_source import (
     canonical_option_value,
     condition_local_key,
     entity_fields_by_key,
-    field_option_values,
     load_field_source,
     payload_fields_by_module,
 )
@@ -51,6 +50,13 @@ ENTITY_CLASS_NAMES = {
     "material_lot": "MaterialLotVersionPayload",
     "setup": "SetupVersionPayload",
     "instrument": "InstrumentVersionPayload",
+}
+SCIENTIFIC_MODULE_KEYS = {
+    "basic_info",
+    "target_product",
+    "precursors",
+    "process_steps",
+    "process_events",
 }
 
 
@@ -221,6 +227,20 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "NonBlankStr = Annotated[str, Field(min_length=1, pattern=r'\\S')]",
         "",
         "",
+        "class AmbientMeasurementPayload(V2PayloadBase):",
+        "    value: Annotated[float, Field(strict=True, allow_inf_nan=False)] | None = None",
+        "    measured_at: datetime | None = None",
+        "    source_type: Literal['room_sensor', 'setup_sensor', 'manual_entry', 'manual_estimate', 'not_measured']",
+        "    sensor_ref: NonBlankStr | None = None",
+        "",
+        "",
+        "class PrecheckRecordPayload(V2PayloadBase):",
+        "    checklist_version: NonBlankStr",
+        "    confirmed: bool",
+        "    confirmed_at: datetime",
+        "    exception_note: NonBlankStr | None = None",
+        "",
+        "",
         "class ComponentPayload(V2PayloadBase):",
         "    formula: str",
         f"    role: {_literal_expr(component_roles)} | None = None",
@@ -265,9 +285,27 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "    temperature_C: Annotated[float, Field(strict=True, allow_inf_nan=False)]",
         "",
         "",
-        "class SpinCoatParametersPayload(V2PayloadBase):",
+        "class SpinCoatStagePayload(V2PayloadBase):",
         "    speed_rpm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
         "    duration_s: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
+        "",
+        "",
+        "class SpinCoatParametersPayload(V2PayloadBase):",
+        "    stages: Annotated[list[SpinCoatStagePayload], Field(min_length=1)]",
+        "",
+        '    @model_validator(mode="before")',
+        "    @classmethod",
+        "    def _normalize_legacy_scalar_stage(cls, value: Any) -> Any:",
+        "        if not isinstance(value, dict) or 'stages' in value:",
+        "            return value",
+        "        if 'speed_rpm' not in value and 'duration_s' not in value:",
+        "            return value",
+        "        normalized = dict(value)",
+        "        normalized['stages'] = [{",
+        "            'speed_rpm': normalized.pop('speed_rpm', None),",
+        "            'duration_s': normalized.pop('duration_s', None),",
+        "        }]",
+        "        return normalized",
         "",
         "",
         "class AnnealParametersPayload(V2PayloadBase):",
@@ -430,6 +468,18 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "        return self",
         "",
         "",
+        "class GasCompositionComponentPayload(V2PayloadBase):",
+        f"    species: {_literal_expr([*doc['gas_species'], 'other'])}",
+        "    other_name: NonBlankStr | None = None",
+        "    volume_percent: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0, le=100)]",
+        "",
+        '    @model_validator(mode="after")',
+        "    def _other_gas_name(self) -> Self:",
+        "        if (self.species == 'other') != bool(self.other_name):",
+        '            raise ValueError("other_name is required only for other gas")',
+        "        return self",
+        "",
+        "",
         "class SurfaceRoughnessPayload(V2PayloadBase):",
         "    availability: Literal['reported', 'not_provided'] = 'reported'",
         "    metric: Literal['Ra', 'RMS'] | None = None",
@@ -540,7 +590,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "",
         "class GasExchangeGasPayload(V2PayloadBase):",
-        "    species: Literal['Ar', 'N2', 'H2', 'O2', 'CH4', 'other']",
+        f"    species: {_literal_expr([*doc['gas_species'], 'other'])}",
         "    other_name: str | None = None",
         "    lot_ref: MaterialLotReferencePayload",
         "    flow_sccm: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]",
@@ -631,7 +681,7 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         "",
         "",
         "class GasFeedPayload(V2PayloadBase):",
-        "    species: Literal['Ar', 'N2', 'H2', 'O2', 'CH4', 'other']",
+        f"    species: {_literal_expr([*doc['gas_species'], 'other'])}",
         "    other_name: str | None = None",
         "    lot_ref: MaterialLotReferencePayload",
         "    measurement_source: Literal['mfc', 'rotameter', 'other'] | None = None",
@@ -825,6 +875,8 @@ def render_v2_models(doc: dict[str, Any]) -> str:
 
     grouped = payload_fields_by_module(doc)
     for module_key in PAYLOAD_MODULE_KEYS:
+        if module_key in SCIENTIFIC_MODULE_KEYS:
+            continue
         if module_key == "process_steps":
             lines.extend(_render_process_step_models(doc, grouped[module_key]))
             continue
@@ -847,7 +899,11 @@ def render_v2_models(doc: dict[str, Any]) -> str:
         [
             "",
             "V2_MODULE_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {",
-            *[f'    "{key}": {MODULE_CLASS_NAMES[key]},' for key in PAYLOAD_MODULE_KEYS],
+            *[
+                f'    "{key}": {MODULE_CLASS_NAMES[key]},'
+                for key in PAYLOAD_MODULE_KEYS
+                if key not in SCIENTIFIC_MODULE_KEYS
+            ],
             "}",
             "",
             "V2_ENTITY_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {",
@@ -867,8 +923,8 @@ def render_v2_models(doc: dict[str, Any]) -> str:
             "",
             "",
             "V2Payload = (",
-            f"    {MODULE_CLASS_NAMES[PAYLOAD_MODULE_KEYS[0]]}",
-            *[f"    | {MODULE_CLASS_NAMES[key]}" for key in PAYLOAD_MODULE_KEYS[1:]],
+            f"    {MODULE_CLASS_NAMES['equipment']}",
+            f"    | {MODULE_CLASS_NAMES['substrates']}",
             ")",
             "",
         ]
@@ -884,10 +940,18 @@ def _render_module_model(
     if module_key in ARRAY_MODULE_KEYS:
         item_class = ITEM_CLASS_NAMES[module_key]
         model_class = MODULE_CLASS_NAMES[module_key]
+        legacy_lines = (
+            [
+                "    role: Literal['additive', 'dopant_source', 'main_precursor', 'other'] | None = Field(default=None, exclude=True)",
+            ]
+            if module_key == "precursors"
+            else []
+        )
         return [
             "",
             "",
             f"class {item_class}(V2PayloadBase):",
+            *legacy_lines,
             *_render_field_lines(doc, fields, indent="    "),
             *_render_field_validators(fields, indent="    "),
             *_render_condition_validator(doc, fields, indent="    "),
@@ -1010,6 +1074,32 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
     input_type = str(field.get("input") or "")
     if key == "components":
         return "list[ComponentPayload]"
+    if key in {"ambient_temperature", "ambient_humidity"}:
+        return "AmbientMeasurementPayload"
+    if key == "precheck":
+        return "PrecheckRecordPayload"
+    if key in {"created_by_user_id", "recorded_by_user_id", "material_lot_id"}:
+        return "UUID"
+    if key == "performed_by_user_ids":
+        return "Annotated[list[UUID], Field(min_length=1)]"
+    if key in {"material_lot_version"}:
+        return "Annotated[int, Field(strict=True, ge=1)]"
+    if key == "material_regions":
+        return "list[dict[str, Any]]"
+    if key in {"composition_relations", "preparation_steps"}:
+        return "list[dict[str, Any]]"
+    if key in {"load_key", "event_key"}:
+        return "NonBlankStr"
+    if key in {"container_instance_id"}:
+        return "UUID"
+    if key in {"initial_position"}:
+        return "dict[str, Any]"
+    if key in {"excluded_time_ranges"}:
+        return "list[dict[str, Any]]"
+    if key == "heating_zone_ref":
+        return "NonBlankStr"
+    if key == "channels":
+        return "list[dict[str, Any]]"
     if key in {"lot_ref", "target_lot_ref"}:
         return "MaterialLotReferencePayload"
     if key == "tube_outer_diameter_wall_mm":
@@ -1020,6 +1110,8 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "TubeMaterialShapePayload"
     if key == "temperature_sensors":
         return "Annotated[list[TemperatureSensorPayload], Field(min_length=1)]"
+    if key == "gas_components":
+        return "Annotated[list[GasCompositionComponentPayload], Field(min_length=1)]"
     if key == "treatment_steps":
         return "list[PrecursorTreatmentPayload]"
     if key == "pretreatment_steps":
@@ -1032,6 +1124,8 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "SurfaceRoughnessPayload"
     if key == "source_position":
         return "SourcePositionPayload"
+    if key == "substrate_source_ids":
+        return "Annotated[list[UUID], Field(min_length=1)]"
     if key == "zone_thermocouple_distance_mm":
         return "ZoneThermocoupleDistancePayload"
     if key == "preparation_operations":
@@ -1092,6 +1186,7 @@ def _type_expr(doc: dict[str, Any], field: dict[str, Any]) -> str:
         return "str"
     if input_type in {
         "文本",
+        "多行文本",
         "自由",
         "文本/自由",
         "自由+数值",
@@ -1127,7 +1222,17 @@ def _literal_expr(options: list[str]) -> str:
 
 
 def _component_role_options(doc: dict[str, Any], fields: list[dict[str, Any]]) -> list[str]:
-    components = next(field for field in fields if field["key"] == "components")
+    components = next((field for field in fields if field["key"] == "components"), None)
+    if components is None:
+        return [
+            "matrix",
+            "dopant",
+            "alloy_component",
+            "material_layer",
+            "top_layer",
+            "bottom_layer",
+            "lateral_domain",
+        ]
     match = re.search(r"角色[（(]([^）)]+)[）)]", str(components.get("options") or ""))
     if match is None:
         raise ValueError("components field must declare role options")
@@ -1143,7 +1248,21 @@ def _controlled_options(doc: dict[str, Any], field: dict[str, Any]) -> list[str]
     if not any(token in input_type for token in ("下拉", "多选")):
         return []
     ignored = {"controlled_or_other"}
-    return sorted(field_option_values(field["key"], doc) - ignored)
+    options = str(field.get("options") or "").strip()
+    if not options or options == "—":
+        return []
+    if input_type in {"数值+下拉", "下拉+数值", "文本+下拉", "下拉+文本"}:
+        segments = [part.strip() for part in options.replace(" + ", "；").split("；")]
+        options = next((part for part in segments if "/" in part), segments[0])
+    separator = "·" if "·" in options else "/"
+    return sorted(
+        {
+            canonical_option_value(value.strip(), doc, field_key=field["key"])
+            for value in options.split(separator)
+            if value.strip()
+        }
+        - ignored
+    )
 
 
 def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> list[str]:
@@ -1156,7 +1275,7 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}@classmethod",
                 f"{indent}def _chemical_formula(cls, value: str | None) -> str | None:",
                 f'{indent}    if value in (None, ""):',
-                f"{indent}        return value",
+                f"{indent}        return None",
                 f"{indent}    return _validate_formula(value)",
             ]
         )
@@ -1236,6 +1355,23 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}    return self",
             ]
         )
+    if "gas_components" in keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@field_validator("gas_components")',
+                f"{indent}@classmethod",
+                f"{indent}def _gas_composition(cls, value: list[GasCompositionComponentPayload] | None) -> list[GasCompositionComponentPayload] | None:",
+                f"{indent}    if value is None:",
+                f"{indent}        return value",
+                f"{indent}    identities = [(item.species, item.other_name or '') for item in value]",
+                f"{indent}    if len(identities) != len(set(identities)):",
+                f'{indent}        raise ValueError("gas composition species must be unique")',
+                f"{indent}    if abs(sum(item.volume_percent for item in value) - 100.0) > 0.010000001:",
+                f'{indent}        raise ValueError("gas composition must sum to 100 vol%")',
+                f"{indent}    return value",
+            ]
+        )
     if {"loading_method", "source_container"} <= keys:
         lines.extend(
             [
@@ -1269,6 +1405,39 @@ def _render_field_validators(fields: list[dict[str, Any]], *, indent: str) -> li
                 f"{indent}    steps = self.treatment_steps or []",
                 f"{indent}    if len(steps) > 1 and any(step.type == 'direct_load' for step in steps):",
                 f'{indent}        raise ValueError("direct_load cannot be combined with other treatment steps")',
+                f"{indent}    return self",
+            ]
+        )
+    if "process_roles" in keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@field_validator("process_roles")',
+                f"{indent}@classmethod",
+                f"{indent}def _unique_process_roles(cls, value: list[str] | None) -> list[str] | None:",
+                f"{indent}    if value is not None and len(value) != len(set(value)):",
+                f'{indent}        raise ValueError("process_roles must be unique")',
+                f"{indent}    return value",
+                "",
+                f'{indent}@field_validator("substrate_source_ids")',
+                f"{indent}@classmethod",
+                f"{indent}def _unique_substrate_sources(cls, value: list[UUID] | None) -> list[UUID] | None:",
+                f"{indent}    if value is not None and len(value) != len(set(value)):",
+                f'{indent}        raise ValueError("substrate_source_ids must be unique")',
+                f"{indent}    return value",
+            ]
+        )
+    if {"concentration_value", "concentration_unit", "treatment_steps"} <= keys:
+        lines.extend(
+            [
+                "",
+                f'{indent}@model_validator(mode="after")',
+                f"{indent}def _spin_coat_concentration(self) -> Self:",
+                f"{indent}    if (self.concentration_value is None) != (self.concentration_unit is None):",
+                f'{indent}        raise ValueError("concentration value and unit must be provided together")',
+                f"{indent}    has_spin_coat = any(step.type == 'spin_coat' for step in (self.treatment_steps or []))",
+                f"{indent}    if self.concentration_value is not None and not has_spin_coat:",
+                f'{indent}        raise ValueError("concentration applies only to spin coating")',
                 f"{indent}    return self",
             ]
         )

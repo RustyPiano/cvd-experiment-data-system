@@ -791,7 +791,7 @@ function GasExchangeEditor({
               value={gas.species}
               disabled={disabled}
               onValueChange={(species) => {
-                const nextSpecies = species as GasSpecies
+                const nextSpecies = species
                 const nextOtherName =
                   species === 'other' ? (gas.other_name ?? '') : null
                 onChange({

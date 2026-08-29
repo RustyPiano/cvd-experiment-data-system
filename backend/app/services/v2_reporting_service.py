@@ -43,6 +43,7 @@ from app.models.scientific import (
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
+from app.schemas.scientific import normalize_source_loads_for_read
 from app.services.experiment_guards import get_owned_experiment, get_visible_experiment
 from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
@@ -528,10 +529,7 @@ class V2ReportingService:
         return revision
 
     def _run_bundle(self, run: ExperimentRun, revision: RunRevision) -> dict[str, Any]:
-        modules = {
-            module_key: canonicalize_controlled_values(payload)
-            for module_key, payload in revision.content_json["modules"].items()
-        }
+        modules = self._export_modules(revision)
         records = self._records(run.id, revision.id)
         samples = self._samples_for_revision(run.id, revision.id, records)
         files = self._files_for_records(records)
@@ -558,6 +556,16 @@ class V2ReportingService:
             ),
         }
         return canonicalize_controlled_values(bundle)
+
+    @staticmethod
+    def _export_modules(revision: RunRevision) -> dict[str, dict[str, Any]]:
+        modules = {
+            module_key: canonicalize_controlled_values(payload)
+            for module_key, payload in revision.content_json["modules"].items()
+        }
+        if "precursors" in modules:
+            modules["precursors"] = normalize_source_loads_for_read(modules["precursors"])
+        return modules
 
     def _scientific_json(
         self,
@@ -778,6 +786,7 @@ class V2ReportingService:
                     "initial_position": item.initial_position,
                     "position_program": item.position_program,
                     "heating_zone_ref": item.heating_zone_ref,
+                    "substrate_source_ids": item.substrate_source_ids,
                     "attrs": item.attrs,
                     "ingredients": [
                         {
@@ -785,8 +794,13 @@ class V2ReportingService:
                             "material_lot_version": ingredient.material_lot_version,
                             "material_snapshot": ingredient.material_snapshot_json,
                             "function_role": ingredient.function_role,
+                            "process_roles": ingredient.process_roles,
+                            "process_role_other": ingredient.process_role_other,
                             "amount": ingredient.amount,
                             "unit": ingredient.unit,
+                            "concentration_value": ingredient.concentration_value,
+                            "concentration_unit": ingredient.concentration_unit,
+                            "concentration_unit_other": ingredient.concentration_unit_other,
                             "composition_basis": ingredient.composition_basis,
                             "uncertainty": ingredient.uncertainty,
                             "attrs": ingredient.attrs,
@@ -1022,10 +1036,7 @@ class V2ReportingService:
 
         for run in runs:
             revision = revisions[run.id]
-            modules = {
-                module_key: canonicalize_controlled_values(payload)
-                for module_key, payload in revision.content_json["modules"].items()
-            }
+            modules = self._export_modules(revision)
             operator = (modules.get("basic_info") or {}).get("operator") or run.owner_name
             records = self._records(run.id, revision.id)
             samples = self._samples_for_revision(run.id, revision.id, records)
@@ -1087,7 +1098,7 @@ class V2ReportingService:
                 )
             else:
                 run_rows.append(run_row)
-            self._extend_module_rows(
+            self._extend_precursor_rows(
                 precursor_rows,
                 run.run_code,
                 modules.get("precursors"),
@@ -1367,6 +1378,8 @@ class V2ReportingService:
                 [
                     "run_code",
                     "item_index",
+                    "ingredient_index",
+                    "amount_unit",
                     *precursor_keys,
                     "nested_field",
                     "nested_path",
@@ -1536,6 +1549,51 @@ class V2ReportingService:
                     {key: item.get(key) for key in field_keys},
                 )
             )
+
+    @staticmethod
+    def _extend_precursor_rows(
+        target: list[dict[str, Any]],
+        run_code: str,
+        payload: dict[str, Any] | None,
+        field_keys: list[str],
+    ) -> None:
+        for item_index, item in enumerate((payload or {}).get("items", []), 1):
+            for ingredient_index, ingredient in enumerate(item.get("ingredients") or [], 1):
+                values = {key: item.get(key) for key in field_keys}
+                values.update(
+                    {
+                        "lot_ref": {
+                            "entity_id": ingredient.get("material_lot_id"),
+                            "version": ingredient.get("material_lot_version"),
+                        },
+                        "process_roles": ingredient.get("process_roles") or [],
+                        "process_role_other": ingredient.get("process_role_other"),
+                        "amount": ingredient.get("amount"),
+                        "concentration_value": ingredient.get("concentration_value"),
+                        "concentration_unit": ingredient.get("concentration_unit"),
+                        "concentration_unit_other": ingredient.get("concentration_unit_other"),
+                        "treatment_steps": item.get("preparation_steps") or [],
+                        "source_position": (
+                            {
+                                "heating_zone_ref": item.get("heating_zone_ref"),
+                                **(item.get("initial_position") or {}),
+                            }
+                            if item.get("initial_position")
+                            else None
+                        ),
+                    }
+                )
+                target.extend(
+                    _relational_rows(
+                        {
+                            "run_code": run_code,
+                            "item_index": item_index,
+                            "ingredient_index": ingredient_index,
+                            "amount_unit": ingredient.get("unit"),
+                        },
+                        values,
+                    )
+                )
 
     @staticmethod
     def _extend_module_detail_rows(

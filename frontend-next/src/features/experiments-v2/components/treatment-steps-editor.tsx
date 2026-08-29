@@ -62,12 +62,17 @@ export interface NamedTreatmentParameter {
   unit: string
 }
 
+export interface SpinCoatStage {
+  speed_rpm: number | null
+  duration_s: number | null
+}
+
 export type TreatmentParameterValue =
   | string
   | number
   | null
   | undefined
-  | NamedTreatmentParameter[]
+  | Array<NamedTreatmentParameter | SpinCoatStage>
 
 export type TreatmentParameters = Record<string, TreatmentParameterValue>
 
@@ -105,6 +110,9 @@ export interface TreatmentStepsEditorLabels {
   parameterValue: string
   parameterUnit: string
   removeParameter: string
+  addSpinStage: string
+  spinStage: (position: number) => string
+  removeSpinStage: string
   selectAtmosphere: string
   noAtmosphere: string
   otherAtmosphereName: string
@@ -147,22 +155,7 @@ const precursorDefinitions: Partial<
     },
     { key: 'duration_min', kind: 'number', positive: true, unit: 'min' },
   ],
-  spin_coat: [
-    {
-      key: 'speed_rpm',
-      kind: 'number',
-      required: true,
-      positive: true,
-      unit: 'rpm',
-    },
-    {
-      key: 'duration_s',
-      kind: 'number',
-      required: true,
-      positive: true,
-      unit: 's',
-    },
-  ],
+  spin_coat: [],
   anneal: [
     {
       key: 'temperature_C',
@@ -292,6 +285,9 @@ function emptyParameters(
   kind: TreatmentKind,
   type: TreatmentType,
 ): TreatmentParameters {
+  if (type === 'spin_coat') {
+    return { stages: [{ speed_rpm: null, duration_s: null }] }
+  }
   return namedParametersMode(kind, type) ? { items: [] } : {}
 }
 
@@ -362,6 +358,47 @@ function parameterMissing(value: TreatmentParameterValue): boolean {
   return value == null || (typeof value === 'string' && value.trim() === '')
 }
 
+function spinCoatStages(parameters: TreatmentParameters): SpinCoatStage[] {
+  if (Array.isArray(parameters.stages)) {
+    return (parameters.stages as SpinCoatStage[]).map((stage) => ({
+      speed_rpm:
+        stage.speed_rpm != null && Number.isFinite(Number(stage.speed_rpm))
+          ? Number(stage.speed_rpm)
+          : null,
+      duration_s:
+        stage.duration_s != null && Number.isFinite(Number(stage.duration_s))
+          ? Number(stage.duration_s)
+          : null,
+    }))
+  }
+  if ('speed_rpm' in parameters || 'duration_s' in parameters) {
+    return [
+      {
+        speed_rpm: Number.isFinite(Number(parameters.speed_rpm))
+          ? Number(parameters.speed_rpm)
+          : null,
+        duration_s: Number.isFinite(Number(parameters.duration_s))
+          ? Number(parameters.duration_s)
+          : null,
+      },
+    ]
+  }
+  return []
+}
+
+export function normalizeTreatmentSteps(
+  steps: TreatmentStep[],
+): TreatmentStep[] {
+  return steps.map((step) =>
+    step.type === 'spin_coat'
+      ? {
+          ...step,
+          parameters: { stages: spinCoatStages(step.parameters) },
+        }
+      : step,
+  )
+}
+
 export function treatmentStepsAreValid(
   kind: TreatmentKind,
   steps: TreatmentStep[],
@@ -377,6 +414,16 @@ export function treatmentStepsAreValid(
   return steps.every((step) => {
     if (!step.type || !allowed.has(step.type)) return false
     if (step.type === 'other' && !step.other_name?.trim()) return false
+    if (step.type === 'spin_coat') {
+      const stages = spinCoatStages(step.parameters)
+      return (
+        stages.length > 0 &&
+        stages.every(
+          (stage) =>
+            Number(stage.speed_rpm) > 0 && Number(stage.duration_s) > 0,
+        )
+      )
+    }
     const definitions = definitionsFor(kind, step.type)
     const definitionsValid = definitions.every(
       (definition) =>
@@ -403,7 +450,7 @@ export function treatmentStepsAreValid(
       return false
     }
     if (!namedMode) return true
-    const items = step.parameters.items
+    const items = step.parameters.items as NamedTreatmentParameter[]
     if (namedMode === 'optional' && (!Array.isArray(items) || !items.length)) {
       return true
     }
@@ -418,6 +465,167 @@ export function treatmentStepsAreValid(
       )
     )
   })
+}
+
+function SpinCoatStagesEditor({
+  stages,
+  onChange,
+  disabled,
+  showErrors,
+  labels,
+}: {
+  stages: SpinCoatStage[]
+  onChange: (stages: SpinCoatStage[]) => void
+  disabled?: boolean
+  showErrors?: boolean
+  labels: TreatmentStepsEditorLabels
+}) {
+  const stable = useStableRowIds(stages.length)
+  const baseId = useId()
+  const move = (index: number, delta: number) => {
+    const target = index + delta
+    if (target < 0 || target >= stages.length) return
+    const next = [...stages]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    stable.move(index, target)
+    onChange(next)
+  }
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className="text-sm font-medium">{labels.types.spin_coat}</legend>
+      {stages.map((stage, index) => {
+        const speedInvalid = Boolean(
+          showErrors && !(Number(stage.speed_rpm) > 0),
+        )
+        const durationInvalid = Boolean(
+          showErrors && !(Number(stage.duration_s) > 0),
+        )
+        return (
+          <div
+            key={stable.ids[index]}
+            className="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_1fr_auto]"
+          >
+            <p className="text-sm font-medium sm:col-span-3">
+              {labels.spinStage(index + 1)}
+            </p>
+            <div
+              className="flex flex-col gap-1"
+              data-invalid={speedInvalid || undefined}
+            >
+              <Label htmlFor={`${baseId}-${stable.ids[index]}-speed`}>
+                {labels.fields.speed_rpm} (rpm) <RequiredMark />
+              </Label>
+              <Input
+                id={`${baseId}-${stable.ids[index]}-speed`}
+                type="number"
+                min="0"
+                step="any"
+                value={stage.speed_rpm ?? ''}
+                disabled={disabled}
+                aria-invalid={speedInvalid || undefined}
+                onChange={(event) =>
+                  onChange(
+                    stages.map((item, position) =>
+                      position === index
+                        ? {
+                            ...item,
+                            speed_rpm: numberFromInput(event.target.value),
+                          }
+                        : item,
+                    ),
+                  )
+                }
+              />
+            </div>
+            <div
+              className="flex flex-col gap-1"
+              data-invalid={durationInvalid || undefined}
+            >
+              <Label htmlFor={`${baseId}-${stable.ids[index]}-duration`}>
+                {labels.fields.duration_s} (s) <RequiredMark />
+              </Label>
+              <Input
+                id={`${baseId}-${stable.ids[index]}-duration`}
+                type="number"
+                min="0"
+                step="any"
+                value={stage.duration_s ?? ''}
+                disabled={disabled}
+                aria-invalid={durationInvalid || undefined}
+                onChange={(event) =>
+                  onChange(
+                    stages.map((item, position) =>
+                      position === index
+                        ? {
+                            ...item,
+                            duration_s: numberFromInput(event.target.value),
+                          }
+                        : item,
+                    ),
+                  )
+                }
+              />
+            </div>
+            <div className="flex items-end gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={labels.moveUp}
+                disabled={disabled || index === 0}
+                onClick={() => move(index, -1)}
+              >
+                <ArrowUp />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={labels.moveDown}
+                disabled={disabled || index === stages.length - 1}
+                onClick={() => move(index, 1)}
+              >
+                <ArrowDown />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={labels.removeSpinStage}
+                disabled={disabled}
+                onClick={() => {
+                  stable.remove(index)
+                  onChange(stages.filter((_, position) => position !== index))
+                }}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+            {speedInvalid || durationInvalid ? (
+              <p className="text-destructive text-sm sm:col-span-3">
+                {labels.invalidMessage}
+              </p>
+            ) : null}
+          </div>
+        )
+      })}
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            stable.add()
+            onChange([...stages, { speed_rpm: null, duration_s: null }])
+          }}
+        >
+          <Plus data-icon="inline-start" />
+          {labels.addSpinStage}
+        </Button>
+      </div>
+    </fieldset>
+  )
 }
 
 function useStableRowIds(length: number) {
@@ -625,7 +833,7 @@ function TreatmentStepRow({
   const baseId = useId()
   const definitions = definitionsFor(kind, step.type)
   const namedItems = Array.isArray(step.parameters.items)
-    ? step.parameters.items
+    ? (step.parameters.items as NamedTreatmentParameter[])
     : []
 
   return (
@@ -723,6 +931,16 @@ function TreatmentStepRow({
             <p className="text-destructive text-sm">{labels.requiredMessage}</p>
           ) : null}
         </div>
+      ) : null}
+
+      {step.type === 'spin_coat' ? (
+        <SpinCoatStagesEditor
+          stages={spinCoatStages(step.parameters)}
+          onChange={(stages) => onChange({ ...step, parameters: { stages } })}
+          disabled={disabled}
+          showErrors={showErrors}
+          labels={labels}
+        />
       ) : null}
 
       {definitions.length > 0 ? (

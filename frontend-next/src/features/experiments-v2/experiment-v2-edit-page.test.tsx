@@ -130,6 +130,11 @@ it('uses the run code and status as the primary page identity', async () => {
   expect(
     await screen.findByRole('heading', { name: 'CVD-2026-0042' }),
   ).toBeInTheDocument()
+  expect(api.getModuleOrNull).toHaveBeenCalledWith(
+    'run-1',
+    'equipment',
+    'token',
+  )
   expect(screen.getByText('Draft')).toBeInTheDocument()
   expect(
     screen.getByRole('button', { name: 'Submit record' }),
@@ -161,6 +166,48 @@ it('uses the run code and status as the primary page identity', async () => {
       undefined,
     ),
   )
+})
+
+it('reloads modules when the run changes while the page is loading', async () => {
+  api.getRun
+    .mockResolvedValueOnce({
+      id: 'run-1',
+      run_code: 'CVD-2026-0042',
+      status: 'draft',
+      current_revision_id: null,
+      owner_id: 'user-1',
+      setup_ref: null,
+      setup_ref_version: null,
+      setup_ref_snapshot_json: null,
+      result_missing_todo: false,
+      not_characterized_at: null,
+    })
+    .mockResolvedValue({
+      id: 'run-1',
+      run_code: 'CVD-2026-0042',
+      status: 'locked',
+      current_revision_id: 'revision-1',
+      owner_id: 'user-1',
+      setup_ref: null,
+      setup_ref_version: null,
+      setup_ref_snapshot_json: null,
+      result_missing_todo: false,
+      not_characterized_at: null,
+    })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <ExperimentV2EditPage runId="run-1" />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  expect(await screen.findByText('Submitted')).toBeInTheDocument()
+  expect(api.getModuleOrNull).toHaveBeenCalledTimes(14)
 })
 
 it('disables export while process sections are unsaved', async () => {

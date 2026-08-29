@@ -42,10 +42,15 @@ describe('simple product form adapters', () => {
     })
   })
 
-  it('rejects blank, infinite, and out-of-range values', () => {
-    expect(simpleCreateIssue({ ...valid, ambientTemperature: '' })).toBe(
-      'temperature',
-    )
+  it('stores blank environment readings as not measured and rejects invalid values', () => {
+    const blank = { ...valid, ambientTemperature: '', ambientHumidity: '' }
+    expect(simpleCreateIssue(blank)).toBeNull()
+    expect(buildSimpleCreatePayload(blank).ambient_temperature).toEqual({
+      source_type: 'not_measured',
+    })
+    expect(buildSimpleCreatePayload(blank).ambient_humidity).toEqual({
+      source_type: 'not_measured',
+    })
     expect(simpleCreateIssue({ ...valid, ambientTemperature: '1e309' })).toBe(
       'temperature',
     )
@@ -89,9 +94,16 @@ describe('simple product form adapters', () => {
       buildSimpleSourceLoadsPayload([
         {
           load_key: 'load_1',
+          preparation_steps: [
+            {
+              step_type: 'spin_coat',
+              parameters: { speed_rpm: 1000, duration_s: 10 },
+            },
+          ],
           ingredients: [
             {
               material_lot_id: 'lot-1',
+              function_role: 'metal_source',
               snapshot: { substance_name: 'MoO3' },
             },
           ],
@@ -101,7 +113,15 @@ describe('simple product form adapters', () => {
       items: [
         {
           load_key: 'load_1',
-          ingredients: [{ material_lot_id: 'lot-1' }],
+          preparation_steps: [
+            {
+              step_type: 'spin_coat',
+              parameters: {
+                stages: [{ speed_rpm: 1000, duration_s: 10 }],
+              },
+            },
+          ],
+          ingredients: [{ material_lot_id: 'lot-1', process_roles: [] }],
         },
       ],
     })
@@ -139,6 +159,72 @@ describe('simple product form adapters', () => {
         1,
       ),
     ).toContain('0 分钟')
+  })
+
+  it('requires physical cylinder references for gas exchange', () => {
+    const temperature = {
+      channel_type: 'temperature',
+      source_type: 'setpoint',
+      zone_index: 1,
+      series: [{ start_s: 0, value: 700 }],
+    }
+    const gas = {
+      channel_type: 'flow',
+      source_type: 'setpoint',
+      gas_species_code: 'Ar',
+      gas_lot_id: 'lot-1',
+      gas_lot_version: 1,
+      measurement_source: 'mfc',
+      series: [{ start_s: 0, end_s: 60, value: 100 }],
+    }
+    const preparation = {
+      ...validProcessSettings,
+      preparation_operations: [
+        {
+          operation_type: 'gas_exchange',
+          duration_min: 5,
+          cycle_count: 3,
+          gas_sources: [
+            { material_lot_id: 'purge-lot', material_lot_version: 2 },
+          ],
+        },
+      ],
+    }
+    expect(simpleGrowthIssue([], [temperature, gas], preparation, 1)).toBeNull()
+    expect(
+      simpleGrowthIssue(
+        [],
+        [temperature, gas],
+        {
+          ...preparation,
+          preparation_operations: [
+            {
+              ...preparation.preparation_operations[0],
+              cycle_count: 1.5,
+            },
+          ],
+        },
+        1,
+      ),
+    ).toContain('置换次数')
+    expect(
+      simpleGrowthIssue(
+        [],
+        [temperature, gas],
+        {
+          ...preparation,
+          preparation_operations: [
+            {
+              operation_type: 'gas_exchange',
+              duration_min: 5,
+              cycle_count: 3,
+              gases: ['Ar'],
+            },
+          ],
+        },
+        1,
+      ),
+    ).toContain('气瓶批次')
   })
 
   it('rejects blank generated temperature and gas values', () => {
@@ -271,6 +357,41 @@ describe('simple product form adapters', () => {
         1,
       ),
     ).toBe('同一种气体的供气区间不能重叠。')
+    expect(
+      simpleGrowthIssue(
+        segments,
+        [
+          temperature,
+          {
+            ...gas,
+            series: [
+              { start_s: 300, end_s: 480, value: 100 },
+              { start_s: 0, end_s: 240, value: 100 },
+            ],
+          },
+        ],
+        settings,
+        1,
+      ),
+    ).toBe('请按开始时间顺序填写供气区间。')
+    expect(
+      simpleGrowthIssue(
+        segments,
+        [
+          temperature,
+          {
+            ...gas,
+            series: [{ start_s: 0, end_s: 300, value: 100 }],
+            subject_snapshot: {
+              lot_category: 'gas_cylinder',
+              gas_components: [{ species: 'H2', volume_percent: 100 }],
+            },
+          },
+        ],
+        settings,
+        1,
+      ),
+    ).toBe('所选气瓶批次与气体种类不匹配。')
     expect(
       simpleGrowthIssue(
         segments,

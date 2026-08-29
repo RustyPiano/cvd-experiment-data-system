@@ -9,8 +9,16 @@ import {
   commonSuggestedBulkSpaceGroups,
   suggestedBulkSpaceGroups,
 } from './space-groups'
+import { parseStructuredValue } from '@/shared/structured-field'
 
 export function tubeUsageParts(value: string): [string, string] {
+  const structured = parseStructuredValue(value)
+  if ('reset_count' in structured || 'use_number_since_reset' in structured) {
+    return [
+      String(structured['reset_count'] ?? '').trim(),
+      String(structured['use_number_since_reset'] ?? '').trim(),
+    ]
+  }
   const [resetCount = '', useNumber = ''] = value.split(',', 2)
   return [resetCount.trim(), useNumber.trim()]
 }
@@ -26,6 +34,16 @@ export async function saveBeforeStepChange(
   saveCurrentStep: () => Promise<boolean>,
 ): Promise<boolean> {
   return readOnly || !hasUnsavedChanges || saveCurrentStep()
+}
+
+export function channelsForSetupZoneCount<
+  T extends { channel_type: string; zone_index?: number },
+>(channels: T[], zoneCount: number): T[] {
+  return channels.filter(
+    (channel) =>
+      channel.channel_type !== 'temperature' ||
+      Number(channel.zone_index) <= zoneCount,
+  )
 }
 
 type WorkflowSegment = {
@@ -93,14 +111,6 @@ export function timelineValidationIssue(
   segments: WorkflowSegment[],
   channels: WorkflowChannel[],
 ): string | null {
-  if (segments.length === 0) return '请至少添加一个实验阶段。'
-  if (
-    !segments.some((segment) =>
-      ['reaction', 'nucleation', 'growth'].includes(segment.segment_type),
-    )
-  ) {
-    return '请填写反应阶段。'
-  }
   if (
     segments.some(
       (segment) =>

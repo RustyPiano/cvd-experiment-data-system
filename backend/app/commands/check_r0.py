@@ -35,7 +35,11 @@ def build_r0_reports(
 ) -> list[dict[str, Any]]:
     statement = (
         select(ExperimentRun)
-        .options(selectinload(ExperimentRun.module_payloads))
+        .options(
+            selectinload(ExperimentRun.module_payloads),
+            selectinload(ExperimentRun.current_revision),
+            selectinload(ExperimentRun.file_assets),
+        )
         .where(ExperimentRun.schema_version == SCHEMA_VERSION)
         .order_by(ExperimentRun.run_code.asc())
     )
@@ -43,7 +47,7 @@ def build_r0_reports(
         statement = statement.where(ExperimentRun.id == run_id)
     if run_code is not None:
         statement = statement.where(ExperimentRun.run_code == run_code)
-    return [build_run_report(run) for run in db.scalars(statement).all()]
+    return [build_run_report(run, db=db) for run in db.scalars(statement).all()]
 
 
 def render_text_report(reports: list[dict[str, Any]]) -> str:

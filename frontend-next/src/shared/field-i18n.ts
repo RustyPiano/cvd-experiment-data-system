@@ -6,6 +6,7 @@ import {
   unitLabelsEn,
 } from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
+import { common as commonEn } from '@/shared/i18n/locales/en/common'
 
 export function isEnglish(language: string): boolean {
   return language.startsWith('en')
@@ -125,7 +126,11 @@ export function localizedUnit(
   language: string,
 ): string | null {
   if (!unit || !isEnglish(language)) return unit
-  return unitLabelsEn[unit] ?? unit
+  return (
+    unitLabelsEn[unit] ??
+    commonEn.units[unit as keyof typeof commonEn.units] ??
+    unit
+  )
 }
 
 export function localizedParenthetical(

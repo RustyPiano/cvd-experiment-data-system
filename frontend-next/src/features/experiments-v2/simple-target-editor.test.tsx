@@ -8,6 +8,7 @@ import i18n from '@/shared/i18n'
 
 import { TargetBulkPhaseSelect } from './components/target-bulk-phase-select'
 import {
+  SimpleGrowthEditor,
   SimpleSourceLoadsEditor,
   SimpleSubstratesEditor,
   SimpleTargetEditor,
@@ -16,12 +17,43 @@ import {
   sourcePreparationStepsAreValid,
 } from './simple-preparation-editors'
 import type {
+  SimpleProcessSettings,
   SimpleSourceLoad,
   SimpleTarget,
 } from './simple-preparation-editors'
 
 vi.mock('./components/entity-reference-select', () => ({
-  EntityReferenceSelect: () => <div>物料批次选择器</div>,
+  EntityReferenceSelect: ({
+    allowedLotCategories,
+    onChange,
+  }: {
+    allowedLotCategories?: string[]
+    onChange: (id: string, entity: unknown) => void
+  }) =>
+    allowedLotCategories?.includes('gas_cylinder') ? (
+      <button
+        type="button"
+        onClick={() =>
+          onChange('gas-lot-1', {
+            latest_version: {
+              version: 2,
+              data: {
+                lot_category: 'gas_cylinder',
+                substance_name: '5% H2 / Ar',
+                gas_components: [
+                  { species: 'H2', volume_percent: 5 },
+                  { species: 'Ar', volume_percent: 95 },
+                ],
+              },
+            },
+          })
+        }
+      >
+        选择气瓶批次
+      </button>
+    ) : (
+      <div>物料批次选择器</div>
+    ),
 }))
 
 describe('simple target phase editing', () => {
@@ -284,11 +316,14 @@ describe('simple precursor position editing', () => {
       material_lot_id: 'lot_1',
       material_lot_version: 1,
       function_role: 'metal_source',
-      amount: 0,
+      amount: 1,
       unit: 'mg',
     }
     expect(sourceLoadIngredientsAreValid([ingredient])).toBe(true)
     expect(sourceLoadIngredientsAreValid([ingredient, ingredient])).toBe(false)
+    expect(sourceLoadIngredientsAreValid([{ ...ingredient, amount: 0 }])).toBe(
+      false,
+    )
     expect(sourceLoadIngredientsAreValid([{ ...ingredient, amount: -1 }])).toBe(
       false,
     )
@@ -337,14 +372,121 @@ describe('simple precursor position editing', () => {
     expect(
       document.querySelector('label[for="load_1-ingredient-0-unit"]'),
     ).toHaveTextContent('单位 *')
-    expect(screen.getByText('填写用量后，请填写单位。')).toBeInTheDocument()
+    expect(screen.getByText('请填写用量单位。')).toBeInTheDocument()
 
     await user.type(unit, 'mg')
 
     expect(unit).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByText('请填写用量单位。')).not.toBeInTheDocument()
+  })
+
+  it('uses gas cylinders without a redundant amount and clears incompatible fields when switching', async () => {
+    const user = userEvent.setup()
+    const initial: SimpleSourceLoad = {
+      load_key: 'load_gas',
+      loading_method: 'boat',
+      heating_zone_ref: 'zone_1',
+      initial_position: { axial_mm: -20, reference: 'zone_thermocouple' },
+      position_program: [
+        {
+          t_s: 60,
+          axial_mm: 0,
+          reference: 'zone_thermocouple',
+        },
+      ],
+      substrate_source_ids: ['substrate-1'],
+      preparation_steps: [
+        {
+          step_type: 'spin_coat',
+          sequence: 1,
+          parameters: {
+            stages: [{ speed_rpm: 1000, duration_s: 10 }],
+          },
+        },
+      ],
+      ingredients: [
+        {
+          material_lot_id: 'chemical-lot-1',
+          material_lot_version: 1,
+          process_roles: ['transport_agent'],
+          amount: 1,
+          unit: 'mL',
+          concentration_value: 0.5,
+          concentration_unit: 'mol_per_L',
+        },
+      ],
+    }
+
+    function Wrapper() {
+      const [loads, setLoads] = useState([initial])
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleSourceLoadsEditor
+            loads={loads}
+            zoneCount={2}
+            disabled={false}
+            showErrors
+            onChange={setLoads}
+          />
+          <output data-testid="loads">{JSON.stringify(loads)}</output>
+        </I18nextProvider>
+      )
+    }
+
+    render(<Wrapper />)
+
+    await user.click(screen.getAllByRole('combobox')[0])
+    await user.click(screen.getByRole('option', { name: '气路供给' }))
+
+    let load = JSON.parse(
+      screen.getByTestId('loads').textContent ?? '',
+    )[0] as SimpleSourceLoad
+    expect(load).toMatchObject({
+      loading_method: 'gas_line',
+      preparation_steps: [],
+      position_program: [],
+      substrate_source_ids: [],
+      ingredients: [
+        {
+          material_lot_id: '',
+          material_lot_version: 0,
+          process_roles: [],
+        },
+      ],
+    })
+    expect(load).not.toHaveProperty('heating_zone_ref')
+    expect(load).not.toHaveProperty('initial_position')
+    expect(screen.queryByText('用量')).not.toBeInTheDocument()
+    expect(screen.queryByText('处理方式')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '选择气瓶批次' }))
+    load = JSON.parse(
+      screen.getByTestId('loads').textContent ?? '',
+    )[0] as SimpleSourceLoad
+    expect(load.ingredients[0]).toMatchObject({
+      material_lot_id: 'gas-lot-1',
+      material_lot_version: 2,
+    })
+    expect(sourceLoadIngredientsAreValid(load.ingredients, false, false)).toBe(
+      true,
+    )
     expect(
-      screen.queryByText('填写用量后，请填写单位。'),
-    ).not.toBeInTheDocument()
+      screen.getByRole('button', { name: '添加同一装载中的材料' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('combobox')[0])
+    await user.click(screen.getByRole('option', { name: '舟' }))
+    load = JSON.parse(
+      screen.getByTestId('loads').textContent ?? '',
+    )[0] as SimpleSourceLoad
+    expect(load.ingredients).toEqual([
+      {
+        material_lot_id: '',
+        material_lot_version: 0,
+        process_roles: [],
+      },
+    ])
+    expect(sourceLoadIngredientsAreValid(load.ingredients)).toBe(false)
   })
 
   it('expands and stores the selected precursor treatment parameters', async () => {
@@ -393,7 +535,9 @@ describe('simple precursor position editing', () => {
       {
         step_type: 'spin_coat',
         sequence: 1,
-        parameters: { speed_rpm: 3000, duration_s: 60 },
+        parameters: {
+          stages: [{ speed_rpm: 3000, duration_s: 60 }],
+        },
       },
     ])
     expect(sourcePreparationStepsAreValid(loads[0].preparation_steps)).toBe(
@@ -485,6 +629,164 @@ describe('simple precursor position editing', () => {
         '此记录使用旧装置原点参照；请按当前规则重新确认温区和相对热电偶位置。',
       ),
     ).toBeInTheDocument()
+  })
+
+  it('binds a surface load by stable substrate id and stores optional process roles', async () => {
+    const user = userEvent.setup()
+    const initial: SimpleSourceLoad = {
+      load_key: 'load_surface',
+      loading_method: 'substrate_surface',
+      substrate_source_ids: [],
+      preparation_steps: [],
+      position_program: [],
+      ingredients: [
+        {
+          material_lot_id: 'lot_1',
+          material_lot_version: 1,
+          function_role: 'metal_source',
+          process_roles: [],
+        },
+      ],
+    }
+    function Wrapper() {
+      const [loads, setLoads] = useState([initial])
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleSourceLoadsEditor
+            loads={loads}
+            substrates={[
+              {
+                source_id: 'stable-substrate-id',
+                piece_label: 'S1',
+                zone_thermocouple_distance_mm: JSON.stringify({
+                  zone_index: 2,
+                  distance_mm: 15,
+                }),
+              },
+            ]}
+            zoneCount={2}
+            disabled={false}
+            showErrors
+            onChange={setLoads}
+          />
+          <output data-testid="loads">{JSON.stringify(loads)}</output>
+        </I18nextProvider>
+      )
+    }
+    render(<Wrapper />)
+
+    expect(screen.getByText('历史作用分类：金属源')).toBeInTheDocument()
+    expect(screen.getByText('温区 2，相对热电偶 15 mm')).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /衬底片 1/ }))
+    await user.click(screen.getByRole('checkbox', { name: '促进反应或成核' }))
+    await user.click(screen.getByRole('checkbox', { name: '其他' }))
+    await user.type(screen.getByLabelText(/^其他工艺作用/), '表面活性剂')
+
+    const load = JSON.parse(
+      screen.getByTestId('loads').textContent ?? '',
+    )[0] as SimpleSourceLoad
+    expect(load.substrate_source_ids).toEqual(['stable-substrate-id'])
+    expect(load.ingredients[0].process_roles).toEqual([
+      'reaction_or_nucleation_promoter',
+      'other',
+    ])
+    expect(load.ingredients[0].process_role_other).toBe('表面活性剂')
+  })
+
+  it('rejects a surface binding whose substrate was deleted', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SimpleSourceLoadsEditor
+          loads={[
+            {
+              load_key: 'stale_surface',
+              loading_method: 'substrate_surface',
+              substrate_source_ids: ['deleted-substrate'],
+              preparation_steps: [],
+              position_program: [],
+              ingredients: [
+                {
+                  material_lot_id: 'lot_1',
+                  material_lot_version: 1,
+                  process_roles: [],
+                },
+              ],
+            },
+          ]}
+          substrates={[]}
+          zoneCount={2}
+          disabled={false}
+          showErrors
+          onChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    )
+
+    expect(
+      screen.getByText(
+        '请至少选择一片当前衬底；如关联的衬底已删除，请重新选择。',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('requires paired concentration fields only for a spin-coated load', async () => {
+    const user = userEvent.setup()
+    const initial: SimpleSourceLoad = {
+      load_key: 'load_spin',
+      loading_method: 'boat',
+      heating_zone_ref: 'zone_1',
+      initial_position: { axial_mm: 0, reference: 'zone_thermocouple' },
+      substrate_source_ids: [],
+      preparation_steps: [
+        {
+          step_type: 'spin_coat',
+          sequence: 1,
+          parameters: {
+            stages: [{ speed_rpm: 1000, duration_s: 10 }],
+          },
+        },
+      ],
+      position_program: [],
+      ingredients: [
+        {
+          material_lot_id: 'lot_1',
+          material_lot_version: 1,
+          process_roles: [],
+          amount: 1,
+          unit: 'mL',
+        },
+      ],
+    }
+    function Wrapper() {
+      const [loads, setLoads] = useState([initial])
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleSourceLoadsEditor
+            loads={loads}
+            zoneCount={2}
+            disabled={false}
+            showErrors
+            onChange={setLoads}
+          />
+          <output data-testid="loads">{JSON.stringify(loads)}</output>
+        </I18nextProvider>
+      )
+    }
+    render(<Wrapper />)
+
+    await user.type(screen.getByRole('spinbutton', { name: '溶液浓度' }), '0.5')
+    expect(screen.getByText('填写浓度后，请选择单位。')).toBeInTheDocument()
+    await user.click(screen.getByRole('combobox', { name: /浓度单位/ }))
+    await user.click(screen.getByRole('option', { name: 'mol/L' }))
+
+    const load = JSON.parse(
+      screen.getByTestId('loads').textContent ?? '',
+    )[0] as SimpleSourceLoad
+    expect(load.ingredients[0]).toMatchObject({
+      concentration_value: 0.5,
+      concentration_unit: 'mol_per_L',
+    })
+    expect(sourceLoadIngredientsAreValid(load.ingredients, true)).toBe(true)
   })
 })
 
@@ -596,5 +898,61 @@ describe('simple substrate validation', () => {
     expect(copied[1].piece_label).toBe('S2')
     expect(copied[1].zone_thermocouple_distance_mm).toBe('')
     expect(copied[1].pretreatment_steps).toBe(item.pretreatment_steps)
+  })
+})
+
+describe('simple growth preparation editing', () => {
+  it('references one premixed cylinder instead of repeating its composition', async () => {
+    const user = userEvent.setup()
+    const initial: SimpleProcessSettings = {
+      pressure_regime: 'atmospheric',
+      cooling_method: 'furnace_cooling',
+      preparation_operations: [
+        {
+          operation_type: 'gas_exchange',
+          duration_min: 5,
+          cycle_count: 3,
+          gas_sources: [{ material_lot_id: '' }],
+        },
+      ],
+    }
+    function Wrapper() {
+      const [settings, setSettings] = useState(initial)
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleGrowthEditor
+            segments={[]}
+            channels={[]}
+            settings={settings}
+            events={[]}
+            runId="run-1"
+            token="token"
+            setupId="setup-1"
+            setupSnapshot={{}}
+            zoneCount={0}
+            disabled={false}
+            onTimelineChange={vi.fn()}
+            onSettingsChange={setSettings}
+            onEventsChange={vi.fn()}
+          />
+          <output data-testid="settings">{JSON.stringify(settings)}</output>
+        </I18nextProvider>
+      )
+    }
+    render(<Wrapper />)
+
+    expect(screen.getByText('置换气源（气瓶批次）')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '选择气瓶批次' }))
+
+    const settings = JSON.parse(
+      screen.getByTestId('settings').textContent ?? '',
+    ) as SimpleProcessSettings
+    expect(settings.preparation_operations?.[0].gas_sources).toEqual([
+      expect.objectContaining({
+        material_lot_id: 'gas-lot-1',
+        material_lot_version: 2,
+      }),
+    ])
+    expect(settings.preparation_operations?.[0].gases).toBeUndefined()
   })
 })
