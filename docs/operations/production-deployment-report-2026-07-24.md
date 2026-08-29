@@ -2,7 +2,7 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `d3ce6b9f18bcf48240290315f0ec1bf040c6ebb0`。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `86e41677ff0b5f166008c7d98a290a3e121dfeb7`。
 - 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-08-07 发布前本地后端 350 passed、4 skipped，前端 401/401（58 files），格式、类型、构建、字段源与生成物检查全绿。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
@@ -100,6 +100,9 @@
 
 - 2026-08-07 14:15 CST，经用户明确授权不保留现有生产测试数据，发布 `d3ce6b9` / v4.0-alpha.15。操作前精确核对目标为 `cvd` 数据库（2 个用户、6 个炉次）及本项目专用附件卷；停止应用后清空 public schema，并通过 `docker compose down -v` 删除、重建附件卷。此次按用户指示未为被清理的测试数据创建新备份；历史 v1 离线归档库未连接、未修改。
 - 空库由后端启动迁移到 `20260730_0009 (head)`，仅重新创建用户指定的管理员 `admin@rustypiano.com`；密码未写入仓库或部署记录。最终用户 1、炉次 0、样品 0、物料批次 0、附件 0。管理员登录及 `/api/v1/auth/me` 返回 200，backend/frontend healthy，公网 `/health`、首页、`runtime-config.js` 与匿名 401 边界通过；生产静态产物中旧反应计时文案 0 命中、新“过程压力”文案存在。
+
+- 2026-08-29 16:11 CST，经用户明确授权发布 `86e4167` / v4.0-alpha.18。普通 `./deploy.sh` 先完成数据库与附件备份，目录为 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260829_161129`，再构建并重建 backend/frontend；未清理生产数据，未连接或修改 v1 离线归档库。
+- 新增迁移已前滚到 `20260813_0011 (head)`；backend/frontend 均为 running + healthy。公网 `/health` 返回正常，首页与 `runtime-config.js` 返回 200，匿名 `/api/v1/auth/me` 保持 401。发布前本地后端 317 passed、4 skipped，前端 320/320（55 files），字段源/xlsx、Ruff、格式、ESLint、TypeScript 与构建全部通过。
 
 ## 尚待真实数据验收
 
