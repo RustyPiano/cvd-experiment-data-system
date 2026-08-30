@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { WORKFLOW_STEPS } from './scientific-experiment-form'
+import {
+  defaultMeasurementRegion,
+  WORKFLOW_STEPS,
+} from './scientific-experiment-form'
 
 import {
   channelsForSetupZoneCount,
@@ -17,6 +20,13 @@ import {
 } from './scientific-form-workflow'
 
 describe('scientific experiment workflow helpers', () => {
+  it('defaults advanced measurements to an explicit whole-sample region', () => {
+    expect(defaultMeasurementRegion('Raman')).toEqual({
+      geometryType: 'whole_sample',
+      label: 'whole_sample',
+    })
+  })
+
   it('drops only temperature channels outside a replacement setup', () => {
     expect(
       channelsForSetupZoneCount(

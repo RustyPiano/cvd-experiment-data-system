@@ -2,13 +2,11 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
-import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { listCharacterizationItems } from './api'
 import type { CharacterizationListItem } from './api'
 import { getRun } from '@/features/experiments-v2/api'
-import type { V2ResultRead } from '@/features/experiments-v2/api'
 import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { localizedOption } from '@/shared/field-i18n'
@@ -41,35 +39,14 @@ const ScientificMeasurementWorkspace = lazy(() =>
   ),
 )
 
-function resultTypeLabel(result: V2ResultRead, t: TFunction) {
-  return t(
-    result.kind === 'characterization'
-      ? 'characterizations.list.types.characterization'
-      : 'characterizations.list.types.directObservation',
-  )
-}
-
-function resultMethodLabel(
-  result: V2ResultRead,
-  language: string,
-  t: TFunction,
-) {
-  if (result.kind === 'direct_observation') {
-    return t('characterizations.list.types.directObservation')
-  }
-  if (result.method_instrument === 'other' && result.method_other) {
-    return result.method_other
-  }
-  return result.method_instrument
-    ? localizedOption(result.method_instrument, language)
-    : t('characterizations.list.methodUnavailable')
+function measurementMethodLabel(method: string, language: string) {
+  return localizedOption(method, language)
 }
 
 function matchesQuery(
   item: CharacterizationListItem,
   query: string,
   language: string,
-  t: TFunction,
 ) {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
@@ -77,10 +54,9 @@ function matchesQuery(
     item.sample.run_code,
     item.sample.sample_code,
     item.sample.material_system,
-    ...item.results.flatMap((result) => [
-      resultTypeLabel(result, t),
-      resultMethodLabel(result, language, t),
-    ]),
+    ...item.measurements.map((measurement) =>
+      measurementMethodLabel(measurement.method_profile, language),
+    ),
   ].some((value) => value?.toLowerCase().includes(needle))
 }
 
@@ -103,36 +79,54 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
   })
   const items = itemsQuery.data ?? []
   const filtered = useMemo(
-    () => items.filter((item) => matchesQuery(item, query, i18n.language, t)),
-    [i18n.language, items, query, t],
+    () => items.filter((item) => matchesQuery(item, query, i18n.language)),
+    [i18n.language, items, query],
   )
   const resultCount = items.reduce(
-    (count, item) => count + item.results.length,
+    (count, item) => count + item.measurements.length,
     0,
   )
 
   if (runId) {
-    const canAddMeasurement = ['locked', 'reviewed'].includes(
-      runQuery.data?.status ?? '',
-    )
+    const hasCurrentRevision = Boolean(runQuery.data?.current_revision_id)
+    const canAddMeasurement =
+      ['locked', 'reviewed'].includes(runQuery.data?.status ?? '') &&
+      hasCurrentRevision
+    const needsInitialLock =
+      runQuery.data?.status === 'draft' && !hasCurrentRevision
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
-          title={t('characterizations.run.title')}
+          title={t(
+            !canAddMeasurement && !needsInitialLock && runQuery.data
+              ? 'characterizations.run.readOnlyTitle'
+              : 'characterizations.run.title',
+          )}
           subtitle={t('characterizations.run.subtitle')}
         />
         {runQuery.isError ? (
           <Alert variant="destructive">
-            <AlertDescription>
-              {resolveErrorMessage(
-                runQuery.error,
-                t('characterizations.run.loadError'),
-              )}
+            <AlertDescription className="flex items-center justify-between gap-3">
+              <span>
+                {resolveErrorMessage(
+                  runQuery.error,
+                  t('characterizations.run.loadError'),
+                )}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={runQuery.isFetching}
+                onClick={() => void runQuery.refetch()}
+              >
+                {t('characterizations.list.retry')}
+              </Button>
             </AlertDescription>
           </Alert>
         ) : runQuery.isLoading ? (
           <Skeleton className="h-32 w-full rounded-lg" />
-        ) : canAddMeasurement ? (
+        ) : !needsInitialLock ? (
           <Suspense
             fallback={
               <Skeleton
@@ -144,7 +138,7 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
             <ScientificMeasurementWorkspace
               runId={runId}
               token={session.accessToken!}
-              readOnly={false}
+              readOnly={!canAddMeasurement}
             />
           </Suspense>
         ) : (
@@ -254,16 +248,17 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map(({ results, sample }) => {
-                    const types = [
-                      ...new Set(
-                        results.map((result) => resultTypeLabel(result, t)),
-                      ),
-                    ]
+                  {filtered.map(({ measurements, sample }) => {
+                    const evidencePresent = measurements.some(
+                      (measurement) => measurement.evidence_present,
+                    )
                     const methods = [
                       ...new Set(
-                        results.map((result) =>
-                          resultMethodLabel(result, i18n.language, t),
+                        measurements.map((measurement) =>
+                          measurementMethodLabel(
+                            measurement.method_profile,
+                            i18n.language,
+                          ),
                         ),
                       ),
                     ]
@@ -292,18 +287,23 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
                           </Link>
                         </TableCell>
                         <TableCell>
-                          {results.length > 0 ? (
+                          {measurements.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
-                              {types.map((type) => (
-                                <Badge key={type} variant="secondary">
-                                  {type}
-                                </Badge>
-                              ))}
+                              <Badge variant="secondary">
+                                {t(
+                                  'characterizations.list.types.characterization',
+                                )}
+                              </Badge>
                               <Badge variant="outline">
                                 {t('characterizations.list.resultCount', {
-                                  count: results.length,
+                                  count: measurements.length,
                                 })}
                               </Badge>
+                              {!evidencePresent ? (
+                                <Badge variant="outline">
+                                  {t('characterizations.list.pending')}
+                                </Badge>
+                              ) : null}
                             </div>
                           ) : (
                             <Badge variant="outline">
@@ -317,8 +317,8 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
                             : t('characterizations.list.notRecorded')}
                         </TableCell>
                         <TableCell className="tabular-nums text-sm text-muted-foreground">
-                          {results[0]
-                            ? dayjs(results[0].created_at).format(
+                          {measurements[0]
+                            ? dayjs(measurements[0].measured_at).format(
                                 'YYYY-MM-DD HH:mm',
                               )
                             : '—'}

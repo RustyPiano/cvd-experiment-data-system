@@ -25,9 +25,11 @@ from app.schemas.scientific import (
     DatasetQueryResponse,
     EquipmentComponentCreate,
     EquipmentComponentRead,
+    InvalidateMeasurementRequest,
     LifecycleEventCreate,
     LifecycleEventRead,
     MeasurementBundleCreate,
+    MeasurementDetailRead,
     MeasurementListResponse,
     MeasurementSummaryRead,
     ReviewRunRequest,
@@ -191,6 +193,7 @@ def list_measurements(
     run_id: UUID | None = None,
     sample_id: UUID | None = None,
     method_profile: str | None = Query(default=None, max_length=128),
+    include_history: bool = False,
 ) -> MeasurementListResponse:
     return ScientificMeasurementService(db).list_measurements(
         current_user,
@@ -199,6 +202,7 @@ def list_measurements(
         run_id=run_id,
         sample_id=sample_id,
         method_profile=method_profile,
+        include_history=include_history,
     )
 
 
@@ -213,6 +217,32 @@ def create_measurement(
     current_user: CurrentUser,
 ) -> MeasurementSummaryRead:
     return ScientificMeasurementService(db).create_bundle(payload, current_user)
+
+
+@router.get("/measurements/{measurement_id}", response_model=MeasurementDetailRead)
+def get_measurement(
+    measurement_id: UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> MeasurementDetailRead:
+    return ScientificMeasurementService(db).get_measurement(measurement_id, current_user)
+
+
+@router.post(
+    "/measurements/{measurement_id}/invalidate",
+    response_model=MeasurementDetailRead,
+)
+def invalidate_measurement(
+    measurement_id: UUID,
+    payload: InvalidateMeasurementRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> MeasurementDetailRead:
+    return ScientificMeasurementService(db).invalidate_measurement(
+        measurement_id,
+        payload.reason,
+        current_user,
+    )
 
 
 @router.post(

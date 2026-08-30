@@ -195,6 +195,7 @@ class ScientificRevisionService:
         run.correction_reason = reason
         run.status = ExperimentStatus.DRAFT
         run.locked_at = None
+        run.result_missing_todo = False
         self.audit.record_event(
             actor=actor,
             entity_type="experiment_run",

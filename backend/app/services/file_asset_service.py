@@ -7,18 +7,26 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import select
+from pydantic import ValidationError
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FILE_NOTE_MAX_LENGTH, FileAsset
-from app.models.scientific import MaterialAssertion, PropertyValue, RunFeature
+from app.models.sample import Sample
+from app.models.scientific import (
+    AnalysisRun,
+    DataDerivationEdge,
+    RunFeature,
+)
 from app.models.user import User, UserRole
 from app.models.v2_results import CharacterizationRecord
 from app.repositories.experiment_repository import ExperimentRepository
 from app.repositories.file_asset_repository import FileAssetRepository
 from app.repositories.sample_repository import SampleRepository
 from app.schemas.file_asset import FileAssetListResponse, FileAssetRead
+from app.schemas.scientific import MeasurementConditions
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
     ensure_files_editable,
@@ -31,45 +39,19 @@ from app.services.temperature_timeseries import (
     ensure_temperature_timeseries_metadata,
     parse_temperature_timeseries,
 )
-from app.services.v2_field_source import canonical_option_value, field_option_values
-from app.services.v2_result_status_service import refresh_result_missing_todo
+from app.services.v2_field_source import (
+    canonical_option_value,
+    characterization_profiles,
+    field_option_values,
+)
+from app.services.v2_result_evidence import collect_measurement_evidence
+from app.services.v2_result_status_service import (
+    clear_not_characterized,
+    refresh_result_missing_todo,
+)
 
 
 def refresh_revision_provenance(db: Session, run_revision_id: UUID) -> None:
-    records = list(
-        db.scalars(
-            select(CharacterizationRecord).where(
-                CharacterizationRecord.run_revision_id == run_revision_id
-            )
-        )
-    )
-    complete = bool(records)
-    for record in records:
-        has_raw = bool(
-            db.scalar(
-                select(FileAsset.id)
-                .where(
-                    FileAsset.characterization_record_id == record.id,
-                    FileAsset.deleted_at.is_(None),
-                )
-                .limit(1)
-            )
-        )
-        has_evidence = bool(
-            db.scalar(
-                select(PropertyValue.id)
-                .where(PropertyValue.measurement_run_id == record.id)
-                .limit(1)
-            )
-            or db.scalar(
-                select(MaterialAssertion.id)
-                .where(MaterialAssertion.measurement_run_id == record.id)
-                .limit(1)
-            )
-        )
-        if not record.typed_conditions or not has_raw or not has_evidence:
-            complete = False
-            break
     feature = db.scalar(
         select(RunFeature).where(
             RunFeature.run_revision_id == run_revision_id,
@@ -77,8 +59,77 @@ def refresh_revision_provenance(db: Session, run_revision_id: UUID) -> None:
             RunFeature.ordinal == 0,
         )
     )
-    if feature is not None:
-        feature.boolean_value = complete
+    if feature is None:
+        return
+    current_run_id = db.scalar(
+        select(ExperimentRun.id).where(ExperimentRun.current_revision_id == run_revision_id)
+    )
+    if current_run_id is None:
+        feature.boolean_value = False
+        return
+    records = list(
+        db.scalars(
+            select(CharacterizationRecord)
+            .join(Sample, Sample.id == CharacterizationRecord.sample_id)
+            .where(
+                CharacterizationRecord.run_revision_id == run_revision_id,
+                CharacterizationRecord.experiment_run_id == current_run_id,
+                CharacterizationRecord.quality_flag == "valid",
+                Sample.experiment_run_id == current_run_id,
+                Sample.deleted_at.is_(None),
+                or_(Sample.role != "growth", Sample.run_revision_id == run_revision_id),
+            )
+        )
+    )
+    profiles = characterization_profiles()
+    evidence_record_ids, raw_file_record_ids = collect_measurement_evidence(
+        db, [record.id for record in records]
+    )
+    complete = bool(records)
+    for record in records:
+        profile = profiles.get(record.method_instrument)
+        if profile is None:
+            complete = False
+            break
+        try:
+            conditions = MeasurementConditions.model_validate(record.typed_conditions).model_dump(
+                exclude_none=True
+            )
+        except ValidationError:
+            complete = False
+            break
+        allowed_conditions = {item["key"] for item in profile["condition_fields"]}
+        required_conditions = set(profile["required_condition_keys"])
+        if not required_conditions.issubset(conditions) or conditions.keys() - allowed_conditions:
+            complete = False
+            break
+        instrument_selected = bool(
+            record.instrument_id or record.instrument_version or record.instrument_snapshot_json
+        )
+        if profile["instrument_required"] or instrument_selected:
+            snapshot = record.instrument_snapshot_json or {}
+            calibration = snapshot.get("calibration_at_measurement")
+            if (
+                record.instrument_id is None
+                or record.instrument_version is None
+                or snapshot.get("instrument_id") != str(record.instrument_id)
+                or snapshot.get("instrument_version") != record.instrument_version
+                or not str(snapshot.get("instrument_code_snapshot") or "").strip()
+                or not str(snapshot.get("name_type_snapshot") or "").strip()
+                or not isinstance(snapshot.get("attrs_snapshot"), dict)
+                or not isinstance(snapshot.get("capabilities"), list)
+                or not snapshot["capabilities"]
+                or not isinstance(calibration, dict)
+                or not calibration.get("validity_status")
+            ):
+                complete = False
+                break
+        if (
+            profile["raw_files_required"] and record.id not in raw_file_record_ids
+        ) or record.id not in evidence_record_ids:
+            complete = False
+            break
+    feature.boolean_value = complete
 
 
 def serialize_file_asset(file_asset: FileAsset | None) -> dict[str, Any] | None:
@@ -220,6 +271,8 @@ class FileAssetService:
         ensure_files_editable(experiment, resolved_asset_role)
         record_method: str | None = None
         run_revision_id: UUID | None = None
+        record: CharacterizationRecord | None = None
+        sample: Sample | None = None
         if characterization_record_id is not None:
             record = self.db.get(CharacterizationRecord, characterization_record_id)
             if record is None or record.experiment_run_id != experiment.id:
@@ -233,15 +286,19 @@ class FileAssetService:
                     detail="Sample must match the characterization record",
                 )
             sample_id = record.sample_id
+            sample = self.db.get(Sample, record.sample_id)
+            self._ensure_current_measurement_file_editable(experiment, record, sample)
             record_method = self._normalize_method(record.method_instrument)
             run_revision_id = record.run_revision_id
         if sample_id is not None:
-            sample = self.samples.get_by_id(sample_id)
+            sample = sample or self.samples.get_by_id(sample_id)
             if sample is None or sample.experiment_run_id != experiment.id:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Sample must belong to the same experiment",
                 )
+            if resolved_asset_role == "characterization_file":
+                self._ensure_current_sample_editable(experiment, sample)
         if (
             resolved_asset_role
             in {
@@ -293,6 +350,11 @@ class FileAssetService:
             except TemperatureTimeseriesError as exc:
                 _raise_invalid_temperature_timeseries(exc)
         resolved_category = self._normalize_file_category(file_category)
+        if characterization_record_id is not None and resolved_category != "raw":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Characterization record files must be raw data",
+            )
         file_id = uuid4()
         relative_path, sha256 = self.storage.persist(
             experiment_run_code=experiment.run_code,
@@ -300,37 +362,40 @@ class FileAssetService:
             original_name=original_name,
             content=content,
         )
-        duplicate = self.files.find_active_duplicate(experiment.id, sha256)
-        metadata_json: dict[str, object] = {}
-        if duplicate is not None:
-            metadata_json = {
-                "duplicate_in_experiment": True,
-                "duplicate_of_file_id": str(duplicate.id),
-            }
-        metadata_json.update(binding_metadata)
-        metadata_json.update(timeseries_metadata)
-        file_asset = FileAsset(
-            id=file_id,
-            experiment_run_id=experiment.id,
-            sample_id=sample_id,
-            characterization_record_id=characterization_record_id,
-            uploaded_by_id=current_user.id,
-            original_name=original_name,
-            storage_path=relative_path,
-            content_type=upload.content_type,
-            size_bytes=len(content),
-            sha256=sha256,
-            method=resolved_method,
-            file_category=resolved_category,
-            asset_role=resolved_asset_role,
-            note=normalized_note,
-            file_kind=resolved_method,
-            metadata_json=metadata_json,
-        )
         try:
+            duplicate = self.files.find_active_duplicate(experiment.id, sha256)
+            metadata_json: dict[str, object] = {}
+            if duplicate is not None:
+                metadata_json = {
+                    "duplicate_in_experiment": True,
+                    "duplicate_of_file_id": str(duplicate.id),
+                }
+            metadata_json.update(binding_metadata)
+            metadata_json.update(timeseries_metadata)
+            file_asset = FileAsset(
+                id=file_id,
+                experiment_run_id=experiment.id,
+                sample_id=sample_id,
+                characterization_record_id=characterization_record_id,
+                uploaded_by_id=current_user.id,
+                original_name=original_name,
+                storage_path=relative_path,
+                content_type=upload.content_type,
+                size_bytes=len(content),
+                sha256=sha256,
+                method=resolved_method,
+                file_category=resolved_category,
+                asset_role=resolved_asset_role,
+                note=normalized_note,
+                file_kind=resolved_method,
+                metadata_json=metadata_json,
+            )
             saved = self.files.create(file_asset)
             if run_revision_id is not None:
                 refresh_revision_provenance(self.db, run_revision_id)
+                if record is not None and record.quality_flag == "valid":
+                    clear_not_characterized(self.db, experiment, current_user)
+                refresh_result_missing_todo(self.db, experiment)
             self.audit.record_event(
                 actor=current_user,
                 entity_type="file_asset",
@@ -356,19 +421,59 @@ class FileAssetService:
 
     def delete_file(self, file_id: UUID, current_user: User) -> None:
         file_asset = self._get_editable_file(file_id, current_user)
-        record = (
-            self.db.get(CharacterizationRecord, file_asset.characterization_record_id)
-            if file_asset.characterization_record_id
-            else None
+        experiment = self.db.get(ExperimentRun, file_asset.experiment_run_id)
+        records = self._measurement_file_records(file_asset)
+        if file_asset.characterization_record_id is not None and not any(
+            record.id == file_asset.characterization_record_id for record in records
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Historical, invalid, or inactive measurement files are read-only",
+            )
+        edge_record_ids = set(
+            self.db.scalars(
+                select(AnalysisRun.measurement_run_id)
+                .join(DataDerivationEdge, DataDerivationEdge.analysis_run_id == AnalysisRun.id)
+                .where(DataDerivationEdge.file_asset_id == file_asset.id)
+            )
         )
+        region_record_ids = {
+            record.id
+            for record in records
+            if str((record.sample_region or {}).get("image_file_id")) == str(file_asset.id)
+        }
+        relationship_record_ids = edge_record_ids | region_record_ids
+        if relationship_record_ids:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Files referenced by analyses or sample regions are immutable",
+            )
+        for record in records:
+            is_direct_raw = record.id == file_asset.characterization_record_id
+            sample = self.db.get(Sample, record.sample_id)
+            self._ensure_current_measurement_file_editable(
+                experiment,
+                record,
+                sample,
+                file_asset=file_asset if is_direct_raw else None,
+            )
+            if (
+                file_asset.experiment_run_id != record.experiment_run_id
+                or file_asset.sample_id != record.sample_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Historical, invalid, or inactive measurement files are read-only",
+                )
         self._soft_delete_files([file_asset], current_user)
         try:
-            if record is not None and record.run_revision_id is not None:
-                refresh_revision_provenance(self.db, record.run_revision_id)
-            if file_asset.asset_role == "direct_observation_file":
-                experiment = self.experiments.get_by_id(file_asset.experiment_run_id)
-                if experiment is not None:
-                    refresh_result_missing_todo(self.db, experiment)
+            for run_revision_id in {
+                record.run_revision_id for record in records if record.run_revision_id is not None
+            }:
+                refresh_revision_provenance(self.db, run_revision_id)
+            if records:
+                assert experiment is not None
+                refresh_result_missing_todo(self.db, experiment)
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -472,6 +577,11 @@ class FileAssetService:
         file_asset = self.files.get_by_id_for_update(file_id)
         if file_asset is None or file_asset.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        if file_asset.asset_role == "direct_observation_file":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Legacy direct observation files are read-only",
+            )
         ensure_files_editable(experiment, file_asset.asset_role)
         if (
             current_user.role != UserRole.ADMIN
@@ -512,6 +622,91 @@ class FileAssetService:
                 after_json=after,
             )
 
+    def _measurement_file_records(self, file_asset: FileAsset) -> list[CharacterizationRecord]:
+        records = {
+            record.id: record
+            for record in self.db.scalars(
+                select(CharacterizationRecord)
+                .join(AnalysisRun, AnalysisRun.measurement_run_id == CharacterizationRecord.id)
+                .join(
+                    DataDerivationEdge,
+                    DataDerivationEdge.analysis_run_id == AnalysisRun.id,
+                )
+                .where(DataDerivationEdge.file_asset_id == file_asset.id)
+            )
+        }
+        if file_asset.characterization_record_id is not None:
+            record = self.db.get(CharacterizationRecord, file_asset.characterization_record_id)
+            if record is not None:
+                records[record.id] = record
+        if file_asset.experiment_run_id is not None and file_asset.sample_id is not None:
+            for record in self.db.scalars(
+                select(CharacterizationRecord).where(
+                    CharacterizationRecord.experiment_run_id == file_asset.experiment_run_id,
+                    CharacterizationRecord.sample_id == file_asset.sample_id,
+                )
+            ):
+                image_file_id = (record.sample_region or {}).get("image_file_id")
+                if image_file_id is not None and str(image_file_id) == str(file_asset.id):
+                    records[record.id] = record
+        return list(records.values())
+
+    @staticmethod
+    def _ensure_current_sample_editable(
+        experiment: ExperimentRun | None,
+        sample: Sample | None,
+    ) -> None:
+        current_revision_id = experiment.current_revision_id if experiment is not None else None
+        if not (
+            experiment is not None
+            and experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
+            and current_revision_id is not None
+            and sample is not None
+            and sample.experiment_run_id == experiment.id
+            and sample.deleted_at is None
+            and sample.lifecycle_state == "active"
+            and (sample.role != "growth" or sample.run_revision_id == current_revision_id)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Historical or inactive samples are read-only",
+            )
+
+    @classmethod
+    def _ensure_current_measurement_file_editable(
+        cls,
+        experiment: ExperimentRun | None,
+        record: CharacterizationRecord,
+        sample: Sample | None,
+        *,
+        file_asset: FileAsset | None = None,
+    ) -> None:
+        cls._ensure_current_sample_editable(experiment, sample)
+        current_revision_id = experiment.current_revision_id if experiment is not None else None
+        editable = (
+            experiment is not None
+            and experiment.status in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
+            and record.experiment_run_id == experiment.id
+            and record.run_revision_id is not None
+            and record.run_revision_id == current_revision_id
+            and record.quality_flag != "invalid"
+            and sample is not None
+            and sample.id == record.sample_id
+        )
+        if file_asset is not None:
+            editable = editable and (
+                file_asset.experiment_run_id == experiment.id
+                and file_asset.sample_id == record.sample_id
+                and file_asset.asset_role == "characterization_file"
+                and file_asset.file_category == "raw"
+                and file_asset.method == record.method_instrument
+            )
+        if not editable:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Historical, invalid, or inactive measurement files are read-only",
+            )
+
     def _normalize_method(self, method: str | None) -> str | None:
         normalized = canonical_option_value((method or "").strip())
         if not normalized:
@@ -525,13 +720,17 @@ class FileAssetService:
 
     def _normalize_asset_role(self, value: str | None) -> str:
         normalized = (value or "characterization_file").strip()
+        if normalized == "direct_observation_file":
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail="Direct observation file writes are retired; use /api/v1/measurements",
+            )
         if normalized not in {
             "characterization_file",
             "setup_diagram",
             "process_event_attachment",
             "temperature_timeseries",
             "process_timeseries",
-            "direct_observation_file",
         }:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

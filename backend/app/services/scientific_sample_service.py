@@ -15,6 +15,7 @@ from app.models.scientific import (
     TransformationRun,
 )
 from app.models.user import User, UserRole
+from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import (
     LineageSampleRead,
     LineageTransformationRead,
@@ -23,13 +24,20 @@ from app.schemas.scientific import (
     TransformationRunRead,
 )
 from app.services.audit_service import AuditService
-from app.services.sample_service import SampleService
+from app.services.experiment_guards import get_visible_experiment
+from app.services.sample_service import (
+    SampleService,
+    ensure_sample_revision_association,
+    sample_revision_snapshot,
+)
+from app.services.v2_field_source import normalize_offset_datetime
 
 
 class ScientificSampleService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.samples = SampleService(db)
+        self.experiments = ExperimentRepository(db)
         self.audit = AuditService(db)
 
     def create_transformation(
@@ -37,6 +45,28 @@ class ScientificSampleService:
         payload: TransformationRunCreate,
         actor: User,
     ) -> TransformationRunRead:
+        sample_run_rows = list(
+            self.db.execute(
+                select(Sample.id, Sample.experiment_run_id).where(
+                    Sample.id.in_(payload.input_sample_ids),
+                    Sample.deleted_at.is_(None),
+                )
+            )
+        )
+        if {row.id for row in sample_run_rows} != set(payload.input_sample_ids):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="An input sample is missing or inactive",
+            )
+        runs: dict[UUID, ExperimentRun] = {}
+        for run_id in sorted({row.experiment_run_id for row in sample_run_rows}, key=str):
+            run = self.experiments.get_by_id_for_update(run_id)
+            if run is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="An input sample run is missing",
+                )
+            runs[run.id] = run
         inputs = list(
             self.db.scalars(
                 select(Sample)
@@ -46,9 +76,12 @@ class ScientificSampleService:
                 )
                 .order_by(Sample.id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
         )
-        if {item.id for item in inputs} != set(payload.input_sample_ids):
+        if {item.id for item in inputs} != set(payload.input_sample_ids) or any(
+            item.experiment_run_id not in runs for item in inputs
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="An input sample is missing or inactive",
@@ -60,18 +93,11 @@ class ScientificSampleService:
             )
         by_id = {item.id: item for item in inputs}
         inputs = [by_id[item_id] for item_id in payload.input_sample_ids]
-        runs = {
-            run.id: run
-            for run in self.db.scalars(
-                select(ExperimentRun).where(
-                    ExperimentRun.id.in_({item.experiment_run_id for item in inputs})
-                )
-            )
-        }
         if actor.role != UserRole.ADMIN and any(run.owner_id != actor.id for run in runs.values()):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
         if any(
             run.status not in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}
+            or run.current_revision_id is None
             for run in runs.values()
         ):
             raise HTTPException(
@@ -92,6 +118,22 @@ class ScientificSampleService:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Output run must be one of the input sample runs",
                 )
+        producer_times = self.db.scalars(
+            select(TransformationRun.occurred_at)
+            .join(
+                TransformationOutput,
+                TransformationOutput.transformation_run_id == TransformationRun.id,
+            )
+            .where(TransformationOutput.sample_id.in_(payload.input_sample_ids))
+        )
+        if any(
+            payload.occurred_at < normalize_offset_datetime(produced_at)
+            for produced_at in producer_times
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Transformation cannot occur before an input sample was produced",
+            )
         transformation = TransformationRun(
             output_experiment_run_id=output_run.id,
             transformation_type=payload.transformation_type,
@@ -103,22 +145,27 @@ class ScientificSampleService:
         )
         self.db.add(transformation)
         self.db.flush()
-        for sample in inputs:
+        for input_ordinal, sample in enumerate(inputs):
+            source_run = runs[sample.experiment_run_id]
+            run_revision_id = source_run.current_revision_id
+            assert run_revision_id is not None
+            if sample.role == SampleRole.GROWTH.value and sample.run_revision_id != run_revision_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Historical growth samples cannot be transformed",
+                )
+            ensure_sample_revision_association(self.db, sample, run_revision_id)
             self.db.add(
                 TransformationInput(
                     transformation_run_id=transformation.id,
                     sample_id=sample.id,
-                    run_revision_id=sample.run_revision_id,
-                    provenance_json={
-                        "sample_id": str(sample.id),
-                        "sample_code": sample.sample_code,
-                        "experiment_run_id": str(sample.experiment_run_id),
-                        "run_revision_id": (
-                            str(sample.run_revision_id) if sample.run_revision_id else None
-                        ),
-                        "role": sample.role,
-                        "actual_state": sample.actual_state,
-                        "lifecycle_state": sample.lifecycle_state,
+                    input_role=f"input_{input_ordinal + 1}",
+                    run_revision_id=run_revision_id,
+                    provenance_json=sample_revision_snapshot(sample)
+                    | {
+                        "run_revision_id": str(run_revision_id),
+                        "input_ordinal": input_ordinal,
+                        "consumed_by_this_transformation": payload.consume_inputs,
                         "captured_at": datetime.now(UTC).isoformat(),
                     },
                 )
@@ -144,6 +191,12 @@ class ScientificSampleService:
             )
             self.db.add(sample)
             self.db.flush()
+            assert output_run.current_revision_id is not None
+            ensure_sample_revision_association(
+                self.db,
+                sample,
+                output_run.current_revision_id,
+            )
             outputs.append(sample)
             self.db.add(
                 TransformationOutput(
@@ -177,7 +230,10 @@ class ScientificSampleService:
         )
 
     def lineage(self, sample_id: UUID, actor: User) -> SampleLineageRead:
-        self.samples.get_sample(sample_id, actor)
+        root = self.db.get(Sample, sample_id)
+        if root is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
+        get_visible_experiment(self.experiments, root.experiment_run_id, actor)
         sample_ids = {sample_id}
         transformation_ids: set[UUID] = set()
         frontier = {sample_id}
@@ -218,14 +274,13 @@ class ScientificSampleService:
             sample_ids.update(connected)
         samples = list(
             self.db.scalars(
-                select(Sample)
-                .where(Sample.id.in_(sample_ids), Sample.deleted_at.is_(None))
-                .order_by(Sample.sample_code)
+                select(Sample).where(Sample.id.in_(sample_ids)).order_by(Sample.sample_code)
             )
         )
         for run_id in {item.experiment_run_id for item in samples}:
-            self.samples.get_sample(
-                next(item.id for item in samples if item.experiment_run_id == run_id),
+            get_visible_experiment(
+                self.experiments,
+                run_id,
                 actor,
             )
         transformations = (
@@ -265,17 +320,20 @@ class ScientificSampleService:
             samples=[
                 LineageSampleRead(
                     id=item.id,
+                    experiment_run_id=item.experiment_run_id,
                     sample_code=item.sample_code,
                     role=item.role,
                     actual_state=item.actual_state,
                     actual_material_summary=item.actual_material_summary,
                     lifecycle_state=item.lifecycle_state,
+                    deleted_at=item.deleted_at,
                 )
                 for item in samples
             ],
             transformations=[
                 LineageTransformationRead(
                     id=item.id,
+                    output_experiment_run_id=item.output_experiment_run_id,
                     transformation_type=item.transformation_type,
                     occurred_at=item.occurred_at,
                     operator_id=item.operator_id,

@@ -2,7 +2,7 @@
 // 列表 API 与配置（单一源）。选中回传实体对象，供上层展示只读投影与取版本号。
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/use-auth'
@@ -94,6 +94,7 @@ export function EntityReferenceSelect({
   selectedSnapshot,
   allowedLotCategories,
   productLabel = false,
+  clearable = false,
 }: {
   kind: EntityKind
   value: string
@@ -105,6 +106,7 @@ export function EntityReferenceSelect({
   selectedSnapshot?: Record<string, unknown> | null
   allowedLotCategories?: readonly string[]
   productLabel?: boolean
+  clearable?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const { session } = useAuth()
@@ -233,6 +235,20 @@ export function EntityReferenceSelect({
             </SelectGroup>
           </SelectContent>
         </Select>
+        {clearable && value ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t('experimentsV2.reference.clear', {
+              name: entityName,
+            })}
+            disabled={disabled}
+            onClick={() => onChange('', null)}
+          >
+            <X />
+          </Button>
+        ) : null}
         {canMaintain ? (
           <Button
             type="button"

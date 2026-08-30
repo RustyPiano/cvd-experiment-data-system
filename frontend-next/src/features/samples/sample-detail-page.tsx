@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
@@ -5,7 +6,8 @@ import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { getExperiment, getSample } from './api'
-import { listMeasurements } from '@/features/experiments-v2/api'
+import { MeasurementDetails } from '@/features/characterizations/measurement-details'
+import { listAllMeasurements } from '@/features/experiments-v2/api'
 import { useAuth } from '@/features/auth/use-auth'
 import { resolveErrorMessage } from '@/shared/api/http-error'
 import { localizedOption, localizedValue } from '@/shared/field-i18n'
@@ -114,6 +116,7 @@ export function SampleDetailPage() {
   const { sampleId } = routeApi.useParams()
   const { session } = useAuth()
   const viewerKey = session.currentUser?.id ?? 'anonymous'
+  const [detailId, setDetailId] = useState<string | null>(null)
   const sampleQuery = useQuery({
     queryKey: ['samples', 'detail', viewerKey, sampleId],
     queryFn: () => getSample(session.accessToken!, sampleId),
@@ -127,7 +130,11 @@ export function SampleDetailPage() {
   })
   const measurementsQuery = useQuery({
     queryKey: ['measurements', 'sample', viewerKey, sampleId],
-    queryFn: () => listMeasurements(session.accessToken!, { sampleId }),
+    queryFn: () =>
+      listAllMeasurements(session.accessToken!, {
+        sampleId,
+        includeHistory: true,
+      }),
     enabled: session.isAuthenticated && Boolean(sampleId),
   })
 
@@ -154,8 +161,19 @@ export function SampleDetailPage() {
           }
         />
         <Alert variant="destructive">
-          <AlertDescription>
-            {resolveErrorMessage(sampleQuery.error, '样品加载失败')}
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>
+              {resolveErrorMessage(sampleQuery.error, '样品加载失败')}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={sampleQuery.isFetching}
+              onClick={() => void sampleQuery.refetch()}
+            >
+              重试
+            </Button>
           </AlertDescription>
         </Alert>
       </div>
@@ -249,11 +267,22 @@ export function SampleDetailPage() {
             <LoadingState />
           ) : measurementsQuery.isError ? (
             <Alert variant="destructive">
-              <AlertDescription>
-                {resolveErrorMessage(
-                  measurementsQuery.error,
-                  '表征记录加载失败',
-                )}
+              <AlertDescription className="flex items-center justify-between gap-3">
+                <span>
+                  {resolveErrorMessage(
+                    measurementsQuery.error,
+                    '表征记录加载失败',
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={measurementsQuery.isFetching}
+                  onClick={() => void measurementsQuery.refetch()}
+                >
+                  重试
+                </Button>
               </AlertDescription>
             </Alert>
           ) : measurements.length === 0 ? (
@@ -264,34 +293,100 @@ export function SampleDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>方法</TableHead>
+                    <TableHead>炉次修订</TableHead>
                     <TableHead>测量时间</TableHead>
+                    <TableHead>质量</TableHead>
                     <TableHead>原始文件</TableHead>
                     <TableHead>结果</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {measurements.map((measurement) => (
-                    <TableRow key={measurement.id}>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {characterizationProfiles[measurement.method_profile]
-                            ?.label_zh ?? measurement.method_profile}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {dayjs(measurement.measured_at).format(
-                          'YYYY-MM-DD HH:mm',
-                        )}
-                      </TableCell>
-                      <TableCell>{measurement.raw_file_count}</TableCell>
-                      <TableCell>
-                        {measurement.property_count +
-                          measurement.assertion_count}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {measurements.map((measurement) => {
+                    const isCurrentRevision =
+                      measurement.run_revision_id ===
+                      experimentQuery.data?.current_revision_id
+                    return (
+                      <TableRow key={measurement.id}>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {characterizationProfiles[
+                              measurement.method_profile
+                            ]?.label_zh ?? measurement.method_profile}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              isCurrentRevision ? 'secondary' : 'outline'
+                            }
+                          >
+                            {isCurrentRevision ? '当前修订' : '历史修订'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {dayjs(measurement.measured_at).format(
+                            'YYYY-MM-DD HH:mm',
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              measurement.quality_flag === 'invalid'
+                                ? 'destructive'
+                                : 'outline'
+                            }
+                          >
+                            {{
+                              valid: '有效',
+                              suspect: '可疑',
+                              invalid: '已失效',
+                            }[measurement.quality_flag] ?? '有效'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{measurement.raw_file_count}</TableCell>
+                        <TableCell>
+                          {measurement.property_count +
+                            measurement.assertion_count}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            aria-expanded={detailId === measurement.id}
+                            aria-controls={`sample-measurement-details-${measurement.id}`}
+                            onClick={() =>
+                              setDetailId((current) =>
+                                current === measurement.id
+                                  ? null
+                                  : measurement.id,
+                              )
+                            }
+                          >
+                            {detailId === measurement.id
+                              ? '收起详情'
+                              : '查看详情'}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
+              {detailId ? (
+                <div
+                  id={`sample-measurement-details-${detailId}`}
+                  role="region"
+                  aria-label="表征记录详情"
+                  className="mt-4"
+                >
+                  <MeasurementDetails
+                    measurementId={detailId}
+                    token={session.accessToken!}
+                  />
+                </div>
+              ) : null}
             </div>
           )}
         </CardContent>

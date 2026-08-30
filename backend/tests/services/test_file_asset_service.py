@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from io import BytesIO
 from uuid import uuid4
 
@@ -6,8 +6,9 @@ import pytest
 from fastapi import HTTPException, UploadFile
 from openpyxl import Workbook
 
-from app.models.experiment import ExperimentRun
+from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.sample import Sample, SampleRole
+from app.models.scientific import RunRevision
 from app.models.v2_results import CharacterizationRecord
 from app.services.file_asset_service import FileAssetService
 from app.services.file_storage_service import FileStorageService
@@ -62,17 +63,39 @@ def create_draft_experiment(service: FileAssetService, owner_id) -> ExperimentRu
 def create_characterization_record(
     service: FileAssetService, experiment: ExperimentRun
 ) -> CharacterizationRecord:
+    revision = RunRevision(
+        experiment_run_id=experiment.id,
+        revision_number=1,
+        schema_version="v4.0-alpha.19",
+        schema_status="internal_validation",
+        status="locked",
+        content_json={},
+        content_sha256="1" * 64,
+        locked_by_id=experiment.owner_id,
+        locked_at=datetime(2026, 4, 23, tzinfo=UTC),
+    )
+    service.db.add(revision)
+    service.db.flush()
+    experiment.current_revision_id = revision.id
+    experiment.status = ExperimentStatus.LOCKED
     sample = Sample(
         sample_code=f"{experiment.run_code}-S1",
         experiment_run_id=experiment.id,
+        run_revision_id=revision.id,
         role=SampleRole.GROWTH,
     )
     service.db.add(sample)
     service.db.flush()
     record = CharacterizationRecord(
         experiment_run_id=experiment.id,
+        run_revision_id=revision.id,
         sample_id=sample.id,
         method_instrument="Raman",
+        performed_by_id=experiment.owner_id,
+        measured_at=datetime(2026, 4, 23, 12, tzinfo=UTC),
+        sample_region={"geometry_type": "whole_sample"},
+        typed_conditions={"laser_wavelength_nm": 532},
+        quality_flag="valid",
     )
     service.db.add(record)
     service.db.commit()
@@ -245,6 +268,30 @@ def test_upload_file_cleans_up_disk_when_audit_fails(active_user, db_session, mo
         )
 
     db_session.rollback()
+    assert not any(path.is_file() for path in service.storage.root.rglob("*"))
+
+
+def test_upload_file_cleans_up_disk_when_duplicate_lookup_fails(
+    active_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    service = FileAssetService(db_session)
+    experiment = create_draft_experiment(service, active_user.id)
+
+    def fail_duplicate_lookup(*_args) -> None:
+        raise RuntimeError("duplicate lookup failed")
+
+    monkeypatch.setattr(service.files, "find_active_duplicate", fail_duplicate_lookup)
+
+    with pytest.raises(RuntimeError, match="duplicate lookup failed"):
+        service.upload_file(
+            experiment_id=experiment.id,
+            upload=build_upload("duplicate-query-fail.txt", b"payload"),
+            current_user=active_user,
+            method="Raman",
+        )
+
     assert not any(path.is_file() for path in service.storage.root.rglob("*"))
 
 

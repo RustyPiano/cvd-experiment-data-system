@@ -1,7 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiDownload, apiRequest } from '@/shared/api/client'
-import { downloadRunsExport, listRuns } from './api'
+import {
+  downloadRunsExport,
+  getMeasurement,
+  invalidateMeasurement,
+  listAllMeasurements,
+  listRuns,
+} from './api'
 
 vi.mock('@/shared/api/client', () => ({
   apiRequest: vi.fn(),
@@ -9,6 +15,7 @@ vi.mock('@/shared/api/client', () => ({
 }))
 
 describe('listRuns', () => {
+  beforeEach(() => vi.clearAllMocks())
   it('sends page and page_size query parameters', () => {
     listRuns('token', { page: 2, pageSize: 50 })
 
@@ -40,5 +47,66 @@ describe('listRuns', () => {
     expect(apiDownload).toHaveBeenCalledWith(`/api/v1/exports/runs?${suffix}`, {
       token: 'token',
     })
+  })
+})
+
+describe('measurement API', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('loads every cursor page without silently truncating records', async () => {
+    vi.mocked(apiRequest)
+      .mockResolvedValueOnce({
+        items: [{ id: 'measurement-1' }],
+        total: 2,
+        next_cursor: 'cursor-2',
+      })
+      .mockResolvedValueOnce({
+        items: [{ id: 'measurement-2' }],
+        total: 2,
+        next_cursor: null,
+      })
+
+    await expect(
+      listAllMeasurements('token', { sampleId: 'sample-1' }),
+    ).resolves.toMatchObject({
+      items: [{ id: 'measurement-1' }, { id: 'measurement-2' }],
+      total: 2,
+      next_cursor: null,
+    })
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/measurements?limit=100&sample_id=sample-1&cursor=cursor-2',
+      { token: 'token' },
+    )
+  })
+
+  it('fails visibly if the server truncates a measurement list', async () => {
+    vi.mocked(apiRequest).mockResolvedValueOnce({
+      items: [{ id: 'measurement-1' }],
+      total: 2,
+      next_cursor: null,
+    })
+
+    await expect(listAllMeasurements('token')).rejects.toThrow('分页提前结束')
+  })
+
+  it('reads details and invalidates with a reason', () => {
+    getMeasurement('measurement-1', 'token')
+    invalidateMeasurement('measurement-1', 'wrong sample', 'token')
+
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/measurements/measurement-1',
+      { token: 'token' },
+    )
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/measurements/measurement-1/invalidate',
+      {
+        method: 'POST',
+        body: { reason: 'wrong sample' },
+        token: 'token',
+      },
+    )
   })
 })

@@ -3,6 +3,7 @@
 # fmt: off
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, time
 from math import isfinite
 from typing import Annotated, Any, Literal, Self
@@ -25,6 +26,14 @@ _CONTROLLED_KEYS = frozenset(('affected_objects', 'architecture_type', 'concentr
 _STRUCTURED_CONTROLLED_KEYS = frozenset(('field_type', 'material', 'measurement_source', 'method', 'operation_type', 'placement', 'shape', 'species', 'type'))
 _COMPOSITE_KEYS = frozenset(('substrate_orientation_polish',))
 _MULTI_KEYS = frozenset(('affected_objects', 'field_devices', 'intervention_actions', 'observed_deviations', 'performed_by_user_ids', 'process_roles', 'suspected_causes'))
+
+
+def _json_default(value: Any) -> str:
+    if isinstance(value, (date, datetime, time)):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    raise TypeError(f'{type(value).__name__} is not JSON serializable')
 
 
 def _canonical(value: Any, key: str | None = None) -> Any:
@@ -69,6 +78,11 @@ class V2PayloadBase(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _canonicalize(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            try:
+                json.dumps(value, allow_nan=False, default=_json_default)
+            except (TypeError, ValueError) as exc:
+                raise ValueError('payload must contain only finite JSON data') from exc
         return _normalize_payload(value)
 
 

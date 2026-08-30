@@ -1,9 +1,12 @@
+from typing import Any
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
+from app.commands.export_v2_schema import apply_characterization_openapi_contract
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -46,3 +49,15 @@ if settings.cors_allow_origins_list:
     )
 
 app.include_router(api_router)
+
+_default_openapi = app.openapi
+
+
+def openapi_with_characterization_contract() -> dict[str, Any]:
+    if app.openapi_schema is None:
+        apply_characterization_openapi_contract(_default_openapi())
+    assert app.openapi_schema is not None
+    return app.openapi_schema
+
+
+app.openapi = openapi_with_characterization_contract

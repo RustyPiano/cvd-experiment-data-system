@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.sample import Sample
 from app.models.scientific import (
+    MaterialAssertion,
     PropertyValue,
     RunFeature,
     RunRevision,
@@ -77,6 +79,7 @@ class DatasetQueryService:
         self.db = db
 
     def query(self, payload: DatasetQuery, actor: User) -> DatasetQueryResponse:
+        query_sha256 = self._query_sha256(payload)
         statement = (
             select(RunRevision, ExperimentRun)
             .join(ExperimentRun, ExperimentRun.current_revision_id == RunRevision.id)
@@ -95,7 +98,7 @@ class DatasetQueryService:
         for item in payload.filters:
             statement = statement.where(self._filter_clause(item))
         if payload.cursor:
-            locked_at, revision_id = self._decode_cursor(payload.cursor)
+            locked_at, revision_id = self._decode_cursor(payload.cursor, query_sha256)
             statement = statement.where(
                 or_(
                     RunRevision.locked_at < locked_at,
@@ -160,7 +163,11 @@ class DatasetQueryService:
                 )
             )
         next_cursor = (
-            self._encode_cursor(rows[-1].RunRevision.locked_at, rows[-1].RunRevision.id)
+            self._encode_cursor(
+                rows[-1].RunRevision.locked_at,
+                rows[-1].RunRevision.id,
+                query_sha256,
+            )
             if has_more and rows
             else None
         )
@@ -184,7 +191,7 @@ class DatasetQueryService:
                 comparison_operator,
                 item.value,
             )
-            matched = exists(
+            property_query = (
                 select(PropertyValue.id)
                 .join(
                     CharacterizationRecord,
@@ -193,29 +200,52 @@ class DatasetQueryService:
                 .join(Sample, Sample.id == PropertyValue.sample_id)
                 .where(
                     Sample.experiment_run_id == RunRevision.experiment_run_id,
+                    Sample.deleted_at.is_(None),
+                    or_(Sample.role != "growth", Sample.run_revision_id == RunRevision.id),
                     CharacterizationRecord.run_revision_id == RunRevision.id,
+                    PropertyValue.sample_id == CharacterizationRecord.sample_id,
                     CharacterizationRecord.quality_flag == "valid",
                     PropertyValue.property_code == item.property_code,
                     PropertyValue.quality_flag == "valid",
-                    value_clause,
                 )
             )
-            return ~matched if item.operator == "ne" else matched
+            matched = exists(property_query.where(value_clause))
+            observed = exists(property_query.where(PropertyValue.numeric_value.is_not(None)))
+            return observed & ~matched if item.operator == "ne" else matched
         if item.field == "growth_presence":
-            states = {
-                "present": ["growth_present", "asserted"],
-                "absent": ["no_growth"],
-                "uncertain": ["uncertain"],
-            }[str(item.value)]
-            matched = exists(
-                select(Sample.id).where(
-                    Sample.experiment_run_id == RunRevision.experiment_run_id,
-                    Sample.run_revision_id == RunRevision.id,
-                    Sample.deleted_at.is_(None),
-                    Sample.actual_state.in_(states),
+
+            def has_state(value: str) -> Any:
+                return exists(
+                    select(MaterialAssertion.id)
+                    .join(
+                        CharacterizationRecord,
+                        CharacterizationRecord.id == MaterialAssertion.measurement_run_id,
+                    )
+                    .join(Sample, Sample.id == MaterialAssertion.sample_id)
+                    .where(
+                        Sample.experiment_run_id == RunRevision.experiment_run_id,
+                        Sample.role == "growth",
+                        Sample.run_revision_id == RunRevision.id,
+                        Sample.deleted_at.is_(None),
+                        CharacterizationRecord.run_revision_id == RunRevision.id,
+                        CharacterizationRecord.quality_flag == "valid",
+                        MaterialAssertion.sample_id == CharacterizationRecord.sample_id,
+                        MaterialAssertion.validity == "active",
+                        MaterialAssertion.assertion_type == "growth_presence",
+                        MaterialAssertion.value_json["state"].as_string() == value,
+                    )
                 )
-            )
-            return ~matched if item.operator == "ne" else matched
+
+            present = has_state("present")
+            absent = has_state("absent")
+            uncertain = has_state("uncertain")
+            matched = {
+                "present": present & ~absent & ~uncertain,
+                "absent": absent & ~present & ~uncertain,
+                "uncertain": uncertain | (present & absent),
+            }[str(item.value)]
+            observed = present | absent | uncertain
+            return observed & ~matched if item.operator == "ne" else matched
         feature_code = FEATURE_FIELDS[item.field]
         column = (
             RunFeature.numeric_value
@@ -231,7 +261,14 @@ class DatasetQueryService:
                 self._comparison(column, comparison_operator, item.value),
             )
         )
-        return ~matched if item.operator == "ne" else matched
+        observed = exists(
+            select(RunFeature.id).where(
+                RunFeature.run_revision_id == RunRevision.id,
+                RunFeature.feature_code == feature_code,
+                column.is_not(None),
+            )
+        )
+        return observed & ~matched if item.operator == "ne" else matched
 
     @staticmethod
     def _comparison(column: Any, operator: str, value: Any) -> Any:
@@ -248,7 +285,8 @@ class DatasetQueryService:
         if operator == "gte":
             return column >= value
         if operator == "contains":
-            return column.ilike(f"%{value}%")
+            escaped = str(value).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            return column.ilike(f"%{escaped}%", escape="\\")
         if operator == "between":
             if not isinstance(value, list) or len(value) != 2:
                 raise HTTPException(
@@ -262,18 +300,26 @@ class DatasetQueryService:
         )
 
     @staticmethod
-    def _manifest(payload: DatasetQuery, revision_ids: list[UUID]) -> dict[str, Any]:
-        meta = load_field_source()["meta"]
-        query = payload.model_dump(mode="json", exclude_none=True)
+    def _query_payload(payload: DatasetQuery) -> dict[str, Any]:
+        return payload.model_dump(mode="json", exclude_none=True, exclude={"cursor"})
+
+    @classmethod
+    def _query_sha256(cls, payload: DatasetQuery) -> str:
         query_json = json.dumps(
-            query,
+            cls._query_payload(payload),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         )
+        return hashlib.sha256(query_json.encode()).hexdigest()
+
+    @classmethod
+    def _manifest(cls, payload: DatasetQuery, revision_ids: list[UUID]) -> dict[str, Any]:
+        meta = load_field_source()["meta"]
+        query = cls._query_payload(payload)
         return {
             "query": query,
-            "query_sha256": hashlib.sha256(query_json.encode()).hexdigest(),
+            "query_sha256": cls._query_sha256(payload),
             "schema_version": meta["version"],
             "schema_status": meta["status"],
             "generated_at": datetime.now(UTC).isoformat(),
@@ -292,19 +338,22 @@ class DatasetQueryService:
         }
 
     @staticmethod
-    def _encode_cursor(locked_at: datetime, revision_id: UUID) -> str:
-        raw = f"{locked_at.isoformat()}|{revision_id}".encode()
+    def _encode_cursor(locked_at: datetime, revision_id: UUID, query_sha256: str) -> str:
+        raw = f"{query_sha256}|{locked_at.isoformat()}|{revision_id}".encode()
         return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
     @staticmethod
-    def _decode_cursor(cursor: str) -> tuple[datetime, UUID]:
+    def _decode_cursor(cursor: str, expected_query_sha256: str) -> tuple[datetime, UUID]:
         try:
             padded = cursor + ("=" * (-len(cursor) % 4))
             raw = base64.urlsafe_b64decode(padded).decode()
-            locked_at, revision_id = raw.rsplit("|", 1)
-            return datetime.fromisoformat(locked_at), UUID(revision_id)
-        except (ValueError, UnicodeDecodeError) as exc:
+            query_sha256, locked_at_raw, revision_id = raw.split("|", 2)
+            locked_at = datetime.fromisoformat(locked_at_raw)
+            if query_sha256 != expected_query_sha256 or locked_at.utcoffset() is None:
+                raise ValueError
+            return locked_at, UUID(revision_id)
+        except (binascii.Error, ValueError, UnicodeDecodeError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Invalid dataset cursor",
+                detail="Invalid or mismatched dataset cursor",
             ) from exc

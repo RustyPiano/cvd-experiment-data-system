@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -22,19 +25,33 @@ import {
 } from '@/shared/generated/field-metadata'
 import type { CharacterizationConditionField } from '@/shared/generated/field-metadata'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { isEnglish, localizedUnit } from '@/shared/field-i18n'
+import i18nInstance from '@/shared/i18n'
 import { RequiredMark } from '@/shared/ui/required-mark'
+import { RouteLeaveGuard } from '@/shared/ui/route-leave-guard'
 import {
   deleteExperimentFile,
   getExperimentFile,
   uploadExperimentFile,
 } from '@/features/samples/api'
+import { listEntityVersions } from '@/features/entity-library/api'
 
-import { createMeasurement, listMeasurements, listSamples } from './api'
+import { MeasurementDetails } from '@/features/characterizations/measurement-details'
+import {
+  createMeasurement,
+  getRun,
+  listAllMeasurements,
+  listSamples,
+} from './api'
+import type {
+  MeasurementBundleCreate,
+  MeasurementPropertyQuality,
+  MeasurementQuality,
+} from './api'
 import { EntityReferenceSelect } from './components/entity-reference-select'
 import { ModuleCard } from './components/module-card'
-import { snapshotValue } from './components/reference-snapshot'
 
-const METHOD_ORDER = [
+export const METHOD_ORDER = [
   'optical_microscopy',
   'Raman',
   'low_frequency_raman',
@@ -46,32 +63,258 @@ const METHOD_ORDER = [
   'other',
 ] as const
 
+const PROPERTY_QUALITY_OPTIONS: MeasurementPropertyQuality[] = [
+  'valid',
+  'below_detection_limit',
+  'suspect',
+  'invalid',
+]
+
 type ResultDefinition = {
   key: string
   label: string
   kind: 'number' | 'text' | 'growth' | 'layer_count'
   propertyCode?: string
-  assertionType?: 'phase_identity' | 'stacking_order'
+  assertionType?:
+    | 'phase_identity'
+    | 'polytype'
+    | 'stacking_order'
+    | 'orientation_relationship'
   unit?: string
   required?: boolean
 }
 
-function characterizationResultIssue(
+type MeasurementPropertyWrite = NonNullable<
+  MeasurementBundleCreate['properties']
+>[number]
+type MeasurementAssertionWrite = NonNullable<
+  MeasurementBundleCreate['assertions']
+>[number]
+type SampleRegionWrite = NonNullable<
+  MeasurementBundleCreate['measurement']['sample_region']
+>
+type RegionGeometry = SampleRegionWrite['geometry_type']
+type RegionDraft = {
+  geometryType: RegionGeometry
+  label: string
+  x: string
+  y: string
+  width: string
+  height: string
+  unit: string
+  imageFileIndex: number | null
+  pixelX: string
+  pixelY: string
+  pixelWidth: string
+  pixelHeight: string
+}
+type AssertionType = MeasurementAssertionWrite['assertion_type']
+type CompositionBasis = 'site_fraction' | 'atomic_fraction' | 'mass_fraction'
+type CompositionComponentDraft = {
+  id: number
+  species: string
+  fraction: string
+}
+type AnalysisDraft = {
+  softwareName: string
+  softwareVersion: string
+  codeCommit: string
+  startedAt: string
+  completedAt: string
+  parameters: string
+}
+
+const DEFAULT_REGION: RegionDraft = {
+  geometryType: 'whole_sample',
+  label: 'whole_sample',
+  x: '',
+  y: '',
+  width: '',
+  height: '',
+  unit: 'μm',
+  imageFileIndex: null,
+  pixelX: '',
+  pixelY: '',
+  pixelWidth: '',
+  pixelHeight: '',
+}
+const DEFAULT_ANALYSIS: AnalysisDraft = {
+  softwareName: '',
+  softwareVersion: '',
+  codeCommit: '',
+  startedAt: '',
+  completedAt: '',
+  parameters: '',
+}
+const ASSERTION_TYPES: AssertionType[] = [
+  'growth_presence',
+  'phase_identity',
+  'composition',
+  'polytype',
+  'stacking_order',
+  'orientation_relationship',
+  'layer_count',
+]
+
+function isAssertionType(value: string): value is AssertionType {
+  return ASSERTION_TYPES.includes(value as AssertionType)
+}
+
+function resultAssertionType(field: ResultDefinition): AssertionType | null {
+  if (field.kind === 'growth') return 'growth_presence'
+  if (field.kind === 'layer_count') return 'layer_count'
+  return field.assertionType ?? null
+}
+
+function parseAnalysisParameters(
+  value: string,
+): Record<string, unknown> | null {
+  if (!value.trim()) return {}
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return parsed !== null &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function regionPayload(
+  region: RegionDraft,
+  uploadedFileIds: string[],
+): SampleRegionWrite {
+  const optionalNumber = (value: string) =>
+    value.trim() ? Number(value) : undefined
+  const x = optionalNumber(region.x)
+  const y = optionalNumber(region.y)
+  const width = optionalNumber(region.width)
+  const height = optionalNumber(region.height)
+  const hasCoordinates =
+    x !== undefined ||
+    y !== undefined ||
+    width !== undefined ||
+    height !== undefined
+  const imageFileId =
+    region.imageFileIndex === null
+      ? undefined
+      : uploadedFileIds[region.imageFileIndex]
+  return {
+    geometry_type: region.geometryType,
+    label: region.label.trim(),
+    coordinate_system: 'sample_local',
+    ...(x === undefined ? {} : { x }),
+    ...(y === undefined ? {} : { y }),
+    ...(width === undefined ? {} : { width }),
+    ...(height === undefined ? {} : { height }),
+    ...(hasCoordinates ? { unit: region.unit.trim() } : {}),
+    ...(imageFileId
+      ? {
+          image_file_id: imageFileId,
+          pixel_roi: {
+            x: Number(region.pixelX),
+            y: Number(region.pixelY),
+            width: Number(region.pixelWidth),
+            height: Number(region.pixelHeight),
+          },
+        }
+      : {}),
+  }
+}
+
+function resultFieldLabel(field: ResultDefinition, language: string) {
+  const property = field.propertyCode
+    ? characterizationProperties[field.propertyCode]
+    : null
+  if (property) {
+    return isEnglish(language) ? property.label_en : property.label_zh
+  }
+  return i18nInstance.t(`characterizations.workspace.results.${field.key}`, {
+    lng: language,
+    defaultValue: field.label,
+  })
+}
+
+export function characterizationResultIssue(
   field: ResultDefinition,
   rawValue: string | undefined,
+  language = 'zh',
 ): string | null {
+  const translate = i18nInstance.getFixedT(
+    language,
+    'common',
+    'characterizations.workspace.validation',
+  )
+  const label = resultFieldLabel(field, language)
   const value = rawValue?.trim() ?? ''
-  if (field.required && !value) return `${field.label}为必填项`
-  if (!value || field.kind === 'text' || field.kind === 'growth') return null
+  if (field.required && !value) return translate('required', { label })
+  if (!value || field.kind === 'growth') return null
+  if (field.assertionType && value.length > 256) {
+    return translate('textMax', { label, max: 256 })
+  }
+  const property = field.propertyCode
+    ? characterizationProperties[field.propertyCode]
+    : null
+  if (field.kind === 'text' || property?.value_type === 'text') {
+    const minLength = property?.validation.min_length
+    const maxLength = property?.validation.max_length
+    if (typeof minLength === 'number' && value.length < minLength) {
+      return translate('textMin', { label, min: minLength })
+    }
+    if (typeof maxLength === 'number' && value.length > maxLength) {
+      return translate('textMax', { label, max: maxLength })
+    }
+    return null
+  }
   const number = Number(value)
-  if (!Number.isFinite(number)) return `${field.label}不是有效数值`
+  if (!Number.isFinite(number)) return translate('invalidNumber', { label })
   if (
     field.kind === 'layer_count' &&
-    (!Number.isInteger(number) || number < 1)
+    (!Number.isInteger(number) || number < 0)
   ) {
-    return `${field.label}必须是不小于 1 的整数`
+    return translate('nonNegativeInteger', { label })
+  }
+  const validation = property?.validation
+  if (validation?.ge != null && number < validation.ge) {
+    return translate('ge', { label, value: validation.ge })
+  }
+  if (validation?.gt != null && number <= validation.gt) {
+    return translate('gt', { label, value: validation.gt })
+  }
+  if (validation?.le != null && number > validation.le) {
+    return translate('le', { label, value: validation.le })
+  }
+  if (validation?.lt != null && number >= validation.lt) {
+    return translate('lt', { label, value: validation.lt })
   }
   return null
+}
+
+export function instrumentSupportsMethod(
+  data: Record<string, unknown>,
+  method: string,
+) {
+  const capabilities = data.capabilities
+  if (Array.isArray(capabilities) && capabilities.length > 0) {
+    return capabilities.some((capability) => {
+      if (typeof capability === 'string') return capability === method
+      if (!capability || typeof capability !== 'object') return false
+      return (capability as Record<string, unknown>).code === method
+    })
+  }
+  return data.name_type === method || data.name_type === 'other'
+}
+
+function propertyInputBounds(propertyCode: string | undefined) {
+  const validation = propertyCode
+    ? characterizationProperties[propertyCode]?.validation
+    : null
+  return {
+    min: validation?.ge ?? validation?.gt,
+    max: validation?.le ?? validation?.lt,
+  }
 }
 
 export const SIMPLE_RESULTS: Record<string, ResultDefinition[]> = {
@@ -80,7 +323,6 @@ export const SIMPLE_RESULTS: Record<string, ResultDefinition[]> = {
       key: 'growth',
       label: '是否观察到生长',
       kind: 'growth',
-      required: true,
     },
     {
       key: 'coverage',
@@ -266,7 +508,13 @@ export function characterizationConditionIssue(
   field: CharacterizationConditionField,
   conditions: Record<string, string>,
   required = false,
+  language = 'zh',
 ): string | null {
+  const translate = i18nInstance.getFixedT(
+    language,
+    'common',
+    'characterizations.workspace.validation',
+  )
   const values = field.components
     ? field.components.map(
         (component) =>
@@ -274,31 +522,43 @@ export function characterizationConditionIssue(
       )
     : [conditions[field.key]?.trim() ?? '']
   if (values.every((value) => !value)) {
-    return required ? '此项为必填。' : null
+    return required ? translate('conditionRequired') : null
   }
-  if (values.some((value) => !value)) return '请补齐全部数值。'
-  if (field.value_type === 'text') return null
+  if (values.some((value) => !value)) return translate('completeValues')
+  if (field.value_type === 'text') {
+    const minLength = field.validation?.min_length
+    const maxLength = field.validation?.max_length
+    if (typeof minLength === 'number' && values[0].length < minLength) {
+      return translate('conditionTextMin', { min: minLength })
+    }
+    if (typeof maxLength === 'number' && values[0].length > maxLength) {
+      return translate('conditionTextMax', { max: maxLength })
+    }
+    return null
+  }
 
   const numbers = values.map(Number)
   if (numbers.some((value) => !Number.isFinite(value))) {
-    return '请输入有效数值。'
+    return translate('conditionNumber')
   }
   if (field.value_type === 'resolution') {
     return numbers.every((value) => Number.isInteger(value) && value >= 1)
       ? null
-      : '请输入不小于 1 的整数。'
+      : translate('positiveInteger')
   }
   if (field.value_type === 'range') {
     return numbers[0] >= 0 && numbers[1] > numbers[0]
       ? null
-      : '终点必须大于起点，且数值不能小于 0。'
+      : translate('range')
   }
   if (field.value_type === 'integer') {
     return Number.isInteger(numbers[0]) && numbers[0] >= 1
       ? null
-      : '请输入不小于 1 的整数。'
+      : translate('positiveInteger')
   }
-  return numbers.every((value) => value > 0) ? null : '请输入大于 0 的数值。'
+  return numbers.every((value) => value > 0)
+    ? null
+    : translate('positiveNumber')
 }
 
 function typedConditions(
@@ -324,17 +584,19 @@ function typedConditions(
   )
 }
 
-function sampleResultLabel(state: string, material: string | null | undefined) {
+function sampleResultLabel(
+  state: string,
+  material: string | null | undefined,
+  language: string,
+) {
   if (material) return material
-  return (
-    {
-      unknown: '未表征',
-      growth_present: '已观察到生长',
-      no_growth: '未观察到生长',
-      uncertain: '结论不确定',
-      asserted: '已有材料结论',
-    }[state] ?? '未表征'
-  )
+  return i18nInstance.t(`characterizations.workspace.sampleStates.${state}`, {
+    lng: language,
+    defaultValue: i18nInstance.t(
+      'characterizations.workspace.sampleStates.unknown',
+      { lng: language },
+    ),
+  })
 }
 
 function ConditionInput({
@@ -342,40 +604,72 @@ function ConditionInput({
   conditions,
   required,
   issue,
+  language,
   onChange,
+  disabled,
 }: {
   field: CharacterizationConditionField
   conditions: Record<string, string>
   required?: boolean
   issue?: string | null
+  language: string
   onChange: (key: string, value: string) => void
+  disabled?: boolean
 }) {
+  const { t } = useTranslation()
+  const issueId = `characterization-condition-${field.key}-error`
+  const fieldLabel = isEnglish(language) ? field.label_en : field.label_zh
+  const minLength =
+    typeof field.validation?.min_length === 'number'
+      ? field.validation.min_length
+      : undefined
+  const maxLength =
+    typeof field.validation?.max_length === 'number'
+      ? field.validation.max_length
+      : undefined
   return (
     <div
       className="flex flex-col gap-2"
       data-invalid={Boolean(issue) || undefined}
     >
-      <Label>
-        {field.label_zh}
-        {field.unit ? `（${field.unit}）` : ''}
+      <Label
+        htmlFor={
+          field.components
+            ? undefined
+            : `characterization-condition-${field.key}`
+        }
+      >
+        {fieldLabel}
+        {field.unit
+          ? isEnglish(language)
+            ? ` (${localizedUnit(field.unit, language)})`
+            : `（${field.unit}）`
+          : ''}
         {required ? <RequiredMark /> : null}
       </Label>
       {field.components ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {field.components.map((component) => {
             const key = `${field.key}.${component.key}`
+            const componentLabel = isEnglish(language)
+              ? component.label_en
+              : component.label_zh
             return (
               <div key={key} className="flex flex-col gap-2">
                 <Label className="text-xs text-muted-foreground">
-                  {component.label_zh}
+                  {componentLabel}
                 </Label>
                 <Input
+                  id={`characterization-condition-${key}`}
                   type="number"
                   min={field.value_type === 'resolution' ? '1' : '0'}
                   step={field.value_type === 'resolution' ? '1' : 'any'}
                   value={conditions[key] ?? ''}
                   required={required}
+                  disabled={disabled}
                   aria-invalid={Boolean(issue) || undefined}
+                  aria-describedby={issue ? issueId : undefined}
+                  aria-label={`${fieldLabel} ${componentLabel}`}
                   onChange={(event) => onChange(key, event.target.value)}
                 />
               </div>
@@ -384,16 +678,183 @@ function ConditionInput({
         </div>
       ) : (
         <Input
+          id={`characterization-condition-${field.key}`}
           type={field.value_type === 'text' ? 'text' : 'number'}
           min={field.value_type === 'text' ? undefined : '0'}
+          minLength={field.value_type === 'text' ? minLength : undefined}
+          maxLength={field.value_type === 'text' ? maxLength : undefined}
           step={field.value_type === 'integer' ? '1' : 'any'}
           value={conditions[field.key] ?? ''}
           required={required}
+          disabled={disabled}
           aria-invalid={Boolean(issue) || undefined}
+          aria-describedby={issue ? issueId : undefined}
+          placeholder={
+            field.value_type === 'text'
+              ? t('characterizations.workspace.placeholders.textCondition')
+              : undefined
+          }
           onChange={(event) => onChange(field.key, event.target.value)}
         />
       )}
-      {issue ? <p className="text-destructive text-sm">{issue}</p> : null}
+      {issue ? (
+        <p id={issueId} className="text-destructive text-sm">
+          {issue}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function ResultInput({
+  field,
+  value,
+  quality,
+  language,
+  disabled,
+  onChange,
+  onQualityChange,
+}: {
+  field: ResultDefinition
+  value: string
+  quality: MeasurementPropertyQuality
+  language: string
+  disabled?: boolean
+  onChange: (value: string) => void
+  onQualityChange: (quality: MeasurementPropertyQuality) => void
+}) {
+  const { t } = useTranslation()
+  const issue = characterizationResultIssue(field, value, language)
+  const inputId = `characterization-result-${field.key.replace('.', '-')}`
+  const issueId = `${inputId}-error`
+  const qualityHelpId = `${inputId}-quality-help`
+  const describedBy = [
+    issue ? issueId : null,
+    quality === 'below_detection_limit' ? qualityHelpId : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const bounds = propertyInputBounds(field.propertyCode)
+  const label = resultFieldLabel(field, language)
+  const rawUnit = field.propertyCode
+    ? characterizationProperties[field.propertyCode]?.unit
+    : field.unit
+  const unit = localizedUnit(
+    rawUnit === '—' ? null : (rawUnit ?? null),
+    language,
+  )
+  const propertyMaxLength = field.propertyCode
+    ? characterizationProperties[field.propertyCode]?.validation.max_length
+    : undefined
+  const textMaxLength = field.assertionType
+    ? 256
+    : typeof propertyMaxLength === 'number'
+      ? propertyMaxLength
+      : undefined
+
+  return (
+    <div
+      className="flex flex-col gap-2"
+      data-invalid={Boolean(issue) || undefined}
+    >
+      <Label htmlFor={inputId}>
+        {label}
+        {unit ? (isEnglish(language) ? ` (${unit})` : `（${unit}）`) : ''}
+        {field.required ? <RequiredMark /> : null}
+      </Label>
+      {field.kind === 'growth' ? (
+        <Select value={value} disabled={disabled} onValueChange={onChange}>
+          <SelectTrigger
+            id={inputId}
+            className="w-full"
+            aria-invalid={Boolean(issue) || undefined}
+            aria-describedby={describedBy || undefined}
+          >
+            <SelectValue
+              placeholder={t('characterizations.workspace.placeholders.select')}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="present">
+                {t('characterizations.workspace.growth.present')}
+              </SelectItem>
+              <SelectItem value="absent">
+                {t('characterizations.workspace.growth.absent')}
+              </SelectItem>
+              <SelectItem value="uncertain">
+                {t('characterizations.workspace.growth.uncertain')}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      ) : field.kind === 'text' ? (
+        <Textarea
+          id={inputId}
+          value={value}
+          maxLength={textMaxLength}
+          disabled={disabled}
+          aria-invalid={Boolean(issue) || undefined}
+          aria-describedby={describedBy || undefined}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <Input
+          id={inputId}
+          type="number"
+          min={field.kind === 'layer_count' ? 0 : bounds.min}
+          max={bounds.max}
+          step={field.kind === 'layer_count' ? 1 : 'any'}
+          value={value}
+          disabled={disabled}
+          aria-invalid={Boolean(issue) || undefined}
+          aria-describedby={describedBy || undefined}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
+      {field.propertyCode ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${inputId}-quality`}>
+            {t('characterizations.workspace.fields.resultQuality')}
+          </Label>
+          <Select
+            value={quality}
+            disabled={disabled}
+            onValueChange={(nextQuality) =>
+              onQualityChange(nextQuality as MeasurementPropertyQuality)
+            }
+          >
+            <SelectTrigger id={`${inputId}-quality`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {PROPERTY_QUALITY_OPTIONS.map((qualityOption) =>
+                  qualityOption !== 'below_detection_limit' ||
+                  characterizationProperties[field.propertyCode!]
+                    ?.value_type === 'numeric' ? (
+                    <SelectItem key={qualityOption} value={qualityOption}>
+                      {t(
+                        `characterizations.workspace.propertyQuality.${qualityOption}`,
+                      )}
+                    </SelectItem>
+                  ) : null,
+                )}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {quality === 'below_detection_limit' ? (
+        <p id={qualityHelpId} className="text-sm text-muted-foreground">
+          {t('characterizations.workspace.propertyQuality.bdlHelp')}
+        </p>
+      ) : null}
+      {issue ? (
+        <p id={issueId} className="text-destructive text-sm">
+          {issue}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -407,15 +868,23 @@ export function SimpleCharacterizationWorkspace({
   token: string
   readOnly: boolean
 }) {
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const run = useQuery({
+    queryKey: ['v2-experiment-status', runId],
+    queryFn: () => getRun(runId, token),
+    enabled: !readOnly,
+  })
   const samples = useQuery({
     queryKey: ['samples', runId],
     queryFn: () => listSamples(runId, token),
+    enabled: !readOnly,
   })
   const measurements = useQuery({
     queryKey: ['measurements', runId],
-    queryFn: () => listMeasurements(token, { runId }),
+    queryFn: () => listAllMeasurements(token, { runId }),
   })
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [sampleId, setSampleId] = useState('')
   const [method, setMethod] = useState('')
   const [instrumentId, setInstrumentId] = useState('')
@@ -427,98 +896,404 @@ export function SimpleCharacterizationWorkspace({
     unknown
   > | null>(null)
   const [measuredAt, setMeasuredAt] = useState('')
-  const [location, setLocation] = useState('')
-  const [customLocation, setCustomLocation] = useState('')
+  const [qualityFlag, setQualityFlag] = useState<MeasurementQuality>('valid')
+  const [region, setRegion] = useState<RegionDraft>(DEFAULT_REGION)
   const [conditions, setConditions] = useState<Record<string, string>>({})
   const [results, setResults] = useState<Record<string, string>>({})
+  const [propertyQualities, setPropertyQualities] = useState<
+    Record<string, MeasurementPropertyQuality>
+  >({})
+  const [compositionBasis, setCompositionBasis] =
+    useState<CompositionBasis>('atomic_fraction')
+  const [compositionComponents, setCompositionComponents] = useState<
+    CompositionComponentDraft[]
+  >([])
+  const nextCompositionId = useRef(1)
+  const [analysis, setAnalysis] = useState<AnalysisDraft>(DEFAULT_ANALYSIS)
+  const [analysisInputIndexes, setAnalysisInputIndexes] = useState<number[]>([])
+  const [analysisOutputIndexes, setAnalysisOutputIndexes] = useState<number[]>(
+    [],
+  )
   const [rawFiles, setRawFiles] = useState<File[]>([])
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const instrumentVersions = useQuery({
+    queryKey: ['v2-entity', 'instrument', instrumentId, 'versions'],
+    queryFn: () => listEntityVersions('instrument', instrumentId, token),
+    enabled: Boolean(instrumentId),
+  })
 
   const profile = characterizationProfiles[method]
-  const resultDefinitions = SIMPLE_RESULTS[method] ?? []
+  const resultDefinitions = (SIMPLE_RESULTS[method] ?? []).filter(
+    (field) => field.kind !== 'growth' || profile?.show_growth_presence,
+  )
+  const advancedResultDefinitions: ResultDefinition[] = (
+    profile?.allowed_property_codes ?? []
+  )
+    .filter(
+      (propertyCode) =>
+        !resultDefinitions.some(
+          (field) => field.propertyCode === propertyCode,
+        ) &&
+        characterizationProperties[propertyCode]?.value_type !== 'structured',
+    )
+    .map((propertyCode) => {
+      const property = characterizationProperties[propertyCode]
+      return {
+        key: `advanced.${propertyCode}`,
+        label: isEnglish(i18n.language) ? property.label_en : property.label_zh,
+        kind: property.value_type === 'text' ? 'text' : 'number',
+        unit: property.unit === '—' ? undefined : property.unit,
+        propertyCode,
+      }
+    })
+  const coveredAssertionTypes = new Set(
+    resultDefinitions
+      .map(resultAssertionType)
+      .filter((value): value is AssertionType => value !== null),
+  )
+  const advancedAssertionTypes = (profile?.allowed_assertion_types ?? [])
+    .filter(isAssertionType)
+    .filter((assertionType) => !coveredAssertionTypes.has(assertionType))
+  const advancedAssertionDefinitions: ResultDefinition[] =
+    advancedAssertionTypes
+      .filter((assertionType) => assertionType !== 'composition')
+      .map((assertionType) => ({
+        key: `advanced_assertion_${assertionType}`,
+        label: t(`characterizations.details.assertionTypes.${assertionType}`, {
+          defaultValue: assertionType,
+        }),
+        kind:
+          assertionType === 'growth_presence'
+            ? 'growth'
+            : assertionType === 'layer_count'
+              ? 'layer_count'
+              : 'text',
+        ...(assertionType === 'growth_presence' ||
+        assertionType === 'layer_count'
+          ? {}
+          : { assertionType }),
+      }))
+  const allResultDefinitions = [
+    ...resultDefinitions,
+    ...advancedResultDefinitions,
+    ...advancedAssertionDefinitions,
+  ]
+  const eligibleSamples = (samples.data?.items ?? []).filter(
+    (sample) =>
+      sample.lifecycle_state === 'active' &&
+      (sample.role !== 'growth' ||
+        sample.run_revision_id === run.data?.current_revision_id),
+  )
+  const selectedInstrumentSupportsMethod = Boolean(
+    instrumentSnapshot && instrumentSupportsMethod(instrumentSnapshot, method),
+  )
   const requiredConditions = (profile?.condition_fields ?? []).filter((field) =>
     profile.required_condition_keys.includes(field.key),
   )
   const optionalConditions = (profile?.condition_fields ?? []).filter((field) =>
     profile.optional_condition_keys.includes(field.key),
   )
+  const rawFileCount = rawFiles.length - analysisOutputIndexes.length
   const evidencePresent =
-    rawFiles.length > 0 ||
-    resultDefinitions.some((field) => results[field.key]?.trim())
+    rawFileCount > 0 ||
+    allResultDefinitions.some((field) => results[field.key]?.trim()) ||
+    compositionComponents.length > 0
   const conditionIssues = [
     ...requiredConditions.map((field) => ({
       field,
-      issue: characterizationConditionIssue(field, conditions, true),
+      issue: characterizationConditionIssue(
+        field,
+        conditions,
+        true,
+        i18n.language,
+      ),
     })),
     ...optionalConditions.map((field) => ({
       field,
-      issue: characterizationConditionIssue(field, conditions),
+      issue: characterizationConditionIssue(
+        field,
+        conditions,
+        false,
+        i18n.language,
+      ),
     })),
   ]
   const conditionsValid = conditionIssues.every(({ issue }) => issue === null)
-  const resultIssues = resultDefinitions.flatMap((field) => {
-    const issue = characterizationResultIssue(field, results[field.key])
+  const resultIssues = allResultDefinitions.flatMap((field) => {
+    const issue = characterizationResultIssue(
+      field,
+      results[field.key],
+      i18n.language,
+    )
     return issue ? [issue] : []
   })
   const resultsValid = resultIssues.length === 0
+  const compositionIssues = compositionComponents.length
+    ? ([
+        compositionComponents.some(
+          (component) =>
+            !component.species.trim() || component.species.trim().length > 128,
+        )
+          ? t('characterizations.workspace.advanced.compositionSpecies')
+          : null,
+        compositionComponents.some(
+          (component) =>
+            !component.fraction.trim() ||
+            !Number.isFinite(Number(component.fraction)) ||
+            Number(component.fraction) < 0 ||
+            Number(component.fraction) > 1,
+        )
+          ? t('characterizations.workspace.advanced.compositionFraction')
+          : null,
+        new Set(
+          compositionComponents.map((component) => component.species.trim()),
+        ).size !== compositionComponents.length
+          ? t('characterizations.workspace.advanced.compositionUnique')
+          : null,
+        Math.abs(
+          compositionComponents.reduce(
+            (sum, component) => sum + Number(component.fraction || 0),
+            0,
+          ) - 1,
+        ) > 1e-6
+          ? t('characterizations.workspace.advanced.compositionSum')
+          : null,
+      ].filter(Boolean) as string[])
+    : []
+  const parsedAnalysisParameters = parseAnalysisParameters(analysis.parameters)
+  const analysisRequested = Boolean(
+    analysis.softwareName.trim() ||
+    analysis.softwareVersion.trim() ||
+    analysis.codeCommit.trim() ||
+    analysis.startedAt ||
+    analysis.completedAt ||
+    analysis.parameters.trim() ||
+    analysisInputIndexes.length ||
+    analysisOutputIndexes.length,
+  )
+  const analysisIssues = analysisRequested
+    ? ([
+        !analysis.softwareName.trim() ||
+        analysis.softwareName.trim().length > 128
+          ? t('characterizations.workspace.advanced.analysisSoftware')
+          : null,
+        !analysis.softwareVersion.trim() ||
+        analysis.softwareVersion.trim().length > 128
+          ? t('characterizations.workspace.advanced.analysisVersion')
+          : null,
+        analysis.codeCommit.trim().length > 128
+          ? t('characterizations.workspace.advanced.analysisCommit')
+          : null,
+        !analysis.startedAt
+          ? t('characterizations.workspace.advanced.analysisStartedAt')
+          : null,
+        analysis.completedAt &&
+        analysis.startedAt &&
+        new Date(analysis.completedAt) < new Date(analysis.startedAt)
+          ? t('characterizations.workspace.advanced.analysisInterval')
+          : null,
+        parsedAnalysisParameters === null
+          ? t('characterizations.workspace.advanced.analysisParameters')
+          : null,
+        analysisInputIndexes.length === 0
+          ? t('characterizations.workspace.advanced.analysisInput')
+          : null,
+      ].filter(Boolean) as string[])
+    : []
+  const coordinateValues = [region.x, region.y, region.width, region.height]
+  const hasCoordinateValue = coordinateValues.some((value) => value.trim())
+  const finiteCoordinates = coordinateValues.every(
+    (value) => !value.trim() || Number.isFinite(Number(value)),
+  )
+  const geometryRegionIssues = [
+    !region.label.trim()
+      ? t('characterizations.workspace.missing.regionLabel')
+      : null,
+    region.label.trim().length > 128
+      ? t('characterizations.workspace.missing.regionLabelMax', { max: 128 })
+      : null,
+    Boolean(region.x.trim()) !== Boolean(region.y.trim())
+      ? t('characterizations.workspace.missing.coordinatePair')
+      : null,
+    !finiteCoordinates
+      ? t('characterizations.workspace.missing.invalidCoordinate')
+      : null,
+    region.geometryType === 'line' &&
+    (!region.width.trim() || Number(region.width) <= 0)
+      ? t('characterizations.workspace.missing.lineLength')
+      : null,
+    region.geometryType === 'area' &&
+    (!region.width.trim() ||
+      !region.height.trim() ||
+      Number(region.width) <= 0 ||
+      Number(region.height) <= 0)
+      ? t('characterizations.workspace.missing.areaSize')
+      : null,
+    hasCoordinateValue && !region.unit.trim()
+      ? t('characterizations.workspace.missing.coordinateUnit')
+      : null,
+    region.unit.length > 32
+      ? t('characterizations.workspace.missing.coordinateUnitMax', { max: 32 })
+      : null,
+    profile && !profile.allowed_region_types.includes(region.geometryType)
+      ? t('characterizations.workspace.missing.regionUnsupported')
+      : null,
+  ].filter(Boolean) as string[]
+  const selectedRegionImage =
+    region.imageFileIndex === null ? null : rawFiles[region.imageFileIndex]
+  const regionImageOptions = rawFiles.flatMap((file, index) =>
+    file.type.startsWith('image/') && !analysisOutputIndexes.includes(index)
+      ? [{ file, index }]
+      : [],
+  )
+  const pixelRoiValues = [
+    region.pixelX,
+    region.pixelY,
+    region.pixelWidth,
+    region.pixelHeight,
+  ]
+  const regionImageIssues = [
+    region.imageFileIndex !== null &&
+    (!selectedRegionImage ||
+      !selectedRegionImage.type.startsWith('image/') ||
+      analysisOutputIndexes.includes(region.imageFileIndex))
+      ? t('characterizations.workspace.missing.regionImage')
+      : null,
+    region.imageFileIndex !== null &&
+    (pixelRoiValues.some((value) => !value.trim()) ||
+      pixelRoiValues.some((value) => !Number.isInteger(Number(value))) ||
+      Number(region.pixelX) < 0 ||
+      Number(region.pixelY) < 0 ||
+      Number(region.pixelWidth) <= 0 ||
+      Number(region.pixelHeight) <= 0)
+      ? t('characterizations.workspace.missing.pixelRoi')
+      : null,
+  ].filter(Boolean) as string[]
+  const regionIssues = [...geometryRegionIssues, ...regionImageIssues]
+  const hasMethodDraft = Boolean(
+    instrumentId ||
+    measuredAt ||
+    qualityFlag !== 'valid' ||
+    region.geometryType !== DEFAULT_REGION.geometryType ||
+    region.label !== DEFAULT_REGION.label ||
+    coordinateValues.some((value) => value.trim()) ||
+    region.unit !== DEFAULT_REGION.unit ||
+    region.imageFileIndex !== null ||
+    pixelRoiValues.some((value) => value.trim()) ||
+    Object.values(conditions).some((value) => value.trim()) ||
+    Object.values(results).some((value) => value.trim()) ||
+    Object.values(propertyQualities).some((quality) => quality !== 'valid') ||
+    compositionComponents.length ||
+    analysisRequested ||
+    rawFiles.length,
+  )
+  const hasUnsavedChanges = Boolean(method || hasMethodDraft)
+  const resetDraft = (keepSample = true) => {
+    if (!keepSample) setSampleId('')
+    setMethod('')
+    setInstrumentId('')
+    setInstrumentVersion(null)
+    setInstrumentSnapshot(null)
+    setMeasuredAt('')
+    setQualityFlag('valid')
+    setRegion(DEFAULT_REGION)
+    setConditions({})
+    setResults({})
+    setPropertyQualities({})
+    setCompositionBasis('atomic_fraction')
+    setCompositionComponents([])
+    setAnalysis(DEFAULT_ANALYSIS)
+    setAnalysisInputIndexes([])
+    setAnalysisOutputIndexes([])
+    setRawFiles([])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
   const canSubmit = Boolean(
     !readOnly &&
     sampleId &&
     method &&
     measuredAt &&
-    (location !== 'custom' || customLocation.trim()) &&
+    regionIssues.length === 0 &&
     conditionsValid &&
     resultsValid &&
+    compositionIssues.length === 0 &&
+    analysisIssues.length === 0 &&
     evidencePresent &&
-    (!profile?.instrument_required ||
-      (instrumentId && instrumentVersion !== null)) &&
-    (!profile?.raw_files_required || rawFiles.length > 0),
+    (!profile?.instrument_required || instrumentId) &&
+    (!instrumentId ||
+      (instrumentVersion !== null && selectedInstrumentSupportsMethod)) &&
+    (!profile?.raw_files_required || rawFileCount > 0),
   )
   const missingRequirements = [
-    !sampleId ? '请选择样品' : null,
-    !method ? '请选择表征方法' : null,
-    !measuredAt ? '请选择测量时间' : null,
-    location === 'custom' && !customLocation.trim() ? '请填写位置说明' : null,
-    profile?.instrument_required &&
-    (!instrumentId || instrumentVersion === null)
-      ? '请选择表征仪器'
+    !sampleId ? t('characterizations.workspace.missing.sample') : null,
+    !method ? t('characterizations.workspace.missing.method') : null,
+    !measuredAt ? t('characterizations.workspace.missing.measuredAt') : null,
+    ...regionIssues,
+    profile?.instrument_required && !instrumentId
+      ? t('characterizations.workspace.missing.instrument')
+      : null,
+    instrumentId && instrumentVersion === null
+      ? t('characterizations.workspace.missing.instrumentVersion')
+      : null,
+    instrumentId &&
+    instrumentVersion !== null &&
+    !selectedInstrumentSupportsMethod
+      ? t('characterizations.workspace.missing.instrumentUnsupported')
       : null,
     ...conditionIssues
       .filter(({ issue }) => issue)
-      .map(({ field, issue }) => `${field.label_zh}：${issue}`),
+      .map(({ field, issue }) => {
+        const label = isEnglish(i18n.language) ? field.label_en : field.label_zh
+        return `${label}${isEnglish(i18n.language) ? ': ' : '：'}${issue}`
+      }),
     ...resultIssues,
-    profile?.raw_files_required && rawFiles.length === 0
-      ? '请上传原始文件'
+    ...compositionIssues,
+    ...analysisIssues,
+    profile?.raw_files_required && rawFileCount === 0
+      ? t('characterizations.workspace.missing.rawFile')
       : null,
-    method && !evidencePresent ? '请上传原始文件或填写至少一项关键结果' : null,
+    method && !evidencePresent
+      ? t('characterizations.workspace.missing.evidence')
+      : null,
   ].filter(Boolean) as string[]
 
   const mutation = useMutation({
     mutationFn: async () => {
       const uploadedFileIds: string[] = []
       try {
-        for (const file of rawFiles) {
+        for (const [index, file] of rawFiles.entries()) {
           const uploaded = await uploadExperimentFile(token, runId, {
             file,
             sampleId,
             method,
             assetRole: 'characterization_file',
+            fileCategory: analysisOutputIndexes.includes(index)
+              ? 'processed'
+              : 'raw',
           })
           uploadedFileIds.push(uploaded.id)
         }
-        const properties = resultDefinitions
-          .filter((field) => field.propertyCode && results[field.key]?.trim())
+        const properties = allResultDefinitions
+          .filter(
+            (field): field is ResultDefinition & { propertyCode: string } =>
+              Boolean(field.propertyCode && results[field.key]?.trim()),
+          )
           .map((field) => ({
             property_code: field.propertyCode,
             ...(field.kind === 'text'
               ? { text_value: results[field.key].trim() }
               : {
                   numeric_value: Number(results[field.key]),
-                  unit: characterizationProperties[field.propertyCode!]?.unit,
+                  unit: characterizationProperties[field.propertyCode]?.unit,
                   statistic: 'single_observation',
                 }),
-            quality_flag: 'valid',
-          }))
-        const assertions = resultDefinitions
+            quality_flag: propertyQualities[field.key] ?? 'valid',
+            ...(analysisRequested ? { analysis_index: 0 } : {}),
+          })) as unknown as MeasurementPropertyWrite[]
+        const assertions = [
+          ...resultDefinitions,
+          ...advancedAssertionDefinitions,
+        ]
           .filter(
             (field) =>
               (field.kind === 'growth' ||
@@ -533,6 +1308,7 @@ export function SimpleCharacterizationWorkspace({
                 assertion_type: 'growth_presence',
                 value: { state: value },
                 confidence: null,
+                ...(analysisRequested ? { analysis_index: 0 } : {}),
               }
             }
             if (field.kind === 'layer_count') {
@@ -540,59 +1316,89 @@ export function SimpleCharacterizationWorkspace({
                 assertion_type: 'layer_count',
                 value: { count: Number(value) },
                 confidence: null,
+                ...(analysisRequested ? { analysis_index: 0 } : {}),
               }
             }
+            const valueKey = {
+              phase_identity: 'phase',
+              polytype: 'polytype',
+              stacking_order: 'stacking_order',
+              orientation_relationship: 'orientation_relationship',
+            }[field.assertionType!]
             return {
-              assertion_type: field.assertionType,
-              value:
-                field.assertionType === 'phase_identity'
-                  ? { phase: value }
-                  : { stacking_order: value },
+              assertion_type: field.assertionType!,
+              value: { [valueKey]: value },
               confidence: null,
+              ...(analysisRequested ? { analysis_index: 0 } : {}),
             }
-          })
-        return await createMeasurement(
-          {
-            measurement: {
-              sample_id: sampleId,
-              method_profile: method,
-              ...(instrumentId
-                ? {
-                    instrument_id: instrumentId,
-                    instrument_version: instrumentVersion,
-                  }
-                : {}),
-              measured_at: new Date(measuredAt).toISOString(),
-              ...(location
-                ? {
-                    sample_region: {
-                      geometry_type:
-                        location === 'whole_sample'
-                          ? 'whole_sample'
-                          : 'selected_area',
-                      label:
-                        location === 'custom'
-                          ? customLocation.trim()
-                          : {
-                              whole_sample: '整片',
-                              center: '中心',
-                              edge: '边缘',
-                            }[location],
-                      coordinate_system: 'sample_local',
-                    },
-                  }
-                : {}),
-              typed_conditions: typedConditions(
-                profile.condition_fields,
-                conditions,
-              ),
-              raw_file_ids: uploadedFileIds,
-              quality_flag: 'valid',
+          }) as unknown as MeasurementAssertionWrite[]
+        if (compositionComponents.length) {
+          assertions.push({
+            assertion_type: 'composition',
+            value: {
+              basis: compositionBasis,
+              components: compositionComponents.map((component) => ({
+                species: component.species.trim(),
+                fraction: Number(component.fraction),
+              })),
             },
-            analyses: [],
-            properties,
-            assertions,
+            confidence: null,
+            ...(analysisRequested ? { analysis_index: 0 } : {}),
+          })
+        }
+        const analyses = analysisRequested
+          ? [
+              {
+                software_name: analysis.softwareName.trim(),
+                software_version: analysis.softwareVersion.trim(),
+                ...(analysis.codeCommit.trim()
+                  ? { code_commit: analysis.codeCommit.trim() }
+                  : {}),
+                parameters: parsedAnalysisParameters ?? {},
+                started_at: new Date(analysis.startedAt).toISOString(),
+                ...(analysis.completedAt
+                  ? {
+                      completed_at: new Date(
+                        analysis.completedAt,
+                      ).toISOString(),
+                    }
+                  : {}),
+                input_file_ids: analysisInputIndexes.map(
+                  (index) => uploadedFileIds[index],
+                ),
+                output_file_ids: analysisOutputIndexes.map(
+                  (index) => uploadedFileIds[index],
+                ),
+              },
+            ]
+          : []
+        const payload = {
+          measurement: {
+            sample_id: sampleId,
+            method_profile: method,
+            ...(instrumentId
+              ? {
+                  instrument_id: instrumentId,
+                  instrument_version: instrumentVersion,
+                }
+              : {}),
+            measured_at: new Date(measuredAt).toISOString(),
+            sample_region: regionPayload(region, uploadedFileIds),
+            typed_conditions: typedConditions(
+              profile.condition_fields,
+              conditions,
+            ),
+            raw_file_ids: uploadedFileIds.filter(
+              (_, index) => !analysisOutputIndexes.includes(index),
+            ),
+            quality_flag: qualityFlag,
           },
+          analyses,
+          properties,
+          assertions,
+        }
+        return await createMeasurement(
+          payload as unknown as MeasurementBundleCreate,
           token,
         )
       } catch (error) {
@@ -608,356 +1414,1470 @@ export function SimpleCharacterizationWorkspace({
       }
     },
     onSuccess: async () => {
-      setResults({})
-      setRawFiles([])
+      resetDraft()
+      setDetailId(null)
       await queryClient.invalidateQueries({
         queryKey: ['measurements', runId],
       })
-      await queryClient.invalidateQueries({ queryKey: ['samples', runId] })
-      toast.success('表征记录已保存')
+      await queryClient.invalidateQueries({ queryKey: ['samples'] })
+      await queryClient.invalidateQueries({ queryKey: ['characterizations'] })
+      toast.success(t('characterizations.workspace.toast.saved'))
     },
     onError: (error) =>
-      toast.error(resolveErrorMessage(error, '表征记录保存失败')),
+      toast.error(
+        resolveErrorMessage(
+          error,
+          t('characterizations.workspace.toast.saveError'),
+        ),
+      ),
   })
+  const controlsDisabled = readOnly || mutation.isPending
 
   return (
-    <ModuleCard id="module-results" title="添加表征记录">
+    <ModuleCard
+      id="module-results"
+      title={t(
+        readOnly
+          ? 'characterizations.workspace.readOnlyTitle'
+          : 'characterizations.workspace.title',
+      )}
+    >
+      <RouteLeaveGuard
+        when={hasUnsavedChanges}
+        message={t('characterizations.workspace.confirm.leave')}
+      />
       <div className="flex flex-col gap-5">
-        <section className="flex flex-col gap-4 rounded-lg border p-4">
-          <h3 className="font-medium">1. 选择样品与表征方法</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label>
-                样品 <RequiredMark />
-              </Label>
-              <Select value={sampleId} onValueChange={setSampleId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="请选择样品" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {(samples.data?.items ?? []).map((sample) => (
-                      <SelectItem key={sample.id} value={sample.id}>
-                        {sample.sample_code} ·{' '}
-                        {sampleResultLabel(
-                          sample.actual_state,
-                          sample.actual_material_summary,
+        {!readOnly ? (
+          <>
+            {samples.isError ? (
+              <Alert variant="destructive">
+                <AlertDescription className="flex items-center justify-between gap-3">
+                  <span>
+                    {resolveErrorMessage(
+                      samples.error,
+                      t('characterizations.workspace.errors.samples'),
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={samples.isFetching}
+                    onClick={() => void samples.refetch()}
+                  >
+                    {t('characterizations.workspace.actions.retry')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {run.isError ? (
+              <Alert variant="destructive">
+                <AlertDescription className="flex items-center justify-between gap-3">
+                  <span>
+                    {resolveErrorMessage(
+                      run.error,
+                      t('characterizations.workspace.errors.run'),
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={run.isFetching}
+                    onClick={() => void run.refetch()}
+                  >
+                    {t('characterizations.workspace.actions.retry')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <section className="flex flex-col gap-4 rounded-lg border p-4">
+              <h3 className="font-medium">
+                {t('characterizations.workspace.sections.selection')}
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="characterization-sample">
+                    {t('characterizations.workspace.fields.sample')}{' '}
+                    <RequiredMark />
+                  </Label>
+                  <Select
+                    value={sampleId}
+                    disabled={
+                      controlsDisabled ||
+                      samples.isLoading ||
+                      samples.isError ||
+                      run.isLoading ||
+                      run.isError
+                    }
+                    onValueChange={(value) => {
+                      if (
+                        value !== sampleId &&
+                        hasUnsavedChanges &&
+                        !window.confirm(
+                          t('characterizations.workspace.confirm.sampleChange'),
+                        )
+                      ) {
+                        return
+                      }
+                      resetDraft()
+                      setSampleId(value)
+                    }}
+                  >
+                    <SelectTrigger
+                      id="characterization-sample"
+                      className="w-full"
+                    >
+                      <SelectValue
+                        placeholder={t(
+                          'characterizations.workspace.placeholders.sample',
                         )}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label>
-                表征方法 <RequiredMark />
-              </Label>
-              <Select
-                value={method}
-                onValueChange={(value) => {
-                  setMethod(value)
-                  setInstrumentId('')
-                  setInstrumentVersion(null)
-                  setInstrumentSnapshot(null)
-                  setConditions({})
-                  setResults({})
-                  setRawFiles([])
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="请选择表征方法" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {METHOD_ORDER.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {characterizationProfiles[value].label_zh}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </section>
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {eligibleSamples.map((sample) => (
+                          <SelectItem key={sample.id} value={sample.id}>
+                            {sample.sample_code} ·{' '}
+                            {sampleResultLabel(
+                              sample.actual_state,
+                              sample.actual_material_summary,
+                              i18n.language,
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {!samples.isLoading &&
+                  !samples.isError &&
+                  !run.isLoading &&
+                  !run.isError &&
+                  eligibleSamples.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {t('characterizations.workspace.emptySamples')}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="characterization-method">
+                    {t('characterizations.workspace.fields.method')}{' '}
+                    <RequiredMark />
+                  </Label>
+                  <Select
+                    value={method}
+                    disabled={controlsDisabled}
+                    onValueChange={(value) => {
+                      if (
+                        value !== method &&
+                        hasMethodDraft &&
+                        !window.confirm(
+                          t('characterizations.workspace.confirm.methodChange'),
+                        )
+                      ) {
+                        return
+                      }
+                      resetDraft()
+                      setMethod(value)
+                    }}
+                  >
+                    <SelectTrigger
+                      id="characterization-method"
+                      className="w-full"
+                    >
+                      <SelectValue
+                        placeholder={t(
+                          'characterizations.workspace.placeholders.method',
+                        )}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {METHOD_ORDER.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {isEnglish(i18n.language)
+                              ? characterizationProfiles[value].label_en
+                              : characterizationProfiles[value].label_zh}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </section>
 
-        <section className="flex flex-col gap-4 rounded-lg border p-4">
-          <h3 className="font-medium">2. 仪器与测量信息</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="characterization-measured-at">
-                测量时间 <RequiredMark />
+            <section className="flex flex-col gap-4 rounded-lg border p-4">
+              <h3 className="font-medium">
+                {t('characterizations.workspace.sections.measurement')}
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="characterization-measured-at">
+                    {t('characterizations.workspace.fields.measuredAt')}{' '}
+                    <RequiredMark />
+                  </Label>
+                  <Input
+                    id="characterization-measured-at"
+                    type="datetime-local"
+                    value={measuredAt}
+                    disabled={controlsDisabled}
+                    required
+                    onInput={(event) =>
+                      setMeasuredAt(event.currentTarget.value)
+                    }
+                  />
+                </div>
+                {profile ? (
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="characterization-instrument">
+                      {t('characterizations.workspace.fields.instrument')}
+                      {profile.instrument_required ? (
+                        <RequiredMark />
+                      ) : (
+                        t('characterizations.workspace.optionalSuffix')
+                      )}
+                    </Label>
+                    <EntityReferenceSelect
+                      kind="instrument"
+                      value={instrumentId}
+                      triggerId="characterization-instrument"
+                      disabled={controlsDisabled}
+                      clearable
+                      selectedVersion={instrumentVersion}
+                      selectedSnapshot={instrumentSnapshot}
+                      onChange={(id, entity) => {
+                        setInstrumentId(id)
+                        setInstrumentVersion(
+                          entity?.latest_version?.version ?? null,
+                        )
+                        setInstrumentSnapshot(
+                          entity?.latest_version?.data ?? null,
+                        )
+                      }}
+                    />
+                    {instrumentId ? (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="characterization-instrument-version">
+                          {t(
+                            'characterizations.workspace.fields.instrumentVersion',
+                          )}{' '}
+                          <RequiredMark />
+                        </Label>
+                        <Select
+                          value={
+                            instrumentVersion == null
+                              ? ''
+                              : String(instrumentVersion)
+                          }
+                          disabled={
+                            controlsDisabled ||
+                            instrumentVersions.isLoading ||
+                            instrumentVersions.isError
+                          }
+                          onValueChange={(value) => {
+                            const version = instrumentVersions.data?.items.find(
+                              (item) => item.version === Number(value),
+                            )
+                            if (!version) return
+                            setInstrumentVersion(version.version)
+                            setInstrumentSnapshot(version.data)
+                          }}
+                        >
+                          <SelectTrigger
+                            id="characterization-instrument-version"
+                            className="w-full"
+                            aria-invalid={
+                              !selectedInstrumentSupportsMethod || undefined
+                            }
+                          >
+                            <SelectValue
+                              placeholder={t(
+                                'characterizations.workspace.placeholders.instrumentVersion',
+                              )}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {[...(instrumentVersions.data?.items ?? [])]
+                                .sort(
+                                  (left, right) => right.version - left.version,
+                                )
+                                .map((version) => {
+                                  const supported = instrumentSupportsMethod(
+                                    version.data,
+                                    method,
+                                  )
+                                  return (
+                                    <SelectItem
+                                      key={version.id}
+                                      value={String(version.version)}
+                                      disabled={!supported}
+                                    >
+                                      v{version.version} ·{' '}
+                                      {new Date(
+                                        version.created_at,
+                                      ).toLocaleDateString()}
+                                      {supported
+                                        ? ''
+                                        : ` · ${t('characterizations.workspace.instrument.unsupported')}`}
+                                    </SelectItem>
+                                  )
+                                })}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        {instrumentVersions.isLoading ? (
+                          <Skeleton className="h-8 w-full rounded-md" />
+                        ) : instrumentVersions.isError ? (
+                          <div
+                            className="flex items-center justify-between gap-2 text-xs text-destructive"
+                            role="alert"
+                          >
+                            <span>
+                              {t(
+                                'characterizations.workspace.errors.instrumentVersions',
+                              )}
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={instrumentVersions.isFetching}
+                              onClick={() => void instrumentVersions.refetch()}
+                            >
+                              {t('characterizations.workspace.actions.retry')}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {profile ? (
+                  <>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="characterization-region-geometry">
+                        {t('characterizations.workspace.fields.regionGeometry')}{' '}
+                        <RequiredMark />
+                      </Label>
+                      <Select
+                        value={region.geometryType}
+                        disabled={controlsDisabled}
+                        onValueChange={(value) => {
+                          const geometryType = value as RegionGeometry
+                          const supportsAnchor = [
+                            'point',
+                            'line',
+                            'area',
+                            'selected_area',
+                          ].includes(geometryType)
+                          setRegion((current) => ({
+                            ...current,
+                            geometryType,
+                            label:
+                              current.label === current.geometryType
+                                ? geometryType
+                                : current.label,
+                            x: supportsAnchor ? current.x : '',
+                            y: supportsAnchor ? current.y : '',
+                            width: ['line', 'area'].includes(geometryType)
+                              ? current.width
+                              : '',
+                            height:
+                              geometryType === 'area' ? current.height : '',
+                          }))
+                        }}
+                      >
+                        <SelectTrigger
+                          id="characterization-region-geometry"
+                          className="w-full"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {profile.allowed_region_types.map((geometry) => (
+                              <SelectItem key={geometry} value={geometry}>
+                                {t(
+                                  `characterizations.workspace.geometry.${geometry}`,
+                                  { defaultValue: geometry },
+                                )}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="characterization-region-label">
+                        {t('characterizations.workspace.fields.regionLabel')}{' '}
+                        <RequiredMark />
+                      </Label>
+                      <Input
+                        id="characterization-region-label"
+                        value={region.label}
+                        maxLength={128}
+                        disabled={controlsDisabled}
+                        onChange={(event) =>
+                          setRegion((current) => ({
+                            ...current,
+                            label: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    {['point', 'line', 'area', 'selected_area'].includes(
+                      region.geometryType,
+                    ) ? (
+                      <>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="characterization-region-x">
+                            {t('characterizations.workspace.fields.regionX')}
+                          </Label>
+                          <Input
+                            id="characterization-region-x"
+                            type="number"
+                            step="any"
+                            value={region.x}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              setRegion((current) => ({
+                                ...current,
+                                x: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="characterization-region-y">
+                            {t('characterizations.workspace.fields.regionY')}
+                          </Label>
+                          <Input
+                            id="characterization-region-y"
+                            type="number"
+                            step="any"
+                            value={region.y}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              setRegion((current) => ({
+                                ...current,
+                                y: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </>
+                    ) : null}
+                    {['line', 'area'].includes(region.geometryType) ? (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="characterization-region-width">
+                          {region.geometryType === 'line'
+                            ? t(
+                                'characterizations.workspace.fields.regionLength',
+                              )
+                            : t(
+                                'characterizations.workspace.fields.regionWidth',
+                              )}{' '}
+                          <RequiredMark />
+                        </Label>
+                        <Input
+                          id="characterization-region-width"
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={region.width}
+                          disabled={controlsDisabled}
+                          onChange={(event) =>
+                            setRegion((current) => ({
+                              ...current,
+                              width: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {region.geometryType === 'area' ? (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="characterization-region-height">
+                          {t('characterizations.workspace.fields.regionHeight')}{' '}
+                          <RequiredMark />
+                        </Label>
+                        <Input
+                          id="characterization-region-height"
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={region.height}
+                          disabled={controlsDisabled}
+                          onChange={(event) =>
+                            setRegion((current) => ({
+                              ...current,
+                              height: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {['point', 'line', 'area', 'selected_area'].includes(
+                      region.geometryType,
+                    ) ? (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="characterization-region-unit">
+                          {t('characterizations.workspace.fields.regionUnit')}
+                        </Label>
+                        <Input
+                          id="characterization-region-unit"
+                          value={region.unit}
+                          maxLength={32}
+                          disabled={controlsDisabled}
+                          onChange={(event) =>
+                            setRegion((current) => ({
+                              ...current,
+                              unit: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {geometryRegionIssues.length ? (
+                      <div
+                        className="text-destructive text-sm sm:col-span-2"
+                        role="alert"
+                      >
+                        <ul className="list-disc pl-5">
+                          {geometryRegionIssues.map((issue) => (
+                            <li key={issue}>{issue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="characterization-quality">
+                    {t('characterizations.workspace.fields.measurementQuality')}
+                  </Label>
+                  <Select
+                    value={qualityFlag}
+                    disabled={controlsDisabled}
+                    onValueChange={(value) =>
+                      setQualityFlag(value as MeasurementQuality)
+                    }
+                  >
+                    <SelectTrigger
+                      id="characterization-quality"
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="valid">
+                          {t(
+                            'characterizations.workspace.measurementQuality.valid',
+                          )}
+                        </SelectItem>
+                        <SelectItem value="suspect">
+                          {t(
+                            'characterizations.workspace.measurementQuality.suspect',
+                          )}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {qualityFlag !== 'valid' ? (
+                    <p className="text-sm text-muted-foreground">
+                      {t('characterizations.workspace.measurementQuality.help')}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {requiredConditions.length ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {requiredConditions.map((field) => (
+                    <ConditionInput
+                      key={field.key}
+                      field={field}
+                      conditions={conditions}
+                      required
+                      language={i18n.language}
+                      issue={characterizationConditionIssue(
+                        field,
+                        conditions,
+                        true,
+                        i18n.language,
+                      )}
+                      disabled={controlsDisabled}
+                      onChange={(key, value) =>
+                        setConditions((current) => ({
+                          ...current,
+                          [key]: value,
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {optionalConditions.length ? (
+                <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer font-medium">
+                    {t('characterizations.workspace.actions.moreConditions')}
+                  </summary>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    {optionalConditions.map((field) => (
+                      <ConditionInput
+                        key={field.key}
+                        field={field}
+                        conditions={conditions}
+                        language={i18n.language}
+                        issue={characterizationConditionIssue(
+                          field,
+                          conditions,
+                          false,
+                          i18n.language,
+                        )}
+                        disabled={controlsDisabled}
+                        onChange={(key, value) =>
+                          setConditions((current) => ({
+                            ...current,
+                            [key]: value,
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+            </section>
+
+            <section className="flex flex-col gap-3 rounded-lg border p-4">
+              <h3 className="font-medium">
+                {t('characterizations.workspace.sections.rawData')}
+              </h3>
+              <Label htmlFor="characterization-raw-files">
+                {t('characterizations.workspace.fields.rawFiles')}
+                {profile?.raw_files_required ? (
+                  <RequiredMark />
+                ) : (
+                  t('characterizations.workspace.optionalSuffix')
+                )}
               </Label>
               <Input
-                id="characterization-measured-at"
-                type="datetime-local"
-                value={measuredAt}
-                onInput={(event) => setMeasuredAt(event.currentTarget.value)}
+                ref={fileInputRef}
+                id="characterization-raw-files"
+                type="file"
+                multiple
+                disabled={controlsDisabled}
+                required={profile?.raw_files_required}
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? [])
+                  setRawFiles(files)
+                  setAnalysisInputIndexes([])
+                  setAnalysisOutputIndexes([])
+                  setRegion((current) => ({
+                    ...current,
+                    imageFileIndex: null,
+                    pixelX: '',
+                    pixelY: '',
+                    pixelWidth: '',
+                    pixelHeight: '',
+                  }))
+                }}
               />
-            </div>
-            {profile?.instrument_required ? (
+              <p className="text-sm text-muted-foreground">
+                {rawFiles.length
+                  ? t('characterizations.workspace.filesSelected', {
+                      count: rawFiles.length,
+                    })
+                  : isEnglish(i18n.language)
+                    ? t('characterizations.workspace.rawFileGuidance')
+                    : (profile?.raw_file_guidance_zh ??
+                      t('characterizations.workspace.selectMethodFirst'))}
+              </p>
+              {rawFiles.length ? (
+                <ul
+                  className="list-disc pl-5 text-sm"
+                  aria-label={t('characterizations.workspace.selectedFiles')}
+                >
+                  {rawFiles.map((file) => (
+                    <li key={`${file.name}-${file.size}-${file.lastModified}`}>
+                      {file.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <div className="flex flex-col gap-2">
-                <Label>
-                  表征仪器 <RequiredMark />
+                <Label htmlFor="characterization-region-image">
+                  {t('characterizations.workspace.fields.regionImage')}
+                  {t('characterizations.workspace.optionalSuffix')}
                 </Label>
-                <EntityReferenceSelect
-                  kind="instrument"
-                  productLabel
-                  value={instrumentId}
-                  selectedVersion={instrumentVersion}
-                  selectedSnapshot={instrumentSnapshot}
-                  filter={(entity) =>
-                    snapshotValue(
-                      entity.latest_version?.data ?? {},
-                      'name_type',
-                    ) === method
+                <Select
+                  value={
+                    region.imageFileIndex === null
+                      ? 'none'
+                      : String(region.imageFileIndex)
                   }
-                  onChange={(id, entity) => {
-                    setInstrumentId(id)
-                    setInstrumentVersion(
-                      entity?.latest_version?.version ?? null,
-                    )
-                    setInstrumentSnapshot(entity?.latest_version?.data ?? null)
-                  }}
-                />
-              </div>
-            ) : null}
-            <div className="flex flex-col gap-2">
-              <Label>测量位置（选填）</Label>
-              <Select value={location} onValueChange={setLocation}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="请选择测量位置" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="whole_sample">整片</SelectItem>
-                    <SelectItem value="center">中心</SelectItem>
-                    <SelectItem value="edge">边缘</SelectItem>
-                    <SelectItem value="custom">自定义说明</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            {location === 'custom' ? (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="characterization-location-note">
-                  位置说明 <RequiredMark />
-                </Label>
-                <Input
-                  id="characterization-location-note"
-                  value={customLocation}
-                  onChange={(event) => setCustomLocation(event.target.value)}
-                />
-              </div>
-            ) : null}
-          </div>
-
-          {requiredConditions.length ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {requiredConditions.map((field) => (
-                <ConditionInput
-                  key={field.key}
-                  field={field}
-                  conditions={conditions}
-                  required
-                  issue={characterizationConditionIssue(
-                    field,
-                    conditions,
-                    true,
-                  )}
-                  onChange={(key, value) =>
-                    setConditions((current) => ({
+                  disabled={controlsDisabled || regionImageOptions.length === 0}
+                  onValueChange={(value) =>
+                    setRegion((current) => ({
                       ...current,
-                      [key]: value,
+                      imageFileIndex: value === 'none' ? null : Number(value),
+                      pixelX: '',
+                      pixelY: '',
+                      pixelWidth: '',
+                      pixelHeight: '',
                     }))
                   }
-                />
-              ))}
-            </div>
-          ) : null}
-          {optionalConditions.length ? (
-            <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer font-medium">
-                更多测量参数
-              </summary>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                {optionalConditions.map((field) => (
-                  <ConditionInput
+                >
+                  <SelectTrigger
+                    id="characterization-region-image"
+                    className="w-full"
+                    aria-invalid={regionImageIssues.length > 0 || undefined}
+                    aria-describedby={
+                      regionImageIssues.length
+                        ? 'characterization-region-image-errors'
+                        : undefined
+                    }
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="none">
+                        {t(
+                          'characterizations.workspace.placeholders.regionImage',
+                        )}
+                      </SelectItem>
+                      {regionImageOptions.map(({ file, index }) => (
+                        <SelectItem key={index} value={String(index)}>
+                          {file.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                {regionImageOptions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {t('characterizations.workspace.advanced.noRegionImages')}
+                  </p>
+                ) : null}
+              </div>
+              {region.imageFileIndex !== null ? (
+                <div className="grid gap-4 sm:grid-cols-4">
+                  {(
+                    [
+                      ['pixelX', 'pixelRoiX', 0],
+                      ['pixelY', 'pixelRoiY', 0],
+                      ['pixelWidth', 'pixelRoiWidth', 1],
+                      ['pixelHeight', 'pixelRoiHeight', 1],
+                    ] as const
+                  ).map(([key, labelKey, min]) => (
+                    <div key={key} className="flex flex-col gap-2">
+                      <Label htmlFor={`characterization-region-${key}`}>
+                        {t(`characterizations.workspace.fields.${labelKey}`)}{' '}
+                        <RequiredMark />
+                      </Label>
+                      <Input
+                        id={`characterization-region-${key}`}
+                        type="number"
+                        min={min}
+                        step="1"
+                        value={region[key]}
+                        disabled={controlsDisabled}
+                        aria-invalid={regionImageIssues.length > 0 || undefined}
+                        aria-describedby={
+                          regionImageIssues.length
+                            ? 'characterization-region-image-errors'
+                            : undefined
+                        }
+                        onChange={(event) =>
+                          setRegion((current) => ({
+                            ...current,
+                            [key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {regionImageIssues.length ? (
+                <ul
+                  id="characterization-region-image-errors"
+                  className="list-disc pl-5 text-sm text-destructive"
+                  role="alert"
+                >
+                  {regionImageIssues.map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+
+            <section className="flex flex-col gap-4 rounded-lg border p-4">
+              <h3 className="font-medium">
+                {t('characterizations.workspace.sections.results')}
+              </h3>
+              {method && resultDefinitions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t('characterizations.workspace.noPresetResults')}
+                </p>
+              ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {resultDefinitions.map((field) => (
+                  <ResultInput
                     key={field.key}
                     field={field}
-                    conditions={conditions}
-                    issue={characterizationConditionIssue(field, conditions)}
-                    onChange={(key, value) =>
-                      setConditions((current) => ({
+                    value={results[field.key] ?? ''}
+                    quality={propertyQualities[field.key] ?? 'valid'}
+                    language={i18n.language}
+                    disabled={controlsDisabled}
+                    onChange={(value) =>
+                      setResults((current) => ({
                         ...current,
-                        [key]: value,
+                        [field.key]: value,
+                      }))
+                    }
+                    onQualityChange={(quality) =>
+                      setPropertyQualities((current) => ({
+                        ...current,
+                        [field.key]: quality,
                       }))
                     }
                   />
                 ))}
               </div>
-            </details>
-          ) : null}
-        </section>
+              {advancedResultDefinitions.length ? (
+                <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer font-medium">
+                    {t('characterizations.workspace.actions.moreResults')}
+                  </summary>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    {advancedResultDefinitions.map((field) => (
+                      <ResultInput
+                        key={field.key}
+                        field={field}
+                        value={results[field.key] ?? ''}
+                        quality={propertyQualities[field.key] ?? 'valid'}
+                        language={i18n.language}
+                        disabled={controlsDisabled}
+                        onChange={(value) =>
+                          setResults((current) => ({
+                            ...current,
+                            [field.key]: value,
+                          }))
+                        }
+                        onQualityChange={(quality) =>
+                          setPropertyQualities((current) => ({
+                            ...current,
+                            [field.key]: quality,
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+              {profile ? (
+                <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer font-medium">
+                    {t('characterizations.workspace.advanced.title')}
+                  </summary>
+                  <div className="mt-4 flex flex-col gap-5">
+                    {advancedAssertionDefinitions.length ||
+                    advancedAssertionTypes.includes('composition') ? (
+                      <fieldset className="flex flex-col gap-3">
+                        <legend className="text-sm font-medium">
+                          {t('characterizations.workspace.advanced.assertions')}
+                        </legend>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {advancedAssertionDefinitions.map((field) => (
+                            <ResultInput
+                              key={field.key}
+                              field={field}
+                              value={results[field.key] ?? ''}
+                              quality="valid"
+                              language={i18n.language}
+                              disabled={controlsDisabled}
+                              onChange={(value) =>
+                                setResults((current) => ({
+                                  ...current,
+                                  [field.key]: value,
+                                }))
+                              }
+                              onQualityChange={() => undefined}
+                            />
+                          ))}
+                        </div>
+                        {advancedAssertionTypes.includes('composition') ? (
+                          <div className="flex flex-col gap-3 rounded-lg border p-3">
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                              <div className="flex flex-col gap-2">
+                                <Label htmlFor="characterization-composition-basis">
+                                  {t(
+                                    'characterizations.workspace.advanced.compositionBasis',
+                                  )}
+                                </Label>
+                                <Select
+                                  value={compositionBasis}
+                                  disabled={controlsDisabled}
+                                  onValueChange={(value) =>
+                                    setCompositionBasis(
+                                      value as CompositionBasis,
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id="characterization-composition-basis"
+                                    className="w-full"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      {(
+                                        [
+                                          'site_fraction',
+                                          'atomic_fraction',
+                                          'mass_fraction',
+                                        ] as CompositionBasis[]
+                                      ).map((basis) => (
+                                        <SelectItem key={basis} value={basis}>
+                                          {t(
+                                            `characterizations.workspace.advanced.compositionBasisValues.${basis}`,
+                                          )}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={controlsDisabled}
+                                onClick={() => {
+                                  const id = nextCompositionId.current
+                                  nextCompositionId.current += 1
+                                  setCompositionComponents((current) => [
+                                    ...current,
+                                    { id, species: '', fraction: '' },
+                                  ])
+                                }}
+                              >
+                                {t(
+                                  'characterizations.workspace.advanced.addComposition',
+                                )}
+                              </Button>
+                            </div>
+                            {compositionComponents.map((component, index) => (
+                              <div
+                                key={component.id}
+                                className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
+                              >
+                                <div className="flex flex-col gap-2">
+                                  <Label
+                                    htmlFor={`characterization-composition-species-${component.id}`}
+                                  >
+                                    {t(
+                                      'characterizations.workspace.advanced.species',
+                                    )}
+                                  </Label>
+                                  <Input
+                                    id={`characterization-composition-species-${component.id}`}
+                                    value={component.species}
+                                    maxLength={128}
+                                    disabled={controlsDisabled}
+                                    onChange={(event) =>
+                                      setCompositionComponents((current) =>
+                                        current.map((item, position) =>
+                                          position === index
+                                            ? {
+                                                ...item,
+                                                species: event.target.value,
+                                              }
+                                            : item,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <Label
+                                    htmlFor={`characterization-composition-fraction-${component.id}`}
+                                  >
+                                    {t(
+                                      'characterizations.workspace.advanced.fraction',
+                                    )}
+                                  </Label>
+                                  <Input
+                                    id={`characterization-composition-fraction-${component.id}`}
+                                    type="number"
+                                    min="0"
+                                    max="1"
+                                    step="any"
+                                    value={component.fraction}
+                                    disabled={controlsDisabled}
+                                    onChange={(event) =>
+                                      setCompositionComponents((current) =>
+                                        current.map((item, position) =>
+                                          position === index
+                                            ? {
+                                                ...item,
+                                                fraction: event.target.value,
+                                              }
+                                            : item,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="self-end"
+                                  disabled={controlsDisabled}
+                                  aria-label={t(
+                                    'characterizations.workspace.advanced.removeComposition',
+                                    { index: index + 1 },
+                                  )}
+                                  onClick={() =>
+                                    setCompositionComponents((current) =>
+                                      current.filter(
+                                        (item) => item.id !== component.id,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {t(
+                                    'characterizations.workspace.advanced.remove',
+                                  )}
+                                </Button>
+                              </div>
+                            ))}
+                            {compositionIssues.length ? (
+                              <ul
+                                className="list-disc pl-5 text-sm text-destructive"
+                                role="alert"
+                              >
+                                {compositionIssues.map((issue) => (
+                                  <li key={issue}>{issue}</li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </fieldset>
+                    ) : null}
 
-        <section className="flex flex-col gap-3 rounded-lg border p-4">
-          <h3 className="font-medium">3. 上传原始数据</h3>
-          <Label htmlFor="characterization-raw-files">
-            原始文件
-            {profile?.raw_files_required ? <RequiredMark /> : '（选填）'}
-          </Label>
-          <Input
-            id="characterization-raw-files"
-            type="file"
-            multiple
-            required={profile?.raw_files_required}
-            onChange={(event) =>
-              setRawFiles(Array.from(event.target.files ?? []))
-            }
-          />
-          <p className="text-sm text-muted-foreground">
-            {rawFiles.length
-              ? `已选择 ${rawFiles.length} 个文件`
-              : (profile?.raw_file_guidance_zh ?? '请先选择表征方法')}
-          </p>
-        </section>
+                    <fieldset className="flex flex-col gap-3 border-t pt-4">
+                      <legend className="text-sm font-medium">
+                        {t('characterizations.workspace.advanced.analysis')}
+                      </legend>
+                      <p className="text-sm text-muted-foreground">
+                        {t('characterizations.workspace.advanced.analysisHelp')}
+                      </p>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="characterization-analysis-software">
+                            {t(
+                              'characterizations.workspace.advanced.softwareName',
+                            )}
+                          </Label>
+                          <Input
+                            id="characterization-analysis-software"
+                            value={analysis.softwareName}
+                            maxLength={128}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              setAnalysis((current) => ({
+                                ...current,
+                                softwareName: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="characterization-analysis-version">
+                            {t(
+                              'characterizations.workspace.advanced.softwareVersion',
+                            )}
+                          </Label>
+                          <Input
+                            id="characterization-analysis-version"
+                            value={analysis.softwareVersion}
+                            maxLength={128}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              setAnalysis((current) => ({
+                                ...current,
+                                softwareVersion: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="characterization-analysis-started-at">
+                            {t(
+                              'characterizations.workspace.advanced.startedAt',
+                            )}
+                          </Label>
+                          <Input
+                            id="characterization-analysis-started-at"
+                            type="datetime-local"
+                            value={analysis.startedAt}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              setAnalysis((current) => ({
+                                ...current,
+                                startedAt: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="characterization-analysis-completed-at">
+                            {t(
+                              'characterizations.workspace.advanced.completedAt',
+                            )}
+                          </Label>
+                          <Input
+                            id="characterization-analysis-completed-at"
+                            type="datetime-local"
+                            value={analysis.completedAt}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              setAnalysis((current) => ({
+                                ...current,
+                                completedAt: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2 sm:col-span-2">
+                          <Label htmlFor="characterization-analysis-code-commit">
+                            {t(
+                              'characterizations.workspace.advanced.codeCommit',
+                            )}
+                          </Label>
+                          <Input
+                            id="characterization-analysis-code-commit"
+                            value={analysis.codeCommit}
+                            maxLength={128}
+                            disabled={controlsDisabled}
+                            onChange={(event) =>
+                              setAnalysis((current) => ({
+                                ...current,
+                                codeCommit: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2 sm:col-span-2">
+                          <Label htmlFor="characterization-analysis-parameters">
+                            {t(
+                              'characterizations.workspace.advanced.parameters',
+                            )}
+                          </Label>
+                          <Textarea
+                            id="characterization-analysis-parameters"
+                            value={analysis.parameters}
+                            disabled={controlsDisabled}
+                            aria-invalid={
+                              parsedAnalysisParameters === null || undefined
+                            }
+                            placeholder="{}"
+                            onChange={(event) =>
+                              setAnalysis((current) => ({
+                                ...current,
+                                parameters: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <p className="text-sm font-medium">
+                          {t('characterizations.workspace.advanced.inputFiles')}
+                        </p>
+                        {rawFiles.length ? (
+                          rawFiles.map((file, index) => {
+                            const id = `characterization-analysis-input-${index}`
+                            return (
+                              <div
+                                key={`${file.name}-${file.size}-${file.lastModified}`}
+                                className="flex items-center gap-2"
+                              >
+                                <Checkbox
+                                  id={id}
+                                  aria-label={t(
+                                    'characterizations.workspace.advanced.inputFileLabel',
+                                    { filename: file.name },
+                                  )}
+                                  checked={analysisInputIndexes.includes(index)}
+                                  disabled={controlsDisabled}
+                                  onCheckedChange={(checked) => {
+                                    setAnalysisInputIndexes((current) =>
+                                      checked
+                                        ? current.includes(index)
+                                          ? current
+                                          : [...current, index].sort(
+                                              (left, right) => left - right,
+                                            )
+                                        : current.filter(
+                                            (value) => value !== index,
+                                          ),
+                                    )
+                                    if (checked) {
+                                      setAnalysisOutputIndexes((current) =>
+                                        current.filter(
+                                          (value) => value !== index,
+                                        ),
+                                      )
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={id}>{file.name}</Label>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            {t(
+                              'characterizations.workspace.advanced.noInputFiles',
+                            )}
+                          </p>
+                        )}
+                        <p className="pt-2 text-sm font-medium">
+                          {t(
+                            'characterizations.workspace.advanced.outputFiles',
+                          )}
+                        </p>
+                        {rawFiles.length ? (
+                          rawFiles.map((file, index) => {
+                            const id = `characterization-analysis-output-${index}`
+                            return (
+                              <div
+                                key={`${file.name}-${file.size}-${file.lastModified}`}
+                                className="flex items-center gap-2"
+                              >
+                                <Checkbox
+                                  id={id}
+                                  aria-label={t(
+                                    'characterizations.workspace.advanced.outputFileLabel',
+                                    { filename: file.name },
+                                  )}
+                                  checked={analysisOutputIndexes.includes(
+                                    index,
+                                  )}
+                                  disabled={controlsDisabled}
+                                  onCheckedChange={(checked) => {
+                                    setAnalysisOutputIndexes((current) =>
+                                      checked
+                                        ? current.includes(index)
+                                          ? current
+                                          : [...current, index].sort(
+                                              (left, right) => left - right,
+                                            )
+                                        : current.filter(
+                                            (value) => value !== index,
+                                          ),
+                                    )
+                                    if (checked) {
+                                      setAnalysisInputIndexes((current) =>
+                                        current.filter(
+                                          (value) => value !== index,
+                                        ),
+                                      )
+                                      setRegion((current) =>
+                                        current.imageFileIndex === index
+                                          ? {
+                                              ...current,
+                                              imageFileIndex: null,
+                                              pixelX: '',
+                                              pixelY: '',
+                                              pixelWidth: '',
+                                              pixelHeight: '',
+                                            }
+                                          : current,
+                                      )
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={id}>{file.name}</Label>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            {t(
+                              'characterizations.workspace.advanced.noInputFiles',
+                            )}
+                          </p>
+                        )}
+                        <p className="text-sm text-muted-foreground">
+                          {t(
+                            'characterizations.workspace.advanced.outputFilesHelp',
+                          )}
+                        </p>
+                      </div>
+                      {analysisIssues.length ? (
+                        <ul
+                          className="list-disc pl-5 text-sm text-destructive"
+                          role="alert"
+                        >
+                          {analysisIssues.map((issue) => (
+                            <li key={issue}>{issue}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </fieldset>
+                  </div>
+                </details>
+              ) : null}
+            </section>
 
-        <section className="flex flex-col gap-4 rounded-lg border p-4">
-          <h3 className="font-medium">4. 填写关键结果</h3>
-          {method && resultDefinitions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              此方法没有预设结果字段，请上传原始数据完成记录。
-            </p>
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {resultDefinitions.map((field) => {
-              const issue = characterizationResultIssue(
-                field,
-                results[field.key],
-              )
-              return (
+            <section className="flex flex-col items-end gap-3 rounded-lg border p-4">
+              <h3 className="w-full font-medium">
+                {t('characterizations.workspace.sections.save')}
+              </h3>
+              {!canSubmit && missingRequirements.length ? (
                 <div
-                  key={field.key}
-                  className="flex flex-col gap-2"
-                  data-invalid={Boolean(issue) || undefined}
+                  className="w-full text-sm text-muted-foreground"
+                  aria-live="polite"
                 >
-                  <Label>
-                    {field.label}
-                    {field.unit ? `（${field.unit}）` : ''}
-                    {field.required ? <RequiredMark /> : null}
-                  </Label>
-                  {field.kind === 'growth' ? (
-                    <Select
-                      value={results[field.key] ?? ''}
-                      onValueChange={(value) =>
-                        setResults((current) => ({
-                          ...current,
-                          [field.key]: value,
-                        }))
-                      }
-                    >
-                      <SelectTrigger
-                        className="w-full"
-                        aria-invalid={Boolean(issue) || undefined}
-                      >
-                        <SelectValue placeholder="请选择" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="present">观察到生长</SelectItem>
-                          <SelectItem value="absent">未观察到生长</SelectItem>
-                          <SelectItem value="uncertain">不确定</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  ) : field.kind === 'text' ? (
-                    <Textarea
-                      value={results[field.key] ?? ''}
-                      aria-invalid={Boolean(issue) || undefined}
-                      onChange={(event) =>
-                        setResults((current) => ({
-                          ...current,
-                          [field.key]: event.target.value,
-                        }))
-                      }
-                    />
-                  ) : (
-                    <Input
-                      type="number"
-                      min={field.kind === 'layer_count' ? '1' : undefined}
-                      step={field.kind === 'layer_count' ? '1' : 'any'}
-                      value={results[field.key] ?? ''}
-                      aria-invalid={Boolean(issue) || undefined}
-                      onChange={(event) =>
-                        setResults((current) => ({
-                          ...current,
-                          [field.key]: event.target.value,
-                        }))
-                      }
-                    />
-                  )}
-                  {issue ? (
-                    <p className="text-destructive text-sm">{issue}</p>
-                  ) : null}
+                  <p>{t('characterizations.workspace.missing.title')}</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {missingRequirements.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
-              )
-            })}
-          </div>
-        </section>
-
-        <section className="flex flex-col items-end gap-3 rounded-lg border p-4">
-          <h3 className="w-full font-medium">5. 保存表征记录</h3>
-          {!canSubmit && !readOnly && missingRequirements.length ? (
-            <div className="w-full text-sm text-muted-foreground">
-              <p>尚未完成：</p>
-              <ul className="mt-1 list-disc pl-5">
-                {missingRequirements.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <Button
-            type="button"
-            disabled={!canSubmit || mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            保存表征记录
-          </Button>
-        </section>
+              ) : null}
+              <Button
+                type="button"
+                disabled={!canSubmit || mutation.isPending}
+                onClick={() => mutation.mutate()}
+              >
+                {mutation.isPending
+                  ? t('characterizations.workspace.actions.saving')
+                  : t('characterizations.workspace.actions.save')}
+              </Button>
+            </section>
+          </>
+        ) : null}
 
         <section className="flex flex-col gap-3">
-          <h3 className="font-medium">已有表征记录</h3>
+          <h3 className="font-medium">
+            {t('characterizations.workspace.sections.existing')}
+          </h3>
           {measurements.isError ? (
             <Alert variant="destructive">
-              <AlertDescription>
-                {resolveErrorMessage(measurements.error, '表征记录加载失败')}
+              <AlertDescription className="flex items-center justify-between gap-3">
+                <span>
+                  {resolveErrorMessage(
+                    measurements.error,
+                    t('characterizations.workspace.errors.measurements'),
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={measurements.isFetching}
+                  onClick={() => void measurements.refetch()}
+                >
+                  {t('characterizations.workspace.actions.retry')}
+                </Button>
               </AlertDescription>
             </Alert>
+          ) : measurements.isLoading ? (
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+            </div>
           ) : measurements.data?.items.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-3">
               {measurements.data.items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                  className="flex flex-col gap-3 rounded-lg border p-3"
                 >
-                  <div>
-                    <p className="font-medium">{item.sample_code}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(item.measured_at).toLocaleString()}
-                    </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{item.sample_code}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(item.measured_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">
+                        {(isEnglish(i18n.language)
+                          ? characterizationProfiles[item.method_profile]
+                              ?.label_en
+                          : characterizationProfiles[item.method_profile]
+                              ?.label_zh) ?? item.method_profile}
+                      </Badge>
+                      {item.quality_flag !== 'valid' ? (
+                        <Badge
+                          variant={
+                            item.quality_flag === 'invalid'
+                              ? 'destructive'
+                              : 'outline'
+                          }
+                        >
+                          {t(
+                            `characterizations.workspace.measurementQuality.${item.quality_flag}`,
+                            { defaultValue: item.quality_flag },
+                          )}
+                        </Badge>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        aria-expanded={detailId === item.id}
+                        aria-controls={`measurement-details-${item.id}`}
+                        onClick={() =>
+                          setDetailId((current) =>
+                            current === item.id ? null : item.id,
+                          )
+                        }
+                      >
+                        {detailId === item.id
+                          ? t('characterizations.workspace.actions.hideDetails')
+                          : t(
+                              'characterizations.workspace.actions.viewDetails',
+                            )}
+                      </Button>
+                    </div>
                   </div>
-                  <Badge variant="secondary">
-                    {characterizationProfiles[item.method_profile]?.label_zh ??
-                      item.method_profile}
-                  </Badge>
+                  {detailId === item.id ? (
+                    <div
+                      id={`measurement-details-${item.id}`}
+                      role="region"
+                      aria-label={t(
+                        'characterizations.workspace.detailRegion',
+                        { sample: item.sample_code },
+                      )}
+                    >
+                      <MeasurementDetails
+                        measurementId={item.id}
+                        token={token}
+                        allowInvalidate={!readOnly}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
           ) : (
             <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              当前实验还没有表征记录。
+              {t('characterizations.workspace.noMeasurements')}
             </p>
           )}
         </section>

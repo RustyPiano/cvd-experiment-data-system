@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from datetime import date, datetime
+from math import isfinite
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.scientific_units import normalize_process_value, validate_process_unit
 from app.generated.material_phase_catalog import MATERIAL_PHASE_CATALOG
@@ -16,11 +18,23 @@ from app.services.v2_field_source import (
     characterization_profiles,
     characterization_property_units,
     formula_element_symbols,
+    load_field_source,
     normalize_atmosphere,
     normalize_offset_datetime,
     solid_solution_formula,
     validate_chemical_formula,
 )
+
+
+def _validate_json_object(value: dict[str, Any]) -> dict[str, Any]:
+    try:
+        json.dumps(value, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("value must contain only finite JSON data") from exc
+    return value
+
+
+JsonObject = Annotated[dict[str, Any], AfterValidator(_validate_json_object)]
 
 
 class AmbientMeasurement(BaseModel):
@@ -117,7 +131,7 @@ class TargetMaterialRegionPayload(BaseModel):
     target_layer_count: int | None = Field(default=None, ge=1)
     target_bulk_phase: str | None = Field(default=None, max_length=128)
     target_bulk_space_group_number: int | None = Field(default=None, ge=1, le=230)
-    attrs: dict[str, Any] = Field(default_factory=dict)
+    attrs: JsonObject = Field(default_factory=dict)
 
     @field_validator("formula")
     @classmethod
@@ -546,7 +560,7 @@ class SourceIngredientPayload(BaseModel):
     )
     composition_basis: str | None = Field(default=None, max_length=64)
     uncertainty: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    attrs: dict[str, Any] = Field(default_factory=dict)
+    attrs: JsonObject = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_quantity(self) -> Self:
@@ -586,7 +600,7 @@ class SourceLoadPayload(BaseModel):
     )
     substrate_source_ids: list[UUID] = Field(default_factory=list)
     ingredients: list[SourceIngredientPayload] = Field(min_length=1)
-    attrs: dict[str, Any] = Field(default_factory=dict)
+    attrs: JsonObject = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_load(self) -> Self:
@@ -757,7 +771,7 @@ class ProcessChannelPayload(BaseModel):
     ]
     subject_ref: str = Field(min_length=1, max_length=128)
     subject_instance_ref: str = Field(min_length=1, max_length=128)
-    subject_snapshot: dict[str, Any] | None = None
+    subject_snapshot: JsonObject | None = None
     gas_species_code: str | None = Field(default=None, max_length=32)
     gas_lot_id: UUID | None = None
     gas_lot_version: int | None = Field(default=None, ge=1)
@@ -862,7 +876,7 @@ class PreparationGasSourcePayload(BaseModel):
 
     material_lot_id: UUID
     material_lot_version: int = Field(ge=1)
-    snapshot: dict[str, Any] | None = None
+    snapshot: JsonObject | None = None
 
 
 class PreparationOperationPayload(BaseModel):
@@ -1157,6 +1171,15 @@ class ReviewRunRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class PixelRoi(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: int = Field(ge=0, strict=True)
+    y: int = Field(ge=0, strict=True)
+    width: int = Field(gt=0, strict=True)
+    height: int = Field(gt=0, strict=True)
+
+
 class SampleRegion(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1169,35 +1192,51 @@ class SampleRegion(BaseModel):
         "particle",
         "selected_area",
     ]
-    label: str = Field(min_length=1, max_length=128)
-    coordinate_system: str = Field(min_length=1, max_length=128)
-    x: float | None = Field(default=None, allow_inf_nan=False)
-    y: float | None = Field(default=None, allow_inf_nan=False)
-    width: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    height: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    unit: str | None = Field(default=None, max_length=32)
+    label: str = Field(min_length=1, max_length=128, pattern=r"\S")
+    coordinate_system: str = Field(min_length=1, max_length=128, pattern=r"\S")
+    x: float | None = Field(default=None, allow_inf_nan=False, strict=True)
+    y: float | None = Field(default=None, allow_inf_nan=False, strict=True)
+    width: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    height: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    unit: str | None = Field(default=None, max_length=32, pattern=r"\S")
     image_file_id: UUID | None = None
-    pixel_roi: dict[str, int] | None = None
+    pixel_roi: PixelRoi | None = None
+
+    @field_validator("label", "coordinate_system", "unit")
+    @classmethod
+    def normalize_region_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
     @model_validator(mode="after")
     def validate_geometry(self) -> Self:
         if (self.x is None) != (self.y is None):
             raise ValueError("x and y must be provided together")
-        if any(value is not None for value in (self.x, self.y, self.width, self.height)):
-            if not self.unit:
-                raise ValueError("coordinate values require a unit")
+        has_dimensions = any(
+            value is not None for value in (self.x, self.y, self.width, self.height)
+        )
+        if has_dimensions and not self.unit:
+            raise ValueError("coordinate values require a unit")
+        if not has_dimensions and self.unit is not None:
+            raise ValueError("a unit requires coordinate values")
         if self.geometry_type == "point" and any(
             value is not None for value in (self.width, self.height)
         ):
             raise ValueError("point regions cannot include width or height")
-        if self.geometry_type == "line" and self.width is None:
-            raise ValueError("line regions require a length in width")
+        if self.geometry_type == "line":
+            if self.width is None:
+                raise ValueError("line regions require a length in width")
+            if self.height is not None:
+                raise ValueError("line regions cannot include height")
         if self.geometry_type == "area" and (self.width is None or self.height is None):
             raise ValueError("area regions require width and height")
-        if self.geometry_type in {"whole_sample", "lamella", "particle", "selected_area"} and any(
+        if self.geometry_type in {"whole_sample", "lamella", "particle"} and any(
+            value is not None for value in (self.x, self.y, self.width, self.height)
+        ):
+            raise ValueError(f"{self.geometry_type} regions cannot include coordinates or size")
+        if self.geometry_type == "selected_area" and any(
             value is not None for value in (self.width, self.height)
         ):
-            raise ValueError(f"{self.geometry_type} regions cannot include width or height")
+            raise ValueError("selected_area regions cannot include width or height")
         if (self.image_file_id is None) != (self.pixel_roi is None):
             raise ValueError("image_file_id and pixel_roi must be provided together")
         return self
@@ -1206,8 +1245,8 @@ class SampleRegion(BaseModel):
 class NumericRange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    min: float = Field(ge=0, allow_inf_nan=False)
-    max: float = Field(gt=0, allow_inf_nan=False)
+    min: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    max: float = Field(gt=0, allow_inf_nan=False, strict=True)
 
     @model_validator(mode="after")
     def ordered(self) -> Self:
@@ -1219,8 +1258,8 @@ class NumericRange(BaseModel):
 class ScanRange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    start: float = Field(ge=0, allow_inf_nan=False)
-    end: float = Field(gt=0, allow_inf_nan=False)
+    start: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    end: float = Field(gt=0, allow_inf_nan=False, strict=True)
 
     @model_validator(mode="after")
     def ordered(self) -> Self:
@@ -1232,61 +1271,89 @@ class ScanRange(BaseModel):
 class Size2D(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    x: float = Field(gt=0, allow_inf_nan=False)
-    y: float = Field(gt=0, allow_inf_nan=False)
+    x: float = Field(gt=0, allow_inf_nan=False, strict=True)
+    y: float = Field(gt=0, allow_inf_nan=False, strict=True)
 
 
 class WidthHeight(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    width: float = Field(gt=0, allow_inf_nan=False)
-    height: float = Field(gt=0, allow_inf_nan=False)
+    width: float = Field(gt=0, allow_inf_nan=False, strict=True)
+    height: float = Field(gt=0, allow_inf_nan=False, strict=True)
 
 
 class Resolution2D(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    width: int = Field(ge=1)
-    height: int = Field(ge=1)
+    width: int = Field(ge=1, strict=True)
+    height: int = Field(ge=1, strict=True)
 
 
 class MeasurementConditions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    laser_wavelength_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    excitation_wavelength_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    power_setting: str | float | None = None
-    objective: str | None = Field(default=None, max_length=128)
-    integration_time_s: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    accumulations: int | None = Field(default=None, ge=1)
+    laser_wavelength_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    excitation_wavelength_nm: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False, strict=True
+    )
+    power_setting: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    objective: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    integration_time_s: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    accumulations: int | None = Field(default=None, ge=1, strict=True)
     spectral_range_nm: NumericRange | None = None
-    temperature_K: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    mode: str | None = Field(default=None, max_length=128)
-    probe: str | None = Field(default=None, max_length=128)
+    temperature_K: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    probe: str | None = Field(default=None, max_length=128, pattern=r"\S")
     scan_size_um: Size2D | None = None
     resolution_px: Resolution2D | None = None
-    scan_rate_hz: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    accelerating_voltage_kV: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    working_distance_mm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    detector: str | None = Field(default=None, max_length=128)
+    scan_rate_hz: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    accelerating_voltage_kV: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False, strict=True
+    )
+    working_distance_mm: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    detector: str | None = Field(default=None, max_length=128, pattern=r"\S")
     field_of_view_um: WidthHeight | None = None
-    radiation_source: str | None = Field(default=None, max_length=128)
+    radiation_source: str | None = Field(default=None, max_length=128, pattern=r"\S")
     scan_range_2theta_deg: ScanRange | None = None
-    step_size_deg: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    scan_rate_deg_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
-    geometry: str | None = Field(default=None, max_length=128)
-    sample_preparation: str | None = Field(default=None, max_length=1000)
-    illumination_mode: str | None = Field(default=None, max_length=128)
-    method_description: str | None = Field(default=None, min_length=1, max_length=1000)
+    step_size_deg: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    scan_rate_deg_min: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    geometry: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    sample_preparation: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    illumination_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    method_description: str | None = Field(
+        default=None, min_length=1, max_length=1000, pattern=r"\S"
+    )
+
+    @field_validator(
+        "objective",
+        "mode",
+        "probe",
+        "detector",
+        "radiation_source",
+        "geometry",
+        "sample_preparation",
+        "illumination_mode",
+        "method_description",
+        mode="before",
+    )
+    @classmethod
+    def normalize_text_condition(cls, value: object) -> object:
+        if value is None or not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("measurement text conditions cannot be blank")
+        return normalized
 
     @field_validator("power_setting")
     @classmethod
-    def validate_power_setting(cls, value: str | float | None) -> str | float | None:
-        if isinstance(value, str) and not value.strip():
+    def validate_power_setting(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
             raise ValueError("power_setting cannot be blank")
-        if isinstance(value, float) and value <= 0:
-            raise ValueError("power_setting must be positive")
-        return value
+        return normalized
 
 
 class MeasurementRunCreate(BaseModel):
@@ -1295,12 +1362,17 @@ class MeasurementRunCreate(BaseModel):
     sample_id: UUID
     method_profile: str = Field(min_length=1, max_length=128)
     instrument_id: UUID | None = None
-    instrument_version: int | None = Field(default=None, ge=1)
+    instrument_version: int | None = Field(
+        default=None,
+        ge=1,
+        le=2_147_483_647,
+        strict=True,
+    )
     measured_at: datetime
-    sample_region: SampleRegion | None = None
+    sample_region: SampleRegion
     typed_conditions: MeasurementConditions
     raw_file_ids: list[UUID] = Field(default_factory=list)
-    quality_flag: Literal["valid", "suspect", "invalid"] = "valid"
+    quality_flag: Literal["valid", "suspect"] = "valid"
 
     @field_validator("measured_at", mode="before")
     @classmethod
@@ -1327,10 +1399,7 @@ class MeasurementRunCreate(BaseModel):
             raise ValueError(
                 f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
             )
-        if (
-            self.sample_region is not None
-            and self.sample_region.geometry_type not in profile["allowed_region_types"]
-        ):
+        if self.sample_region.geometry_type not in profile["allowed_region_types"]:
             raise ValueError(
                 f"{self.sample_region.geometry_type} does not apply to {self.method_profile}"
             )
@@ -1340,14 +1409,19 @@ class MeasurementRunCreate(BaseModel):
 class AnalysisRunCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    software_name: str = Field(min_length=1, max_length=128)
-    software_version: str = Field(min_length=1, max_length=128)
-    code_commit: str | None = Field(default=None, max_length=128)
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    software_name: str = Field(min_length=1, max_length=128, pattern=r"\S")
+    software_version: str = Field(min_length=1, max_length=128, pattern=r"\S")
+    code_commit: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    parameters: JsonObject = Field(default_factory=dict)
     started_at: datetime
     completed_at: datetime | None = None
     input_file_ids: list[UUID] = Field(min_length=1)
     output_file_ids: list[UUID] = Field(default_factory=list)
+
+    @field_validator("software_name", "software_version", "code_commit")
+    @classmethod
+    def normalize_analysis_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
     @field_validator("started_at", "completed_at", mode="before")
     @classmethod
@@ -1373,31 +1447,75 @@ class PropertyValueWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     property_code: str = Field(min_length=1, max_length=128, pattern=r"^[a-z][a-z0-9_]*$")
-    numeric_value: float | None = Field(default=None, allow_inf_nan=False)
+    numeric_value: float | None = Field(default=None, allow_inf_nan=False, strict=True)
     text_value: str | None = Field(default=None, max_length=2000)
-    structured_value: dict[str, Any] | None = None
+    structured_value: JsonObject | None = None
     unit: str | None = Field(default=None, max_length=32)
     statistic: (
         Literal["single_observation", "mean", "median", "min", "max", "distribution"] | None
     ) = None
-    uncertainty_value: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    uncertainty_type: str | None = Field(default=None, max_length=64)
-    sample_count: int | None = Field(default=None, ge=1)
+    uncertainty_value: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
+    uncertainty_type: str | None = Field(default=None, max_length=64, pattern=r"\S")
+    sample_count: int | None = Field(default=None, ge=1, le=2_147_483_647, strict=True)
     quality_flag: Literal["valid", "suspect", "invalid", "below_detection_limit"] = "valid"
-    analysis_index: int | None = Field(default=None, ge=0)
+    analysis_index: int | None = Field(default=None, ge=0, strict=True)
+
+    @field_validator("numeric_value", mode="before")
+    @classmethod
+    def reject_boolean_numeric_value(cls, value: object) -> object:
+        if isinstance(value, bool):
+            raise ValueError("numeric property cannot use a boolean value")
+        return value
+
+    @field_validator("text_value")
+    @classmethod
+    def normalize_text_value(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("text property cannot be blank")
+        return normalized
+
+    @field_validator("uncertainty_type")
+    @classmethod
+    def normalize_uncertainty_type(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("structured_value")
+    @classmethod
+    def reject_empty_structured_value(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value == {}:
+            raise ValueError("structured property cannot be empty")
+        return value
 
     @model_validator(mode="after")
     def validate_property(self) -> Self:
+        definition = load_field_source()["characterization_properties"].get(self.property_code)
         expected_unit = characterization_property_units().get(self.property_code)
-        if expected_unit is None:
+        if expected_unit is None or definition is None:
             raise ValueError("unsupported property_code")
         supplied = [
             self.numeric_value is not None,
             self.text_value is not None,
             self.structured_value is not None,
         ]
+        if self.quality_flag == "below_detection_limit" and self.numeric_value is None:
+            raise ValueError("below_detection_limit requires a numeric detection threshold")
         if sum(supplied) != 1:
             raise ValueError("property requires exactly one value representation")
+        expected_value_type = definition["value_type"]
+        supplied_value_type = (
+            "numeric"
+            if self.numeric_value is not None
+            else "text"
+            if self.text_value is not None
+            else "structured"
+        )
+        if supplied_value_type != expected_value_type:
+            raise ValueError(
+                f"{self.property_code} requires {expected_value_type} value representation"
+            )
         if self.numeric_value is not None and not self.unit:
             raise ValueError("numeric property requires a unit")
         if self.numeric_value is not None and self.unit != expected_unit:
@@ -1406,6 +1524,19 @@ class PropertyValueWrite(BaseModel):
             raise ValueError("non-numeric properties cannot include a unit")
         if (self.uncertainty_value is None) != (self.uncertainty_type is None):
             raise ValueError("uncertainty value and type must be provided together")
+        if self.numeric_value is None and self.uncertainty_value is not None:
+            raise ValueError("only numeric properties can include uncertainty")
+        if self.numeric_value is not None:
+            validation = definition.get("validation", {})
+            for key, comparison in (
+                ("ge", lambda value, bound: value >= bound),
+                ("gt", lambda value, bound: value > bound),
+                ("le", lambda value, bound: value <= bound),
+                ("lt", lambda value, bound: value < bound),
+            ):
+                bound = validation.get(key)
+                if bound is not None and not comparison(self.numeric_value, bound):
+                    raise ValueError(f"{self.property_code} must satisfy {key}={bound}")
         return self
 
 
@@ -1421,30 +1552,54 @@ class MaterialAssertionWrite(BaseModel):
         "orientation_relationship",
         "layer_count",
     ]
-    value: dict[str, Any]
-    confidence: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
-    analysis_index: int | None = Field(default=None, ge=0)
+    value: JsonObject
+    confidence: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False, strict=True)
+    analysis_index: int | None = Field(default=None, ge=0, strict=True)
 
     @model_validator(mode="after")
     def validate_assertion_value(self) -> Self:
+        def exact_keys(*keys: str) -> None:
+            if set(self.value) != set(keys):
+                raise ValueError(f"{self.assertion_type} value requires exactly: {', '.join(keys)}")
+
+        def normalized_text(key: str, *, max_length: int = 256) -> str:
+            value = self.value.get(key)
+            if not isinstance(value, str) or not (normalized := value.strip()):
+                raise ValueError(f"{self.assertion_type} requires {key}")
+            if len(normalized) > max_length:
+                raise ValueError(f"{key} must contain at most {max_length} characters")
+            return normalized
+
         if self.assertion_type == "growth_presence":
-            if self.value.get("state") not in {"present", "absent", "uncertain"}:
+            exact_keys("state")
+            state = normalized_text("state")
+            if state not in {"present", "absent", "uncertain"}:
                 raise ValueError("growth_presence requires state present, absent, or uncertain")
+            self.value = {"state": state}
         elif self.assertion_type == "phase_identity":
-            if not isinstance(self.value.get("phase"), str) or not self.value["phase"].strip():
-                raise ValueError("phase_identity requires phase")
+            exact_keys("phase")
+            self.value = {"phase": normalized_text("phase")}
         elif self.assertion_type == "layer_count":
-            if not isinstance(self.value.get("count"), int) or self.value["count"] < 1:
-                raise ValueError("layer_count requires a positive integer count")
+            exact_keys("count")
+            if (
+                not isinstance(self.value.get("count"), int)
+                or isinstance(self.value["count"], bool)
+                or self.value["count"] < 0
+            ):
+                raise ValueError("layer_count requires a non-negative integer count")
+            self.value = {"count": self.value["count"]}
         elif self.assertion_type == "composition":
+            exact_keys("basis", "components")
             components = self.value.get("components")
             if (
                 not isinstance(components, list)
                 or not components
                 or any(
                     not isinstance(component, dict)
+                    or set(component) != {"species", "fraction"}
                     or not isinstance(component.get("species"), str)
                     or not component["species"].strip()
+                    or len(component["species"].strip()) > 128
                     or not isinstance(component.get("fraction"), int | float)
                     or isinstance(component.get("fraction"), bool)
                     or not 0 <= component["fraction"] <= 1
@@ -1456,14 +1611,29 @@ class MaterialAssertionWrite(BaseModel):
                 raise ValueError("composition requires components and a supported fraction basis")
             if abs(sum(float(component["fraction"]) for component in components) - 1) > 1e-6:
                 raise ValueError("composition fractions must sum to one")
+            normalized_components = [
+                {
+                    "species": component["species"].strip(),
+                    "fraction": float(component["fraction"]),
+                }
+                for component in components
+            ]
+            if len({item["species"] for item in normalized_components}) != len(
+                normalized_components
+            ):
+                raise ValueError("composition species must be unique")
+            self.value = {
+                "basis": self.value["basis"],
+                "components": sorted(normalized_components, key=lambda item: item["species"]),
+            }
         else:
             key = {
                 "polytype": "polytype",
                 "stacking_order": "stacking_order",
                 "orientation_relationship": "orientation_relationship",
             }[self.assertion_type]
-            if not isinstance(self.value.get(key), str) or not self.value[key].strip():
-                raise ValueError(f"{self.assertion_type} requires {key}")
+            exact_keys(key)
+            self.value = {key: normalized_text(key)}
         return self
 
 
@@ -1478,6 +1648,8 @@ class MeasurementBundleCreate(BaseModel):
     @model_validator(mode="after")
     def require_evidence(self) -> Self:
         profile = characterization_profiles()[self.measurement.method_profile]
+        if any(analysis.started_at < self.measurement.measured_at for analysis in self.analyses):
+            raise ValueError("analysis cannot start before the measurement")
         if not self.measurement.raw_file_ids and not self.properties and not self.assertions:
             raise ValueError("measurement requires raw data, a property, or an assertion")
         if profile["raw_files_required"] and not self.measurement.raw_file_ids:
@@ -1512,6 +1684,33 @@ class MeasurementBundleCreate(BaseModel):
         raw_files = self.measurement.raw_file_ids
         if len(raw_files) != len(set(raw_files)):
             raise ValueError("measurement raw files must be unique")
+        output_producers: dict[UUID, int] = {}
+        for index, analysis in enumerate(self.analyses):
+            for file_id in analysis.output_file_ids:
+                if file_id in output_producers:
+                    raise ValueError("analysis output files must have one producer")
+                if file_id in raw_files:
+                    raise ValueError("measurement raw files cannot be analysis outputs")
+                output_producers[file_id] = index
+        dependencies = [set() for _analysis in self.analyses]
+        for index, analysis in enumerate(self.analyses):
+            for file_id in analysis.input_file_ids:
+                if (producer := output_producers.get(file_id)) is not None:
+                    dependencies[producer].add(index)
+        # ponytail: bundles contain only a handful of analyses; use indegree maps if that changes.
+        remaining = {index for index in range(len(self.analyses))}
+        while ready := {
+            index
+            for index in remaining
+            if not any(
+                index in targets
+                for source, targets in enumerate(dependencies)
+                if source in remaining
+            )
+        }:
+            remaining -= ready
+        if remaining:
+            raise ValueError("analysis file derivations must be acyclic")
         return self
 
 
@@ -1528,6 +1727,7 @@ class MeasurementSummaryRead(BaseModel):
     sample_region: dict[str, Any]
     typed_conditions: dict[str, Any]
     quality_flag: str
+    evidence_present: bool
     raw_file_count: int
     analysis_count: int
     property_count: int
@@ -1540,12 +1740,87 @@ class MeasurementListResponse(BaseModel):
     next_cursor: str | None = None
 
 
+class MeasurementPropertyRead(BaseModel):
+    id: UUID
+    analysis_run_id: UUID | None
+    property_code: str
+    numeric_value: float | None
+    text_value: str | None
+    structured_value: dict[str, Any] | None
+    unit: str | None
+    statistic: str | None
+    uncertainty_value: float | None
+    uncertainty_type: str | None
+    sample_count: int | None
+    quality_flag: str
+
+
+class MeasurementAssertionRead(BaseModel):
+    id: UUID
+    analysis_run_id: UUID | None
+    assertion_type: str
+    value: dict[str, Any]
+    confidence: float | None
+    validity: str
+
+
+class MeasurementAnalysisRead(BaseModel):
+    id: UUID
+    performed_by_id: UUID
+    software_name: str
+    software_version: str
+    code_commit: str | None
+    parameters: dict[str, Any]
+    started_at: datetime
+    completed_at: datetime | None
+    input_file_ids: list[UUID]
+    output_file_ids: list[UUID]
+    input_files: list[MeasurementRawFileRead]
+    output_files: list[MeasurementRawFileRead]
+
+
+class MeasurementRawFileRead(BaseModel):
+    id: UUID
+    original_name: str
+    sha256: str
+    content_type: str | None
+    size_bytes: int
+    method: str
+    file_category: str
+    deleted_at: datetime | None
+
+
+class MeasurementDetailRead(MeasurementSummaryRead):
+    revision_number: int
+    can_invalidate: bool
+    raw_files: list[MeasurementRawFileRead]
+    region_image_file: MeasurementRawFileRead | None
+    analyses: list[MeasurementAnalysisRead]
+    properties: list[MeasurementPropertyRead]
+    assertions: list[MeasurementAssertionRead]
+    invalidation_reason: str | None = None
+    invalidated_by_id: UUID | None = None
+    invalidated_at: datetime | None = None
+
+
+class InvalidateMeasurementRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("invalidation reason cannot be blank")
+        return normalized
+
+
 class TransformationOutputSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     output_role: str | None = Field(default=None, max_length=64)
-    sample_region: dict[str, Any] | None = None
-    dimensions: dict[str, Any] | None = None
+    sample_region: JsonObject | None = None
+    dimensions: JsonObject | None = None
     current_carrier: str | None = Field(default=None, max_length=255)
     control_subtype: str | None = Field(default=None, max_length=64)
 
@@ -1569,8 +1844,8 @@ class TransformationRunCreate(BaseModel):
     output_experiment_run_id: UUID | None = None
     outputs: list[TransformationOutputSpec] = Field(min_length=1)
     occurred_at: datetime
-    parameters: dict[str, Any] = Field(default_factory=dict)
-    destination_substrate_snapshot: dict[str, Any] | None = None
+    parameters: JsonObject = Field(default_factory=dict)
+    destination_substrate_snapshot: JsonObject | None = None
     consume_inputs: bool = False
     note: str | None = Field(default=None, max_length=2000)
 
@@ -1599,15 +1874,18 @@ class TransformationRunRead(BaseModel):
 
 class LineageSampleRead(BaseModel):
     id: UUID
+    experiment_run_id: UUID
     sample_code: str
     role: str
     actual_state: str
     actual_material_summary: str | None
     lifecycle_state: str
+    deleted_at: datetime | None
 
 
 class LineageTransformationRead(BaseModel):
     id: UUID
+    output_experiment_run_id: UUID
     transformation_type: str
     occurred_at: datetime
     operator_id: UUID
@@ -1664,8 +1942,11 @@ class DatasetFilter(BaseModel):
         }
         boolean_fields = {"has_process_event", "provenance_complete"}
         if self.field == "property":
-            if self.property_code not in characterization_property_units():
-                raise ValueError("property filters require a supported property_code")
+            definition = load_field_source()["characterization_properties"].get(
+                self.property_code or ""
+            )
+            if definition is None or definition["value_type"] != "numeric":
+                raise ValueError("property filters require a numeric property_code")
         elif self.property_code is not None:
             raise ValueError("property_code applies only to property filters")
         if self.field in numeric_fields:
@@ -1681,6 +1962,10 @@ class DatasetFilter(BaseModel):
                 )
             ):
                 raise ValueError("numeric filter values must be numbers")
+            if any(not isfinite(value) for value in values):
+                raise ValueError("numeric filter values must be finite")
+            if self.operator == "between" and values[0] > values[1]:
+                raise ValueError("between filter values must be ordered")
         elif self.field in boolean_fields:
             if self.operator not in {"eq", "ne"} or not isinstance(self.value, bool):
                 raise ValueError("boolean filters require eq/ne and a boolean value")
@@ -1691,6 +1976,10 @@ class DatasetFilter(BaseModel):
             raise ValueError("growth_presence filters require a controlled state")
         elif self.operator not in {"eq", "ne", "contains"} or not isinstance(self.value, str):
             raise ValueError("text filters require eq/ne/contains and a text value")
+        elif not (normalized := self.value.strip()) or len(normalized) > 255:
+            raise ValueError("text filter values must contain 1 to 255 characters")
+        else:
+            self.value = normalized
         return self
 
 
@@ -1726,10 +2015,10 @@ class ContainerInstanceCreate(BaseModel):
     container_code: str = Field(min_length=1, max_length=128)
     container_type: Literal["bottle", "gas_cylinder", "boat", "crucible", "bubbler", "other"]
     opened_date: date | None = None
-    storage_history: list[dict[str, Any]] = Field(default_factory=list)
+    storage_history: list[JsonObject] = Field(default_factory=list)
     remaining_amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     remaining_unit: str | None = Field(default=None, max_length=32)
-    attrs: dict[str, Any] = Field(default_factory=dict)
+    attrs: JsonObject = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_remaining_amount(self) -> Self:
@@ -1772,7 +2061,7 @@ class EquipmentComponentCreate(BaseModel):
     manufacturer: str | None = Field(default=None, max_length=255)
     model: str | None = Field(default=None, max_length=128)
     serial_number: str | None = Field(default=None, max_length=128)
-    attrs: dict[str, Any] = Field(default_factory=dict)
+    attrs: JsonObject = Field(default_factory=dict)
 
 
 class EquipmentComponentRead(BaseModel):
@@ -1792,7 +2081,7 @@ class SetupComponentBindingCreate(BaseModel):
 
     component_id: UUID
     role: str = Field(min_length=1, max_length=64)
-    position: dict[str, Any] | None = None
+    position: JsonObject | None = None
 
 
 class LifecycleEventCreate(BaseModel):
@@ -1805,7 +2094,7 @@ class LifecycleEventCreate(BaseModel):
     quantity: str | None = Field(default=None, max_length=128)
     correction: float | None = Field(default=None, allow_inf_nan=False)
     expanded_uncertainty: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    details: dict[str, Any] = Field(default_factory=dict)
+    details: JsonObject = Field(default_factory=dict)
     certificate_file_id: UUID | None = None
 
     @field_validator("occurred_at", "valid_until", mode="before")

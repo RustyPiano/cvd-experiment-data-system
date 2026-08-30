@@ -24,24 +24,7 @@ export function getSample(token: string, sampleId: string) {
   })
 }
 
-export type SampleLineage = {
-  samples: Array<{
-    id: string
-    sample_code: string
-    role: string
-    actual_state: string
-    actual_material_summary: string | null
-    lifecycle_state: string
-  }>
-  transformations: Array<{
-    id: string
-    transformation_type: string
-    occurred_at: string
-    operator_id: string
-    input_sample_ids: string[]
-    output_sample_ids: string[]
-  }>
-}
+export type SampleLineage = components['schemas']['SampleLineageRead']
 
 export function getSampleLineage(token: string, sampleId: string) {
   return apiRequest<SampleLineage>(`/api/v1/samples/${sampleId}/lineage`, {
@@ -101,6 +84,7 @@ export function uploadExperimentFile(
     sampleId?: string
     characterizationRecordId?: string
     assetRole?: string
+    fileCategory?: 'raw' | 'processed'
     bindingType?: string
     bindingId?: string
   },
@@ -117,6 +101,7 @@ export function uploadExperimentFile(
     body.set('characterization_record_id', payload.characterizationRecordId)
   }
   if (payload.assetRole) body.set('asset_role', payload.assetRole)
+  if (payload.fileCategory) body.set('file_category', payload.fileCategory)
   if (payload.bindingType) body.set('binding_type', payload.bindingType)
   if (payload.bindingId) body.set('binding_id', payload.bindingId)
   return apiRequest<FileAssetRead>(

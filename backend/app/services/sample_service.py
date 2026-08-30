@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample, SampleRole
-from app.models.scientific import SampleRevisionAssociation, SampleRevisionState
+from app.models.scientific import (
+    SampleRevisionAssociation,
+    SampleRevisionState,
+    TransformationInput,
+    TransformationOutput,
+)
 from app.models.user import User
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
@@ -21,13 +27,78 @@ from app.schemas.sample import ControlSampleCreate, SampleListResponse, SampleRe
 from app.services.audit_service import AuditService
 from app.services.experiment_guards import (
     ensure_results_editable,
-    get_owned_experiment,
+    get_locked_owned_experiment,
     get_visible_experiment,
 )
 from app.services.v2_entity_snapshot_service import (
     MATERIAL_LOT_PROJECTED_FIELDS,
     material_lot_item_projection,
 )
+
+
+def sample_revision_snapshot(sample: Sample) -> dict[str, Any]:
+    return {
+        "id": str(sample.id),
+        "sample_code": sample.sample_code,
+        "experiment_run_id": str(sample.experiment_run_id),
+        "run_revision_id": str(sample.run_revision_id) if sample.run_revision_id else None,
+        "parent_sample_id": str(sample.parent_sample_id) if sample.parent_sample_id else None,
+        "role": sample.role,
+        "actual_state": sample.actual_state,
+        "actual_material_summary": sample.actual_material_summary,
+        "identity_state": sample.identity_state,
+        "current_carrier": sample.current_carrier,
+        "sample_region": deepcopy(sample.sample_region),
+        "dimensions": deepcopy(sample.dimensions_json),
+        "lifecycle_state": sample.lifecycle_state,
+        "control_subtype": sample.control_subtype,
+        "source_substrate_id": (
+            str(sample.source_substrate_id) if sample.source_substrate_id else None
+        ),
+        "source_substrate_snapshot": deepcopy(sample.source_substrate_snapshot_json),
+        "metadata": deepcopy(sample.metadata_json),
+        "created_at": sample.created_at.isoformat() if sample.created_at else None,
+        "updated_at": sample.updated_at.isoformat() if sample.updated_at else None,
+        "deleted_at": sample.deleted_at.isoformat() if sample.deleted_at else None,
+        "deleted_by_id": str(sample.deleted_by_id) if sample.deleted_by_id else None,
+    }
+
+
+def ensure_sample_revision_association(
+    db: Session,
+    sample: Sample,
+    run_revision_id: UUID,
+) -> SampleRevisionAssociation:
+    association = db.scalar(
+        select(SampleRevisionAssociation).where(
+            SampleRevisionAssociation.sample_id == sample.id,
+            SampleRevisionAssociation.run_revision_id == run_revision_id,
+        )
+    )
+    if association is None:
+        association = SampleRevisionAssociation(
+            sample_id=sample.id,
+            run_revision_id=run_revision_id,
+            sample_snapshot_json=sample_revision_snapshot(sample),
+        )
+        db.add(association)
+    state = db.scalar(
+        select(SampleRevisionState).where(
+            SampleRevisionState.sample_id == sample.id,
+            SampleRevisionState.run_revision_id == run_revision_id,
+        )
+    )
+    if state is None:
+        db.add(
+            SampleRevisionState(
+                sample_id=sample.id,
+                run_revision_id=run_revision_id,
+                growth_state="unknown",
+                identity_state="unknown",
+                evidence_assertion_ids=[],
+            )
+        )
+    return association
 
 
 class SampleService:
@@ -78,9 +149,19 @@ class SampleService:
                     CharacterizationRecord.sample_id,
                     func.count(CharacterizationRecord.id),
                 )
+                .join(Sample, Sample.id == CharacterizationRecord.sample_id)
+                .join(
+                    ExperimentRun,
+                    ExperimentRun.id == CharacterizationRecord.experiment_run_id,
+                )
                 .where(
                     CharacterizationRecord.sample_id.in_(sample_ids),
                     CharacterizationRecord.run_revision_id.is_not(None),
+                    CharacterizationRecord.run_revision_id == ExperimentRun.current_revision_id,
+                    or_(
+                        Sample.role != SampleRole.GROWTH.value,
+                        Sample.run_revision_id == ExperimentRun.current_revision_id,
+                    ),
                 )
                 .group_by(CharacterizationRecord.sample_id)
             ).all()
@@ -92,7 +173,7 @@ class SampleService:
         payload: ControlSampleCreate,
         current_user: User,
     ) -> SampleRead:
-        experiment = get_owned_experiment(self.experiments, experiment_id, current_user)
+        experiment = get_locked_owned_experiment(self.experiments, experiment_id, current_user)
         ensure_results_editable(experiment)
 
         sample = Sample(
@@ -110,6 +191,8 @@ class SampleService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Sample code already exists",
             ) from exc
+        if experiment.current_revision_id is not None:
+            ensure_sample_revision_association(self.db, created, experiment.current_revision_id)
         self.audit.record_event(
             actor=current_user,
             entity_type="sample",
@@ -207,7 +290,7 @@ class SampleService:
                     after_json=self._serialize_sample(sample),
                 )
                 existing.append(sample)
-                self._record_revision_association(sample, run_revision_id, snapshot)
+                self._record_revision_association(sample, run_revision_id)
                 continue
 
             before = self._serialize_sample(sample)
@@ -231,7 +314,7 @@ class SampleService:
                     before_json=before,
                     after_json=after,
                 )
-            self._record_revision_association(sample, run_revision_id, snapshot)
+            self._record_revision_association(sample, run_revision_id)
 
         for sample in stale:
             if self._has_result_evidence(sample.id):
@@ -249,6 +332,34 @@ class SampleService:
                 after_json=self._serialize_sample(sample),
                 reason="source_substrate_removed",
             )
+
+        for sample in existing:
+            if (
+                sample.role == SampleRole.GROWTH.value
+                or sample.deleted_at is not None
+                or sample.lifecycle_state != "active"
+            ):
+                continue
+            if not (
+                sample.actual_state == "unknown"
+                and sample.identity_state == "unknown"
+                and sample.actual_material_summary is None
+            ):
+                before = self._serialize_sample(sample)
+                sample.actual_state = "unknown"
+                sample.identity_state = "unknown"
+                sample.actual_material_summary = None
+                self.samples.save(sample)
+                self.audit.record_event(
+                    actor=current_user,
+                    entity_type="sample",
+                    entity_id=sample.id,
+                    action="reset_revision_projection",
+                    before_json=before,
+                    after_json=self._serialize_sample(sample),
+                )
+            if run_revision_id is not None:
+                ensure_sample_revision_association(self.db, sample, run_revision_id)
 
     @staticmethod
     def _source_substrate_snapshot(item: dict[str, Any]) -> dict[str, Any]:
@@ -273,6 +384,17 @@ class SampleService:
         return f"{prefix}{sequence:02d}"
 
     def _has_result_evidence(self, sample_id: UUID) -> bool:
+        transformation = self.db.scalar(
+            select(TransformationInput.id)
+            .where(TransformationInput.sample_id == sample_id)
+            .limit(1)
+        ) or self.db.scalar(
+            select(TransformationOutput.id)
+            .where(TransformationOutput.sample_id == sample_id)
+            .limit(1)
+        )
+        if transformation is not None:
+            return True
         child = self.db.scalar(
             select(Sample.id)
             .where(Sample.parent_sample_id == sample_id, Sample.deleted_at.is_(None))
@@ -307,56 +429,39 @@ class SampleService:
         return sample
 
     def _get_editable_sample(self, sample_id: UUID, current_user: User) -> Sample:
-        sample = self._get_visible_sample(sample_id, current_user)
-        experiment = get_owned_experiment(self.experiments, sample.experiment_run_id, current_user)
+        existing = self.samples.get_by_id(sample_id)
+        if existing is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
+        experiment = get_locked_owned_experiment(
+            self.experiments,
+            existing.experiment_run_id,
+            current_user,
+        )
         ensure_results_editable(experiment)
+        sample = self.samples.get_by_id_for_update(sample_id)
+        if sample is None or sample.experiment_run_id != experiment.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sample not found")
+        if sample.lifecycle_state != "active" or (
+            sample.role == SampleRole.GROWTH.value
+            and experiment.current_revision_id is not None
+            and sample.run_revision_id != experiment.current_revision_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Historical or inactive samples are read-only",
+            )
         return sample
 
     def _serialize_sample(self, sample: Sample | None) -> dict | None:
         if sample is None:
             return None
-        return {
-            "id": str(sample.id),
-            "sample_code": sample.sample_code,
-            "experiment_run_id": str(sample.experiment_run_id),
-            "parent_sample_id": str(sample.parent_sample_id) if sample.parent_sample_id else None,
-            "role": sample.role,
-            "source_substrate_id": (
-                str(sample.source_substrate_id) if sample.source_substrate_id else None
-            ),
-            "source_substrate_snapshot_json": sample.source_substrate_snapshot_json,
-            "metadata_json": sample.metadata_json,
-            "deleted_at": sample.deleted_at.isoformat() if sample.deleted_at else None,
-            "deleted_by_id": str(sample.deleted_by_id) if sample.deleted_by_id else None,
-            "is_deleted": sample.deleted_at is not None,
-        }
+        return sample_revision_snapshot(sample) | {"is_deleted": sample.deleted_at is not None}
 
     def _record_revision_association(
         self,
         sample: Sample,
         run_revision_id: UUID | None,
-        source_snapshot: dict[str, Any],
     ) -> None:
         if run_revision_id is None:
             return
-        self.db.add(
-            SampleRevisionAssociation(
-                sample_id=sample.id,
-                run_revision_id=run_revision_id,
-                sample_snapshot_json={
-                    "sample_code": sample.sample_code,
-                    "role": sample.role,
-                    "source_substrate_id": str(sample.source_substrate_id),
-                    "source_substrate_snapshot": source_snapshot,
-                },
-            )
-        )
-        self.db.add(
-            SampleRevisionState(
-                sample_id=sample.id,
-                run_revision_id=run_revision_id,
-                growth_state="unknown",
-                identity_state="unknown",
-                evidence_assertion_ids=[],
-            )
-        )
+        ensure_sample_revision_association(self.db, sample, run_revision_id)

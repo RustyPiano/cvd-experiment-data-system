@@ -2,16 +2,18 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
 from app.models.file_asset import FileAsset
 from app.models.sample import Sample
-from app.models.scientific import MaterialAssertion, PropertyValue
-from app.models.v2_results import MeasuredProduct
+from app.models.user import User
+from app.models.v2_results import CharacterizationRecord, MeasuredProduct
+from app.services.audit_service import AuditService
 from app.services.v2_result_evidence import (
     MEASURED_PRODUCT_EVIDENCE_FIELDS,
+    collect_measurement_evidence,
     has_measured_product_evidence,
 )
 
@@ -24,42 +26,73 @@ def refresh_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
     return missing
 
 
+def clear_not_characterized(db: Session, run: ExperimentRun, actor: User) -> bool:
+    if run.not_characterized_at is None:
+        return False
+    before = {
+        "not_characterized_by_id": (
+            str(run.not_characterized_by_id) if run.not_characterized_by_id else None
+        ),
+        "not_characterized_at": run.not_characterized_at.isoformat(),
+    }
+    run.not_characterized_by_id = None
+    run.not_characterized_at = None
+    AuditService(db).record_event(
+        actor=actor,
+        entity_type="experiment_run",
+        entity_id=run.id,
+        action="clear_not_characterized",
+        before_json=before,
+        after_json={
+            "not_characterized_by_id": None,
+            "not_characterized_at": None,
+        },
+    )
+    return True
+
+
 def is_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
     if run.status not in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}:
         return False
     if run.not_characterized_at is not None:
         return False
+    if run.current_revision_id is None:
+        return True
 
-    active_result_file = db.scalar(
-        select(FileAsset.id)
-        .where(
-            FileAsset.experiment_run_id == run.id,
-            FileAsset.asset_role == "characterization_file",
-            FileAsset.deleted_at.is_(None),
+    record_ids = list(
+        db.scalars(
+            select(CharacterizationRecord.id)
+            .join(Sample, Sample.id == CharacterizationRecord.sample_id)
+            .where(
+                CharacterizationRecord.experiment_run_id == run.id,
+                CharacterizationRecord.run_revision_id == run.current_revision_id,
+                CharacterizationRecord.quality_flag == "valid",
+                Sample.experiment_run_id == run.id,
+                Sample.deleted_at.is_(None),
+                or_(Sample.role != "growth", Sample.run_revision_id == run.current_revision_id),
+            )
         )
-        .limit(1)
     )
-    if active_result_file is not None:
-        return False
-
-    structured_evidence = db.scalar(
-        select(PropertyValue.id)
-        .join(Sample, Sample.id == PropertyValue.sample_id)
-        .where(Sample.experiment_run_id == run.id)
-        .limit(1)
-    ) or db.scalar(
-        select(MaterialAssertion.id)
-        .join(Sample, Sample.id == MaterialAssertion.sample_id)
-        .where(Sample.experiment_run_id == run.id)
-        .limit(1)
-    )
-    if structured_evidence is not None:
+    evidence_record_ids, _raw_record_ids = collect_measurement_evidence(db, record_ids)
+    if evidence_record_ids:
         return False
 
     products = db.scalars(
         select(MeasuredProduct)
+        .join(
+            CharacterizationRecord,
+            CharacterizationRecord.id == MeasuredProduct.characterization_record_id,
+        )
         .join(Sample, Sample.id == MeasuredProduct.sample_id)
-        .where(Sample.experiment_run_id == run.id)
+        .where(
+            CharacterizationRecord.experiment_run_id == run.id,
+            Sample.experiment_run_id == run.id,
+            Sample.deleted_at.is_(None),
+            or_(Sample.role != "growth", Sample.run_revision_id == run.current_revision_id),
+            CharacterizationRecord.run_revision_id == run.current_revision_id,
+            MeasuredProduct.sample_id == CharacterizationRecord.sample_id,
+            CharacterizationRecord.quality_flag == "valid",
+        )
     )
     for product in products:
         if has_measured_product_evidence(
@@ -81,6 +114,7 @@ def is_result_missing_todo(db: Session, run: ExperimentRun) -> bool:
             .where(
                 FileAsset.id.in_(file_ids),
                 FileAsset.experiment_run_id == run.id,
+                FileAsset.sample_id == product.sample_id,
                 FileAsset.asset_role == "direct_observation_file",
                 FileAsset.deleted_at.is_(None),
             )

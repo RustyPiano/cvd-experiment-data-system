@@ -98,7 +98,7 @@ jobs:
         working-directory: backend
         run: |
           uv run pytest \
-            tests/api/test_v2_full_walkthrough.py \
+            tests/api/test_scientific_v4.py \
             tests/api/test_files.py::test_upload_file_creates_metadata_and_supports_download \
             tests/models/test_postgres_features.py
 
@@ -186,9 +186,17 @@ jobs:
         with:
           save-cache: false
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
       - name: Install dependencies
         working-directory: backend
         run: uv sync --frozen
+
+      - name: Install frontend generator dependencies
+        working-directory: frontend-next
+        run: bun install --frozen-lockfile
 
       - name: Regenerate committed v2 schema artifacts
         working-directory: backend
@@ -198,3 +206,16 @@ jobs:
         run: |
           git diff --exit-code -- docs/standard/generated
           test -z "$(git status --porcelain -- docs/standard/generated)"
+
+      - name: Export current OpenAPI
+        working-directory: backend
+        run: uv run python -c 'import json; from app.main import app; print(json.dumps(app.openapi()))' > "$RUNNER_TEMP/cvd-openapi.json"
+
+      - name: Regenerate frontend OpenAPI types
+        working-directory: frontend-next
+        run: OPENAPI_SOURCE="$RUNNER_TEMP/cvd-openapi.json" bun run gen:api
+
+      - name: Check frontend OpenAPI type drift
+        run: |
+          git diff --exit-code -- frontend-next/src/shared/types/openapi.d.ts
+          test -z "$(git status --porcelain -- frontend-next/src/shared/types/openapi.d.ts)"

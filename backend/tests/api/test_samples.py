@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from fastapi.testclient import TestClient
@@ -103,6 +104,26 @@ def test_patch_sample_rejects_null_metadata_json(active_user) -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_sample_writes_reject_non_finite_metadata_json(active_user) -> None:
+    run = create_run(active_user.email)
+    headers = {**auth_headers(active_user.email), "Content-Type": "application/json"}
+
+    create_response = client.post(
+        f"/api/v1/experiments/{run['id']}/samples",
+        content=json.dumps({"metadata_json": {"value": float("nan")}}),
+        headers=headers,
+    )
+    assert create_response.status_code == 422
+
+    sample = create_sample(run["id"], active_user.email)
+    update_response = client.patch(
+        f"/api/v1/samples/{sample['id']}",
+        content=json.dumps({"metadata_json": {"value": float("inf")}}),
+        headers=headers,
+    )
+    assert update_response.status_code == 422
 
 
 def test_manual_derived_sample_creation_is_forbidden(active_user, admin_user) -> None:

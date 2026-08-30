@@ -236,6 +236,95 @@ it('labels supplier, catalogue number, and lot number in product references', as
   ).toBeVisible()
 })
 
+it('labels instruments by type, code, and version instead of product lot fields', async () => {
+  entityApi.listEntities.mockResolvedValue({
+    items: [
+      {
+        id: 'instrument-1',
+        latest_version: {
+          version: 2,
+          data: {
+            name_type: 'Raman',
+            instrument_code: 'RAMAN-01',
+            capabilities: [{ code: 'Raman', configuration: {} }],
+          },
+        },
+      },
+    ],
+    total: 1,
+  })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect
+          kind="instrument"
+          value="instrument-1"
+          onChange={vi.fn()}
+        />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  expect(await screen.findByText('Raman · RAMAN-01 · v2')).toBeVisible()
+  expect(screen.queryByText(/Lot No\./)).toBeNull()
+})
+
+it('clears a selected reference only when explicitly enabled', async () => {
+  entityApi.listEntities.mockResolvedValue({
+    items: [
+      {
+        id: 'instrument-1',
+        latest_version: {
+          version: 2,
+          data: { name_type: 'Raman', instrument_code: 'RAMAN-01' },
+        },
+      },
+    ],
+    total: 1,
+  })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const onChange = vi.fn()
+  const user = userEvent.setup()
+  const { rerender } = render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect
+          kind="instrument"
+          value="instrument-1"
+          onChange={onChange}
+        />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+
+  expect(
+    screen.queryByRole('button', { name: 'Clear Instrument selection' }),
+  ).toBeNull()
+
+  rerender(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <EntityReferenceSelect
+          kind="instrument"
+          value="instrument-1"
+          clearable
+          onChange={onChange}
+        />
+      </QueryClientProvider>
+    </I18nextProvider>,
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Clear Instrument selection' }),
+  )
+
+  expect(onChange).toHaveBeenCalledWith('', null)
+})
+
 it('lets an old frozen reference explicitly switch to the latest version', async () => {
   const entity = {
     id: 'setup-1',

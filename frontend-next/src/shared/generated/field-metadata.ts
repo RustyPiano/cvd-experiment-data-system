@@ -95,6 +95,7 @@ export interface CharacterizationConditionField {
   label_en: string
   value_type: 'text' | 'number' | 'integer' | 'range' | 'size' | 'resolution'
   unit?: string
+  validation?: FieldValidation
   components?: Array<{ key: string; label_zh: string; label_en: string }>
 }
 
@@ -117,6 +118,8 @@ export interface CharacterizationProfile {
 export interface CharacterizationProperty {
   label_zh: string
   label_en: string
+  value_type: 'numeric' | 'text' | 'structured'
+  validation: FieldValidation
   unit: string
 }
 
@@ -127,7 +130,7 @@ export interface GasSpecies {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-alpha.18',
+  version: 'v4.0-alpha.19',
   status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
 }
@@ -3780,111 +3783,202 @@ export const characterizationProperties: Record<
   coverage_percent: {
     label_zh: '覆盖率',
     label_en: 'Coverage',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+      le: 100,
+    },
     unit: '%',
   },
   domain_size_um: {
     label_zh: '晶畴尺寸',
     label_en: 'Domain size',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'μm',
   },
   nucleation_density_cm2: {
     label_zh: '成核密度',
     label_en: 'Nucleation density',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'cm⁻²',
   },
   raman_e2g_peak_position: {
     label_zh: 'Raman E₂g 峰位',
     label_en: 'Raman E2g peak position',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'cm⁻¹',
   },
   raman_a1g_peak_position: {
     label_zh: 'Raman A₁g 峰位',
     label_en: 'Raman A1g peak position',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'cm⁻¹',
   },
   raman_peak_separation: {
     label_zh: 'Raman 峰间距',
     label_en: 'Raman peak separation',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'cm⁻¹',
   },
   raman_peak_fwhm: {
     label_zh: 'Raman 峰宽',
     label_en: 'Raman peak FWHM',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'cm⁻¹',
   },
   raman_intensity_ratio: {
     label_zh: 'Raman 强度比',
     label_en: 'Raman intensity ratio',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'ratio',
   },
   shear_mode_peak_position: {
     label_zh: '剪切模峰位',
     label_en: 'Shear-mode peak position',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'cm⁻¹',
   },
   low_frequency_peak_fwhm: {
     label_zh: '低频 Raman 峰宽',
     label_en: 'Low-frequency Raman peak FWHM',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'cm⁻¹',
   },
   pl_a_exciton_peak_energy: {
     label_zh: 'PL A 激子峰能量',
     label_en: 'PL A-exciton peak energy',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'eV',
   },
   pl_b_exciton_peak_energy: {
     label_zh: 'PL B 激子峰能量',
     label_en: 'PL B-exciton peak energy',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'eV',
   },
   pl_integrated_intensity: {
     label_zh: 'PL 积分强度',
     label_en: 'PL integrated intensity',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'a.u.',
   },
   pl_peak_fwhm: {
     label_zh: 'PL 峰宽',
     label_en: 'PL peak FWHM',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'meV',
   },
   afm_ra_roughness: {
     label_zh: 'AFM 算术平均粗糙度',
     label_en: 'AFM arithmetic roughness',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'nm',
   },
   afm_rms_roughness: {
     label_zh: 'AFM 均方根粗糙度',
     label_en: 'AFM RMS roughness',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'nm',
   },
   afm_step_height: {
     label_zh: 'AFM 台阶高度',
     label_en: 'AFM step height',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+    },
     unit: 'nm',
   },
   xrd_peak_2theta: {
     label_zh: 'XRD 衍射峰位',
     label_en: 'XRD peak 2-theta',
+    value_type: 'numeric',
+    validation: {
+      ge: 0,
+      le: 180,
+    },
     unit: '° 2θ',
   },
   xrd_peak_fwhm: {
     label_zh: 'XRD 衍射峰宽',
     label_en: 'XRD peak FWHM',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: '° 2θ',
   },
   xrd_d_spacing: {
     label_zh: 'XRD 晶面间距',
     label_en: 'XRD d-spacing',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'nm',
   },
   tem_lattice_spacing: {
     label_zh: 'TEM 晶格间距',
     label_en: 'TEM lattice spacing',
+    value_type: 'numeric',
+    validation: {
+      gt: 0,
+    },
     unit: 'nm',
   },
   observation_note: {
     label_zh: '观察说明',
     label_en: 'Observation note',
+    value_type: 'text',
+    validation: {
+      min_length: 1,
+      max_length: 2000,
+    },
     unit: '—',
   },
 }
@@ -3908,12 +4002,18 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '物镜',
           label_en: 'Objective',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'illumination_mode',
           label_zh: '照明模式',
           label_en: 'Illumination mode',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
       ],
       allowed_property_codes: [
@@ -3961,12 +4061,18 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '功率设置',
           label_en: 'Power setting',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'objective',
           label_zh: '物镜',
           label_en: 'Objective',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'integration_time_s',
@@ -4029,12 +4135,18 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '功率设置',
           label_en: 'Power setting',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'objective',
           label_zh: '物镜',
           label_en: 'Objective',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'integration_time_s',
@@ -4085,6 +4197,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '功率设置',
           label_en: 'Power setting',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'integration_time_s',
@@ -4153,12 +4268,18 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '模式',
           label_en: 'Mode',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'probe',
           label_zh: '探针',
           label_en: 'Probe',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'scan_size_um',
@@ -4248,6 +4369,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '探测器',
           label_en: 'Detector',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'field_of_view_um',
@@ -4297,6 +4421,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '辐射源',
           label_en: 'Radiation source',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'scan_range_2theta_deg',
@@ -4336,6 +4463,9 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '几何构型',
           label_en: 'Geometry',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
       ],
       allowed_property_codes: [
@@ -4379,12 +4509,18 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '模式',
           label_en: 'Mode',
           value_type: 'text',
+          validation: {
+            max_length: 128,
+          },
         },
         {
           key: 'sample_preparation',
           label_zh: '样品制备',
           label_en: 'Sample preparation',
           value_type: 'text',
+          validation: {
+            max_length: 1000,
+          },
         },
       ],
       allowed_property_codes: ['tem_lattice_spacing'],
@@ -4414,6 +4550,10 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           label_zh: '方法说明',
           label_en: 'Method description',
           value_type: 'text',
+          validation: {
+            min_length: 1,
+            max_length: 1000,
+          },
         },
       ],
       allowed_property_codes: [],

@@ -4,16 +4,18 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.scientific import JsonObject
+
 
 class ControlSampleCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     control_subtype: str | None = Field(default=None, max_length=64)
-    metadata_json: dict[str, Any] = Field(default_factory=dict)
+    metadata_json: JsonObject = Field(default_factory=dict)
 
 
 class SampleUpdate(BaseModel):
-    metadata_json: dict[str, Any] = Field(default_factory=dict)
+    metadata_json: JsonObject = Field(default_factory=dict)
 
 
 class SampleRead(BaseModel):

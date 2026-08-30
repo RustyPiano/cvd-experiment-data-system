@@ -49,7 +49,7 @@ import {
   setSetupReference,
   upsertModule,
 } from './api'
-import type { V2ModulePayloadRead } from './api'
+import type { MeasurementBundleCreate, V2ModulePayloadRead } from './api'
 import type { ExperimentV2FormState } from './form-types'
 import { buildSubstratesPayload } from './field-logic'
 import {
@@ -314,6 +314,14 @@ const METHOD_GEOMETRIES = Object.fromEntries(
     item.allowed_region_types,
   ]),
 )
+
+export function defaultMeasurementRegion(method: string) {
+  const geometries = METHOD_GEOMETRIES[method] ?? []
+  const geometryType = geometries.includes('whole_sample')
+    ? 'whole_sample'
+    : geometries[0]
+  return { geometryType, label: geometryType }
+}
 const GEOMETRY_LABELS: Record<string, string> = {
   point: '点测量',
   line: '线扫',
@@ -3913,7 +3921,16 @@ function MeasurementPropertyEditor({
           <Label>结果类型</Label>
           <Select
             value={property.propertyCode}
-            onValueChange={(propertyCode) => onChange({ propertyCode })}
+            onValueChange={(propertyCode) =>
+              onChange({
+                propertyCode,
+                ...(property.quality === 'below_detection_limit' &&
+                characterizationProperties[propertyCode]?.value_type !==
+                  'numeric'
+                  ? { quality: 'valid' }
+                  : {}),
+              })
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="选择结果类型" />
@@ -4014,9 +4031,12 @@ function MeasurementPropertyEditor({
                     <SelectItem value="valid">有效</SelectItem>
                     <SelectItem value="suspect">可疑</SelectItem>
                     <SelectItem value="invalid">无效</SelectItem>
-                    <SelectItem value="below_detection_limit">
-                      低于检出限
-                    </SelectItem>
+                    {characterizationProperties[property.propertyCode]
+                      ?.value_type === 'numeric' ? (
+                      <SelectItem value="below_detection_limit">
+                        低于检出限
+                      </SelectItem>
+                    ) : null}
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -4327,13 +4347,15 @@ export function ScientificMeasurementWorkspace({
                 : Number(conditions[field.key]),
           ]),
         )
-        const propertyPayload = properties
+        const propertyPayload: NonNullable<
+          MeasurementBundleCreate['properties']
+        > = properties
           .filter((property) => property.propertyCode && property.value.trim())
           .map((property) => ({
             property_code: property.propertyCode,
             numeric_value: Number(property.value),
             unit: PROPERTY_UNITS[property.propertyCode],
-            statistic: 'single_observation',
+            statistic: 'single_observation' as const,
             ...(property.uncertainty
               ? {
                   uncertainty_value: Number(property.uncertainty),
@@ -4343,73 +4365,83 @@ export function ScientificMeasurementWorkspace({
             ...(property.sampleCount
               ? { sample_count: Number(property.sampleCount) }
               : {}),
-            quality_flag: property.quality,
+            quality_flag: property.quality as NonNullable<
+              MeasurementBundleCreate['properties']
+            >[number]['quality_flag'],
             analysis_index: software ? 0 : undefined,
-          }))
-        return await createMeasurement(
-          {
-            measurement: {
-              sample_id: selectedSampleId,
-              method_profile: method,
-              ...(instrumentId
-                ? {
-                    instrument_id: instrumentId,
-                    instrument_version: instrumentVersion,
-                  }
-                : {}),
-              measured_at: new Date(measuredAt).toISOString(),
-              sample_region: {
-                geometry_type: region.geometryType,
-                label: region.label,
-                coordinate_system: 'sample_local',
-                x: numberOrUndefined(region.x),
-                y: numberOrUndefined(region.y),
-                width: numberOrUndefined(region.width),
-                height: numberOrUndefined(region.height),
-                unit: region.unit,
-              },
-              typed_conditions: typedConditions,
-              raw_file_ids: uploadedFileIds,
-              quality_flag: 'valid',
+          })) as unknown as NonNullable<MeasurementBundleCreate['properties']>
+        const assertionPayload: NonNullable<
+          MeasurementBundleCreate['assertions']
+        > = [
+          ...(growth
+            ? [
+                {
+                  assertion_type: 'growth_presence' as const,
+                  value: { state: growth },
+                  confidence: null,
+                  analysis_index: software ? 0 : undefined,
+                },
+              ]
+            : []),
+          ...assertions.map((assertion) => ({
+            assertion_type: assertion.type as NonNullable<
+              MeasurementBundleCreate['assertions']
+            >[number]['assertion_type'],
+            value: materialAssertionValue(
+              assertion.type,
+              assertion.value,
+              assertion.components,
+              assertion.basis,
+            ),
+            confidence: null,
+            analysis_index: software ? 0 : undefined,
+          })),
+        ] as unknown as NonNullable<MeasurementBundleCreate['assertions']>
+        const payload = {
+          measurement: {
+            sample_id: selectedSampleId,
+            method_profile: method,
+            ...(instrumentId
+              ? {
+                  instrument_id: instrumentId,
+                  instrument_version: instrumentVersion,
+                }
+              : {}),
+            measured_at: new Date(measuredAt).toISOString(),
+            sample_region: {
+              geometry_type: region.geometryType as NonNullable<
+                MeasurementBundleCreate['measurement']['sample_region']
+              >['geometry_type'],
+              label: region.label,
+              coordinate_system: 'sample_local',
+              x: numberOrUndefined(region.x),
+              y: numberOrUndefined(region.y),
+              width: numberOrUndefined(region.width),
+              height: numberOrUndefined(region.height),
+              unit: region.unit,
             },
-            analyses: software
-              ? [
-                  {
-                    software_name: software,
-                    software_version: softwareVersion,
-                    parameters: {},
-                    started_at: new Date(measuredAt).toISOString(),
-                    completed_at: new Date().toISOString(),
-                    input_file_ids: uploadedFileIds,
-                    output_file_ids: [],
-                  },
-                ]
-              : [],
-            properties: propertyPayload,
-            assertions: [
-              ...(growth
-                ? [
-                    {
-                      assertion_type: 'growth_presence',
-                      value: { state: growth },
-                      confidence: null,
-                      analysis_index: software ? 0 : undefined,
-                    },
-                  ]
-                : []),
-              ...assertions.map((assertion) => ({
-                assertion_type: assertion.type,
-                value: materialAssertionValue(
-                  assertion.type,
-                  assertion.value,
-                  assertion.components,
-                  assertion.basis,
-                ),
-                confidence: null,
-                analysis_index: software ? 0 : undefined,
-              })),
-            ],
+            typed_conditions: typedConditions,
+            raw_file_ids: uploadedFileIds,
+            quality_flag: 'valid',
           },
+          analyses: software
+            ? [
+                {
+                  software_name: software,
+                  software_version: softwareVersion,
+                  parameters: {},
+                  started_at: new Date(measuredAt).toISOString(),
+                  completed_at: new Date().toISOString(),
+                  input_file_ids: uploadedFileIds,
+                  output_file_ids: [],
+                },
+              ]
+            : [],
+          properties: propertyPayload,
+          assertions: assertionPayload,
+        }
+        return await createMeasurement(
+          payload as unknown as MeasurementBundleCreate,
           token,
         )
       } catch (error) {
@@ -4487,6 +4519,7 @@ export function ScientificMeasurementWorkspace({
               <Select
                 value={method}
                 onValueChange={(value) => {
+                  const defaultRegion = defaultMeasurementRegion(value)
                   setMethod(value)
                   setGrowth('')
                   setConditions({})
@@ -4494,8 +4527,7 @@ export function ScientificMeasurementWorkspace({
                   setInstrumentVersion(null)
                   setInstrumentSnapshot(null)
                   setRegion({
-                    geometryType: METHOD_GEOMETRIES[value][0],
-                    label: '',
+                    ...defaultRegion,
                     x: '',
                     y: '',
                     width: '',
@@ -4617,6 +4649,10 @@ export function ScientificMeasurementWorkspace({
                     setRegion((current) => ({
                       ...current,
                       geometryType,
+                      label:
+                        current.label === current.geometryType
+                          ? geometryType
+                          : current.label,
                       width: '',
                       height: '',
                     }))

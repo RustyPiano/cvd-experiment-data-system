@@ -1537,6 +1537,8 @@ class V2ExperimentService:
     ) -> V2ExperimentRead:
         before = {"status": run.status.value}
         run.status = target
+        if target not in {ExperimentStatus.LOCKED, ExperimentStatus.REVIEWED}:
+            run.result_missing_todo = False
         self.audit.record_event(
             actor=actor,
             entity_type="experiment_run",

@@ -1,6 +1,8 @@
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 
 from app.models.experiment import ExperimentRun, ExperimentStatus
+from app.models.file_asset import FileAsset
 from app.models.sample import Sample
 from app.models.scientific import RunRevision, SampleRevisionAssociation
 from app.models.v2_results import CharacterizationRecord, MeasuredProduct
@@ -88,13 +90,14 @@ def test_legacy_measured_products_export_only_with_their_backfilled_revision(
     )
     db_session.add(sample)
     db_session.flush()
+    first_association = SampleRevisionAssociation(
+        sample_id=sample.id,
+        run_revision_id=first.id,
+        sample_snapshot_json={"sample_code": sample.sample_code},
+    )
     db_session.add_all(
         [
-            SampleRevisionAssociation(
-                sample_id=sample.id,
-                run_revision_id=first.id,
-                sample_snapshot_json={"sample_code": sample.sample_code},
-            ),
+            first_association,
             SampleRevisionAssociation(
                 sample_id=sample.id,
                 run_revision_id=second.id,
@@ -127,6 +130,39 @@ def test_legacy_measured_products_export_only_with_their_backfilled_revision(
     )
     db_session.add_all([legacy_record, current_record])
     db_session.flush()
+    active_evidence = FileAsset(
+        experiment_run_id=run.id,
+        sample_id=sample.id,
+        uploaded_by_id=active_user.id,
+        original_name="legacy-observation.png",
+        storage_path="legacy/observation.png",
+        content_type="image/png",
+        size_bytes=12,
+        sha256="a" * 64,
+        method="direct_observation_file",
+        file_category="image",
+        asset_role="direct_observation_file",
+        file_kind="direct_observation_file",
+        metadata_json={},
+    )
+    deleted_evidence = FileAsset(
+        experiment_run_id=run.id,
+        sample_id=sample.id,
+        uploaded_by_id=active_user.id,
+        original_name="legacy-observation-deleted.png",
+        storage_path="legacy/observation-deleted.png",
+        content_type="image/png",
+        size_bytes=12,
+        sha256="b" * 64,
+        method="direct_observation_file",
+        file_category="image",
+        asset_role="direct_observation_file",
+        file_kind="direct_observation_file",
+        metadata_json={},
+        deleted_at=datetime(2026, 7, 30, tzinfo=UTC),
+    )
+    db_session.add_all([active_evidence, deleted_evidence])
+    db_session.flush()
     db_session.add_all(
         [
             MeasuredProduct(
@@ -141,14 +177,20 @@ def test_legacy_measured_products_export_only_with_their_backfilled_revision(
                 characterization_record_id=None,
                 coverage_percent=42,
                 measured_layers_coverage="直接观察；42%",
-                attrs={},
+                attrs={
+                    "evidence_file_ids": [
+                        str(active_evidence.id),
+                        str(deleted_evidence.id),
+                    ]
+                },
             ),
         ]
     )
     db_session.flush()
 
     reporting = V2ReportingService(db_session)
-    first_rows = reporting._csv_tables([run], {run.id: first})["characterization_results.csv"][1]
+    first_tables = reporting._csv_tables([run], {run.id: first})
+    first_rows = first_tables["characterization_results.csv"][1]
     second_rows = reporting._csv_tables([run], {run.id: second})["characterization_results.csv"][1]
     first_bundle = reporting._run_bundle(run, first)
     second_bundle = reporting._run_bundle(run, second)
@@ -167,4 +209,14 @@ def test_legacy_measured_products_export_only_with_their_backfilled_revision(
         row["measured_layers_coverage"]
         for row in first_bundle["scientific_record"]["legacy_measured_products"]
     } == {"3层；历史", "直接观察；42%"}
+    evidence_ids = {str(active_evidence.id), str(deleted_evidence.id)}
+    assert evidence_ids <= {item["id"] for item in first_bundle["scientific_record"]["files"]}
+    assert evidence_ids <= {str(row["file_id"]) for row in first_tables["files.csv"][1]}
     assert second_bundle["scientific_record"]["legacy_measured_products"] == []
+    sparse_output = reporting._transformation_output_json(
+        SimpleNamespace(sample_id=sample.id, output_role="legacy"),
+        sample,
+        first_association,
+    )
+    assert sparse_output["experiment_run_id"] == str(run.id)
+    assert sparse_output["sample_snapshot"]["sample_code"] == sample.sample_code

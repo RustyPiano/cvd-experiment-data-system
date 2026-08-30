@@ -87,7 +87,11 @@ export const SYSTEM_FIELD_KEYS = new Set([
   'coordinate_system',
   'component_bindings',
 ])
-const JSON_ARRAY_FIELD_KEYS = new Set(['temperature_sensors', 'gas_components'])
+const JSON_ARRAY_FIELD_KEYS = new Set([
+  'temperature_sensors',
+  'gas_components',
+  'capabilities',
+])
 
 export function isEntityJsonArrayField(fieldKey: string): boolean {
   return JSON_ARRAY_FIELD_KEYS.has(fieldKey)

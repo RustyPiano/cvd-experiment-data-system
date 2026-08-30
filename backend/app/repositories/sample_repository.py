@@ -30,6 +30,17 @@ class SampleRepository:
             statement = statement.where(Sample.deleted_at.is_(None))
         return self.db.scalar(statement)
 
+    def get_by_id_for_update(
+        self,
+        sample_id: UUID,
+        *,
+        include_deleted: bool = False,
+    ) -> Sample | None:
+        statement = select(Sample).where(Sample.id == sample_id)
+        if not include_deleted:
+            statement = statement.where(Sample.deleted_at.is_(None))
+        return self.db.scalar(statement.with_for_update().execution_options(populate_existing=True))
+
     def list_by_experiment(
         self,
         experiment_id: UUID,

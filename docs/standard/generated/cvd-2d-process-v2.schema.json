@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-alpha.18",
+  "version": "v4.0-alpha.19",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
@@ -368,6 +368,854 @@
       "xrd_d_spacing": "nm",
       "tem_lattice_spacing": "nm",
       "observation_note": "—"
+    }
+  },
+  "characterization_properties": {
+    "coverage_percent": {
+      "label_zh": "覆盖率",
+      "label_en": "Coverage",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0,
+        "le": 100
+      }
+    },
+    "domain_size_um": {
+      "label_zh": "晶畴尺寸",
+      "label_en": "Domain size",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "nucleation_density_cm2": {
+      "label_zh": "成核密度",
+      "label_en": "Nucleation density",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "raman_e2g_peak_position": {
+      "label_zh": "Raman E₂g 峰位",
+      "label_en": "Raman E2g peak position",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "raman_a1g_peak_position": {
+      "label_zh": "Raman A₁g 峰位",
+      "label_en": "Raman A1g peak position",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "raman_peak_separation": {
+      "label_zh": "Raman 峰间距",
+      "label_en": "Raman peak separation",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "raman_peak_fwhm": {
+      "label_zh": "Raman 峰宽",
+      "label_en": "Raman peak FWHM",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "raman_intensity_ratio": {
+      "label_zh": "Raman 强度比",
+      "label_en": "Raman intensity ratio",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "shear_mode_peak_position": {
+      "label_zh": "剪切模峰位",
+      "label_en": "Shear-mode peak position",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "low_frequency_peak_fwhm": {
+      "label_zh": "低频 Raman 峰宽",
+      "label_en": "Low-frequency Raman peak FWHM",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "pl_a_exciton_peak_energy": {
+      "label_zh": "PL A 激子峰能量",
+      "label_en": "PL A-exciton peak energy",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "pl_b_exciton_peak_energy": {
+      "label_zh": "PL B 激子峰能量",
+      "label_en": "PL B-exciton peak energy",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "pl_integrated_intensity": {
+      "label_zh": "PL 积分强度",
+      "label_en": "PL integrated intensity",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "pl_peak_fwhm": {
+      "label_zh": "PL 峰宽",
+      "label_en": "PL peak FWHM",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "afm_ra_roughness": {
+      "label_zh": "AFM 算术平均粗糙度",
+      "label_en": "AFM arithmetic roughness",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "afm_rms_roughness": {
+      "label_zh": "AFM 均方根粗糙度",
+      "label_en": "AFM RMS roughness",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "afm_step_height": {
+      "label_zh": "AFM 台阶高度",
+      "label_en": "AFM step height",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0
+      }
+    },
+    "xrd_peak_2theta": {
+      "label_zh": "XRD 衍射峰位",
+      "label_en": "XRD peak 2-theta",
+      "value_type": "numeric",
+      "validation": {
+        "ge": 0,
+        "le": 180
+      }
+    },
+    "xrd_peak_fwhm": {
+      "label_zh": "XRD 衍射峰宽",
+      "label_en": "XRD peak FWHM",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "xrd_d_spacing": {
+      "label_zh": "XRD 晶面间距",
+      "label_en": "XRD d-spacing",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "tem_lattice_spacing": {
+      "label_zh": "TEM 晶格间距",
+      "label_en": "TEM lattice spacing",
+      "value_type": "numeric",
+      "validation": {
+        "gt": 0
+      }
+    },
+    "observation_note": {
+      "label_zh": "观察说明",
+      "label_en": "Observation note",
+      "value_type": "text",
+      "validation": {
+        "min_length": 1,
+        "max_length": 2000
+      }
+    }
+  },
+  "characterization_profiles": {
+    "optical_microscopy": {
+      "label_zh": "光学显微镜",
+      "label_en": "Optical microscopy",
+      "instrument_required": false,
+      "raw_files_required": false,
+      "show_growth_presence": true,
+      "raw_file_guidance_zh": "建议上传原始图像；仅记录直接观察结论时可不上传。",
+      "allowed_region_types": [
+        "point",
+        "area",
+        "whole_sample",
+        "selected_area"
+      ],
+      "required_condition_keys": [],
+      "optional_condition_keys": [
+        "objective",
+        "illumination_mode"
+      ],
+      "condition_fields": [
+        {
+          "key": "objective",
+          "label_zh": "物镜",
+          "label_en": "Objective",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "illumination_mode",
+          "label_zh": "照明模式",
+          "label_en": "Illumination mode",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        }
+      ],
+      "allowed_property_codes": [
+        "coverage_percent",
+        "domain_size_um",
+        "nucleation_density_cm2",
+        "observation_note"
+      ],
+      "default_property_codes": [
+        "coverage_percent"
+      ],
+      "allowed_assertion_types": [
+        "growth_presence",
+        "phase_identity",
+        "composition",
+        "polytype",
+        "stacking_order",
+        "orientation_relationship",
+        "layer_count"
+      ]
+    },
+    "Raman": {
+      "label_zh": "Raman",
+      "label_en": "Raman spectroscopy",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "请上传原始光谱或仪器导出文件。",
+      "allowed_region_types": [
+        "point",
+        "line",
+        "whole_sample",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "laser_wavelength_nm"
+      ],
+      "optional_condition_keys": [
+        "power_setting",
+        "objective",
+        "integration_time_s",
+        "accumulations"
+      ],
+      "condition_fields": [
+        {
+          "key": "laser_wavelength_nm",
+          "label_zh": "激光波长",
+          "label_en": "Laser wavelength",
+          "value_type": "number",
+          "unit": "nm"
+        },
+        {
+          "key": "power_setting",
+          "label_zh": "功率设置",
+          "label_en": "Power setting",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "objective",
+          "label_zh": "物镜",
+          "label_en": "Objective",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "integration_time_s",
+          "label_zh": "积分时间",
+          "label_en": "Integration time",
+          "value_type": "number",
+          "unit": "s"
+        },
+        {
+          "key": "accumulations",
+          "label_zh": "累加次数",
+          "label_en": "Accumulations",
+          "value_type": "integer"
+        }
+      ],
+      "allowed_property_codes": [
+        "raman_e2g_peak_position",
+        "raman_a1g_peak_position",
+        "raman_peak_separation",
+        "raman_peak_fwhm",
+        "raman_intensity_ratio"
+      ],
+      "default_property_codes": [
+        "raman_e2g_peak_position",
+        "raman_a1g_peak_position",
+        "raman_peak_separation"
+      ],
+      "allowed_assertion_types": [
+        "phase_identity",
+        "polytype",
+        "stacking_order",
+        "layer_count"
+      ]
+    },
+    "low_frequency_raman": {
+      "label_zh": "低频 Raman",
+      "label_en": "Low-frequency Raman spectroscopy",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "请上传原始光谱或仪器导出文件。",
+      "allowed_region_types": [
+        "point",
+        "line",
+        "whole_sample",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "laser_wavelength_nm"
+      ],
+      "optional_condition_keys": [
+        "power_setting",
+        "objective",
+        "integration_time_s",
+        "accumulations"
+      ],
+      "condition_fields": [
+        {
+          "key": "laser_wavelength_nm",
+          "label_zh": "激光波长",
+          "label_en": "Laser wavelength",
+          "value_type": "number",
+          "unit": "nm"
+        },
+        {
+          "key": "power_setting",
+          "label_zh": "功率设置",
+          "label_en": "Power setting",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "objective",
+          "label_zh": "物镜",
+          "label_en": "Objective",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "integration_time_s",
+          "label_zh": "积分时间",
+          "label_en": "Integration time",
+          "value_type": "number",
+          "unit": "s"
+        },
+        {
+          "key": "accumulations",
+          "label_zh": "累加次数",
+          "label_en": "Accumulations",
+          "value_type": "integer"
+        }
+      ],
+      "allowed_property_codes": [
+        "shear_mode_peak_position",
+        "low_frequency_peak_fwhm"
+      ],
+      "default_property_codes": [
+        "shear_mode_peak_position"
+      ],
+      "allowed_assertion_types": [
+        "polytype",
+        "stacking_order",
+        "layer_count"
+      ]
+    },
+    "PL": {
+      "label_zh": "PL",
+      "label_en": "Photoluminescence",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "请上传原始光谱。",
+      "allowed_region_types": [
+        "point",
+        "line",
+        "whole_sample",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "excitation_wavelength_nm"
+      ],
+      "optional_condition_keys": [
+        "power_setting",
+        "integration_time_s",
+        "spectral_range_nm",
+        "temperature_K"
+      ],
+      "condition_fields": [
+        {
+          "key": "excitation_wavelength_nm",
+          "label_zh": "激发波长",
+          "label_en": "Excitation wavelength",
+          "value_type": "number",
+          "unit": "nm"
+        },
+        {
+          "key": "power_setting",
+          "label_zh": "功率设置",
+          "label_en": "Power setting",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "integration_time_s",
+          "label_zh": "积分时间",
+          "label_en": "Integration time",
+          "value_type": "number",
+          "unit": "s"
+        },
+        {
+          "key": "spectral_range_nm",
+          "label_zh": "光谱范围",
+          "label_en": "Spectral range",
+          "value_type": "range",
+          "unit": "nm",
+          "components": [
+            {
+              "key": "min",
+              "label_zh": "最小值",
+              "label_en": "Minimum"
+            },
+            {
+              "key": "max",
+              "label_zh": "最大值",
+              "label_en": "Maximum"
+            }
+          ]
+        },
+        {
+          "key": "temperature_K",
+          "label_zh": "测量温度",
+          "label_en": "Measurement temperature",
+          "value_type": "number",
+          "unit": "K"
+        }
+      ],
+      "allowed_property_codes": [
+        "pl_a_exciton_peak_energy",
+        "pl_b_exciton_peak_energy",
+        "pl_integrated_intensity",
+        "pl_peak_fwhm"
+      ],
+      "default_property_codes": [
+        "pl_a_exciton_peak_energy",
+        "pl_b_exciton_peak_energy"
+      ],
+      "allowed_assertion_types": [
+        "phase_identity",
+        "layer_count"
+      ]
+    },
+    "AFM": {
+      "label_zh": "AFM",
+      "label_en": "Atomic force microscopy",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "请上传原始高度数据及导出图。",
+      "allowed_region_types": [
+        "point",
+        "area",
+        "whole_sample",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "scan_size_um"
+      ],
+      "optional_condition_keys": [
+        "mode",
+        "probe",
+        "resolution_px",
+        "scan_rate_hz"
+      ],
+      "condition_fields": [
+        {
+          "key": "mode",
+          "label_zh": "模式",
+          "label_en": "Mode",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "probe",
+          "label_zh": "探针",
+          "label_en": "Probe",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "scan_size_um",
+          "label_zh": "扫描尺寸",
+          "label_en": "Scan size",
+          "value_type": "size",
+          "unit": "μm",
+          "components": [
+            {
+              "key": "x",
+              "label_zh": "X",
+              "label_en": "X"
+            },
+            {
+              "key": "y",
+              "label_zh": "Y",
+              "label_en": "Y"
+            }
+          ]
+        },
+        {
+          "key": "resolution_px",
+          "label_zh": "分辨率",
+          "label_en": "Resolution",
+          "value_type": "resolution",
+          "unit": "px",
+          "components": [
+            {
+              "key": "width",
+              "label_zh": "宽",
+              "label_en": "Width"
+            },
+            {
+              "key": "height",
+              "label_zh": "高",
+              "label_en": "Height"
+            }
+          ]
+        },
+        {
+          "key": "scan_rate_hz",
+          "label_zh": "扫描速率",
+          "label_en": "Scan rate",
+          "value_type": "number",
+          "unit": "Hz"
+        }
+      ],
+      "allowed_property_codes": [
+        "afm_ra_roughness",
+        "afm_rms_roughness",
+        "afm_step_height"
+      ],
+      "default_property_codes": [
+        "afm_rms_roughness",
+        "afm_step_height"
+      ],
+      "allowed_assertion_types": [
+        "layer_count"
+      ]
+    },
+    "SEM": {
+      "label_zh": "SEM",
+      "label_en": "Scanning electron microscopy",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": true,
+      "raw_file_guidance_zh": "请上传原始图像与仪器元数据。",
+      "allowed_region_types": [
+        "point",
+        "area",
+        "whole_sample",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "accelerating_voltage_kV"
+      ],
+      "optional_condition_keys": [
+        "working_distance_mm",
+        "detector",
+        "field_of_view_um"
+      ],
+      "condition_fields": [
+        {
+          "key": "accelerating_voltage_kV",
+          "label_zh": "加速电压",
+          "label_en": "Accelerating voltage",
+          "value_type": "number",
+          "unit": "kV"
+        },
+        {
+          "key": "working_distance_mm",
+          "label_zh": "工作距离",
+          "label_en": "Working distance",
+          "value_type": "number",
+          "unit": "mm"
+        },
+        {
+          "key": "detector",
+          "label_zh": "探测器",
+          "label_en": "Detector",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "field_of_view_um",
+          "label_zh": "视场",
+          "label_en": "Field of view",
+          "value_type": "size",
+          "unit": "μm",
+          "components": [
+            {
+              "key": "width",
+              "label_zh": "宽",
+              "label_en": "Width"
+            },
+            {
+              "key": "height",
+              "label_zh": "高",
+              "label_en": "Height"
+            }
+          ]
+        }
+      ],
+      "allowed_property_codes": [
+        "coverage_percent",
+        "domain_size_um",
+        "nucleation_density_cm2"
+      ],
+      "default_property_codes": [
+        "coverage_percent",
+        "domain_size_um"
+      ],
+      "allowed_assertion_types": [
+        "growth_presence",
+        "composition"
+      ]
+    },
+    "XRD": {
+      "label_zh": "XRD",
+      "label_en": "X-ray diffraction",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "请上传原始衍射数据。",
+      "allowed_region_types": [
+        "whole_sample",
+        "area",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "radiation_source",
+        "scan_range_2theta_deg"
+      ],
+      "optional_condition_keys": [
+        "step_size_deg",
+        "scan_rate_deg_min",
+        "geometry"
+      ],
+      "condition_fields": [
+        {
+          "key": "radiation_source",
+          "label_zh": "辐射源",
+          "label_en": "Radiation source",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "scan_range_2theta_deg",
+          "label_zh": "2θ 扫描范围",
+          "label_en": "2-theta scan range",
+          "value_type": "range",
+          "unit": "°",
+          "components": [
+            {
+              "key": "start",
+              "label_zh": "起点",
+              "label_en": "Start"
+            },
+            {
+              "key": "end",
+              "label_zh": "终点",
+              "label_en": "End"
+            }
+          ]
+        },
+        {
+          "key": "step_size_deg",
+          "label_zh": "步长",
+          "label_en": "Step size",
+          "value_type": "number",
+          "unit": "°"
+        },
+        {
+          "key": "scan_rate_deg_min",
+          "label_zh": "扫描速率",
+          "label_en": "Scan rate",
+          "value_type": "number",
+          "unit": "°/min"
+        },
+        {
+          "key": "geometry",
+          "label_zh": "几何构型",
+          "label_en": "Geometry",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        }
+      ],
+      "allowed_property_codes": [
+        "xrd_peak_2theta",
+        "xrd_peak_fwhm",
+        "xrd_d_spacing"
+      ],
+      "default_property_codes": [
+        "xrd_peak_2theta",
+        "xrd_d_spacing"
+      ],
+      "allowed_assertion_types": [
+        "phase_identity",
+        "polytype",
+        "stacking_order",
+        "orientation_relationship"
+      ]
+    },
+    "TEM": {
+      "label_zh": "TEM",
+      "label_en": "Transmission electron microscopy",
+      "instrument_required": true,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "请上传原始图像、衍射或 EDS 数据。",
+      "allowed_region_types": [
+        "lamella",
+        "particle",
+        "whole_sample",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "accelerating_voltage_kV"
+      ],
+      "optional_condition_keys": [
+        "mode",
+        "sample_preparation"
+      ],
+      "condition_fields": [
+        {
+          "key": "accelerating_voltage_kV",
+          "label_zh": "加速电压",
+          "label_en": "Accelerating voltage",
+          "value_type": "number",
+          "unit": "kV"
+        },
+        {
+          "key": "mode",
+          "label_zh": "模式",
+          "label_en": "Mode",
+          "value_type": "text",
+          "validation": {
+            "max_length": 128
+          }
+        },
+        {
+          "key": "sample_preparation",
+          "label_zh": "样品制备",
+          "label_en": "Sample preparation",
+          "value_type": "text",
+          "validation": {
+            "max_length": 1000
+          }
+        }
+      ],
+      "allowed_property_codes": [
+        "tem_lattice_spacing"
+      ],
+      "default_property_codes": [
+        "tem_lattice_spacing"
+      ],
+      "allowed_assertion_types": [
+        "phase_identity",
+        "composition",
+        "polytype",
+        "stacking_order",
+        "orientation_relationship",
+        "layer_count"
+      ]
+    },
+    "other": {
+      "label_zh": "其他",
+      "label_en": "Other",
+      "instrument_required": false,
+      "raw_files_required": true,
+      "show_growth_presence": false,
+      "raw_file_guidance_zh": "请上传原始数据文件。",
+      "allowed_region_types": [
+        "whole_sample",
+        "point",
+        "area",
+        "selected_area"
+      ],
+      "required_condition_keys": [
+        "method_description"
+      ],
+      "optional_condition_keys": [],
+      "condition_fields": [
+        {
+          "key": "method_description",
+          "label_zh": "方法说明",
+          "label_en": "Method description",
+          "value_type": "text",
+          "validation": {
+            "min_length": 1,
+            "max_length": 1000
+          }
+        }
+      ],
+      "allowed_property_codes": [],
+      "default_property_codes": [],
+      "allowed_assertion_types": []
     }
   },
   "modules": {
@@ -817,7 +1665,7 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.18/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.19/equipment.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -1408,7 +2256,7 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.18/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.19/substrates.schema.json"
     },
     "basic_info": {
       "$defs": {
@@ -1582,7 +2430,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.18/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.19/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -1882,7 +2730,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.18/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.19/target_product.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -2733,7 +3581,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.18/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.19/precursors.schema.json"
     },
     "process_steps": {
       "$defs": {
@@ -3503,7 +4351,7 @@
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.18/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.19/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -3712,7 +4560,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.18/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.19/process_events.schema.json"
     }
   },
   "entities": {
@@ -4776,12 +5624,14 @@
             "software_name": {
               "maxLength": 128,
               "minLength": 1,
+              "pattern": "\\S",
               "title": "Software Name",
               "type": "string"
             },
             "software_version": {
               "maxLength": 128,
               "minLength": 1,
+              "pattern": "\\S",
               "title": "Software Version",
               "type": "string"
             },
@@ -4789,6 +5639,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -4828,7 +5679,8 @@
               },
               "minItems": 1,
               "title": "Input File Ids",
-              "type": "array"
+              "type": "array",
+              "uniqueItems": true
             },
             "output_file_ids": {
               "items": {
@@ -4836,7 +5688,8 @@
                 "type": "string"
               },
               "title": "Output File Ids",
-              "type": "array"
+              "type": "array",
+              "uniqueItems": true
             }
           },
           "required": [
@@ -4902,7 +5755,216 @@
             "value"
           ],
           "title": "MaterialAssertionWrite",
-          "type": "object"
+          "type": "object",
+          "allOf": [
+            {
+              "oneOf": [
+                {
+                  "required": [
+                    "assertion_type",
+                    "value"
+                  ],
+                  "properties": {
+                    "assertion_type": {
+                      "const": "growth_presence"
+                    },
+                    "value": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "state": {
+                          "enum": [
+                            "present",
+                            "absent",
+                            "uncertain"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "state"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "assertion_type",
+                    "value"
+                  ],
+                  "properties": {
+                    "assertion_type": {
+                      "const": "phase_identity"
+                    },
+                    "value": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "phase": {
+                          "type": "string",
+                          "pattern": "\\S",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "phase"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "assertion_type",
+                    "value"
+                  ],
+                  "properties": {
+                    "assertion_type": {
+                      "const": "polytype"
+                    },
+                    "value": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "polytype": {
+                          "type": "string",
+                          "pattern": "\\S",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "polytype"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "assertion_type",
+                    "value"
+                  ],
+                  "properties": {
+                    "assertion_type": {
+                      "const": "stacking_order"
+                    },
+                    "value": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "stacking_order": {
+                          "type": "string",
+                          "pattern": "\\S",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "stacking_order"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "assertion_type",
+                    "value"
+                  ],
+                  "properties": {
+                    "assertion_type": {
+                      "const": "orientation_relationship"
+                    },
+                    "value": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "orientation_relationship": {
+                          "type": "string",
+                          "pattern": "\\S",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "orientation_relationship"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "assertion_type",
+                    "value"
+                  ],
+                  "properties": {
+                    "assertion_type": {
+                      "const": "layer_count"
+                    },
+                    "value": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "count"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "assertion_type",
+                    "value"
+                  ],
+                  "properties": {
+                    "assertion_type": {
+                      "const": "composition"
+                    },
+                    "value": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "basis": {
+                          "enum": [
+                            "site_fraction",
+                            "atomic_fraction",
+                            "mass_fraction"
+                          ]
+                        },
+                        "components": {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "species": {
+                                "type": "string",
+                                "pattern": "\\S",
+                                "maxLength": 128
+                              },
+                              "fraction": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              }
+                            },
+                            "required": [
+                              "species",
+                              "fraction"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "basis",
+                        "components"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
         },
         "MeasurementConditions": {
           "additionalProperties": false,
@@ -4936,10 +5998,9 @@
             "power_setting": {
               "anyOf": [
                 {
+                  "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
-                },
-                {
-                  "type": "number"
                 },
                 {
                   "type": "null"
@@ -4952,6 +6013,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5015,6 +6077,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5028,6 +6091,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5102,6 +6166,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5126,6 +6191,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5176,6 +6242,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5189,6 +6256,7 @@
               "anyOf": [
                 {
                   "maxLength": 1000,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5202,6 +6270,7 @@
               "anyOf": [
                 {
                   "maxLength": 128,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5216,6 +6285,7 @@
                 {
                   "maxLength": 1000,
                   "minLength": 1,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5259,6 +6329,7 @@
             "instrument_version": {
               "anyOf": [
                 {
+                  "maximum": 2147483647,
                   "minimum": 1,
                   "type": "integer"
                 },
@@ -5275,15 +6346,7 @@
               "type": "string"
             },
             "sample_region": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/SampleRegion"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
+              "$ref": "#/$defs/SampleRegion"
             },
             "typed_conditions": {
               "$ref": "#/$defs/MeasurementConditions"
@@ -5294,14 +6357,14 @@
                 "type": "string"
               },
               "title": "Raw File Ids",
-              "type": "array"
+              "type": "array",
+              "uniqueItems": true
             },
             "quality_flag": {
               "default": "valid",
               "enum": [
                 "valid",
-                "suspect",
-                "invalid"
+                "suspect"
               ],
               "title": "Quality Flag",
               "type": "string"
@@ -5311,6 +6374,7 @@
             "sample_id",
             "method_profile",
             "measured_at",
+            "sample_region",
             "typed_conditions"
           ],
           "title": "MeasurementRunCreate",
@@ -5335,6 +6399,39 @@
             "max"
           ],
           "title": "NumericRange",
+          "type": "object"
+        },
+        "PixelRoi": {
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "minimum": 0,
+              "title": "X",
+              "type": "integer"
+            },
+            "y": {
+              "minimum": 0,
+              "title": "Y",
+              "type": "integer"
+            },
+            "width": {
+              "exclusiveMinimum": 0,
+              "title": "Width",
+              "type": "integer"
+            },
+            "height": {
+              "exclusiveMinimum": 0,
+              "title": "Height",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "title": "PixelRoi",
           "type": "object"
         },
         "PropertyValueWrite": {
@@ -5435,6 +6532,7 @@
               "anyOf": [
                 {
                   "maxLength": 64,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5447,6 +6545,7 @@
             "sample_count": {
               "anyOf": [
                 {
+                  "maximum": 2147483647,
                   "minimum": 1,
                   "type": "integer"
                 },
@@ -5486,7 +6585,645 @@
             "property_code"
           ],
           "title": "PropertyValueWrite",
-          "type": "object"
+          "type": "object",
+          "allOf": [
+            {
+              "oneOf": [
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "coverage_percent"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "%",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "domain_size_um"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "μm",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "nucleation_density_cm2"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "cm⁻²",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "raman_e2g_peak_position"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "cm⁻¹",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "raman_a1g_peak_position"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "cm⁻¹",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "raman_peak_separation"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "cm⁻¹",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "raman_peak_fwhm"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "cm⁻¹",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "raman_intensity_ratio"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "ratio",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "shear_mode_peak_position"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "cm⁻¹",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "low_frequency_peak_fwhm"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "cm⁻¹",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "pl_a_exciton_peak_energy"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "eV",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "pl_b_exciton_peak_energy"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "eV",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "pl_integrated_intensity"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "a.u.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "pl_peak_fwhm"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "meV",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "afm_ra_roughness"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "nm",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "afm_rms_roughness"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "nm",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "afm_step_height"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "nm",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "xrd_peak_2theta"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 180
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "° 2θ",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "xrd_peak_fwhm"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "° 2θ",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "xrd_d_spacing"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "nm",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "tem_lattice_spacing"
+                    },
+                    "numeric_value": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "text_value": {
+                      "type": "null"
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "const": "nm",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "numeric_value",
+                    "unit"
+                  ]
+                },
+                {
+                  "properties": {
+                    "property_code": {
+                      "const": "observation_note"
+                    },
+                    "numeric_value": {
+                      "type": "null"
+                    },
+                    "text_value": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "structured_value": {
+                      "type": "null"
+                    },
+                    "unit": {
+                      "type": "null"
+                    },
+                    "uncertainty_value": {
+                      "type": "null"
+                    },
+                    "uncertainty_type": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "property_code",
+                    "text_value"
+                  ]
+                }
+              ]
+            },
+            {
+              "oneOf": [
+                {
+                  "properties": {
+                    "uncertainty_value": {
+                      "type": "null"
+                    },
+                    "uncertainty_type": {
+                      "type": "null"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "uncertainty_value",
+                    "uncertainty_type"
+                  ],
+                  "properties": {
+                    "uncertainty_value": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "uncertainty_type": {
+                      "type": "string",
+                      "maxLength": 64
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "if": {
+                "required": [
+                  "quality_flag"
+                ],
+                "properties": {
+                  "quality_flag": {
+                    "const": "below_detection_limit"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "numeric_value"
+                ],
+                "properties": {
+                  "numeric_value": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          ]
         },
         "Resolution2D": {
           "additionalProperties": false,
@@ -5528,12 +7265,14 @@
             "label": {
               "maxLength": 128,
               "minLength": 1,
+              "pattern": "\\S",
               "title": "Label",
               "type": "string"
             },
             "coordinate_system": {
               "maxLength": 128,
               "minLength": 1,
+              "pattern": "\\S",
               "title": "Coordinate System",
               "type": "string"
             },
@@ -5591,6 +7330,7 @@
               "anyOf": [
                 {
                   "maxLength": 32,
+                  "pattern": "\\S",
                   "type": "string"
                 },
                 {
@@ -5616,17 +7356,13 @@
             "pixel_roi": {
               "anyOf": [
                 {
-                  "additionalProperties": {
-                    "type": "integer"
-                  },
-                  "type": "object"
+                  "$ref": "#/$defs/PixelRoi"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "default": null,
-              "title": "Pixel Roi"
+              "default": null
             }
           },
           "required": [
@@ -5635,7 +7371,376 @@
             "coordinate_system"
           ],
           "title": "SampleRegion",
-          "type": "object"
+          "type": "object",
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "geometry_type"
+                ],
+                "properties": {
+                  "geometry_type": {
+                    "const": "point"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "width": {
+                    "type": "null"
+                  },
+                  "height": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "geometry_type"
+                ],
+                "properties": {
+                  "geometry_type": {
+                    "const": "line"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "width"
+                ],
+                "properties": {
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "geometry_type"
+                ],
+                "properties": {
+                  "geometry_type": {
+                    "const": "area"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "width",
+                  "height"
+                ],
+                "properties": {
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "geometry_type"
+                ],
+                "properties": {
+                  "geometry_type": {
+                    "enum": [
+                      "whole_sample",
+                      "lamella",
+                      "particle"
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "x": {
+                    "type": "null"
+                  },
+                  "y": {
+                    "type": "null"
+                  },
+                  "width": {
+                    "type": "null"
+                  },
+                  "height": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "geometry_type"
+                ],
+                "properties": {
+                  "geometry_type": {
+                    "const": "selected_area"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "width": {
+                    "type": "null"
+                  },
+                  "height": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "x"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "y"
+                ],
+                "properties": {
+                  "y": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "y"
+                ],
+                "properties": {
+                  "y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "x"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "x"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "unit"
+                ],
+                "properties": {
+                  "unit": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "y"
+                ],
+                "properties": {
+                  "y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "unit"
+                ],
+                "properties": {
+                  "unit": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "width"
+                ],
+                "properties": {
+                  "width": {
+                    "type": "number"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "unit"
+                ],
+                "properties": {
+                  "unit": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "height"
+                ],
+                "properties": {
+                  "height": {
+                    "type": "number"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "unit"
+                ],
+                "properties": {
+                  "unit": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "unit"
+                ],
+                "properties": {
+                  "unit": {
+                    "type": "string"
+                  }
+                }
+              },
+              "then": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "x"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "y"
+                    ],
+                    "properties": {
+                      "y": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "width"
+                    ],
+                    "properties": {
+                      "width": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "height"
+                    ],
+                    "properties": {
+                      "height": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "image_file_id"
+                ],
+                "properties": {
+                  "image_file_id": {
+                    "type": "string"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "pixel_roi"
+                ],
+                "properties": {
+                  "pixel_roi": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "required": [
+                  "pixel_roi"
+                ],
+                "properties": {
+                  "pixel_roi": {
+                    "type": "object"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "image_file_id"
+                ],
+                "properties": {
+                  "image_file_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          ]
         },
         "ScanRange": {
           "additionalProperties": false,
@@ -5732,7 +7837,943 @@
         "measurement"
       ],
       "title": "MeasurementBundleCreate",
-      "type": "object"
+      "type": "object",
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "optical_microscopy"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "objective": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "illumination_mode": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "point",
+                            "area",
+                            "whole_sample",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions"
+                  ],
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "instrument_id": {
+                          "type": "null"
+                        },
+                        "instrument_version": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "instrument_id",
+                        "instrument_version"
+                      ],
+                      "properties": {
+                        "instrument_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "instrument_version": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    }
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "coverage_percent",
+                          "domain_size_um",
+                          "nucleation_density_cm2",
+                          "observation_note"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "growth_presence",
+                          "phase_identity",
+                          "composition",
+                          "polytype",
+                          "stacking_order",
+                          "orientation_relationship",
+                          "layer_count"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "Raman"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "laser_wavelength_nm": {
+                          "type": "number"
+                        },
+                        "power_setting": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "objective": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "integration_time_s": {
+                          "type": "number"
+                        },
+                        "accumulations": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "laser_wavelength_nm"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "point",
+                            "line",
+                            "whole_sample",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "instrument_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "instrument_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids",
+                    "instrument_id",
+                    "instrument_version"
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "raman_e2g_peak_position",
+                          "raman_a1g_peak_position",
+                          "raman_peak_separation",
+                          "raman_peak_fwhm",
+                          "raman_intensity_ratio"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "phase_identity",
+                          "polytype",
+                          "stacking_order",
+                          "layer_count"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "low_frequency_raman"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "laser_wavelength_nm": {
+                          "type": "number"
+                        },
+                        "power_setting": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "objective": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "integration_time_s": {
+                          "type": "number"
+                        },
+                        "accumulations": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "laser_wavelength_nm"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "point",
+                            "line",
+                            "whole_sample",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "instrument_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "instrument_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids",
+                    "instrument_id",
+                    "instrument_version"
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "shear_mode_peak_position",
+                          "low_frequency_peak_fwhm"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "polytype",
+                          "stacking_order",
+                          "layer_count"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "PL"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "excitation_wavelength_nm": {
+                          "type": "number"
+                        },
+                        "power_setting": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "integration_time_s": {
+                          "type": "number"
+                        },
+                        "spectral_range_nm": {
+                          "type": "object"
+                        },
+                        "temperature_K": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "excitation_wavelength_nm"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "point",
+                            "line",
+                            "whole_sample",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "instrument_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "instrument_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids",
+                    "instrument_id",
+                    "instrument_version"
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "pl_a_exciton_peak_energy",
+                          "pl_b_exciton_peak_energy",
+                          "pl_integrated_intensity",
+                          "pl_peak_fwhm"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "phase_identity",
+                          "layer_count"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "AFM"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "probe": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "scan_size_um": {
+                          "type": "object"
+                        },
+                        "resolution_px": {
+                          "type": "object"
+                        },
+                        "scan_rate_hz": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "scan_size_um"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "point",
+                            "area",
+                            "whole_sample",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "instrument_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "instrument_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids",
+                    "instrument_id",
+                    "instrument_version"
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "afm_ra_roughness",
+                          "afm_rms_roughness",
+                          "afm_step_height"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "layer_count"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "SEM"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "accelerating_voltage_kV": {
+                          "type": "number"
+                        },
+                        "working_distance_mm": {
+                          "type": "number"
+                        },
+                        "detector": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "field_of_view_um": {
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "accelerating_voltage_kV"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "point",
+                            "area",
+                            "whole_sample",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "instrument_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "instrument_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids",
+                    "instrument_id",
+                    "instrument_version"
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "coverage_percent",
+                          "domain_size_um",
+                          "nucleation_density_cm2"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "growth_presence",
+                          "composition"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "XRD"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "radiation_source": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "scan_range_2theta_deg": {
+                          "type": "object"
+                        },
+                        "step_size_deg": {
+                          "type": "number"
+                        },
+                        "scan_rate_deg_min": {
+                          "type": "number"
+                        },
+                        "geometry": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        }
+                      },
+                      "required": [
+                        "radiation_source",
+                        "scan_range_2theta_deg"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "whole_sample",
+                            "area",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "instrument_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "instrument_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids",
+                    "instrument_id",
+                    "instrument_version"
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "xrd_peak_2theta",
+                          "xrd_peak_fwhm",
+                          "xrd_d_spacing"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "phase_identity",
+                          "polytype",
+                          "stacking_order",
+                          "orientation_relationship"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "TEM"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "accelerating_voltage_kV": {
+                          "type": "number"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "maxLength": 128,
+                          "pattern": "\\S"
+                        },
+                        "sample_preparation": {
+                          "type": "string",
+                          "maxLength": 1000,
+                          "pattern": "\\S"
+                        }
+                      },
+                      "required": [
+                        "accelerating_voltage_kV"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "lamella",
+                            "particle",
+                            "whole_sample",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "instrument_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "instrument_version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids",
+                    "instrument_id",
+                    "instrument_version"
+                  ]
+                },
+                "properties": {
+                  "items": {
+                    "properties": {
+                      "property_code": {
+                        "enum": [
+                          "tem_lattice_spacing"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "assertions": {
+                  "items": {
+                    "properties": {
+                      "assertion_type": {
+                        "enum": [
+                          "phase_identity",
+                          "composition",
+                          "polytype",
+                          "stacking_order",
+                          "orientation_relationship",
+                          "layer_count"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "measurement": {
+                  "properties": {
+                    "method_profile": {
+                      "const": "other"
+                    },
+                    "typed_conditions": {
+                      "type": "object",
+                      "properties": {
+                        "method_description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000,
+                          "pattern": "\\S"
+                        }
+                      },
+                      "required": [
+                        "method_description"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sample_region": {
+                      "type": "object",
+                      "properties": {
+                        "geometry_type": {
+                          "enum": [
+                            "whole_sample",
+                            "point",
+                            "area",
+                            "selected_area"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "geometry_type"
+                      ]
+                    },
+                    "raw_file_ids": {
+                      "type": "array",
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "method_profile",
+                    "sample_region",
+                    "typed_conditions",
+                    "raw_file_ids"
+                  ],
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "instrument_id": {
+                          "type": "null"
+                        },
+                        "instrument_version": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "instrument_id",
+                        "instrument_version"
+                      ],
+                      "properties": {
+                        "instrument_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "instrument_version": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    }
+                  ]
+                },
+                "properties": {
+                  "maxItems": 0
+                },
+                "assertions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "required": [
+                "measurement"
+              ],
+              "properties": {
+                "measurement": {
+                  "required": [
+                    "raw_file_ids"
+                  ],
+                  "properties": {
+                    "raw_file_ids": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "required": [
+                "properties"
+              ],
+              "properties": {
+                "properties": {
+                  "minItems": 1
+                }
+              }
+            },
+            {
+              "required": [
+                "assertions"
+              ],
+              "properties": {
+                "assertions": {
+                  "minItems": 1
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "transformation": {
       "$defs": {

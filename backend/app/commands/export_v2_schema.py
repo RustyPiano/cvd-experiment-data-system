@@ -92,8 +92,10 @@ def build_v2_json_schema(doc: dict[str, Any] | None = None) -> dict[str, Any]:
         module_schema = model.model_json_schema()
         module_schema["$id"] = f"{schema_base_uri}/{module_key}.schema.json"
         modules[module_key] = module_schema
+    measurement_schema = MeasurementBundleCreate.model_json_schema()
+    _apply_characterization_contract(measurement_schema, source)
     result_models = {
-        "measurement_bundle": MeasurementBundleCreate.model_json_schema(),
+        "measurement_bundle": measurement_schema,
         "transformation": TransformationRunCreate.model_json_schema(),
         "dataset_query": DatasetQuery.model_json_schema(),
     }
@@ -109,6 +111,8 @@ def build_v2_json_schema(doc: dict[str, Any] | None = None) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "module_payload_schema_version": V2_MODULE_PAYLOAD_SCHEMA_VERSION,
         "scientific_contract": source["scientific_contract"],
+        "characterization_properties": source["characterization_properties"],
+        "characterization_profiles": source["characterization_profiles"],
         "modules": modules,
         "entities": entity_models,
         "result_models": result_models,
@@ -131,9 +135,470 @@ def build_v2_field_dictionary(doc: dict[str, Any]) -> dict[str, Any]:
         "version": doc["meta"]["version"],
         "status": doc["meta"]["status"],
         "schema_version": SCHEMA_VERSION,
+        "characterization_properties": {
+            code: {
+                **definition,
+                "unit": doc["scientific_contract"]["property_units"][code],
+            }
+            for code, definition in doc["characterization_properties"].items()
+        },
+        "characterization_profiles": doc["characterization_profiles"],
         "fields": rows,
         "field_count": len(rows),
     }
+
+
+def _apply_characterization_contract(
+    schema: dict[str, Any],
+    source: dict[str, Any],
+    *,
+    definitions: dict[str, Any] | None = None,
+) -> None:
+    """Add the cross-field rules that Pydantic model validators cannot emit."""
+    model_schemas = definitions or schema["$defs"]
+    property_schema = model_schemas["PropertyValueWrite"]
+    property_schema.setdefault("allOf", []).extend(
+        [
+            {
+                "oneOf": [
+                    _property_value_schema(
+                        code,
+                        definition,
+                        source["scientific_contract"]["property_units"][code],
+                    )
+                    for code, definition in source["characterization_properties"].items()
+                ]
+            },
+            {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "uncertainty_value": {"type": "null"},
+                            "uncertainty_type": {"type": "null"},
+                        }
+                    },
+                    {
+                        "required": ["uncertainty_value", "uncertainty_type"],
+                        "properties": {
+                            "uncertainty_value": {"type": "number", "minimum": 0},
+                            "uncertainty_type": {"type": "string", "maxLength": 64},
+                        },
+                    },
+                ]
+            },
+            {
+                "if": {
+                    "required": ["quality_flag"],
+                    "properties": {"quality_flag": {"const": "below_detection_limit"}},
+                },
+                "then": {
+                    "required": ["numeric_value"],
+                    "properties": {"numeric_value": {"type": "number"}},
+                },
+            },
+        ]
+    )
+    schema.setdefault("allOf", []).extend(
+        [
+            {
+                "oneOf": [
+                    _measurement_profile_schema(code, profile)
+                    for code, profile in source["characterization_profiles"].items()
+                ]
+            },
+            {
+                "anyOf": [
+                    {
+                        "required": ["measurement"],
+                        "properties": {
+                            "measurement": {
+                                "required": ["raw_file_ids"],
+                                "properties": {"raw_file_ids": {"minItems": 1}},
+                            }
+                        },
+                    },
+                    {"required": ["properties"], "properties": {"properties": {"minItems": 1}}},
+                    {"required": ["assertions"], "properties": {"assertions": {"minItems": 1}}},
+                ]
+            },
+        ]
+    )
+    model_schemas["MeasurementRunCreate"]["properties"]["raw_file_ids"]["uniqueItems"] = True
+    _apply_sample_region_contract(model_schemas["SampleRegion"])
+    _apply_analysis_contract(model_schemas["AnalysisRunCreate"])
+    _apply_assertion_contract(model_schemas["MaterialAssertionWrite"])
+
+
+def apply_characterization_openapi_contract(
+    openapi_schema: dict[str, Any],
+    source: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Apply the published measurement rules to FastAPI's component schemas."""
+    schemas = openapi_schema["components"]["schemas"]
+    _apply_characterization_contract(
+        schemas["MeasurementBundleCreate"],
+        source or load_field_source(),
+        definitions=schemas,
+    )
+    return openapi_schema
+
+
+def _nullable_properties(*keys: str) -> dict[str, Any]:
+    return {key: {"type": "null"} for key in keys}
+
+
+def _apply_sample_region_contract(schema: dict[str, Any]) -> None:
+    schema.setdefault("allOf", []).extend(
+        [
+            {
+                "if": {
+                    "required": ["geometry_type"],
+                    "properties": {"geometry_type": {"const": "point"}},
+                },
+                "then": {"properties": _nullable_properties("width", "height")},
+            },
+            {
+                "if": {
+                    "required": ["geometry_type"],
+                    "properties": {"geometry_type": {"const": "line"}},
+                },
+                "then": {
+                    "required": ["width"],
+                    "properties": {
+                        "width": {"type": "number", "exclusiveMinimum": 0},
+                        "height": {"type": "null"},
+                    },
+                },
+            },
+            {
+                "if": {
+                    "required": ["geometry_type"],
+                    "properties": {"geometry_type": {"const": "area"}},
+                },
+                "then": {
+                    "required": ["width", "height"],
+                    "properties": {
+                        "width": {"type": "number", "exclusiveMinimum": 0},
+                        "height": {"type": "number", "exclusiveMinimum": 0},
+                    },
+                },
+            },
+            {
+                "if": {
+                    "required": ["geometry_type"],
+                    "properties": {
+                        "geometry_type": {"enum": ["whole_sample", "lamella", "particle"]}
+                    },
+                },
+                "then": {"properties": _nullable_properties("x", "y", "width", "height")},
+            },
+            {
+                "if": {
+                    "required": ["geometry_type"],
+                    "properties": {"geometry_type": {"const": "selected_area"}},
+                },
+                "then": {"properties": _nullable_properties("width", "height")},
+            },
+            *[
+                {
+                    "if": {
+                        "required": [source],
+                        "properties": {source: {"type": "number"}},
+                    },
+                    "then": {
+                        "required": [target],
+                        "properties": {target: {"type": "number"}},
+                    },
+                }
+                for source, target in (("x", "y"), ("y", "x"))
+            ],
+            *[
+                {
+                    "if": {
+                        "required": [key],
+                        "properties": {key: {"type": "number"}},
+                    },
+                    "then": {
+                        "required": ["unit"],
+                        "properties": {"unit": {"type": "string", "pattern": r"\S"}},
+                    },
+                }
+                for key in ("x", "y", "width", "height")
+            ],
+            {
+                "if": {
+                    "required": ["unit"],
+                    "properties": {"unit": {"type": "string"}},
+                },
+                "then": {
+                    "anyOf": [
+                        {
+                            "required": [key],
+                            "properties": {key: {"type": "number"}},
+                        }
+                        for key in ("x", "y", "width", "height")
+                    ]
+                },
+            },
+            *[
+                {
+                    "if": {
+                        "required": [source],
+                        "properties": {source: source_schema},
+                    },
+                    "then": {
+                        "required": [target],
+                        "properties": {target: target_schema},
+                    },
+                }
+                for source, source_schema, target, target_schema in (
+                    (
+                        "image_file_id",
+                        {"type": "string"},
+                        "pixel_roi",
+                        {"type": "object"},
+                    ),
+                    (
+                        "pixel_roi",
+                        {"type": "object"},
+                        "image_file_id",
+                        {"type": "string", "format": "uuid"},
+                    ),
+                )
+            ],
+        ]
+    )
+
+
+def _apply_analysis_contract(schema: dict[str, Any]) -> None:
+    schema["properties"]["input_file_ids"]["uniqueItems"] = True
+    schema["properties"]["output_file_ids"]["uniqueItems"] = True
+
+
+def _assertion_value_schema(
+    assertion_type: str,
+    key: str,
+    value_schema: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "required": ["assertion_type", "value"],
+        "properties": {
+            "assertion_type": {"const": assertion_type},
+            "value": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {key: value_schema},
+                "required": [key],
+            },
+        },
+    }
+
+
+def _apply_assertion_contract(schema: dict[str, Any]) -> None:
+    text_value = {"type": "string", "pattern": r"\S", "maxLength": 256}
+    schema.setdefault("allOf", []).append(
+        {
+            "oneOf": [
+                _assertion_value_schema(
+                    "growth_presence",
+                    "state",
+                    {"enum": ["present", "absent", "uncertain"]},
+                ),
+                _assertion_value_schema("phase_identity", "phase", text_value),
+                _assertion_value_schema("polytype", "polytype", text_value),
+                _assertion_value_schema("stacking_order", "stacking_order", text_value),
+                _assertion_value_schema(
+                    "orientation_relationship", "orientation_relationship", text_value
+                ),
+                _assertion_value_schema("layer_count", "count", {"type": "integer", "minimum": 0}),
+                {
+                    "required": ["assertion_type", "value"],
+                    "properties": {
+                        "assertion_type": {"const": "composition"},
+                        "value": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "basis": {
+                                    "enum": [
+                                        "site_fraction",
+                                        "atomic_fraction",
+                                        "mass_fraction",
+                                    ]
+                                },
+                                "components": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": False,
+                                        "properties": {
+                                            "species": {
+                                                "type": "string",
+                                                "pattern": r"\S",
+                                                "maxLength": 128,
+                                            },
+                                            "fraction": {
+                                                "type": "number",
+                                                "minimum": 0,
+                                                "maximum": 1,
+                                            },
+                                        },
+                                        "required": ["species", "fraction"],
+                                    },
+                                },
+                            },
+                            "required": ["basis", "components"],
+                        },
+                    },
+                },
+            ]
+        }
+    )
+
+
+def _property_value_schema(
+    code: str,
+    definition: dict[str, Any],
+    unit: str,
+) -> dict[str, Any]:
+    value_type = definition["value_type"]
+    properties: dict[str, Any] = {
+        "property_code": {"const": code},
+        "numeric_value": {"type": "null"},
+        "text_value": {"type": "null"},
+        "structured_value": {"type": "null"},
+        "unit": {"type": "null"},
+    }
+    required = ["property_code"]
+    if value_type == "numeric":
+        value_schema: dict[str, Any] = {"type": "number"}
+        for source_key, schema_key in {
+            "ge": "minimum",
+            "gt": "exclusiveMinimum",
+            "le": "maximum",
+            "lt": "exclusiveMaximum",
+        }.items():
+            if source_key in definition["validation"]:
+                value_schema[schema_key] = definition["validation"][source_key]
+        properties["numeric_value"] = value_schema
+        properties["unit"] = {"const": unit, "type": "string"}
+        required.extend(["numeric_value", "unit"])
+    elif value_type == "text":
+        validation = definition["validation"]
+        properties["text_value"] = {
+            "type": "string",
+            "pattern": r"\S",
+            **({"minLength": validation["min_length"]} if "min_length" in validation else {}),
+            **({"maxLength": validation["max_length"]} if "max_length" in validation else {}),
+        }
+        required.append("text_value")
+    else:
+        properties["structured_value"] = {"type": "object", "minProperties": 1}
+        required.append("structured_value")
+    if value_type != "numeric":
+        properties.update(
+            {
+                "uncertainty_value": {"type": "null"},
+                "uncertainty_type": {"type": "null"},
+            }
+        )
+    return {"properties": properties, "required": required}
+
+
+def _measurement_profile_schema(code: str, profile: dict[str, Any]) -> dict[str, Any]:
+    measurement_properties: dict[str, Any] = {
+        "method_profile": {"const": code},
+        "typed_conditions": {
+            "type": "object",
+            "properties": {
+                item["key"]: _condition_field_schema(item) for item in profile["condition_fields"]
+            },
+            "required": profile["required_condition_keys"],
+            "additionalProperties": False,
+        },
+        "sample_region": {
+            "type": "object",
+            "properties": {"geometry_type": {"enum": profile["allowed_region_types"]}},
+            "required": ["geometry_type"],
+        },
+    }
+    measurement_required = ["method_profile", "sample_region", "typed_conditions"]
+    if profile["raw_files_required"]:
+        measurement_properties["raw_file_ids"] = {"type": "array", "minItems": 1}
+        measurement_required.append("raw_file_ids")
+    instrument_pair = {
+        "instrument_id": {"type": "string", "format": "uuid"},
+        "instrument_version": {"type": "integer", "minimum": 1},
+    }
+    if profile["instrument_required"]:
+        measurement_properties.update(instrument_pair)
+        measurement_required.extend(instrument_pair)
+        instrument_contract: dict[str, Any] = {}
+    else:
+        instrument_contract = {
+            "oneOf": [
+                {
+                    "properties": {
+                        "instrument_id": {"type": "null"},
+                        "instrument_version": {"type": "null"},
+                    }
+                },
+                {
+                    "required": list(instrument_pair),
+                    "properties": instrument_pair,
+                },
+            ]
+        }
+
+    allowed_properties = profile["allowed_property_codes"]
+    allowed_assertions = profile["allowed_assertion_types"]
+    return {
+        "properties": {
+            "measurement": {
+                "properties": measurement_properties,
+                "required": measurement_required,
+                **instrument_contract,
+            },
+            "properties": (
+                {"items": {"properties": {"property_code": {"enum": allowed_properties}}}}
+                if allowed_properties
+                else {"maxItems": 0}
+            ),
+            "assertions": (
+                {"items": {"properties": {"assertion_type": {"enum": allowed_assertions}}}}
+                if allowed_assertions
+                else {"maxItems": 0}
+            ),
+        }
+    }
+
+
+def _condition_field_schema(field: dict[str, Any]) -> dict[str, Any]:
+    validation = field.get("validation") or {}
+    result: dict[str, Any] = {
+        "type": {
+            "text": "string",
+            "number": "number",
+            "integer": "integer",
+            "range": "object",
+            "size": "object",
+            "resolution": "object",
+        }[field["value_type"]]
+    }
+    for source_key, schema_key in {
+        "ge": "minimum",
+        "gt": "exclusiveMinimum",
+        "le": "maximum",
+        "lt": "exclusiveMaximum",
+        "min_length": "minLength",
+        "max_length": "maxLength",
+    }.items():
+        if source_key in validation:
+            result[schema_key] = validation[source_key]
+    if field["value_type"] == "text":
+        result["pattern"] = r"\S"
+    return result
 
 
 def _field_dictionary_row(

@@ -94,7 +94,12 @@ interface RawDoc {
   >
   characterization_properties: Record<
     string,
-    { label_zh: string; label_en: string }
+    {
+      label_zh: string
+      label_en: string
+      value_type: 'numeric' | 'text' | 'structured'
+      validation: RawValidation
+    }
   >
   characterization_profiles: Record<
     string,
@@ -118,6 +123,7 @@ interface RawDoc {
           | 'size'
           | 'resolution'
         unit?: string
+        validation?: RawValidation
         components?: Array<{
           key: string
           label_zh: string
@@ -406,6 +412,7 @@ export interface CharacterizationConditionField {
     | 'size'
     | 'resolution'
   unit?: string
+  validation?: FieldValidation
   components?: Array<{ key: string; label_zh: string; label_en: string }>
 }
 
@@ -428,6 +435,8 @@ export interface CharacterizationProfile {
 export interface CharacterizationProperty {
   label_zh: string
   label_en: string
+  value_type: 'numeric' | 'text' | 'structured'
+  validation: FieldValidation
   unit: string
 }
 

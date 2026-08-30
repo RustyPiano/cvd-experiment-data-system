@@ -418,6 +418,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/measurements/{measurement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Measurement */
+        get: operations["get_measurement_api_v1_measurements__measurement_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/measurements/{measurement_id}/invalidate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Invalidate Measurement */
+        post: operations["invalidate_measurement_api_v1_measurements__measurement_id__invalidate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transformations": {
         parameters: {
             query?: never;
@@ -1204,7 +1238,7 @@ export interface components {
              * Limit
              * @default 50
              */
-            limit: number;
+            limit?: number;
             /** Cursor */
             cursor?: string | null;
         };
@@ -1422,6 +1456,11 @@ export interface components {
             /** Last Calibration */
             last_calibration?: string | null;
         };
+        /** InvalidateMeasurementRequest */
+        InvalidateMeasurementRequest: {
+            /** Reason */
+            reason: string;
+        };
         /** LifecycleEventCreate */
         LifecycleEventCreate: {
             /**
@@ -1487,6 +1526,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Experiment Run Id
+             * Format: uuid
+             */
+            experiment_run_id: string;
             /** Sample Code */
             sample_code: string;
             /** Role */
@@ -1497,6 +1541,8 @@ export interface components {
             actual_material_summary: string | null;
             /** Lifecycle State */
             lifecycle_state: string;
+            /** Deleted At */
+            deleted_at: string | null;
         };
         /** LineageTransformationRead */
         LineageTransformationRead: {
@@ -1505,6 +1551,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Output Experiment Run Id
+             * Format: uuid
+             */
+            output_experiment_run_id: string;
             /** Transformation Type */
             transformation_type: string;
             /**
@@ -1544,7 +1595,55 @@ export interface components {
             confidence?: number | null;
             /** Analysis Index */
             analysis_index?: number | null;
-        };
+        } & ({
+            /** @constant */
+            assertion_type: "growth_presence";
+            value: {
+                /** @enum {unknown} */
+                state: "present" | "absent" | "uncertain";
+            };
+        } | {
+            /** @constant */
+            assertion_type: "phase_identity";
+            value: {
+                phase: string;
+            };
+        } | {
+            /** @constant */
+            assertion_type: "polytype";
+            value: {
+                polytype: string;
+            };
+        } | {
+            /** @constant */
+            assertion_type: "stacking_order";
+            value: {
+                stacking_order: string;
+            };
+        } | {
+            /** @constant */
+            assertion_type: "orientation_relationship";
+            value: {
+                orientation_relationship: string;
+            };
+        } | {
+            /** @constant */
+            assertion_type: "layer_count";
+            value: {
+                count: number;
+            };
+        } | {
+            /** @constant */
+            assertion_type: "composition";
+            value: {
+                /** @enum {unknown} */
+                basis: "site_fraction" | "atomic_fraction" | "mass_fraction";
+                components: {
+                    species: string;
+                    fraction: number;
+                }[];
+            };
+        });
         /** MaterialLotVersionPayload */
         MaterialLotVersionPayload: {
             /**
@@ -1661,6 +1760,64 @@ export interface components {
              */
             updated_at: string;
         };
+        /** MeasurementAnalysisRead */
+        MeasurementAnalysisRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Performed By Id
+             * Format: uuid
+             */
+            performed_by_id: string;
+            /** Software Name */
+            software_name: string;
+            /** Software Version */
+            software_version: string;
+            /** Code Commit */
+            code_commit: string | null;
+            /** Parameters */
+            parameters: {
+                [key: string]: unknown;
+            };
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Input File Ids */
+            input_file_ids: string[];
+            /** Output File Ids */
+            output_file_ids: string[];
+            /** Input Files */
+            input_files: components["schemas"]["MeasurementRawFileRead"][];
+            /** Output Files */
+            output_files: components["schemas"]["MeasurementRawFileRead"][];
+        };
+        /** MeasurementAssertionRead */
+        MeasurementAssertionRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Analysis Run Id */
+            analysis_run_id: string | null;
+            /** Assertion Type */
+            assertion_type: string;
+            /** Value */
+            value: {
+                [key: string]: unknown;
+            };
+            /** Confidence */
+            confidence: number | null;
+            /** Validity */
+            validity: string;
+        };
         /** MeasurementBundleCreate */
         MeasurementBundleCreate: {
             measurement: components["schemas"]["MeasurementRunCreate"];
@@ -1670,7 +1827,210 @@ export interface components {
             properties?: components["schemas"]["PropertyValueWrite"][];
             /** Assertions */
             assertions?: components["schemas"]["MaterialAssertionWrite"][];
-        };
+        } & (({
+            measurement?: {
+                /** @constant */
+                method_profile: "optical_microscopy";
+                typed_conditions: {
+                    objective?: string;
+                    illumination_mode?: string;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "point" | "area" | "whole_sample" | "selected_area";
+                };
+            } & ({
+                instrument_id?: null;
+                instrument_version?: null;
+            } | {
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            });
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "Raman";
+                typed_conditions: {
+                    laser_wavelength_nm: number;
+                    power_setting?: string;
+                    objective?: string;
+                    integration_time_s?: number;
+                    accumulations?: number;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "point" | "line" | "whole_sample" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "low_frequency_raman";
+                typed_conditions: {
+                    laser_wavelength_nm: number;
+                    power_setting?: string;
+                    objective?: string;
+                    integration_time_s?: number;
+                    accumulations?: number;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "point" | "line" | "whole_sample" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "PL";
+                typed_conditions: {
+                    excitation_wavelength_nm: number;
+                    power_setting?: string;
+                    integration_time_s?: number;
+                    spectral_range_nm?: Record<string, never>;
+                    temperature_K?: number;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "point" | "line" | "whole_sample" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "AFM";
+                typed_conditions: {
+                    mode?: string;
+                    probe?: string;
+                    scan_size_um: Record<string, never>;
+                    resolution_px?: Record<string, never>;
+                    scan_rate_hz?: number;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "point" | "area" | "whole_sample" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "SEM";
+                typed_conditions: {
+                    accelerating_voltage_kV: number;
+                    working_distance_mm?: number;
+                    detector?: string;
+                    field_of_view_um?: Record<string, never>;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "point" | "area" | "whole_sample" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "XRD";
+                typed_conditions: {
+                    radiation_source: string;
+                    scan_range_2theta_deg: Record<string, never>;
+                    step_size_deg?: number;
+                    scan_rate_deg_min?: number;
+                    geometry?: string;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "whole_sample" | "area" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "TEM";
+                typed_conditions: {
+                    accelerating_voltage_kV: number;
+                    mode?: string;
+                    sample_preparation?: string;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "lamella" | "particle" | "whole_sample" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            };
+            properties?: unknown;
+            assertions?: unknown;
+        } | {
+            measurement?: {
+                /** @constant */
+                method_profile: "other";
+                typed_conditions: {
+                    method_description: string;
+                };
+                sample_region: {
+                    /** @enum {unknown} */
+                    geometry_type: "whole_sample" | "point" | "area" | "selected_area";
+                };
+                raw_file_ids: unknown[];
+            } & ({
+                instrument_id?: null;
+                instrument_version?: null;
+            } | {
+                /** Format: uuid */
+                instrument_id: string;
+                instrument_version: number;
+            });
+            properties?: unknown;
+            assertions?: unknown;
+        }) & ({
+            measurement: {
+                raw_file_ids: unknown;
+            };
+        } | {
+            properties: unknown;
+        } | {
+            assertions: unknown;
+        }));
         /** MeasurementConditions */
         MeasurementConditions: {
             /** Laser Wavelength Nm */
@@ -1678,7 +2038,7 @@ export interface components {
             /** Excitation Wavelength Nm */
             excitation_wavelength_nm?: number | null;
             /** Power Setting */
-            power_setting?: string | number | null;
+            power_setting?: string | null;
             /** Objective */
             objective?: string | null;
             /** Integration Time S */
@@ -1719,6 +2079,83 @@ export interface components {
             /** Method Description */
             method_description?: string | null;
         };
+        /** MeasurementDetailRead */
+        MeasurementDetailRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Run Revision Id
+             * Format: uuid
+             */
+            run_revision_id: string;
+            /** Run Code */
+            run_code: string;
+            /**
+             * Sample Id
+             * Format: uuid
+             */
+            sample_id: string;
+            /** Sample Code */
+            sample_code: string;
+            /** Method Profile */
+            method_profile: string;
+            /** Instrument Snapshot Json */
+            instrument_snapshot_json: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Performed By Id
+             * Format: uuid
+             */
+            performed_by_id: string;
+            /**
+             * Measured At
+             * Format: date-time
+             */
+            measured_at: string;
+            /** Sample Region */
+            sample_region: {
+                [key: string]: unknown;
+            };
+            /** Typed Conditions */
+            typed_conditions: {
+                [key: string]: unknown;
+            };
+            /** Quality Flag */
+            quality_flag: string;
+            /** Evidence Present */
+            evidence_present: boolean;
+            /** Raw File Count */
+            raw_file_count: number;
+            /** Analysis Count */
+            analysis_count: number;
+            /** Property Count */
+            property_count: number;
+            /** Assertion Count */
+            assertion_count: number;
+            /** Revision Number */
+            revision_number: number;
+            /** Can Invalidate */
+            can_invalidate: boolean;
+            /** Raw Files */
+            raw_files: components["schemas"]["MeasurementRawFileRead"][];
+            region_image_file: components["schemas"]["MeasurementRawFileRead"] | null;
+            /** Analyses */
+            analyses: components["schemas"]["MeasurementAnalysisRead"][];
+            /** Properties */
+            properties: components["schemas"]["MeasurementPropertyRead"][];
+            /** Assertions */
+            assertions: components["schemas"]["MeasurementAssertionRead"][];
+            /** Invalidation Reason */
+            invalidation_reason?: string | null;
+            /** Invalidated By Id */
+            invalidated_by_id?: string | null;
+            /** Invalidated At */
+            invalidated_at?: string | null;
+        };
         /** MeasurementListResponse */
         MeasurementListResponse: {
             /** Items */
@@ -1727,6 +2164,60 @@ export interface components {
             total: number;
             /** Next Cursor */
             next_cursor?: string | null;
+        };
+        /** MeasurementPropertyRead */
+        MeasurementPropertyRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Analysis Run Id */
+            analysis_run_id: string | null;
+            /** Property Code */
+            property_code: string;
+            /** Numeric Value */
+            numeric_value: number | null;
+            /** Text Value */
+            text_value: string | null;
+            /** Structured Value */
+            structured_value: {
+                [key: string]: unknown;
+            } | null;
+            /** Unit */
+            unit: string | null;
+            /** Statistic */
+            statistic: string | null;
+            /** Uncertainty Value */
+            uncertainty_value: number | null;
+            /** Uncertainty Type */
+            uncertainty_type: string | null;
+            /** Sample Count */
+            sample_count: number | null;
+            /** Quality Flag */
+            quality_flag: string;
+        };
+        /** MeasurementRawFileRead */
+        MeasurementRawFileRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Original Name */
+            original_name: string;
+            /** Sha256 */
+            sha256: string;
+            /** Content Type */
+            content_type: string | null;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Method */
+            method: string;
+            /** File Category */
+            file_category: string;
+            /** Deleted At */
+            deleted_at: string | null;
         };
         /** MeasurementRunCreate */
         MeasurementRunCreate: {
@@ -1746,7 +2237,7 @@ export interface components {
              * Format: date-time
              */
             measured_at: string;
-            sample_region?: components["schemas"]["SampleRegion"] | null;
+            sample_region: components["schemas"]["SampleRegion"];
             typed_conditions: components["schemas"]["MeasurementConditions"];
             /** Raw File Ids */
             raw_file_ids?: string[];
@@ -1755,7 +2246,7 @@ export interface components {
              * @default valid
              * @enum {string}
              */
-            quality_flag: "valid" | "suspect" | "invalid";
+            quality_flag?: "valid" | "suspect";
         };
         /** MeasurementSummaryRead */
         MeasurementSummaryRead: {
@@ -1804,6 +2295,8 @@ export interface components {
             };
             /** Quality Flag */
             quality_flag: string;
+            /** Evidence Present */
+            evidence_present: boolean;
             /** Raw File Count */
             raw_file_count: number;
             /** Analysis Count */
@@ -1819,6 +2312,17 @@ export interface components {
             min: number;
             /** Max */
             max: number;
+        };
+        /** PixelRoi */
+        PixelRoi: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
         };
         /** PropertyValueWrite */
         PropertyValueWrite: {
@@ -1847,10 +2351,193 @@ export interface components {
              * @default valid
              * @enum {string}
              */
-            quality_flag: "valid" | "suspect" | "invalid" | "below_detection_limit";
+            quality_flag?: "valid" | "suspect" | "invalid" | "below_detection_limit";
             /** Analysis Index */
             analysis_index?: number | null;
-        };
+        } & (({
+            /** @constant */
+            property_code: "coverage_percent";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "%";
+        } | {
+            /** @constant */
+            property_code: "domain_size_um";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "μm";
+        } | {
+            /** @constant */
+            property_code: "nucleation_density_cm2";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻²";
+        } | {
+            /** @constant */
+            property_code: "raman_e2g_peak_position";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻¹";
+        } | {
+            /** @constant */
+            property_code: "raman_a1g_peak_position";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻¹";
+        } | {
+            /** @constant */
+            property_code: "raman_peak_separation";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻¹";
+        } | {
+            /** @constant */
+            property_code: "raman_peak_fwhm";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻¹";
+        } | {
+            /** @constant */
+            property_code: "raman_intensity_ratio";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "ratio";
+        } | {
+            /** @constant */
+            property_code: "shear_mode_peak_position";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻¹";
+        } | {
+            /** @constant */
+            property_code: "low_frequency_peak_fwhm";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "cm⁻¹";
+        } | {
+            /** @constant */
+            property_code: "pl_a_exciton_peak_energy";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "eV";
+        } | {
+            /** @constant */
+            property_code: "pl_b_exciton_peak_energy";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "eV";
+        } | {
+            /** @constant */
+            property_code: "pl_integrated_intensity";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "a.u.";
+        } | {
+            /** @constant */
+            property_code: "pl_peak_fwhm";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "meV";
+        } | {
+            /** @constant */
+            property_code: "afm_ra_roughness";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "nm";
+        } | {
+            /** @constant */
+            property_code: "afm_rms_roughness";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "nm";
+        } | {
+            /** @constant */
+            property_code: "afm_step_height";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "nm";
+        } | {
+            /** @constant */
+            property_code: "xrd_peak_2theta";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "° 2θ";
+        } | {
+            /** @constant */
+            property_code: "xrd_peak_fwhm";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "° 2θ";
+        } | {
+            /** @constant */
+            property_code: "xrd_d_spacing";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "nm";
+        } | {
+            /** @constant */
+            property_code: "tem_lattice_spacing";
+            numeric_value: number;
+            text_value?: null;
+            structured_value?: null;
+            /** @constant */
+            unit: "nm";
+        } | {
+            /** @constant */
+            property_code: "observation_note";
+            numeric_value?: null;
+            text_value: string;
+            structured_value?: null;
+            unit?: null;
+            uncertainty_value?: null;
+            uncertainty_type?: null;
+        }) & ({
+            uncertainty_value?: null;
+            uncertainty_type?: null;
+        } | {
+            uncertainty_value: number;
+            uncertainty_type: string;
+        }) & unknown);
         /** RegisterRequest */
         RegisterRequest: {
             /** Email */
@@ -1969,7 +2656,7 @@ export interface components {
              * Characterization Count
              * @default 0
              */
-            characterization_count: number;
+            characterization_count?: number;
             /** Actual State */
             actual_state: string;
             /** Identity State */
@@ -2044,11 +2731,8 @@ export interface components {
             unit?: string | null;
             /** Image File Id */
             image_file_id?: string | null;
-            /** Pixel Roi */
-            pixel_roi?: {
-                [key: string]: number;
-            } | null;
-        };
+            pixel_roi?: components["schemas"]["PixelRoi"] | null;
+        } & (unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown & unknown);
         /**
          * SampleRole
          * @enum {string}
@@ -2154,7 +2838,7 @@ export interface components {
              * @default reported
              * @enum {string}
              */
-            availability: "reported" | "not_provided";
+            availability?: "reported" | "not_provided";
             /** Metric */
             metric?: ("Ra" | "RMS") | null;
             /** Value Nm */
@@ -2231,7 +2915,7 @@ export interface components {
              * Consume Inputs
              * @default false
              */
-            consume_inputs: boolean;
+            consume_inputs?: boolean;
             /** Note */
             note?: string | null;
         };
@@ -3510,6 +4194,7 @@ export interface operations {
                 run_id?: string | null;
                 sample_id?: string | null;
                 method_profile?: string | null;
+                include_history?: boolean;
             };
             header?: never;
             path?: never;
@@ -3557,6 +4242,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeasurementSummaryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_measurement_api_v1_measurements__measurement_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                measurement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeasurementDetailRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invalidate_measurement_api_v1_measurements__measurement_id__invalidate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                measurement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvalidateMeasurementRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeasurementDetailRead"];
                 };
             };
             /** @description Validation Error */

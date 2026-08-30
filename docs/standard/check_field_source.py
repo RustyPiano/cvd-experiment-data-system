@@ -359,6 +359,40 @@ if set(properties) != set(property_units):
         "characterization_properties 与 scientific_contract.property_units "
         f"键不一致：{sorted(set(properties) ^ set(property_units))}"
     )
+for property_code, definition in properties.items():
+    where = f"characterization_properties.{property_code}"
+    value_type = definition.get("value_type")
+    if value_type not in {"numeric", "text", "structured"}:
+        err(f"{where}: value_type 必须为 numeric / text / structured")
+    validation = definition.get("validation")
+    if not isinstance(validation, dict):
+        err(f"{where}: validation 必须为对象")
+        continue
+    allowed = (
+        {"ge", "gt", "le", "lt"}
+        if value_type == "numeric"
+        else {"min_length", "max_length"}
+        if value_type == "text"
+        else set()
+    )
+    unknown = set(validation) - allowed
+    if unknown:
+        err(f"{where}: validation 含不适用于 {value_type} 的约束 {sorted(unknown)}")
+    for key, value in validation.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            err(f"{where}: validation.{key} 必须为数值")
+    if (
+        "ge" in validation
+        and "le" in validation
+        and validation["ge"] > validation["le"]
+    ):
+        err(f"{where}: validation.ge 不得大于 validation.le")
+    if (
+        "min_length" in validation
+        and "max_length" in validation
+        and validation["min_length"] > validation["max_length"]
+    ):
+        err(f"{where}: validation.min_length 不得大于 validation.max_length")
 if "layer_count" in properties:
     err("layer_count 只能作为 MaterialAssertion，不能同时作为 PropertyValue")
 known_assertions = {
@@ -398,6 +432,40 @@ for profile_code, profile in (doc.get("characterization_profiles") or {}).items(
     for field in condition_fields:
         value_type = field.get("value_type")
         components = field.get("components") or []
+        validation = field.get("validation") or {}
+        if not isinstance(validation, dict):
+            err(
+                f"characterization_profiles.{profile_code}.{field.get('key')}: "
+                "validation 必须为对象"
+            )
+            validation = {}
+        allowed_validation = (
+            {"min_length", "max_length"}
+            if value_type == "text"
+            else {"ge", "gt", "le", "lt"}
+        )
+        unknown_validation = set(validation) - allowed_validation
+        if unknown_validation:
+            err(
+                f"characterization_profiles.{profile_code}.{field.get('key')}: "
+                f"validation 含不适用于 {value_type} 的约束 "
+                f"{sorted(unknown_validation)}"
+            )
+        for key, value in validation.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                err(
+                    f"characterization_profiles.{profile_code}.{field.get('key')}: "
+                    f"validation.{key} 必须为数值"
+                )
+        if (
+            "min_length" in validation
+            and "max_length" in validation
+            and validation["min_length"] > validation["max_length"]
+        ):
+            err(
+                f"characterization_profiles.{profile_code}.{field.get('key')}: "
+                "validation.min_length 不得大于 validation.max_length"
+            )
         if value_type in component_keys:
             keys = {item.get("key") for item in components}
             if keys not in component_keys[value_type]:

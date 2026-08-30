@@ -45,6 +45,7 @@ from app.models.v2_results import CharacterizationRecord, MeasuredProduct
 from app.repositories.experiment_repository import ExperimentRepository
 from app.schemas.scientific import normalize_source_loads_for_read
 from app.services.experiment_guards import get_owned_experiment, get_visible_experiment
+from app.services.sample_service import sample_revision_snapshot
 from app.services.v2_entity_snapshot_service import effective_run_module_payloads
 from app.services.v2_field_source import (
     SCHEMA_VERSION,
@@ -532,7 +533,8 @@ class V2ReportingService:
         modules = self._export_modules(revision)
         records = self._records(run.id, revision.id)
         samples = self._samples_for_revision(run.id, revision.id, records)
-        files = self._files_for_records(records)
+        products = self._products(samples, records, revision)
+        files = self._files_for_revision(run.id, revision, records, products)
 
         bundle = {
             "export_kind": "immutable_run_revision",
@@ -598,7 +600,12 @@ class V2ReportingService:
                 ingredients_by_load.setdefault(ingredient.source_load_id, []).append(ingredient)
         files_by_record: dict[UUID, list[FileAsset]] = {}
         for file in files:
-            if file.characterization_record_id and file.deleted_at is None:
+            if (
+                file.characterization_record_id
+                and file.deleted_at is None
+                and file.asset_role == "characterization_file"
+                and file.file_category == "raw"
+            ):
                 files_by_record.setdefault(file.characterization_record_id, []).append(file)
 
         analyses = (
@@ -616,8 +623,12 @@ class V2ReportingService:
         edges = (
             list(
                 self.db.scalars(
-                    select(DataDerivationEdge).where(
-                        DataDerivationEdge.analysis_run_id.in_(analysis_ids)
+                    select(DataDerivationEdge)
+                    .where(DataDerivationEdge.analysis_run_id.in_(analysis_ids))
+                    .order_by(
+                        DataDerivationEdge.analysis_run_id,
+                        DataDerivationEdge.direction,
+                        DataDerivationEdge.file_asset_id,
                     )
                 )
             )
@@ -634,7 +645,9 @@ class V2ReportingService:
         properties = (
             list(
                 self.db.scalars(
-                    select(PropertyValue).where(PropertyValue.measurement_run_id.in_(record_ids))
+                    select(PropertyValue)
+                    .where(PropertyValue.measurement_run_id.in_(record_ids))
+                    .order_by(PropertyValue.measurement_run_id, PropertyValue.id)
                 )
             )
             if record_ids
@@ -643,8 +656,12 @@ class V2ReportingService:
         assertions = (
             list(
                 self.db.scalars(
-                    select(MaterialAssertion).where(
-                        MaterialAssertion.measurement_run_id.in_(record_ids)
+                    select(MaterialAssertion)
+                    .where(MaterialAssertion.measurement_run_id.in_(record_ids))
+                    .order_by(
+                        MaterialAssertion.measurement_run_id,
+                        MaterialAssertion.created_at,
+                        MaterialAssertion.id,
                     )
                 )
             )
@@ -665,6 +682,15 @@ class V2ReportingService:
                 )
             )
         )
+        sample_ids = [sample.id for sample in samples]
+        if sample_ids:
+            transformation_ids_for_revision.update(
+                self.db.scalars(
+                    select(TransformationOutput.transformation_run_id).where(
+                        TransformationOutput.sample_id.in_(sample_ids)
+                    )
+                )
+            )
         transformations = (
             list(
                 self.db.scalars(
@@ -680,9 +706,9 @@ class V2ReportingService:
         inputs = (
             list(
                 self.db.scalars(
-                    select(TransformationInput).where(
-                        TransformationInput.transformation_run_id.in_(transformation_ids)
-                    )
+                    select(TransformationInput)
+                    .where(TransformationInput.transformation_run_id.in_(transformation_ids))
+                    .order_by(TransformationInput.transformation_run_id, TransformationInput.id)
                 )
             )
             if transformation_ids
@@ -691,14 +717,58 @@ class V2ReportingService:
         outputs = (
             list(
                 self.db.scalars(
-                    select(TransformationOutput).where(
-                        TransformationOutput.transformation_run_id.in_(transformation_ids)
-                    )
+                    select(TransformationOutput)
+                    .where(TransformationOutput.transformation_run_id.in_(transformation_ids))
+                    .order_by(TransformationOutput.transformation_run_id, TransformationOutput.id)
                 )
             )
             if transformation_ids
             else []
         )
+        linked_sample_ids = {link.sample_id for link in [*inputs, *outputs]}
+        linked_samples = (
+            list(
+                self.db.scalars(
+                    select(Sample)
+                    .where(Sample.id.in_(linked_sample_ids))
+                    .order_by(Sample.sample_code)
+                )
+            )
+            if linked_sample_ids
+            else []
+        )
+        linked_samples_by_id = {sample.id: sample for sample in linked_samples}
+        sample_codes.update({sample.id: sample.sample_code for sample in linked_samples})
+        output_sample_ids = {link.sample_id for link in outputs}
+        output_associations: dict[UUID, SampleRevisionAssociation] = {}
+        if output_sample_ids:
+            for association in self.db.scalars(
+                select(SampleRevisionAssociation)
+                .where(SampleRevisionAssociation.sample_id.in_(output_sample_ids))
+                .order_by(
+                    SampleRevisionAssociation.created_at,
+                    SampleRevisionAssociation.id,
+                )
+            ):
+                output_associations.setdefault(association.sample_id, association)
+        sample_associations = list(
+            self.db.scalars(
+                select(SampleRevisionAssociation)
+                .where(SampleRevisionAssociation.run_revision_id == revision.id)
+                .order_by(SampleRevisionAssociation.sample_id)
+            )
+        )
+        sample_snapshots = {
+            item.sample_id: item.sample_snapshot_json for item in sample_associations
+        }
+        sample_states = list(
+            self.db.scalars(
+                select(SampleRevisionState)
+                .where(SampleRevisionState.run_revision_id == revision.id)
+                .order_by(SampleRevisionState.sample_id)
+            )
+        )
+        sample_states_by_id = {item.sample_id: item for item in sample_states}
 
         return {
             "schema_release": {
@@ -817,11 +887,7 @@ class V2ReportingService:
                     "sample_snapshot": item.sample_snapshot_json,
                     "created_at": _iso(item.created_at),
                 }
-                for item in self.db.scalars(
-                    select(SampleRevisionAssociation)
-                    .where(SampleRevisionAssociation.run_revision_id == revision.id)
-                    .order_by(SampleRevisionAssociation.sample_id)
-                )
+                for item in sample_associations
             ],
             "sample_revision_states": [
                 {
@@ -833,11 +899,15 @@ class V2ReportingService:
                     "evidence_assertion_ids": item.evidence_assertion_ids,
                     "updated_at": _iso(item.updated_at),
                 }
-                for item in self.db.scalars(
-                    select(SampleRevisionState)
-                    .where(SampleRevisionState.run_revision_id == revision.id)
-                    .order_by(SampleRevisionState.sample_id)
+                for item in sample_states
+            ],
+            "samples": [
+                self._sample_json(
+                    sample,
+                    sample_snapshots.get(sample.id),
+                    sample_states_by_id.get(sample.id),
                 )
+                for sample in samples
             ],
             "process_channels": [
                 {
@@ -873,6 +943,7 @@ class V2ReportingService:
                     .order_by(ProcessChannel.channel_key)
                 )
             ],
+            "files": [self._file_json(file) for file in files],
             "measurements": [
                 {
                     "id": str(record.id),
@@ -890,6 +961,10 @@ class V2ReportingService:
                     "sample_region": record.sample_region,
                     "typed_conditions": record.typed_conditions,
                     "quality_flag": record.quality_flag,
+                    "attrs": record.attrs,
+                    "invalidation_reason": (record.attrs or {}).get("invalidation_reason"),
+                    "invalidated_by_id": (record.attrs or {}).get("invalidated_by_id"),
+                    "invalidated_at": (record.attrs or {}).get("invalidated_at"),
                     "raw_file_ids": [str(file.id) for file in files_by_record.get(record.id, [])],
                     "analyses": [
                         {
@@ -903,6 +978,8 @@ class V2ReportingService:
                             "completed_at": _iso(analysis.completed_at) or None,
                             "file_derivations": [
                                 {
+                                    "id": str(edge.id),
+                                    "analysis_run_id": str(edge.analysis_run_id),
                                     "file_asset_id": str(edge.file_asset_id),
                                     "direction": edge.direction,
                                     "role": edge.role,
@@ -915,6 +992,8 @@ class V2ReportingService:
                     "properties": [
                         {
                             "id": str(item.id),
+                            "measurement_run_id": str(item.measurement_run_id),
+                            "sample_id": str(item.sample_id),
                             "analysis_run_id": (
                                 str(item.analysis_run_id) if item.analysis_run_id else None
                             ),
@@ -934,6 +1013,8 @@ class V2ReportingService:
                     "assertions": [
                         {
                             "id": str(item.id),
+                            "measurement_run_id": str(item.measurement_run_id),
+                            "sample_id": str(item.sample_id),
                             "analysis_run_id": (
                                 str(item.analysis_run_id) if item.analysis_run_id else None
                             ),
@@ -989,20 +1070,43 @@ class V2ReportingService:
                             "sample_id": str(link.sample_id),
                             "sample_code": sample_codes.get(link.sample_id),
                             "role": link.input_role,
+                            "ordinal": (link.provenance_json or {}).get("input_ordinal"),
                             "run_revision_id": (
                                 str(link.run_revision_id) if link.run_revision_id else None
                             ),
+                            "experiment_run_id": (link.provenance_json or {}).get(
+                                "experiment_run_id"
+                            ),
+                            "consumed_by_this_transformation": bool(
+                                (link.provenance_json or {}).get(
+                                    "consumed_by_this_transformation",
+                                    False,
+                                )
+                            ),
+                            "sample_snapshot": link.provenance_json,
                             "provenance": link.provenance_json,
                         }
-                        for link in inputs
-                        if link.transformation_run_id == item.id
+                        for link in sorted(
+                            (link for link in inputs if link.transformation_run_id == item.id),
+                            key=lambda link: (
+                                (
+                                    (link.provenance_json or {}).get("input_ordinal")
+                                    if isinstance(
+                                        (link.provenance_json or {}).get("input_ordinal"),
+                                        int,
+                                    )
+                                    else math.inf
+                                ),
+                                str(link.id),
+                            ),
+                        )
                     ],
                     "outputs": [
-                        {
-                            "sample_id": str(link.sample_id),
-                            "sample_code": sample_codes.get(link.sample_id),
-                            "role": link.output_role,
-                        }
+                        self._transformation_output_json(
+                            link,
+                            linked_samples_by_id.get(link.sample_id),
+                            output_associations.get(link.sample_id),
+                        )
                         for link in outputs
                         if link.transformation_run_id == item.id
                     ],
@@ -1041,7 +1145,7 @@ class V2ReportingService:
             records = self._records(run.id, revision.id)
             samples = self._samples_for_revision(run.id, revision.id, records)
             products = self._products(samples, records, revision)
-            files = self._files_for_records(records)
+            files = self._files_for_revision(run.id, revision, records, products)
             scientific = self._scientific_json(
                 run,
                 revision,
@@ -1049,6 +1153,7 @@ class V2ReportingService:
                 records,
                 files,
             )
+            scientific_samples = {item["id"]: item for item in scientific["samples"]}
             sample_by_id = {sample.id: sample for sample in samples}
             sample_by_source = {
                 str(sample.source_substrate_id): sample
@@ -1157,31 +1262,46 @@ class V2ReportingService:
                 )
 
             for sample in samples:
+                exported = scientific_samples[str(sample.id)]
                 parent = (
                     sample_by_id.get(sample.parent_sample_id) if sample.parent_sample_id else None
                 )
                 sample_rows.extend(
                     _relational_rows(
                         {
+                            "sample_id": str(sample.id),
+                            "experiment_run_id": str(sample.experiment_run_id),
                             "run_code": run.run_code,
-                            "sample_code": sample.sample_code,
-                            "role": sample.role,
-                            "run_revision_id": str(revision.id),
+                            "sample_code": exported["sample_code"],
+                            "role": exported["role"],
+                            "export_revision_id": str(revision.id),
+                            "run_revision_id": exported.get("run_revision_id") or "",
                             "target_material_system": sample.target_material_system,
-                            "actual_state": sample.actual_state,
-                            "actual_material_summary": sample.actual_material_summary,
-                            "lifecycle_state": sample.lifecycle_state,
+                            "actual_state": exported["actual_state"],
+                            "actual_material_summary": exported["actual_material_summary"],
+                            "identity_state": exported["identity_state"],
+                            "lifecycle_state": exported["lifecycle_state"],
+                            "current_carrier": exported["current_carrier"],
+                            "control_subtype": exported["control_subtype"],
+                            "source_substrate_id": exported["source_substrate_id"] or "",
+                            "parent_sample_id": exported["parent_sample_id"] or "",
                             "parent_sample_code": parent.sample_code if parent else "",
-                            "deleted_at": sample.deleted_at,
+                            "created_at": exported["created_at"],
+                            "updated_at": exported["updated_at"],
+                            "deleted_at": exported["deleted_at"],
+                            "deleted_by_id": exported["deleted_by_id"],
                         },
                         {
                             **{
                                 f"source_{key}": canonicalize_controlled_values(
-                                    sample.source_substrate_snapshot_json or {}
+                                    exported.get("source_substrate_snapshot") or {}
                                 ).get(key, "")
                                 for key in substrate_keys
                             },
-                            "sample_metadata": sample.metadata_json,
+                            "source_substrate_snapshot": exported.get("source_substrate_snapshot"),
+                            "sample_region": exported.get("sample_region"),
+                            "dimensions": exported.get("dimensions"),
+                            "sample_metadata": exported.get("metadata"),
                         },
                     )
                 )
@@ -1310,8 +1430,15 @@ class V2ReportingService:
                 metadata_leaves = _nested_leaves(file.metadata_json) if file.metadata_json else []
                 for result_code in related_codes or [""]:
                     file_row = {
+                        "experiment_run_id": str(file.experiment_run_id),
                         "run_code": run.run_code,
+                        "sample_id": str(sample_id) if sample_id else "",
                         "sample_code": sample.sample_code if sample else "",
+                        "characterization_record_id": (
+                            str(file.characterization_record_id)
+                            if file.characterization_record_id
+                            else ""
+                        ),
                         "result_code": result_code,
                         "file_id": str(file.id),
                         "binding_type": file.metadata_json.get("binding_type"),
@@ -1431,17 +1558,28 @@ class V2ReportingService:
             ),
             "samples.csv": (
                 [
+                    "sample_id",
+                    "experiment_run_id",
                     "run_code",
                     "sample_code",
                     "role",
+                    "export_revision_id",
                     "run_revision_id",
                     "target_material_system",
                     "actual_state",
                     "actual_material_summary",
+                    "identity_state",
                     "lifecycle_state",
+                    "current_carrier",
+                    "control_subtype",
+                    "source_substrate_id",
+                    "parent_sample_id",
                     "parent_sample_code",
                     *source_snapshot_keys,
+                    "created_at",
+                    "updated_at",
                     "deleted_at",
+                    "deleted_by_id",
                     "nested_field",
                     "nested_path",
                     "nested_value",
@@ -1473,8 +1611,11 @@ class V2ReportingService:
             ),
             "files.csv": (
                 [
+                    "experiment_run_id",
                     "run_code",
+                    "sample_id",
                     "sample_code",
+                    "characterization_record_id",
                     "result_code",
                     "file_id",
                     "binding_type",
@@ -1657,7 +1798,14 @@ class V2ReportingService:
         )
         if revision_id is not None:
             statement = statement.where(CharacterizationRecord.run_revision_id == revision_id)
-        return list(self.db.scalars(statement.order_by(CharacterizationRecord.created_at.asc())))
+        return list(
+            self.db.scalars(
+                statement.order_by(
+                    CharacterizationRecord.created_at.asc(),
+                    CharacterizationRecord.id.asc(),
+                )
+            )
+        )
 
     def _samples_for_revision(
         self,
@@ -1730,16 +1878,94 @@ class V2ReportingService:
         record_ids = [record.id for record in records]
         if not record_ids:
             return []
+        analysis_file_ids = (
+            select(DataDerivationEdge.file_asset_id)
+            .join(AnalysisRun, AnalysisRun.id == DataDerivationEdge.analysis_run_id)
+            .where(AnalysisRun.measurement_run_id.in_(record_ids))
+        )
+        region_file_ids: list[UUID] = []
+        for record in records:
+            image_file_id = (record.sample_region or {}).get("image_file_id")
+            try:
+                if image_file_id is not None:
+                    region_file_ids.append(UUID(str(image_file_id)))
+            except ValueError:
+                continue
         return list(
             self.db.scalars(
                 select(FileAsset)
                 .where(
-                    FileAsset.characterization_record_id.in_(record_ids),
-                    FileAsset.deleted_at.is_(None),
+                    or_(
+                        FileAsset.characterization_record_id.in_(record_ids),
+                        FileAsset.id.in_(analysis_file_ids),
+                        FileAsset.id.in_(region_file_ids),
+                    )
                 )
                 .order_by(FileAsset.created_at.asc(), FileAsset.id.asc())
             )
         )
+
+    def _files_for_revision(
+        self,
+        run_id: UUID,
+        revision: RunRevision,
+        records: list[CharacterizationRecord],
+        products: list[MeasuredProduct],
+    ) -> list[FileAsset]:
+        files = {file.id: file for file in self._files_for_records(records)}
+        referenced_ids = {
+            file_id
+            for file_id in self.db.scalars(
+                select(ProcessChannel.file_asset_id).where(
+                    ProcessChannel.run_revision_id == revision.id,
+                    ProcessChannel.file_asset_id.is_not(None),
+                )
+            )
+            if file_id is not None
+        }
+        referenced_ids.update(self._payload_file_ids(revision.content_json.get("modules", {})))
+        for product in products:
+            for value in (product.attrs or {}).get("evidence_file_ids", []):
+                try:
+                    referenced_ids.add(UUID(str(value)))
+                except (TypeError, ValueError, AttributeError):
+                    continue
+        if referenced_ids:
+            files.update(
+                {
+                    file.id: file
+                    for file in self.db.scalars(
+                        select(FileAsset).where(
+                            FileAsset.id.in_(referenced_ids),
+                            FileAsset.experiment_run_id == run_id,
+                        )
+                    )
+                }
+            )
+        return sorted(files.values(), key=lambda file: (file.created_at, file.id))
+
+    @classmethod
+    def _payload_file_ids(cls, value: Any, key: str = "") -> set[UUID]:
+        if isinstance(value, dict):
+            return set().union(
+                *(cls._payload_file_ids(item, item_key) for item_key, item in value.items())
+            )
+        if isinstance(value, list):
+            if key.endswith("_file_ids"):
+                parsed: set[UUID] = set()
+                for item in value:
+                    try:
+                        parsed.add(UUID(str(item)))
+                    except (TypeError, ValueError, AttributeError):
+                        continue
+                return parsed
+            return set().union(*(cls._payload_file_ids(item, key) for item in value))
+        if key == "file_asset_id":
+            try:
+                return {UUID(str(value))}
+            except (TypeError, ValueError, AttributeError):
+                return set()
+        return set()
 
     @staticmethod
     def _result_json(
@@ -1812,9 +2038,55 @@ class V2ReportingService:
         }
 
     @staticmethod
+    def _transformation_output_json(
+        link: TransformationOutput,
+        sample: Sample | None,
+        association: SampleRevisionAssociation | None,
+    ) -> dict[str, Any]:
+        live = sample_revision_snapshot(sample) if sample is not None else {}
+        snapshot = live | (association.sample_snapshot_json if association is not None else {})
+        return {
+            "sample_id": str(link.sample_id),
+            "sample_code": (snapshot or {}).get("sample_code"),
+            "experiment_run_id": (snapshot or {}).get("experiment_run_id"),
+            "run_revision_id": (
+                str(association.run_revision_id) if association is not None else None
+            ),
+            "role": link.output_role,
+            "sample_snapshot": snapshot,
+        }
+
+    @staticmethod
+    def _sample_json(
+        sample: Sample,
+        revision_snapshot: dict[str, Any] | None,
+        revision_state: SampleRevisionState | None,
+    ) -> dict[str, Any]:
+        live = sample_revision_snapshot(sample)
+        frozen = live | (revision_snapshot or {})
+        if revision_state is not None:
+            frozen.update(
+                {
+                    "actual_state": {
+                        "present": "growth_present",
+                        "absent": "no_growth",
+                        "uncertain": "uncertain",
+                        "unknown": "unknown",
+                    }[revision_state.growth_state],
+                    "identity_state": revision_state.identity_state,
+                    "actual_material_summary": revision_state.material_summary,
+                }
+            )
+        return frozen | {
+            "revision_snapshot": revision_snapshot,
+            "live_state": live,
+        }
+
+    @staticmethod
     def _file_json(file: FileAsset) -> dict[str, Any]:
         return {
             "id": str(file.id),
+            "experiment_run_id": str(file.experiment_run_id),
             "sample_id": str(file.sample_id) if file.sample_id else None,
             "characterization_record_id": (
                 str(file.characterization_record_id) if file.characterization_record_id else None

@@ -72,6 +72,27 @@ def get_locked_visible_experiment(
     return experiment
 
 
+def get_locked_owned_experiment(
+    experiments: ExperimentRepository,
+    experiment_id: UUID,
+    current_user: User,
+    *,
+    schema_version: str | None = None,
+) -> ExperimentRun:
+    experiment = get_locked_visible_experiment(
+        experiments,
+        experiment_id,
+        current_user,
+        schema_version=schema_version,
+    )
+    if current_user.role != UserRole.ADMIN and experiment.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
+    return experiment
+
+
 def ensure_process_editable(experiment: ExperimentRun) -> None:
     """工艺域在 locked/invalid 均只读。"""
     if experiment.status in {
@@ -86,11 +107,13 @@ def ensure_process_editable(experiment: ExperimentRun) -> None:
 
 
 def ensure_results_editable(experiment: ExperimentRun) -> None:
-    """结果与样品可后补；作废炉次禁止写入。"""
-    if experiment.status == ExperimentStatus.INVALID:
+    """初始草稿可准备样品；纠错草稿和作废炉次的结果域只读。"""
+    if experiment.status == ExperimentStatus.INVALID or (
+        experiment.status == ExperimentStatus.DRAFT and experiment.current_revision_id is not None
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Invalid experiments cannot be edited",
+            detail="Correction drafts and invalid experiments are read-only for results",
         )
 
 

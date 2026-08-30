@@ -7,6 +7,7 @@ import { useAuth } from '@/features/auth/use-auth'
 import { queryDataset } from '@/features/experiments-v2/api'
 import type { DatasetFilter } from '@/features/experiments-v2/api'
 import { resolveErrorMessage } from '@/shared/api/http-error'
+import { characterizationProperties } from '@/shared/generated/field-metadata'
 import { triggerBlobDownload } from '@/shared/lib/download'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -36,7 +37,8 @@ import {
 } from '@/components/ui/table'
 
 type ValueType = 'text' | 'number' | 'boolean' | 'growth'
-type FilterDraft = {
+export const MAX_DATASET_FILTERS = 50
+export type FilterDraft = {
   field: string
   operator: string
   value: string
@@ -95,30 +97,14 @@ const OPERATOR_LABELS: Record<string, string> = {
   contains: '包含',
   between: '介于',
 }
-const PROPERTY_LABELS: Record<string, string> = {
-  coverage_percent: '覆盖率（%）',
-  domain_size_um: '晶畴尺寸（μm）',
-  layer_count: '层数',
-  nucleation_density_cm2: '成核密度（cm⁻²）',
-  raman_a1g_peak_position: 'Raman A₁g 峰位',
-  raman_e2g_peak_position: 'Raman E₂g 峰位',
-  raman_peak_separation: 'Raman 峰间距',
-  pl_a_exciton_peak_energy: 'PL A 激子峰能量',
-  afm_rms_roughness: 'AFM 均方根粗糙度',
-  afm_step_height: 'AFM 台阶高度',
-}
-const PROPERTY_CODES = [
-  'coverage_percent',
-  'domain_size_um',
-  'layer_count',
-  'nucleation_density_cm2',
-  'raman_a1g_peak_position',
-  'raman_e2g_peak_position',
-  'raman_peak_separation',
-  'pl_a_exciton_peak_energy',
-  'afm_rms_roughness',
-  'afm_step_height',
-]
+export const DATASET_PROPERTY_OPTIONS = Object.entries(
+  characterizationProperties,
+)
+  .filter(([, property]) => property.value_type === 'numeric')
+  .map(([code, property]) => ({
+    code,
+    label: `${property.label_zh}${property.unit && property.unit !== '—' ? `（${property.unit}）` : ''}`,
+  }))
 
 const operators = (type: ValueType) =>
   type === 'boolean' || type === 'growth'
@@ -127,16 +113,41 @@ const operators = (type: ValueType) =>
       ? ['eq', 'ne', 'lt', 'lte', 'gt', 'gte', 'between']
       : ['eq', 'ne', 'contains']
 
-function toFilter(item: FilterDraft): DatasetFilter {
+export function datasetFilterIssue(item: FilterDraft): string | null {
+  const value = item.value.trim()
+  if (!value) return '请填写筛选值'
+  if (FIELD_TYPES[item.field] === 'text') {
+    return value.length <= 255 ? null : '筛选值不能超过 255 个字符'
+  }
+  if (FIELD_TYPES[item.field] !== 'number') return null
+  if (item.operator !== 'between') {
+    return Number.isFinite(Number(item.value.trim())) ? null : '请输入有效数值'
+  }
+  const parts = item.value.split(',').map((part) => part.trim())
+  if (
+    parts.length !== 2 ||
+    parts.some((part) => !part || !Number.isFinite(Number(part)))
+  ) {
+    return '请按“下限,上限”填写两个有效数值'
+  }
+  return Number(parts[0]) <= Number(parts[1]) ? null : '上限不能小于下限'
+}
+
+export const canAddDatasetFilter = (count: number) =>
+  count < MAX_DATASET_FILTERS
+
+export function toDatasetFilter(item: FilterDraft): DatasetFilter {
+  const issue = datasetFilterIssue(item)
+  if (issue) throw new Error(issue)
   const type = FIELD_TYPES[item.field]
   const value =
     type === 'number'
       ? item.operator === 'between'
-        ? item.value.split(',').map(Number)
-        : Number(item.value)
+        ? item.value.split(',').map((part) => Number(part.trim()))
+        : Number(item.value.trim())
       : type === 'boolean'
         ? item.value === 'true'
-        : item.value
+        : item.value.trim()
   return {
     field: item.field,
     operator: item.operator,
@@ -158,9 +169,18 @@ export function DatasetQueryPage() {
   const [result, setResult] = useState<Awaited<
     ReturnType<typeof queryDataset>
   > | null>(null)
+  const [frozenFilters, setFrozenFilters] = useState<DatasetFilter[] | null>(
+    null,
+  )
   const mutation = useMutation({
-    mutationFn: ({ cursor }: { cursor?: string; append: boolean }) =>
-      queryDataset(filters.map(toFilter), session.accessToken || '', cursor),
+    mutationFn: ({
+      cursor,
+      queryFilters,
+    }: {
+      cursor?: string
+      append: boolean
+      queryFilters: DatasetFilter[]
+    }) => queryDataset(queryFilters, session.accessToken || '', cursor),
     onSuccess: (data, variables) =>
       setResult((current) =>
         variables.append && current
@@ -177,12 +197,20 @@ export function DatasetQueryPage() {
           : data,
       ),
   })
-  const patch = (index: number, value: Partial<FilterDraft>) =>
+  const clearResult = () => {
+    setResult(null)
+    setFrozenFilters(null)
+    mutation.reset()
+  }
+  const patch = (index: number, value: Partial<FilterDraft>) => {
+    clearResult()
     setFilters((current) =>
       current.map((item, position) =>
         position === index ? { ...item, ...value } : item,
       ),
     )
+  }
+  const hasFilterIssue = filters.some(datasetFilterIssue)
 
   return (
     <div className="grid gap-6">
@@ -211,6 +239,7 @@ export function DatasetQueryPage() {
               >
                 <Select
                   value={filter.field}
+                  disabled={mutation.isPending}
                   onValueChange={(field) =>
                     patch(index, {
                       field,
@@ -224,7 +253,9 @@ export function DatasetQueryPage() {
                     })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    aria-label={`第 ${index + 1} 个筛选条件的字段`}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -237,9 +268,12 @@ export function DatasetQueryPage() {
                 </Select>
                 <Select
                   value={filter.operator}
+                  disabled={mutation.isPending}
                   onValueChange={(operator) => patch(index, { operator })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger
+                    aria-label={`第 ${index + 1} 个筛选条件的运算符`}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -254,39 +288,52 @@ export function DatasetQueryPage() {
                   {filter.field === 'property' ? (
                     <Select
                       value={filter.propertyCode}
+                      disabled={mutation.isPending}
                       onValueChange={(propertyCode) =>
                         patch(index, { propertyCode })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger
+                        aria-label={`第 ${index + 1} 个筛选条件的实测属性`}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {PROPERTY_CODES.map((code) => (
-                          <SelectItem key={code} value={code}>
-                            {PROPERTY_LABELS[code]}
+                        {DATASET_PROPERTY_OPTIONS.map((property) => (
+                          <SelectItem key={property.code} value={property.code}>
+                            {property.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : null}
                   <FilterValue
+                    ariaLabel={`第 ${index + 1} 个筛选条件的值`}
                     type={type}
                     value={filter.value}
                     between={filter.operator === 'between'}
+                    disabled={mutation.isPending}
+                    invalid={Boolean(datasetFilterIssue(filter))}
                     onChange={(value) => patch(index, { value })}
                   />
+                  {datasetFilterIssue(filter) ? (
+                    <p className="text-xs text-destructive" role="alert">
+                      {datasetFilterIssue(filter)}
+                    </p>
+                  ) : null}
                 </div>
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  disabled={filters.length === 1}
-                  onClick={() =>
+                  aria-label={`删除第 ${index + 1} 个筛选条件`}
+                  disabled={filters.length === 1 || mutation.isPending}
+                  onClick={() => {
+                    clearResult()
                     setFilters((current) =>
                       current.filter((_, position) => position !== index),
                     )
-                  }
+                  }}
                 >
                   <Trash2 />
                 </Button>
@@ -297,7 +344,12 @@ export function DatasetQueryPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() =>
+              disabled={
+                mutation.isPending || !canAddDatasetFilter(filters.length)
+              }
+              onClick={() => {
+                if (!canAddDatasetFilter(filters.length)) return
+                clearResult()
                 setFilters((current) => [
                   ...current,
                   {
@@ -307,19 +359,18 @@ export function DatasetQueryPage() {
                     propertyCode: 'coverage_percent',
                   },
                 ])
-              }
+              }}
             >
               <Plus /> 添加条件
             </Button>
             <Button
               type="button"
-              disabled={
-                mutation.isPending ||
-                filters.some((filter) => !filter.value.trim())
-              }
+              disabled={mutation.isPending || hasFilterIssue}
               onClick={() => {
+                const queryFilters = filters.map(toDatasetFilter)
                 setResult(null)
-                mutation.mutate({ append: false })
+                setFrozenFilters(queryFilters)
+                mutation.mutate({ append: false, queryFilters })
               }}
             >
               <Search /> 构建数据集
@@ -422,12 +473,14 @@ export function DatasetQueryPage() {
                 className="mt-4"
                 variant="outline"
                 disabled={mutation.isPending}
-                onClick={() =>
+                onClick={() => {
+                  if (!frozenFilters) return
                   mutation.mutate({
                     cursor: result.next_cursor ?? undefined,
                     append: true,
+                    queryFilters: frozenFilters,
                   })
-                }
+                }}
               >
                 加载更多
               </Button>
@@ -440,14 +493,20 @@ export function DatasetQueryPage() {
 }
 
 function FilterValue({
+  ariaLabel,
   type,
   value,
   between,
+  disabled,
+  invalid,
   onChange,
 }: {
+  ariaLabel: string
   type: ValueType
   value: string
   between: boolean
+  disabled: boolean
+  invalid: boolean
   onChange: (value: string) => void
 }) {
   if (type === 'boolean' || type === 'growth') {
@@ -456,8 +515,8 @@ function FilterValue({
         ? ['true', 'false']
         : ['present', 'absent', 'uncertain']
     return (
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
+      <Select value={value} disabled={disabled} onValueChange={onChange}>
+        <SelectTrigger aria-label={ariaLabel}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -481,6 +540,10 @@ function FilterValue({
   return (
     <Input
       value={value}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      aria-invalid={invalid || undefined}
+      maxLength={type === 'text' ? 255 : undefined}
       placeholder={between ? '下限,上限' : '值'}
       onChange={(event) => onChange(event.target.value)}
     />

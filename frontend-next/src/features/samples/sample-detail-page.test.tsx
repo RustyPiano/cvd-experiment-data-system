@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import i18n from '@/shared/i18n'
 import { SampleDetailPage } from './sample-detail-page'
+
+const measurementApi = vi.hoisted(() => ({ listAllMeasurements: vi.fn() }))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => (
@@ -23,29 +26,56 @@ vi.mock('./api', () => ({
   getExperiment: vi.fn(),
   getSample: vi.fn(),
 }))
-vi.mock('@/features/experiments-v2/api', () => ({
-  listMeasurements: vi.fn(),
+vi.mock('@/features/experiments-v2/api', () => measurementApi)
+vi.mock('@/features/characterizations/measurement-details', () => ({
+  MeasurementDetails: ({ measurementId }: { measurementId: string }) => (
+    <div>Details {measurementId}</div>
+  ),
 }))
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: ({ queryKey }: { queryKey: string[] }) => {
+  useQuery: ({
+    queryKey,
+    queryFn,
+  }: {
+    queryKey: string[]
+    queryFn: () => unknown
+  }) => {
     if (queryKey[0] === 'experiments') {
       return {
-        data: { run_code: 'CVD-2026-0001' },
+        data: {
+          run_code: 'CVD-2026-0001',
+          current_revision_id: 'revision-current',
+        },
         isLoading: false,
         isError: false,
       }
     }
     if (queryKey[0] === 'measurements') {
+      void queryFn()
       return {
         data: {
           items: [
             {
               id: 'measurement-1',
+              run_revision_id: 'revision-current',
               method_profile: 'Raman',
               measured_at: '2026-07-29T12:00:00Z',
+              quality_flag: 'valid',
+              evidence_present: true,
               raw_file_count: 1,
               property_count: 2,
               assertion_count: 1,
+            },
+            {
+              id: 'measurement-2',
+              run_revision_id: 'revision-history',
+              method_profile: 'AFM',
+              measured_at: '2026-07-28T12:00:00Z',
+              quality_flag: 'valid',
+              evidence_present: true,
+              raw_file_count: 1,
+              property_count: 1,
+              assertion_count: 0,
             },
           ],
         },
@@ -92,6 +122,12 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 
 beforeEach(async () => {
+  vi.clearAllMocks()
+  measurementApi.listAllMeasurements.mockResolvedValue({
+    items: [],
+    total: 0,
+    next_cursor: null,
+  })
   await i18n.changeLanguage('zh')
 })
 
@@ -121,5 +157,37 @@ describe('sample detail product view', () => {
     expect(text).not.toMatch(
       /谱系|样品转化|生命周期|run_revision_id|revision|schema|hash/,
     )
+  })
+
+  it('labels measurements from the current and historical run revisions', () => {
+    render(<SampleDetailPage />)
+
+    expect(
+      screen.getByRole('row', { name: /Raman 当前修订/ }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('row', { name: /AFM 历史修订/ }),
+    ).toBeInTheDocument()
+  })
+
+  it('opens the scientific measurement detail from the sample record', async () => {
+    const user = userEvent.setup()
+    render(<SampleDetailPage />)
+
+    await user.click(screen.getAllByRole('button', { name: '查看详情' })[0])
+    expect(screen.getByText('Details measurement-1')).toBeInTheDocument()
+    const collapse = screen.getByRole('button', { name: '收起详情' })
+    expect(collapse).toHaveAttribute('aria-expanded', 'true')
+    expect(collapse).toHaveAttribute(
+      'aria-controls',
+      'sample-measurement-details-measurement-1',
+    )
+    expect(
+      screen.getByRole('region', { name: '表征记录详情' }),
+    ).toHaveAttribute('id', 'sample-measurement-details-measurement-1')
+    expect(measurementApi.listAllMeasurements).toHaveBeenCalledWith('token', {
+      sampleId: 'sample-1',
+      includeHistory: true,
+    })
   })
 })

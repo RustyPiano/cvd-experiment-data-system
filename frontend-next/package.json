@@ -16,7 +16,7 @@
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
     "gen:fields": "bun run scripts/generate-field-metadata.ts && prettier --write src/shared/generated/field-metadata.ts src/shared/generated/material-phase-catalog.ts",
-    "gen:api": "openapi-typescript ${OPENAPI_SOURCE:-http://127.0.0.1:8000/openapi.json} -o src/shared/types/openapi.d.ts"
+    "gen:api": "openapi-typescript ${OPENAPI_SOURCE:-http://127.0.0.1:8000/openapi.json} --default-non-nullable false -o src/shared/types/openapi.d.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

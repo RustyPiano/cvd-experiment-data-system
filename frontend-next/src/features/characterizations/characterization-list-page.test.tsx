@@ -25,8 +25,17 @@ vi.mock(
     workspaceModule.loaded()
     await workspaceModule.gate
     return {
-      SimpleCharacterizationWorkspace: ({ runId }: { runId: string }) => (
-        <div>Workspace {runId}</div>
+      SimpleCharacterizationWorkspace: ({
+        runId,
+        readOnly,
+      }: {
+        runId: string
+        readOnly: boolean
+      }) => (
+        <div>
+          Workspace {runId} · {readOnly ? 'read-only' : 'editable'}
+          {!readOnly ? <button type="button">新增或失效表征</button> : null}
+        </div>
       ),
     }
   },
@@ -93,13 +102,13 @@ describe('CharacterizationListPage', () => {
           sample_code: 'CVD-2026-0001-S01',
           material_system: 'MoS2',
         },
-        results: [
+        measurements: [
           {
             id: 'result-1',
-            kind: 'characterization',
-            method_instrument: 'optical_microscopy',
-            method_other: null,
-            created_at: '2026-07-24T11:00:00',
+            method_profile: 'optical_microscopy',
+            measured_at: '2026-07-24T11:00:00',
+            quality_flag: 'valid',
+            evidence_present: true,
           },
         ],
       },
@@ -111,13 +120,13 @@ describe('CharacterizationListPage', () => {
           sample_code: 'CVD-2026-0002-S01',
           material_system: 'WS2',
         },
-        results: [
+        measurements: [
           {
             id: 'result-2',
-            kind: 'direct_observation',
-            method_instrument: null,
-            method_other: null,
-            created_at: '2026-07-24T10:00:00',
+            method_profile: 'Raman',
+            measured_at: '2026-07-24T10:00:00',
+            quality_flag: 'valid',
+            evidence_present: false,
           },
         ],
       },
@@ -129,10 +138,14 @@ describe('CharacterizationListPage', () => {
           sample_code: 'CVD-2026-0003-S01',
           material_system: 'WSe2',
         },
-        results: [],
+        measurements: [],
       },
     ])
-    experimentApi.getRun.mockResolvedValue({ id: 'run-3', status: 'locked' })
+    experimentApi.getRun.mockResolvedValue({
+      id: 'run-3',
+      status: 'locked',
+      current_revision_id: 'revision-3',
+    })
   })
 
   it('lists results and samples still awaiting characterization', async () => {
@@ -143,7 +156,7 @@ describe('CharacterizationListPage', () => {
     expect(screen.getByText('光镜')).toBeInTheDocument()
     expect(screen.getByText('2026-07-24 11:00')).toBeInTheDocument()
     expect(screen.getByText('CVD-2026-0003-S01')).toBeInTheDocument()
-    expect(screen.getByText('待表征')).toBeInTheDocument()
+    expect(screen.getAllByText('待表征')).toHaveLength(2)
     expect(
       screen.getAllByRole('link', { name: '补录或查看表征' }),
     ).toHaveLength(3)
@@ -187,13 +200,19 @@ describe('CharacterizationListPage', () => {
     ).toBeInTheDocument()
     expect(workspaceModule.loaded).toHaveBeenCalledOnce()
     workspaceModule.release()
-    expect(await screen.findByText('Workspace run-3')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Workspace run-3 · editable'),
+    ).toBeInTheDocument()
     expect(screen.queryByText('样品与表征')).not.toBeInTheDocument()
     expect(api.listCharacterizationItems).not.toHaveBeenCalled()
   })
 
   it('does not expose an editable measurement form for a draft run', async () => {
-    experimentApi.getRun.mockResolvedValue({ id: 'run-3', status: 'draft' })
+    experimentApi.getRun.mockResolvedValue({
+      id: 'run-3',
+      status: 'draft',
+      current_revision_id: null,
+    })
     renderPage('run-3')
 
     expect(
@@ -203,4 +222,27 @@ describe('CharacterizationListPage', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('Workspace run-3')).not.toBeInTheDocument()
   })
+
+  it.each(['draft', 'invalid'])(
+    'keeps existing characterization visible but read-only for a %s run with a revision',
+    async (status) => {
+      experimentApi.getRun.mockResolvedValue({
+        id: 'run-3',
+        status,
+        current_revision_id: 'revision-3',
+      })
+      renderPage('run-3')
+      workspaceModule.release()
+
+      expect(
+        await screen.findByText('Workspace run-3 · read-only'),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: '新增或失效表征' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('请先提交制备实验记录，系统生成样品后再添加表征。'),
+      ).not.toBeInTheDocument()
+    },
+  )
 })

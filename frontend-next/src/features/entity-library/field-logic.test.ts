@@ -451,6 +451,24 @@ describe('buildSubmitPayload', () => {
     })
   })
 
+  it('submits instrument capabilities as a JSON array', () => {
+    const capabilities = JSON.stringify([
+      { code: 'Raman', configuration: { wavelength_nm: 532 } },
+    ])
+
+    expect(
+      buildSubmitPayload('instrument', {
+        instrument_code: 'RAMAN-1',
+        name_type: 'Raman',
+        capabilities,
+      }),
+    ).toEqual({
+      instrument_code: 'RAMAN-1',
+      name_type: 'Raman',
+      capabilities: [{ code: 'Raman', configuration: { wavelength_nm: 532 } }],
+    })
+  })
+
   it('round-trips enriched file references without leaking display metadata', () => {
     const defaults = buildDefaultValues('material_lot', {
       coa_attachment: {

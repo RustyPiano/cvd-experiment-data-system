@@ -32,28 +32,16 @@ export type RunFilters = {
 export type V2RunAuditEventRead = Schemas['V2RunAuditEventRead']
 export type V2RunAuditEventListResponse = Schemas['V2RunAuditEventListResponse']
 
-export type MeasurementSummary = {
-  id: string
-  run_revision_id: string
-  run_code: string
-  sample_id: string
-  sample_code: string
-  method_profile: string
-  measured_at: string
-  sample_region: Record<string, unknown>
-  typed_conditions: Record<string, unknown>
-  quality_flag: string
-  raw_file_count: number
-  analysis_count: number
-  property_count: number
-  assertion_count: number
-}
-
-export type MeasurementListResponse = {
-  items: MeasurementSummary[]
-  total: number
-  next_cursor: string | null
-}
+export type MeasurementBundleCreate = Schemas['MeasurementBundleCreate']
+export type MeasurementSummary = Schemas['MeasurementSummaryRead']
+export type MeasurementDetail = Schemas['MeasurementDetailRead']
+export type MeasurementListResponse = Schemas['MeasurementListResponse']
+export type MeasurementPropertyQuality = NonNullable<
+  Schemas['PropertyValueWrite']['quality_flag']
+>
+export type MeasurementQuality = NonNullable<
+  Schemas['MeasurementRunCreate']['quality_flag']
+>
 
 export type RunRevision = {
   id: string
@@ -226,19 +214,52 @@ export function createCorrectionDraft(
 
 export function listMeasurements(
   token: string,
-  filters: { runId?: string; sampleId?: string; cursor?: string } = {},
+  filters: {
+    runId?: string
+    sampleId?: string
+    cursor?: string
+    includeHistory?: boolean
+  } = {},
 ) {
   const query = new URLSearchParams({ limit: '100' })
   if (filters.runId) query.set('run_id', filters.runId)
   if (filters.sampleId) query.set('sample_id', filters.sampleId)
   if (filters.cursor) query.set('cursor', filters.cursor)
+  if (filters.includeHistory) query.set('include_history', 'true')
   return apiRequest<MeasurementListResponse>(`/api/v1/measurements?${query}`, {
     token,
   })
 }
 
+export async function listAllMeasurements(
+  token: string,
+  filters: Omit<Parameters<typeof listMeasurements>[1], 'cursor'> = {},
+): Promise<MeasurementListResponse> {
+  const items: MeasurementSummary[] = []
+  const cursors = new Set<string>()
+  let cursor: string | undefined
+
+  do {
+    const page = await listMeasurements(token, { ...filters, cursor })
+    items.push(...page.items)
+    if (!page.next_cursor) {
+      if (items.length < page.total) {
+        throw new Error('表征记录分页提前结束，无法完整加载。')
+      }
+      break
+    }
+    if (cursors.has(page.next_cursor)) {
+      throw new Error('表征记录分页游标重复，无法完整加载。')
+    }
+    cursors.add(page.next_cursor)
+    cursor = page.next_cursor
+  } while (cursor)
+
+  return { items, total: items.length, next_cursor: null }
+}
+
 export function createMeasurement(
-  payload: Record<string, unknown>,
+  payload: MeasurementBundleCreate,
   token: string,
 ) {
   return apiRequest<MeasurementSummary>('/api/v1/measurements', {
@@ -246,6 +267,28 @@ export function createMeasurement(
     body: payload,
     token,
   })
+}
+
+export function getMeasurement(measurementId: string, token: string) {
+  return apiRequest<MeasurementDetail>(
+    `/api/v1/measurements/${measurementId}`,
+    { token },
+  )
+}
+
+export function invalidateMeasurement(
+  measurementId: string,
+  reason: string,
+  token: string,
+) {
+  return apiRequest<MeasurementDetail>(
+    `/api/v1/measurements/${measurementId}/invalidate`,
+    {
+      method: 'POST',
+      body: { reason },
+      token,
+    },
+  )
 }
 
 export function createTransformation(

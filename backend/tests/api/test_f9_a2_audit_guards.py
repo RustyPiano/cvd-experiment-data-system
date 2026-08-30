@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.audit import AuditEvent
+from app.models.experiment import ExperimentRun
 from tests.helpers.v2_payloads import setup_payload
 
 client = TestClient(app)
@@ -162,9 +163,13 @@ def test_setup_integer_values_reject_fraction_and_numeric_strings(admin_user) ->
     assert integer_string.json()["detail"] == {"invalid": [{"key": "zone_count", "reason": "type"}]}
 
 
-def test_owner_still_lists_own_invalid_run(active_user) -> None:
+def test_owner_still_lists_own_invalid_run(active_user, db_session) -> None:
     headers = _headers(active_user.email)
     run = _run(headers, "CVD-2026-0903")
+    run_model = db_session.get(ExperimentRun, UUID(run["id"]))
+    assert run_model is not None
+    run_model.result_missing_todo = True
+    db_session.commit()
     invalidated = client.post(
         f"/api/v1/experiments/{run['id']}/invalidate",
         json={"reason": "bad thermocouple"},
@@ -173,5 +178,6 @@ def test_owner_still_lists_own_invalid_run(active_user) -> None:
     listed = client.get("/api/v1/experiments", headers=headers)
 
     assert invalidated.status_code == 200, invalidated.text
+    assert invalidated.json()["result_missing_todo"] is False
     match = next(item for item in listed.json()["items"] if item["id"] == run["id"])
     assert match["status"] == "invalid"

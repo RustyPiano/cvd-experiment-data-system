@@ -1,8 +1,11 @@
 import importlib.util
 import sys
 from copy import deepcopy
+from datetime import date
 from pathlib import Path
 from types import ModuleType
+from typing import get_args
+from uuid import uuid4
 
 import openpyxl
 import pytest
@@ -14,12 +17,19 @@ from app.commands.generate_v2_models import (
     generate_v2_models,
     render_v2_models,
 )
+from app.main import app
 from app.schemas.generated.v2_module_payload import (
     V2_MODULE_PAYLOAD_MODELS,
     InstrumentVersionPayload,
+    MaterialLotReferencePayload,
     MaterialLotVersionPayload,
     SetupVersionPayload,
     validate_v2_module_payload,
+)
+from app.schemas.scientific import (
+    MaterialAssertionWrite,
+    MeasurementConditions,
+    SampleRegion,
 )
 from app.services.v2_field_source import load_field_source, missing
 
@@ -143,6 +153,198 @@ def test_export_v2_schema_matches_committed_files(tmp_path: Path) -> None:
         assert Path(paths[key]).read_bytes() == (GENERATED_SCHEMA_DIR / filename).read_bytes()
 
 
+def test_measurement_json_schema_enforces_property_and_profile_contract() -> None:
+    exported = export_v2_schema(output_dir=None)
+    schema = exported["json_schema_doc"]["result_models"]["measurement_bundle"]
+    validator = Draft202012Validator(schema)
+    payload = {
+        "measurement": {
+            "sample_id": "00000000-0000-0000-0000-000000000001",
+            "method_profile": "optical_microscopy",
+            "measured_at": "2026-08-30T12:00:00+00:00",
+            "sample_region": {
+                "geometry_type": "whole_sample",
+                "label": "whole sample",
+                "coordinate_system": "sample_local",
+            },
+            "typed_conditions": {},
+        },
+        "properties": [
+            {
+                "property_code": "coverage_percent",
+                "numeric_value": 80,
+                "unit": "%",
+                "quality_flag": "valid",
+            }
+        ],
+    }
+    assert not list(validator.iter_errors(payload))
+
+    wrong_representation = deepcopy(payload)
+    wrong_representation["properties"][0] = {
+        "property_code": "coverage_percent",
+        "text_value": "negative",
+    }
+    assert list(validator.iter_errors(wrong_representation))
+
+    out_of_range = deepcopy(payload)
+    out_of_range["properties"][0]["numeric_value"] = 101
+    assert list(validator.iter_errors(out_of_range))
+
+    numeric_below_limit = deepcopy(payload)
+    numeric_below_limit["properties"][0]["quality_flag"] = "below_detection_limit"
+    assert not list(validator.iter_errors(numeric_below_limit))
+
+    text_property = deepcopy(payload)
+    text_property["properties"][0] = {
+        "property_code": "observation_note",
+        "text_value": "no visible feature",
+        "quality_flag": "valid",
+    }
+    assert not list(validator.iter_errors(text_property))
+    text_property["properties"][0]["quality_flag"] = "below_detection_limit"
+    assert list(validator.iter_errors(text_property))
+
+    wrong_profile = deepcopy(payload)
+    wrong_profile["measurement"]["method_profile"] = "other"
+    assert list(validator.iter_errors(wrong_profile))
+
+    missing_evidence = deepcopy(payload)
+    missing_evidence["properties"] = []
+    assert list(validator.iter_errors(missing_evidence))
+
+    other = {
+        "measurement": {
+            "sample_id": "00000000-0000-0000-0000-000000000001",
+            "method_profile": "other",
+            "measured_at": "2026-08-30T12:00:00+00:00",
+            "sample_region": {
+                "geometry_type": "point",
+                "label": "measurement point",
+                "coordinate_system": "sample_local",
+            },
+            "typed_conditions": {"method_description": "custom spectroscopy"},
+            "raw_file_ids": ["00000000-0000-0000-0000-000000000002"],
+        }
+    }
+    assert not list(validator.iter_errors(other))
+    other["measurement"]["typed_conditions"]["method_description"] = "   "
+    assert list(validator.iter_errors(other))
+    other["measurement"]["typed_conditions"]["method_description"] = "x" * 1001
+    assert list(validator.iter_errors(other))
+
+    assert exported["json_schema_doc"]["characterization_properties"]
+    assert exported["field_dictionary_doc"]["characterization_profiles"]
+
+
+def test_measurement_json_schema_and_openapi_reject_runtime_invalid_shapes() -> None:
+    standalone = export_v2_schema(output_dir=None)["json_schema_doc"]["result_models"][
+        "measurement_bundle"
+    ]
+    openapi = app.openapi()
+    validators = [
+        Draft202012Validator(standalone),
+        Draft202012Validator(
+            {
+                "$ref": "#/components/schemas/MeasurementBundleCreate",
+                "components": openapi["components"],
+            }
+        ),
+    ]
+    payload = {
+        "measurement": {
+            "sample_id": "00000000-0000-0000-0000-000000000001",
+            "method_profile": "optical_microscopy",
+            "measured_at": "2026-08-30T12:00:00+00:00",
+            "sample_region": {
+                "geometry_type": "whole_sample",
+                "label": "whole sample",
+                "coordinate_system": "sample_local",
+            },
+            "typed_conditions": {},
+        },
+        "properties": [
+            {
+                "property_code": "coverage_percent",
+                "numeric_value": 80,
+                "unit": "%",
+            }
+        ],
+    }
+    invalid_payloads: list[dict] = []
+
+    required_condition_is_null = deepcopy(payload)
+    required_condition_is_null["measurement"].update(
+        {
+            "method_profile": "other",
+            "sample_region": {
+                "geometry_type": "point",
+                "label": "point",
+                "coordinate_system": "sample_local",
+            },
+            "typed_conditions": {"method_description": None},
+            "raw_file_ids": ["00000000-0000-0000-0000-000000000002"],
+        }
+    )
+    required_condition_is_null["properties"] = []
+    invalid_payloads.append(required_condition_is_null)
+
+    line_with_height = deepcopy(payload)
+    line_with_height["measurement"].update(
+        {
+            "method_profile": "Raman",
+            "instrument_id": "00000000-0000-0000-0000-000000000003",
+            "instrument_version": 1,
+            "sample_region": {
+                "geometry_type": "line",
+                "label": "line",
+                "coordinate_system": "sample_local",
+                "width": 2,
+                "height": 1,
+                "unit": "um",
+            },
+            "typed_conditions": {"laser_wavelength_nm": 532},
+            "raw_file_ids": ["00000000-0000-0000-0000-000000000002"],
+        }
+    )
+    line_with_height["properties"] = []
+    invalid_payloads.append(line_with_height)
+
+    whole_sample_with_coordinates = deepcopy(payload)
+    whole_sample_with_coordinates["measurement"]["sample_region"].update(
+        {"x": 1, "y": 2, "unit": "um"}
+    )
+    invalid_payloads.append(whole_sample_with_coordinates)
+
+    malformed_assertion = deepcopy(payload)
+    malformed_assertion["assertions"] = [
+        {
+            "assertion_type": "phase_identity",
+            "value": {"phase": " ", "extra": "not allowed"},
+        }
+    ]
+    invalid_payloads.append(malformed_assertion)
+
+    duplicate_analysis_input = deepcopy(payload)
+    duplicate_analysis_input["analyses"] = [
+        {
+            "software_name": "analysis",
+            "software_version": "1",
+            "started_at": "2026-08-30T12:00:00+00:00",
+            "input_file_ids": [
+                "00000000-0000-0000-0000-000000000002",
+                "00000000-0000-0000-0000-000000000002",
+            ],
+        }
+    ]
+    invalid_payloads.append(duplicate_analysis_input)
+
+    for validator in validators:
+        assert not list(validator.iter_errors(payload))
+        for invalid_payload in invalid_payloads:
+            assert list(validator.iter_errors(invalid_payload))
+
+
 def test_field_dictionary_conditions_use_machine_codes() -> None:
     dictionary = export_v2_schema(output_dir=None)["field_dictionary_doc"]
     values = [
@@ -166,6 +368,20 @@ def test_field_dictionary_conditions_use_machine_codes() -> None:
         "sio2_si",
         "substrate",
     }
+
+
+def test_characterization_field_source_matches_runtime_discriminators() -> None:
+    profiles = load_field_source()["characterization_profiles"].values()
+
+    assert {field["key"] for profile in profiles for field in profile["condition_fields"]} == set(
+        MeasurementConditions.model_fields
+    )
+    assert {
+        assertion for profile in profiles for assertion in profile["allowed_assertion_types"]
+    } == set(get_args(MaterialAssertionWrite.model_fields["assertion_type"].annotation))
+    assert {region for profile in profiles for region in profile["allowed_region_types"]} == set(
+        get_args(SampleRegion.model_fields["geometry_type"].annotation)
+    )
 
 
 def test_published_field_dictionary_paths_and_machine_types_match_schema() -> None:
@@ -265,7 +481,7 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.18"
+    assert schema["version"] == "v4.0-alpha.19"
     assert schema["status"] == "INTERNAL_VALIDATION"
     assert "pvd" not in schema["modules"]
     for model in [*schema["modules"].values(), *schema["result_models"].values()]:
@@ -423,9 +639,27 @@ def test_setup_and_instrument_entity_contracts() -> None:
             "instrument_code": "RAMAN-1",
             "name_type": "Raman spectrometer",
             "capabilities": [{"method": "raman"}],
+            "last_calibration": date(2026, 8, 31),
         }
     )
     assert instrument.instrument_code == "RAMAN-1"
+    reference_id = uuid4()
+    assert (
+        MaterialLotReferencePayload.model_validate(
+            {"entity_id": reference_id, "version": 1}
+        ).entity_id
+        == reference_id
+    )
+
+    for invalid in (float("nan"), float("inf"), object()):
+        with pytest.raises(ValueError, match="finite JSON"):
+            InstrumentVersionPayload.model_validate(
+                {
+                    "instrument_code": "RAMAN-BAD",
+                    "name_type": "Raman spectrometer",
+                    "capabilities": [{"value": invalid}],
+                }
+            )
 
     with pytest.raises(ValueError, match="cover each zone"):
         SetupVersionPayload.model_validate(_setup(temperature_sensors=_sensors(1)))

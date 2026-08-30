@@ -1,9 +1,11 @@
+import json
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.experiment import ExperimentRun
 from app.models.file_asset import FileAsset
 from app.models.scientific import (
     ProcessChannel,
@@ -336,6 +338,26 @@ def _headers(email: str) -> dict[str, str]:
     )
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_instrument_create_rejects_non_finite_capability_json(
+    admin_user,
+    invalid: float,
+) -> None:
+    response = client.post(
+        "/api/v1/instruments",
+        content=json.dumps(
+            {
+                "instrument_code": "RAMAN-NON-FINITE",
+                "name_type": "Raman",
+                "capabilities": [{"value": invalid}],
+            }
+        ),
+        headers={**_headers(admin_user.email), "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422, response.text
 
 
 def _put_module(
@@ -870,6 +892,17 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert measurement.status_code == 201, measurement.text
     assert measurement.json()["run_revision_id"] == revision_1
+    db_session.expire_all()
+    provenance = (
+        db_session.query(RunFeature)
+        .filter_by(
+            run_revision_id=UUID(revision_1),
+            feature_code="provenance_complete",
+            ordinal=0,
+        )
+        .one()
+    )
+    assert provenance.boolean_value is True
     evidence_upload = client.post(
         f"/api/v1/experiments/{run_id}/files",
         headers=headers,
@@ -882,16 +915,7 @@ def test_scientific_revision_measurement_and_query_chain(
         files={"file": ("optical.png", b"raw optical evidence", "image/png")},
     )
     assert evidence_upload.status_code == 201, evidence_upload.text
-    db_session.expire_all()
-    provenance = (
-        db_session.query(RunFeature)
-        .filter_by(
-            run_revision_id=UUID(revision_1),
-            feature_code="provenance_complete",
-            ordinal=0,
-        )
-        .one()
-    )
+    db_session.refresh(provenance)
     assert provenance.boolean_value is True
     deleted_evidence = client.delete(
         f"/api/v1/files/{evidence_upload.json()['id']}",
@@ -899,7 +923,7 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert deleted_evidence.status_code == 204
     db_session.refresh(provenance)
-    assert provenance.boolean_value is False
+    assert provenance.boolean_value is True
     replacement_evidence = client.post(
         f"/api/v1/experiments/{run_id}/files",
         headers=headers,
@@ -1036,6 +1060,8 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert export_json["scientific_record"]["measurements"][0]["properties"][0] == {
         "id": export_json["scientific_record"]["measurements"][0]["properties"][0]["id"],
+        "measurement_run_id": measurement.json()["id"],
+        "sample_id": sample["id"],
         "analysis_run_id": None,
         "property_code": "coverage_percent",
         "numeric_value": 0.0,
@@ -1048,6 +1074,14 @@ def test_scientific_revision_measurement_and_query_chain(
         "sample_count": None,
         "quality_flag": "valid",
     }
+    revision_1_file_ids = {item["id"] for item in export_json["scientific_record"]["files"]}
+    assert {
+        temperature_upload.json()["id"],
+        pressure_upload.json()["id"],
+        event_attachment.json()["id"],
+    } <= revision_1_file_ids
+    assert orphan_timeseries.json()["id"] not in revision_1_file_ids
+    assert orphan_attachment.json()["id"] not in revision_1_file_ids
 
     contradictory = client.post(
         "/api/v1/measurements",
@@ -1131,6 +1165,10 @@ def test_scientific_revision_measurement_and_query_chain(
     assert review.status_code == 200, review.text
     assert review.json()["status"] == "reviewed"
 
+    run_model = db_session.get(ExperimentRun, UUID(run_id))
+    assert run_model is not None
+    run_model.result_missing_todo = True
+    db_session.commit()
     correction = client.post(
         f"/api/v1/experiments/{run_id}/correction-drafts",
         json={"reason": "correct target note"},
@@ -1138,6 +1176,7 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert correction.status_code == 200, correction.text
     assert correction.json()["status"] == "draft"
+    assert correction.json()["result_missing_todo"] is False
     corrected_process = client.get(
         f"/api/v1/experiments/{run_id}/modules/process_steps",
         headers=headers,
@@ -1207,6 +1246,26 @@ def test_scientific_revision_measurement_and_query_chain(
     )
     assert current_revision_query.status_code == 200
     assert current_revision_query.json()["items"] == []
+
+    old_export = client.get(
+        f"/api/v1/experiments/{run_id}/export?revision_id={revision_1}",
+        headers=headers,
+    )
+    current_export = client.get(
+        f"/api/v1/experiments/{run_id}/export?revision_id={revision_2}",
+        headers=headers,
+    )
+    assert old_export.status_code == current_export.status_code == 200
+    old_file_ids = {item["id"] for item in old_export.json()["scientific_record"]["files"]}
+    current_file_ids = {item["id"] for item in current_export.json()["scientific_record"]["files"]}
+    assert {
+        temperature_upload.json()["id"],
+        pressure_upload.json()["id"],
+        event_attachment.json()["id"],
+    } <= old_file_ids
+    assert pressure_upload.json()["id"] in current_file_ids
+    assert temperature_upload.json()["id"] not in current_file_ids
+    assert event_attachment.json()["id"] not in current_file_ids
 
     old_revision = db_session.get(RunRevision, UUID(revision_1))
     assert old_revision is not None
@@ -1506,6 +1565,11 @@ def test_product_golden_workflows(active_user, admin_user, db_session) -> None:
                     "sample_id": sample_id,
                     "method_profile": "optical_microscopy",
                     "measured_at": f"2026-07-{index + 20:02d}T12:00:00+08:00",
+                    "sample_region": {
+                        "geometry_type": "whole_sample",
+                        "label": "whole sample",
+                        "coordinate_system": "sample_local",
+                    },
                     "typed_conditions": {},
                 },
                 "assertions": [
