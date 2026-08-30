@@ -2,8 +2,8 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `86e41677ff0b5f166008c7d98a290a3e121dfeb7`。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-08-07 发布前本地后端 350 passed、4 skipped，前端 401/401（58 files），格式、类型、构建、字段源与生成物检查全绿。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `ec8b7b4f3783840a2a808df2a02212f9c46c151f`。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-08-31 发布前本地后端 404 passed、4 skipped，前端 388/388（58 files），格式、类型、构建、字段源与生成物检查全绿；服务器隔离 PostgreSQL 验收 29 passed。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
 - 用户指定的管理员账号已创建，API 登录与身份读取通过；真实浏览器留给用户在线逐项复核。
@@ -103,6 +103,11 @@
 
 - 2026-08-29 16:11 CST，经用户明确授权发布 `86e4167` / v4.0-alpha.18。普通 `./deploy.sh` 先完成数据库与附件备份，目录为 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260829_161129`，再构建并重建 backend/frontend；未清理生产数据，未连接或修改 v1 离线归档库。
 - 新增迁移已前滚到 `20260813_0011 (head)`；backend/frontend 均为 running + healthy。公网 `/health` 返回正常，首页与 `runtime-config.js` 返回 200，匿名 `/api/v1/auth/me` 保持 401。发布前本地后端 317 passed、4 skipped，前端 320/320（55 files），字段源/xlsx、Ruff、格式、ESLint、TypeScript 与构建全部通过。
+
+- 2026-08-31 01:32 CST 发布 `ec8b7b4` / v4.0-alpha.19。普通 `./deploy.sh` 从服务器上的 `3cfbe84` 快进，先自动备份数据库与附件到 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260831_013208`，再构建并重建 backend/frontend；未清理生产数据，未连接或修改 v1 离线归档库。
+- 备份目录权限为 `0700`，两个归档权限为 `0600`；`database.sql` 为 160065 bytes，SHA-256 `48be576bff941554422d5690a2ad65d0f506baf66daf9f67e386fd62a2e716b5`；`storage.tar.gz` 为 82 bytes，SHA-256 `14820862ef67b77133dd32b8d8e01bee89ad7fc38378c8e3cb3b70b93e65291e`，归档可读。
+- 本地后端 404 passed、4 skipped，前端 388/388（58 files）；发布前以独立容器、网络和 worktree 在服务器 PostgreSQL 18.6 上执行表征关键路径 29 passed，临时资源已清理。独立终审 P0/P1/P2 = 0。
+- 没有新增数据库迁移，生产 Alembic 保持 `20260813_0011 (head)`；服务器工作树干净，backend/frontend 均为 running + healthy，backend 日志无 ERROR/Traceback/FATAL。内网与公网 `/health` 返回正常，首页与 `runtime-config.js` 返回 200，匿名 `/api/v1/auth/me` 保持 401。
 
 ## 尚待真实数据验收
 
