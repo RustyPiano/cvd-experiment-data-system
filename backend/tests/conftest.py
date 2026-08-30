@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import close_all_sessions
 from sqlalchemy.pool import StaticPool
@@ -16,7 +16,6 @@ from sqlalchemy.pool import StaticPool
 from alembic import command
 
 os.environ.setdefault("APP_NAME", "CVD Backend")
-os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("APP_DEBUG", "false")
 os.environ.setdefault("APP_HOST", "127.0.0.1")
 os.environ.setdefault("APP_PORT", "8000")
@@ -25,6 +24,8 @@ os.environ.setdefault(
     f"sqlite+pysqlite:///{Path(tempfile.gettempdir()) / 'cvd-backend-bootstrap.sqlite3'}",
 )
 TEST_DATABASE_URL = os.environ["DATABASE_URL"]
+if make_url(TEST_DATABASE_URL).get_backend_name() != "postgresql":
+    os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault(
     "FILE_STORAGE_ROOT",
     str(Path(tempfile.gettempdir()) / "cvd-backend-bootstrap-storage"),
@@ -43,6 +44,21 @@ TEST_PASSWORD_HASH = (
     "$argon2id$v=19$m=65536,t=3,p=4$TWrbwEsT0E6yxRKeErfQKg"
     "$/GrvltHsaQGPlsoqDqjROWNT7N+Gf4XiqVj22bbfWEk"
 )
+
+
+def _assert_safe_postgresql_test_database(database_url: str) -> None:
+    url = make_url(database_url)
+    database_name = (url.database or "").lower().replace("-", "_")
+    if (
+        os.environ.get("ALLOW_POSTGRES_TEST_RESET") != "1"
+        or os.environ.get("APP_ENV") != "test"
+        or url.get_backend_name() != "postgresql"
+        or not (database_name == "cvd_test" or database_name.startswith("cvd_test_"))
+    ):
+        raise RuntimeError(
+            "PostgreSQL test reset requires ALLOW_POSTGRES_TEST_RESET=1, "
+            "APP_ENV=test, and a database named cvd_test or cvd_test_*"
+        )
 
 
 def _configure_test_engine(database_url: str):
@@ -99,14 +115,17 @@ def migrated_database_template_path(tmp_path_factory: pytest.TempPathFactory) ->
 @pytest.fixture(autouse=True)
 def setup_database(migrated_database_template_path: Path | None) -> None:
     if migrated_database_template_path is None:
+        _assert_safe_postgresql_test_database(TEST_DATABASE_URL)
         close_all_sessions()
         db_session_module.engine.dispose()
         os.environ["DATABASE_URL"] = TEST_DATABASE_URL
         get_settings.cache_clear()
         _configure_test_engine(TEST_DATABASE_URL)
+        with db_session_module.engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
         alembic_config = Config(str(ALEMBIC_INI_PATH))
         alembic_config.set_main_option("script_location", str(ALEMBIC_SCRIPT_PATH))
-        command.downgrade(alembic_config, "base")
         command.upgrade(alembic_config, "head")
         yield
         close_all_sessions()

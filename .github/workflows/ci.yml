@@ -73,6 +73,7 @@ jobs:
     env:
       APP_NAME: CVD Backend
       APP_ENV: test
+      ALLOW_POSTGRES_TEST_RESET: "1"
       APP_DEBUG: "false"
       APP_HOST: 127.0.0.1
       APP_PORT: "8000"
