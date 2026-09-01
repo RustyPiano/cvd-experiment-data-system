@@ -2,8 +2,8 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `ec8b7b4f3783840a2a808df2a02212f9c46c151f`。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-08-31 发布前本地后端 404 passed、4 skipped，前端 388/388（58 files），格式、类型、构建、字段源与生成物检查全绿；服务器隔离 PostgreSQL 验收 29 passed。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `b8d9f4828b89fcff787814d9b7366765d151cf44`。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-09-01 发布前本地后端 405 passed、4 skipped，前端 395/395（58 files），格式、类型、构建、字段源与生成物检查全绿。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
 - 用户指定的管理员账号已创建，API 登录与身份读取通过；真实浏览器留给用户在线逐项复核。
@@ -108,6 +108,10 @@
 - 备份目录权限为 `0700`，两个归档权限为 `0600`；`database.sql` 为 160065 bytes，SHA-256 `48be576bff941554422d5690a2ad65d0f506baf66daf9f67e386fd62a2e716b5`；`storage.tar.gz` 为 82 bytes，SHA-256 `14820862ef67b77133dd32b8d8e01bee89ad7fc38378c8e3cb3b70b93e65291e`，归档可读。
 - 本地后端 404 passed、4 skipped，前端 388/388（58 files）；发布前以独立容器、网络和 worktree 在服务器 PostgreSQL 18.6 上执行表征关键路径 29 passed，临时资源已清理。独立终审 P0/P1/P2 = 0。
 - 没有新增数据库迁移，生产 Alembic 保持 `20260813_0011 (head)`；服务器工作树干净，backend/frontend 均为 running + healthy，backend 日志无 ERROR/Traceback/FATAL。内网与公网 `/health` 返回正常，首页与 `runtime-config.js` 返回 200，匿名 `/api/v1/auth/me` 保持 401。
+
+- 2026-09-01 22:06 CST 发布 `b8d9f48` / v4.0-alpha.21。普通 `./deploy.sh` 从 `ec8b7b4` 快进，先自动备份数据库与附件到 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260901_220651`，再构建并重建 backend/frontend；未清理生产数据，未连接或修改 v1 离线归档库。
+- 备份目录权限为 `0700`，三个备份文件权限为 `0600`；`database.sql` 为 170003 bytes，SHA-256 `8b8e21e4cd04415b9816ded1c0c74eee87b99a3dd3a562dfe1d769b0e5a2d826`；`storage.tar.gz` 为 82 bytes，SHA-256 `6351f025e0fe1b7ce22e51f0dae4297bc9a8de34b0afa6810463a51a370ccce6`，双哈希与归档可读性验证通过。
+- 没有新增数据库迁移，生产 Alembic 保持 `20260813_0011 (head)`；服务器分支为 `codex/product-simplification-v1` 且工作树干净，backend/frontend 均为 running + healthy，backend 近 10 分钟日志无 ERROR/Traceback/FATAL。生产后端读取 v4.0-alpha.21，静态产物包含“附件备注”；公网 `/health`、首页与 `runtime-config.js` 正常，匿名 `/api/v1/auth/me` 保持 401。
 
 ## 尚待真实数据验收
 
