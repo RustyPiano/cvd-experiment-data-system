@@ -93,6 +93,11 @@ SUBSTRATE_FORMULAS = {
     "au_foil": {"Au"},
     "h-BN": {"BN"},
 }
+MICA_FORMULAS = {
+    "muscovite": "KAl2(AlSi3O10)(OH)2",
+    "phlogopite": "KMg3(AlSi3O10)(OH)2",
+    "fluorophlogopite": "KMg3(AlSi3O10)F2",
+}
 
 
 class V2EntityService:
@@ -368,6 +373,12 @@ class V2EntityService:
         if kind == "material_lot" and data.get("lot_category") == "substrate":
             expected = SUBSTRATE_FORMULAS.get(data.get("substrate_material"))
             if expected is not None and data.get("chemical_formula") not in expected:
+                self._raise_invalid("chemical_formula", "identity")
+            mica_formula = MICA_FORMULAS.get(data.get("mica_type"))
+            if (
+                data.get("substrate_material") == "mica"
+                and data.get("chemical_formula") != mica_formula
+            ):
                 self._raise_invalid("chemical_formula", "identity")
         self._validate_normalized_children(kind, data)
         if kind == "material_lot":

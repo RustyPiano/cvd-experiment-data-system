@@ -48,6 +48,8 @@ export const common = {
       'Select a sensor category for each zone 1–{{count}}. Any entered nominal accuracy must be non-negative.',
     gasComposition:
       'Enter unique gas components whose volume fractions total 100 vol%.',
+    instrumentCapabilities:
+      'Select at least one characterization method supported by this instrument.',
     substrateFormulaMismatch:
       'The formula does not match the selected substrate material. Check the lot label.',
     usageHistory:

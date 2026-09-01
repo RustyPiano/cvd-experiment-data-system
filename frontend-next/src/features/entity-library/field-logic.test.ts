@@ -5,6 +5,7 @@ import {
   SYSTEM_FIELD_KEYS,
   buildDefaultValues,
   buildSubmitPayload,
+  getDisplayEntityFields,
   getEntityFields,
   isEffectivelyRequired,
   isFieldVisible,
@@ -71,6 +72,20 @@ describe('parseEnumOptions', () => {
     expect(isOtherOptionMarker('其他')).toBe(true)
     expect(isOtherOptionMarker('CVD')).toBe(false)
     expect(isNoneOption('无')).toBe(true)
+  })
+})
+
+describe('getDisplayEntityFields', () => {
+  it('keeps a custom substrate formula beside its material selector', () => {
+    const fields = getDisplayEntityFields('material_lot', {
+      lot_category: 'substrate',
+      substrate_material: 'other',
+    })
+    const materialIndex = fields.findIndex(
+      (item) => item.key === 'substrate_material',
+    )
+
+    expect(fields[materialIndex + 1]?.key).toBe('chemical_formula')
   })
 })
 
@@ -295,8 +310,9 @@ describe('effective required-ness', () => {
 })
 
 describe('material lot substrate formula', () => {
-  it('hides generated identity fields and asks only when the formula is unknown', () => {
+  it('hides generated identity fields and asks for the mica type instead', () => {
     const formula = field('material_lot', 'chemical_formula')
+    const micaType = field('material_lot', 'mica_type')
     const name = field('material_lot', 'substance_name')
 
     expect(
@@ -313,6 +329,12 @@ describe('material lot substrate formula', () => {
     ).toBe(false)
     expect(
       isFieldVisible('material_lot', formula, {
+        lot_category: 'substrate',
+        substrate_material: 'mica',
+      }),
+    ).toBe(false)
+    expect(
+      isFieldVisible('material_lot', micaType, {
         lot_category: 'substrate',
         substrate_material: 'mica',
       }),
@@ -376,6 +398,21 @@ describe('buildSubmitPayload', () => {
     expect(payload.chemical_formula).toBe('SiO2')
     expect(payload.substrate_material).toBe('sio2_si')
     expect(payload).not.toHaveProperty('gas_purity_grade')
+  })
+
+  it('derives the ideal formula from the selected mica type', () => {
+    expect(
+      buildSubmitPayload('material_lot', {
+        lot_category: 'substrate',
+        substrate_material: 'mica',
+        mica_type: 'fluorophlogopite',
+      }),
+    ).toMatchObject({
+      substance_name: '云母',
+      chemical_formula: 'KMg3(AlSi3O10)F2',
+      substrate_material: 'mica',
+      mica_type: 'fluorophlogopite',
+    })
   })
 
   it('preserves multi-select values as canonical arrays across edit and submit', () => {

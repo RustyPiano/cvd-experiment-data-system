@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nextProvider } from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
@@ -18,6 +18,7 @@ import {
 } from './simple-preparation-editors'
 import type {
   SimpleProcessSettings,
+  SimpleProcessEvent,
   SimpleSourceLoad,
   SimpleTarget,
 } from './simple-preparation-editors'
@@ -902,6 +903,47 @@ describe('simple substrate validation', () => {
 })
 
 describe('simple growth preparation editing', () => {
+  it('要求显式确认本炉是否异常', async () => {
+    const user = userEvent.setup()
+    function Wrapper() {
+      const [confirmed, setConfirmed] = useState<boolean | null>(null)
+      const [events, setEvents] = useState<SimpleProcessEvent[]>([])
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleGrowthEditor
+            segments={[]}
+            channels={[]}
+            settings={{
+              pressure_regime: 'atmospheric',
+              cooling_method: 'furnace_cooling',
+            }}
+            events={events}
+            processEventsConfirmed={confirmed}
+            runId="run-1"
+            token="token"
+            setupId="setup-1"
+            setupSnapshot={{}}
+            zoneCount={0}
+            disabled={false}
+            onTimelineChange={vi.fn()}
+            onSettingsChange={vi.fn()}
+            onEventsChange={setEvents}
+            onProcessEventsConfirmedChange={setConfirmed}
+          />
+          <output data-testid="anomaly-state">{String(confirmed)}</output>
+        </I18nextProvider>
+      )
+    }
+    render(<Wrapper />)
+
+    const section = screen.getByText('本炉是否发生异常').parentElement!
+    expect(within(section).getByRole('combobox')).toHaveTextContent('请选择')
+    await user.click(within(section).getByRole('combobox'))
+    await user.click(screen.getByRole('option', { name: '否' }))
+
+    expect(screen.getByTestId('anomaly-state')).toHaveTextContent('false')
+  })
+
   it('references one premixed cylinder instead of repeating its composition', async () => {
     const user = userEvent.setup()
     const initial: SimpleProcessSettings = {

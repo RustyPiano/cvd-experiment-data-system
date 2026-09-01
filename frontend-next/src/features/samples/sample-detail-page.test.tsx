@@ -8,9 +8,18 @@ import { SampleDetailPage } from './sample-detail-page'
 const measurementApi = vi.hoisted(() => ({ listAllMeasurements: vi.fn() }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children }: { children: React.ReactNode }) => (
-    <a href="#test">{children}</a>
-  ),
+  Link: ({
+    children,
+    to,
+    search,
+  }: {
+    children: React.ReactNode
+    to: string
+    search?: Record<string, string>
+  }) => {
+    const query = new URLSearchParams(search).toString()
+    return <a href={`${to}${query ? `?${query}` : ''}`}>{children}</a>
+  },
   getRouteApi: () => ({ useParams: () => ({ sampleId: 'sample-1' }) }),
 }))
 vi.mock('@/features/auth/use-auth', () => ({
@@ -148,6 +157,12 @@ describe('sample detail product view', () => {
     expect(screen.getByText('已有表征记录')).toBeInTheDocument()
     expect(screen.getByText('Raman')).toBeInTheDocument()
     expect(screen.getByText('边缘有少量沉积')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: '补录或查看表征' }),
+    ).toHaveAttribute(
+      'href',
+      '/characterizations?runId=run-1&sampleId=sample-1',
+    )
   })
 
   it('does not expose lineage, transformations, revision ids, or schema data', () => {

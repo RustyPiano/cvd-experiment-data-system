@@ -116,6 +116,7 @@ def test_process_event_uses_unique_controlled_values() -> None:
 def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> None:
     timeline = ProcessTimelinePayload.model_validate(
         {
+            "process_events_confirmed": False,
             "segments": [
                 {
                     "segment_key": "growth",
@@ -187,6 +188,7 @@ def test_process_channels_distinguish_physical_instances_and_normalize_gas() -> 
             "cooling_method": "furnace_cooling",
         }
     )
+    assert timeline.process_events_confirmed is False
     assert [item.gas_species_code for item in timeline.channels[2:4]] == ["Ar", "Ar"]
 
 

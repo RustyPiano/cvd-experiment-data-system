@@ -377,7 +377,7 @@ export function EntityDetailPage({
               </AlertDescription>
             </Alert>
           ) : null}
-          <div className="-mx-6 max-h-[65vh] overflow-y-auto px-6 py-2">
+          <div className="-mx-6 max-h-[65vh] overflow-y-auto px-6 pt-4 pb-2">
             {editOpen ? (
               <EntityForm
                 kind={kind}

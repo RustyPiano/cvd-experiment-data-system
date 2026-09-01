@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { getExperiment, getSample } from './api'
@@ -199,12 +199,26 @@ export function SampleDetailPage() {
         title={sample.sample_code}
         subtitle="样品信息与已有表征结论"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/samples">
-              <ArrowLeft />
-              返回样品列表
-            </Link>
-          </Button>
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/samples">
+                <ArrowLeft />
+                返回样品列表
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link
+                to="/characterizations"
+                search={{
+                  runId: sample.experiment_run_id,
+                  sampleId: sample.id,
+                }}
+              >
+                补录或查看表征
+                <ArrowRight />
+              </Link>
+            </Button>
+          </>
         }
       />
 

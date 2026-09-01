@@ -13,8 +13,8 @@ describe('generated field metadata', () => {
       'process_steps',
       'process_events',
     ])
-    expect(Object.values(experimentModules).flat()).toHaveLength(85)
-    expect(Object.values(entities).flat()).toHaveLength(47)
+    expect(Object.values(experimentModules).flat()).toHaveLength(86)
+    expect(Object.values(entities).flat()).toHaveLength(48)
   })
 
   it('publishes the current substrate and gas-cylinder fields', () => {

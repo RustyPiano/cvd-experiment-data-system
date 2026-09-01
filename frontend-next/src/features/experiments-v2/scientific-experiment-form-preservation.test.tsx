@@ -34,6 +34,20 @@ vi.mock('./simple-form-adapters', async (importOriginal) => ({
 }))
 vi.mock('./simple-preparation-editors', async (importOriginal) => ({
   ...(await importOriginal()),
+  SimpleSourceLoadsEditor: ({
+    showErrors,
+    onChange,
+  }: {
+    showErrors: boolean
+    onChange: (value: unknown[]) => void
+  }) => (
+    <div>
+      {showErrors ? <span>前驱体错误已显示</span> : null}
+      <button type="button" onClick={() => onChange([])}>
+        修改前驱体
+      </button>
+    </div>
+  ),
   SimpleGrowthEditor: ({
     segments,
     channels,
@@ -97,6 +111,7 @@ describe('scientific process payload preservation', () => {
       ],
       pressure_regime: 'atmospheric',
       cooling_method: 'furnace_cooling',
+      process_events_confirmed: false,
       preparation_operations: [],
       reaction_timer_origin: 'other',
       reaction_timer_origin_other: '打开硫源阀门',
@@ -149,11 +164,47 @@ describe('scientific process payload preservation', () => {
     const savedPayload = api.upsertModule.mock.calls[0]?.[2]
     expect(savedPayload).toMatchObject({
       segments,
+      process_events_confirmed: false,
       reaction_timer_origin: 'other',
       reaction_timer_origin_other: '打开硫源阀门',
       post_reaction_operations: postReactionOperations,
       external_fields: externalFields,
       field_params: fieldParams,
     })
+  })
+
+  it('编辑前驱体后立即清除旧错误', async () => {
+    const user = userEvent.setup()
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ScientificExperimentForm
+          mode="edit"
+          runId="run-1"
+          runCode="CVD-2026-0001"
+          runStatus="draft"
+          initialState={{
+            equipment: {
+              setupId: '',
+              version: null,
+              snapshot: null,
+              tubeUsageHistory: '',
+            },
+            substrates: [],
+          }}
+          focusModule="precursors"
+        />
+      </QueryClientProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '修改前驱体' }))
+    await user.click(screen.getByRole('button', { name: '仅保存' }))
+    expect(screen.getByText('前驱体错误已显示')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '修改前驱体' }))
+    expect(screen.queryByText('前驱体错误已显示')).not.toBeInTheDocument()
   })
 })

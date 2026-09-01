@@ -236,6 +236,9 @@ type ProcessEvent = {
   description?: string
   attachment_file_ids: string[]
 }
+type ProcessEventsPayload = {
+  items: ProcessEvent[]
+}
 type AmbientSource =
   | 'room_sensor'
   | 'setup_sensor'
@@ -996,12 +999,23 @@ export function ScientificExperimentForm({
       }
     },
   )
-  const [events, setEvents] = useState<ProcessEvent[]>(
-    () =>
-      modulePayload<{ items: ProcessEvent[] }>(modules, 'process_events', {
-        items: [],
-      }).items,
+  const [initialEventsPayload] = useState(() =>
+    modulePayload<ProcessEventsPayload>(modules, 'process_events', {
+      items: [],
+    }),
   )
+  const [events, setEvents] = useState<ProcessEvent[]>(
+    () => initialEventsPayload.items,
+  )
+  const [processEventsConfirmed, setProcessEventsConfirmed] = useState<
+    boolean | null
+  >(() => {
+    const savedConfirmation = initialProcessPayload['process_events_confirmed']
+    if (typeof savedConfirmation === 'boolean') return savedConfirmation
+    return modules?.process_events
+      ? initialEventsPayload.items.length > 0
+      : null
+  })
   const [substrates, setSubstrates] = useState(initialState.substrates)
   const [equipment, setEquipment] = useState(initialState.equipment)
   const [basicInfo, setBasicInfo] = useState<BasicInfo>(() =>
@@ -1244,6 +1258,11 @@ export function ScientificExperimentForm({
       channel.data_kind === 'timeseries_file',
   )
   const processTimelineIssue =
+    (processEventsConfirmed === null
+      ? '请明确选择本炉是否发生异常。'
+      : processEventsConfirmed && events.length === 0
+        ? '请至少添加一条异常事件。'
+        : null) ??
     simpleGrowthIssue(
       segments,
       channels,
@@ -1332,6 +1351,7 @@ export function ScientificExperimentForm({
       return {
         segments,
         channels,
+        process_events_confirmed: processEventsConfirmed,
         ...processSettings,
         ...preservedProcessFields,
       }
@@ -1772,7 +1792,6 @@ export function ScientificExperimentForm({
                     </Label>
                     <EntityReferenceSelect
                       kind="setup"
-                      productLabel
                       value={equipment.setupId}
                       selectedVersion={equipment.version}
                       selectedSnapshot={equipment.snapshot}
@@ -1912,6 +1931,7 @@ export function ScientificExperimentForm({
               showErrors={Boolean(errors.precursors)}
               onChange={(value) => {
                 setLoads(value)
+                setErrors((current) => ({ ...current, precursors: '' }))
                 markDirty('precursors')
               }}
             />
@@ -1923,6 +1943,7 @@ export function ScientificExperimentForm({
               channels={channels}
               settings={processSettings}
               events={events}
+              processEventsConfirmed={processEventsConfirmed}
               runId={runId ?? ''}
               token={token}
               setupId={equipment.setupId}
@@ -1944,7 +1965,21 @@ export function ScientificExperimentForm({
               }}
               onEventsChange={(value) => {
                 setEvents(value)
+                setErrors((current) => ({
+                  ...current,
+                  process_steps: '',
+                  process_events: '',
+                }))
                 markDirty('process_events')
+                markDirty('process_steps')
+              }}
+              onProcessEventsConfirmedChange={(value) => {
+                setProcessEventsConfirmed(value)
+                setErrors((current) => ({
+                  ...current,
+                  process_steps: '',
+                  process_events: '',
+                }))
                 markDirty('process_steps')
               }}
             />
@@ -2000,7 +2035,14 @@ export function ScientificExperimentForm({
                       processSettings.pressure_regime ?? ''
                     ] ?? '待填写',
                   ],
-                  ['异常情况', events.length ? '有异常记录' : '无异常'],
+                  [
+                    '异常情况',
+                    processEventsConfirmed === null
+                      ? '未确认'
+                      : events.length
+                        ? '有异常记录'
+                        : '已确认无异常',
+                  ],
                 ].map(([label, value]) => (
                   <div key={label} className="grid gap-1 rounded-lg border p-3">
                     <span className="text-xs text-muted-foreground">
@@ -2056,7 +2098,7 @@ export function ScientificExperimentForm({
                       onClick={() =>
                         navigate({
                           to: '/characterizations',
-                          search: { runId },
+                          search: { runId, sampleId: undefined },
                         })
                       }
                     >

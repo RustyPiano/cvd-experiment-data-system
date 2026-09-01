@@ -481,7 +481,7 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.19"
+    assert schema["version"] == "v4.0-alpha.21"
     assert schema["status"] == "INTERNAL_VALIDATION"
     assert "pvd" not in schema["modules"]
     for model in [*schema["modules"].values(), *schema["result_models"].values()]:

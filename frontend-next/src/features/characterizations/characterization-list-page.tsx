@@ -60,7 +60,13 @@ function matchesQuery(
   ].some((value) => value?.toLowerCase().includes(needle))
 }
 
-export function CharacterizationListPage({ runId }: { runId?: string }) {
+export function CharacterizationListPage({
+  runId,
+  sampleId,
+}: {
+  runId?: string
+  sampleId?: string
+}) {
   const { t, i18n } = useTranslation()
   const { session } = useAuth()
   const [query, setQuery] = useState('')
@@ -136,7 +142,9 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
             }
           >
             <ScientificMeasurementWorkspace
+              key={`${runId}:${sampleId ?? ''}`}
               runId={runId}
+              initialSampleId={sampleId}
               token={session.accessToken!}
               readOnly={!canAddMeasurement}
             />
@@ -327,7 +335,10 @@ export function CharacterizationListPage({ runId }: { runId?: string }) {
                           <Button variant="outline" size="sm" asChild>
                             <Link
                               to="/characterizations"
-                              search={{ runId: sample.experiment_run_id }}
+                              search={{
+                                runId: sample.experiment_run_id,
+                                sampleId: sample.id,
+                              }}
                             >
                               {t('characterizations.list.openResults')}
                             </Link>

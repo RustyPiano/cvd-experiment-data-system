@@ -931,6 +931,7 @@ class ProcessTimelinePayload(BaseModel):
 
     segments: list[ProcessSegmentPayload] = Field(default_factory=list)
     channels: list[ProcessChannelPayload] = Field(min_length=1)
+    process_events_confirmed: bool | None = None
     pressure_regime: Literal["atmospheric", "low_pressure", "ultra_high_vacuum", "other"]
     cooling_method: Literal[
         "furnace_cooling",

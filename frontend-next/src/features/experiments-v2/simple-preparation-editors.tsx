@@ -2922,6 +2922,7 @@ export function SimpleGrowthEditor({
   channels,
   settings,
   events,
+  processEventsConfirmed,
   runId,
   token,
   setupId,
@@ -2933,11 +2934,13 @@ export function SimpleGrowthEditor({
   onTimelineChange,
   onSettingsChange,
   onEventsChange,
+  onProcessEventsConfirmedChange,
 }: {
   segments: SimpleSegment[]
   channels: SimpleChannel[]
   settings: SimpleProcessSettings
   events: SimpleProcessEvent[]
+  processEventsConfirmed?: boolean | null
   runId: string
   token: string
   setupId: string
@@ -2952,6 +2955,7 @@ export function SimpleGrowthEditor({
   ) => void
   onSettingsChange: (settings: SimpleProcessSettings) => void
   onEventsChange: (events: SimpleProcessEvent[]) => void
+  onProcessEventsConfirmedChange?: (confirmed: boolean) => void
 }) {
   const { t } = useTranslation()
   const preparationOperations = settings.preparation_operations ?? []
@@ -4279,9 +4283,16 @@ export function SimpleGrowthEditor({
         <section className="flex flex-col gap-4">
           <Label>本炉是否发生异常</Label>
           <Select
-            value={events.length > 0 ? 'yes' : 'no'}
+            value={
+              processEventsConfirmed === true
+                ? 'yes'
+                : processEventsConfirmed === false
+                  ? 'no'
+                  : ''
+            }
             disabled={disabled}
-            onValueChange={(value) =>
+            onValueChange={(value) => {
+              onProcessEventsConfirmedChange?.(value === 'yes')
               onEventsChange(
                 value === 'yes'
                   ? events.length > 0
@@ -4289,10 +4300,10 @@ export function SimpleGrowthEditor({
                     : [newProcessEvent()]
                   : [],
               )
-            }
+            }}
           >
             <SelectTrigger className="w-full sm:max-w-xs">
-              <SelectValue />
+              <SelectValue placeholder="请选择" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>

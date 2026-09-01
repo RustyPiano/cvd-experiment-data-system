@@ -48,6 +48,11 @@ const SUBSTRATE_SURFACE_FORMULAS: Record<string, string> = {
   au_foil: 'Au',
   'h-BN': 'BN',
 }
+const MICA_FORMULAS: Record<string, string> = {
+  muscovite: 'KAl2(AlSi3O10)(OH)2',
+  phlogopite: 'KMg3(AlSi3O10)(OH)2',
+  fluorophlogopite: 'KMg3(AlSi3O10)F2',
+}
 const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉'
 
 function substrateMaterial(values: EntityFormValues): string {
@@ -58,7 +63,10 @@ function substrateMaterial(values: EntityFormValues): string {
 }
 
 function substrateSurfaceFormula(values: EntityFormValues): string {
-  return SUBSTRATE_SURFACE_FORMULAS[substrateMaterial(values)] ?? ''
+  const material = substrateMaterial(values)
+  return material === 'mica'
+    ? (MICA_FORMULAS[canonicalOption(String(values['mica_type'] ?? ''))] ?? '')
+    : (SUBSTRATE_SURFACE_FORMULAS[material] ?? '')
 }
 
 export function materialLotFormulaIsCompatible(
@@ -112,6 +120,27 @@ export function parseEntityJsonArray<T>(
 /** 该实体的「可编辑」注册字段（剔除系统托管字段）。 */
 export function getEntityFields(kind: EntityKind): FieldMetadata[] {
   return entities[kind].filter((field) => !SYSTEM_FIELD_KEYS.has(field.key))
+}
+
+/** 自定义衬底的化学式跟随材料填写，其他类别仍保持单一源顺序。 */
+export function getDisplayEntityFields(
+  kind: EntityKind,
+  values: EntityFormValues,
+): FieldMetadata[] {
+  const fields = getEntityFields(kind)
+  if (
+    kind !== 'material_lot' ||
+    canonicalOption(String(values['lot_category'] ?? '')) !== 'substrate'
+  ) {
+    return fields
+  }
+  const formula = fields.find((field) => field.key === 'chemical_formula')
+  if (!formula || !isFieldVisible(kind, formula, values)) return fields
+  return fields
+    .filter((field) => field !== formula)
+    .flatMap((field) =>
+      field.key === 'substrate_material' ? [field, formula] : [field],
+    )
 }
 
 /** 只由字段声明的 input 形态决定是否解析枚举。 */
@@ -258,6 +287,8 @@ export function isFieldVisible(
   field: FieldMetadata,
   values: EntityFormValues,
 ): boolean {
+  if (kind === 'instrument' && field.key === 'name_type') return false
+
   const subcategory = parseSubcategory(field.labelZh)
   if (subcategory) {
     const driverKey = findCategoryDriverKey(kind, subcategory)
@@ -288,7 +319,9 @@ export function isFieldVisible(
     if (field.key === 'substance_name') return false
     if (field.key === 'chemical_formula') {
       return Boolean(
-        substrateMaterial(values) && !substrateSurfaceFormula(values),
+        substrateMaterial(values) !== 'mica' &&
+        substrateMaterial(values) &&
+        !substrateSurfaceFormula(values),
       )
     }
   }
@@ -434,7 +467,7 @@ export function buildSubmitPayload(
       if (isEntityFileInput(field.input)) {
         payload[field.key] = entityFilePayload(normalized, field.key)
       } else if (isEntityJsonArrayField(field.key)) {
-        const array = JSON.parse(normalized) as unknown[]
+        const array = parseEntityJsonArray(normalized)
         payload[field.key] =
           field.key === 'temperature_sensors' && zoneCount != null
             ? reconcileTemperatureSensors(
@@ -477,6 +510,21 @@ export function buildSubmitPayload(
     if (material) payload.substance_name = optionLabelsZh[material] ?? material
     const formula = substrateSurfaceFormula(values)
     if (formula) payload.chemical_formula = formula
+  }
+  if (kind === 'instrument') {
+    const capabilities = parseEntityJsonArray<{ code?: unknown }>(
+      values['capabilities'],
+    )
+    const existing = canonicalFieldOption(
+      'name_type',
+      String(values['name_type'] ?? ''),
+    )
+    const nameType = capabilities.some(
+      (capability) => capability.code === existing,
+    )
+      ? existing
+      : String(capabilities[0]?.code ?? '')
+    if (nameType) payload.name_type = nameType
   }
   return payload
 }

@@ -861,10 +861,12 @@ function ResultInput({
 
 export function SimpleCharacterizationWorkspace({
   runId,
+  initialSampleId,
   token,
   readOnly,
 }: {
   runId: string
+  initialSampleId?: string
   token: string
   readOnly: boolean
 }) {
@@ -885,7 +887,7 @@ export function SimpleCharacterizationWorkspace({
     queryFn: () => listAllMeasurements(token, { runId }),
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [sampleId, setSampleId] = useState('')
+  const [sampleId, setSampleId] = useState(initialSampleId ?? '')
   const [method, setMethod] = useState('')
   const [instrumentId, setInstrumentId] = useState('')
   const [instrumentVersion, setInstrumentVersion] = useState<number | null>(

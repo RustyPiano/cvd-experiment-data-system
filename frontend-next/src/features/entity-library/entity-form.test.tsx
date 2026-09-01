@@ -322,6 +322,41 @@ describe('EntityForm — multi-select values', () => {
       field_devices: ['light', 'electric_field'],
     })
   })
+
+  it('selects instrument capabilities without asking for JSON', async () => {
+    const onSubmit = vi.fn()
+    renderForm({
+      kind: 'instrument',
+      onSubmit,
+      defaultData: {
+        instrument_code: 'RAMAN-1',
+      },
+    })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Raman' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].capabilities).toEqual([
+      { code: 'Raman', configuration: {} },
+    ])
+    expect(onSubmit.mock.calls[0][0].name_type).toBe('Raman')
+    expect(screen.queryByRole('combobox', { name: /表征方法/ })).toBeNull()
+  })
+
+  it('uses native date inputs for exact dates', () => {
+    const { unmount } = renderForm({
+      defaultData: { lot_category: 'chemical' },
+    })
+    expect(screen.getByLabelText('开封日期')).toHaveAttribute('type', 'date')
+
+    unmount()
+    renderForm({ kind: 'instrument' })
+    expect(screen.getByLabelText('最近校准或维护日期')).toHaveAttribute(
+      'type',
+      'date',
+    )
+  })
 })
 
 describe('EntityForm — unsaved changes', () => {
@@ -415,6 +450,30 @@ describe('EntityForm — generated numeric validation', () => {
       chemical_formula: 'Al2O3',
       batch_number: 'SUB-1',
       substrate_material: 'sapphire_al2o3',
+    })
+  })
+
+  it('asks for a mica type in place and derives its formula', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    renderForm({
+      onSubmit,
+      defaultData: {
+        lot_category: 'substrate',
+        batch_number: 'MICA-1',
+        substrate_material: 'mica',
+      },
+    })
+
+    expect(screen.queryByRole('textbox', { name: /化学式/ })).toBeNull()
+    await user.click(screen.getByRole('combobox', { name: /云母类型/ }))
+    await user.click(screen.getByRole('option', { name: '氟金云母' }))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      chemical_formula: 'KMg3(AlSi3O10)F2',
+      mica_type: 'fluorophlogopite',
     })
   })
 

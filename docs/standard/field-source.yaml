@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.19
+  version: v4.0-alpha.21
   status: INTERNAL_VALIDATION
-  updated: '2026-08-31'
+  updated: '2026-09-01'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -651,6 +651,9 @@ option_labels_en:
   蓝宝石(Al₂O₃): Sapphire (Al₂O₃)
   蓝宝石: Sapphire
   云母: Mica
+  白云母: Muscovite
+  金云母: Phlogopite
+  氟金云母: Fluorophlogopite
   Cu箔: Cu foil
   Au箔: Au foil
   正放: Face up
@@ -821,6 +824,9 @@ option_codes:
   蓝宝石(Al₂O₃): sapphire_al2o3
   蓝宝石: sapphire_al2o3
   云母: mica
+  白云母: muscovite
+  金云母: phlogopite
+  氟金云母: fluorophlogopite
   Cu箔: cu_foil
   Au箔: au_foil
   正放: face_up
@@ -2258,6 +2264,21 @@ experiment_record:
       source: 2026-08-13现行科学契约校对
       note: 每个Setup温区必须有且仅有一条设定温度通道；至少一条正流量气体通道
       r0: true
+    - module: 过程通道
+      label: 异常情况确认
+      label_en: Process-event confirmation
+      key: process_events_confirmed
+      group: current
+      meaning: 明确确认本炉是否发生异常，避免将未填写误判为无异常
+      input: 下拉
+      options: 是/否
+      unit: —
+      requirement:
+        raw: 必填
+        level: required
+      example: 否
+      source: 2026-09-01用户试填反馈
+      note: 选择是时至少填写一条过程异常事件
     - module: 步·压力
       label: 反应压力类别
       label_en: Reaction pressure regime
@@ -3314,6 +3335,24 @@ entities:
       source: review
       note: 与§4衬底材料词表一致
     - module: MaterialLot
+      label: ▸衬底·云母类型
+      label_en: Substrate · mica type
+      key: mica_type
+      meaning: 云母衬底的矿物类型；用于生成对应的理想化学式
+      input: 下拉
+      options: 白云母·金云母·氟金云母
+      unit: —
+      requirement:
+        raw: 条件必填(云母)
+        level: conditional_required
+        condition:
+          field: MaterialLot.▸衬底·材料
+          op: eq
+          value: 云母
+      example: 氟金云母
+      source: 2026-09-01用户试填反馈
+      note: 选择后系统生成理想化学式；具体成分仍以包装标签、规格书或CoA为准
+    - module: MaterialLot
       label: ▸衬底·氧化层厚度
       label_en: Substrate · oxide thickness
       key: substrate_oxide_thickness_nm
@@ -3917,7 +3956,7 @@ entities:
       source: 会议
       help: 用于按表征方法筛选仪器；仪器身份由编号、厂商和型号表达。
       help_en: Used to filter instruments by characterization method; identify the instrument by its code, vendor, and model.
-      note: API key 保持 name_type 以兼容现有数据
+      note: API key 保持 name_type 以兼容现有数据；UI 不重复展示，由“支持的表征方法”首项自动派生
     - module: 表征仪器
       label: 厂商
       label_en: Vendor
@@ -4007,19 +4046,21 @@ entities:
       help: 只填不会随一次测试改变的硬件或能力；本次参数填在表征结果中。
       help_en: Enter stable hardware or capabilities only; record settings used for a measurement in that result.
     - module: 表征仪器
-      label: 测量能力配置
-      label_en: Measurement capabilities
+      label: 支持的表征方法
+      label_en: Supported characterization methods
       key: capabilities
-      meaning: 仪器版本支持的测量方法及其可选固定配置
+      meaning: 选择该仪器支持的表征方法，供结果录入时筛选
       input: JSON数组
       options: '[{code,configuration}]'
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: '[{"code":"Raman","configuration":{"lasers_nm":[532]}}]'
+      example: '[{"code":"Raman","configuration":{}}]'
       source: 2026-07-28深度审查
-      note: 本次MeasurementRun只能选择这里声明的能力
+      note: UI 使用勾选项，不要求用户手写 JSON；本次 MeasurementRun 只能选择这里声明的能力
+      help: 勾选仪器支持的方法；固定硬件填在“关键固定配置”，本次实际参数填在表征结果中。
+      help_en: Select supported methods; record stable hardware under Key fixed configuration and actual settings in each characterization result.
     - module: 表征仪器
       label: 最近校准或维护日期
       label_en: Last calibration or maintenance date
@@ -4031,9 +4072,11 @@ entities:
       requirement:
         raw: 选填
         level: optional
-      example: 2026-06
+      example: '2026-06-01'
       source: 会议
       note: ''
+      placeholder: YYYY-MM-DD
+      placeholder_en: YYYY-MM-DD
 changelog:
   headers:
   - '#'
@@ -4353,6 +4396,14 @@ changelog:
     - 表征科学属性
     - PropertyValue 补齐数值/文本表示类型与物理范围，并统一后端和前端的单一源校验
     - 2026-08-31表征全链路独立审查
+  - - v4.0-alpha.20
+    - 实体/物料批次
+    - 云母衬底增加白云母、金云母和氟金云母类型选择，并由系统生成理想化学式，避免选择材料后在表单顶部突然出现手填化学式
+    - 2026-09-01用户试填反馈
+  - - v4.0-alpha.21
+    - 实体/制备/样品与表征流程
+    - 仪器能力改为勾选、日期改为日期控件、装置使用身份标签、异常改为显式确认、表征入口保留样品上下文，并在编辑后清除旧校验错误
+    - 2026-09-01全表单交互复核
   - - R0
     - 最小可复现核心(27项，含条件必填)
     - 过程R0以温度/气体/压力通道和降温条件为准；不再要求人工划分反应阶段或反应时长

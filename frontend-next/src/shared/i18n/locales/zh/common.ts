@@ -45,6 +45,7 @@ export const common = {
     temperatureSensorsCoverage:
       '请为温区 1–{{count}} 分别选择传感器类别；已填写的标称测温精度须为非负数。',
     gasComposition: '请填写不重复的气体组分，且体积分数合计为 100 vol%。',
+    instrumentCapabilities: '请至少选择一种该仪器支持的表征方法。',
     substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
     usageHistory:
       '请填写累计清洗或更换次数（可为 0）和本次为最近一次清洗或更换后的第几炉（从 1 开始）。',
@@ -573,7 +574,7 @@ export const common = {
       downloadFile: '下载 {{filename}}',
       deleteUpload: '删除',
       deleteFile: '删除 {{filename}}',
-      fileNote: '{{label}}的附件备注',
+      fileNote: '附件备注',
       fileNoteDisplay: '备注：{{note}}',
       fileFallbackName: '附件 {{id}}',
       unboundFileHint: '保存该实体版本后，此文件才会正式绑定。',

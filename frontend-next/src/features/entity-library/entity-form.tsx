@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 
+import { characterizationProfiles } from '@/shared/generated/field-metadata'
 import type { FieldMetadata } from '@/shared/generated/field-metadata'
 import {
   localizedFieldHelp,
@@ -49,6 +50,7 @@ import type { EntityKind } from './config'
 import {
   buildDefaultValues,
   buildSubmitPayload,
+  getDisplayEntityFields,
   getEntityFields,
   isEffectivelyRequired,
   isEntityJsonArrayField,
@@ -104,7 +106,35 @@ const TEXTAREA_KEYS = new Set([
   'modification_details',
 ])
 const NUMERIC_INPUT = '\u6570\u503c'
+const DATE_INPUT = '\u65e5\u671f'
 const MATERIAL_FORMULA_INPUT = '\u7269\u6599\u5316\u5b66\u5f0f'
+
+type InstrumentCapability = {
+  code: string
+  configuration?: Record<string, unknown>
+}
+
+const INSTRUMENT_CAPABILITY_CODES = new Set(
+  Object.keys(characterizationProfiles),
+)
+
+function instrumentCapabilitiesAreValid(value: string | string[]): boolean {
+  const capabilities = parseEntityJsonArray<InstrumentCapability>(value)
+  return (
+    capabilities.length > 0 &&
+    capabilities.every(
+      (capability) =>
+        capability &&
+        typeof capability === 'object' &&
+        INSTRUMENT_CAPABILITY_CODES.has(capability.code) &&
+        (!capability.configuration ||
+          (typeof capability.configuration === 'object' &&
+            !Array.isArray(capability.configuration))),
+    ) &&
+    new Set(capabilities.map((capability) => capability.code)).size ===
+      capabilities.length
+  )
+}
 
 export type EntityFormMode = 'create' | 'newVersion'
 
@@ -264,6 +294,13 @@ export function EntityForm({
           errors[field.key] = {
             type: 'validate',
             message: t('validation.gasComposition'),
+          }
+        }
+      } else if (!empty && field.key === 'capabilities') {
+        if (!instrumentCapabilitiesAreValid(value)) {
+          errors[field.key] = {
+            type: 'validate',
+            message: t('validation.instrumentCapabilities'),
           }
         }
       } else if (!empty && isEntityFileInput(field.input)) {
@@ -455,7 +492,7 @@ export function EntityForm({
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {fields.map((field) =>
+          {getDisplayEntityFields(kind, values).map((field) =>
             isFieldVisible(kind, field, values) &&
             !(
               kind === 'material_lot' &&
@@ -660,6 +697,59 @@ function EntityFieldControl({
                 showErrors={fieldState.invalid}
               />
             </div>
+          ) : field.key === 'capabilities' ? (
+            <div
+              id={controlId}
+              role="group"
+              aria-labelledby={labelId}
+              aria-describedby={
+                [
+                  fieldHelp ? helpId : null,
+                  fieldState.invalid ? messageId : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              aria-invalid={fieldState.invalid || undefined}
+              className="grid gap-2 rounded-md border border-input px-3 py-2 sm:grid-cols-2"
+            >
+              {Object.entries(characterizationProfiles).map(
+                ([code, profile]) => {
+                  const capabilities =
+                    parseEntityJsonArray<InstrumentCapability>(rhf.value)
+                  const selected = capabilities.some(
+                    (capability) => capability.code === code,
+                  )
+                  return (
+                    <label
+                      key={code}
+                      className="flex cursor-pointer items-center gap-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={selected}
+                        disabled={disabled}
+                        onCheckedChange={(checked) =>
+                          rhf.onChange(
+                            JSON.stringify(
+                              checked
+                                ? [...capabilities, { code, configuration: {} }]
+                                : capabilities.filter(
+                                    (capability) => capability.code !== code,
+                                  ),
+                            ),
+                          )
+                        }
+                      />
+                      <span>
+                        {i18n.language.startsWith('en')
+                          ? profile.label_en
+                          : profile.label_zh}
+                      </span>
+                    </label>
+                  )
+                },
+              )}
+            </div>
           ) : entityFileInput ? (
             <EntityFileControl
               value={Array.isArray(rhf.value) ? '' : (rhf.value ?? '')}
@@ -838,7 +928,13 @@ function EntityFieldControl({
               ) : (
                 <Input
                   {...rhf}
-                  type={field.input === NUMERIC_INPUT ? 'number' : 'text'}
+                  type={
+                    field.input === NUMERIC_INPUT
+                      ? 'number'
+                      : field.input === DATE_INPUT
+                        ? 'date'
+                        : 'text'
+                  }
                   inputMode={
                     field.input === NUMERIC_INPUT ? 'decimal' : undefined
                   }

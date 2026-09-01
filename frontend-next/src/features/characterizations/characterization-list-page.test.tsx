@@ -27,13 +27,16 @@ vi.mock(
     return {
       SimpleCharacterizationWorkspace: ({
         runId,
+        initialSampleId,
         readOnly,
       }: {
         runId: string
+        initialSampleId?: string
         readOnly: boolean
       }) => (
         <div>
-          Workspace {runId} · {readOnly ? 'read-only' : 'editable'}
+          Workspace {runId} · {initialSampleId ?? 'no sample'} ·{' '}
+          {readOnly ? 'read-only' : 'editable'}
           {!readOnly ? <button type="button">新增或失效表征</button> : null}
         </div>
       ),
@@ -76,14 +79,14 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
-function renderPage(runId?: string) {
+function renderPage(runId?: string, sampleId?: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
-        <CharacterizationListPage runId={runId} />
+        <CharacterizationListPage runId={runId} sampleId={sampleId} />
       </QueryClientProvider>
     </I18nextProvider>,
   )
@@ -162,7 +165,10 @@ describe('CharacterizationListPage', () => {
     ).toHaveLength(3)
     expect(
       screen.getAllByRole('link', { name: '补录或查看表征' })[2],
-    ).toHaveAttribute('href', '/characterizations?runId=run-3')
+    ).toHaveAttribute(
+      'href',
+      '/characterizations?runId=run-3&sampleId=sample-3',
+    )
     expect(workspaceModule.loaded).not.toHaveBeenCalled()
   })
 
@@ -190,7 +196,7 @@ describe('CharacterizationListPage', () => {
   })
 
   it('keeps a run-scoped entry page out of the global result list', async () => {
-    renderPage('run-3')
+    renderPage('run-3', 'sample-3')
 
     expect(
       await screen.findByRole('heading', { name: '添加表征记录' }),
@@ -201,7 +207,7 @@ describe('CharacterizationListPage', () => {
     expect(workspaceModule.loaded).toHaveBeenCalledOnce()
     workspaceModule.release()
     expect(
-      await screen.findByText('Workspace run-3 · editable'),
+      await screen.findByText('Workspace run-3 · sample-3 · editable'),
     ).toBeInTheDocument()
     expect(screen.queryByText('样品与表征')).not.toBeInTheDocument()
     expect(api.listCharacterizationItems).not.toHaveBeenCalled()
@@ -220,7 +226,7 @@ describe('CharacterizationListPage', () => {
         '请先提交制备实验记录，系统生成样品后再添加表征。',
       ),
     ).toBeInTheDocument()
-    expect(screen.queryByText('Workspace run-3')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Workspace run-3/)).not.toBeInTheDocument()
   })
 
   it.each(['draft', 'invalid'])(
@@ -235,7 +241,7 @@ describe('CharacterizationListPage', () => {
       workspaceModule.release()
 
       expect(
-        await screen.findByText('Workspace run-3 · read-only'),
+        await screen.findByText('Workspace run-3 · no sample · read-only'),
       ).toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: '新增或失效表征' }),
