@@ -2,8 +2,8 @@
 
 ## 结论
 
-- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `2036f9803a24ce6b9a5f27ab8d79c910b8be9191`。
-- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-09-02 发布前本地后端 405 passed、4 skipped，前端 399/399（58 files），格式、类型、构建、字段源与生成物检查全绿。
+- `https://cvd.rustypiano.com` 已切换到 v2；初始切换提交为 `4e0b65a68d74cf87cb0d74f8f9a124b8c9acdf1b`，当前应用发布提交为 `2c3c3832543de1eb3c5354b96b83b37a8e3d91c0`。
+- 初始切换的 GitHub Actions 运行 `30076866424` 与 2026-07-28 发布运行 `30352259683` 的五项检查均通过；2026-09-02 最新发布前本地后端 408 passed、4 skipped，前端 402/402，格式、类型、构建、字段源与生成物检查全绿。
 - 生产 backend、frontend 均为 `running + healthy`；公网 `/health`、首页和 `runtime-config.js` 均验证成功。
 - 旧 v1 数据仍在禁连归档库 `cvd_v1_archive_20260724` 中；2026-08-07 仅清空当前 v2 `cvd` 数据库中的测试数据与附件。
 - 用户指定的管理员账号已创建，API 登录与身份读取通过；真实浏览器留给用户在线逐项复核。
@@ -116,6 +116,10 @@
 - 2026-09-02 15:56 CST 发布 `2036f98` / v4.0-alpha.23。首次普通发布已备份到 `20260902_155321` 并构建两端镜像，但后端启动命令中的 `uv run` 在运行时再次同步开发依赖，卡在 Ruff 下载并导致健康检查超时。该过程未产生新迁移或清理数据；随后将启动命令改为直接调用镜像内已安装的 Alembic/Uvicorn，再次执行完整 `deploy.sh` 成功。
 - 有效发布前备份目录为 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260902_155620`，目录权限 `0700`、三个备份文件权限 `0600`；`database.sql` 为 171308 bytes，SHA-256 `2cfda79531a81c000cb91531934ddbd54b0cc10f7e45fe95a7253710c79b45e6`；`storage.tar.gz` 为 82 bytes，SHA-256 `c69085069c1314d0330135f67ae2bbb4b3a4708f6c8424328ace45a5c1792f9f`，tar 可读性通过。
 - 没有新增数据库迁移，生产 Alembic 保持 `20260813_0011 (head)`；服务器工作树干净，backend/frontend 均为 running + healthy，backend 日志无 ERROR/Traceback/FATAL，后端读取 v4.0-alpha.23。生产静态产物包含“热电偶相对位置”与“待填写（必填）”；公网 `/health`、首页、`runtime-config.js` 与匿名 401 边界通过。匿名真实浏览器完成登录页载入与中英切换，无框架错误层，console 0 warning/error；未写入验收数据。
+
+- 2026-09-02 20:41 CST 发布 `2c3c383` / v4.0-alpha.25。普通 `./deploy.sh` 从 `2036f98` 快进，先自动备份数据库与附件到 `/opt/1panel/apps/cvd-experiment-data-system/backups/20260902_204136`，再构建并重建 backend/frontend；未清理生产数据，未连接或修改 v1 离线归档库。
+- 备份根目录与本次目录权限为 `0700`，三个备份文件权限为 `0600`；`database.sql` 为 204K，`storage.tar.gz` 为 4.0K，`SHA256SUMS` 双项校验及 tar 可读性均通过。
+- 没有新增数据库迁移，生产 Alembic 保持 `20260813_0011 (head)`；服务器分支为 `codex/product-simplification-v1` 且工作树干净，backend/frontend 均为 running + healthy，近 5 分钟日志无 ERROR/Traceback/FATAL/panic，字段源为 v4.0-alpha.25。公网 `/health`、首页、`runtime-config.js` 与匿名 401 边界通过，匿名登录页正常渲染；未写入验收数据。
 
 ## 尚待真实数据验收
 
