@@ -383,6 +383,70 @@ def test_measurement_profiles_only_require_their_minimum_conditions() -> None:
     assert other.sample_region.geometry_type == "selected_area"
 
 
+def test_method_modes_gate_composition_and_power_is_structured() -> None:
+    with pytest.raises(ValueError, match="value and basis"):
+        MeasurementConditions(excitation_power_value=1)
+    assert (
+        MeasurementConditions(
+            excitation_power_value=1,
+            excitation_power_basis="sample_plane_mW",
+        ).excitation_power_basis
+        == "sample_plane_mW"
+    )
+
+    payload = {
+        "measurement": {
+            "sample_id": str(uuid4()),
+            "method_profile": "SEM",
+            "instrument_id": str(uuid4()),
+            "instrument_version": 1,
+            "measured_at": "2026-09-02T10:00:00+08:00",
+            "sample_region": {
+                "geometry_type": "point",
+                "label": "center",
+                "coordinate_system": "sample_local",
+            },
+            "typed_conditions": {
+                "accelerating_voltage_kV": 5,
+                "mode": "secondary_electron",
+            },
+            "raw_file_ids": [str(uuid4())],
+        },
+        "assertions": [
+            {
+                "assertion_type": "composition",
+                "value": {
+                    "basis": "atomic_fraction",
+                    "components": [{"species": "MoS2", "fraction": 1}],
+                },
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="SEM composition requires"):
+        MeasurementBundleCreate.model_validate(payload)
+    payload["measurement"]["typed_conditions"]["mode"] = "EDS"
+    assert (
+        MeasurementBundleCreate.model_validate(payload).measurement.typed_conditions.mode == "EDS"
+    )
+
+
+def test_non_valid_properties_require_a_reason_and_aggregate_statistics_require_n() -> None:
+    with pytest.raises(ValueError, match="quality note"):
+        PropertyValueWrite(
+            property_code="coverage_percent",
+            numeric_value=10,
+            unit="%",
+            quality_flag="suspect",
+        )
+    with pytest.raises(ValueError, match="sample_count"):
+        PropertyValueWrite(
+            property_code="coverage_percent",
+            numeric_value=10,
+            unit="%",
+            statistic="mean",
+        )
+
+
 def test_measurement_analysis_outputs_are_unique_and_acyclic() -> None:
     first, second, shared = uuid4(), uuid4(), uuid4()
     base = {
@@ -524,6 +588,7 @@ def test_property_and_region_contract_reject_empty_or_wrongly_typed_evidence() -
             numeric_value=5,
             unit="%",
             quality_flag="below_detection_limit",
+            quality_note="instrument detection threshold",
         ).numeric_value
         == 5
     )
@@ -1037,6 +1102,10 @@ def _optical_measurement(
             }
         ],
     }
+    if quality_flag == "suspect":
+        payload["measurement"]["quality_note"] = "measurement requires review"
+    if property_quality != "valid":
+        payload["properties"][0]["quality_note"] = "result requires review"
     if growth_state is not None:
         payload["assertions"] = [
             {
@@ -1102,15 +1171,14 @@ def test_equivalent_assertion_writes_do_not_create_a_false_conflict(
     _run, sample = _locked_sample(db_session, active_user, "10")
     headers = _headers(active_user.email)
 
-    for phase in ("  2H-MoS2  ", "2H-MoS2"):
+    for state in ("  present  ", "present"):
         payload = _optical_measurement(sample.id)
-        payload["assertions"] = [{"assertion_type": "phase_identity", "value": {"phase": phase}}]
+        payload["assertions"] = [{"assertion_type": "growth_presence", "value": {"state": state}}]
         response = client.post("/api/v1/measurements", json=payload, headers=headers)
         assert response.status_code == 201, response.text
 
     db_session.refresh(sample)
-    assert sample.identity_state == "asserted"
-    assert sample.actual_material_summary == "2H-MoS2"
+    assert sample.actual_state == "growth_present"
 
 
 def test_measurement_api_rejects_boolean_scientific_numbers(active_user, db_session) -> None:
@@ -1209,6 +1277,7 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     )
     assert suspect.status_code == 201, suspect.text
     assert suspect.json()["evidence_present"] is False
+    assert suspect.json()["quality_note"] == "measurement requires review"
     db_session.refresh(run)
     db_session.refresh(sample)
     assert run.not_characterized_at is not None
@@ -1256,6 +1325,7 @@ def test_measurement_validity_controls_projection_todo_and_invalidation(
     assert detail.json()["evidence_present"] is True
     assert detail.json()["revision_number"] == 1
     assert detail.json()["can_invalidate"] is True
+    assert detail.json()["performed_by_name"] == active_user.name
     assert detail.json()["properties"][0]["property_code"] == "coverage_percent"
     assert detail.json()["assertions"][0]["value"] == {"state": "present"}
 
@@ -1990,6 +2060,8 @@ def test_dataset_property_filter_excludes_non_numeric_quality_states(
     )
     assert invalid.status_code == 201, invalid.text
     assert invalid.json()["evidence_present"] is False
+    invalid_detail = client.get(f"/api/v1/measurements/{invalid.json()['id']}", headers=headers)
+    assert invalid_detail.json()["properties"][0]["quality_note"] == "result requires review"
     query = {
         "filters": [
             {
@@ -2222,7 +2294,8 @@ def test_measurement_freezes_calibration_state(active_user, db_session) -> None:
             },
             "typed_conditions": {
                 "laser_wavelength_nm": 532,
-                "power_setting": "1 mW",
+                "excitation_power_value": 1,
+                "excitation_power_basis": "sample_plane_mW",
                 "objective": "50x",
                 "integration_time_s": 5,
                 "accumulations": 3,

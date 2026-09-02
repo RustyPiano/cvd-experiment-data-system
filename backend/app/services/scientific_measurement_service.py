@@ -228,7 +228,11 @@ class ScientificMeasurementService:
             quality_flag=measurement.quality_flag,
             test_conditions=None,
             raw_data=None,
-            attrs={},
+            attrs=(
+                {"quality_note": measurement.quality_note}
+                if measurement.quality_note is not None
+                else {}
+            ),
         )
         self.db.add(record)
         self.db.flush()
@@ -262,28 +266,27 @@ class ScientificMeasurementService:
                         )
                     )
 
+        property_rows: list[tuple[PropertyValue, str | None]] = []
         for item in payload.properties:
-            self.db.add(
-                PropertyValue(
-                    sample_id=sample.id,
-                    measurement_run_id=record.id,
-                    analysis_run_id=(
-                        analyses[item.analysis_index].id
-                        if item.analysis_index is not None
-                        else None
-                    ),
-                    property_code=item.property_code,
-                    numeric_value=item.numeric_value,
-                    text_value=item.text_value,
-                    structured_value=item.structured_value,
-                    unit=item.unit,
-                    statistic=item.statistic,
-                    uncertainty_value=item.uncertainty_value,
-                    uncertainty_type=item.uncertainty_type,
-                    sample_count=item.sample_count,
-                    quality_flag=item.quality_flag,
-                )
+            property_row = PropertyValue(
+                sample_id=sample.id,
+                measurement_run_id=record.id,
+                analysis_run_id=(
+                    analyses[item.analysis_index].id if item.analysis_index is not None else None
+                ),
+                property_code=item.property_code,
+                numeric_value=item.numeric_value,
+                text_value=item.text_value,
+                structured_value=item.structured_value,
+                unit=item.unit,
+                statistic=item.statistic,
+                uncertainty_value=item.uncertainty_value,
+                uncertainty_type=item.uncertainty_type,
+                sample_count=item.sample_count,
+                quality_flag=item.quality_flag,
             )
+            self.db.add(property_row)
+            property_rows.append((property_row, item.quality_note))
 
         assertions: list[MaterialAssertion] = []
         for item in payload.assertions:
@@ -301,6 +304,14 @@ class ScientificMeasurementService:
             assertions.append(assertion)
 
         self.db.flush()
+        property_quality_notes = {
+            str(row.id): note for row, note in property_rows if note is not None
+        }
+        if property_quality_notes:
+            record.attrs = {
+                **(record.attrs or {}),
+                "property_quality_notes": property_quality_notes,
+            }
         self._refresh_sample_actual_state(sample, run_revision_id)
         refresh_revision_provenance(self.db, run_revision_id)
         self.audit.record_event(
@@ -668,6 +679,13 @@ class ScientificMeasurementService:
         summary = self._summary(record)
         run = self.db.get(ExperimentRun, record.experiment_run_id)
         sample = self.db.get(Sample, record.sample_id)
+        performer = self.db.get(User, record.performed_by_id)
+        analysis_performer_names = {
+            user_id: user.name
+            for user_id in {analysis.performed_by_id for analysis in analyses}
+            if (user := self.db.get(User, user_id)) is not None
+        }
+        property_quality_notes = attrs.get("property_quality_notes", {})
 
         def file_read(file: FileAsset) -> MeasurementRawFileRead:
             return MeasurementRawFileRead(
@@ -684,6 +702,7 @@ class ScientificMeasurementService:
         return MeasurementDetailRead(
             **summary.model_dump(),
             revision_number=revision.revision_number,
+            performed_by_name=performer.name if performer is not None else None,
             can_invalidate=bool(
                 record.quality_flag != "invalid"
                 and self._measurement_is_current_and_active(run, record, sample)
@@ -703,6 +722,7 @@ class ScientificMeasurementService:
                 MeasurementAnalysisRead(
                     id=analysis.id,
                     performed_by_id=analysis.performed_by_id,
+                    performed_by_name=analysis_performer_names.get(analysis.performed_by_id),
                     software_name=analysis.software_name,
                     software_version=analysis.software_version,
                     code_commit=analysis.code_commit,
@@ -750,6 +770,7 @@ class ScientificMeasurementService:
                     uncertainty_type=item.uncertainty_type,
                     sample_count=item.sample_count,
                     quality_flag=item.quality_flag,
+                    quality_note=property_quality_notes.get(str(item.id)),
                 )
                 for item in properties
             ],
@@ -1105,6 +1126,7 @@ class ScientificMeasurementService:
             sample_region=record.sample_region or {},
             typed_conditions=record.typed_conditions,
             quality_flag=record.quality_flag,
+            quality_note=(record.attrs or {}).get("quality_note"),
             evidence_present=evidence_present,
             raw_file_count=raw_file_count,
             analysis_count=analysis_count,

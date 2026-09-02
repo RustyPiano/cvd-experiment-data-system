@@ -161,6 +161,63 @@ describe('simple product form adapters', () => {
     ).toBe('请填写温区 1 的初始温度，并检查各温度步骤的持续时间和目标温度。')
   })
 
+  it('accepts either target pressure or duration for pump down', () => {
+    const channels = [
+      {
+        channel_type: 'temperature',
+        source_type: 'setpoint',
+        zone_index: 1,
+        series: [{ start_s: 0, value: 700 }],
+      },
+      {
+        channel_type: 'flow',
+        source_type: 'setpoint',
+        gas_species_code: 'Ar',
+        gas_lot_id: 'lot-1',
+        gas_lot_version: 1,
+        measurement_source: 'mfc',
+        series: [{ start_s: 0, end_s: 60, value: 100 }],
+      },
+    ]
+    expect(
+      simpleGrowthIssue(
+        [],
+        channels,
+        {
+          ...validProcessSettings,
+          preparation_operations: [
+            { operation_type: 'pump_down', target_absolute_pressure_Pa: 10 },
+          ],
+        },
+        1,
+      ),
+    ).toBeNull()
+    expect(
+      simpleGrowthIssue(
+        [],
+        channels,
+        {
+          ...validProcessSettings,
+          preparation_operations: [
+            { operation_type: 'pump_down', duration_min: 5 },
+          ],
+        },
+        1,
+      ),
+    ).toBeNull()
+    expect(
+      simpleGrowthIssue(
+        [],
+        channels,
+        {
+          ...validProcessSettings,
+          preparation_operations: [{ operation_type: 'pump_down' }],
+        },
+        1,
+      ),
+    ).toContain('抽至绝对压力')
+  })
+
   it('requires physical cylinder references for gas exchange', () => {
     const temperature = {
       channel_type: 'temperature',

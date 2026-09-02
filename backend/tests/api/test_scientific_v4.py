@@ -1073,6 +1073,7 @@ def test_scientific_revision_measurement_and_query_chain(
         "uncertainty_type": None,
         "sample_count": None,
         "quality_flag": "valid",
+        "quality_note": None,
     }
     revision_1_file_ids = {item["id"] for item in export_json["scientific_record"]["files"]}
     assert {

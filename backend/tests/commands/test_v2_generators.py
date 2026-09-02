@@ -373,9 +373,10 @@ def test_field_dictionary_conditions_use_machine_codes() -> None:
 def test_characterization_field_source_matches_runtime_discriminators() -> None:
     profiles = load_field_source()["characterization_profiles"].values()
 
-    assert {field["key"] for profile in profiles for field in profile["condition_fields"]} == set(
-        MeasurementConditions.model_fields
-    )
+    profile_condition_fields = {
+        field["key"] for profile in profiles for field in profile["condition_fields"]
+    }
+    assert profile_condition_fields == set(MeasurementConditions.model_fields) - {"power_setting"}
     assert {
         assertion for profile in profiles for assertion in profile["allowed_assertion_types"]
     } == set(get_args(MaterialAssertionWrite.model_fields["assertion_type"].annotation))
@@ -481,7 +482,7 @@ def test_standard_schema_exports_current_scientific_and_result_models() -> None:
         "transformation",
         "dataset_query",
     }
-    assert schema["version"] == "v4.0-alpha.23"
+    assert schema["version"] == "v4.0-alpha.25"
     assert schema["status"] == "INTERNAL_VALIDATION"
     assert "pvd" not in schema["modules"]
     for model in [*schema["modules"].values(), *schema["result_models"].values()]:

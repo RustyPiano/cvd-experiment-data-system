@@ -961,6 +961,7 @@ class V2ReportingService:
                     "sample_region": record.sample_region,
                     "typed_conditions": record.typed_conditions,
                     "quality_flag": record.quality_flag,
+                    "quality_note": (record.attrs or {}).get("quality_note"),
                     "attrs": record.attrs,
                     "invalidation_reason": (record.attrs or {}).get("invalidation_reason"),
                     "invalidated_by_id": (record.attrs or {}).get("invalidated_by_id"),
@@ -1007,6 +1008,9 @@ class V2ReportingService:
                             "uncertainty_type": item.uncertainty_type,
                             "sample_count": item.sample_count,
                             "quality_flag": item.quality_flag,
+                            "quality_note": (record.attrs or {})
+                            .get("property_quality_notes", {})
+                            .get(str(item.id)),
                         }
                         for item in properties_by_measurement.get(record.id, [])
                     ],

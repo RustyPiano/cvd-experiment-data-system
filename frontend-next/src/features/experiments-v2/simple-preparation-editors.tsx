@@ -312,7 +312,8 @@ export type SimpleProcessSettings = {
   lid_open_temperature_C?: number
   preparation_operations?: Array<{
     operation_type: 'pump_down' | 'gas_exchange' | 'leak_check' | 'other'
-    duration_min: number
+    duration_min?: number
+    target_absolute_pressure_Pa?: number
     cycle_count?: number
     gas_sources?: Array<{
       material_lot_id: string
@@ -3071,10 +3072,20 @@ export function SimpleGrowthEditor({
   )
   const preparationInvalid = Boolean(
     showErrors &&
-    preparationOperations.some(
-      (operation) =>
-        !Number.isFinite(operation.duration_min) ||
-        operation.duration_min <= 0 ||
+    preparationOperations.some((operation) => {
+      const durationValid =
+        Number.isFinite(operation.duration_min) &&
+        Number(operation.duration_min) > 0
+      const targetPressureValid =
+        Number.isFinite(operation.target_absolute_pressure_Pa) &&
+        Number(operation.target_absolute_pressure_Pa) > 0
+      return (
+        (operation.operation_type === 'pump_down'
+          ? (operation.duration_min !== undefined && !durationValid) ||
+            (operation.target_absolute_pressure_Pa !== undefined &&
+              !targetPressureValid) ||
+            (!durationValid && !targetPressureValid)
+          : !durationValid) ||
         (operation.operation_type === 'gas_exchange' &&
           (!operation.cycle_count ||
             operation.cycle_count < 1 ||
@@ -3087,8 +3098,9 @@ export function SimpleGrowthEditor({
             new Set(
               operation.gas_sources.map((source) => source.material_lot_id),
             ).size !== operation.gas_sources.length)) ||
-        (operation.operation_type === 'other' && !operation.other_name?.trim()),
-    ),
+        (operation.operation_type === 'other' && !operation.other_name?.trim())
+      )
+    }),
   )
   const pressureInvalid = Boolean(
     showErrors &&
@@ -3188,6 +3200,12 @@ export function SimpleGrowthEditor({
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {preparationOperations.map((operation, operationIndex) => {
+              const durationValid =
+                Number.isFinite(operation.duration_min) &&
+                Number(operation.duration_min) > 0
+              const targetPressureValid =
+                Number.isFinite(operation.target_absolute_pressure_Pa) &&
+                Number(operation.target_absolute_pressure_Pa) > 0
               const patchOperation = (
                 patch: Partial<(typeof preparationOperations)[number]>,
               ) =>
@@ -3234,6 +3252,10 @@ export function SimpleGrowthEditor({
                           operation_type:
                             value as (typeof operation)['operation_type'],
                           cycle_count: undefined,
+                          target_absolute_pressure_Pa:
+                            value === 'pump_down'
+                              ? operation.target_absolute_pressure_Pa
+                              : undefined,
                           gas_sources:
                             value === 'gas_exchange'
                               ? [{ material_lot_id: '' }]
@@ -3259,33 +3281,87 @@ export function SimpleGrowthEditor({
                       </SelectContent>
                     </Select>
                   </div>
+                  {operation.operation_type === 'pump_down' ? (
+                    <div className="flex flex-col gap-2">
+                      <Label
+                        htmlFor={`preparation-${operationIndex}-target-pressure`}
+                      >
+                        抽至绝对压力（Pa，优先填写）
+                      </Label>
+                      <Input
+                        id={`preparation-${operationIndex}-target-pressure`}
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="any"
+                        value={
+                          Number.isFinite(operation.target_absolute_pressure_Pa)
+                            ? operation.target_absolute_pressure_Pa
+                            : ''
+                        }
+                        disabled={disabled}
+                        aria-invalid={
+                          (showErrors &&
+                            ((operation.target_absolute_pressure_Pa !==
+                              undefined &&
+                              !targetPressureValid) ||
+                              (!targetPressureValid && !durationValid))) ||
+                          undefined
+                        }
+                        onChange={(event) =>
+                          patchOperation({
+                            target_absolute_pressure_Pa:
+                              event.target.value === ''
+                                ? undefined
+                                : Number(event.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                  ) : null}
                   <div className="flex flex-col gap-2">
                     <Label>
-                      持续时间（min） <RequiredMark />
+                      持续时间（min）{' '}
+                      {operation.operation_type !== 'pump_down' ||
+                      !targetPressureValid ? (
+                        <RequiredMark />
+                      ) : null}
                     </Label>
                     <Input
                       type="number"
                       min="0"
                       step="any"
                       aria-label={`准备操作 ${operationIndex + 1} 持续时间（min）`}
-                      value={minuteValue(operation.duration_min * 60)}
+                      value={
+                        Number.isFinite(operation.duration_min)
+                          ? operation.duration_min
+                          : ''
+                      }
                       disabled={disabled}
                       aria-invalid={
                         (showErrors &&
-                          (!Number.isFinite(operation.duration_min) ||
-                            operation.duration_min <= 0)) ||
+                          ((operation.duration_min !== undefined &&
+                            !durationValid) ||
+                            (!durationValid &&
+                              (operation.operation_type !== 'pump_down' ||
+                                !targetPressureValid)))) ||
                         undefined
                       }
                       onChange={(event) =>
                         patchOperation({
                           duration_min:
                             event.target.value === ''
-                              ? Number.NaN
+                              ? undefined
                               : Number(event.target.value),
                         })
                       }
                     />
                   </div>
+                  {operation.operation_type === 'pump_down' ? (
+                    <p className="text-sm text-muted-foreground sm:col-span-2">
+                      优先填写实际达到的终点绝对压力；没有压力读数时，持续时间必填。
+                    </p>
+                  ) : null}
                   {operation.operation_type === 'gas_exchange' ? (
                     <>
                       <fieldset
@@ -3439,7 +3515,6 @@ export function SimpleGrowthEditor({
                     ...preparationOperations,
                     {
                       operation_type: 'pump_down',
-                      duration_min: Number.NaN,
                     },
                   ],
                 })

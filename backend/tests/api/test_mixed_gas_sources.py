@@ -36,6 +36,23 @@ def _mixed_gas_payload() -> dict:
     }
 
 
+def test_pump_down_accepts_target_pressure_or_duration() -> None:
+    pressure_only = PreparationOperationPayload.model_validate(
+        {"operation_type": "pump_down", "target_absolute_pressure_Pa": 10}
+    )
+    assert pressure_only.target_absolute_pressure_Pa == 10
+    assert pressure_only.duration_min is None
+
+    duration_only = PreparationOperationPayload.model_validate(
+        {"operation_type": "pump_down", "duration_min": 5}
+    )
+    assert duration_only.duration_min == 5
+    assert duration_only.target_absolute_pressure_Pa is None
+
+    with pytest.raises(ValueError, match="target pressure or duration"):
+        PreparationOperationPayload.model_validate({"operation_type": "pump_down"})
+
+
 def test_gas_components_are_normalized_without_requiring_purity() -> None:
     assert normalize_gas_components(
         [

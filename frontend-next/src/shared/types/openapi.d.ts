@@ -1677,6 +1677,8 @@ export interface components {
             label_attachment?: components["schemas"]["FileAssetReferencePayload"] | null;
             /** Substrate Material */
             substrate_material?: string | null;
+            /** Mica Type */
+            mica_type?: ("fluorophlogopite" | "muscovite" | "phlogopite") | null;
             /** Substrate Oxide Thickness Nm */
             substrate_oxide_thickness_nm?: number | null;
             /** Substrate Orientation Polish Availability */
@@ -1772,6 +1774,8 @@ export interface components {
              * Format: uuid
              */
             performed_by_id: string;
+            /** Performed By Name */
+            performed_by_name?: string | null;
             /** Software Name */
             software_name: string;
             /** Software Version */
@@ -1855,7 +1859,9 @@ export interface components {
                 method_profile: "Raman";
                 typed_conditions: {
                     laser_wavelength_nm: number;
-                    power_setting?: string;
+                    excitation_power_value?: number;
+                    /** @enum {string} */
+                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     objective?: string;
                     integration_time_s?: number;
                     accumulations?: number;
@@ -1877,7 +1883,9 @@ export interface components {
                 method_profile: "low_frequency_raman";
                 typed_conditions: {
                     laser_wavelength_nm: number;
-                    power_setting?: string;
+                    excitation_power_value?: number;
+                    /** @enum {string} */
+                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     objective?: string;
                     integration_time_s?: number;
                     accumulations?: number;
@@ -1899,7 +1907,9 @@ export interface components {
                 method_profile: "PL";
                 typed_conditions: {
                     excitation_wavelength_nm: number;
-                    power_setting?: string;
+                    excitation_power_value?: number;
+                    /** @enum {string} */
+                    excitation_power_basis?: "sample_plane_mW" | "instrument_percent";
                     integration_time_s?: number;
                     spectral_range_nm?: Record<string, never>;
                     temperature_K?: number;
@@ -1925,6 +1935,7 @@ export interface components {
                     scan_size_um: Record<string, never>;
                     resolution_px?: Record<string, never>;
                     scan_rate_hz?: number;
+                    height_processing?: string;
                 };
                 sample_region: {
                     /** @enum {unknown} */
@@ -1943,8 +1954,13 @@ export interface components {
                 method_profile: "SEM";
                 typed_conditions: {
                     accelerating_voltage_kV: number;
+                    /** @enum {string} */
+                    mode: "secondary_electron" | "backscattered_electron" | "EDS";
                     working_distance_mm?: number;
+                    beam_current_nA?: number;
                     detector?: string;
+                    stage_tilt_deg?: number;
+                    sample_preparation?: string;
                     field_of_view_um?: Record<string, never>;
                 };
                 sample_region: {
@@ -1964,9 +1980,12 @@ export interface components {
                 method_profile: "XRD";
                 typed_conditions: {
                     radiation_source: string;
+                    source_wavelength_nm: number;
                     scan_range_2theta_deg: Record<string, never>;
-                    step_size_deg?: number;
+                    step_size_deg: number;
+                    count_time_s?: number;
                     scan_rate_deg_min?: number;
+                    incident_angle_deg?: number;
                     geometry?: string;
                 };
                 sample_region: {
@@ -1986,7 +2005,8 @@ export interface components {
                 method_profile: "TEM";
                 typed_conditions: {
                     accelerating_voltage_kV: number;
-                    mode?: string;
+                    /** @enum {string} */
+                    mode: "bright_field" | "HRTEM" | "SAED" | "STEM" | "EDS" | "EELS";
                     sample_preparation?: string;
                 };
                 sample_region: {
@@ -2039,6 +2059,10 @@ export interface components {
             excitation_wavelength_nm?: number | null;
             /** Power Setting */
             power_setting?: string | null;
+            /** Excitation Power Value */
+            excitation_power_value?: number | null;
+            /** Excitation Power Basis */
+            excitation_power_basis?: ("sample_plane_mW" | "instrument_percent") | null;
             /** Objective */
             objective?: string | null;
             /** Integration Time S */
@@ -2060,20 +2084,32 @@ export interface components {
             accelerating_voltage_kV?: number | null;
             /** Working Distance Mm */
             working_distance_mm?: number | null;
+            /** Beam Current Na */
+            beam_current_nA?: number | null;
             /** Detector */
             detector?: string | null;
+            /** Stage Tilt Deg */
+            stage_tilt_deg?: number | null;
             field_of_view_um?: components["schemas"]["WidthHeight"] | null;
             /** Radiation Source */
             radiation_source?: string | null;
+            /** Source Wavelength Nm */
+            source_wavelength_nm?: number | null;
             scan_range_2theta_deg?: components["schemas"]["ScanRange"] | null;
             /** Step Size Deg */
             step_size_deg?: number | null;
+            /** Count Time S */
+            count_time_s?: number | null;
             /** Scan Rate Deg Min */
             scan_rate_deg_min?: number | null;
+            /** Incident Angle Deg */
+            incident_angle_deg?: number | null;
             /** Geometry */
             geometry?: string | null;
             /** Sample Preparation */
             sample_preparation?: string | null;
+            /** Height Processing */
+            height_processing?: string | null;
             /** Illumination Mode */
             illumination_mode?: string | null;
             /** Method Description */
@@ -2126,6 +2162,8 @@ export interface components {
             };
             /** Quality Flag */
             quality_flag: string;
+            /** Quality Note */
+            quality_note?: string | null;
             /** Evidence Present */
             evidence_present: boolean;
             /** Raw File Count */
@@ -2138,6 +2176,8 @@ export interface components {
             assertion_count: number;
             /** Revision Number */
             revision_number: number;
+            /** Performed By Name */
+            performed_by_name?: string | null;
             /** Can Invalidate */
             can_invalidate: boolean;
             /** Raw Files */
@@ -2196,6 +2236,8 @@ export interface components {
             sample_count: number | null;
             /** Quality Flag */
             quality_flag: string;
+            /** Quality Note */
+            quality_note?: string | null;
         };
         /** MeasurementRawFileRead */
         MeasurementRawFileRead: {
@@ -2247,6 +2289,8 @@ export interface components {
              * @enum {string}
              */
             quality_flag?: "valid" | "suspect";
+            /** Quality Note */
+            quality_note?: string | null;
         };
         /** MeasurementSummaryRead */
         MeasurementSummaryRead: {
@@ -2295,6 +2339,8 @@ export interface components {
             };
             /** Quality Flag */
             quality_flag: string;
+            /** Quality Note */
+            quality_note?: string | null;
             /** Evidence Present */
             evidence_present: boolean;
             /** Raw File Count */
@@ -2352,6 +2398,8 @@ export interface components {
              * @enum {string}
              */
             quality_flag?: "valid" | "suspect" | "invalid" | "below_detection_limit";
+            /** Quality Note */
+            quality_note?: string | null;
             /** Analysis Index */
             analysis_index?: number | null;
         } & (({

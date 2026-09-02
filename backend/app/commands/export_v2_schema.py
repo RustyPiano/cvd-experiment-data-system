@@ -579,6 +579,7 @@ def _condition_field_schema(field: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {
         "type": {
             "text": "string",
+            "select": "string",
             "number": "number",
             "integer": "integer",
             "range": "object",
@@ -598,6 +599,8 @@ def _condition_field_schema(field: dict[str, Any]) -> dict[str, Any]:
             result[schema_key] = validation[source_key]
     if field["value_type"] == "text":
         result["pattern"] = r"\S"
+    if field["value_type"] == "select":
+        result["enum"] = [option["value"] for option in field.get("options", [])]
     return result
 
 

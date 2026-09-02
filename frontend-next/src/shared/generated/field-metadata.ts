@@ -93,8 +93,18 @@ export interface CharacterizationConditionField {
   key: string
   label_zh: string
   label_en: string
-  value_type: 'text' | 'number' | 'integer' | 'range' | 'size' | 'resolution'
+  value_type:
+    | 'text'
+    | 'number'
+    | 'integer'
+    | 'select'
+    | 'range'
+    | 'size'
+    | 'resolution'
   unit?: string
+  help_zh?: string
+  help_en?: string
+  options?: Array<{ value: string; label_zh: string; label_en: string }>
   validation?: FieldValidation
   components?: Array<{ key: string; label_zh: string; label_en: string }>
 }
@@ -130,7 +140,7 @@ export interface GasSpecies {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-alpha.23',
+  version: 'v4.0-alpha.25',
   status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
 }
@@ -1783,7 +1793,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       input: '预处理操作数组',
       unit: null,
       options:
-        '{operation_type: pump_down|gas_exchange|leak_check|other, duration_min, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, snapshot?}], other_name?}',
+        '{operation_type: pump_down|gas_exchange|leak_check|other, duration_min?, target_absolute_pressure_Pa?, cycle_count?, gas_sources?: [{material_lot_id, material_lot_version, snapshot?}], other_name?}',
       validation: null,
       requirement: {
         raw: '选填',
@@ -3866,8 +3876,8 @@ export const characterizationProperties: Record<
     unit: 'cm⁻²',
   },
   raman_e2g_peak_position: {
-    label_zh: 'Raman E₂g 峰位',
-    label_en: 'Raman E2g peak position',
+    label_zh: 'Raman E₂g / E′ 代表峰位',
+    label_en: 'Representative Raman E2g / E-prime peak position',
     value_type: 'numeric',
     validation: {
       ge: 0,
@@ -3875,8 +3885,8 @@ export const characterizationProperties: Record<
     unit: 'cm⁻¹',
   },
   raman_a1g_peak_position: {
-    label_zh: 'Raman A₁g 峰位',
-    label_en: 'Raman A1g peak position',
+    label_zh: 'Raman A₁g / A₁′ 代表峰位',
+    label_en: 'Representative Raman A1g / A1-prime peak position',
     value_type: 'numeric',
     validation: {
       ge: 0,
@@ -3992,8 +4002,8 @@ export const characterizationProperties: Record<
     unit: 'nm',
   },
   xrd_peak_2theta: {
-    label_zh: 'XRD 衍射峰位',
-    label_en: 'XRD peak 2-theta',
+    label_zh: 'XRD 代表衍射峰位',
+    label_en: 'Representative XRD peak 2-theta',
     value_type: 'numeric',
     validation: {
       ge: 0,
@@ -4002,8 +4012,8 @@ export const characterizationProperties: Record<
     unit: '° 2θ',
   },
   xrd_peak_fwhm: {
-    label_zh: 'XRD 衍射峰宽',
-    label_en: 'XRD peak FWHM',
+    label_zh: 'XRD 代表峰宽',
+    label_en: 'Representative XRD peak FWHM',
     value_type: 'numeric',
     validation: {
       gt: 0,
@@ -4011,8 +4021,8 @@ export const characterizationProperties: Record<
     unit: '° 2θ',
   },
   xrd_d_spacing: {
-    label_zh: 'XRD 晶面间距',
-    label_en: 'XRD d-spacing',
+    label_zh: 'XRD 代表晶面间距',
+    label_en: 'Representative XRD d-spacing',
     value_type: 'numeric',
     validation: {
       gt: 0,
@@ -4080,15 +4090,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'observation_note',
       ],
       default_property_codes: ['coverage_percent'],
-      allowed_assertion_types: [
-        'growth_presence',
-        'phase_identity',
-        'composition',
-        'polytype',
-        'stacking_order',
-        'orientation_relationship',
-        'layer_count',
-      ],
+      allowed_assertion_types: ['growth_presence'],
     },
     Raman: {
       label_zh: 'Raman',
@@ -4100,7 +4102,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
       required_condition_keys: ['laser_wavelength_nm'],
       optional_condition_keys: [
-        'power_setting',
+        'excitation_power_value',
+        'excitation_power_basis',
         'objective',
         'integration_time_s',
         'accumulations',
@@ -4114,13 +4117,31 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           unit: 'nm',
         },
         {
-          key: 'power_setting',
-          label_zh: '功率设置',
-          label_en: 'Power setting',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
+          key: 'excitation_power_value',
+          label_zh: '激光功率数值',
+          label_en: 'Laser power value',
+          value_type: 'number',
+          help_zh: '请配合功率口径填写；优先记录样品处实测功率。',
+          help_en:
+            'Use with the power basis; prefer measured power at the sample.',
+        },
+        {
+          key: 'excitation_power_basis',
+          label_zh: '激光功率口径',
+          label_en: 'Laser power basis',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sample_plane_mW',
+              label_zh: '样品处功率（mW）',
+              label_en: 'At-sample power (mW)',
+            },
+            {
+              value: 'instrument_percent',
+              label_zh: '仪器设置（%）',
+              label_en: 'Instrument setting (%)',
+            },
+          ],
         },
         {
           key: 'objective',
@@ -4151,6 +4172,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'raman_peak_separation',
         'raman_peak_fwhm',
         'raman_intensity_ratio',
+        'observation_note',
       ],
       default_property_codes: [
         'raman_e2g_peak_position',
@@ -4174,7 +4196,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
       required_condition_keys: ['laser_wavelength_nm'],
       optional_condition_keys: [
-        'power_setting',
+        'excitation_power_value',
+        'excitation_power_basis',
         'objective',
         'integration_time_s',
         'accumulations',
@@ -4188,13 +4211,31 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           unit: 'nm',
         },
         {
-          key: 'power_setting',
-          label_zh: '功率设置',
-          label_en: 'Power setting',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
+          key: 'excitation_power_value',
+          label_zh: '激光功率数值',
+          label_en: 'Laser power value',
+          value_type: 'number',
+          help_zh: '请配合功率口径填写；优先记录样品处实测功率。',
+          help_en:
+            'Use with the power basis; prefer measured power at the sample.',
+        },
+        {
+          key: 'excitation_power_basis',
+          label_zh: '激光功率口径',
+          label_en: 'Laser power basis',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sample_plane_mW',
+              label_zh: '样品处功率（mW）',
+              label_en: 'At-sample power (mW)',
+            },
+            {
+              value: 'instrument_percent',
+              label_zh: '仪器设置（%）',
+              label_en: 'Instrument setting (%)',
+            },
+          ],
         },
         {
           key: 'objective',
@@ -4236,7 +4277,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       allowed_region_types: ['point', 'line', 'whole_sample', 'selected_area'],
       required_condition_keys: ['excitation_wavelength_nm'],
       optional_condition_keys: [
-        'power_setting',
+        'excitation_power_value',
+        'excitation_power_basis',
         'integration_time_s',
         'spectral_range_nm',
         'temperature_K',
@@ -4250,13 +4292,31 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           unit: 'nm',
         },
         {
-          key: 'power_setting',
-          label_zh: '功率设置',
-          label_en: 'Power setting',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
+          key: 'excitation_power_value',
+          label_zh: '激发功率数值',
+          label_en: 'Excitation power value',
+          value_type: 'number',
+          help_zh: '请配合功率口径填写；优先记录样品处实测功率。',
+          help_en:
+            'Use with the power basis; prefer measured power at the sample.',
+        },
+        {
+          key: 'excitation_power_basis',
+          label_zh: '激发功率口径',
+          label_en: 'Excitation power basis',
+          value_type: 'select',
+          options: [
+            {
+              value: 'sample_plane_mW',
+              label_zh: '样品处功率（mW）',
+              label_en: 'At-sample power (mW)',
+            },
+            {
+              value: 'instrument_percent',
+              label_zh: '仪器设置（%）',
+              label_en: 'Instrument setting (%)',
+            },
+          ],
         },
         {
           key: 'integration_time_s',
@@ -4318,6 +4378,7 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'probe',
         'resolution_px',
         'scan_rate_hz',
+        'height_processing',
       ],
       condition_fields: [
         {
@@ -4383,6 +4444,17 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           value_type: 'number',
           unit: 'Hz',
         },
+        {
+          key: 'height_processing',
+          label_zh: '高度数据处理',
+          label_en: 'Height-data processing',
+          value_type: 'text',
+          help_zh: '例如逐行校平、平面拟合或未处理。',
+          help_en: 'For example: line leveling, plane fitting, or unprocessed.',
+          validation: {
+            max_length: 1000,
+          },
+        },
       ],
       allowed_property_codes: [
         'afm_ra_roughness',
@@ -4400,10 +4472,13 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       show_growth_presence: true,
       raw_file_guidance_zh: '请上传原始图像与仪器元数据。',
       allowed_region_types: ['point', 'area', 'whole_sample', 'selected_area'],
-      required_condition_keys: ['accelerating_voltage_kV'],
+      required_condition_keys: ['accelerating_voltage_kV', 'mode'],
       optional_condition_keys: [
         'working_distance_mm',
+        'beam_current_nA',
         'detector',
+        'stage_tilt_deg',
+        'sample_preparation',
         'field_of_view_um',
       ],
       condition_fields: [
@@ -4415,11 +4490,41 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           unit: 'kV',
         },
         {
+          key: 'mode',
+          label_zh: '成像或分析模式',
+          label_en: 'Imaging or analysis mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'secondary_electron',
+              label_zh: '二次电子成像（SE）',
+              label_en: 'Secondary electron imaging (SE)',
+            },
+            {
+              value: 'backscattered_electron',
+              label_zh: '背散射电子成像（BSE）',
+              label_en: 'Backscattered electron imaging (BSE)',
+            },
+            {
+              value: 'EDS',
+              label_zh: '能谱分析（EDS/EDX）',
+              label_en: 'Energy-dispersive spectroscopy (EDS/EDX)',
+            },
+          ],
+        },
+        {
           key: 'working_distance_mm',
           label_zh: '工作距离',
           label_en: 'Working distance',
           value_type: 'number',
           unit: 'mm',
+        },
+        {
+          key: 'beam_current_nA',
+          label_zh: '束流',
+          label_en: 'Beam current',
+          value_type: 'number',
+          unit: 'nA',
         },
         {
           key: 'detector',
@@ -4428,6 +4533,26 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           value_type: 'text',
           validation: {
             max_length: 128,
+          },
+        },
+        {
+          key: 'stage_tilt_deg',
+          label_zh: '样品台倾角',
+          label_en: 'Stage tilt',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: -90,
+            le: 90,
+          },
+        },
+        {
+          key: 'sample_preparation',
+          label_zh: '导电处理或镀膜',
+          label_en: 'Conductive treatment or coating',
+          value_type: 'text',
+          validation: {
+            max_length: 1000,
           },
         },
         {
@@ -4466,10 +4591,16 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
       show_growth_presence: false,
       raw_file_guidance_zh: '请上传原始衍射数据。',
       allowed_region_types: ['whole_sample', 'area', 'selected_area'],
-      required_condition_keys: ['radiation_source', 'scan_range_2theta_deg'],
-      optional_condition_keys: [
+      required_condition_keys: [
+        'radiation_source',
+        'source_wavelength_nm',
+        'scan_range_2theta_deg',
         'step_size_deg',
+      ],
+      optional_condition_keys: [
+        'count_time_s',
         'scan_rate_deg_min',
+        'incident_angle_deg',
         'geometry',
       ],
       condition_fields: [
@@ -4481,6 +4612,13 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           validation: {
             max_length: 128,
           },
+        },
+        {
+          key: 'source_wavelength_nm',
+          label_zh: 'X 射线波长',
+          label_en: 'X-ray wavelength',
+          value_type: 'number',
+          unit: 'nm',
         },
         {
           key: 'scan_range_2theta_deg',
@@ -4509,11 +4647,29 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           unit: '°',
         },
         {
+          key: 'count_time_s',
+          label_zh: '每步计数时间',
+          label_en: 'Count time per step',
+          value_type: 'number',
+          unit: 's',
+        },
+        {
           key: 'scan_rate_deg_min',
           label_zh: '扫描速率',
           label_en: 'Scan rate',
           value_type: 'number',
           unit: '°/min',
+        },
+        {
+          key: 'incident_angle_deg',
+          label_zh: '入射角',
+          label_en: 'Incident angle',
+          value_type: 'number',
+          unit: '°',
+          validation: {
+            ge: 0,
+            le: 90,
+          },
         },
         {
           key: 'geometry',
@@ -4551,8 +4707,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         'whole_sample',
         'selected_area',
       ],
-      required_condition_keys: ['accelerating_voltage_kV'],
-      optional_condition_keys: ['mode', 'sample_preparation'],
+      required_condition_keys: ['accelerating_voltage_kV', 'mode'],
+      optional_condition_keys: ['sample_preparation'],
       condition_fields: [
         {
           key: 'accelerating_voltage_kV',
@@ -4563,12 +4719,41 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
         },
         {
           key: 'mode',
-          label_zh: '模式',
-          label_en: 'Mode',
-          value_type: 'text',
-          validation: {
-            max_length: 128,
-          },
+          label_zh: '成像或分析模式',
+          label_en: 'Imaging or analysis mode',
+          value_type: 'select',
+          options: [
+            {
+              value: 'bright_field',
+              label_zh: '明场 TEM',
+              label_en: 'Bright-field TEM',
+            },
+            {
+              value: 'HRTEM',
+              label_zh: '高分辨 TEM（HRTEM）',
+              label_en: 'High-resolution TEM (HRTEM)',
+            },
+            {
+              value: 'SAED',
+              label_zh: '选区电子衍射（SAED）',
+              label_en: 'Selected-area electron diffraction (SAED)',
+            },
+            {
+              value: 'STEM',
+              label_zh: '扫描透射（STEM）',
+              label_en: 'Scanning TEM (STEM)',
+            },
+            {
+              value: 'EDS',
+              label_zh: '能谱分析（EDS/EDX）',
+              label_en: 'Energy-dispersive spectroscopy (EDS/EDX)',
+            },
+            {
+              value: 'EELS',
+              label_zh: '电子能量损失谱（EELS）',
+              label_en: 'Electron energy-loss spectroscopy (EELS)',
+            },
+          ],
         },
         {
           key: 'sample_preparation',
@@ -4613,8 +4798,8 @@ export const characterizationProfiles: Record<string, CharacterizationProfile> =
           },
         },
       ],
-      allowed_property_codes: [],
-      default_property_codes: [],
+      allowed_property_codes: ['observation_note'],
+      default_property_codes: ['observation_note'],
       allowed_assertion_types: [],
     },
   }

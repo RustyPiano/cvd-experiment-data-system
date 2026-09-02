@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { X } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -82,6 +83,7 @@ type ResultDefinition = {
     | 'orientation_relationship'
   unit?: string
   required?: boolean
+  calculated?: boolean
 }
 
 type MeasurementPropertyWrite = NonNullable<
@@ -121,7 +123,20 @@ type AnalysisDraft = {
   codeCommit: string
   startedAt: string
   completedAt: string
-  parameters: string
+}
+type AnalysisParameterDraft = {
+  id: number
+  key: string
+  value: string
+}
+type ResultMetadataDraft = {
+  quality: MeasurementPropertyQuality
+  qualityNote: string
+  statistic: NonNullable<MeasurementPropertyWrite['statistic']>
+  sampleCount: string
+  uncertaintyValue: string
+  uncertaintyType: string
+  confidence: string
 }
 
 const DEFAULT_REGION: RegionDraft = {
@@ -144,7 +159,6 @@ const DEFAULT_ANALYSIS: AnalysisDraft = {
   codeCommit: '',
   startedAt: '',
   completedAt: '',
-  parameters: '',
 }
 const ASSERTION_TYPES: AssertionType[] = [
   'growth_presence',
@@ -166,20 +180,19 @@ function resultAssertionType(field: ResultDefinition): AssertionType | null {
   return field.assertionType ?? null
 }
 
-function parseAnalysisParameters(
-  value: string,
-): Record<string, unknown> | null {
-  if (!value.trim()) return {}
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return parsed !== null &&
-      typeof parsed === 'object' &&
-      !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
-  } catch {
-    return null
-  }
+const DEFAULT_RESULT_METADATA: ResultMetadataDraft = {
+  quality: 'valid',
+  qualityNote: '',
+  statistic: 'single_observation',
+  sampleCount: '',
+  uncertaintyValue: '',
+  uncertaintyType: '',
+  confidence: '',
+}
+
+function localDateTimeValue(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
 }
 
 function regionPayload(
@@ -359,6 +372,7 @@ export const SIMPLE_RESULTS: Record<string, ResultDefinition[]> = {
       kind: 'number',
       unit: 'cm⁻¹',
       propertyCode: 'raman_peak_separation',
+      calculated: true,
     },
     {
       key: 'phase',
@@ -490,7 +504,14 @@ export const SIMPLE_RESULTS: Record<string, ResultDefinition[]> = {
       assertionType: 'stacking_order',
     },
   ],
-  other: [],
+  other: [
+    {
+      key: 'observation',
+      label: '观察说明',
+      kind: 'text',
+      propertyCode: 'observation_note',
+    },
+  ],
 }
 
 function conditionHasValue(
@@ -525,7 +546,13 @@ export function characterizationConditionIssue(
     return required ? translate('conditionRequired') : null
   }
   if (values.some((value) => !value)) return translate('completeValues')
-  if (field.value_type === 'text') {
+  if (field.value_type === 'text' || field.value_type === 'select') {
+    if (
+      field.value_type === 'select' &&
+      !field.options?.some((option) => option.value === values[0])
+    ) {
+      return translate('conditionOption')
+    }
     const minLength = field.validation?.min_length
     const maxLength = field.validation?.max_length
     if (typeof minLength === 'number' && values[0].length < minLength) {
@@ -556,6 +583,21 @@ export function characterizationConditionIssue(
       ? null
       : translate('positiveInteger')
   }
+  const ge = field.validation?.ge
+  const gt = field.validation?.gt
+  const le = field.validation?.le
+  const lt = field.validation?.lt
+  if (
+    numbers.some(
+      (value) =>
+        (typeof ge === 'number' && value < ge) ||
+        (typeof gt === 'number' && value <= gt) ||
+        (typeof le === 'number' && value > le) ||
+        (typeof lt === 'number' && value >= lt),
+    )
+  ) {
+    return translate('conditionRange')
+  }
   return numbers.every((value) => value > 0)
     ? null
     : translate('positiveNumber')
@@ -577,7 +619,7 @@ function typedConditions(
                 Number(conditions[`${field.key}.${component.key}`]),
               ]),
             )
-          : field.value_type === 'text'
+          : ['text', 'select'].includes(field.value_type)
             ? conditions[field.key].trim()
             : Number(conditions[field.key]),
       ]),
@@ -676,11 +718,46 @@ function ConditionInput({
             )
           })}
         </div>
+      ) : field.value_type === 'select' ? (
+        <Select
+          value={conditions[field.key] ?? ''}
+          disabled={disabled}
+          onValueChange={(value) => onChange(field.key, value)}
+        >
+          <SelectTrigger
+            id={`characterization-condition-${field.key}`}
+            className="w-full"
+            aria-invalid={Boolean(issue) || undefined}
+            aria-describedby={issue ? issueId : undefined}
+          >
+            <SelectValue
+              placeholder={t('characterizations.workspace.placeholders.select')}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {field.options?.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {isEnglish(language) ? option.label_en : option.label_zh}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       ) : (
         <Input
           id={`characterization-condition-${field.key}`}
           type={field.value_type === 'text' ? 'text' : 'number'}
-          min={field.value_type === 'text' ? undefined : '0'}
+          min={
+            field.value_type === 'text'
+              ? undefined
+              : (field.validation?.ge ?? field.validation?.gt ?? '0')
+          }
+          max={
+            field.value_type === 'text'
+              ? undefined
+              : (field.validation?.le ?? field.validation?.lt)
+          }
           minLength={field.value_type === 'text' ? minLength : undefined}
           maxLength={field.value_type === 'text' ? maxLength : undefined}
           step={field.value_type === 'integer' ? '1' : 'any'}
@@ -697,6 +774,11 @@ function ConditionInput({
           onChange={(event) => onChange(field.key, event.target.value)}
         />
       )}
+      {field.help_zh || field.help_en ? (
+        <p className="text-sm text-muted-foreground">
+          {isEnglish(language) ? field.help_en : field.help_zh}
+        </p>
+      ) : null}
       {issue ? (
         <p id={issueId} className="text-destructive text-sm">
           {issue}
@@ -709,28 +791,29 @@ function ConditionInput({
 function ResultInput({
   field,
   value,
-  quality,
+  metadata,
   language,
   disabled,
   onChange,
-  onQualityChange,
+  onMetadataChange,
 }: {
   field: ResultDefinition
   value: string
-  quality: MeasurementPropertyQuality
+  metadata: ResultMetadataDraft
   language: string
   disabled?: boolean
   onChange: (value: string) => void
-  onQualityChange: (quality: MeasurementPropertyQuality) => void
+  onMetadataChange: (value: Partial<ResultMetadataDraft>) => void
 }) {
   const { t } = useTranslation()
   const issue = characterizationResultIssue(field, value, language)
   const inputId = `characterization-result-${field.key.replace('.', '-')}`
   const issueId = `${inputId}-error`
   const qualityHelpId = `${inputId}-quality-help`
+  const hasValue = Boolean(value.trim())
   const describedBy = [
     issue ? issueId : null,
-    quality === 'below_detection_limit' ? qualityHelpId : null,
+    metadata.quality === 'below_detection_limit' ? qualityHelpId : null,
   ]
     .filter(Boolean)
     .join(' ')
@@ -807,45 +890,184 @@ function ResultInput({
           step={field.kind === 'layer_count' ? 1 : 'any'}
           value={value}
           disabled={disabled}
+          readOnly={field.calculated}
           aria-invalid={Boolean(issue) || undefined}
           aria-describedby={describedBy || undefined}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {field.propertyCode ? (
+      {field.propertyCode && hasValue ? (
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            {t('characterizations.workspace.actions.resultMetadata')}
+          </summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`${inputId}-quality`}>
+                {t('characterizations.workspace.fields.resultQuality')}
+              </Label>
+              <Select
+                value={metadata.quality}
+                disabled={disabled}
+                onValueChange={(quality) =>
+                  onMetadataChange({
+                    quality: quality as MeasurementPropertyQuality,
+                    ...(quality === 'valid' ? { qualityNote: '' } : {}),
+                  })
+                }
+              >
+                <SelectTrigger id={`${inputId}-quality`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {PROPERTY_QUALITY_OPTIONS.map((qualityOption) =>
+                      qualityOption !== 'below_detection_limit' ||
+                      characterizationProperties[field.propertyCode!]
+                        ?.value_type === 'numeric' ? (
+                        <SelectItem key={qualityOption} value={qualityOption}>
+                          {t(
+                            `characterizations.workspace.propertyQuality.${qualityOption}`,
+                          )}
+                        </SelectItem>
+                      ) : null,
+                    )}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            {field.kind === 'number' ? (
+              <>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={`${inputId}-statistic`}>
+                    {t('characterizations.workspace.fields.statistic')}
+                  </Label>
+                  <Select
+                    value={metadata.statistic}
+                    disabled={disabled}
+                    onValueChange={(statistic) =>
+                      onMetadataChange({
+                        statistic:
+                          statistic as ResultMetadataDraft['statistic'],
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      id={`${inputId}-statistic`}
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        [
+                          'single_observation',
+                          'mean',
+                          'median',
+                          'min',
+                          'max',
+                        ] as const
+                      ).map((statistic) => (
+                        <SelectItem key={statistic} value={statistic}>
+                          {t(
+                            `characterizations.workspace.statistics.${statistic}`,
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={`${inputId}-sample-count`}>
+                    {t('characterizations.workspace.fields.sampleCount')}
+                  </Label>
+                  <Input
+                    id={`${inputId}-sample-count`}
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={metadata.sampleCount}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onMetadataChange({ sampleCount: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={`${inputId}-uncertainty`}>
+                    {t('characterizations.workspace.fields.uncertainty')}
+                  </Label>
+                  <Input
+                    id={`${inputId}-uncertainty`}
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={metadata.uncertaintyValue}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onMetadataChange({ uncertaintyValue: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={`${inputId}-uncertainty-type`}>
+                    {t('characterizations.workspace.fields.uncertaintyType')}
+                  </Label>
+                  <Input
+                    id={`${inputId}-uncertainty-type`}
+                    value={metadata.uncertaintyType}
+                    maxLength={64}
+                    disabled={disabled}
+                    placeholder={t(
+                      'characterizations.workspace.placeholders.uncertaintyType',
+                    )}
+                    onChange={(event) =>
+                      onMetadataChange({ uncertaintyType: event.target.value })
+                    }
+                  />
+                </div>
+              </>
+            ) : null}
+            {metadata.quality !== 'valid' ? (
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor={`${inputId}-quality-note`}>
+                  {t('characterizations.workspace.fields.qualityNote')}{' '}
+                  <RequiredMark />
+                </Label>
+                <Textarea
+                  id={`${inputId}-quality-note`}
+                  value={metadata.qualityNote}
+                  maxLength={1000}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    onMetadataChange({ qualityNote: event.target.value })
+                  }
+                />
+              </div>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
+      {!field.propertyCode && hasValue ? (
         <div className="flex flex-col gap-2">
-          <Label htmlFor={`${inputId}-quality`}>
-            {t('characterizations.workspace.fields.resultQuality')}
+          <Label htmlFor={`${inputId}-confidence`}>
+            {t('characterizations.workspace.fields.confidence')}
           </Label>
-          <Select
-            value={quality}
+          <Input
+            id={`${inputId}-confidence`}
+            type="number"
+            min="0"
+            max="1"
+            step="any"
+            value={metadata.confidence}
             disabled={disabled}
-            onValueChange={(nextQuality) =>
-              onQualityChange(nextQuality as MeasurementPropertyQuality)
+            onChange={(event) =>
+              onMetadataChange({ confidence: event.target.value })
             }
-          >
-            <SelectTrigger id={`${inputId}-quality`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {PROPERTY_QUALITY_OPTIONS.map((qualityOption) =>
-                  qualityOption !== 'below_detection_limit' ||
-                  characterizationProperties[field.propertyCode!]
-                    ?.value_type === 'numeric' ? (
-                    <SelectItem key={qualityOption} value={qualityOption}>
-                      {t(
-                        `characterizations.workspace.propertyQuality.${qualityOption}`,
-                      )}
-                    </SelectItem>
-                  ) : null,
-                )}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          />
         </div>
       ) : null}
-      {quality === 'below_detection_limit' ? (
+      {metadata.quality === 'below_detection_limit' ? (
         <p id={qualityHelpId} className="text-sm text-muted-foreground">
           {t('characterizations.workspace.propertyQuality.bdlHelp')}
         </p>
@@ -897,13 +1119,14 @@ export function SimpleCharacterizationWorkspace({
     string,
     unknown
   > | null>(null)
-  const [measuredAt, setMeasuredAt] = useState('')
+  const [measuredAt, setMeasuredAt] = useState(localDateTimeValue)
   const [qualityFlag, setQualityFlag] = useState<MeasurementQuality>('valid')
+  const [qualityNote, setQualityNote] = useState('')
   const [region, setRegion] = useState<RegionDraft>(DEFAULT_REGION)
   const [conditions, setConditions] = useState<Record<string, string>>({})
   const [results, setResults] = useState<Record<string, string>>({})
-  const [propertyQualities, setPropertyQualities] = useState<
-    Record<string, MeasurementPropertyQuality>
+  const [resultMetadata, setResultMetadata] = useState<
+    Record<string, ResultMetadataDraft>
   >({})
   const [compositionBasis, setCompositionBasis] =
     useState<CompositionBasis>('atomic_fraction')
@@ -911,7 +1134,12 @@ export function SimpleCharacterizationWorkspace({
     CompositionComponentDraft[]
   >([])
   const nextCompositionId = useRef(1)
+  const [compositionConfidence, setCompositionConfidence] = useState('')
   const [analysis, setAnalysis] = useState<AnalysisDraft>(DEFAULT_ANALYSIS)
+  const [analysisParameters, setAnalysisParameters] = useState<
+    AnalysisParameterDraft[]
+  >([])
+  const nextAnalysisParameterId = useRef(1)
   const [analysisInputIndexes, setAnalysisInputIndexes] = useState<number[]>([])
   const [analysisOutputIndexes, setAnalysisOutputIndexes] = useState<number[]>(
     [],
@@ -923,6 +1151,67 @@ export function SimpleCharacterizationWorkspace({
     queryFn: () => listEntityVersions('instrument', instrumentId, token),
     enabled: Boolean(instrumentId),
   })
+
+  const metadataFor = (key: string) =>
+    resultMetadata[key] ?? DEFAULT_RESULT_METADATA
+  const updateResultMetadata = (
+    key: string,
+    update: Partial<ResultMetadataDraft>,
+  ) =>
+    setResultMetadata((current) => ({
+      ...current,
+      [key]: { ...(current[key] ?? DEFAULT_RESULT_METADATA), ...update },
+    }))
+  const updateResult = (field: ResultDefinition, value: string) =>
+    setResults((current) => {
+      const next = { ...current, [field.key]: value }
+      if (method === 'Raman' && ['e2g', 'a1g'].includes(field.key)) {
+        const e2g = Number(field.key === 'e2g' ? value : next.e2g)
+        const a1g = Number(field.key === 'a1g' ? value : next.a1g)
+        next.separation =
+          Number.isFinite(e2g) && Number.isFinite(a1g) && next.e2g && next.a1g
+            ? String(Math.abs(a1g - e2g))
+            : ''
+      }
+      return next
+    })
+  const removeRawFile = (removedIndex: number) => {
+    setRawFiles((current) =>
+      current.filter((_, index) => index !== removedIndex),
+    )
+    const shiftIndexes = (indexes: number[]) =>
+      indexes
+        .filter((index) => index !== removedIndex)
+        .map((index) => (index > removedIndex ? index - 1 : index))
+    setAnalysisInputIndexes(shiftIndexes)
+    setAnalysisOutputIndexes(shiftIndexes)
+    setRegion((current) => ({
+      ...current,
+      imageFileIndex:
+        current.imageFileIndex === removedIndex
+          ? null
+          : current.imageFileIndex !== null &&
+              current.imageFileIndex > removedIndex
+            ? current.imageFileIndex - 1
+            : current.imageFileIndex,
+      ...(current.imageFileIndex === removedIndex
+        ? { pixelX: '', pixelY: '', pixelWidth: '', pixelHeight: '' }
+        : {}),
+    }))
+  }
+  const updateCondition = (key: string, value: string) => {
+    setConditions((current) => ({ ...current, [key]: value }))
+    if (
+      key === 'mode' &&
+      !(
+        (method === 'SEM' && value === 'EDS') ||
+        (method === 'TEM' && ['EDS', 'EELS'].includes(value))
+      )
+    ) {
+      setCompositionComponents([])
+      setCompositionConfidence('')
+    }
+  }
 
   const profile = characterizationProfiles[method]
   const resultDefinitions = (SIMPLE_RESULTS[method] ?? []).filter(
@@ -955,6 +1244,12 @@ export function SimpleCharacterizationWorkspace({
   )
   const advancedAssertionTypes = (profile?.allowed_assertion_types ?? [])
     .filter(isAssertionType)
+    .filter(
+      (assertionType) =>
+        assertionType !== 'composition' ||
+        (method === 'SEM' && conditions.mode === 'EDS') ||
+        (method === 'TEM' && ['EDS', 'EELS'].includes(conditions.mode)),
+    )
     .filter((assertionType) => !coveredAssertionTypes.has(assertionType))
   const advancedAssertionDefinitions: ResultDefinition[] =
     advancedAssertionTypes
@@ -1020,7 +1315,14 @@ export function SimpleCharacterizationWorkspace({
       ),
     })),
   ]
-  const conditionsValid = conditionIssues.every(({ issue }) => issue === null)
+  const excitationPowerPairIssue =
+    Boolean(conditions.excitation_power_value?.trim()) !==
+    Boolean(conditions.excitation_power_basis?.trim())
+      ? t('characterizations.workspace.validation.powerPair')
+      : null
+  const conditionsValid =
+    conditionIssues.every(({ issue }) => issue === null) &&
+    excitationPowerPairIssue === null
   const resultIssues = allResultDefinitions.flatMap((field) => {
     const issue = characterizationResultIssue(
       field,
@@ -1030,6 +1332,46 @@ export function SimpleCharacterizationWorkspace({
     return issue ? [issue] : []
   })
   const resultsValid = resultIssues.length === 0
+  const resultMetadataIssues = allResultDefinitions.flatMap((field) => {
+    if (!results[field.key]?.trim()) return []
+    const metadata = metadataFor(field.key)
+    const issues = [
+      field.propertyCode &&
+      metadata.quality !== 'valid' &&
+      !metadata.qualityNote.trim()
+        ? t('characterizations.workspace.missing.qualityNote')
+        : null,
+      field.propertyCode &&
+      ((metadata.statistic !== 'single_observation' &&
+        !metadata.sampleCount.trim()) ||
+        (metadata.sampleCount.trim() &&
+          (!Number.isInteger(Number(metadata.sampleCount)) ||
+            Number(metadata.sampleCount) < 1)))
+        ? t('characterizations.workspace.missing.sampleCount')
+        : null,
+      field.propertyCode &&
+      Boolean(metadata.uncertaintyValue.trim()) !==
+        Boolean(metadata.uncertaintyType.trim())
+        ? t('characterizations.workspace.missing.uncertaintyPair')
+        : null,
+      field.propertyCode &&
+      metadata.uncertaintyValue.trim() &&
+      (!Number.isFinite(Number(metadata.uncertaintyValue)) ||
+        Number(metadata.uncertaintyValue) < 0)
+        ? t('characterizations.workspace.missing.uncertaintyValue')
+        : null,
+      !field.propertyCode &&
+      metadata.confidence.trim() &&
+      (!Number.isFinite(Number(metadata.confidence)) ||
+        Number(metadata.confidence) < 0 ||
+        Number(metadata.confidence) > 1)
+        ? t('characterizations.workspace.missing.confidence')
+        : null,
+    ].filter(Boolean) as string[]
+    return issues.map(
+      (issue) => `${resultFieldLabel(field, i18n.language)}：${issue}`,
+    )
+  })
   const compositionIssues = compositionComponents.length
     ? ([
         compositionComponents.some(
@@ -1060,16 +1402,42 @@ export function SimpleCharacterizationWorkspace({
         ) > 1e-6
           ? t('characterizations.workspace.advanced.compositionSum')
           : null,
+        compositionConfidence.trim() &&
+        (!Number.isFinite(Number(compositionConfidence)) ||
+          Number(compositionConfidence) < 0 ||
+          Number(compositionConfidence) > 1)
+          ? t('characterizations.workspace.missing.confidence')
+          : null,
       ].filter(Boolean) as string[])
     : []
-  const parsedAnalysisParameters = parseAnalysisParameters(analysis.parameters)
+  const analysisParameterIssues = [
+    analysisParameters.some(
+      (parameter) =>
+        Boolean(parameter.key.trim()) !== Boolean(parameter.value.trim()),
+    )
+      ? t('characterizations.workspace.advanced.analysisParameterPair')
+      : null,
+    new Set(
+      analysisParameters
+        .map((parameter) => parameter.key.trim())
+        .filter(Boolean),
+    ).size !==
+    analysisParameters.filter((parameter) => parameter.key.trim()).length
+      ? t('characterizations.workspace.advanced.analysisParameterUnique')
+      : null,
+  ].filter(Boolean) as string[]
+  const parsedAnalysisParameters = Object.fromEntries(
+    analysisParameters
+      .filter((parameter) => parameter.key.trim() && parameter.value.trim())
+      .map((parameter) => [parameter.key.trim(), parameter.value.trim()]),
+  )
   const analysisRequested = Boolean(
     analysis.softwareName.trim() ||
     analysis.softwareVersion.trim() ||
     analysis.codeCommit.trim() ||
     analysis.startedAt ||
     analysis.completedAt ||
-    analysis.parameters.trim() ||
+    analysisParameters.length ||
     analysisInputIndexes.length ||
     analysisOutputIndexes.length,
   )
@@ -1094,9 +1462,7 @@ export function SimpleCharacterizationWorkspace({
         new Date(analysis.completedAt) < new Date(analysis.startedAt)
           ? t('characterizations.workspace.advanced.analysisInterval')
           : null,
-        parsedAnalysisParameters === null
-          ? t('characterizations.workspace.advanced.analysisParameters')
-          : null,
+        ...analysisParameterIssues,
         analysisInputIndexes.length === 0
           ? t('characterizations.workspace.advanced.analysisInput')
           : null,
@@ -1134,8 +1500,8 @@ export function SimpleCharacterizationWorkspace({
     hasCoordinateValue && !region.unit.trim()
       ? t('characterizations.workspace.missing.coordinateUnit')
       : null,
-    region.unit.length > 32
-      ? t('characterizations.workspace.missing.coordinateUnitMax', { max: 32 })
+    hasCoordinateValue && !['μm', 'mm', 'nm', 'px'].includes(region.unit)
+      ? t('characterizations.workspace.missing.coordinateUnitUnsupported')
       : null,
     profile && !profile.allowed_region_types.includes(region.geometryType)
       ? t('characterizations.workspace.missing.regionUnsupported')
@@ -1155,6 +1521,9 @@ export function SimpleCharacterizationWorkspace({
     region.pixelHeight,
   ]
   const regionImageIssues = [
+    region.geometryType === 'selected_area' && region.imageFileIndex === null
+      ? t('characterizations.workspace.missing.selectedAreaImage')
+      : null,
     region.imageFileIndex !== null &&
     (!selectedRegionImage ||
       !selectedRegionImage.type.startsWith('image/') ||
@@ -1172,9 +1541,14 @@ export function SimpleCharacterizationWorkspace({
       : null,
   ].filter(Boolean) as string[]
   const regionIssues = [...geometryRegionIssues, ...regionImageIssues]
+  const measurementQualityIssues = [
+    qualityFlag === 'suspect' && !qualityNote.trim()
+      ? t('characterizations.workspace.missing.qualityNote')
+      : null,
+  ].filter(Boolean) as string[]
   const hasMethodDraft = Boolean(
     instrumentId ||
-    measuredAt ||
+    (method && measuredAt) ||
     qualityFlag !== 'valid' ||
     region.geometryType !== DEFAULT_REGION.geometryType ||
     region.label !== DEFAULT_REGION.label ||
@@ -1184,8 +1558,19 @@ export function SimpleCharacterizationWorkspace({
     pixelRoiValues.some((value) => value.trim()) ||
     Object.values(conditions).some((value) => value.trim()) ||
     Object.values(results).some((value) => value.trim()) ||
-    Object.values(propertyQualities).some((quality) => quality !== 'valid') ||
+    qualityNote.trim() ||
+    Object.values(resultMetadata).some(
+      (metadata) =>
+        metadata.quality !== 'valid' ||
+        metadata.qualityNote.trim() ||
+        metadata.statistic !== 'single_observation' ||
+        metadata.sampleCount.trim() ||
+        metadata.uncertaintyValue.trim() ||
+        metadata.uncertaintyType.trim() ||
+        metadata.confidence.trim(),
+    ) ||
     compositionComponents.length ||
+    compositionConfidence.trim() ||
     analysisRequested ||
     rawFiles.length,
   )
@@ -1196,15 +1581,18 @@ export function SimpleCharacterizationWorkspace({
     setInstrumentId('')
     setInstrumentVersion(null)
     setInstrumentSnapshot(null)
-    setMeasuredAt('')
+    setMeasuredAt(localDateTimeValue())
     setQualityFlag('valid')
+    setQualityNote('')
     setRegion(DEFAULT_REGION)
     setConditions({})
     setResults({})
-    setPropertyQualities({})
+    setResultMetadata({})
     setCompositionBasis('atomic_fraction')
     setCompositionComponents([])
+    setCompositionConfidence('')
     setAnalysis(DEFAULT_ANALYSIS)
+    setAnalysisParameters([])
     setAnalysisInputIndexes([])
     setAnalysisOutputIndexes([])
     setRawFiles([])
@@ -1218,8 +1606,10 @@ export function SimpleCharacterizationWorkspace({
     regionIssues.length === 0 &&
     conditionsValid &&
     resultsValid &&
+    resultMetadataIssues.length === 0 &&
     compositionIssues.length === 0 &&
     analysisIssues.length === 0 &&
+    measurementQualityIssues.length === 0 &&
     evidencePresent &&
     (!profile?.instrument_required || instrumentId) &&
     (!instrumentId ||
@@ -1248,13 +1638,16 @@ export function SimpleCharacterizationWorkspace({
         const label = isEnglish(i18n.language) ? field.label_en : field.label_zh
         return `${label}${isEnglish(i18n.language) ? ': ' : '：'}${issue}`
       }),
+    ...(excitationPowerPairIssue ? [excitationPowerPairIssue] : []),
     ...resultIssues,
+    ...resultMetadataIssues,
     ...compositionIssues,
     ...analysisIssues,
+    ...measurementQualityIssues,
     profile?.raw_files_required && rawFileCount === 0
       ? t('characterizations.workspace.missing.rawFile')
       : null,
-    method && !evidencePresent
+    method && !profile?.raw_files_required && !evidencePresent
       ? t('characterizations.workspace.missing.evidence')
       : null,
   ].filter(Boolean) as string[]
@@ -1280,18 +1673,33 @@ export function SimpleCharacterizationWorkspace({
             (field): field is ResultDefinition & { propertyCode: string } =>
               Boolean(field.propertyCode && results[field.key]?.trim()),
           )
-          .map((field) => ({
-            property_code: field.propertyCode,
-            ...(field.kind === 'text'
-              ? { text_value: results[field.key].trim() }
-              : {
-                  numeric_value: Number(results[field.key]),
-                  unit: characterizationProperties[field.propertyCode]?.unit,
-                  statistic: 'single_observation',
-                }),
-            quality_flag: propertyQualities[field.key] ?? 'valid',
-            ...(analysisRequested ? { analysis_index: 0 } : {}),
-          })) as unknown as MeasurementPropertyWrite[]
+          .map((field) => {
+            const metadata = metadataFor(field.key)
+            return {
+              property_code: field.propertyCode,
+              ...(field.kind === 'text'
+                ? { text_value: results[field.key].trim() }
+                : {
+                    numeric_value: Number(results[field.key]),
+                    unit: characterizationProperties[field.propertyCode]?.unit,
+                    statistic: metadata.statistic,
+                    ...(metadata.sampleCount.trim()
+                      ? { sample_count: Number(metadata.sampleCount) }
+                      : {}),
+                    ...(metadata.uncertaintyValue.trim()
+                      ? {
+                          uncertainty_value: Number(metadata.uncertaintyValue),
+                          uncertainty_type: metadata.uncertaintyType.trim(),
+                        }
+                      : {}),
+                  }),
+              quality_flag: metadata.quality,
+              ...(metadata.qualityNote.trim()
+                ? { quality_note: metadata.qualityNote.trim() }
+                : {}),
+              ...(analysisRequested ? { analysis_index: 0 } : {}),
+            }
+          }) as unknown as MeasurementPropertyWrite[]
         const assertions = [
           ...resultDefinitions,
           ...advancedAssertionDefinitions,
@@ -1305,11 +1713,12 @@ export function SimpleCharacterizationWorkspace({
           )
           .map((field) => {
             const value = results[field.key].trim()
+            const confidence = metadataFor(field.key).confidence.trim()
             if (field.kind === 'growth') {
               return {
                 assertion_type: 'growth_presence',
                 value: { state: value },
-                confidence: null,
+                confidence: confidence ? Number(confidence) : null,
                 ...(analysisRequested ? { analysis_index: 0 } : {}),
               }
             }
@@ -1317,7 +1726,7 @@ export function SimpleCharacterizationWorkspace({
               return {
                 assertion_type: 'layer_count',
                 value: { count: Number(value) },
-                confidence: null,
+                confidence: confidence ? Number(confidence) : null,
                 ...(analysisRequested ? { analysis_index: 0 } : {}),
               }
             }
@@ -1330,7 +1739,7 @@ export function SimpleCharacterizationWorkspace({
             return {
               assertion_type: field.assertionType!,
               value: { [valueKey]: value },
-              confidence: null,
+              confidence: confidence ? Number(confidence) : null,
               ...(analysisRequested ? { analysis_index: 0 } : {}),
             }
           }) as unknown as MeasurementAssertionWrite[]
@@ -1344,7 +1753,9 @@ export function SimpleCharacterizationWorkspace({
                 fraction: Number(component.fraction),
               })),
             },
-            confidence: null,
+            confidence: compositionConfidence.trim()
+              ? Number(compositionConfidence)
+              : null,
             ...(analysisRequested ? { analysis_index: 0 } : {}),
           })
         }
@@ -1356,7 +1767,7 @@ export function SimpleCharacterizationWorkspace({
                 ...(analysis.codeCommit.trim()
                   ? { code_commit: analysis.codeCommit.trim() }
                   : {}),
-                parameters: parsedAnalysisParameters ?? {},
+                parameters: parsedAnalysisParameters,
                 started_at: new Date(analysis.startedAt).toISOString(),
                 ...(analysis.completedAt
                   ? {
@@ -1394,6 +1805,7 @@ export function SimpleCharacterizationWorkspace({
               (_, index) => !analysisOutputIndexes.includes(index),
             ),
             quality_flag: qualityFlag,
+            ...(qualityNote.trim() ? { quality_note: qualityNote.trim() } : {}),
           },
           analyses,
           properties,
@@ -1778,8 +2190,11 @@ export function SimpleCharacterizationWorkspace({
                             ...current,
                             geometryType,
                             label:
-                              current.label === current.geometryType
-                                ? geometryType
+                              current.label === current.geometryType ||
+                              current.label === 'whole_sample'
+                                ? t(
+                                    `characterizations.workspace.geometry.${geometryType}`,
+                                  )
                                 : current.label,
                             x: supportsAnchor ? current.x : '',
                             y: supportsAnchor ? current.y : '',
@@ -1811,24 +2226,26 @@ export function SimpleCharacterizationWorkspace({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="characterization-region-label">
-                        {t('characterizations.workspace.fields.regionLabel')}{' '}
-                        <RequiredMark />
-                      </Label>
-                      <Input
-                        id="characterization-region-label"
-                        value={region.label}
-                        maxLength={128}
-                        disabled={controlsDisabled}
-                        onChange={(event) =>
-                          setRegion((current) => ({
-                            ...current,
-                            label: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
+                    {region.geometryType !== 'whole_sample' ? (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="characterization-region-label">
+                          {t('characterizations.workspace.fields.regionLabel')}{' '}
+                          <RequiredMark />
+                        </Label>
+                        <Input
+                          id="characterization-region-label"
+                          value={region.label}
+                          maxLength={128}
+                          disabled={controlsDisabled}
+                          onChange={(event) =>
+                            setRegion((current) => ({
+                              ...current,
+                              label: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
                     {['point', 'line', 'area', 'selected_area'].includes(
                       region.geometryType,
                     ) ? (
@@ -1928,18 +2345,30 @@ export function SimpleCharacterizationWorkspace({
                         <Label htmlFor="characterization-region-unit">
                           {t('characterizations.workspace.fields.regionUnit')}
                         </Label>
-                        <Input
-                          id="characterization-region-unit"
+                        <Select
                           value={region.unit}
-                          maxLength={32}
                           disabled={controlsDisabled}
-                          onChange={(event) =>
+                          onValueChange={(value) =>
                             setRegion((current) => ({
                               ...current,
-                              unit: event.target.value,
+                              unit: value,
                             }))
                           }
-                        />
+                        >
+                          <SelectTrigger
+                            id="characterization-region-unit"
+                            className="w-full"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['μm', 'mm', 'nm', 'px'].map((unit) => (
+                              <SelectItem key={unit} value={unit}>
+                                {unit}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     ) : null}
                     {geometryRegionIssues.length ? (
@@ -1963,9 +2392,10 @@ export function SimpleCharacterizationWorkspace({
                   <Select
                     value={qualityFlag}
                     disabled={controlsDisabled}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
                       setQualityFlag(value as MeasurementQuality)
-                    }
+                      if (value === 'valid') setQualityNote('')
+                    }}
                   >
                     <SelectTrigger
                       id="characterization-quality"
@@ -1989,9 +2419,24 @@ export function SimpleCharacterizationWorkspace({
                     </SelectContent>
                   </Select>
                   {qualityFlag !== 'valid' ? (
-                    <p className="text-sm text-muted-foreground">
-                      {t('characterizations.workspace.measurementQuality.help')}
-                    </p>
+                    <>
+                      <Label htmlFor="characterization-quality-note">
+                        {t('characterizations.workspace.fields.qualityNote')}{' '}
+                        <RequiredMark />
+                      </Label>
+                      <Textarea
+                        id="characterization-quality-note"
+                        value={qualityNote}
+                        maxLength={1000}
+                        disabled={controlsDisabled}
+                        onChange={(event) => setQualityNote(event.target.value)}
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        {t(
+                          'characterizations.workspace.measurementQuality.help',
+                        )}
+                      </p>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -2012,12 +2457,7 @@ export function SimpleCharacterizationWorkspace({
                         i18n.language,
                       )}
                       disabled={controlsDisabled}
-                      onChange={(key, value) =>
-                        setConditions((current) => ({
-                          ...current,
-                          [key]: value,
-                        }))
-                      }
+                      onChange={updateCondition}
                     />
                   ))}
                 </div>
@@ -2041,12 +2481,7 @@ export function SimpleCharacterizationWorkspace({
                           i18n.language,
                         )}
                         disabled={controlsDisabled}
-                        onChange={(key, value) =>
-                          setConditions((current) => ({
-                            ...current,
-                            [key]: value,
-                          }))
-                        }
+                        onChange={updateCondition}
                       />
                     ))}
                   </div>
@@ -2075,17 +2510,8 @@ export function SimpleCharacterizationWorkspace({
                 required={profile?.raw_files_required}
                 onChange={(event) => {
                   const files = Array.from(event.target.files ?? [])
-                  setRawFiles(files)
-                  setAnalysisInputIndexes([])
-                  setAnalysisOutputIndexes([])
-                  setRegion((current) => ({
-                    ...current,
-                    imageFileIndex: null,
-                    pixelX: '',
-                    pixelY: '',
-                    pixelWidth: '',
-                    pixelHeight: '',
-                  }))
+                  setRawFiles((current) => [...current, ...files])
+                  event.target.value = ''
                 }}
               />
               <p className="text-sm text-muted-foreground">
@@ -2100,12 +2526,28 @@ export function SimpleCharacterizationWorkspace({
               </p>
               {rawFiles.length ? (
                 <ul
-                  className="list-disc pl-5 text-sm"
+                  className="flex flex-col gap-2 text-sm"
                   aria-label={t('characterizations.workspace.selectedFiles')}
                 >
-                  {rawFiles.map((file) => (
-                    <li key={`${file.name}-${file.size}-${file.lastModified}`}>
-                      {file.name}
+                  {rawFiles.map((file, index) => (
+                    <li
+                      key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                      className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                    >
+                      <span className="min-w-0 truncate">{file.name}</span>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={controlsDisabled}
+                        aria-label={t(
+                          'characterizations.workspace.actions.removeFile',
+                          { filename: file.name },
+                        )}
+                        onClick={() => removeRawFile(index)}
+                      >
+                        <X aria-hidden="true" />
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -2233,20 +2675,12 @@ export function SimpleCharacterizationWorkspace({
                     key={field.key}
                     field={field}
                     value={results[field.key] ?? ''}
-                    quality={propertyQualities[field.key] ?? 'valid'}
+                    metadata={metadataFor(field.key)}
                     language={i18n.language}
                     disabled={controlsDisabled}
-                    onChange={(value) =>
-                      setResults((current) => ({
-                        ...current,
-                        [field.key]: value,
-                      }))
-                    }
-                    onQualityChange={(quality) =>
-                      setPropertyQualities((current) => ({
-                        ...current,
-                        [field.key]: quality,
-                      }))
+                    onChange={(value) => updateResult(field, value)}
+                    onMetadataChange={(value) =>
+                      updateResultMetadata(field.key, value)
                     }
                   />
                 ))}
@@ -2262,20 +2696,12 @@ export function SimpleCharacterizationWorkspace({
                         key={field.key}
                         field={field}
                         value={results[field.key] ?? ''}
-                        quality={propertyQualities[field.key] ?? 'valid'}
+                        metadata={metadataFor(field.key)}
                         language={i18n.language}
                         disabled={controlsDisabled}
-                        onChange={(value) =>
-                          setResults((current) => ({
-                            ...current,
-                            [field.key]: value,
-                          }))
-                        }
-                        onQualityChange={(quality) =>
-                          setPropertyQualities((current) => ({
-                            ...current,
-                            [field.key]: quality,
-                          }))
+                        onChange={(value) => updateResult(field, value)}
+                        onMetadataChange={(value) =>
+                          updateResultMetadata(field.key, value)
                         }
                       />
                     ))}
@@ -2300,16 +2726,13 @@ export function SimpleCharacterizationWorkspace({
                               key={field.key}
                               field={field}
                               value={results[field.key] ?? ''}
-                              quality="valid"
+                              metadata={metadataFor(field.key)}
                               language={i18n.language}
                               disabled={controlsDisabled}
-                              onChange={(value) =>
-                                setResults((current) => ({
-                                  ...current,
-                                  [field.key]: value,
-                                }))
+                              onChange={(value) => updateResult(field, value)}
+                              onMetadataChange={(value) =>
+                                updateResultMetadata(field.key, value)
                               }
-                              onQualityChange={() => undefined}
                             />
                           ))}
                         </div>
@@ -2461,6 +2884,27 @@ export function SimpleCharacterizationWorkspace({
                                 </Button>
                               </div>
                             ))}
+                            {compositionComponents.length ? (
+                              <div className="flex flex-col gap-2 sm:max-w-xs">
+                                <Label htmlFor="characterization-composition-confidence">
+                                  {t(
+                                    'characterizations.workspace.fields.confidence',
+                                  )}
+                                </Label>
+                                <Input
+                                  id="characterization-composition-confidence"
+                                  type="number"
+                                  min="0"
+                                  max="1"
+                                  step="any"
+                                  value={compositionConfidence}
+                                  disabled={controlsDisabled}
+                                  onChange={(event) =>
+                                    setCompositionConfidence(event.target.value)
+                                  }
+                                />
+                              </div>
+                            ) : null}
                             {compositionIssues.length ? (
                               <ul
                                 className="list-disc pl-5 text-sm text-destructive"
@@ -2579,27 +3023,98 @@ export function SimpleCharacterizationWorkspace({
                             }
                           />
                         </div>
-                        <div className="flex flex-col gap-2 sm:col-span-2">
-                          <Label htmlFor="characterization-analysis-parameters">
-                            {t(
-                              'characterizations.workspace.advanced.parameters',
-                            )}
-                          </Label>
-                          <Textarea
-                            id="characterization-analysis-parameters"
-                            value={analysis.parameters}
-                            disabled={controlsDisabled}
-                            aria-invalid={
-                              parsedAnalysisParameters === null || undefined
-                            }
-                            placeholder="{}"
-                            onChange={(event) =>
-                              setAnalysis((current) => ({
-                                ...current,
-                                parameters: event.target.value,
-                              }))
-                            }
-                          />
+                        <div className="flex flex-col gap-3 sm:col-span-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium">
+                              {t(
+                                'characterizations.workspace.advanced.parameters',
+                              )}
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={controlsDisabled}
+                              onClick={() => {
+                                const id = nextAnalysisParameterId.current
+                                nextAnalysisParameterId.current += 1
+                                setAnalysisParameters((current) => [
+                                  ...current,
+                                  { id, key: '', value: '' },
+                                ])
+                              }}
+                            >
+                              {t(
+                                'characterizations.workspace.advanced.addParameter',
+                              )}
+                            </Button>
+                          </div>
+                          {analysisParameters.map((parameter) => (
+                            <div
+                              key={parameter.id}
+                              className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
+                            >
+                              <Input
+                                aria-label={t(
+                                  'characterizations.workspace.advanced.parameterName',
+                                )}
+                                value={parameter.key}
+                                maxLength={128}
+                                disabled={controlsDisabled}
+                                onChange={(event) =>
+                                  setAnalysisParameters((current) =>
+                                    current.map((item) =>
+                                      item.id === parameter.id
+                                        ? { ...item, key: event.target.value }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              />
+                              <Input
+                                aria-label={t(
+                                  'characterizations.workspace.advanced.parameterValue',
+                                )}
+                                value={parameter.value}
+                                maxLength={1000}
+                                disabled={controlsDisabled}
+                                onChange={(event) =>
+                                  setAnalysisParameters((current) =>
+                                    current.map((item) =>
+                                      item.id === parameter.id
+                                        ? { ...item, value: event.target.value }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              />
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                variant="ghost"
+                                disabled={controlsDisabled}
+                                aria-label={t(
+                                  'characterizations.workspace.advanced.removeParameter',
+                                )}
+                                onClick={() =>
+                                  setAnalysisParameters((current) =>
+                                    current.filter(
+                                      (item) => item.id !== parameter.id,
+                                    ),
+                                  )
+                                }
+                              >
+                                <X aria-hidden="true" />
+                              </Button>
+                            </div>
+                          ))}
+                          {analysisParameterIssues.length ? (
+                            <ul className="list-disc pl-5 text-sm text-destructive">
+                              {analysisParameterIssues.map((issue) => (
+                                <li key={issue}>{issue}</li>
+                              ))}
+                            </ul>
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
@@ -2611,7 +3126,7 @@ export function SimpleCharacterizationWorkspace({
                             const id = `characterization-analysis-input-${index}`
                             return (
                               <div
-                                key={`${file.name}-${file.size}-${file.lastModified}`}
+                                key={`${file.name}-${file.size}-${file.lastModified}-input-${index}`}
                                 className="flex items-center gap-2"
                               >
                                 <Checkbox
@@ -2664,7 +3179,7 @@ export function SimpleCharacterizationWorkspace({
                             const id = `characterization-analysis-output-${index}`
                             return (
                               <div
-                                key={`${file.name}-${file.size}-${file.lastModified}`}
+                                key={`${file.name}-${file.size}-${file.lastModified}-output-${index}`}
                                 className="flex items-center gap-2"
                               >
                                 <Checkbox

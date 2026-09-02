@@ -119,10 +119,18 @@ interface RawDoc {
           | 'text'
           | 'number'
           | 'integer'
+          | 'select'
           | 'range'
           | 'size'
           | 'resolution'
         unit?: string
+        help_zh?: string
+        help_en?: string
+        options?: Array<{
+          value: string
+          label_zh: string
+          label_en: string
+        }>
         validation?: RawValidation
         components?: Array<{
           key: string
@@ -408,10 +416,14 @@ export interface CharacterizationConditionField {
     | 'text'
     | 'number'
     | 'integer'
+    | 'select'
     | 'range'
     | 'size'
     | 'resolution'
   unit?: string
+  help_zh?: string
+  help_en?: string
+  options?: Array<{ value: string; label_zh: string; label_en: string }>
   validation?: FieldValidation
   components?: Array<{ key: string; label_zh: string; label_en: string }>
 }

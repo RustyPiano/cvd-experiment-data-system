@@ -1144,4 +1144,56 @@ describe('simple growth preparation editing', () => {
     ])
     expect(settings.preparation_operations?.[0].gases).toBeUndefined()
   })
+
+  it('records pump-down pressure without forcing a duration', async () => {
+    const user = userEvent.setup()
+    function Wrapper() {
+      const [settings, setSettings] = useState<SimpleProcessSettings>({
+        pressure_regime: 'atmospheric',
+        cooling_method: 'furnace_cooling',
+      })
+      return (
+        <I18nextProvider i18n={i18n}>
+          <SimpleGrowthEditor
+            segments={[]}
+            channels={[]}
+            settings={settings}
+            events={[]}
+            runId="run-1"
+            token="token"
+            setupId="setup-1"
+            setupSnapshot={{}}
+            zoneCount={0}
+            disabled={false}
+            onTimelineChange={vi.fn()}
+            onSettingsChange={setSettings}
+            onEventsChange={vi.fn()}
+          />
+          <output data-testid="settings">{JSON.stringify(settings)}</output>
+        </I18nextProvider>
+      )
+    }
+    render(<Wrapper />)
+
+    await user.click(screen.getByRole('button', { name: '添加实验前准备' }))
+    expect(
+      screen.getByText(
+        '优先填写实际达到的终点绝对压力；没有压力读数时，持续时间必填。',
+      ),
+    ).toBeInTheDocument()
+    await user.type(screen.getByLabelText('抽至绝对压力（Pa，优先填写）'), '10')
+
+    expect(
+      JSON.parse(screen.getByTestId('settings').textContent ?? ''),
+    ).toEqual(
+      expect.objectContaining({
+        preparation_operations: [
+          {
+            operation_type: 'pump_down',
+            target_absolute_pressure_Pa: 10,
+          },
+        ],
+      }),
+    )
+  })
 })

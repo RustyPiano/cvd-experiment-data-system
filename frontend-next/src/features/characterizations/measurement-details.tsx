@@ -100,6 +100,13 @@ function conditionValue(
         return `${label}${colon}${readableValue(item, language)}`
       })
       .join(isEnglish(language) ? '; ' : '；')
+  } else if (typeof value === 'string' && field.options) {
+    const option = field.options.find((item) => item.value === value)
+    rendered = option
+      ? isEnglish(language)
+        ? option.label_en
+        : option.label_zh
+      : value
   } else {
     rendered = readableValue(value, language)
   }
@@ -109,9 +116,12 @@ function conditionValue(
 
 type DetailFile = MeasurementDetail['raw_files'][number]
 
-function analysisPerformerId(
+function analysisPerformer(
   analysis: MeasurementDetail['analyses'][number],
 ): string | null {
+  const name =
+    'performed_by_name' in analysis ? analysis.performed_by_name : null
+  if (typeof name === 'string' && name) return name
   const value = 'performed_by_id' in analysis ? analysis.performed_by_id : null
   return typeof value === 'string' ? value : null
 }
@@ -349,7 +359,9 @@ export function MeasurementDetails({
           <dt className="text-muted-foreground">
             {t('characterizations.details.measurementPerformedBy')}
           </dt>
-          <dd className="font-medium">{measurement.performed_by_id}</dd>
+          <dd className="font-medium">
+            {measurement.performed_by_name ?? measurement.performed_by_id}
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">
@@ -401,6 +413,16 @@ export function MeasurementDetails({
         </div>
       </dl>
 
+      {measurement.quality_note ? (
+        <p className="rounded-md border px-3 py-2 text-sm">
+          <span className="font-medium">
+            {t('characterizations.details.qualityNoteLabel')}
+            {colon}
+          </span>
+          {measurement.quality_note}
+        </p>
+      ) : null}
+
       <section className="flex flex-col gap-2">
         <h5 className="text-sm font-medium">
           {t('characterizations.details.results')}
@@ -443,6 +465,7 @@ export function MeasurementDetails({
                   {property.statistic != null ||
                   property.uncertainty_value != null ||
                   property.sample_count != null ||
+                  property.quality_note != null ||
                   analysisLabel ? (
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       {property.statistic != null ? (
@@ -467,6 +490,13 @@ export function MeasurementDetails({
                         <span>
                           {t('characterizations.details.sampleCount', {
                             count: property.sample_count,
+                          })}
+                        </span>
+                      ) : null}
+                      {property.quality_note ? (
+                        <span>
+                          {t('characterizations.details.qualityNote', {
+                            value: property.quality_note,
                           })}
                         </span>
                       ) : null}
@@ -647,7 +677,7 @@ export function MeasurementDetails({
                     </dt>
                     <dd className="inline">
                       {colon}
-                      {analysisPerformerId(analysis) ?? '—'}
+                      {analysisPerformer(analysis) ?? '—'}
                     </dd>
                   </div>
                 </dl>

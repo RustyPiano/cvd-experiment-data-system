@@ -883,7 +883,8 @@ class PreparationOperationPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     operation_type: Literal["pump_down", "gas_exchange", "leak_check", "other"]
-    duration_min: float = Field(gt=0, allow_inf_nan=False)
+    duration_min: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    target_absolute_pressure_Pa: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     cycle_count: int | None = Field(default=None, ge=1)
     gas_sources: list[PreparationGasSourcePayload] = Field(default_factory=list)
     gases: list[str] | None = None
@@ -891,7 +892,12 @@ class PreparationOperationPayload(BaseModel):
 
     @model_validator(mode="after")
     def validate_operation(self) -> Self:
-        if self.operation_type == "gas_exchange":
+        if self.operation_type == "pump_down":
+            if self.duration_min is None and self.target_absolute_pressure_Pa is None:
+                raise ValueError("pump down requires target pressure or duration")
+        elif self.operation_type == "gas_exchange":
+            if self.duration_min is None:
+                raise ValueError("gas exchange requires duration")
             if self.cycle_count is None or not (self.gas_sources or self.gases):
                 raise ValueError("gas exchange requires cycle_count and a gas source")
             if self.gas_sources and self.gases:
@@ -899,8 +905,15 @@ class PreparationOperationPayload(BaseModel):
             source_ids = [item.material_lot_id for item in self.gas_sources]
             if len(source_ids) != len(set(source_ids)):
                 raise ValueError("gas exchange sources must be unique")
-        elif self.cycle_count is not None or self.gas_sources or self.gases:
+        else:
+            if self.duration_min is None:
+                raise ValueError("preparation operation requires duration")
+        if self.operation_type != "gas_exchange" and (
+            self.cycle_count is not None or self.gas_sources or self.gases
+        ):
             raise ValueError("cycle_count and gas sources are only valid for gas exchange")
+        if self.operation_type != "pump_down" and self.target_absolute_pressure_Pa is not None:
+            raise ValueError("target pressure is only valid for pump down")
         if (self.operation_type == "other") != bool((self.other_name or "").strip()):
             raise ValueError("other preparation operation requires other_name")
         return self
@@ -1298,6 +1311,10 @@ class MeasurementConditions(BaseModel):
         default=None, gt=0, allow_inf_nan=False, strict=True
     )
     power_setting: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    excitation_power_value: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False, strict=True
+    )
+    excitation_power_basis: Literal["sample_plane_mW", "instrument_percent"] | None = None
     objective: str | None = Field(default=None, max_length=128, pattern=r"\S")
     integration_time_s: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     accumulations: int | None = Field(default=None, ge=1, strict=True)
@@ -1312,14 +1329,24 @@ class MeasurementConditions(BaseModel):
         default=None, gt=0, allow_inf_nan=False, strict=True
     )
     working_distance_mm: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    beam_current_nA: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     detector: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    stage_tilt_deg: float | None = Field(
+        default=None, ge=-90, le=90, allow_inf_nan=False, strict=True
+    )
     field_of_view_um: WidthHeight | None = None
     radiation_source: str | None = Field(default=None, max_length=128, pattern=r"\S")
+    source_wavelength_nm: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     scan_range_2theta_deg: ScanRange | None = None
     step_size_deg: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    count_time_s: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
     scan_rate_deg_min: float | None = Field(default=None, gt=0, allow_inf_nan=False, strict=True)
+    incident_angle_deg: float | None = Field(
+        default=None, ge=0, le=90, allow_inf_nan=False, strict=True
+    )
     geometry: str | None = Field(default=None, max_length=128, pattern=r"\S")
     sample_preparation: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+    height_processing: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     illumination_mode: str | None = Field(default=None, max_length=128, pattern=r"\S")
     method_description: str | None = Field(
         default=None, min_length=1, max_length=1000, pattern=r"\S"
@@ -1333,6 +1360,7 @@ class MeasurementConditions(BaseModel):
         "radiation_source",
         "geometry",
         "sample_preparation",
+        "height_processing",
         "illumination_mode",
         "method_description",
         mode="before",
@@ -1356,6 +1384,12 @@ class MeasurementConditions(BaseModel):
             raise ValueError("power_setting cannot be blank")
         return normalized
 
+    @model_validator(mode="after")
+    def validate_power_pair(self) -> Self:
+        if (self.excitation_power_value is None) != (self.excitation_power_basis is None):
+            raise ValueError("excitation power value and basis must be provided together")
+        return self
+
 
 class MeasurementRunCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -1374,6 +1408,12 @@ class MeasurementRunCreate(BaseModel):
     typed_conditions: MeasurementConditions
     raw_file_ids: list[UUID] = Field(default_factory=list)
     quality_flag: Literal["valid", "suspect"] = "valid"
+    quality_note: str | None = Field(default=None, max_length=1000, pattern=r"\S")
+
+    @field_validator("quality_note")
+    @classmethod
+    def normalize_quality_note(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
     @field_validator("measured_at", mode="before")
     @classmethod
@@ -1400,10 +1440,20 @@ class MeasurementRunCreate(BaseModel):
             raise ValueError(
                 f"conditions do not apply to {self.method_profile}: {', '.join(unexpected)}"
             )
+        for field in profile["condition_fields"]:
+            if field.get("value_type") != "select" or field["key"] not in conditions:
+                continue
+            options = {option["value"] for option in field.get("options", [])}
+            if conditions[field["key"]] not in options:
+                raise ValueError(f"unsupported value for measurement condition {field['key']}")
         if self.sample_region.geometry_type not in profile["allowed_region_types"]:
             raise ValueError(
                 f"{self.sample_region.geometry_type} does not apply to {self.method_profile}"
             )
+        if self.quality_flag == "suspect" and self.quality_note is None:
+            raise ValueError("suspect measurement requires a quality note")
+        if self.quality_flag == "valid" and self.quality_note is not None:
+            raise ValueError("valid measurement cannot include a quality note")
         return self
 
 
@@ -1459,6 +1509,7 @@ class PropertyValueWrite(BaseModel):
     uncertainty_type: str | None = Field(default=None, max_length=64, pattern=r"\S")
     sample_count: int | None = Field(default=None, ge=1, le=2_147_483_647, strict=True)
     quality_flag: Literal["valid", "suspect", "invalid", "below_detection_limit"] = "valid"
+    quality_note: str | None = Field(default=None, max_length=1000, pattern=r"\S")
     analysis_index: int | None = Field(default=None, ge=0, strict=True)
 
     @field_validator("numeric_value", mode="before")
@@ -1481,6 +1532,11 @@ class PropertyValueWrite(BaseModel):
     @field_validator("uncertainty_type")
     @classmethod
     def normalize_uncertainty_type(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("quality_note")
+    @classmethod
+    def normalize_property_quality_note(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
 
     @field_validator("structured_value")
@@ -1527,6 +1583,8 @@ class PropertyValueWrite(BaseModel):
             raise ValueError("uncertainty value and type must be provided together")
         if self.numeric_value is None and self.uncertainty_value is not None:
             raise ValueError("only numeric properties can include uncertainty")
+        if self.statistic not in {None, "single_observation"} and self.sample_count is None:
+            raise ValueError("aggregate statistic requires sample_count")
         if self.numeric_value is not None:
             validation = definition.get("validation", {})
             for key, comparison in (
@@ -1538,6 +1596,10 @@ class PropertyValueWrite(BaseModel):
                 bound = validation.get(key)
                 if bound is not None and not comparison(self.numeric_value, bound):
                     raise ValueError(f"{self.property_code} must satisfy {key}={bound}")
+        if self.quality_flag != "valid" and self.quality_note is None:
+            raise ValueError("non-valid property requires a quality note")
+        if self.quality_flag == "valid" and self.quality_note is not None:
+            raise ValueError("valid property cannot include a quality note")
         return self
 
 
@@ -1679,6 +1741,12 @@ class MeasurementBundleCreate(BaseModel):
                 f"assertions do not apply to {self.measurement.method_profile}: "
                 f"{', '.join(unsupported_assertions)}"
             )
+        mode = self.measurement.typed_conditions.mode
+        if any(item.assertion_type == "composition" for item in self.assertions):
+            if self.measurement.method_profile == "SEM" and mode != "EDS":
+                raise ValueError("SEM composition requires EDS/EDX analysis mode")
+            if self.measurement.method_profile == "TEM" and mode not in {"EDS", "EELS"}:
+                raise ValueError("TEM composition requires EDS/EDX or EELS analysis mode")
         for item in [*self.properties, *self.assertions]:
             if item.analysis_index is not None and item.analysis_index >= len(self.analyses):
                 raise ValueError("analysis_index is out of range")
@@ -1728,6 +1796,7 @@ class MeasurementSummaryRead(BaseModel):
     sample_region: dict[str, Any]
     typed_conditions: dict[str, Any]
     quality_flag: str
+    quality_note: str | None = None
     evidence_present: bool
     raw_file_count: int
     analysis_count: int
@@ -1754,6 +1823,7 @@ class MeasurementPropertyRead(BaseModel):
     uncertainty_type: str | None
     sample_count: int | None
     quality_flag: str
+    quality_note: str | None = None
 
 
 class MeasurementAssertionRead(BaseModel):
@@ -1768,6 +1838,7 @@ class MeasurementAssertionRead(BaseModel):
 class MeasurementAnalysisRead(BaseModel):
     id: UUID
     performed_by_id: UUID
+    performed_by_name: str | None = None
     software_name: str
     software_version: str
     code_commit: str | None
@@ -1793,6 +1864,7 @@ class MeasurementRawFileRead(BaseModel):
 
 class MeasurementDetailRead(MeasurementSummaryRead):
     revision_number: int
+    performed_by_name: str | None = None
     can_invalidate: bool
     raw_files: list[MeasurementRawFileRead]
     region_image_file: MeasurementRawFileRead | None

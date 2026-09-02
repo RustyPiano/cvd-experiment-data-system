@@ -802,6 +802,8 @@ export const common = {
       analysisStartedAt: 'Analysis started at',
       analysisCompletedAt: 'Analysis completed at',
       analysisPerformedBy: 'Analysis performed by',
+      qualityNoteLabel: 'Quality note',
+      qualityNote: 'Quality note: {{value}}',
       analysisRun: 'Analysis run: {{analysis}}',
       statistic: 'Statistic: {{value}}',
       uncertainty: 'Uncertainty: {{value}} ({{type}})',
@@ -917,6 +919,12 @@ export const common = {
         pixelRoiHeight: 'Pixel ROI height',
         measurementQuality: 'Measurement quality',
         resultQuality: 'Result quality',
+        qualityNote: 'Quality issue note',
+        statistic: 'Statistic',
+        sampleCount: 'Sample count',
+        uncertainty: 'Uncertainty',
+        uncertaintyType: 'Uncertainty type',
+        confidence: 'Conclusion confidence (0–1, optional)',
         rawFiles: 'Raw files',
       },
       placeholders: {
@@ -927,6 +935,7 @@ export const common = {
         select: 'Select',
         textCondition: 'Enter a value',
         regionImage: 'Do not use a region image',
+        uncertaintyType: 'For example, standard deviation or standard error',
       },
       actions: {
         retry: 'Retry',
@@ -934,6 +943,8 @@ export const common = {
         saving: 'Saving…',
         moreConditions: 'More measurement conditions',
         moreResults: 'More scientific results',
+        resultMetadata: 'Statistics and quality',
+        removeFile: 'Remove file {{filename}}',
         viewDetails: 'View details',
         hideDetails: 'Hide details',
       },
@@ -971,6 +982,16 @@ export const common = {
         coordinateUnit: 'A unit is required with coordinates or dimensions',
         coordinateUnitMax:
           'Coordinate or size unit cannot exceed {{max}} characters',
+        coordinateUnitUnsupported: 'Select μm, mm, nm, or px',
+        selectedAreaImage:
+          'A selected area must be linked to an uploaded image and pixel ROI',
+        qualityNote: 'Explain suspect, invalid, or below-detection-limit data',
+        sampleCount:
+          'Sample count must be a positive integer and is required for aggregate statistics',
+        uncertaintyPair: 'Enter both uncertainty value and type',
+        uncertaintyValue:
+          'Uncertainty must be a number greater than or equal to 0',
+        confidence: 'Confidence must be a number from 0 to 1',
         regionUnsupported:
           'This region type is not supported by the selected method',
         regionImage: 'Select a valid image uploaded with this measurement',
@@ -1001,10 +1022,13 @@ export const common = {
         positiveInteger: 'Enter an integer of at least 1.',
         range: 'The end must exceed the start, and values cannot be negative.',
         positiveNumber: 'Enter a number greater than 0.',
+        conditionOption: 'Select a valid option.',
+        conditionRange: 'The value is outside the allowed range.',
+        powerPair: 'Enter both the power value and power basis.',
       },
       advanced: {
-        title: 'Advanced conclusions and analysis provenance',
-        assertions: 'Other material conclusions',
+        title: 'Additional conclusions and analysis (optional)',
+        assertions: 'Material conclusions (optional)',
         compositionBasis: 'Composition fraction basis',
         compositionBasisValues: {
           site_fraction: 'Site fraction',
@@ -1022,7 +1046,7 @@ export const common = {
           'Every component fraction must be a number from 0 to 1',
         compositionUnique: 'Component species must be unique',
         compositionSum: 'Component fractions must sum to 1',
-        analysis: 'Analysis provenance',
+        analysis: 'Analysis software record (optional)',
         analysisHelp:
           'Complete this only when analysis software was used. Entered properties and conclusions will be linked to this analysis.',
         softwareName: 'Software name',
@@ -1030,7 +1054,13 @@ export const common = {
         startedAt: 'Analysis started at',
         completedAt: 'Analysis completed at (optional)',
         codeCommit: 'Code commit (optional)',
-        parameters: 'Analysis parameters JSON (optional)',
+        parameters: 'Analysis parameters (optional)',
+        addParameter: 'Add parameter',
+        parameterName: 'Parameter name',
+        parameterValue: 'Parameter value',
+        removeParameter: 'Remove analysis parameter',
+        analysisParameterPair: 'Enter both the parameter name and value',
+        analysisParameterUnique: 'Analysis parameter names must be unique',
         inputFiles: 'Analysis input files',
         inputFileLabel: 'Use {{filename}} as an analysis input',
         outputFiles: 'Analysis output files',
@@ -1046,7 +1076,7 @@ export const common = {
         analysisCommit: 'Code commit cannot exceed 128 characters',
         analysisStartedAt: 'Enter the analysis start time',
         analysisInterval: 'Analysis completion cannot precede its start time',
-        analysisParameters: 'Analysis parameters must be a JSON object',
+        analysisParameters: 'Check the analysis parameters',
         analysisInput: 'Select at least one analysis input file',
       },
       growth: {
@@ -1067,6 +1097,14 @@ export const common = {
         invalid: 'Invalid',
         bdlHelp:
           'This number is the detection threshold, not a precise observation.',
+      },
+      statistics: {
+        single_observation: 'Single observation',
+        mean: 'Mean',
+        median: 'Median',
+        min: 'Minimum',
+        max: 'Maximum',
+        distribution: 'Distribution summary',
       },
       measurementQuality: {
         valid: 'Valid',

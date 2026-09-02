@@ -145,7 +145,9 @@ async function chooseSampleAndMethod(
 async function fillSharedMeasurementInfo(
   user: ReturnType<typeof userEvent.setup>,
 ) {
-  await user.type(screen.getByLabelText(/^测量时间/), '2026-07-30T14:30')
+  const measuredAt = screen.getByLabelText(/^测量时间/)
+  await user.clear(measuredAt)
+  await user.type(measuredAt, '2026-07-30T14:30')
 }
 
 async function chooseInstrument(user: ReturnType<typeof userEvent.setup>) {
@@ -169,6 +171,12 @@ async function fillRequiredCondition(
     return
   }
   await user.type(screen.getByLabelText(/^加速电压/), '80')
+  await user.click(screen.getByLabelText(/^成像或分析模式/))
+  await user.click(
+    screen.getByRole('option', {
+      name: method === 'SEM' ? '二次电子成像（SE）' : '高分辨 TEM（HRTEM）',
+    }),
+  )
 }
 
 describe('SimpleCharacterizationWorkspace', () => {
@@ -269,6 +277,7 @@ describe('SimpleCharacterizationWorkspace', () => {
 
     expect(screen.getAllByText('请选择样品')).not.toHaveLength(0)
     expect(screen.getByRole('button', { name: '保存表征记录' })).toBeDisabled()
+    expect(screen.getByLabelText(/^测量时间/)).not.toHaveValue('')
     expect(screen.queryByText('分析软件信息')).not.toBeInTheDocument()
     expect(screen.queryByText('添加材料结论')).not.toBeInTheDocument()
     expect(screen.queryByText('不确定度')).not.toBeInTheDocument()
@@ -286,7 +295,9 @@ describe('SimpleCharacterizationWorkspace', () => {
     await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
     await chooseSampleAndMethod(user, 'XRD')
 
-    expect(screen.getByLabelText('XRD 衍射峰位（° 2θ）')).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('XRD 代表衍射峰位（° 2θ）'),
+    ).toBeInTheDocument()
   })
 
   it('shows only the minimum Raman condition and fixed Raman results', async () => {
@@ -297,13 +308,29 @@ describe('SimpleCharacterizationWorkspace', () => {
 
     expect(screen.getByText(/激光波长（nm）/)).toBeInTheDocument()
     expect(screen.getByText('更多测量参数')).toBeInTheDocument()
-    expect(screen.getByText('Raman E₂g 峰位（cm⁻¹）')).toBeInTheDocument()
-    expect(screen.getByText('Raman A₁g 峰位（cm⁻¹）')).toBeInTheDocument()
+    expect(
+      screen.getByText('Raman E₂g / E′ 代表峰位（cm⁻¹）'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Raman A₁g / A₁′ 代表峰位（cm⁻¹）'),
+    ).toBeInTheDocument()
     expect(screen.getByText('物相')).toBeInTheDocument()
     expect(screen.getByText('层数结论')).toBeInTheDocument()
     expect(screen.getByText('更多科学结果')).toBeInTheDocument()
     expect(screen.getByText('Raman 峰宽（cm⁻¹）')).toBeInTheDocument()
     expect(screen.getByText('Raman 强度比（ratio）')).toBeInTheDocument()
+    await user.type(
+      screen.getByLabelText('Raman E₂g / E′ 代表峰位（cm⁻¹）'),
+      '385',
+    )
+    await user.type(
+      screen.getByLabelText('Raman A₁g / A₁′ 代表峰位（cm⁻¹）'),
+      '405',
+    )
+    expect(screen.getByLabelText('Raman 峰间距（cm⁻¹）')).toHaveValue(20)
+    expect(screen.getByLabelText('Raman 峰间距（cm⁻¹）')).toHaveAttribute(
+      'readonly',
+    )
   })
 
   it('saves a direct no-growth optical observation without a raw file', async () => {
@@ -461,7 +488,12 @@ describe('SimpleCharacterizationWorkspace', () => {
         )
       }
       if ('height' in fields) {
-        await user.type(screen.getByLabelText(/^高度/), fields.height!)
+        await user.type(
+          container.querySelector<HTMLInputElement>(
+            '#characterization-region-height',
+          )!,
+          fields.height!,
+        )
       }
       await user.upload(
         container.querySelector<HTMLInputElement>(
@@ -476,7 +508,13 @@ describe('SimpleCharacterizationWorkspace', () => {
         api.createMeasurement.mock.calls[0][0].measurement.sample_region,
       ).toEqual({
         geometry_type: geometry,
-        label: geometry,
+        label: {
+          line: '线扫',
+          area: '矩形区域',
+          point: '点测量',
+          lamella: '薄片',
+          particle: '颗粒',
+        }[geometry],
         coordinate_system: 'sample_local',
         ...('x' in fields
           ? { x: Number(fields.x), y: Number(fields.y), unit: 'μm' }
@@ -685,20 +723,24 @@ describe('SimpleCharacterizationWorkspace', () => {
     const user = userEvent.setup()
     const { container } = renderWorkspace()
     await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
-    await chooseSampleAndMethod(user, '光学显微镜')
+    await chooseSampleAndMethod(user, 'TEM')
     await fillSharedMeasurementInfo(user)
+    await chooseInstrument(user)
+    await user.type(screen.getByLabelText(/^加速电压/), '80')
+    await user.click(screen.getByLabelText(/^成像或分析模式/))
+    await user.click(screen.getByRole('option', { name: /能谱分析/ }))
     await user.upload(
       container.querySelector<HTMLInputElement>('#characterization-raw-files')!,
       new File(['image'], 'optical.png'),
     )
-    await user.click(screen.getByText('高级结论与分析溯源'))
+    await user.click(screen.getByText('补充结论与分析信息（选填）'))
 
-    expect(screen.getByLabelText('物相判定')).toBeInTheDocument()
+    expect(screen.getByLabelText('物相')).toBeInTheDocument()
     expect(screen.getByLabelText('多型判定')).toBeInTheDocument()
-    expect(screen.getByLabelText('堆叠判定')).toBeInTheDocument()
+    expect(screen.getByLabelText('堆叠结论')).toBeInTheDocument()
     expect(screen.getByLabelText('取向关系判定')).toBeInTheDocument()
     expect(screen.getByLabelText('层数判定')).toBeInTheDocument()
-    await user.type(screen.getByLabelText('物相判定'), '2H')
+    await user.type(screen.getByLabelText('物相'), '2H')
 
     await user.click(screen.getByRole('button', { name: '添加组分' }))
     await user.click(screen.getByRole('button', { name: '添加组分' }))
@@ -712,9 +754,9 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.type(screen.getByLabelText('软件名称'), 'ImageJ')
     await user.type(screen.getByLabelText('软件版本'), '1.54')
     await user.type(screen.getByLabelText('分析开始时间'), '2026-07-30T15:00')
-    fireEvent.change(screen.getByLabelText('分析参数 JSON（选填）'), {
-      target: { value: '{"threshold":"otsu"}' },
-    })
+    await user.click(screen.getByRole('button', { name: '添加参数' }))
+    await user.type(screen.getByLabelText('参数名'), 'threshold')
+    await user.type(screen.getByLabelText('参数值'), 'otsu')
     await user.click(screen.getByLabelText('将 optical.png 作为分析输入'))
     await user.click(screen.getByRole('button', { name: '保存表征记录' }))
 
@@ -781,7 +823,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.type(screen.getByLabelText(/^像素区域宽度/), '20')
     await user.type(screen.getByLabelText(/^像素区域高度/), '10')
 
-    await user.click(screen.getByText('高级结论与分析溯源'))
+    await user.click(screen.getByText('补充结论与分析信息（选填）'))
     await user.type(screen.getByLabelText('软件名称'), 'ImageJ')
     await user.type(screen.getByLabelText('软件版本'), '1.54')
     await user.type(screen.getByLabelText('分析开始时间'), '2026-07-30T15:00')
@@ -854,7 +896,7 @@ describe('SimpleCharacterizationWorkspace', () => {
         new File(['result'], 'processed.csv', { type: 'text/csv' }),
       ],
     )
-    await user.click(screen.getByText('高级结论与分析溯源'))
+    await user.click(screen.getByText('补充结论与分析信息（选填）'))
     await user.type(screen.getByLabelText('软件名称'), 'ImageJ')
     await user.type(screen.getByLabelText('软件版本'), '1.54')
     await user.type(screen.getByLabelText('分析开始时间'), '2026-07-30T15:00')
@@ -879,12 +921,16 @@ describe('SimpleCharacterizationWorkspace', () => {
     ).toBeInTheDocument()
   })
 
-  it('rejects duplicate or non-unit-sum composition and malformed analysis JSON', async () => {
+  it('rejects duplicate or non-unit-sum composition and incomplete analysis parameters', async () => {
     const user = userEvent.setup()
     renderWorkspace()
     await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
-    await chooseSampleAndMethod(user, '光学显微镜')
-    await user.click(screen.getByText('高级结论与分析溯源'))
+    await chooseSampleAndMethod(user, 'TEM')
+    await chooseInstrument(user)
+    await user.type(screen.getByLabelText(/^加速电压/), '80')
+    await user.click(screen.getByLabelText(/^成像或分析模式/))
+    await user.click(screen.getByRole('option', { name: /能谱分析/ }))
+    await user.click(screen.getByText('补充结论与分析信息（选填）'))
     await user.click(screen.getByRole('button', { name: '添加组分' }))
     await user.click(screen.getByRole('button', { name: '添加组分' }))
     const species = screen.getAllByLabelText('组分物种')
@@ -894,13 +940,14 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.type(species[1], 'Mo')
     await user.type(fractions[1], '0.4')
     await user.type(screen.getByLabelText('软件名称'), 'Tool')
-    fireEvent.change(screen.getByLabelText('分析参数 JSON（选填）'), {
-      target: { value: '[]' },
-    })
+    await user.click(screen.getByRole('button', { name: '添加参数' }))
+    await user.type(screen.getByLabelText('参数名'), 'threshold')
 
     expect(screen.getAllByText('组分物种不能重复')).not.toHaveLength(0)
     expect(screen.getAllByText('组分分数之和必须等于 1')).not.toHaveLength(0)
-    expect(screen.getAllByText('分析参数必须是 JSON 对象')).not.toHaveLength(0)
+    expect(screen.getAllByText('分析参数名和值必须同时填写')).not.toHaveLength(
+      0,
+    )
     expect(screen.getByRole('button', { name: '保存表征记录' })).toBeDisabled()
   })
 
@@ -945,7 +992,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.click(screen.getByRole('option', { name: /S02/ }))
     expect(confirm).toHaveBeenCalled()
     expect(sampleSelect).toHaveTextContent('S01')
-    expect(fileInput.files).toHaveLength(1)
+    expect(screen.getAllByText('optical.png')).not.toHaveLength(0)
 
     confirm.mockReturnValue(true)
     await user.click(sampleSelect)
@@ -959,6 +1006,30 @@ describe('SimpleCharacterizationWorkspace', () => {
     confirm.mockRestore()
   })
 
+  it('appends uploaded files and lets the user remove one', async () => {
+    const user = userEvent.setup()
+    const { container } = renderWorkspace()
+    await waitFor(() => expect(api.listSamples).toHaveBeenCalled())
+    await chooseSampleAndMethod(user, '光学显微镜')
+    const input = container.querySelector<HTMLInputElement>(
+      '#characterization-raw-files',
+    )!
+    await user.upload(
+      input,
+      new File(['a'], 'first.png', { type: 'image/png' }),
+    )
+    await user.upload(
+      input,
+      new File(['b'], 'second.png', { type: 'image/png' }),
+    )
+
+    expect(screen.getAllByText('first.png')).not.toHaveLength(0)
+    expect(screen.getAllByText('second.png')).not.toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: '移除文件 first.png' }))
+    expect(screen.queryByText('first.png')).toBeNull()
+    expect(screen.getAllByText('second.png')).not.toHaveLength(0)
+  })
+
   it('submits the selected measurement quality flag', async () => {
     const user = userEvent.setup()
     renderWorkspace()
@@ -970,6 +1041,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     await waitFor(() =>
       expect(screen.queryByRole('option', { name: '可疑' })).toBeNull(),
     )
+    await user.type(screen.getByLabelText(/^质量异常说明/), '需要复核')
     await user.click(screen.getByLabelText(/^是否观察到生长/))
     await user.click(screen.getByRole('option', { name: '观察到生长' }))
     await user.click(screen.getByRole('button', { name: '保存表征记录' }))
@@ -995,18 +1067,20 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.click(screen.getByRole('option', { name: '未观察到生长' }))
     const coverage = screen.getByLabelText('覆盖率（%）')
     await user.type(coverage, '0')
+    await user.click(
+      within(coverage.parentElement!).getByText('统计与质量信息'),
+    )
     await user.click(within(coverage.parentElement!).getByLabelText('结果质量'))
     await user.click(screen.getByRole('option', { name: '低于检出限' }))
     expect(
       screen.getByText('此数值是检出阈值，不是精确观测值。'),
     ).toBeInTheDocument()
 
-    const observation = screen.getByLabelText('观察说明')
-    await user.click(
-      within(observation.parentElement!).getByLabelText('结果质量'),
+    await user.type(
+      within(coverage.parentElement!).getByLabelText(/^质量异常说明/),
+      '低于检出限',
     )
-    expect(screen.queryByRole('option', { name: '低于检出限' })).toBeNull()
-    await user.keyboard('{Escape}')
+    expect(screen.queryByLabelText('观察说明')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '保存表征记录' }))
 
@@ -1083,6 +1157,10 @@ describe('SimpleCharacterizationWorkspace', () => {
     await user.click(screen.getByLabelText(/^区域类型/))
     await user.click(screen.getByRole('option', { name: '选定区域' }))
 
+    expect(
+      screen.getAllByText('选定区域必须关联本次上传的图像和像素区域'),
+    ).not.toHaveLength(0)
+
     const label = screen.getByLabelText(/^区域标签/)
     expect(label).toHaveAttribute('maxlength', '128')
     fireEvent.change(label, { target: { value: 'x'.repeat(129) } })
@@ -1120,7 +1198,7 @@ describe('SimpleCharacterizationWorkspace', () => {
     expect(screen.getByLabelText(/^表征方法/)).toBeDisabled()
     expect(screen.getByLabelText(/^测量时间/)).toBeDisabled()
     expect(screen.getByLabelText('原始文件（选填）')).toBeDisabled()
-    for (const quality of screen.getAllByLabelText('结果质量')) {
+    for (const quality of screen.queryAllByLabelText('结果质量')) {
       expect(quality).toBeDisabled()
     }
 
@@ -1231,7 +1309,9 @@ describe('SimpleCharacterizationWorkspace', () => {
     )
     expect(screen.getByLabelText(/^Sample/)).toHaveTextContent('S01')
 
-    await user.type(screen.getByLabelText(/^Measured at/), '2026-07-30T14:30')
+    const measuredAt = screen.getByLabelText(/^Measured at/)
+    await user.clear(measuredAt)
+    await user.type(measuredAt, '2026-07-30T14:30')
     await user.type(screen.getByLabelText(/^Method description/), 'custom')
     const fileInput = container.querySelector<HTMLInputElement>(
       '#characterization-raw-files',

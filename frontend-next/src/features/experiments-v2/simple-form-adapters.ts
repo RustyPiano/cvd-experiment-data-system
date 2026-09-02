@@ -301,7 +301,8 @@ export function simpleGrowthIssue(
     lid_open_temperature_C?: number
     preparation_operations?: Array<{
       operation_type: string
-      duration_min: number
+      duration_min?: number
+      target_absolute_pressure_Pa?: number
       cycle_count?: number
       gas_sources?: Array<{
         material_lot_id: string
@@ -316,10 +317,26 @@ export function simpleGrowthIssue(
 ): string | null {
   const preparationOperations = settings.preparation_operations ?? []
   for (const operation of preparationOperations) {
-    if (
-      !Number.isFinite(operation.duration_min) ||
-      operation.duration_min <= 0
-    ) {
+    const durationValid =
+      Number.isFinite(operation.duration_min) &&
+      Number(operation.duration_min) > 0
+    const targetPressureValid =
+      Number.isFinite(operation.target_absolute_pressure_Pa) &&
+      Number(operation.target_absolute_pressure_Pa) > 0
+    if (operation.operation_type === 'pump_down') {
+      if (
+        operation.target_absolute_pressure_Pa !== undefined &&
+        !targetPressureValid
+      ) {
+        return '请填写大于 0 的抽气终点绝对压力。'
+      }
+      if (operation.duration_min !== undefined && !durationValid) {
+        return '请填写大于 0 的抽真空持续时间。'
+      }
+      if (!durationValid && !targetPressureValid) {
+        return '请填写抽至绝对压力；没有压力读数时，请填写持续时间。'
+      }
+    } else if (!durationValid) {
       return '请填写大于 0 的系统准备持续时间。'
     }
     if (

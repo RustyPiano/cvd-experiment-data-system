@@ -446,8 +446,14 @@ class ZoneThermocoupleDistancePayload(V2PayloadBase):
 
 class PumpDownOperationPayload(V2PayloadBase):
     operation_type: Literal['pump_down']
-    target_absolute_pressure_Pa: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
-    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)]
+    target_absolute_pressure_Pa: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+    duration_min: Annotated[float, Field(strict=True, allow_inf_nan=False, gt=0)] | None = None
+
+    @model_validator(mode='after')
+    def _pressure_or_duration(self) -> Self:
+        if self.target_absolute_pressure_Pa is None and self.duration_min is None:
+            raise ValueError('pump down requires target pressure or duration')
+        return self
 
 
 class GasExchangeGasPayload(V2PayloadBase):
