@@ -5,9 +5,9 @@
 # ============================================================================
 meta:
   name: CVD-2D 工艺数据标准 · 字段单一源
-  version: v4.0-alpha.21
+  version: v4.0-alpha.23
   status: INTERNAL_VALIDATION
-  updated: '2026-09-01'
+  updated: '2026-09-02'
   authority: 本文件是全部字段/词表/必填规则的唯一权威源（实现方案 D1）；xlsx 及后续 Pydantic/JSON Schema/种子/前端元数据均由本文件生成，禁止手改生成物。
   edit_howto: 改字段=改本文件 → uv run --project backend python docs/standard/build_field_tables.py 重新生成 xlsx → uv run --project backend python docs/standard/check_field_source.py 校验。
   keys_convention: 字段 key = API/payload 契约（D10）：snake_case；全词优于缩写（保留行业标准缩写 CAS/PID/MFC/CoA）；单位后缀沿既有风格（_C/_mm/_nm/_um/_min/_percent/_per_m3/_sccm/_nm_s）；冻结后改 key 视同改字段，须走版本治理；本项目不执行 v1→v2 数据迁移。
@@ -1318,10 +1318,10 @@ experiment_record:
       source: 科学修订契约
       note: 未设定明确取向目标时留空
     - module: 目标产物
-      label: 目标性能
+      label: 实验目标
       label_en: Target performance
       key: optimization_objective
-      meaning: 应用导向的目标性能（写清想要什么性能 + 打算用什么方法/判据衡量）
+      meaning: 本炉希望获得的目标性能或需要验证的研究目标
       input: 自由
       options: 示例：希望获得高迁移率，计划通过FET测试评价
       unit: —
@@ -1606,7 +1606,7 @@ experiment_record:
       label: 炉管使用履历
       label_en: Tube usage history
       key: tube_usage_history
-      meaning: 当前炉管的累计清洗或更换次数，以及本次实验是最近一次清洗或更换后的第几次使用
+      meaning: 当前炉管的清洗或更换累计次数，以及本次是最近一次清洗或更换后的第几炉
       input: 使用履历对象
       options: '{reset_count, use_number_since_reset}'
       unit: 次
@@ -1615,7 +1615,7 @@ experiment_record:
         level: required
       example: '{reset_count: 1, use_number_since_reset: 7}'
       source: 6/24决定·用户复核2026-07-24
-      note: 每炉手填；清洗或更换炉管后累计次数加1，本次使用序号从1重新累计
+      note: 界面分为“清洗或更换累计次数”和“清洗或更换后第几炉”；清洗或更换炉管后累计次数加1，本次使用序号从1重新累计
   - title: §3 前驱体装载（独立放置或涂覆在具体衬底片上，可多组）
     fields:
     - module: 前驱体
@@ -1819,7 +1819,7 @@ experiment_record:
       status: pending-alignment
       pending: 待与俊杰确认组内常见异常状态词表
     - module: 前驱体
-      label: 处理方式
+      label: 使用前处理
       label_en: Pre-loading treatment
       key: preparation_steps
       meaning: 投料前处理（可多步，选了再展开参数）
@@ -1885,7 +1885,7 @@ experiment_record:
       source: 科学修订契约
       note: 不为普通试填增加容器尺寸和履历负担；仅在课题组确实管理具体容器时引用
     - module: 前驱体
-      label: 前驱体放置位置
+      label: 热电偶相对位置
       label_en: Precursor source position
       key: initial_position
       ui:
@@ -1910,8 +1910,8 @@ experiment_record:
       help: 以所选温区热电偶为0 mm；沿气流方向，上游填负值，下游填正值。
       help_en: Use the thermocouple in the selected zone as 0 mm; enter upstream positions as negative and downstream positions as positive.
     - module: 前驱体
-      label: 前驱体加热温区
-      label_en: Precursor heating zone
+      label: 前驱体所在温区
+      label_en: Precursor zone
       key: heating_zone_ref
       meaning: 独立前驱体源所属的加热温区，同时是轴向位置的热电偶参照
       input: 温区选择
@@ -2144,7 +2144,7 @@ experiment_record:
       help_en: Enter the actual piece dimensions and placement for this run. Length follows the gas-flow direction and width is perpendicular; note any misalignment. Measure tilt from the horizontal support plane.
       r0: true
     - module: 衬底
-      label: 预处理（有序步骤）
+      label: 衬底处理（有序步骤）
       label_en: Pretreatment steps (ordered)
       key: pretreatment_steps
       meaning: 预处理步骤序列（记顺序，展开参数）
@@ -2188,7 +2188,7 @@ experiment_record:
       source: 2026-07-24整改
       note: 与时间间隔独立保存
     - module: 衬底
-      label: 所在温区与热电偶距离
+      label: 所在温区与热电偶相对位置
       label_en: Zone and distance to thermocouple
       key: zone_thermocouple_distance_mm
       meaning: 第几温区、距离(±)
@@ -2265,22 +2265,22 @@ experiment_record:
       note: 每个Setup温区必须有且仅有一条设定温度通道；至少一条正流量气体通道
       r0: true
     - module: 过程通道
-      label: 异常情况确认
-      label_en: Process-event confirmation
+      label: 本炉发生过异常
+      label_en: Process anomaly occurred
       key: process_events_confirmed
       group: current
-      meaning: 明确确认本炉是否发生异常，避免将未填写误判为无异常
-      input: 下拉
-      options: 是/否
+      meaning: 勾选表示本炉发生过异常，未勾选表示本炉无异常
+      input: 勾选框
+      options: 勾选=是；未勾选=否
       unit: —
       requirement:
         raw: 必填
         level: required
-      example: 否
-      source: 2026-09-01用户试填反馈
-      note: 选择是时至少填写一条过程异常事件
+      example: 未勾选
+      source: 2026-09-01用户试填反馈·2026-09-02交互复核
+      note: 勾选时至少填写一条过程异常事件
     - module: 步·压力
-      label: 反应压力类别
+      label: 反应压力条件
       label_en: Reaction pressure regime
       key: pressure_regime
       group: current
@@ -2390,8 +2390,8 @@ experiment_record:
       note: 数组顺序即过程顺序；不再重复拆成升温、稳定、生长、退火、降温和卸样
       r0: false
     - module: 过程步
-      label: 预处理操作
-      label_en: Preparation operations
+      label: 实验前准备操作
+      label_en: Pre-run preparation operations
       key: preparation_operations
       group: current
       meaning: 选填的实验前操作；每项记录实际持续时间，气路置换引用实际气瓶版本
@@ -4404,6 +4404,14 @@ changelog:
     - 实体/制备/样品与表征流程
     - 仪器能力改为勾选、日期改为日期控件、装置使用身份标签、异常改为显式确认、表征入口保留样品上下文，并在编辑后清除旧校验错误
     - 2026-09-01全表单交互复核
+  - - v4.0-alpha.22
+    - §3/§5 生长条件与装置履历
+    - 生长条件按实验前准备、温度、气体、反应压力、降温和异常分区；温度步骤移除待判断与初始温度伪时长；异常改为勾选框，并缩短温区和炉管履历文案
+    - 2026-09-02用户界面复核
+  - - v4.0-alpha.23
+    - §1b/§3/§4/§5 制备记录填写体验
+    - 缩短晶体结构、实验目标、热电偶相对位置、使用前处理、衬底处理和压力条件文案；明确必填空状态与提交检查，并减少气体首段录入步骤
+    - 2026-09-02用户全流程复核
   - - R0
     - 最小可复现核心(27项，含条件必填)
     - 过程R0以温度/气体/压力通道和降温条件为准；不再要求人工划分反应阶段或反应时长

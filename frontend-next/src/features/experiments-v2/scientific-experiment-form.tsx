@@ -39,6 +39,7 @@ import {
   characterizationProfiles,
   characterizationProperties,
   gasSpecies,
+  optionLabelsZh,
 } from '@/shared/generated/field-metadata'
 import {
   createMeasurement,
@@ -355,8 +356,8 @@ const CHANNEL_LABELS: Record<string, string> = {
   shutter_state: '挡板状态',
 }
 const SEGMENT_LABELS: Record<string, string> = {
-  system_preparation: '系统准备',
-  pre_reaction: '升温与预处理',
+  system_preparation: '实验前准备',
+  pre_reaction: '温度程序',
   reaction: '反应',
   post_reaction: '反应后处理',
   cooling: '降温',
@@ -1014,7 +1015,7 @@ export function ScientificExperimentForm({
     if (typeof savedConfirmation === 'boolean') return savedConfirmation
     return modules?.process_events
       ? initialEventsPayload.items.length > 0
-      : null
+      : false
   })
   const [substrates, setSubstrates] = useState(initialState.substrates)
   const [equipment, setEquipment] = useState(initialState.equipment)
@@ -1258,11 +1259,9 @@ export function ScientificExperimentForm({
       channel.data_kind === 'timeseries_file',
   )
   const processTimelineIssue =
-    (processEventsConfirmed === null
-      ? '请明确选择本炉是否发生异常。'
-      : processEventsConfirmed && events.length === 0
-        ? '请至少添加一条异常事件。'
-        : null) ??
+    (processEventsConfirmed && events.length === 0
+      ? '请至少添加一条异常事件。'
+      : null) ??
     simpleGrowthIssue(
       segments,
       channels,
@@ -1420,6 +1419,9 @@ export function ScientificExperimentForm({
     STEP_MODULES[index].some((key) => dirty.has(key)),
   )
   const precheckConfirmed = basicInfo.precheck?.['confirmed'] === true
+  const reviewCardAction = processReadOnly
+    ? '点击查看对应步骤'
+    : '点击返回对应步骤修改'
 
   const showNextStep = async () => {
     if (
@@ -1779,7 +1781,7 @@ export function ScientificExperimentForm({
 
           {activeStep === 2 ? (
             <>
-              <ModuleCard id="module-equipment" title="实验装置">
+              <ModuleCard id="module-equipment" title="实验装置与炉管履历">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div
                     className="grid gap-2 sm:col-span-2"
@@ -1839,7 +1841,7 @@ export function ScientificExperimentForm({
                     }
                   >
                     <Label htmlFor="tube-reset-count">
-                      累计清洗或更换次数{' '}
+                      清洗或更换累计次数{' '}
                       <span className="text-destructive">*</span>
                     </Label>
                     <div className="flex items-center gap-2">
@@ -1876,7 +1878,7 @@ export function ScientificExperimentForm({
                     }
                   >
                     <Label htmlFor="tube-use-number">
-                      本次是最近一次清洗或更换后的第几炉{' '}
+                      清洗或更换后第几炉{' '}
                       <span className="text-destructive">*</span>
                     </Label>
                     <div className="flex items-center gap-2">
@@ -1989,37 +1991,67 @@ export function ScientificExperimentForm({
             <ModuleCard title="检查并提交">
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
-                  [
-                    '基本信息',
-                    basicComplete
+                  {
+                    label: '基本信息',
+                    value: basicComplete
                       ? `${basicInfo.performed_by_user_ids.length} 名实验人员 · 温度${ambientSummary(basicInfo.ambient_temperature, '℃')} · 湿度${ambientSummary(basicInfo.ambient_humidity, '%RH')}`
-                      : '待填写',
-                  ],
-                  ['目标材料', targetComplete ? targetDisplay : '待填写'],
-                  ['实验装置', setupName || '待选择'],
-                  [
-                    '前驱体装载',
-                    loads.length ? `${loads.length} 处装载` : '待填写',
-                  ],
-                  [
-                    '衬底',
-                    substrates.length ? `${substrates.length} 片` : '待填写',
-                  ],
-                  [
-                    '温度程序',
-                    channels.filter(
-                      (channel) => channel.channel_type === 'temperature',
+                      : '待填写（必填）',
+                    complete: basicComplete,
+                    step: 0,
+                  },
+                  {
+                    label: '目标材料',
+                    value: targetDisplay || '待填写（必填）',
+                    complete: targetComplete,
+                    step: 1,
+                  },
+                  {
+                    label: '实验装置',
+                    value: setupName || '待选择（必填）',
+                    complete: equipmentComplete,
+                    step: 2,
+                  },
+                  {
+                    label: '前驱体装载',
+                    value: loads.length
+                      ? `${loads.length} 处装载`
+                      : '待填写（必填）',
+                    complete: precursorsComplete,
+                    step: 3,
+                  },
+                  {
+                    label: '衬底',
+                    value: substrates.length
+                      ? `${substrates.length} 片`
+                      : '待填写（必填）',
+                    complete: substratesComplete,
+                    step: 2,
+                  },
+                  {
+                    label: '温度程序',
+                    value: channels.filter(
+                      (channel) =>
+                        channel.channel_type === 'temperature' &&
+                        channel.source_type === 'setpoint',
                     ).length
                       ? `${
                           channels.filter(
-                            (channel) => channel.channel_type === 'temperature',
+                            (channel) =>
+                              channel.channel_type === 'temperature' &&
+                              channel.source_type === 'setpoint',
                           ).length
                         } 个温区`
-                      : '待填写',
-                  ],
-                  [
-                    '气体程序',
-                    channels.filter(
+                      : '待填写（必填）',
+                    complete: channels.some(
+                      (channel) =>
+                        channel.channel_type === 'temperature' &&
+                        channel.source_type === 'setpoint',
+                    ),
+                    step: 4,
+                  },
+                  {
+                    label: '气体程序',
+                    value: channels.filter(
                       (channel) => channel.channel_type === 'flow',
                     ).length
                       ? `${
@@ -2027,29 +2059,50 @@ export function ScientificExperimentForm({
                             (channel) => channel.channel_type === 'flow',
                           ).length
                         } 种气体`
-                      : '未使用气体',
-                  ],
-                  [
-                    '压力',
-                    PRESSURE_REGIME_LABELS[
-                      processSettings.pressure_regime ?? ''
-                    ] ?? '待填写',
-                  ],
-                  [
-                    '异常情况',
-                    processEventsConfirmed === null
-                      ? '未确认'
-                      : events.length
-                        ? '有异常记录'
-                        : '已确认无异常',
-                  ],
-                ].map(([label, value]) => (
-                  <div key={label} className="grid gap-1 rounded-lg border p-3">
+                      : '待填写（必填）',
+                    complete: channels.some(
+                      (channel) => channel.channel_type === 'flow',
+                    ),
+                    step: 4,
+                  },
+                  {
+                    label: '压力',
+                    value:
+                      PRESSURE_REGIME_LABELS[
+                        processSettings.pressure_regime ?? ''
+                      ] ?? '待填写（必填）',
+                    complete: Boolean(processSettings.pressure_regime),
+                    step: 4,
+                  },
+                  {
+                    label: '降温方式',
+                    value:
+                      optionLabelsZh[processSettings.cooling_method ?? ''] ??
+                      '待填写（必填）',
+                    complete: Boolean(processSettings.cooling_method),
+                    step: 4,
+                  },
+                  {
+                    label: '异常情况',
+                    value: events.length ? '有异常记录' : '无异常',
+                    complete: true,
+                    step: 4,
+                  },
+                ].map(({ label, value, complete, step }) => (
+                  <Button
+                    key={label}
+                    type="button"
+                    variant={complete ? 'outline' : 'destructive'}
+                    className="h-auto min-h-16 flex-col items-start gap-1 whitespace-normal p-3 text-left"
+                    title={reviewCardAction}
+                    aria-label={`${label}：${value}，${reviewCardAction}`}
+                    onClick={() => void showStep(step)}
+                  >
                     <span className="text-xs text-muted-foreground">
                       {label}
                     </span>
                     <span className="font-medium">{value}</span>
-                  </div>
+                  </Button>
                 ))}
               </div>
               {[

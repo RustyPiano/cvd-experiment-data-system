@@ -210,6 +210,12 @@ export function peakTemperatureC(channels: WorkflowChannel[]): number | null {
         ? [channel.scalar_value]
         : []),
       ...(channel.series ?? [])
+        .filter(
+          (point) =>
+            point.value !== '' &&
+            point.value !== null &&
+            point.value !== undefined,
+        )
         .map((point) => Number(point.value))
         .filter(Number.isFinite),
     ]

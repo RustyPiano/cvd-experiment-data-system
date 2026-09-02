@@ -130,7 +130,7 @@ export interface GasSpecies {
 }
 
 export const fieldMetadataMeta: FieldMetadataMeta = {
-  version: 'v4.0-alpha.21',
+  version: 'v4.0-alpha.23',
   status: 'INTERNAL_VALIDATION',
   source: 'docs/standard/field-source.yaml',
 }
@@ -535,7 +535,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'optimization_objective',
-      labelZh: '目标性能',
+      labelZh: '实验目标',
       labelEn: 'Target performance',
       input: '自由',
       unit: null,
@@ -1198,7 +1198,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'preparation_steps',
-      labelZh: '处理方式',
+      labelZh: '使用前处理',
       labelEn: 'Pre-loading treatment',
       input: '前驱体处理步骤数组',
       unit: null,
@@ -1290,7 +1290,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'initial_position',
-      labelZh: '前驱体放置位置',
+      labelZh: '热电偶相对位置',
       labelEn: 'Precursor source position',
       input: '源位置对象',
       unit: 'mm',
@@ -1317,8 +1317,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'heating_zone_ref',
-      labelZh: '前驱体加热温区',
-      labelEn: 'Precursor heating zone',
+      labelZh: '前驱体所在温区',
+      labelEn: 'Precursor zone',
       input: '温区选择',
       unit: null,
       options: 'zone_1·zone_2·…',
@@ -1504,7 +1504,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'pretreatment_steps',
-      labelZh: '预处理（有序步骤）',
+      labelZh: '衬底处理（有序步骤）',
       labelEn: 'Pretreatment steps (ordered)',
       input: '衬底预处理步骤数组',
       unit: null,
@@ -1570,7 +1570,7 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'zone_thermocouple_distance_mm',
-      labelZh: '所在温区与热电偶距离',
+      labelZh: '所在温区与热电偶相对位置',
       labelEn: 'Zone and distance to thermocouple',
       input: '温区距离对象',
       unit: 'mm',
@@ -1637,11 +1637,11 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'process_events_confirmed',
-      labelZh: '异常情况确认',
-      labelEn: 'Process-event confirmation',
-      input: '下拉',
+      labelZh: '本炉发生过异常',
+      labelEn: 'Process anomaly occurred',
+      input: '勾选框',
       unit: null,
-      options: '是/否',
+      options: '勾选=是；未勾选=否',
       validation: null,
       requirement: {
         raw: '必填',
@@ -1651,14 +1651,14 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
       },
       r0: false,
       group: 'current',
-      placeholderZh: '请选择',
-      placeholderEn: 'Select an option',
+      placeholderZh: '请输入',
+      placeholderEn: 'Enter a value',
       helpZh: null,
       helpEn: null,
     },
     {
       key: 'pressure_regime',
-      labelZh: '反应压力类别',
+      labelZh: '反应压力条件',
       labelEn: 'Reaction pressure regime',
       input: '下拉',
       unit: null,
@@ -1778,8 +1778,8 @@ export const experimentModules: Record<string, FieldMetadata[]> = {
     },
     {
       key: 'preparation_operations',
-      labelZh: '预处理操作',
-      labelEn: 'Preparation operations',
+      labelZh: '实验前准备操作',
+      labelEn: 'Pre-run preparation operations',
       input: '预处理操作数组',
       unit: null,
       options:

@@ -48,7 +48,7 @@ export const common = {
     instrumentCapabilities: '请至少选择一种该仪器支持的表征方法。',
     substrateFormulaMismatch: '化学式与所选衬底材料不一致，请核对物料标签',
     usageHistory:
-      '请填写累计清洗或更换次数（可为 0）和本次为最近一次清洗或更换后的第几炉（从 1 开始）。',
+      '请填写清洗或更换累计次数（可为 0）和清洗或更换后第几炉（从 1 开始）。',
   },
   structuredFields: {
     select: '请选择',
@@ -100,8 +100,8 @@ export const common = {
     estimate: '估计',
     notProvided: '不单独填写',
     distance: '相对热电偶位置（mm）',
-    resetCount: '累计清洗或更换次数',
-    useNumberSinceReset: '最近一次清洗或更换后的第几炉',
+    resetCount: '清洗或更换累计次数',
+    useNumberSinceReset: '清洗或更换后第几炉',
     selectTubeShapeFirst: '请先选择炉管截面形状。',
     selectSetupFirst: '请先选择实验装置。',
   },
@@ -109,8 +109,8 @@ export const common = {
     treatmentSteps: {
       addStep: '新增处理步骤',
       step: '处理步骤 {{position}}',
-      type: '处理方式',
-      selectType: '请选择处理方式',
+      type: '操作类型',
+      selectType: '请选择操作类型',
       moveUp: '上移处理步骤',
       moveDown: '下移处理步骤',
       removeStep: '删除处理步骤',
@@ -196,7 +196,7 @@ export const common = {
       otherGasName: '其他气体名称',
       lotReference: '气瓶物料批次',
       purity: '批次快照纯度',
-      measurementSource: '流量测量来源',
+      measurementSource: '流量测量方式',
       selectMeasurementSource: '请选择测量来源',
       measurementSourceOptions: {
         mfc: '质量流量控制器（MFC）',

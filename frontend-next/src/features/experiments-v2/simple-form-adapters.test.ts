@@ -158,7 +158,7 @@ describe('simple product form adapters', () => {
         validProcessSettings,
         1,
       ),
-    ).toContain('0 分钟')
+    ).toBe('请填写温区 1 的初始温度，并检查各温度步骤的持续时间和目标温度。')
   })
 
   it('requires physical cylinder references for gas exchange', () => {
@@ -237,7 +237,7 @@ describe('simple product form adapters', () => {
     }
     expect(
       simpleGrowthIssue(segments, [temperature], validProcessSettings, 1),
-    ).toContain('温度程序')
+    ).toBe('请填写温区 1 的初始温度，并检查各温度步骤的持续时间和目标温度。')
     expect(
       simpleGrowthIssue(
         segments,

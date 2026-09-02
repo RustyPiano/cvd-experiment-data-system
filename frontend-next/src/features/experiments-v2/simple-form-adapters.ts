@@ -356,7 +356,7 @@ export function simpleGrowthIssue(
         (point) => point.value === '' || !Number.isFinite(Number(point.value)),
       )
     ) {
-      return `温区 ${zone} 的温度程序必须从 0 分钟开始，并按时间递增。`
+      return `请填写温区 ${zone} 的初始温度，并检查各温度步骤的持续时间和目标温度。`
     }
   }
   const gasChannels = channels.filter((item) => item.channel_type === 'flow')
@@ -384,7 +384,7 @@ export function simpleGrowthIssue(
       channel.measurement_source === 'other' &&
       !channel.measurement_source_other?.trim()
     ) {
-      return '请说明其他流量测量来源。'
+      return '请说明其他流量测量方式。'
     }
     if (
       !channel.series?.length ||

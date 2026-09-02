@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "standard_id": "cvd-2d-process",
   "title": "CVD-2D 科学数据契约 / CVD-2D Scientific Data Contract",
-  "version": "v4.0-alpha.21",
+  "version": "v4.0-alpha.23",
   "status": "INTERNAL_VALIDATION",
   "schema_version": "cvd_v2",
   "module_payload_schema_version": "cvd_v2",
@@ -1665,7 +1665,7 @@
       ],
       "title": "EquipmentPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.21/equipment.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.23/equipment.schema.json"
     },
     "substrates": {
       "$defs": {
@@ -2256,7 +2256,7 @@
       },
       "title": "SubstratesPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.21/substrates.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.23/substrates.schema.json"
     },
     "basic_info": {
       "$defs": {
@@ -2430,7 +2430,7 @@
       ],
       "title": "ScientificBasicInfo",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.21/basic_info.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.23/basic_info.schema.json"
     },
     "target_product": {
       "$defs": {
@@ -2730,7 +2730,7 @@
       ],
       "title": "TargetSpecPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.21/target_product.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.23/target_product.schema.json"
     },
     "precursors": {
       "$defs": {
@@ -3581,7 +3581,7 @@
       ],
       "title": "SourceLoadsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.21/precursors.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.23/precursors.schema.json"
     },
     "process_steps": {
       "$defs": {
@@ -4363,7 +4363,7 @@
       ],
       "title": "ProcessTimelinePayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.21/process_steps.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.23/process_steps.schema.json"
     },
     "process_events": {
       "$defs": {
@@ -4572,7 +4572,7 @@
       },
       "title": "ScientificProcessEventsPayload",
       "type": "object",
-      "$id": "https://standard.cvd-2d.org/v4.0-alpha.21/process_events.schema.json"
+      "$id": "https://standard.cvd-2d.org/v4.0-alpha.23/process_events.schema.json"
     }
   },
   "entities": {

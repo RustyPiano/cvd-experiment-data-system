@@ -26,7 +26,7 @@ export function TargetBulkPhaseSelect({
   spaceGroupNumber: selectedSpaceGroup,
   onChange,
   disabled,
-  label = '目标体相/多型',
+  label = '目标晶体结构（选填）',
 }: {
   formula: string
   candidateFormulas?: string[]

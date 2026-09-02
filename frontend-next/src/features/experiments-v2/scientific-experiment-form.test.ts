@@ -178,6 +178,22 @@ describe('scientific experiment workflow helpers', () => {
     ).toBe(750)
   })
 
+  it('does not treat an empty temperature point as 0 °C', () => {
+    expect(
+      peakTemperatureC([
+        {
+          channel_key: 'channel_empty',
+          channel_type: 'temperature',
+          source_type: 'setpoint',
+          subject_ref: 'zone_1',
+          unit: '°C',
+          data_kind: 'interval_series',
+          series: [{ start_s: 0, value: '' }],
+        },
+      ]),
+    ).toBeNull()
+  })
+
   it('renders canonical single, doped, and alloy target summaries', () => {
     expect(
       targetSummary({
